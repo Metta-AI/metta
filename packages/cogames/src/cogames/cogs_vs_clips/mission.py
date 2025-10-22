@@ -35,10 +35,12 @@ class MissionVariant(Config):
         return mission
 
 
+
 class Site(Config):
     name: str
     description: str
     map_builder: MapBuilderConfig
+
     min_cogs: int = Field(default=1, ge=1)
     max_cogs: int = Field(default=1000, ge=1)
 

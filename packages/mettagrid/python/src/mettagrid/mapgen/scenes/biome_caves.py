@@ -1,10 +1,9 @@
 import numpy as np
 
-from mettagrid.config.config import Config
-from mettagrid.mapgen.scene import Scene
+from mettagrid.mapgen.scene import Scene, SceneConfig
 
 
-class BiomeCavesParams(Config):
+class BiomeCavesConfig(SceneConfig):
     fill_prob: float = 0.45  # initial rock density
     steps: int = 4  # cellular automata smoothing steps
     birth_limit: int = 5
@@ -14,7 +13,7 @@ class BiomeCavesParams(Config):
     dither_depth: int = 5  # How many cells deep to consider as edge zone
 
 
-class BiomeCaves(Scene[BiomeCavesParams]):
+class BiomeCaves(Scene[BiomeCavesConfig]):
     """
     Classic cellular-automata caves (rooms connected via erosion-like smoothing).
     Walls are rock; empty is cave passage.
@@ -23,7 +22,7 @@ class BiomeCaves(Scene[BiomeCavesParams]):
     def render(self):
         grid = self.grid
         H, W = self.height, self.width
-        p = self.params
+        p = self.config
 
         rock = (self.rng.random((H, W)) < p.fill_prob).astype(np.uint8)
 
@@ -56,7 +55,7 @@ class BiomeCaves(Scene[BiomeCavesParams]):
     def _dither_edges(self, grid, prob: float):
         """Add organic noise to edges between wall and empty cells."""
         H, W = grid.shape
-        depth = self.params.dither_depth
+        depth = self.config.dither_depth
 
         # Find edges: cells within 'depth' distance of opposite type
         for y in range(depth, H - depth):

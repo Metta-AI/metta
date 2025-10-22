@@ -1,13 +1,16 @@
 from typing import Literal, Sequence
 
-from mettagrid.config.config import Config
-from mettagrid.mapgen.scene import Scene
+from mettagrid.mapgen.scene import Scene, SceneConfig
 
 
-class BaseHubParams(Config):
+class BaseHubConfig(SceneConfig):
     assembler_object: str = "assembler"
     corner_generator: str = "generator_red"
     spawn_symbol: str = "agent.agent"
+    # If set, place at least this many spawn pads (best-effort) in the hub
+    spawn_count: int | None = None
+    hub_width: int = 21
+    hub_height: int = 21
     include_inner_wall: bool = True
     # Order: top-left, top-right, bottom-left, bottom-right.
     corner_objects: list[str] | None = None
@@ -15,7 +18,7 @@ class BaseHubParams(Config):
     charger_object: str = "charger"
 
 
-class BaseHub(Scene[BaseHubParams]):
+class BaseHub(Scene[BaseHubConfig]):
     """
     Build a symmetric 11x11 base:
     - Center cell: assembler with charger two cells above
@@ -25,40 +28,86 @@ class BaseHub(Scene[BaseHubParams]):
     """
 
     def render(self) -> None:
-        grid = self.grid
-        h, w = self.height, self.width
+        full_grid = self.grid
+        full_h, full_w = self.height, self.width
+        cfg = self.config
 
-        # Fill with empty to start
-        grid[:] = "empty"
+        # Compute centered hub region
+        hub_w = max(7, min(cfg.hub_width, full_w))
+        hub_h = max(7, min(cfg.hub_height, full_h))
+        x0 = (full_w - hub_w) // 2
+        y0 = (full_h - hub_h) // 2
+        x1 = x0 + hub_w
+        y1 = y0 + hub_h
 
+        grid = full_grid[y0:y1, x0:x1]
+        h, w = hub_h, hub_w
         cx, cy = w // 2, h // 2
 
-        # Optional inner wall ring around the border of the base area
-        if self.params.include_inner_wall and h >= 3 and w >= 3:
+        # Clear hub region
+        grid[:] = "empty"
+
+        # Optional inner wall around hub region
+        if cfg.include_inner_wall and h >= 3 and w >= 3:
             grid[0, :] = "wall"
             grid[-1, :] = "wall"
             grid[:, 0] = "wall"
             grid[:, -1] = "wall"
 
-            # Deterministic 3-wide gates at midpoints of each side
             gate_half = 1
-            # top gate centered at cx
+            # top/bottom gates
             grid[0, cx - gate_half : cx + gate_half + 1] = "empty"
             grid[1, cx - gate_half : cx + gate_half + 1] = "empty"
-            # bottom gate
             grid[h - 1, cx - gate_half : cx + gate_half + 1] = "empty"
             grid[h - 2, cx - gate_half : cx + gate_half + 1] = "empty"
-            # left gate
+            # left/right gates
             grid[cy - gate_half : cy + gate_half + 1, 0] = "empty"
             grid[cy - gate_half : cy + gate_half + 1, 1] = "empty"
-            # right gate
             grid[cy - gate_half : cy + gate_half + 1, w - 1] = "empty"
             grid[cy - gate_half : cy + gate_half + 1, w - 2] = "empty"
 
-        if self.params.layout == "tight" and min(h, w) >= 7:
-            self._render_tight_layout(cx, cy)
-        else:
-            self._render_default_layout(cx, cy)
+        # Carve layout
+        corridor_width = 3
+        half = corridor_width // 2
+        xL = max(1, cx - half)
+        xR = min(w - 1, cx + half + 1)
+        yT = max(1, cy - half)
+        yB = min(h - 1, cy + half + 1)
+        grid[1 : h - 1, xL:xR] = "empty"
+        grid[yT:yB, 1 : w - 1] = "empty"
+
+        # Place central altar, charger, chest
+        if 1 <= cx < w - 1 and 1 <= cy < h - 1:
+            grid[cy, cx] = cfg.assembler_object
+            if 1 <= cy - 3 < h - 1:
+                grid[cy - 3, cx] = cfg.charger_object
+            if 1 <= cy + 3 < h - 1:
+                grid[cy + 3, cx] = "chest"
+
+        # Dynamic spawns
+        desired_spawns = max(0, int(cfg.spawn_count)) if cfg.spawn_count is not None else 4
+        positions: list[tuple[int, int]] = [(cx, cy - 2), (cx + 2, cy), (cx, cy + 2), (cx - 2, cy)]
+        radius = 3
+        while len(positions) < desired_spawns and radius < max(h, w):
+            ring = [
+                (cx + radius, cy),
+                (cx - radius, cy),
+                (cx, cy + radius),
+                (cx, cy - radius),
+                (cx + radius, cy + radius),
+                (cx + radius, cy - radius),
+                (cx - radius, cy + radius),
+                (cx - radius, cy - radius),
+            ]
+            for p in ring:
+                if len(positions) >= desired_spawns:
+                    break
+                positions.append(p)
+            radius += 1
+
+        for x, y in positions[:desired_spawns]:
+            if 1 <= x < w - 1 and 1 <= y < h - 1 and grid[y, x] == "empty":
+                grid[y, x] = cfg.spawn_symbol
 
     def _place_spawn_pads(self, positions: Sequence[tuple[int, int]]) -> None:
         grid = self.grid
@@ -66,16 +115,18 @@ class BaseHub(Scene[BaseHubParams]):
 
         for x, y in positions:
             if 1 <= x < w - 1 and 1 <= y < h - 1 and grid[y, x] == "empty":
-                grid[y, x] = self.params.spawn_symbol
+                grid[y, x] = self.config.spawn_symbol
 
     def _resolve_corner_names(self) -> list[str]:
-        if self.params.corner_objects and len(self.params.corner_objects) == 4:
-            return list(self.params.corner_objects)
-        return [self.params.corner_generator] * 4
+        cfg = self.config
+        if cfg.corner_objects and len(cfg.corner_objects) == 4:
+            return list(cfg.corner_objects)
+        return [cfg.corner_generator] * 4
 
     def _render_default_layout(self, cx: int, cy: int) -> None:
         grid = self.grid
         h, w = self.height, self.width
+        cfg = self.config
 
         corridor_width = 3
         half = corridor_width // 2
@@ -91,25 +142,46 @@ class BaseHub(Scene[BaseHubParams]):
 
         # Place central altar, charger, and chest after carving so they persist
         if 1 <= cx < w - 1 and 1 <= cy < h - 1:
-            grid[cy, cx] = self.params.assembler_object
+            grid[cy, cx] = cfg.assembler_object
 
             charger_y = cy - 3
             if 1 <= charger_y < h - 1:
-                grid[charger_y, cx] = self.params.charger_object
+                grid[charger_y, cx] = cfg.charger_object
 
             chest_y = cy + 3
             if 1 <= chest_y < h - 1:
                 grid[chest_y, cx] = "chest"
 
-        # Spawn pads in plus-shape around center with clearance
-        self._place_spawn_pads(
-            [
-                (cx, cy - 2),
-                (cx + 2, cy),
-                (cx, cy + 2),
-                (cx - 2, cy),
+        # Spawn pads: ensure at least spawn_count if provided, otherwise place 4
+        desired = max(0, int(cfg.spawn_count)) if cfg.spawn_count is not None else 4
+        base_positions = [(cx, cy - 2), (cx + 2, cy), (cx, cy + 2), (cx - 2, cy)]
+        positions: list[tuple[int, int]] = []
+        for p in base_positions:
+            if len(positions) >= desired:
+                break
+            positions.append(p)
+
+        # If more spawns are needed, add rings around center
+        radius = 3
+        while len(positions) < desired and radius < max(h, w):
+            # cardinal and diagonal positions for this radius
+            candidates = [
+                (cx + radius, cy),
+                (cx - radius, cy),
+                (cx, cy + radius),
+                (cx, cy - radius),
+                (cx + radius, cy + radius),
+                (cx + radius, cy - radius),
+                (cx - radius, cy + radius),
+                (cx - radius, cy - radius),
             ]
-        )
+            for p in candidates:
+                if len(positions) >= desired:
+                    break
+                positions.append(p)
+            radius += 1
+
+        self._place_spawn_pads(positions[:desired])
 
         # Place corner objects symmetrically
         corner_positions = [
@@ -126,6 +198,7 @@ class BaseHub(Scene[BaseHubParams]):
     def _render_tight_layout(self, cx: int, cy: int) -> None:
         grid = self.grid
         h, w = self.height, self.width
+        cfg = self.config
 
         # Carve L exits first to keep ingress paths consistent with default layout
         self._carve_L(1, 1, orientation="right-down")
@@ -151,11 +224,11 @@ class BaseHub(Scene[BaseHubParams]):
             building_positions.append((x, y))
 
         if 1 <= cx < w - 1 and 1 <= cy < h - 1:
-            place_building(cx, cy, self.params.assembler_object)
+            place_building(cx, cy, cfg.assembler_object)
 
         charger_y = cy - 2
         if 1 <= cx < w - 1 and 1 <= charger_y < h - 1:
-            place_building(cx, charger_y, self.params.charger_object)
+            place_building(cx, charger_y, cfg.charger_object)
 
         chest_y = cy + 2
         if 1 <= cx < w - 1 and 1 <= chest_y < h - 1:
@@ -176,17 +249,37 @@ class BaseHub(Scene[BaseHubParams]):
         perimeter_radius = core_radius + 1
         self._build_tight_perimeter(cx, cy, perimeter_radius, gate_half=1)
 
+        # Spawn pads: ensure at least spawn_count if provided, otherwise place 4 near the perimeter
+        desired = max(0, int(cfg.spawn_count)) if cfg.spawn_count is not None else 4
         spawn_distance = perimeter_radius + 1
-        spawn_candidates = [
+        positions: list[tuple[int, int]] = [
             (cx, cy - spawn_distance),
             (cx + spawn_distance, cy),
             (cx, cy + spawn_distance),
             (cx - spawn_distance, cy),
         ]
+        # If more spawns needed, distribute more around the perimeter ring
+        step = max(1, (2 * perimeter_radius + 1) // 4)
+        if len(positions) < desired:
+            for dx in range(-perimeter_radius, perimeter_radius + 1, step):
+                if len(positions) >= desired:
+                    break
+                positions.append((cx + dx, cy - spawn_distance))
+                if len(positions) >= desired:
+                    break
+                positions.append((cx + dx, cy + spawn_distance))
+            for dy in range(-perimeter_radius, perimeter_radius + 1, step):
+                if len(positions) >= desired:
+                    break
+                positions.append((cx - spawn_distance, cy + dy))
+                if len(positions) >= desired:
+                    break
+                positions.append((cx + spawn_distance, cy + dy))
 
-        self._place_spawn_pads(
-            [(sx, sy) for sx, sy in spawn_candidates if 0 <= sx < w and 0 <= sy < h and grid[sy, sx] == "empty"]
-        )
+        valid_positions = [
+            (sx, sy) for sx, sy in positions[:desired] if 0 <= sx < w and 0 <= sy < h and grid[sy, sx] == "empty"
+        ]
+        self._place_spawn_pads(valid_positions)
 
     def _ensure_clearance(self, positions: Sequence[tuple[int, int]]) -> None:
         grid = self.grid
