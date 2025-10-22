@@ -55,7 +55,7 @@ proc useSelections*(panel: Panel) =
         var destType = Move
         var approachDir = ivec2(0, 0)
         if targetObj != nil:
-          let typeName = replay.typeNames[targetObj.typeId]
+          let typeName = targetObj.typeName
           if typeName != "agent" and typeName != "wall":
             destType = Bump
             # Calculate which quadrant of the tile was clicked.
@@ -137,9 +137,8 @@ type WallTile = enum
 proc drawWalls*() =
   ## Draw the walls on the map.
   var grid = newSeq2D[bool](replay.mapSize[0], replay.mapSize[1])
-  let wallTypeId = replay.typeNames.find("wall")
   for obj in replay.objects:
-    if obj.typeId == wallTypeId:
+    if obj.typeName == "wall":
       let pos = obj.location.at
       grid[pos.x][pos.y] = true
 
@@ -179,7 +178,7 @@ proc drawWalls*() =
 proc drawObjects*() =
   ## Draw the objects on the map.
   for thing in replay.objects:
-    let typeName = replay.typeNames[thing.typeId]
+    let typeName = thing.typeName
     let pos = thing.location.at().xy
     case typeName
     of "wall":
@@ -203,7 +202,7 @@ proc drawObjects*() =
       )
     else:
       bxy.drawImage(
-        replay.typeImages[thing.typeId],
+        replay.typeImages.getOrDefault(thing.typeName, "objects/unknown"),
         pos.vec2,
         angle = 0,
         scale = TS
@@ -212,11 +211,11 @@ proc drawObjects*() =
 proc drawVisualRanges*(alpha = 0.2) =
   ## Draw the visual ranges of the selected agent.
   var visibility = newSeq2D[bool](replay.mapSize[0], replay.mapSize[1])
-  let agentTypeId = replay.typeNames.find("agent")
+  let agentTypeName = "agent"
   for obj in replay.objects:
-    if obj.typeId == agentTypeId:
+    if obj.typeName == agentTypeName:
       if selection != nil and
-        selection.typeId == agentTypeId and
+        selection.typeName == agentTypeName and
         selection.agentId != obj.agentId:
         continue
       let agent = obj
@@ -264,7 +263,7 @@ proc drawTrajectory*() =
             tint = color(0, 0, 0, a)
             image = ""
 
-          let isAgent = replay.typeNames[selection.typeId] == "agent"
+          let isAgent = selection.typeName == "agent"
           if step >= i:
             # Past trajectory is black.
             tint = color(0, 0, 0, a)
@@ -618,8 +617,8 @@ proc drawThoughtBubbles*() =
       )
 
 proc drawWorldMini*() =
-  let wallTypeId = replay.typeNames.find("wall")
-  let agentTypeId = replay.typeNames.find("agent")
+  const wallTypeName = "wall"
+  const agentTypeName = "agent"
 
   # Floor
   bxy.drawRect(rect(0, 0, replay.mapSize[0].float32 - 0.5,
@@ -628,10 +627,10 @@ proc drawWorldMini*() =
 
   # Walls
   for obj in replay.objects:
-    if obj.typeId == agentTypeId:
+    if obj.typeName == agentTypeName:
       continue
     let color =
-      if obj.typeId == wallTypeId:
+      if obj.typeName == wallTypeName:
         color(0.380, 0.341, 0.294, 1)
       else:
         color(1, 1, 1, 1)
@@ -645,7 +644,7 @@ proc drawWorldMini*() =
   bxy.scale(vec2(scale, scale))
 
   for obj in replay.objects:
-    if obj.typeId != agentTypeId:
+    if obj.typeName != agentTypeName:
       continue
 
     let loc = obj.location.at(step).xy
