@@ -13,7 +13,7 @@ name = "pufferlib-core"
 description = "PufferLib core functionality with vectorized environments and reinforcement learning"
 readme = "README.md"
 requires-python = ">=3.8"
-license = "MIT"
+license = { text = "MIT" }
 authors = [{ name = "Joseph Suarez", email = "jsuarez@openai.com" }]
 keywords = ["reinforcement-learning", "machine-learning", "multi-agent", "vectorized-environments"]
 classifiers = [
