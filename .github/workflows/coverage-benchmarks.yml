@@ -43,7 +43,7 @@ jobs:
         shell: bash
         env:
           RUN_APP_BACKEND_TESTS: false
-        run: .github/scripts/run_package_tests.sh
+        run: uv run metta test --preset ci
 
       - name: Upload python test coverage to Codecov
         env:
@@ -86,9 +86,7 @@ jobs:
             bazel-${{ runner.os }}-
 
       - name: Build MettaGrid C++ (with coverage)
-        run: |
-          cd packages/mettagrid
-          make coverage VERBOSE=1
+        run: uv run metta grid coverage --verbose
 
       - name: Upload MettaGrid C++ coverage to Codecov
         uses: codecov/codecov-action@v4
@@ -166,9 +164,7 @@ jobs:
             bazel-${{ runner.os }}-
 
       - name: Build C++ benchmarks
-        run: |
-          cd packages/mettagrid
-          make benchmark VERBOSE=1
+        run: uv run metta grid benchmark --verbose
 
       - name: Collect benchmarks
         working-directory: ./packages/mettagrid

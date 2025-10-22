@@ -1,4 +1,5 @@
 #!/usr/bin/env -S uv run
+import os
 import re
 import shutil
 import subprocess
@@ -16,6 +17,7 @@ from metta.common.util.fs import get_repo_root
 from metta.setup.components.base import SetupModuleStatus
 from metta.setup.local_commands import app as local_app
 from metta.setup.symlink_setup import app as symlink_app
+from metta.setup.test_matrix import available_presets, run_preset
 from metta.setup.tools.book import app as book_app
 from metta.setup.utils import debug, error, info, success, warning
 from metta.utils.live_run_monitor import app as run_monitor_app
@@ -23,18 +25,6 @@ from softmax.dashboard.report import app as softmax_system_health_app
 
 if TYPE_CHECKING:
     from metta.setup.registry import SetupModule
-
-PYTHON_TEST_FOLDERS = [
-    "tests",
-    "mettascope/tests",
-    "agent/tests",
-    "app_backend/tests",
-    "common/tests",
-    "packages/codebot/tests",
-    "packages/cogames/tests",
-    "packages/gitta/tests",
-    "packages/mettagrid/tests",
-]
 
 VERSION_PATTERN = re.compile(r"^(\d+\.\d+\.\d+(?:\.\d+)?)$")
 DEFAULT_INITIAL_VERSION = "0.0.0.1"
@@ -680,91 +670,147 @@ def cmd_lint(
             success("C++ linting passed!")
 
 
-@app.command(name="ci", help="Run all Python unit tests and all Mettagrid C++ tests")
-def cmd_ci():
-    info("Running Python tests...")
-    python_test_cmd = [
-        "uv",
-        "run",
-        "pytest",
-        *PYTHON_TEST_FOLDERS,
-        "--benchmark-disable",
-        "-n",
-        "auto",
-    ]
+def _run_mettagrid_target(target: str, *, verbose: bool = False) -> int:
+    mettagrid_dir = cli.repo_root / "packages" / "mettagrid"
+    env = os.environ.copy()
+    if verbose and "VERBOSE" not in env:
+        env["VERBOSE"] = "1"
+    cmd = ["make", target]
+    return subprocess.run(cmd, cwd=mettagrid_dir, env=env, check=False).returncode
 
-    try:
-        subprocess.run(python_test_cmd, cwd=cli.repo_root, check=True)
-        success("Python tests passed!")
-    except subprocess.CalledProcessError as e:
+
+grid_app = typer.Typer(help="MettaGrid build and test helpers")
+app.add_typer(grid_app, name="grid")
+
+
+@grid_app.command("test", help="Run MettaGrid C++ unit tests")
+def grid_test(
+    verbose: Annotated[bool, typer.Option("--verbose", "-v", help="Show verbose build output.")] = False,
+) -> None:
+    info("Running MettaGrid C++ unit tests...")
+    exit_code = _run_mettagrid_target("test", verbose=verbose)
+    if exit_code != 0:
+        error("MettaGrid C++ unit tests failed!")
+        raise typer.Exit(exit_code)
+    success("MettaGrid C++ unit tests passed!")
+
+
+@grid_app.command("coverage", help="Run MettaGrid C++ tests with coverage enabled")
+def grid_coverage(
+    verbose: Annotated[bool, typer.Option("--verbose", "-v", help="Show verbose build output.")] = False,
+) -> None:
+    info("Running MettaGrid C++ coverage target...")
+    exit_code = _run_mettagrid_target("coverage", verbose=verbose)
+    if exit_code != 0:
+        error("MettaGrid C++ coverage run failed!")
+        raise typer.Exit(exit_code)
+    success("MettaGrid C++ coverage run completed!")
+
+
+@grid_app.command("benchmark", help="Build and run MettaGrid benchmarks")
+def grid_benchmark(
+    verbose: Annotated[bool, typer.Option("--verbose", "-v", help="Show verbose build output.")] = False,
+) -> None:
+    info("Running MettaGrid benchmarks...")
+    exit_code = _run_mettagrid_target("benchmark", verbose=verbose)
+    if exit_code != 0:
+        error("MettaGrid benchmarks failed!")
+        raise typer.Exit(exit_code)
+    success("MettaGrid benchmarks completed!")
+
+
+@app.command(name="ci", help="Run all Python unit tests and all MettaGrid C++ tests")
+def cmd_ci(
+    skip_app_backend: Annotated[
+        bool,
+        typer.Option(
+            "--skip-app-backend",
+            help="Skip the app_backend test suite regardless of environment settings.",
+        ),
+    ] = False,
+) -> None:
+    info("Running Python tests...")
+    exit_code = run_preset(
+        "ci",
+        extra_pytest_args=(),
+        coverage_dir=cli.repo_root / "coverage-reports",
+        skip_app_backend=True if skip_app_backend else None,
+    )
+    if exit_code != 0:
         error("Python tests failed!")
-        raise typer.Exit(e.returncode) from e
+        raise typer.Exit(exit_code)
+    success("Python tests passed!")
 
     info("\nBuilding and running C++ tests...")
-    mettagrid_dir = cli.repo_root / "packages" / "mettagrid"
-
-    try:
-        subprocess.run(["make", "test"], cwd=mettagrid_dir, check=True)
-        success("C++ tests passed!")
-        # Note: Benchmarks are not run in CI as they're for performance testing, not correctness
-        # To run benchmarks manually, use: cd packages/mettagrid && make benchmark
-    except subprocess.CalledProcessError as e:
+    exit_code = _run_mettagrid_target("test", verbose=False)
+    if exit_code != 0:
         error("C++ tests failed!")
-        raise typer.Exit(e.returncode) from e
-
+        raise typer.Exit(exit_code)
+    success("C++ tests passed!")
     success("\nAll CI tests passed!")
 
 
 @app.command(name="benchmark", help="Run C++ and Python benchmarks for mettagrid")
 def cmd_benchmark(
-    verbose: bool = typer.Option(
-        False,
-        "--verbose",
-        "-v",
-        help="Verbose test output. Includes e.g. Python print statements within tests.",
-    ),
-):
-    """Run performance benchmarks for the mettagrid package."""
-    mettagrid_dir = cli.repo_root / "packages" / "mettagrid"
-
+    verbose: Annotated[
+        bool,
+        typer.Option(
+            "--verbose",
+            "-v",
+            help="Verbose test output. Includes e.g. Python print statements within tests.",
+        ),
+    ] = False,
+) -> None:
     info("Running mettagrid benchmarks...")
     info("Note: This may fail if Python environment is not properly configured.")
     info("If it fails, try running directly: cd packages/mettagrid && make benchmark")
 
-    make_cmd = ["make", "benchmark"]
-    if verbose:
-        make_cmd.append("VERBOSE=1")
-
-    try:
-        subprocess.run(make_cmd, cwd=mettagrid_dir, check=True)
-        success("Benchmarks completed!")
-    except subprocess.CalledProcessError as e:
+    exit_code = _run_mettagrid_target("benchmark", verbose=verbose)
+    if exit_code != 0:
         error("Benchmark execution failed!")
         info("\nTroubleshooting:")
         info("1. Try building first: cd packages/mettagrid && make build-prod")
         info("2. Run benchmark binary directly: ./build-release/test_mettagrid_env_benchmark")
         info("3. Run Python benchmarks: uv run pytest benchmarks/test_mettagrid_env_benchmark.py -v --benchmark-only")
-        raise typer.Exit(e.returncode) from e
+        raise typer.Exit(exit_code)
+    success("Benchmarks completed!")
 
 
 @app.command(name="test", help="Run all Python unit tests", context_settings={"allow_extra_args": True})
-def cmd_test(ctx: typer.Context):
-    cmd = [
-        "uv",
-        "run",
-        "pytest",
-        *PYTHON_TEST_FOLDERS,
-        "--benchmark-disable",
-        "-n",
-        "auto",
-    ]
-    if ctx.args:
-        cmd.extend(ctx.args)
+def cmd_test(
+    ctx: typer.Context,
+    preset: Annotated[str, typer.Option("--preset", "-p", help="Test preset to run.")] = "default",
+    skip_app_backend: Annotated[
+        bool,
+        typer.Option(
+            "--skip-app-backend",
+            help="Skip the app_backend suite (ci preset only).",
+        ),
+    ] = False,
+    coverage_dir: Annotated[
+        Path,
+        typer.Option("--coverage-dir", help="Directory for coverage XML output (ci preset)."),
+    ] = Path("coverage-reports"),
+) -> None:
+    preset_normalized = preset.lower()
+    if preset_normalized not in available_presets():
+        error(f"Unknown preset '{preset}'. Available presets: {', '.join(available_presets())}")
+        raise typer.Exit(1)
+
+    extra_args = list(ctx.args or [])
     try:
-        info(f"Running: {' '.join(cmd)}")
-        subprocess.run(cmd, cwd=cli.repo_root, check=True)
-    except subprocess.CalledProcessError as e:
-        raise typer.Exit(e.returncode) from e
+        exit_code = run_preset(
+            preset_normalized,
+            extra_pytest_args=extra_args,
+            coverage_dir=coverage_dir,
+            skip_app_backend=True if skip_app_backend else None,
+        )
+    except ValueError as exc:
+        error(str(exc))
+        raise typer.Exit(1) from exc
+
+    if exit_code != 0:
+        raise typer.Exit(exit_code)
 
 
 @app.command(

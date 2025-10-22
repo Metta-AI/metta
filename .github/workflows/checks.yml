@@ -257,7 +257,7 @@ jobs:
         shell: bash
         env:
           RUN_APP_BACKEND_TESTS: ${{ needs.setup-checks.outputs.app_backend_has_changes == 'true' && 'true' || 'false' }}
-        run: .github/scripts/run_package_tests.sh
+        run: uv run metta test --preset ci
 
   mettagrid-cpp:
     name: "MettaGrid C++ Build & Test"
@@ -311,15 +311,11 @@ jobs:
 
       - name: MettaGrid C++ tests
         id: mettagrid-cpp-tests
-        run: |
-          cd packages/mettagrid
-          make coverage VERBOSE=1
+        run: uv run metta grid coverage --verbose
 
       - name: MettaGrid C++ benchmarks
         id: mettagrid-cpp-benchmarks
-        run: |
-          cd packages/mettagrid
-          make benchmark VERBOSE=1
+        run: uv run metta grid benchmark --verbose
 
   unit-tests-summary:
     name: "Tests"

@@ -27,7 +27,7 @@ uv run metta lint --fix
 # Run tests for Metta
 uv run metta test
 # Run tests for MettaGrid
-uv run metta test packages/mettagrid/tests
+uv run metta grid test
 
 # Submit the PR
 gt submit

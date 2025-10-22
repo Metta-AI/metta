@@ -23,28 +23,11 @@ install:
 
 # Run tests with coverage and benchmarks
 test: install
-	uv run pytest \
-		tests \
-		mettascope/tests \
-		agent/tests \
-		app_backend/tests \
-		common/tests \
-		packages/mettagrid/tests \
-		--cov=metta \
-		--cov-report=term-missing \
-		--durations=10 \
-		-n 0
+	METTA_TEST_WORKERS=0 uv run python -m metta.setup.test_matrix --preset default --cov=metta --cov-report=term-missing --durations=10
 
 # Quick test run without coverage
 pytest: install
-	uv run pytest \
-		tests \
-		mettascope/tests \
-		agent/tests \
-		app_backend/tests \
-		common/tests \
-		packages/mettagrid/tests \
-		--benchmark-disable -n auto
+	uv run python -m metta.setup.test_matrix --preset default
 
 # Run linting checks only (no modifications)
 lint: install
