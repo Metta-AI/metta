@@ -21,16 +21,16 @@ For users:
 
 This avoids double-wrapping while maintaining full PufferLib compatibility.
 """
+# xcxc update docs
 
 from __future__ import annotations
 
 from typing import Any, Dict, Optional, Tuple
 
 import numpy as np
+from gymnasium.spaces import Box, Discrete
 from typing_extensions import override
 
-from mettagrid.config.mettagrid_config import MettaGridConfig
-from mettagrid.core import MettaGridCore
 from mettagrid.mettagrid_c import (
     dtype_actions,
     dtype_observations,
@@ -38,7 +38,8 @@ from mettagrid.mettagrid_c import (
     dtype_terminals,
     dtype_truncations,
 )
-from pufferlib import PufferEnv
+from mettagrid.simulator import Simulator
+from pufferlib.pufferlib import PufferEnv
 
 # Type compatibility assertions - ensure C++ types match PufferLib expectations
 # PufferLib expects particular datatypes - see pufferlib/vector.py
@@ -49,64 +50,23 @@ assert dtype_rewards == np.dtype(np.float32)
 assert dtype_actions == np.dtype(np.int32)
 
 
-class MettaGridPufferBase(MettaGridCore, PufferEnv):
+class MettaGridPufferEnv(PufferEnv):
     """
-    Base class for PufferLib integration with MettaGrid.
+    Wraps the Simulator class to provide PufferLib compatibility.
 
-    This class handles the common PufferLib integration logic that is shared
-    between user adapters and training environments. It combines MettaGridCore
-    with PufferEnv to provide PufferLib compatibility.
-
-    Inherits from:
-    - MettaGridCore: Core C++ environment wrapper functionality
-    - pufferlib.PufferEnv: High-performance vectorized environment interface
+    Inherits from pufferlib.PufferEnv: High-performance vectorized environment interface
       https://github.com/PufferAI/PufferLib/blob/main/pufferlib/environments.py
     """
 
-    def __init__(
-        self,
-        mg_config: MettaGridConfig,
-        buf: Optional[Any] = None,
-    ):
-        """
-        Initialize PufferLib base environment.
-
-        Args:
-            mg_config: Environment configuration
-            buf: PufferLib buffer object
-        """
-        # Initialize core environment. Do this first to set up observation space for PufferEnv.
-        MettaGridCore.__init__(
-            self,
-            mg_config=mg_config,
-        )
-
-        # Initialize PufferEnv with buffers
-        PufferEnv.__init__(self, buf=buf)
+    def __init__(self, simulator: Simulator, buf: Any = None):  # xcxc
+        self._simulator = simulator
+        super().__init__(buf=buf)
+        self.emulated: bool = False
 
         # Auto-Reset
         self._should_reset = False
-
-        self.observations: np.ndarray
-        self.terminals: np.ndarray
-        self.truncations: np.ndarray
-        self.rewards: np.ndarray
-
-    # PufferLib required properties
-    @property
-    def single_observation_space(self):
-        """Single agent observation space for PufferLib."""
-        return self._observation_space
-
-    @property
-    def single_action_space(self):
-        """Single agent action space for PufferLib."""
-        return self._action_space
-
-    @property
-    def emulated(self) -> bool:
-        """Native envs do not use emulation (PufferLib compatibility)."""
-        return False
+        self.single_observation_space: Box = self._simulator._observation_space
+        self.single_action_space: Discrete = self._simulator._action_space
 
     def _get_initial_observations(self) -> np.ndarray:
         observations, _ = super().reset()
@@ -130,9 +90,50 @@ class MettaGridPufferBase(MettaGridCore, PufferEnv):
 
         return observations, rewards, terminals, truncations, infos
 
-    # PufferLib required properties
     @property
-    @override
-    def done(self) -> bool:
-        """Check if environment is done."""
-        return self._should_reset
+    def observations(self) -> np.ndarray:
+        return self.observations
+
+    @observations.setter
+    def observations(self, observations: np.ndarray) -> None:
+        self._simulator._buffers.observations = observations
+
+    @property
+    def rewards(self) -> np.ndarray:
+        return self.rewards
+
+    @rewards.setter
+    def rewards(self, rewards: np.ndarray) -> None:
+        self._simulator._buffers.rewards = rewards
+
+    @property
+    def terminals(self) -> np.ndarray:
+        return self.terminals
+
+    @terminals.setter
+    def terminals(self, terminals: np.ndarray) -> None:
+        self._simulator._buffers.terminals = terminals
+
+    @property
+    def truncations(self) -> np.ndarray:
+        return self.truncations
+
+    @truncations.setter
+    def truncations(self, truncations: np.ndarray) -> None:
+        self._simulator._buffers.truncations = truncations
+
+    @property
+    def masks(self) -> np.ndarray:
+        return self.masks
+
+    @masks.setter
+    def masks(self, masks: np.ndarray) -> None:
+        self._simulator._buffers.masks = masks
+
+    @property
+    def actions(self) -> np.ndarray:
+        return self.actions
+
+    @actions.setter
+    def actions(self, actions: np.ndarray) -> None:
+        self._simulator._buffers.actions = actions

@@ -163,7 +163,7 @@ def play_cmd(
         policy_spec=policy_spec,
         max_steps=steps,
         seed=42,
-        render=render,
+        render_mode=render,
         game_name=resolved_mission,
     )
 

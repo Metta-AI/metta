@@ -1,23 +1,28 @@
 """Base renderer classes for game rendering."""
 
-from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, Any, Dict
+from abc import abstractmethod
+from typing import Any, Dict, Literal
 
 import numpy as np
+from typing_extensions import override
 
-if TYPE_CHECKING:
-    from mettagrid import MettaGridEnv
+from mettagrid.simulator import Simulator, SimulatorEventHandler
+
+RenderMode = Literal["gui", "unicode", "none"]
 
 
-class Renderer(ABC):
+class Renderer(SimulatorEventHandler):
     """Abstract base class for game renderers."""
 
-    @abstractmethod
-    def on_episode_start(self, env: "MettaGridEnv") -> None:
+    def __init__(self, simulator: Simulator):
+        super().__init__(simulator)
+
+    @override
+    def on_episode_start(self) -> None:
         """Initialize the renderer for a new episode."""
         pass
 
-    @abstractmethod
+    @override
     def render(self) -> None:
         """Render the current state. Override this for interactive renderers that need to handle input."""
         pass
@@ -60,9 +65,10 @@ class Renderer(ABC):
 class NoRenderer(Renderer):
     """Renderer for headless mode (no rendering)."""
 
-    def on_episode_start(self, env: "MettaGridEnv") -> None:
+    def on_episode_start(self) -> None:
         pass
 
+    @override
     def render(self) -> None:
         pass
 
@@ -81,3 +87,21 @@ class NoRenderer(Renderer):
 
     def on_episode_end(self, infos: Dict[str, Any]) -> None:
         return None
+
+
+def create_renderer(simulator: Simulator, render_mode: RenderMode) -> Renderer:
+    """Create the appropriate renderer based on render_mode."""
+    if render_mode in ("unicode"):
+        # Text-based interactive rendering
+        from mettagrid.renderer.miniscope import MiniscopeRenderer
+
+        return MiniscopeRenderer(simulator)
+    elif render_mode in ("gui"):
+        # GUI-based interactive rendering
+        from mettagrid.renderer.mettascope import MettascopeRenderer
+
+        return MettascopeRenderer(simulator)
+    elif render_mode in ("none"):
+        # No rendering
+        return NoRenderer(simulator)
+    raise ValueError(f"Invalid render_mode: {render_mode}")

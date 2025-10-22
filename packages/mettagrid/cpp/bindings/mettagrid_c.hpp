@@ -65,7 +65,7 @@ public:
   std::vector<std::string> object_type_names;
 
   // Python API methods
-  py::tuple reset();
+  py::array_t<ObservationType> start_episode();
   // In general, these types need to match what puffer wants to use.
   py::tuple step(py::array_t<ActionType, py::array::c_style> actions);
   void set_buffers(const py::array_t<ObservationType, py::array::c_style>& observations,
@@ -88,8 +88,7 @@ public:
   py::none set_inventory(GridObjectId agent_id, const std::unordered_map<InventoryItem, InventoryQuantity>& inventory);
   py::array_t<float> get_episode_rewards();
   py::dict get_episode_stats();
-  py::object action_space();
-  py::object observation_space();
+  size_t num_actions() const;
   py::list action_success_py();
   py::list max_action_args();
   py::list action_catalog();

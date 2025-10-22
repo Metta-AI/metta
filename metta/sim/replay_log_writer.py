@@ -11,17 +11,17 @@ from typing import TYPE_CHECKING, Any, Dict
 import numpy as np
 
 from metta.utils.file import http_url, write_data
-from mettagrid.renderer.renderer import Renderer
+from mettagrid.simulator import SimulatorEventHandler
 from mettagrid.util.action_catalog import build_action_mapping, make_decode_fn
 from mettagrid.util.grid_object_formatter import format_grid_object
 
 if TYPE_CHECKING:
     from mettagrid import MettaGridEnv
 
-logger = logging.getLogger("ReplayLogRenderer")
+logger = logging.getLogger("ReplayLogWriter")
 
 
-class ReplayLogRenderer(Renderer):
+class ReplayLogWriter(SimulatorEventHandler):
     """Renderer that writes replay logs to storage (S3 or local files)."""
 
     def __init__(self, replay_dir: str):
@@ -38,7 +38,7 @@ class ReplayLogRenderer(Renderer):
         self._should_continue = True
         self.episodes: Dict[str, EpisodeReplay] = {}
 
-    def on_episode_start(self, env: MettaGridEnv) -> None:
+    def on_episode_start(self) -> None:
         """Start recording a new episode."""
         self._episode_id = str(uuid.uuid4())
         self._episode_replay = EpisodeReplay(env)

@@ -7,15 +7,15 @@ from typing import Any, Dict, Optional
 
 import numpy as np
 
-from mettagrid import MettaGridEnv
 from mettagrid.renderer.renderer import Renderer
+from mettagrid.simulator import Simulator
 from mettagrid.util.grid_object_formatter import format_grid_object
 
 
 class MettascopeRenderer(Renderer):
     """Renderer for GUI mode using mettascope."""
 
-    def __init__(self):
+    def __init__(self, simulator: Simulator):
         nim_root, _nim_search_paths = _resolve_nim_root()
         nim_bindings_path = nim_root / "bindings" / "generated" if nim_root else None
         sys.path.insert(0, str(nim_bindings_path))
@@ -23,14 +23,14 @@ class MettascopeRenderer(Renderer):
 
         self._mettascope = mettascope2
         self._should_continue = True
-        self._env = None
+        self._simulator = simulator
         # Store the data directory for mettascope
         self._data_dir = str(nim_root / "data") if nim_root else "."
         # Store user actions persistently
         self._user_actions = {}  # Dict mapping agent_id -> (action_id, action_param)
         self._current_step = 0
 
-    def on_episode_start(self, env: "MettaGridEnv") -> None:
+    def on_episode_start(self) -> None:
         initial_replay = {
             "version": 2,
             "action_names": env.action_names,

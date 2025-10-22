@@ -13,8 +13,8 @@ import numpy as np
 from rich.console import Console
 
 from cogames.cogs_vs_clips.vibes import VIBES as GLYPH_DATA
-from mettagrid import MettaGridEnv
 from mettagrid.renderer.renderer import Renderer
+from mettagrid.simulator import Simulator
 
 from .components import (
     AgentControlComponent,
@@ -35,14 +35,14 @@ from .symbol import DEFAULT_SYMBOL_MAP
 class MiniscopeRenderer(Renderer):
     """Emoji-based renderer for MettaGridEnv using component architecture."""
 
-    def __init__(self, interactive: bool = True):
+    def __init__(self, simulator: Simulator, interactive: bool = True):
         """Initialize the renderer.
 
         Args:
             interactive: Ignored, always runs in interactive mode
         """
         # Environment reference
-        self._env: Optional[MettaGridEnv] = None
+        self._simulator = simulator
 
         # Renderer state
         self._state = MiniscopeState()
@@ -80,20 +80,24 @@ class MiniscopeRenderer(Renderer):
         # Sidebar hotkey mapping
         self._sidebar_hotkeys: dict[str, str] = {}
 
-    def on_episode_start(self, env: MettaGridEnv) -> None:
+    def on_episode_start(self) -> None:
         """Initialize the renderer for a new episode."""
-        self._env = env
-
+        num_agents = self._simulator.num_agents
+        
+        # Get map dimensions from the simulator's config
+        game_config = self._simulator.config.game
+        
         # Reset state for new episode
-        self._state.reset_for_episode(num_agents=env.num_agents, map_height=env.map_height, map_width=env.map_width)
+        # Note: map dimensions will be set based on the actual loaded map
+        self._state.reset_for_episode(num_agents=num_agents, map_height=None, map_width=None)
 
         # Initialize configuration in state
-        self._state.object_type_names = env.object_type_names
-        self._state.resource_names = env.resource_names
+        self._state.object_type_names = self._simulator.object_type_names
+        self._state.resource_names = self._simulator.resource_names
         self._state.symbol_map = DEFAULT_SYMBOL_MAP.copy()
 
         # Add custom symbols from game config
-        for obj in env.mg_config.game.objects.values():
+        for obj in game_config.objects.values():
             self._state.symbol_map[obj.name] = obj.render_symbol
 
         self._state.glyphs = [g.symbol for g in GLYPH_DATA] if GLYPH_DATA else None
@@ -123,17 +127,17 @@ class MiniscopeRenderer(Renderer):
         self._components = []
 
         # Base components
-        self._components.append(MapComponent(env=env, state=self._state, panels=self._panels))
-        self._components.append(SimControlComponent(env=env, state=self._state, panels=self._panels))
-        self._components.append(AgentControlComponent(env=env, state=self._state, panels=self._panels))
+        self._components.append(MapComponent(env=self._simulator, state=self._state, panels=self._panels))
+        self._components.append(SimControlComponent(env=self._simulator, state=self._state, panels=self._panels))
+        self._components.append(AgentControlComponent(env=self._simulator, state=self._state, panels=self._panels))
 
         # Sidebar components
         for _, _, component_cls in sidebar_defs:
-            self._components.append(component_cls(env=env, state=self._state, panels=self._panels))
+            self._components.append(component_cls(env=self._simulator, state=self._state, panels=self._panels))
 
         # Modal components (not in hotkey list)
-        self._components.append(GlyphPickerComponent(env=env, state=self._state, panels=self._panels))
-        self._components.append(HelpPanelComponent(env=env, state=self._state, panels=self._panels))
+        self._components.append(GlyphPickerComponent(env=self._simulator, state=self._state, panels=self._panels))
+        self._components.append(HelpPanelComponent(env=self._simulator, state=self._state, panels=self._panels))
 
         # Set up terminal (hide cursor and set up input handling)
         self._setup_terminal()
@@ -167,7 +171,6 @@ class MiniscopeRenderer(Renderer):
         self._state.playback = PlaybackState.STOPPED
         self._panels.stop_live()
         self._cleanup_terminal()
-        self._env = None
 
     def render(self) -> None:
         """Run the rendering loop until an action is ready or simulation should advance.
@@ -175,8 +178,6 @@ class MiniscopeRenderer(Renderer):
         When paused, this loops indefinitely until user takes an action.
         When running, this returns after the frame delay has elapsed.
         """
-        assert self._env is not None
-
         start_time = time.time()
         frame_delay = self._state.get_frame_delay()
         was_paused_last_frame = False
@@ -239,7 +240,6 @@ class MiniscopeRenderer(Renderer):
 
     def _handle_user_input(self) -> None:
         """Handle user input by delegating to components."""
-        assert self._env is not None
         if not self._state.user_input:
             return
 
@@ -276,9 +276,6 @@ class MiniscopeRenderer(Renderer):
 
     def _render_display(self) -> None:
         """Render the panel layout to the terminal."""
-        if not self._env:
-            return
-
         # Render using Rich Console API
         self._panels.render_to_console()
 

@@ -7,7 +7,7 @@ from typing import Generic, Optional, Tuple, TypeVar
 import torch.nn as nn
 from pydantic import BaseModel
 
-from mettagrid import MettaGridAction, MettaGridObservation
+from mettagrid.simulator import Action, Observation
 
 # Type variable for agent state - can be any type
 StateType = TypeVar("StateType")
@@ -21,7 +21,7 @@ class AgentPolicy:
     This is what play.py and evaluation code use directly.
     """
 
-    def step(self, obs: MettaGridObservation) -> MettaGridAction:
+    def step(self, obs: Observation) -> Action:
         """Get action given an observation.
 
         Args:
@@ -37,7 +37,7 @@ class AgentPolicy:
         pass
 
 
-class Policy:
+class MultiAgentPolicy:
     """Abstract base class for multi-agent policies.
 
     A Policy manages creating AgentPolicy instances for multiple agents.
@@ -101,7 +101,7 @@ class StatefulAgentPolicy(AgentPolicy, Generic[StateType]):
         # Initialize state using the base policy's agent_state() method
         self._state: Optional[StateType] = self._base_policy.agent_state()
 
-    def step(self, obs: MettaGridObservation) -> MettaGridAction:
+    def step(self, obs: Observation) -> Action:
         """Get action and update hidden state."""
         action, self._state = self._base_policy.step_with_state(obs, self._state)
         return action
@@ -129,9 +129,7 @@ class StatefulPolicyImpl(Generic[StateType]):
         """
         ...
 
-    def step_with_state(
-        self, obs: MettaGridObservation, state: Optional[StateType]
-    ) -> Tuple[MettaGridAction, Optional[StateType]]:
+    def step_with_state(self, obs: Observation, state: Optional[StateType]) -> Tuple[Action, Optional[StateType]]:
         """Get action and potentially update state.
 
         Args:
@@ -144,7 +142,7 @@ class StatefulPolicyImpl(Generic[StateType]):
         raise NotImplementedError
 
 
-class TrainablePolicy(Policy):
+class TrainablePolicy(MultiAgentPolicy):
     """Abstract base class for trainable policies.
 
     TrainablePolicy extends Policy and manages a neural network that can be trained.

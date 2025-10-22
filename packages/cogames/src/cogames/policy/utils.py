@@ -23,7 +23,7 @@ _POLICY_CLASS_SHORTHAND: dict[str, str] = {
 
 
 def initialize_or_load_policy(
-    policy_class_path: str, policy_data_path: Optional[str], env: Any, device: "torch.device | None" = None
+    policy_class_path: str, policy_data_path: Optional[str], device: "torch.device | None" = None
 ) -> Policy:
     policy_class = load_symbol(policy_class_path)
     policy = policy_class(env, device or torch.device("cpu"))

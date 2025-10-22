@@ -10,9 +10,9 @@ import pufferlib.vector
 from metta.cogworks.curriculum import Curriculum, CurriculumEnv
 from metta.common.util.log_config import init_logging
 from metta.sim.replay_log_renderer import ReplayLogRenderer
-from mettagrid import MettaGridEnv, RenderMode
+from mettagrid.simulator import Simulator
+from mettagrid.envs.mettagrid_puffer_env import MettaGridPufferEnv
 from mettagrid.util.stats_writer import StatsWriter
-from pufferlib.pufferlib import set_buffers
 
 logger = logging.getLogger("vecenv")
 
@@ -32,22 +32,14 @@ def make_env_func(
     if run_dir is not None:
         init_logging(run_dir=Path(run_dir))
 
-    renderer = replay_writer
-    if replay_directory is not None:
-        base_path = Path(replay_directory)
-        base_path.mkdir(parents=True, exist_ok=True)
-        env_path = base_path / uuid.uuid4().hex[:12]
-        env_path.mkdir(parents=True, exist_ok=True)
-        renderer = ReplayLogRenderer(str(env_path))
+    cfg = curriculum.get_task().get_env_cfg()
+    sim = Simulator(cfg)
+    if stats_writer is not None:
+        sim.add_handler(stats_writer)
+    if replay_writer is not None:
+        sim.add_handler(replay_writer)
 
-    env = MettaGridEnv(
-        curriculum.get_task().get_env_cfg(),
-        render_mode=render_mode,
-        stats_writer=stats_writer,
-        renderer=renderer,
-        is_training=is_training,
-    )
-    set_buffers(env, buf)
+    env = MettaGridPufferEnv(sim, buf)
     env = CurriculumEnv(env, curriculum)
 
     return env

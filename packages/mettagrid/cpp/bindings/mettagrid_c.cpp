@@ -613,9 +613,9 @@ void MettaGrid::_step(Actions actions) {
   }
 }
 
-py::tuple MettaGrid::reset() {
+py::array_t<ObservationType> MettaGrid::start_episode() {
   if (current_step > 0) {
-    throw std::runtime_error("Cannot reset after stepping");
+    throw std::runtime_error("Cannot start episode after stepping");
   }
 
   // Reset visitation counts for all agents (only if enabled)
@@ -655,7 +655,7 @@ py::tuple MettaGrid::reset() {
 
   _compute_observations(zero_actions);
 
-  return py::make_tuple(_observations, py::dict());
+  return _observations;
 }
 
 void MettaGrid::validate_buffers() {
@@ -1054,12 +1054,10 @@ py::dict MettaGrid::get_episode_stats() {
   return stats;
 }
 
-py::object MettaGrid::action_space() {
-  auto gym = py::module_::import("gymnasium");
-  auto spaces = gym.attr("spaces");
-
-  return spaces.attr("Discrete")(py::int_(_flat_action_map.size()));
+size_t MettaGrid::num_actions() const {
+  return _flat_action_map.size();
 }
+
 
 py::object MettaGrid::observation_space() {
   auto gym = py::module_::import("gymnasium");
