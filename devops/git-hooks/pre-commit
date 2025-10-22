@@ -1,36 +1,36 @@
-# #!/bin/bash
-# set -e
+#!/bin/bash
+set -e
 
-# # Get the directory of this script
-# SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-# REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+# Get the directory of this script
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
-# # Check commit hook mode early to avoid unnecessary setup
-# CONFIG_FILE="$HOME/.metta/config.yaml"
+# Check commit hook mode early to avoid unnecessary setup
+CONFIG_FILE="$HOME/.metta/config.yaml"
 
-# if [ -f "$CONFIG_FILE" ]; then
-#     # Extract commit_hook_mode from YAML
-#     MODE=$(grep -A1 "githooks:" "$CONFIG_FILE" 2>/dev/null | grep "commit_hook_mode:" | awk '{print $2}' || echo "check")
+if [ -f "$CONFIG_FILE" ]; then
+    # Extract commit_hook_mode from YAML
+    MODE=$(grep -A1 "githooks:" "$CONFIG_FILE" 2>/dev/null | grep "commit_hook_mode:" | awk '{print $2}' || echo "check")
 
-#     if [ "$MODE" = "none" ]; then
-#         # Exit silently for 'none' mode
-#         exit 0
-#     fi
-# fi
+    if [ "$MODE" = "none" ]; then
+        # Exit silently for 'none' mode
+        exit 0
+    fi
+fi
 
-# check_cmd() {
-#   command -v "$1" > /dev/null 2>&1
-#   return $?
-# }
+check_cmd() {
+  command -v "$1" > /dev/null 2>&1
+  return $?
+}
 
-# if ! check_cmd uv; then
-#     echo "uv not found. Consider running ./devops/tools/install-system.sh"
-#     exit 1
-# fi
+if ! check_cmd uv; then
+    echo "uv not found. Consider running ./devops/tools/install-system.sh"
+    exit 1
+fi
 
-# if ! uv run --active metta run githooks pre-commit; then
-#     exit 1
-# fi
+if ! uv run --active metta run githooks pre-commit; then
+    exit 1
+fi
 
-# # No output on success - GitHub Desktop works better with silent success
-# exit 0
+# No output on success - GitHub Desktop works better with silent success
+exit 0
