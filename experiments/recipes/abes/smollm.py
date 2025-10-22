@@ -5,10 +5,10 @@ from __future__ import annotations
 import importlib.util
 from typing import Optional
 
+import metta.cogworks.curriculum as cc
 from experiments.recipes.arena_basic_easy_shaped import (
     evaluate,
     evaluate_in_sweep,
-    make_curriculum,
     mettagrid,
     play,
     replay,
@@ -18,9 +18,11 @@ from experiments.recipes.arena_basic_easy_shaped import (
 )
 from metta.agent.policies.smollm import SmolLLMConfig
 from metta.agent.policy import PolicyArchitecture
-from metta.cogworks.curriculum.curriculum import CurriculumConfig
+from metta.cogworks.curriculum.curriculum import CurriculumAlgorithmConfig, CurriculumConfig
+from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
 from metta.tools.train import TrainTool
 from metta.tools.sweep import SweepTool
+from mettagrid import MettaGridConfig
 
 _FLASH_ATTENTION_AVAILABLE = importlib.util.find_spec("flash_attn") is not None
 
@@ -55,8 +57,12 @@ def train(
         config_kwargs["model_name"] = model_name or "HuggingFaceTB/SmolLM2-135M"
         policy_architecture = SmolLLMConfig(**config_kwargs)
 
+    resolved_curriculum = curriculum or make_curriculum(
+        enable_detailed_slice_logging=enable_detailed_slice_logging,
+    )
+
     tool = base_train(
-        curriculum=curriculum,
+        curriculum=resolved_curriculum,
         enable_detailed_slice_logging=enable_detailed_slice_logging,
         policy_architecture=policy_architecture,
     )
@@ -115,6 +121,36 @@ __all__ = [
     "sweep",
     "train",
 ]
+
+
+def make_curriculum(
+    arena_env: Optional[MettaGridConfig] = None,
+    *,
+    enable_detailed_slice_logging: bool = False,
+    algorithm_config: Optional[CurriculumAlgorithmConfig] = None,
+) -> CurriculumConfig:
+    """SmolLLM-friendly arena curriculum that avoids legacy converter fields."""
+
+    env = arena_env or mettagrid()
+    tasks = cc.bucketed(env)
+
+    for item in ["ore_red", "battery_red", "laser", "armor"]:
+        tasks.add_bucket(f"game.agent.rewards.inventory.{item}", [0, 0.1, 0.5, 0.9, 1.0])
+        tasks.add_bucket(f"game.agent.rewards.inventory_max.{item}", [1, 2])
+
+    tasks.add_bucket("game.actions.attack.consumed_resources.laser", [1, 100])
+
+    if algorithm_config is None:
+        algorithm_config = LearningProgressConfig(
+            use_bidirectional=True,
+            ema_timescale=0.001,
+            exploration_bonus=0.1,
+            max_memory_tasks=1000,
+            max_slice_axes=5,
+            enable_detailed_slice_logging=enable_detailed_slice_logging,
+        )
+
+    return tasks.to_curriculum(algorithm_config=algorithm_config)
 
 
 def sweep(

@@ -8,7 +8,6 @@ from experiments.recipes.abes import smollm as smollm_recipe
 from experiments.recipes.arena_basic_easy_shaped import (
     evaluate,
     evaluate_in_sweep,
-    make_curriculum,
     mettagrid,
     play,
     replay,
@@ -105,7 +104,6 @@ def _apply_lora_defaults(tool: TrainTool) -> TrainTool:
 
 __all__ = [
     "mettagrid",
-    "make_curriculum",
     "simulations",
     "play",
     "replay",
@@ -115,6 +113,9 @@ __all__ = [
     "sweep_async_progressive",
     "train",
 ]
+
+
+make_curriculum = smollm_recipe.make_curriculum
 
 
 def sweep(
