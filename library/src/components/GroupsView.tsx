@@ -21,12 +21,18 @@ interface GroupsViewProps {
     id: string;
     name: string;
   }>;
+  currentUser: {
+    id: string;
+    name?: string | null;
+    email?: string | null;
+  } | null;
 }
 
 export const GroupsView: FC<GroupsViewProps> = ({
   userGroups,
   allGroups,
   userInstitutions,
+  currentUser,
 }) => {
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [selectedGroup, setSelectedGroup] = useState<GroupDTO | null>(null);
@@ -223,6 +229,7 @@ export const GroupsView: FC<GroupsViewProps> = ({
           onClose={() => setSelectedGroup(null)}
           group={selectedGroup}
           currentUserRole={selectedGroup.currentUserRole}
+          currentUser={currentUser}
         />
       )}
     </div>
