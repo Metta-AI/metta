@@ -69,6 +69,14 @@ const configSchema = z.object({
     profile: z.string().optional(),
     sesAccessKey: z.string().optional(),
     sesSecretKey: z.string().optional(),
+    s3AccessKey: z.string().optional(),
+    s3SecretKey: z.string().optional(),
+  }),
+
+  // S3 Storage (optional)
+  s3: z.object({
+    bucketName: z.string().optional(),
+    region: z.string().default("us-east-1"),
   }),
 
   // SMTP (optional fallback for email)
@@ -141,6 +149,13 @@ function loadConfig(): Config {
         profile: process.env.AWS_PROFILE,
         sesAccessKey: process.env.AWS_SES_ACCESS_KEY_ID,
         sesSecretKey: process.env.AWS_SES_SECRET_ACCESS_KEY,
+        s3AccessKey: process.env.AWS_S3_ACCESS_KEY_ID,
+        s3SecretKey: process.env.AWS_S3_SECRET_ACCESS_KEY,
+      },
+
+      s3: {
+        bucketName: process.env.AWS_S3_BUCKET,
+        region: process.env.AWS_S3_REGION,
       },
 
       smtp: {
