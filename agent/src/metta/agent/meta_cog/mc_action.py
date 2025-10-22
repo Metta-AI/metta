@@ -81,8 +81,8 @@ class MCActionEmbedding(nn.Module):
         B_TT = td.batch_size.numel()
 
         # get embeddings then expand to match the batch size
-        # indices = self.active_indices.to(self.net.weight.device)  # av this might be unnecessary
-        td[self.out_key] = repeat(self.net(self.active_indices), "a e -> b a e", b=B_TT)
+        indices = self.active_indices.to(self.net.weight.device)  # av this might be unnecessary
+        td[self.out_key] = repeat(self.net(indices), "a e -> b a e", b=B_TT)
         return td
 
     def _orthogonal_init(self, weight: torch.Tensor) -> None:
