@@ -9,7 +9,7 @@ from metta.cogworks.curriculum.curriculum import (
 )
 from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
 from metta.cogworks.curriculum.task_generator import (
-    BucketedTaskGenerator,
+    AnyTaskGeneratorConfig,
     Span,
     TaskGenerator,
     TaskGeneratorConfig,
@@ -36,19 +36,19 @@ class NavigationTaskGenerator(TaskGenerator):
     class Config(TaskGeneratorConfig["NavigationTaskGenerator"]):
         """Configuration for NavigationTaskGenerator."""
 
-        bucketed_generator: BucketedTaskGenerator.Config
+        child_generator: AnyTaskGeneratorConfig
 
     def __init__(self, config: "NavigationTaskGenerator.Config"):
         super().__init__(config)
         self._config = config
-        self._bucketed_generator = config.bucketed_generator.create()
+        self._child_generator = config.child_generator.create()
 
     def _generate_task(self, task_id: int, rng: random.Random) -> MettaGridConfig:
         """Generate task and set dynamic label based on task parameters."""
-        env_cfg = self._bucketed_generator.get_task(task_id)
+        env_cfg = self._child_generator.get_task(task_id)
 
         # Get the bucket values that were sampled
-        bucket_values = getattr(self._bucketed_generator, "_last_bucket_values", {})
+        bucket_values = getattr(self._child_generator, "_last_bucket_values", {})
 
         # Extract key parameters for labeling
         map_dir = bucket_values.get("game.map_builder.instance.dir", "")
@@ -126,7 +126,7 @@ def make_curriculum(
     # Wrap in NavigationTaskGenerator to add dynamic labels
     nav_tasks_config = cc.merge([dense_tasks, sparse_tasks])
     nav_tasks_with_labels = NavigationTaskGenerator.Config(
-        bucketed_generator=nav_tasks_config
+        child_generator=nav_tasks_config
     )
 
     if algorithm_config is None:
@@ -148,7 +148,6 @@ def make_curriculum(
 def train(
     curriculum: Optional[CurriculumConfig] = None,
     enable_detailed_slice_logging: bool = False,
-    run: Optional[str] = None,
 ) -> TrainTool:
     resolved_curriculum = curriculum or make_curriculum(
         enable_detailed_slice_logging=enable_detailed_slice_logging
@@ -163,7 +162,6 @@ def train(
     )
 
     return TrainTool(
-        run=run,
         trainer=trainer_cfg,
         training_env=TrainingEnvironmentConfig(curriculum=resolved_curriculum),
         evaluator=evaluator_cfg,
