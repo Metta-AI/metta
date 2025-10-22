@@ -117,10 +117,11 @@ def process_training_stats(
     for k, v in raw_stats.items():
         try:
             # Metrics that should be summed across vectorized environments (not averaged)
-            # These are typically count-based metrics
-            if "samples_this_epoch" in k or "completions_this_epoch" in k:
+            # Per-label completion counts and tracked task completions are count-based
+            if "per_label_samples_this_epoch" in k or "tracked_task_completions_this_epoch" in k:
                 mean_stats[k] = np.sum(v)
             else:
+                # All other metrics (including LP scores) should be averaged
                 mean_stats[k] = np.mean(v)
         except (TypeError, ValueError):
             mean_stats[k] = v

@@ -48,13 +48,19 @@ class CurriculumEnv(PufferEnv):
         self._cached_curriculum_stats = {}
         self._curriculum_stats_cache_valid = False
 
+        # Track first 3 tasks for detailed dynamics analysis
+        self._tracked_task_ids = []  # Will store first 3 task IDs we encounter
+        self._tracked_task_completions_this_epoch = {}  # task_id -> count this epoch
+        self._tracked_task_completions_baseline = {}  # task_id -> count at last epoch reset
+
     def reset_epoch_counters(self) -> None:
         """Reset per-epoch tracking at the start of a new epoch.
 
         Note: Per-label counts are emitted per-episode in infos (not accumulated),
-        so this is a no-op. Kept for API compatibility with epoch lifecycle.
+        so this is a no-op except for tracked task completion counters.
         """
-        pass
+        # Reset tracked task completion baselines for per-epoch counting
+        self._tracked_task_completions_baseline = self._tracked_task_completions_this_epoch.copy()
 
     def _add_curriculum_stats_to_info(self, info_dict: dict) -> None:
         """Add curriculum statistics to info dictionary for logging.
@@ -112,6 +118,26 @@ class CurriculumEnv(PufferEnv):
             # Add mean LP score from task pool
             if "algorithm/mean_lp_score" in stats:
                 info_dict[self._CURRICULUM_STAT_PREFIX + "mean_pool_lp_score"] = stats["algorithm/mean_lp_score"]
+
+            # Add tracked task dynamics (first 3 tasks encountered)
+            if self._tracked_task_ids:
+                tracked_lp_scores = {}
+                tracked_completions_this_epoch = {}
+
+                for i, task_id in enumerate(self._tracked_task_ids):
+                    # Get LP score for this task
+                    lp_score = self._curriculum.get_task_lp_score(task_id)
+                    tracked_lp_scores[f"task_{i}"] = lp_score
+
+                    # Get completion count this epoch (delta from baseline)
+                    current_count = self._tracked_task_completions_this_epoch.get(task_id, 0)
+                    baseline_count = self._tracked_task_completions_baseline.get(task_id, 0)
+                    tracked_completions_this_epoch[f"task_{i}"] = current_count - baseline_count
+
+                info_dict[self._CURRICULUM_STAT_PREFIX + "tracked_task_lp_scores"] = tracked_lp_scores
+                info_dict[self._CURRICULUM_STAT_PREFIX + "tracked_task_completions_this_epoch"] = (
+                    tracked_completions_this_epoch
+                )
 
             self._stats_update_counter = 0
 
@@ -212,6 +238,17 @@ class CurriculumEnv(PufferEnv):
             # Invalidate curriculum stats cache on task completion (stats have changed)
             self._curriculum_stats_cache_valid = False
 
+            # Track first 3 task IDs for detailed dynamics analysis
+            task_id = self._current_task._task_id
+            if task_id not in self._tracked_task_ids and len(self._tracked_task_ids) < 3:
+                self._tracked_task_ids.append(task_id)
+
+            # Update completion counts for tracked tasks
+            if task_id in self._tracked_task_ids:
+                self._tracked_task_completions_this_epoch[task_id] = (
+                    self._tracked_task_completions_this_epoch.get(task_id, 0) + 1
+                )
+
             # Update per-label metrics tracking
             label = self._current_task.get_label()
             # Only track if label is a valid string (not None, not a Mock)
@@ -301,6 +338,9 @@ class CurriculumEnv(PufferEnv):
             "_per_label_lp_scores",
             "_cached_curriculum_stats",
             "_curriculum_stats_cache_valid",
+            "_tracked_task_ids",
+            "_tracked_task_completions_this_epoch",
+            "_tracked_task_completions_baseline",
             "_calculate_gini_coefficient",
             "reset_epoch_counters",
             "_CURRICULUM_STAT_PREFIX",
