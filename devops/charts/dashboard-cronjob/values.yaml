@@ -7,7 +7,7 @@ image:
   tag: "latest"
 
 # Command to run - can be overridden for different scripts
-command: ["uv", "run", "python", "-m", "softmax.dashboard.report", "report", "--push"]
+command: ["uv", "run", "python", "-m", "softmax.dashboard.report", "--push"]
 
 serviceAccount:
   create: true
@@ -20,7 +20,7 @@ resources:
     memory: 2Gi
   limits:
     cpu: 500m
-    memory: 3Gi
+    memory: 2Gi
 
 # Datadog metric tagging (for organizing metrics in Datadog)
 datadog:

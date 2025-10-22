@@ -1,6 +1,6 @@
 import
   boxy, chroma, fidget2/hybridrender, vmath, fidget2,
-  common, panels, worldmap
+  common, worldmap
 
 proc drawMinimap*(panel: Panel) =
   ## Draw the minimap with automatic fitting to panel size.
