@@ -49,12 +49,14 @@ proc updateObjectInfo*() =
     item = x.find("InventoryArea/Inventory/Item").copy()
     recipeArea = x.find("RecipeArea")
     recipe = x.find("RecipeArea/Recipe").copy()
+    recipeVibes = recipe.find("Vibes")
     recipeInput = recipe.find("Inputs")
     recipeOutput = recipe.find("Outputs")
 
   params.removeChildren()
   inventory.removeChildren()
   recipeArea.removeChildren()
+  recipeVibes.removeChildren()
   recipeInput.removeChildren()
   recipeOutput.removeChildren()
 
