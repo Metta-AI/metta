@@ -22,92 +22,36 @@ A social feed and knowledge repository for AI research papers, built with Next.j
    ```
 
 2. **Set up environment variables**:
-   Create a `.env.local` file with the following content:
 
-   ```
-   # Core application settings
-   DATABASE_URL=postgresql://localhost/metta_library
-   DEV_MODE=true
-   NEXTAUTH_SECRET=your-generated-secret
-   NEXTAUTH_URL=http://localhost:3001
-   ALLOWED_EMAIL_DOMAINS=stem.ai,softmax.com
+   Copy `.env.example` to `.env.local`:
 
-   # Discord integration (optional)
-   DISCORD_CLIENT_ID=your-discord-client-id
-   DISCORD_CLIENT_SECRET=your-discord-client-secret
-   DISCORD_REDIRECT_URI=http://localhost:3001/api/auth/callback/discord
-   NEXT_PUBLIC_DISCORD_CLIENT_ID=your-discord-client-id
-
-   # Google OAuth (optional, overrides DEV_MODE fake email provider)
-   GOOGLE_CLIENT_ID=your-google-client-id
-   GOOGLE_CLIENT_SECRET=your-google-client-secret
-
-   # Email notifications (optional)
-   ENABLE_EMAIL_NOTIFICATIONS=true
-   EMAIL_FROM_ADDRESS=notifications@yourapp.com
-   EMAIL_FROM_NAME=Library Notifications
-
-   # AWS SES configuration (optional)
-   AWS_SES_ACCESS_KEY_ID=your-aws-ses-access-key
-   AWS_SES_SECRET_ACCESS_KEY=your-aws-ses-secret
-   AWS_SES_REGION=us-east-1
-
-   # SMTP fallback configuration (optional if SES not used)
-   SMTP_HOST=smtp.sendgrid.net
-   SMTP_PORT=587
-   SMTP_USER=apikey
-   SMTP_PASSWORD=your-smtp-password
-
-   # Redis / BullMQ job queue
-   REDIS_HOST=localhost
-   REDIS_PORT=6379
-   REDIS_PASSWORD=
-   REDIS_TLS=false
+   ```bash
+   cp .env.example .env.local
    ```
 
-# AWS miscellaneous (optional for PDF processing)
+   Then update the values in `.env.local` for your local environment.
 
-AWS_REGION=us-east-1
-AWS_PROFILE=softmax
-AWS_S3_BUCKET=metta-pdf-processing
+   **Required variables for basic development:**
+   - `DATABASE_URL` - Your PostgreSQL connection string
+   - `NEXTAUTH_SECRET` - Generate with `openssl rand -base64 32`
+   - `NEXTAUTH_URL` - Usually `http://localhost:3001`
+   - `DEV_MODE=true` - Enables fake email provider for magic links
 
-# LLM integrations (optional)
+   **Optional integrations:**
+   - **S3 Storage**: Set `AWS_S3_BUCKET` and `AWS_S3_REGION` for image uploads
+   - **Discord**: Set `DISCORD_*` variables for OAuth and notifications
+   - **Google OAuth**: Set `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`
+   - **Email Notifications**: Set `AWS_SES_*` or `SMTP_*` variables
+   - **Redis**: Required for background jobs (institution extraction, LLM abstracts)
+   - **LLM Services**: Set `ANTHROPIC_API_KEY` for paper analysis features
 
-ANTHROPIC_API_KEY=your-anthropic-key
-
-# Adobe PDF Services (optional)
-
-ADOBE_CLIENT_ID=your-adobe-client-id
-ADOBE_CLIENT_SECRET=your-adobe-client-secret
-
-# Figure extraction (optional, disabled by default)
-
-# Set to "true" to enable figure image and text extraction from PDFs
-
-# Note: Figure extraction is currently experimental and may not work reliably
-
-ENABLE_FIGURE_EXTRACTION=false
-NEXT_PUBLIC_ENABLE_FIGURE_EXTRACTION=false
-
-# Asana integration (optional)
-
-ASANA_API_KEY=
-ASANA_TOKEN=
-ASANA_PAPERS_PROJECT_ID=
-ASANA_WORKSPACE_ID=
-ASANA_PAPER_LINK_FIELD_ID=
-ASANA_ARXIV_ID_FIELD_ID=
-ASANA_ABSTRACT_FIELD_ID=
-
-````
-
-> Only populate the sections relevant to the features you plan to exercise locally. Leave optional values blank to disable the corresponding integration.
+   See `.env.example` for complete documentation of all available variables.
 
 3. **Generate authentication secret**:
 
 ```bash
 pnpm auth secret
-````
+```
 
 This will populate your `.env.local` file with a random `NEXTAUTH_SECRET`.
 
