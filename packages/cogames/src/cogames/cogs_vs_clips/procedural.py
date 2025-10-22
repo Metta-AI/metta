@@ -39,6 +39,8 @@ def make_machina_procedural_map_builder(
     base_biome_config: dict[str, Any] | None = None,
     extractor_coverage: float = 0.01,
     extractors: dict[str, float] | None = None,
+    extractor_names: list[str] | None = None,
+    extractor_weights: dict[str, float] | None = None,
     hub_variant: str | None = None,
     hub_corner_bundle: str | None = None,
     hub_cross_bundle: str | None = None,
@@ -93,9 +95,15 @@ def make_machina_procedural_map_builder(
         "carbon_extractor": 0.3,
     }
 
+    # Legacy "extractors" dict takes precedence if provided
     extractor_config = extractors or default_extractors
-    extractor_names_final = list(extractor_config.keys())
-    extractor_weights_final = extractor_config
+    names = extractor_names or list(extractor_config.keys())
+    weights = extractor_weights or extractor_config
+
+    extractor_names_final = list(dict.fromkeys(names))
+    extractor_weights_final = {
+        name: weights.get(name, default_extractors.get(name, 1.0)) for name in extractor_names_final
+    }
 
     # Optional layered biomes via BSPLayout
     # Autoscale counts based on available area if not explicitly provided

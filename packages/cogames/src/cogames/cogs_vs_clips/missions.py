@@ -150,6 +150,7 @@ class StoreBaseVariant(MissionVariant):
         mission.procedural_overrides["hub_variant"] = "store"
         mission.procedural_overrides["hub_corner_bundle"] = "chests"
         mission.procedural_overrides["hub_cross_bundle"] = "none"
+        mission.procedural_overrides["hub_cross_distance"] = 7
         return mission
 
 
@@ -161,6 +162,7 @@ class ExtractorBaseVariant(MissionVariant):
         mission.procedural_overrides["hub_variant"] = "extractor"
         mission.procedural_overrides["hub_corner_bundle"] = "extractors"
         mission.procedural_overrides["hub_cross_bundle"] = "none"
+        mission.procedural_overrides["hub_cross_distance"] = 7
         return mission
 
 
@@ -172,6 +174,7 @@ class BothBaseVariant(MissionVariant):
         mission.procedural_overrides["hub_variant"] = "both"
         mission.procedural_overrides["hub_corner_bundle"] = "chests"
         mission.procedural_overrides["hub_cross_bundle"] = "extractors"
+        mission.procedural_overrides["hub_cross_distance"] = 7
         return mission
 
 
@@ -328,11 +331,17 @@ class MachinaProceduralExploreMission(ProceduralMissionBase):
         self.heart_capacity = 99
         # Only chests for explore mission
         self.procedural_overrides = {
+<<<<<<< HEAD
             "extractors": {"chest": 1.0, "charger": 1.0},
             "extractor_coverage": 0.004,
             "hub_variant": "store",
             "hub_corner_bundle": "chests",
             "hub_cross_bundle": "none",
+=======
+            "extractor_names": ["chest"],
+            "extractor_weights": {"chest": 1.0},
+            "extractor_coverage": 0.004,
+>>>>>>> 748d95d487 (update logic for procedural generation, moved defaults)
         }
 
     def make_env(self) -> MettaGridConfig:
