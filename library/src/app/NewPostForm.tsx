@@ -12,6 +12,7 @@ import { MentionInput } from "@/components/MentionInput";
 import { QuotedPostPreview } from "@/components/QuotedPostPreview";
 import { parseMentions } from "@/lib/mentions";
 import { useErrorHandling } from "@/lib/hooks/useErrorHandling";
+import type { FeedPostDTO } from "@/posts/data/feed";
 import {
   Form,
   FormControl,
@@ -50,7 +51,11 @@ type PendingQuoteDraft = {
 
 const draftStorageKey = "quote-draft";
 
-export const NewPostForm: FC = () => {
+interface NewPostFormProps {
+  onPostCreated?: (post: FeedPostDTO) => void;
+}
+
+export const NewPostForm: FC<NewPostFormProps> = ({ onPostCreated }) => {
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: { content: "" },
@@ -73,7 +78,9 @@ export const NewPostForm: FC = () => {
     fallbackMessage: "Failed to create post. Please try again.",
   });
 
-  const createPostMutation = useCreatePost();
+  const createPostMutation = useCreatePost({
+    onPostCreated,
+  });
 
   const uploadImageMutation = useMutation<AttachedImage, Error, File>({
     mutationFn: async (file: File) => {

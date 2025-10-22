@@ -24,6 +24,7 @@ import {
   validatePostIds,
   shouldBeQuotePost,
 } from "@/lib/post-link-parser";
+import { toFeedPostDTO, type FeedPostDTO } from "@/posts/data/feed";
 
 const inputSchema = zfd.formData({
   title: zfd.text(z.string().min(1).max(255)),
@@ -195,5 +196,138 @@ export const createPostAction = actionClient
 
     revalidatePath("/");
 
-    return { id: post.id };
+    // Fetch the complete post data to return to the client
+    const fullPost = await prisma.post.findUnique({
+      where: { id: post.id },
+      include: {
+        author: true,
+        comments: {
+          select: {
+            createdAt: true,
+          },
+          orderBy: {
+            createdAt: "desc",
+          },
+          take: 1,
+        },
+        paper: {
+          select: {
+            id: true,
+            title: true,
+            abstract: true,
+            tags: true,
+            link: true,
+            source: true,
+            externalId: true,
+            createdAt: true,
+            updatedAt: true,
+            llmAbstract: true,
+            llmAbstractGeneratedAt: true,
+            paperInstitutions: {
+              select: {
+                institution: {
+                  select: {
+                    id: true,
+                    name: true,
+                  },
+                },
+              },
+            },
+            paperAuthors: {
+              include: {
+                author: {
+                  select: {
+                    id: true,
+                    name: true,
+                    institution: true,
+                  },
+                },
+              },
+            },
+            userPaperInteractions: {
+              where: {
+                starred: true,
+              },
+              select: {
+                userId: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!fullPost) {
+      throw new Error("Failed to fetch created post");
+    }
+
+    // Fetch quoted posts if any
+    const quotedPosts =
+      fullPost.quotedPostIds && fullPost.quotedPostIds.length > 0
+        ? await prisma.post.findMany({
+            where: {
+              id: {
+                in: fullPost.quotedPostIds,
+              },
+            },
+            select: {
+              id: true,
+              title: true,
+              content: true,
+              authorId: true,
+              createdAt: true,
+              author: {
+                select: {
+                  id: true,
+                  name: true,
+                  email: true,
+                  image: true,
+                },
+              },
+            },
+          })
+        : [];
+
+    // Convert to maps for toFeedPostDTO
+    const usersMap = new Map([[fullPost.author.id, fullPost.author]]);
+    const papersMap = new Map();
+    if (fullPost.paper) {
+      papersMap.set(fullPost.paper.id, fullPost.paper);
+    }
+
+    // Get user paper interaction for starred status
+    const userPaperInteractionsMap = new Map();
+    if (fullPost.paperId && session.user.id) {
+      const interaction = await prisma.userPaperInteraction.findUnique({
+        where: {
+          userId_paperId: {
+            userId: session.user.id,
+            paperId: fullPost.paperId,
+          },
+        },
+      });
+      if (interaction) {
+        userPaperInteractionsMap.set(
+          `${session.user.id}_${fullPost.paperId}`,
+          interaction
+        );
+      }
+    }
+
+    const feedPostDTO = toFeedPostDTO(
+      {
+        ...fullPost,
+        quotedPosts,
+        postType: fullPost.postType as
+          | "user-post"
+          | "paper-post"
+          | "pure-paper"
+          | "quote-post",
+      } as any, // Type assertion: toFeedPostDTO only needs comments[].createdAt which we have
+      usersMap,
+      papersMap,
+      userPaperInteractionsMap
+    );
+
+    return { post: feedPostDTO };
   });

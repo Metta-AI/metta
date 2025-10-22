@@ -92,6 +92,11 @@ export const FeedPostsPage: FC<{
   const feedScrollRef = useRef<HTMLDivElement>(null);
   const loadMoreRef = useRef<HTMLDivElement>(null);
 
+  // Handle new post creation - prepend to feed
+  const handlePostCreated = (newPost: FeedPostDTO) => {
+    page.prepend(newPost);
+  };
+
   // Infinite scroll with IntersectionObserver
   useEffect(() => {
     if (!page.loadNext || page.loading) return;
@@ -134,7 +139,7 @@ export const FeedPostsPage: FC<{
       {/* Main feed area */}
       <div ref={feedScrollRef} className="h-full flex-1 overflow-y-auto">
         {/* Post Composition */}
-        <NewPostForm />
+        <NewPostForm onPostCreated={handlePostCreated} />
         {/* Feed */}
         <div className="mx-4 mt-6 max-w-2xl md:mr-4 md:ml-6">
           {page.items.length > 0 ? (
