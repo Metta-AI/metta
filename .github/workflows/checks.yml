@@ -311,7 +311,7 @@ jobs:
 
       - name: MettaGrid C++ tests
         id: mettagrid-cpp-tests
-        run: uv run metta grid coverage --verbose
+        run: uv run metta grid test --verbose
 
       - name: MettaGrid C++ benchmarks
         id: mettagrid-cpp-benchmarks

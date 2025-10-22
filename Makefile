@@ -23,11 +23,11 @@ install:
 
 # Run tests with coverage and benchmarks
 test: install
-	METTA_TEST_WORKERS=0 uv run python -m metta.setup.test_matrix --preset default --cov=metta --cov-report=term-missing --durations=10
+	METTA_TEST_WORKERS=0 uv run python -m metta.setup.test_matrix run --preset default --durations=10
 
 # Quick test run without coverage
 pytest: install
-	uv run python -m metta.setup.test_matrix --preset default
+	uv run python -m metta.setup.test_matrix run --preset default
 
 # Run linting checks only (no modifications)
 lint: install

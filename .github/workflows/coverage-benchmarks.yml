@@ -14,8 +14,8 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  python-coverage:
-    name: "Python Coverage Upload"
+  python-tests:
+    name: "Python Tests"
     runs-on: ubuntu-8core
     timeout-minutes: 20
     steps:
@@ -44,59 +44,6 @@ jobs:
         env:
           RUN_APP_BACKEND_TESTS: false
         run: uv run metta test --preset ci
-
-      - name: Upload python test coverage to Codecov
-        env:
-          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
-          SUBPACKAGES: "agent common mettagrid cogames codebot core"
-        run: |
-          chmod +x .github/scripts/upload_codecov.py
-          .github/scripts/upload_codecov.py
-
-  mettagrid-cpp-coverage:
-    name: "MettaGrid C++ Coverage Upload"
-    runs-on: ubuntu-4core
-    timeout-minutes: 15
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup Environment
-        uses: ./.github/actions/setup-environment
-        with:
-          install-mode: "testing"
-
-      - name: Setup Bazel caching
-        run: |
-          echo "build --disk_cache=$HOME/.bazel-disk-cache" >> packages/mettagrid/.bazelrc
-          echo "build --repository_cache=$HOME/.bazel-repo-cache" >> packages/mettagrid/.bazelrc
-
-          mkdir -p $HOME/.bazel-disk-cache
-          mkdir -p $HOME/.bazel-repo-cache
-
-      - name: Cache Bazel build artifacts
-        uses: actions/cache@v4
-        id: bazel-cache
-        with:
-          path: |
-            ~/.bazel-disk-cache
-            ~/.bazel-repo-cache
-          key: bazel-${{ runner.os }}-${{ hashFiles('packages/mettagrid/MODULE.bazel', 'packages/mettagrid/.bazelrc', '.bazelversion') }}
-          restore-keys: |
-            bazel-${{ runner.os }}-
-
-      - name: Build MettaGrid C++ (with coverage)
-        run: uv run metta grid coverage --verbose
-
-      - name: Upload MettaGrid C++ coverage to Codecov
-        uses: codecov/codecov-action@v4
-        with:
-          token: ${{ secrets.CODECOV_TOKEN }}
-          files: ./packages/mettagrid/build-debug/coverage.info
-          flags: mettagrid_cpp
-          name: mettagrid-cpp-coverage
-          fail_ci_if_error: false
-          verbose: true
 
   python-benchmark:
     name: "Python Benchmarks"

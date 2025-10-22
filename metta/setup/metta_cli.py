@@ -733,7 +733,6 @@ def cmd_ci(
     exit_code = run_preset(
         "ci",
         extra_pytest_args=(),
-        coverage_dir=cli.repo_root / "coverage-reports",
         skip_app_backend=True if skip_app_backend else None,
     )
     if exit_code != 0:
@@ -787,10 +786,6 @@ def cmd_test(
             help="Skip the app_backend suite (ci preset only).",
         ),
     ] = False,
-    coverage_dir: Annotated[
-        Path,
-        typer.Option("--coverage-dir", help="Directory for coverage XML output (ci preset)."),
-    ] = Path("coverage-reports"),
 ) -> None:
     preset_normalized = preset.lower()
     if preset_normalized not in available_presets():
@@ -802,7 +797,6 @@ def cmd_test(
         exit_code = run_preset(
             preset_normalized,
             extra_pytest_args=extra_args,
-            coverage_dir=coverage_dir,
             skip_app_backend=True if skip_app_backend else None,
         )
     except ValueError as exc:
