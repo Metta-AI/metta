@@ -36,7 +36,7 @@ class TestLPConfigOverrides:
             # Basic EMA mode
             ("basic_ema_initial_alpha", 0.5, 0.5),
             ("basic_ema_alpha_decay", 0.4, 0.4),
-            ("exploration_blend_factor", 0.7, 0.7),
+            ("min_samples_for_lp", 15, 15),
             # Task tracker EMA
             ("task_tracker_ema_alpha", 0.05, 0.05),
             # Memory and logging

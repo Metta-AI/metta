@@ -56,64 +56,43 @@ class TestCurriculumConfig:
     """Test cases for CurriculumConfig."""
 
     @pytest.mark.parametrize(
-        "max_task_id,num_active_tasks",
+        "num_active_tasks",
         [
-            (1000, 50),
-            (500, 25),
-            (2000, 100),
+            50,
+            25,
+            100,
         ],
     )
-    def test_curriculum_config_creation(self, single_task_generator_config, max_task_id, num_active_tasks):
+    def test_curriculum_config_creation(self, single_task_generator_config, num_active_tasks):
         """Test creating a CurriculumConfig with various parameter combinations."""
         config = CurriculumConfig(
             task_generator=single_task_generator_config,
-            max_task_id=max_task_id,
             num_active_tasks=num_active_tasks,
         )
 
         assert config.task_generator is single_task_generator_config
-        assert config.max_task_id == max_task_id
         assert config.num_active_tasks == num_active_tasks
 
     def test_curriculum_config_defaults(self, single_task_generator_config):
         """Test that CurriculumConfig uses correct default values."""
         config = CurriculumConfig(task_generator=single_task_generator_config)
 
-        assert config.max_task_id == 1000000
         assert config.num_active_tasks == 1000  # Updated default in refactor
 
     @pytest.mark.parametrize(
-        "max_task_id,num_active_tasks",
+        "num_active_tasks",
         [
-            (100, 200),  # num_active_tasks > max_task_id
-            (50, 100),  # num_active_tasks > max_task_id
+            1,  # Minimum value
+            1000000,  # Large value
+            50,  # Middle value
         ],
     )
-    def test_curriculum_config_validation_num_active_tasks(
-        self, single_task_generator_config, max_task_id, num_active_tasks
-    ):
-        """Test that num_active_tasks validation works for invalid combinations."""
-        with pytest.raises(ValueError):
-            CurriculumConfig(
-                task_generator=single_task_generator_config, max_task_id=max_task_id, num_active_tasks=num_active_tasks
-            )
-
-    @pytest.mark.parametrize(
-        "max_task_id,num_active_tasks",
-        [
-            (1, 1),  # Minimum values
-            (1000000, 1000000),  # Maximum values
-            (100, 50),  # Middle values
-        ],
-    )
-    def test_curriculum_config_edge_case_values(self, single_task_generator_config, max_task_id, num_active_tasks):
+    def test_curriculum_config_edge_case_values(self, single_task_generator_config, num_active_tasks):
         """Test edge case values for parameters."""
         config = CurriculumConfig(
             task_generator=single_task_generator_config,
-            max_task_id=max_task_id,
             num_active_tasks=num_active_tasks,
         )
-        assert config.max_task_id == max_task_id
         assert config.num_active_tasks == num_active_tasks
 
 

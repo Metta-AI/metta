@@ -226,7 +226,6 @@ class CurriculumConfig(Config):
     """Base configuration for Curriculum."""
 
     task_generator: AnyTaskGeneratorConfig = Field(description="TaskGenerator configuration")
-    max_task_id: int = Field(default=1000000, gt=0, description="Maximum task ID to generate")
     num_active_tasks: int = Field(default=1000, gt=0, description="Number of active tasks to maintain")
 
     # Curriculum behavior options
@@ -260,11 +259,6 @@ class CurriculumConfig(Config):
         # Sync num_active_tasks from algorithm_config if available
         if self.algorithm_config and hasattr(self.algorithm_config, "num_active_tasks"):
             self.num_active_tasks = self.algorithm_config.num_active_tasks
-
-        if self.num_active_tasks > self.max_task_id:
-            raise ValueError(
-                f"num_active_tasks ({self.num_active_tasks}) cannot exceed max_task_id ({self.max_task_id})"
-            )
 
     def make(self) -> "Curriculum":
         """Create a Curriculum from this configuration."""
@@ -407,10 +401,12 @@ class Curriculum(StatsLogger):
         return self._tasks[self._rng.choice(list(self._tasks.keys()))]
 
     def _create_task(self) -> CurriculumTask:
-        """Create a new task."""
-        task_id = self._rng.randint(0, self._config.max_task_id)
+        """Create a new task with a unique ID from Python's unlimited integer space."""
+        # Use Python's full 64-bit integer space (2^63 - 1)
+        # With ~1000 active tasks, collision probability is negligible (~10^-16)
+        task_id = self._rng.randint(0, 2**63 - 1)
         while task_id in self._task_ids:
-            task_id = self._rng.randint(0, self._config.max_task_id)
+            task_id = self._rng.randint(0, 2**63 - 1)
         self._task_ids.add(task_id)
         env_cfg = self._task_generator.get_task(task_id)
 

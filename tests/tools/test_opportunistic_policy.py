@@ -131,7 +131,6 @@ class TestBasicPolicyEnvironment:
             return CurriculumConfig(
                 task_generator=SingleTaskGenerator.Config(env=mg_config),
                 num_active_tasks=1,
-                max_task_id=1,
             )
 
         monkeypatch.setattr(CurriculumConfig, "from_mg", classmethod(_small_curriculum))

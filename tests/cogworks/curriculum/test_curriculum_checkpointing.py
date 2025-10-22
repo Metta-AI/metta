@@ -179,7 +179,8 @@ class TestCurriculumStateSerialization:
         task_tracker_state = state["task_tracker"]
         assert "max_memory_tasks" in task_tracker_state
         assert "task_memory" in task_tracker_state
-        assert "completion_history" in task_tracker_state
+        assert "global_total_completions" in task_tracker_state
+        assert "global_sum_scores" in task_tracker_state
         assert "tracker_type" in task_tracker_state
 
         # Test loading state
@@ -208,7 +209,8 @@ class TestCurriculumStateSerialization:
         # Verify state structure
         assert "max_memory_tasks" in state
         assert "task_memory" in state
-        assert "completion_history" in state
+        assert "global_total_completions" in state
+        assert "global_sum_scores" in state
         assert "cached_total_completions" in state
         assert "tracker_type" in state
 

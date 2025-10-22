@@ -19,8 +19,6 @@ if TYPE_CHECKING:
 
 # Constants for bidirectional learning progress
 DEFAULT_SUCCESS_RATE = 0.0
-DEFAULT_WEIGHT = 1.0
-RANDOM_BASELINE_CAP = 0.75
 
 
 class LPScorer(ABC):
@@ -291,25 +289,32 @@ class BidirectionalLPScorer(LPScorer):
         # Handle NaN values
         task_success_rates = np.nan_to_num(task_success_rates, nan=DEFAULT_SUCCESS_RATE)
 
-        # Initialize random baseline if needed
-        if self._random_baseline is None or len(self._random_baseline) != num_tasks:
-            # Random baseline should represent baseline/random performance, typically around 0.5
-            self._random_baseline = np.full(num_tasks, 0.5)
-
         # Create update mask for tasks with sufficient data
         self._update_mask = np.array([len(self._outcomes[task_id]) >= 2 for task_id in task_ids])
 
         if not np.any(self._update_mask):
             return
 
-        # Handle division by zero in normalization
-        denominator = 1.0 - self._random_baseline[self._update_mask]
-        denominator = np.where(denominator <= 0, 1.0, denominator)
+        # Optionally normalize by random baseline
+        if self.config.use_baseline_normalization:
+            # Initialize random baseline if needed
+            if self._random_baseline is None or len(self._random_baseline) != num_tasks:
+                # Random baseline should represent baseline/random performance, typically around 0.5
+                # Ideally, we would find this value out on a task by task level.
+                self._random_baseline = np.full(num_tasks, 0.5)
 
-        # Allow negative normalized rates for bidirectional algorithm
-        normalized_task_success_rates = (
-            task_success_rates[self._update_mask] - self._random_baseline[self._update_mask]
-        ) / denominator
+            # Handle division by zero in normalization
+            denominator = 1.0 - self._random_baseline[self._update_mask]
+            denominator = np.where(denominator <= 0, 1.0, denominator)
+
+            # Normalize by baseline to make LP comparable across different task difficulties
+            normalized_task_success_rates = (
+                task_success_rates[self._update_mask] - self._random_baseline[self._update_mask]
+            ) / denominator
+        else:
+            # Use raw success rates directly (default)
+            # Learning progress = rate of change in raw performance
+            normalized_task_success_rates = task_success_rates[self._update_mask]
 
         # Initialize or update fast and slow EMAs
         if self._p_fast is None or len(self._p_fast) != num_tasks:
@@ -447,19 +452,12 @@ class BasicLPScorer(LPScorer):
             # Calculate standard deviation
             std_dev = np.sqrt(variance)
 
-            # Learning progress is approximated by variance in performance
-            learning_progress = std_dev
-
-            # Blend with exploration bonus for new tasks
-            if completion_count < 10:
-                exploration_weight = 1.0 - (completion_count / 10.0)
-                exploration_bonus = self.config.exploration_bonus * exploration_weight
-                learning_progress = (
-                    learning_progress * (1 - exploration_weight * self.config.exploration_blend_factor)
-                    + exploration_bonus
-                )
-
-            score = learning_progress
+            # Use exploration bonus for tasks with insufficient samples
+            if completion_count < self.config.min_samples_for_lp:
+                score = self.config.exploration_bonus
+            else:
+                # Learning progress is approximated by variance in performance
+                score = std_dev
 
         # Cache the computed score
         self._score_cache[task_id] = score

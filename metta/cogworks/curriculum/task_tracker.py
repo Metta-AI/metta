@@ -26,7 +26,6 @@ class TaskTracker:
         session_id: Optional[str] = None,
         use_shared_memory: bool = False,
         task_struct_size: int = 13,
-        completion_history_size: int = 1000,
         default_success_threshold: float = 0.5,
         default_generator_type: float = 0.0,
     ):
@@ -39,7 +38,6 @@ class TaskTracker:
             session_id: Unique identifier for shared memory session (only for shared memory)
             use_shared_memory: If True and backend is None, creates SharedMemoryBackend
             task_struct_size: Size of each task's data structure (default: 13)
-            completion_history_size: Size of completion history array (default: 1000)
             default_success_threshold: Default success threshold for new tasks (default: 0.5)
             default_generator_type: Default generator type identifier (default: 0.0)
         """
@@ -48,6 +46,10 @@ class TaskTracker:
         self.default_success_threshold = default_success_threshold
         self.default_generator_type = default_generator_type
 
+        # Running statistics for global tracking (replaces completion_history buffer)
+        self._total_completions = 0
+        self._sum_scores = 0.0
+
         # Initialize or use provided backend
         if backend is None:
             if use_shared_memory:
@@ -55,13 +57,11 @@ class TaskTracker:
                     max_tasks=max_memory_tasks,
                     session_id=session_id,
                     task_struct_size=task_struct_size,
-                    completion_history_size=completion_history_size,
                 )
             else:
                 backend = LocalMemoryBackend(
                     max_tasks=max_memory_tasks,
                     task_struct_size=task_struct_size,
-                    completion_history_size=completion_history_size,
                 )
 
         self._backend: TaskMemoryBackend = backend
@@ -205,16 +205,9 @@ class TaskTracker:
             task_data[8] = current_threshold
             task_data[11] = new_ema_squared
 
-            # Add score to completion history
-            history = self._backend.get_completion_history()
-            for i in range(len(history)):
-                if history[i] == 0.0:
-                    history[i] = score
-                    break
-            else:
-                # Shift array if full
-                history[:-1] = history[1:]
-                history[-1] = score
+            # Update running statistics (replaces completion_history)
+            self._total_completions += 1
+            self._sum_scores += score
 
     def update_lp_score(self, task_id: int, lp_score: float) -> None:
         """Update the learning progress score for a task."""
@@ -304,17 +297,15 @@ class TaskTracker:
         Note: No locking - statistics may be slightly inconsistent but acceptable
         for monitoring purposes. Avoids lock contention on frequent stat queries.
         """
-        # Get completion history
-        history = self._backend.get_completion_history()
-        completion_history = [score for score in history if score != 0.0]
-
-        if not completion_history:
+        if self._total_completions == 0:
             return {
-                "mean_recent_score": 0.0,
+                "mean_score": 0.0,
+                "total_completions": 0,
             }
 
         return {
-            "mean_recent_score": sum(completion_history) / len(completion_history),
+            "mean_score": self._sum_scores / self._total_completions,
+            "total_completions": self._total_completions,
         }
 
     def get_state(self) -> Dict[str, Any]:
@@ -341,10 +332,6 @@ class TaskTracker:
                     "ema_squared": task_data[11],
                 }
 
-        # Get completion history
-        history = self._backend.get_completion_history()
-        completion_history = [score for score in history if score != 0.0]
-
         total_completions = sum(int(self._backend.get_task_data(idx)[2]) for idx in self._task_id_to_index.values())
 
         # Determine tracker type based on backend
@@ -356,10 +343,11 @@ class TaskTracker:
             "tracker_type": tracker_type,
             "session_id": session_id,
             "task_memory": task_memory,
-            "completion_history": completion_history,
             "task_creation_order": [],  # Not used with backend approach
             "cached_total_completions": total_completions,
             "cache_valid": True,
+            "global_total_completions": self._total_completions,
+            "global_sum_scores": self._sum_scores,
         }
 
     def load_state(self, state: Dict[str, Any]) -> None:
@@ -394,11 +382,9 @@ class TaskTracker:
 
             self._next_free_index = len(state["task_memory"])
 
-            # Restore completion history
-            history = self._backend.get_completion_history()
-            completion_history = state.get("completion_history", [])
-            for i, score in enumerate(completion_history[: len(history)]):
-                history[i] = score
+            # Restore running statistics
+            self._total_completions = state.get("global_total_completions", 0)
+            self._sum_scores = state.get("global_sum_scores", 0.0)
 
     def cleanup_shared_memory(self) -> None:
         """Clean up shared memory resources (only relevant for shared memory backend)."""

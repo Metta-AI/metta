@@ -19,6 +19,7 @@ def learning_progress_config(request):
         num_active_tasks=10,
         use_shared_memory=False,  # Faster for unit tests
         use_bidirectional=use_bidirectional,
+        min_samples_for_lp=2,  # Lower threshold for testing (default is 10 in production)
     )
 
 

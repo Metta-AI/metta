@@ -13,11 +13,6 @@ from .lp_scorers import BasicLPScorer, BidirectionalLPScorer, LPScorer
 from .stats import CacheCoordinator, LPStatsAggregator
 from .task_tracker import TaskTracker
 
-# Constants for bidirectional learning progress
-DEFAULT_SUCCESS_RATE = 0.0
-DEFAULT_WEIGHT = 1.0
-RANDOM_BASELINE_CAP = 0.75
-
 
 class LearningProgressConfig(CurriculumAlgorithmConfig):
     """Configuration for learning progress with bidirectional scoring as default."""
@@ -26,6 +21,7 @@ class LearningProgressConfig(CurriculumAlgorithmConfig):
 
     # Bidirectional learning progress settings (now default)
     use_bidirectional: bool = True
+    use_baseline_normalization: bool = False  # Normalize by random baseline (default: use raw scores)
     ema_timescale: float = 0.1  # EMA learning rate (0.1 = updates in ~10 samples)
     slow_timescale_factor: float = 0.2  # Multiplier for slow EMA timescale (slow = ema_timescale * this)
     exploration_bonus: float = 0.1
@@ -42,7 +38,7 @@ class LearningProgressConfig(CurriculumAlgorithmConfig):
     # Basic EMA mode parameters (when use_bidirectional=False)
     basic_ema_initial_alpha: float = 0.3  # Initial learning rate for basic EMA
     basic_ema_alpha_decay: float = 0.2  # Decay factor for basic EMA alpha
-    exploration_blend_factor: float = 0.5  # Blend factor for exploration in basic mode
+    min_samples_for_lp: int = 10  # Minimum samples before using LP score (use exploration bonus until then)
 
     # Task tracker EMA configuration
     task_tracker_ema_alpha: float = 0.02  # Learning rate for task tracker EMAs (reward, success rate)
@@ -56,7 +52,6 @@ class LearningProgressConfig(CurriculumAlgorithmConfig):
 
     # Memory backend configuration
     task_struct_size: int = 13  # Size of task data structure in shared memory (includes ema_squared)
-    completion_history_size: int = 1000  # Size of completion history array
     enable_detailed_slice_logging: bool = False  # Updated terminology
     use_shared_memory: bool = True  # Enabled by default for production use
     session_id: Optional[str] = None  # Session ID for shared memory, None = auto-generate unique
@@ -91,7 +86,6 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
             session_id=hypers.session_id if hypers.use_shared_memory else None,
             use_shared_memory=hypers.use_shared_memory,
             task_struct_size=hypers.task_struct_size,
-            completion_history_size=hypers.completion_history_size,
             default_success_threshold=hypers.task_default_success_threshold,
             default_generator_type=hypers.task_default_generator_type,
         )
