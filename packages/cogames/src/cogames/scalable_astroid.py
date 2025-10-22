@@ -5,8 +5,8 @@ import random
 from typing import Callable, Literal, Optional
 
 from cogames.cogs_vs_clips import stations as cvc_stations
+from mettagrid.base_config import Config
 from mettagrid.builder.envs import make_navigation
-from mettagrid.config.config import Config
 from mettagrid.config.mettagrid_config import MettaGridConfig
 from mettagrid.mapgen.mapgen import MapGen
 from mettagrid.mapgen.random.int import IntConstantDistribution

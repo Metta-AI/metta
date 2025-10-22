@@ -1,6 +1,8 @@
 from pathlib import Path
+from typing import Any
 
 from cogames.cogs_vs_clips.mission import Mission, MissionVariant, Site
+from cogames.cogs_vs_clips.procedural import make_machina_procedural_map_builder
 from cogames.cogs_vs_clips.stations import (
     CarbonExtractorConfig,
     ChargerConfig,
@@ -19,6 +21,9 @@ def get_map(site: str) -> MapBuilderConfig:
     maps_dir = Path(__file__).parent.parent / "maps"
     map_path = maps_dir / site
     return MapBuilderConfig.from_uri(str(map_path))
+
+
+PROCEDURAL_BASE_BUILDER = make_machina_procedural_map_builder(num_cogs=4)
 
 
 class MinedOutVariant(MissionVariant):
@@ -103,10 +108,19 @@ MACHINA_1 = Site(
     max_cogs=20,
 )
 
+MACHINA_PROCEDURAL = Site(
+    name="machina_procedural",
+    description="Procedurally generated asteroid arena with sanctum hub and resource pockets.",
+    map_builder=PROCEDURAL_BASE_BUILDER,
+    min_cogs=1,
+    max_cogs=20,
+)
+
 SITES = [
     TRAINING_FACILITY,
     HELLO_WORLD,
     MACHINA_1,
+    MACHINA_PROCEDURAL,
 ]
 
 
@@ -173,6 +187,38 @@ class Machina1OpenWorldMission(Mission):
     site: Site = MACHINA_1
 
 
+# Procedural Missions
+class MachinaProceduralExploreMission(Mission):
+    name: str = "explore"
+    description: str = "There are HEARTs scattered around the map. Collect them all."
+    site: Site = MACHINA_PROCEDURAL
+    # Mission-level knobs for base shell biome
+    procedural_base_biome: str = "caves"
+    procedural_base_biome_config: dict[str, Any] | None = None
+
+    def instantiate(
+        self,
+        map_builder: MapBuilderConfig,
+        num_cogs: int,
+        variant: MissionVariant | None = None,
+    ) -> "Mission":
+        procedural_builder = make_machina_procedural_map_builder(
+            num_cogs=num_cogs,
+            width=100,
+            height=100,
+            base_biome=self.procedural_base_biome,
+            base_biome_config=self.procedural_base_biome_config,
+            extractor_coverage=0.02,
+            extractor_names=["chest"],
+            extractor_weights={"chest": 1.0},
+            biome_weights={"caves": 0.0, "forest": 0.5, "city": 0.3, "desert": 0.2},
+            dungeon_weights={"bsp": 0.7, "maze": 0.0, "radial": 0.3},
+            biome_count=6,
+            dungeon_count=4,
+        )
+        return super().instantiate(procedural_builder, num_cogs, variant)
+
+
 MISSIONS = [
     HarvestMission,
     AssembleMission,
@@ -183,6 +229,7 @@ MISSIONS = [
     TreasureHuntMission,
     HelloWorldOpenWorldMission,
     Machina1OpenWorldMission,
+    MachinaProceduralExploreMission,
 ]
 
 

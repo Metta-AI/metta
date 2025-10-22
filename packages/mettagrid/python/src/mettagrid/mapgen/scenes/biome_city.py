@@ -2,11 +2,10 @@ from typing import Tuple
 
 import numpy as np
 
-from mettagrid.config.config import Config
-from mettagrid.mapgen.scene import Scene
+from mettagrid.mapgen.scene import Scene, SceneConfig
 
 
-class BiomeCityParams(Config):
+class BiomeCityConfig(SceneConfig):
     # Grid of city blocks; roads form the gaps between blocks
     pitch: int = 10  # distance between block starts
     road_width: int = 2  # empty corridors
@@ -18,7 +17,7 @@ class BiomeCityParams(Config):
     dither_depth: int = 5  # How many cells deep to consider as edge zone
 
 
-class BiomeCity(Scene[BiomeCityParams]):
+class BiomeCity(Scene[BiomeCityConfig]):
     """
     City-like layout made of rectangular blocks separated by roads.
 
@@ -35,7 +34,7 @@ class BiomeCity(Scene[BiomeCityParams]):
     def render(self):
         grid = self.grid
         H, W = self.height, self.width
-        p = self.params
+        p = self.config
 
         pitch = max(4, int(p.pitch))
         road_w = max(1, int(p.road_width))
@@ -90,7 +89,7 @@ class BiomeCity(Scene[BiomeCityParams]):
     def _dither_edges(self, grid, prob: float):
         """Add organic noise to edges between wall and empty cells."""
         H, W = grid.shape
-        depth = self.params.dither_depth
+        depth = self.config.dither_depth
 
         # Find edges: cells within 'depth' distance of opposite type
         for y in range(depth, H - depth):

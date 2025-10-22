@@ -1,10 +1,9 @@
 import numpy as np
 
-from mettagrid.config.config import Config
-from mettagrid.mapgen.scene import Scene
+from mettagrid.mapgen.scene import Scene, SceneConfig
 
 
-class BiomeForestParams(Config):
+class BiomeForestConfig(SceneConfig):
     clumpiness: int = 3  # number of growth passes
     seed_prob: float = 0.04  # initial random seeds density
     growth_prob: float = 0.55  # probability to grow into empty if enough neighbors
@@ -14,7 +13,7 @@ class BiomeForestParams(Config):
     dither_depth: int = 5  # How many cells deep to consider as edge zone
 
 
-class BiomeForest(Scene[BiomeForestParams]):
+class BiomeForest(Scene[BiomeForestConfig]):
     """
     Cellular automata style forest: clumpy organic shapes.
     Walls are "trees"; empty is passable ground.
@@ -23,7 +22,7 @@ class BiomeForest(Scene[BiomeForestParams]):
     def render(self):
         grid = self.grid
         H, W = self.height, self.width
-        p = self.params
+        p = self.config
 
         forest = np.zeros((H, W), dtype=np.uint8)
         # Seed
@@ -55,7 +54,7 @@ class BiomeForest(Scene[BiomeForestParams]):
     def _dither_edges(self, grid, prob: float):
         """Add organic noise to edges between wall and empty cells."""
         H, W = grid.shape
-        depth = self.params.dither_depth
+        depth = self.config.dither_depth
 
         # Find edges: cells within 'depth' distance of opposite type
         for y in range(depth, H - depth):

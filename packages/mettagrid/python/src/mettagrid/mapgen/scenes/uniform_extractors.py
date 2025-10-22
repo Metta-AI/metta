@@ -4,8 +4,7 @@ import numpy as np
 from numpy.typing import NDArray
 from pydantic import Field
 
-from mettagrid.config.config import Config
-from mettagrid.mapgen.scene import Scene
+from mettagrid.mapgen.scene import Scene, SceneConfig
 
 DEFAULT_EXTRACTOR_WEIGHTS: dict[str, float] = {
     "charger": 0.3,
@@ -13,10 +12,6 @@ DEFAULT_EXTRACTOR_WEIGHTS: dict[str, float] = {
     "carbon_extractor": 0.1,
     "oxygen_extractor": 0.1,
     "germanium_extractor": 0.1,
-    "carbon_ex_dep": 0.1,
-    "oxygen_ex_dep": 0.1,
-    "germanium_ex_dep": 0.1,
-    "silicon_ex_dep": 0.1,
 }
 DEFAULT_FALLBACK_WEIGHT = 0.1
 
@@ -35,7 +30,7 @@ def _linspace_positions(count: int, interior_size: int) -> list[int]:
     return [1 + max(0, min(interior_size - 1, round(step * (i + 1)))) for i in range(count)]
 
 
-class UniformExtractorParams(Config):
+class UniformExtractorParams(SceneConfig):
     rows: int = 4
     cols: int = 4
     jitter: int = 1
@@ -59,7 +54,7 @@ class UniformExtractorScene(Scene[UniformExtractorParams]):
     """Place extractor stations on a jittered uniform grid."""
 
     def render(self) -> None:
-        params = self.params
+        params = self.config
         if self.width < 3 or self.height < 3:
             raise ValueError("Extractor map must be at least 3x3 to fit border walls")
 
@@ -204,7 +199,7 @@ class UniformExtractorScene(Scene[UniformExtractorParams]):
                 placed_centers.append((row, col))
 
     def _resolve_extractor_distribution(self) -> tuple[list[str], NDArray[np.float64]]:
-        weights = self.params.extractor_weights
+        weights = self.config.extractor_weights
         if weights:
             filtered = [(name, float(weight)) for name, weight in weights.items() if float(weight) > 0]
             if not filtered:
@@ -212,7 +207,7 @@ class UniformExtractorScene(Scene[UniformExtractorParams]):
             names, raw_weights = zip(*filtered, strict=False)
             weight_array = np.asarray(raw_weights, dtype=float)
         else:
-            names = self.params.extractor_names or ["carbon_extractor"]
+            names = self.config.extractor_names or ["carbon_extractor"]
             if not names:
                 raise ValueError("At least one extractor name must be provided")
             weight_array = np.asarray(

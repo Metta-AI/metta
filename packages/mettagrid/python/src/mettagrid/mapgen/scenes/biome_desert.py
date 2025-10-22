@@ -1,10 +1,9 @@
 import numpy as np
 
-from mettagrid.config.config import Config
-from mettagrid.mapgen.scene import Scene
+from mettagrid.mapgen.scene import Scene, SceneConfig
 
 
-class BiomeDesertParams(Config):
+class BiomeDesertConfig(SceneConfig):
     dune_period: int = 8  # distance between dune ridges
     ridge_width: int = 2  # ridge thickness in cells
     angle: float = 0.0  # radians; 0 == vertical stripes, pi/4 diagonal, etc.
@@ -14,7 +13,7 @@ class BiomeDesertParams(Config):
     dither_depth: int = 5  # How many cells deep to consider as edge zone
 
 
-class BiomeDesert(Scene[BiomeDesertParams]):
+class BiomeDesert(Scene[BiomeDesertConfig]):
     """
     Striated dunes: parallel ridges with occasional gaps.
     Walls are dunes; empty is sand path.
@@ -23,7 +22,7 @@ class BiomeDesert(Scene[BiomeDesertParams]):
     def render(self):
         grid = self.grid
         H, W = self.height, self.width
-        p = self.params
+        p = self.config
 
         period = max(2, int(p.dune_period))
         width = max(1, int(p.ridge_width))
@@ -49,7 +48,7 @@ class BiomeDesert(Scene[BiomeDesertParams]):
     def _dither_edges(self, grid, prob: float):
         """Add organic noise to edges between wall and empty cells."""
         H, W = grid.shape
-        depth = self.params.dither_depth
+        depth = self.config.dither_depth
 
         # Find edges: cells within 'depth' distance of opposite type
         for y in range(depth, H - depth):
