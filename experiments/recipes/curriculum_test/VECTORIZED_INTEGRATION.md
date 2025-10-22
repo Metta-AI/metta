@@ -11,19 +11,19 @@ The task dependency simulator now uses **Option C** from the integration recomme
 ```python
 class TaskDependencyEnv(PufferEnv):
     """Mock environment for task dependency simulation."""
-    
+
     def reset(self, *args, **kwargs):
         # Extracts task class from config label
         # Returns dummy observation
-        
+
     def step(self, action):
         # Samples task from simulator
         # Emits stats via info dict
         # Returns obs, reward, terminal, truncated, info
-        
+
     def get_episode_rewards(self):
         # Called by CurriculumEnv to get performance
-        
+
     def set_mg_config(self, config):
         # Called by CurriculumEnv to switch tasks
 ```
@@ -44,13 +44,13 @@ for i in range(num_envs):
 ```python
 for epoch in range(num_epochs):
     rollout_stats = defaultdict(list)
-    
+
     for _ in range(samples_per_epoch):
         info_batch = []
         for env in envs:
             obs, reward, terminal, truncated, info = env.step(0)
             info_batch.append(info)
-        
+
         # Real stats pipeline!
         accumulate_rollout_stats(info_batch, rollout_stats)
 ```
@@ -152,7 +152,7 @@ def simulate_task_dependencies(num_envs=4, ...):
         base_env = TaskDependencyEnv(simulator, initial_task.get_env_cfg())
         curriculum_env = CurriculumEnv(base_env, curriculum)  # Same!
         envs.append(curriculum_env)
-    
+
     # Rollout loop
     for epoch in range(num_epochs):
         for _ in range(samples_per_epoch):

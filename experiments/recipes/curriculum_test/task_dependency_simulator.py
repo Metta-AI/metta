@@ -302,7 +302,15 @@ class TaskDependencySimulator:
             )
             if task_stats:
                 curriculum_samples = task_stats["completion_count"]
+                simulator_samples = int(self.total_sample_counts[0].item())
                 metrics["task_0_tracking/cumulative_samples"] = curriculum_samples
+
+                # Reduced frequency curriculum vs simulator comparison
+                if self.current_epoch % 500 == 0:
+                    task_class = self._current_task_0_curriculum_id % self.num_tasks
+                    print(
+                        f"Epoch {self.current_epoch}: Curriculum task 0 ID {self._current_task_0_curriculum_id} (task class: {task_class}) samples: {curriculum_samples}, Simulator task 0 samples: {simulator_samples}"
+                    )
             else:
                 metrics["task_0_tracking/cumulative_samples"] = 0
         else:

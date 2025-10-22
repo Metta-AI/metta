@@ -448,10 +448,19 @@ class Curriculum(StatsLogger):
 
     def get_base_stats(self) -> Dict[str, float]:
         """Get basic curriculum statistics."""
+        # Get global completion count from algorithm's task tracker if available
+        # This tracks ALL completions across all tasks ever created (even evicted ones)
+        if self._algorithm is not None and hasattr(self._algorithm, "task_tracker"):
+            num_completed = float(self._algorithm.task_tracker._total_completions)
+        else:
+            # Fallback: sum completions for currently active tasks only
+            # NOTE: This undercounts if tasks have been evicted!
+            num_completed = float(sum(task._num_completions for task in self._tasks.values()))
+
         base_stats: Dict[str, float] = {
             "num_created": float(self._num_created),
             "num_evicted": float(self._num_evicted),
-            "num_completed": float(sum(task._num_completions for task in self._tasks.values())),
+            "num_completed": num_completed,
             "num_scheduled": float(sum(task._num_scheduled for task in self._tasks.values())),
             "num_active_tasks": float(len(self._tasks)),
         }
