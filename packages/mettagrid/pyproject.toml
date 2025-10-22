@@ -15,7 +15,7 @@ dynamic = ["version"]
 description = "A fast grid-based open-ended MARL environment"
 authors = [{ name = "David Bloomin", email = "daveey@gmail.com" }]
 requires-python = ">=3.11,<3.13"
-license = "MIT"
+license = { text = "MIT" }
 readme = "README.md"
 urls = { Homepage = "https://daveey.github.io", Repository = "https://github.com/Metta-AI/mettagrid" }
 keywords = [
@@ -48,7 +48,7 @@ build.config = "opt" # or "dbg" for debug builds
 [tool.pytest.ini_options]
 markers = ["slow: marks tests as slow (deselect with '-m \"not slow\"')"]
 testpaths = ["tests", "benchmarks"]
-pythonpath = ["python/src", "cpp/src"]
+pythonpath = ["python/src"]
 python_files = ["test_*.py"]
 python_functions = ["test_*"]
 python_classes = ["Test*"]
@@ -70,7 +70,7 @@ cache-keys = [
 ]
 
 [tool.setuptools.packages.find]
-where = ["python/src", "cpp/src"]
+where = ["python/src"]
 include = ["mettagrid", "mettagrid.*"]
 
 [tool.setuptools.package-data]
