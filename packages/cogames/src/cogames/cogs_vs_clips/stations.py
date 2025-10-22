@@ -196,6 +196,7 @@ class CvCChestConfig(CvCStationConfig):
 
 class CvCAssemblerConfig(CvCStationConfig):
     type: Literal["assembler"] = Field(default="assembler")
+    heart_cost: int = Field(default=10)
 
     def station_cfg(self) -> AssemblerConfig:
         gear = [("oxygen", "modulator"), ("germanium", "scrambler"), ("silicon", "resonator"), ("carbon", "decoder")]
@@ -208,7 +209,13 @@ class CvCAssemblerConfig(CvCStationConfig):
                 (
                     ["heart"] * (i + 1),
                     ProtocolConfig(
-                        input_resources={"carbon": 20, "oxygen": 20, "germanium": 5 - i, "silicon": 50, "energy": 20},
+                        input_resources={
+                            "carbon": self.heart_cost*2,
+                            "oxygen": self.heart_cost*2,
+                            "germanium": max(self.heart_cost//2 - i, 1),
+                            "silicon": self.heart_cost*5,
+                            "energy": self.heart_cost*2
+                        },
                         output_resources={"heart": 1},
                     ),
                 )
