@@ -1,6 +1,7 @@
 from cogames.cogs_vs_clips.missions import Machina1OpenWorldMission
 from metta.agent.policies.vit import ViTDefaultConfig
 from metta.tools.play import PlayTool
+from metta.tools.replay import ReplayTool
 from metta.sim.simulation_config import SimulationConfig
 from metta.cogworks.curriculum.task_generator import TaskGenerator, TaskGeneratorConfig
 from metta.rl.loss import LossConfig
@@ -415,6 +416,7 @@ class Machina1BaseTaskGenerator(TaskGenerator):
         )
         map = edit_map(extractors, use_charger, use_chest)
         assembler_inputs = self._get_assembler_inputs(extractors, use_charger)
+        print(f"Assembler inputs: {assembler_inputs}")
         assembler = make_assembler(assembler_inputs)
         game_objects["assembler"] = assembler
 
@@ -485,7 +487,7 @@ def make_mettagrid(task_generator: Machina1BaseTaskGenerator) -> MettaGridConfig
     return task_generator.get_task(random.randint(0, 1000000))
 
 
-def play(curriculum_style: str = "only_assembler"):
+def play(curriculum_style: str = "assembler_with_chest"):
     task_generator = Machina1BaseTaskGenerator(
         make_task_generator_cfg(**curriculum_args[curriculum_style])
     )
@@ -495,6 +497,15 @@ def play(curriculum_style: str = "only_assembler"):
         )
     )
 
+def replay(curriculum_style: str = "assembler_with_chest"):
+    task_generator = Machina1BaseTaskGenerator(
+        make_task_generator_cfg(**curriculum_args[curriculum_style])
+    )
+    policy_uri = "s3://softmax-public/policies/machina1_assembler_with_chest.2025-10-21/:latest"
+    return ReplayTool(
+        sim=SimulationConfig(env=make_mettagrid(task_generator), suite="machina1", name="replay"),
+        policy_uri=policy_uri,
+    )
 
 def train(curriculum_style: str = "four_extractors"):
     from experiments.evals.machina1.single_agent_base import (
