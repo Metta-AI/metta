@@ -98,6 +98,8 @@ def make_machina_procedural_map_builder(
     biome_layer: ChildrenAction | None = None
     biome_cands = _make_biome_candidates(biome_weights) if biome_weights is not None else []
     if biome_cands:
+        # Fill only a subset of zones to preserve base shell background
+        biome_fill_count = max(1, int(biome_count * 0.6))
         biome_layer = ChildrenAction(
             scene=BSPLayout.Config(
                 area_count=biome_count,
@@ -105,6 +107,8 @@ def make_machina_procedural_map_builder(
                     ChildrenAction(
                         scene=RandomScene.Config(candidates=biome_cands),
                         where=AreaWhere(tags=["zone"]),
+                        order_by="random",
+                        limit=biome_fill_count,
                     )
                 ],
             ),
@@ -116,6 +120,8 @@ def make_machina_procedural_map_builder(
     dungeon_layer: ChildrenAction | None = None
     dungeon_cands = _make_dungeon_candidates(dungeon_weights) if dungeon_weights is not None else []
     if dungeon_cands:
+        # Fill only a subset of zones to preserve base shell background
+        dungeon_fill_count = max(1, int(dungeon_count * 0.5))
         dungeon_layer = ChildrenAction(
             scene=BSPLayout.Config(
                 area_count=dungeon_count,
@@ -123,6 +129,8 @@ def make_machina_procedural_map_builder(
                     ChildrenAction(
                         scene=RandomScene.Config(candidates=dungeon_cands),
                         where=AreaWhere(tags=["zone"]),
+                        order_by="random",
+                        limit=dungeon_fill_count,
                     )
                 ],
             ),
@@ -135,15 +143,7 @@ def make_machina_procedural_map_builder(
         # Optional biome/dungeon layers over the base shell
         *([biome_layer] if biome_layer is not None else []),
         *([dungeon_layer] if dungeon_layer is not None else []),
-        # Ensure connectivity first so hub/resources placed later aren't overwritten
-        ChildrenAction(
-            scene=MakeConnected.Config(),
-            where="full",
-            order_by="last",
-            lock="arena.connect",
-            limit=1,
-        ),
-        # Then resources
+        # Resources first so connectors will tunnel between them
         ChildrenAction(
             scene=UniformExtractorScene.Config(
                 target_coverage=extractor_coverage,
@@ -154,6 +154,14 @@ def make_machina_procedural_map_builder(
             where="full",
             order_by="last",
             lock="arena.resources",
+            limit=1,
+        ),
+        # Ensure connectivity after resources to connect resource pockets
+        ChildrenAction(
+            scene=MakeConnected.Config(),
+            where="full",
+            order_by="last",
+            lock="arena.connect",
             limit=1,
         ),
         # Place hub last to keep spawns intact; it self-centers and sizes internally
