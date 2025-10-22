@@ -44,6 +44,7 @@ proc updateObjectInfo*() =
   let
     params = x.find("Params")
     param = x.find("Params/Param").copy()
+    vibeArea = x.find("VibeArea")
     inventoryArea = x.find("InventoryArea")
     inventory = x.find("InventoryArea/Inventory")
     item = x.find("InventoryArea/Inventory/Item").copy()
@@ -54,6 +55,7 @@ proc updateObjectInfo*() =
     recipeOutput = recipe.find("Outputs")
 
   params.removeChildren()
+  vibeArea.hide()
   inventory.removeChildren()
   recipeArea.removeChildren()
   recipeVibes.removeChildren()
@@ -68,6 +70,7 @@ proc updateObjectInfo*() =
 
   addParam("Type", selection.typeName)
 
+
   if selection.isAgent:
     addParam("Agent ID", $selection.agentId)
     addParam("Reward", $selection.totalReward.at)
@@ -75,7 +78,8 @@ proc updateObjectInfo*() =
       let vibeId = selection.vibeId.at
       if vibeId < replay.config.game.vibeNames.len:
         let vibeName = replay.config.game.vibeNames[vibeId]
-        addParam("Vibe", vibeName)
+        vibeArea.find("**/Icon").fills[0].imageRef = "../../vibe" / vibeName
+        vibeArea.show()
 
   if selection.cooldownRemaining.at > 0:
     addParam("Cooldown Remaining", $selection.cooldownRemaining.at)
