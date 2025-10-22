@@ -36,13 +36,17 @@ class CurriculumEnv(PufferEnv):
         self._stats_update_frequency = 50  # Batch stats updates to reduce overhead
 
         # Pre-compute string prefix for performance
-        self._CURRICULUM_STAT_PREFIX = "env_curriculum/"
+        self._CURRICULUM_STAT_PREFIX = "curriculum_stats/"
 
         # Track first reset to avoid hasattr checks
         self._first_reset_done = False
 
         # Per-label metrics tracking
         self._per_label_lp_scores = {}
+
+        # Cache curriculum stats
+        self._cached_curriculum_stats = {}
+        self._curriculum_stats_cache_valid = False
 
     def reset_epoch_counters(self) -> None:
         """Reset per-epoch tracking at the start of a new epoch.
@@ -53,22 +57,105 @@ class CurriculumEnv(PufferEnv):
         pass
 
     def _add_curriculum_stats_to_info(self, info_dict: dict) -> None:
-        """Add label-specific curriculum statistics to info dictionary for logging.
+        """Add curriculum statistics to info dictionary for logging.
 
-        Only logs per-label metrics (LP scores), not general curriculum stats.
-        Per-label completion counts are emitted on episode completion, not batched here.
+        Logs:
+        - Per-label LP scores (EMA smoothed)
+        - Pool composition fractions (fraction of task pool per label)
+        - Total completions, evictions
+        - Gini coefficient for sampling distribution across labels
+        - Mean LP score in task pool
         """
         # Only update curriculum stats periodically to reduce overhead
         if self._stats_update_counter >= self._stats_update_frequency:
-            # Add per-label learning progress metrics
+            # Get curriculum stats (with caching to reduce overhead)
+            if not self._curriculum_stats_cache_valid:
+                self._cached_curriculum_stats = self._curriculum.stats()
+                self._curriculum_stats_cache_valid = True
+
+            stats = self._cached_curriculum_stats
+
+            # Add per-label learning progress metrics (EMA smoothed per environment)
             if self._per_label_lp_scores:
                 info_dict[self._CURRICULUM_STAT_PREFIX + "per_label_lp_scores"] = self._per_label_lp_scores.copy()
 
+            # Add pool composition fractions (fraction of task pool for each label)
+            pool_composition = {}
+            total_pool_size = stats.get("num_active_tasks", 0)
+            if total_pool_size > 0:
+                for key, value in stats.items():
+                    if key.startswith("algorithm/pool_composition/"):
+                        label = key.replace("algorithm/pool_composition/", "")
+                        pool_composition[label] = value / total_pool_size
+
+            if pool_composition:
+                info_dict[self._CURRICULUM_STAT_PREFIX + "pool_composition_fraction"] = pool_composition
+
+            # Add total completions
+            if "num_completed" in stats:
+                info_dict[self._CURRICULUM_STAT_PREFIX + "total_completions"] = stats["num_completed"]
+
+            # Add number of evictions
+            if "num_evicted" in stats:
+                info_dict[self._CURRICULUM_STAT_PREFIX + "num_evicted"] = stats["num_evicted"]
+
+            # Calculate and add Gini coefficient for sampling distribution
+            sampling_counts = []
+            for key, value in stats.items():
+                if key.startswith("algorithm/sampling_counts/"):
+                    sampling_counts.append(value)
+
+            if sampling_counts:
+                gini = self._calculate_gini_coefficient(sampling_counts)
+                info_dict[self._CURRICULUM_STAT_PREFIX + "sampling_gini"] = gini
+
+            # Add mean LP score from task pool
+            if "algorithm/mean_lp_score" in stats:
+                info_dict[self._CURRICULUM_STAT_PREFIX + "mean_pool_lp_score"] = stats["algorithm/mean_lp_score"]
+
             self._stats_update_counter = 0
+
+    def _calculate_gini_coefficient(self, values: list[float]) -> float:
+        """Calculate Gini coefficient for a distribution.
+
+        Measures inequality in sampling across labels:
+        - 0 = perfect equality (all labels sampled equally)
+        - 1 = perfect inequality (all samples from one label)
+
+        Args:
+            values: List of counts/frequencies (e.g., sampling counts per label)
+
+        Returns:
+            Gini coefficient between 0 and 1
+        """
+        if not values or len(values) == 0:
+            return 0.0
+
+        # Handle case with all zeros
+        if sum(values) == 0:
+            return 0.0
+
+        # Sort values in ascending order
+        sorted_values = sorted(values)
+        n = len(sorted_values)
+
+        # Calculate Gini coefficient using the formula:
+        # G = (2 * sum(i * x_i)) / (n * sum(x_i)) - (n + 1) / n
+        cumsum = 0.0
+        for i, value in enumerate(sorted_values, start=1):
+            cumsum += i * value
+
+        total = sum(sorted_values)
+        gini = (2.0 * cumsum) / (n * total) - (n + 1.0) / n
+
+        return gini
 
     def reset(self, *args, **kwargs):
         """Reset the environment and get a new task from curriculum."""
         obs, info = self._env.reset(*args, **kwargs)
+
+        # Invalidate curriculum stats cache on reset (task pool may have changed)
+        self._curriculum_stats_cache_valid = False
 
         # Get a new task from curriculum
         self._current_task = self._curriculum.get_task()
@@ -95,6 +182,9 @@ class CurriculumEnv(PufferEnv):
             # Update the curriculum algorithm with task performance for learning progress
             self._curriculum.update_task_performance(self._current_task._task_id, mean_reward)
 
+            # Invalidate curriculum stats cache on task completion (stats have changed)
+            self._curriculum_stats_cache_valid = False
+
             # Update per-label metrics tracking
             label = self._current_task.get_label()
             # Only track if label is a valid string (not None, not a Mock)
@@ -108,9 +198,9 @@ class CurriculumEnv(PufferEnv):
 
                 # Emit per-label completion count directly in infos (following episode stats pattern)
                 # This will be summed across all vectorized environments automatically
-                if "env_curriculum/per_label_samples_this_epoch" not in infos:
-                    infos["env_curriculum/per_label_samples_this_epoch"] = {}
-                infos["env_curriculum/per_label_samples_this_epoch"][label] = 1
+                if "curriculum_stats/per_label_samples_this_epoch" not in infos:
+                    infos["curriculum_stats/per_label_samples_this_epoch"] = {}
+                infos["curriculum_stats/per_label_samples_this_epoch"][label] = 1
 
             self._current_task = self._curriculum.get_task()
             self._env.set_mg_config(self._current_task.get_env_cfg())
@@ -152,6 +242,9 @@ class CurriculumEnv(PufferEnv):
             "force_stats_update",
             "_first_reset_done",
             "_per_label_lp_scores",
+            "_cached_curriculum_stats",
+            "_curriculum_stats_cache_valid",
+            "_calculate_gini_coefficient",
             "reset_epoch_counters",
             "_CURRICULUM_STAT_PREFIX",
         ):

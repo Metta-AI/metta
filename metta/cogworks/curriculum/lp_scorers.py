@@ -200,6 +200,7 @@ class BidirectionalLPScorer(LPScorer):
             return {
                 "mean_task_success_rate": 0.0,
                 "mean_learning_progress": 0.0,
+                "mean_lp_score": 0.0,
             }
 
         self._update_bidirectional_progress()
@@ -209,6 +210,12 @@ class BidirectionalLPScorer(LPScorer):
             if len(self._task_success_rate) > 0
             else 0.0,
         }
+
+        # Add mean LP score from score cache
+        if self._score_cache:
+            stats["mean_lp_score"] = float(np.mean(list(self._score_cache.values())))
+        else:
+            stats["mean_lp_score"] = 0.0
 
         if self._task_dist is not None and len(self._task_dist) > 0:
             stats.update(
@@ -480,10 +487,18 @@ class BasicLPScorer(LPScorer):
     def get_stats(self) -> Dict[str, float]:
         """Get detailed basic learning progress statistics."""
         # Basic mode stats are minimal since most data is in TaskTracker
-        return {
+        stats = {
             "mean_learning_progress": 0.0,  # Could compute from all tasks if needed
             "num_cached_scores": len(self._score_cache),
         }
+
+        # Add mean LP score from score cache
+        if self._score_cache:
+            stats["mean_lp_score"] = float(np.mean(list(self._score_cache.values())))
+        else:
+            stats["mean_lp_score"] = 0.0
+
+        return stats
 
     def get_state(self) -> Dict[str, Any]:
         """Serialize basic scorer state."""
