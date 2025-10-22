@@ -48,11 +48,23 @@ def parse_requirement(req_string: str) -> tuple[str, str | None, str | None]:
 
     Returns tuple of (package_name, operator, version).
     operator and version are None if no version specifier is present.
+
+    Handles PEP 508 requirements including:
+    - Extras: package[extra]==1.0
+    - Dotted names: zope.interface==6.2
+    - Environment markers: package==1.0; python_version < "3.11"
     """
     req_string = req_string.strip()
-    req_string = re.sub(r"\[.*?\]", "", req_string)  # Handle extras like "package[extra]"
+
+    # Strip environment markers (e.g., "; python_version < '3.11'")
+    if ";" in req_string:
+        req_string = req_string.split(";")[0].strip()
+
+    # Remove extras like "package[extra]"
+    req_string = re.sub(r"\[.*?\]", "", req_string)
 
     # Match package name and version specifier
+    # Package names can contain letters, numbers, underscores, hyphens, and dots (PEP 508)
     match = re.match(r"^([a-zA-Z0-9_.-]+)\s*([><=~!]+)\s*(.+)$", req_string)
     if match:
         name, operator, version = match.groups()
