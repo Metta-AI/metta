@@ -71,8 +71,15 @@ class BSP(Scene[BSPConfig]):
             )
             rooms.append(room)
 
-            grid[room.y : room.y + room.height, room.x : room.x + room.width] = "empty"
-            self.make_area(room.x, room.y, room.width, room.height, tags=["room"])
+            # Clamp room to scene area bounds to avoid subarea overflows
+            rx = max(0, min(int(room.x), self.width - 1))
+            ry = max(0, min(int(room.y), self.height - 1))
+            rw = max(1, min(int(room.width), self.width - rx))
+            rh = max(1, min(int(room.height), self.height - ry))
+
+            grid[ry : ry + rh, rx : rx + rw] = "empty"
+            # Create a sub-area for the clamped room footprint
+            self.make_area(rx, ry, rw, rh, tags=["room"])
 
         # Make corridors
         if config.skip_corridors:

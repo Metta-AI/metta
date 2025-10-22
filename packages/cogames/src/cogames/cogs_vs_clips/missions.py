@@ -83,75 +83,7 @@ class SolarFlareVariant(MissionVariant):
         return mission
 
 
-class SimpleRecipesVariant(MissionVariant):
-    name: str = "simple_recipes"
-    description: str = "Swap in tutorial assembler protocols for easier heart crafting."
 
-    def apply(self, mission: Mission) -> Mission:
-        def modifier(cfg: MettaGridConfig) -> None:
-            assembler = cfg.game.objects.get("assembler")
-            if assembler is None:
-                return
-
-            energy_recipe = (
-                ["default"],
-                ProtocolConfig(
-                    input_resources={"energy": 1},
-                    output_resources={"heart": 1},
-                    cooldown=1,
-                ),
-            )
-
-            if not any(
-                recipe.input_resources == energy_recipe[1].input_resources
-                and recipe.output_resources == energy_recipe[1].output_resources
-                for _, recipe in assembler.recipes
-            ):
-                assembler.recipes = [energy_recipe, *assembler.recipes]
-
-        return _add_make_env_modifier(mission, modifier)
-
-
-class PackRatVariant(MissionVariant):
-    name: str = "pack_rat"
-    description: str = "Boost heart inventory limits so agents can haul more at once."
-
-    def apply(self, mission: Mission) -> Mission:
-        mission.heart_capacity = max(mission.heart_capacity, 10)
-        return mission
-
-
-class NeutralFacedVariant(MissionVariant):
-    name: str = "neutral_faced"
-    description: str = "Keep the neutral face glyph; disable glyph swapping entirely."
-
-    def apply(self, mission: Mission) -> Mission:
-        def modifier(cfg: MettaGridConfig) -> None:
-            change_glyph = cfg.game.actions.change_glyph
-            change_glyph.enabled = False
-            change_glyph.number_of_glyphs = 1
-
-        return _add_make_env_modifier(mission, modifier)
-
-
-# Backwards-compatible alias
-class HeartChorusVariant(MissionVariant):
-    name: str = "heart_chorus"
-    description: str = "Heart-centric reward shaping with gentle resource bonuses."
-
-    def apply(self, mission: Mission) -> Mission:
-        def modifier(cfg: MettaGridConfig) -> None:
-            cfg.game.agent.rewards.stats = {
-                "heart.gained": 0.25,
-                "chest.heart.deposited": 1.0,
-                "carbon.gained": 0.02,
-                "oxygen.gained": 0.02,
-                "germanium.gained": 0.05,
-                "silicon.gained": 0.02,
-                "energy.gained": 0.005,
-            }
-
-        return _add_make_env_modifier(mission, modifier)
 
 
 VARIANTS = [
@@ -327,7 +259,6 @@ class MachinaProceduralExploreMission(Mission):
         return env
 
 
-
 class ProceduralOpenWorldMission(Mission):
     name: str = "open_world"
     description: str = "Collect resources and assemble HEARTs."
@@ -350,10 +281,22 @@ class ProceduralOpenWorldMission(Mission):
             base_biome=self.procedural_base_biome,
             base_biome_config=self.procedural_base_biome_config,
             extractor_coverage=0.005,
-            extractor_names=["chest", "charger", "germanium_extractor", "silicon_extractor",
-                                "oxygen_extractor", "carbon_extractor"],
-            extractor_weights={"chest": 1.0, "charger": 0.5, "germanium_extractor": 0.5, "silicon_extractor": 0.5,
-                                "oxygen_extractor": 0.5, "carbon_extractor": 0.5},
+            extractor_names=[
+                "chest",
+                "charger",
+                "germanium_extractor",
+                "silicon_extractor",
+                "oxygen_extractor",
+                "carbon_extractor",
+            ],
+            extractor_weights={
+                "chest": 1.0,
+                "charger": 0.5,
+                "germanium_extractor": 0.5,
+                "silicon_extractor": 0.5,
+                "oxygen_extractor": 0.5,
+                "carbon_extractor": 0.5,
+            },
             biome_weights={"caves": 0.5, "forest": 0.5, "city": 0.5, "desert": 0.5},
             dungeon_weights={"bsp": 0.6, "maze": 0.1, "radial": 0.1},
             biome_count=8,
