@@ -18,7 +18,10 @@ from experiments.recipes.arena_basic_easy_shaped import (
 )
 from metta.agent.policies.smollm import SmolLLMConfig
 from metta.agent.policy import PolicyArchitecture
-from metta.cogworks.curriculum.curriculum import CurriculumAlgorithmConfig, CurriculumConfig
+from metta.cogworks.curriculum.curriculum import (
+    CurriculumAlgorithmConfig,
+    CurriculumConfig,
+)
 from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
 from metta.tools.train import TrainTool
 from metta.tools.sweep import SweepTool
@@ -135,7 +138,9 @@ def make_curriculum(
     tasks = cc.bucketed(env)
 
     for item in ["ore_red", "battery_red", "laser", "armor"]:
-        tasks.add_bucket(f"game.agent.rewards.inventory.{item}", [0, 0.1, 0.5, 0.9, 1.0])
+        tasks.add_bucket(
+            f"game.agent.rewards.inventory.{item}", [0, 0.1, 0.5, 0.9, 1.0]
+        )
         tasks.add_bucket(f"game.agent.rewards.inventory_max.{item}", [1, 2])
 
     tasks.add_bucket("game.actions.attack.consumed_resources.laser", [1, 100])

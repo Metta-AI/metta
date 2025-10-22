@@ -54,8 +54,12 @@ def train(
         config_kwargs["model_name"] = model_name or "HuggingFaceTB/SmolLM2-135M"
         policy_architecture = SmolLLMConfig(**config_kwargs)
 
+    resolved_curriculum = curriculum or smollm_recipe.make_curriculum(
+        enable_detailed_slice_logging=enable_detailed_slice_logging,
+    )
+
     tool = base_train(
-        curriculum=curriculum,
+        curriculum=resolved_curriculum,
         enable_detailed_slice_logging=enable_detailed_slice_logging,
         policy_architecture=policy_architecture,
     )
