@@ -1,6 +1,8 @@
 from pathlib import Path
 from typing import Any
 
+from pydantic import Field
+
 from cogames.cogs_vs_clips.mission import Mission, MissionVariant, Site
 from cogames.cogs_vs_clips.procedural import make_machina_procedural_map_builder
 from cogames.cogs_vs_clips.stations import (
@@ -74,7 +76,61 @@ class SolarFlareVariant(MissionVariant):
         return mission
 
 
+# Biome variants (weather) for procedural maps
+class DesertBiomeVariant(MissionVariant):
+    name: str = "desert"
+    description: str = "The desert sands make navigation challenging."
 
+    def apply(self, mission: Mission) -> Mission:
+        if hasattr(mission, "procedural_overrides"):
+            mission.procedural_overrides["biome_weights"] = {"desert": 1.0, "caves": 0.0, "forest": 0.0, "city": 0.0}
+            mission.procedural_overrides["base_biome"] = "desert"
+        return mission
+
+
+class ForestBiomeVariant(MissionVariant):
+    name: str = "forest"
+    description: str = "Dense forests obscure your view."
+
+    def apply(self, mission: Mission) -> Mission:
+        if hasattr(mission, "procedural_overrides"):
+            mission.procedural_overrides["biome_weights"] = {"forest": 1.0, "caves": 0.0, "desert": 0.0, "city": 0.0}
+            mission.procedural_overrides["base_biome"] = "forest"
+        return mission
+
+
+class CityBiomeVariant(MissionVariant):
+    name: str = "city"
+    description: str = "Ancient city ruins provide structured pathways."
+
+    def apply(self, mission: Mission) -> Mission:
+        if hasattr(mission, "procedural_overrides"):
+            mission.procedural_overrides.update(
+                {
+                    "base_biome": "city",
+                    "biome_weights": {"city": 1.0, "caves": 0.0, "desert": 0.0, "forest": 0.0},
+                    # Fill almost the entire map with the city layer
+                    "density_scale": 1.0,
+                    "biome_count": 1,
+                    "max_biome_zone_fraction": 0.95,
+                    # Disable dungeon overlays so they don't overwrite the grid
+                    "dungeon_weights": {"bsp": 0.0, "maze": 0.0, "radial": 0.0},
+                    "max_dungeon_zone_fraction": 0.0,
+                    # Tighten the city grid itself
+                }
+            )
+        return mission
+
+
+class CavesBiomeVariant(MissionVariant):
+    name: str = "caves"
+    description: str = "Winding cave systems create a natural maze."
+
+    def apply(self, mission: Mission) -> Mission:
+        if hasattr(mission, "procedural_overrides"):
+            mission.procedural_overrides["biome_weights"] = {"caves": 1.0, "desert": 0.0, "forest": 0.0, "city": 0.0}
+            mission.procedural_overrides["base_biome"] = "caves"
+        return mission
 
 
 VARIANTS = [
@@ -83,6 +139,10 @@ VARIANTS = [
     BrightSideVariant,
     RoughTerrainVariant,
     SolarFlareVariant,
+    DesertBiomeVariant,
+    ForestBiomeVariant,
+    CityBiomeVariant,
+    CavesBiomeVariant,
 ]
 
 
@@ -190,16 +250,10 @@ class Machina1OpenWorldMission(Mission):
     site: Site = MACHINA_1
 
 
-# Procedural Missions
-class MachinaProceduralExploreMission(Mission):
-    name: str = "explore"
-    description: str = "There are HEARTs scattered around the map. Collect them all."
+# Base class for procedural missions
+class ProceduralMissionBase(Mission):
     site: Site = MACHINA_PROCEDURAL
-    # Mission-level knobs for base shell biome
-    procedural_base_biome: str = "caves"
-    procedural_base_biome_config: dict[str, Any] | None = None
-    # Set agents to hold 99 hearts each
-    heart_capacity: int = 99
+    procedural_overrides: dict[str, Any] = Field(default_factory=dict)
 
     def instantiate(
         self,
@@ -207,24 +261,31 @@ class MachinaProceduralExploreMission(Mission):
         num_cogs: int,
         variant: MissionVariant | None = None,
     ) -> "Mission":
-        procedural_builder = make_machina_procedural_map_builder(
-            num_cogs=num_cogs,
-            width=100,
-            height=100,
-            base_biome=self.procedural_base_biome,
-            base_biome_config=self.procedural_base_biome_config,
-            extractor_coverage=0.005,
-            extractor_names=["chest", "charger"],
-            extractor_weights={"chest": 1.0, "charger": 0.5},
-            biome_weights={"caves": 0.5, "forest": 0.5, "city": 0.5, "desert": 0.5},
-            dungeon_weights={"bsp": 0.6, "maze": 0.1, "radial": 0.1},
-            # biome_count=8,
-            # dungeon_count=4,
-            density_scale=0.2,
-            max_biome_zone_fraction=0.20,
-            max_dungeon_zone_fraction=0.5,
-        )
-        return super().instantiate(procedural_builder, num_cogs, variant)
+        # Use standard mission instantiation first (handles configure + variants)
+        mission = super().instantiate(map_builder, num_cogs, variant)
+
+        # Build procedural map using mission-specific overrides
+        overrides = dict(mission.procedural_overrides)
+        procedural_builder = make_machina_procedural_map_builder(num_cogs=num_cogs, **overrides)
+        mission.map = procedural_builder
+
+        return mission
+
+
+# Procedural Missions
+class MachinaProceduralExploreMission(ProceduralMissionBase):
+    name: str = "explore"
+    description: str = "There are HEARTs scattered around the map. Collect them all."
+
+    def configure(self):
+        # Mission defaults that don't depend on num_cogs
+        self.heart_capacity = 99
+        # Only chests for explore mission
+        self.procedural_overrides = {
+            "extractor_names": ["chest"],
+            "extractor_weights": {"chest": 1.0},
+            "extractor_coverage": 0.004,
+        }
 
     def make_env(self) -> MettaGridConfig:
         env = super().make_env()
@@ -245,66 +306,9 @@ class MachinaProceduralExploreMission(Mission):
         return env
 
 
-class ProceduralOpenWorldMission(Mission):
+class ProceduralOpenWorldMission(ProceduralMissionBase):
     name: str = "open_world"
     description: str = "Collect resources and assemble HEARTs."
-    site: Site = MACHINA_PROCEDURAL
-
-    # Mission-level knobs for base shell biome
-    procedural_base_biome: str = "caves"
-    procedural_base_biome_config: dict[str, Any] | None = None
-
-    def instantiate(
-        self,
-        map_builder: MapBuilderConfig,
-        num_cogs: int,
-        variant: MissionVariant | None = None,
-    ) -> "Mission":
-        procedural_builder = make_machina_procedural_map_builder(
-            num_cogs=num_cogs,
-            width=100,
-            height=100,
-            base_biome=self.procedural_base_biome,
-            base_biome_config=self.procedural_base_biome_config,
-            extractor_coverage=0.005,
-            extractor_names=[
-                "chest",
-                "charger",
-                "germanium_extractor",
-                "silicon_extractor",
-                "oxygen_extractor",
-                "carbon_extractor",
-            ],
-            extractor_weights={
-                "chest": 1.0,
-                "charger": 0.5,
-                "germanium_extractor": 0.5,
-                "silicon_extractor": 0.5,
-                "oxygen_extractor": 0.5,
-                "carbon_extractor": 0.5,
-            },
-            biome_weights={"caves": 0.5, "forest": 0.5, "city": 0.5, "desert": 0.5},
-            dungeon_weights={"bsp": 0.6, "maze": 0.1, "radial": 0.1},
-            biome_count=8,
-            dungeon_count=4,
-            density_scale=0.4,
-            max_biome_zone_fraction=0.30,
-            max_dungeon_zone_fraction=0.2,
-        )
-        return super().instantiate(procedural_builder, num_cogs, variant)
-
-    def make_env(self) -> MettaGridConfig:
-        env = super().make_env()
-        # Reward agents for hearts they personally hold
-        if self.num_cogs and self.num_cogs > 0:
-            reward_weight = 1.0 / float(self.num_cogs)
-        else:
-            reward_weight = 1.0 / float(max(1, getattr(env.game, "num_agents", 1)))
-        env.game.agent.rewards.inventory = {"heart": reward_weight}
-        env.game.agent.rewards.stats = {}
-        env.game.agent.rewards.inventory_max = {}
-        env.game.agent.rewards.stats_max = {}
-        return env
 
 
 MISSIONS = [
