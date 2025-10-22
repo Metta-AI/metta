@@ -1,26 +1,27 @@
-FROM ubuntu:24.04
-
-WORKDIR /workspace
-
-# Copy the entire metta repo
-COPY . /workspace/metta
+FROM python:3.11-slim
 
 WORKDIR /workspace/metta
 
-# Install system dependencies
-RUN bash ./devops/tools/install-system.sh
+# Install uv
+COPY --from=ghcr.io/astral-sh/uv:0.8.13 /uv /uvx /bin/
 
-# Install metta with softmax profile
-RUN bash install.sh --profile softmax-docker --non-interactive
+# Copy workspace metadata
+COPY .python-version pyproject.toml uv.lock ./
 
-# Pre-build packages to avoid import delays
-# Verify the dashboard can be imported
-RUN uv sync --frozen && \
-    .venv/bin/python -c "import softmax.dashboard.report"
+# Install Python
+RUN uv python install
 
-# Set PATH to use the pre-built venv
-ENV PATH="/workspace/metta/.venv/bin:$PATH"
-ENV VIRTUAL_ENV="/workspace/metta/.venv"
+# Copy only the packages we need
+COPY common/pyproject.toml common/
+COPY softmax/pyproject.toml softmax/
+COPY common/src common/src
+COPY softmax/src softmax/src
 
-# Run directly from venv (no uv run to avoid re-syncing at startup)
+# Install only common and softmax packages (uv will skip others not in the directory)
+RUN uv pip install --system -e ./common -e ./softmax
+
+# Verify imports work
+RUN python -c "import softmax.dashboard.report"
+
+# Run the dashboard
 CMD ["python", "-m", "softmax.dashboard.report", "report", "--push"]
