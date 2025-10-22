@@ -9,7 +9,7 @@ def format_grid_object_base(grid_object: dict) -> dict:
     """Format the base properties common to all grid objects."""
     update_object = {}
     update_object["id"] = grid_object["id"]
-    update_object["type_id"] = grid_object["type_id"]
+    update_object["type_name"] = grid_object["type_name"]
     update_object["location"] = grid_object["location"]
     update_object["orientation"] = grid_object.get("orientation", 0)
     update_object["inventory"] = list(grid_object.get("inventory", {}).items())
@@ -56,6 +56,7 @@ def format_agent_properties(
     update_object["is_frozen"] = grid_object.get("is_frozen", False)
     update_object["freeze_duration"] = grid_object.get("freeze_duration", 0)
     update_object["group_id"] = grid_object["group_id"]
+    update_object["vibe_id"] = grid_object.get("glyph", 0)
 
 
 def format_converter_properties(grid_object: dict, update_object: dict) -> None:
@@ -103,8 +104,8 @@ def format_grid_object(
     assert isinstance(grid_object["id"], int), (
         f"Expected grid_object['id'] to be an integer, got {type(grid_object['id'])}"
     )
-    assert isinstance(grid_object["type_id"], int), (
-        f"Expected grid_object['type_id'] to be an integer, got {type(grid_object['type_id'])}"
+    assert isinstance(grid_object["type_name"], str), (
+        f"Expected grid_object['type_name'] to be a string, got {type(grid_object['type_name'])}"
     )
     assert isinstance(grid_object["location"], (tuple, list)) and len(grid_object["location"]) == 3, (
         f"Expected location to be tuple/list of 3 elements, got {type(grid_object['location'])}"

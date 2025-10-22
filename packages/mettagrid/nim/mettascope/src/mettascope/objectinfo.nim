@@ -11,7 +11,7 @@ find "/UI/Main/**/ObjectInfo/OpenConfig":
       if replay.isNil or replay.mgConfig.isNil:
         "No replay config found."
       else:
-        let typeName = replay.typeNames[selection.typeId]
+        let typeName = selection.typeName
         if typeName == "agent":
           let agentConfig = replay.mgConfig["game"]["agent"]
           agentConfig.pretty
@@ -23,9 +23,9 @@ find "/UI/Main/**/ObjectInfo/OpenConfig":
           else:
             let objConfig = replay.mgConfig["game"]["objects"][typeName]
             objConfig.pretty
-    if not existsDir("tmp"):
+    if not dirExists("tmp"):
       createDir("tmp")
-    let typeName = replay.typeNames[selection.typeId]
+    let typeName = selection.typeName
     writeFile("tmp/" & typeName & "_config.json", text)
     when defined(windows):
       discard execShellCmd("notepad tmp/" & typeName & "_config.json")
@@ -64,11 +64,16 @@ proc updateObjectInfo*() =
     p.find("**/Value").text = value
     params.addChild(p)
 
-  addParam("Type", replay.typeNames[selection.typeId])
+  addParam("Type", selection.typeName)
 
   if selection.isAgent:
     addParam("Agent ID", $selection.agentId)
     addParam("Reward", $selection.totalReward.at)
+    if replay.config.game.vibeNames.len > 0:
+      let vibeId = selection.vibeId.at
+      if vibeId < replay.config.game.vibeNames.len:
+        let vibeName = replay.config.game.vibeNames[vibeId]
+        addParam("Vibe", vibeName)
 
   if selection.cooldownRemaining.at > 0:
     addParam("Cooldown Remaining", $selection.cooldownRemaining.at)

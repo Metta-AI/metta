@@ -66,7 +66,7 @@ def create_minimal_mettagrid_c_env(max_steps=10, width=5, height=5, config_overr
             swap=ActionConfig(enabled=False),
             change_glyph=ChangeGlyphActionConfig(enabled=True, number_of_glyphs=4),
         ),
-        objects={"wall": WallConfig(type_id=1)},
+        objects={"wall": WallConfig()},
         agent=AgentConfig(),
     )
 

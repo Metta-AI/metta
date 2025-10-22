@@ -259,7 +259,7 @@ jobs:
           RUN_APP_BACKEND_TESTS: ${{ needs.setup-checks.outputs.app_backend_has_changes == 'true' && 'true' || 'false' }}
         run: .github/scripts/run_package_tests.sh
 
-  mettagrid-cpp-build:
+  mettagrid-cpp:
     name: "MettaGrid C++ Build & Test"
     needs: [graphite-ci-optimizer, setup-checks]
     if: |
@@ -309,15 +309,21 @@ jobs:
           restore-keys: |
             bazel-${{ runner.os }}-
 
-      - name: Build MettaGrid C++ (with coverage)
-        id: mettagrid_build_check
+      - name: MettaGrid C++ tests
+        id: mettagrid-cpp-tests
         run: |
           cd packages/mettagrid
           make coverage VERBOSE=1
 
+      - name: MettaGrid C++ benchmarks
+        id: mettagrid-cpp-benchmarks
+        run: |
+          cd packages/mettagrid
+          make benchmark VERBOSE=1
+
   unit-tests-summary:
     name: "Tests"
-    needs: [unit-tests, mettagrid-cpp-build]
+    needs: [unit-tests, mettagrid-cpp]
     if: always()
     runs-on: ubuntu-latest
     steps:
