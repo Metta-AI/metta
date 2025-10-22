@@ -1,3 +1,4 @@
+import random
 from typing import Optional, Sequence
 
 import metta.cogworks.curriculum as cc
@@ -7,7 +8,12 @@ from metta.cogworks.curriculum.curriculum import (
     CurriculumConfig,
 )
 from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
-from metta.cogworks.curriculum.task_generator import Span
+from metta.cogworks.curriculum.task_generator import (
+    BucketedTaskGenerator,
+    Span,
+    TaskGenerator,
+    TaskGeneratorConfig,
+)
 from metta.map.terrain_from_numpy import NavigationFromNumpy
 from metta.rl.loss import LossConfig
 from metta.rl.trainer_config import TrainerConfig
@@ -22,6 +28,50 @@ from mettagrid.map_builder.random import RandomMapBuilder
 from mettagrid.mapgen.mapgen import MapGen
 
 from experiments.evals.navigation import make_navigation_eval_suite
+
+
+class NavigationTaskGenerator(TaskGenerator):
+    """Custom task generator for navigation that sets dynamic labels based on task parameters."""
+
+    class Config(TaskGeneratorConfig["NavigationTaskGenerator"]):
+        """Configuration for NavigationTaskGenerator."""
+
+        bucketed_generator: BucketedTaskGenerator.Config
+
+    def __init__(self, config: "NavigationTaskGenerator.Config"):
+        super().__init__(config)
+        self._config = config
+        self._bucketed_generator = config.bucketed_generator.create()
+
+    def _generate_task(self, task_id: int, rng: random.Random) -> MettaGridConfig:
+        """Generate task and set dynamic label based on task parameters."""
+        env_cfg = self._bucketed_generator.get_task(task_id)
+
+        # Get the bucket values that were sampled
+        bucket_values = getattr(self._bucketed_generator, "_last_bucket_values", {})
+
+        # Extract key parameters for labeling
+        map_dir = bucket_values.get("game.map_builder.instance.dir", "")
+        width = bucket_values.get("game.map_builder.width")
+        height = bucket_values.get("game.map_builder.height")
+        altar_count = bucket_values.get(
+            "game.map_builder.instance.objects.altar"
+        ) or bucket_values.get("game.map_builder.objects.altar")
+
+        # Create label based on task type
+        if map_dir:
+            # Dense task - use terrain directory
+            # Extract just the terrain name from path like "varied_terrain/dense_large"
+            terrain_name = map_dir.split("/")[-1] if "/" in map_dir else map_dir
+            label = f"{terrain_name}_altar{altar_count}"
+        elif width and height:
+            # Sparse task - use dimensions
+            label = f"random_{width}x{height}_altar{altar_count}"
+        else:
+            label = "navigation"
+
+        env_cfg.label = label
+        return env_cfg
 
 
 def mettagrid(num_agents: int = 1, num_instances: int = 4) -> MettaGridConfig:
@@ -73,7 +123,11 @@ def make_curriculum(
     sparse_tasks.add_bucket("game.map_builder.height", [Span(60, 120)])
     sparse_tasks.add_bucket("game.map_builder.objects.altar", [Span(1, 10)])
 
-    nav_tasks = cc.merge([dense_tasks, sparse_tasks])
+    # Wrap in NavigationTaskGenerator to add dynamic labels
+    nav_tasks_config = cc.merge([dense_tasks, sparse_tasks])
+    nav_tasks_with_labels = NavigationTaskGenerator.Config(
+        bucketed_generator=nav_tasks_config
+    )
 
     if algorithm_config is None:
         algorithm_config = LearningProgressConfig(
@@ -84,8 +138,9 @@ def make_curriculum(
             enable_detailed_slice_logging=enable_detailed_slice_logging,
         )
 
-    return nav_tasks.to_curriculum(
-        num_active_tasks=1000,  # Smaller pool for navigation tasks
+    return CurriculumConfig(
+        task_generator=nav_tasks_with_labels,
+        num_active_tasks=1000,
         algorithm_config=algorithm_config,
     )
 

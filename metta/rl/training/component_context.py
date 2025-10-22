@@ -197,6 +197,9 @@ class ComponentContext:
     # ------------------------------------------------------------------
     def reset_for_epoch(self) -> None:
         self.training_env_id = None
+        # Reset per-epoch counters in curriculum environments
+        if hasattr(self.env, "reset_epoch_counters"):
+            self.env.reset_epoch_counters()
 
     def record_rollout(self, agent_steps: int, world_size: int) -> None:
         self.agent_step += agent_steps * world_size

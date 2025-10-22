@@ -50,14 +50,24 @@ class CurriculumEnv(PufferEnv):
         self._per_label_completion_counts = {}  # Cumulative across all training
         self._per_label_completion_counts_last_epoch = {}  # For computing deltas
 
-    def reset_epoch_counters(self) -> None:
+        # Shared aggregated counts across all environments (set by reset_epoch_counters)
+        self._aggregated_epoch_counts = None
+
+    def reset_epoch_counters(self, aggregated_counts: dict[str, int] | None = None) -> None:
         """Reset per-epoch tracking at the start of a new epoch.
 
         This ensures that per-epoch delta calculations start fresh for each epoch,
         preventing completions from one epoch leaking into the next.
+
+        Args:
+            aggregated_counts: Optional aggregated counts across all environments.
+                If provided, this will be used for logging instead of per-env counts.
         """
         # Reset the baseline for delta calculations
         self._per_label_completion_counts_last_epoch = self._per_label_completion_counts.copy()
+
+        # Store aggregated counts if provided
+        self._aggregated_epoch_counts = aggregated_counts
 
     def _add_curriculum_stats_to_info(self, info_dict: dict) -> None:
         """Add curriculum statistics to info dictionary for logging.
@@ -80,23 +90,29 @@ class CurriculumEnv(PufferEnv):
                 info_dict[self._CURRICULUM_STAT_PREFIX + "per_label_lp_scores"] = self._per_label_lp_scores.copy()
 
             # Report per-epoch deltas (derivative) instead of cumulative counts
-            if self._per_label_completion_counts:
-                # Compute delta since last epoch
+            # Use aggregated counts if available (summed across all envs), otherwise use local counts
+            if self._aggregated_epoch_counts is not None:
+                # Log aggregated counts (already summed across all environments)
+                info_dict[self._CURRICULUM_STAT_PREFIX + "per_label_samples_this_epoch"] = (
+                    self._aggregated_epoch_counts.copy()
+                )
+            elif self._per_label_completion_counts:
+                # Fallback to local counts if aggregation hasn't happened yet
                 per_epoch_counts = {}
                 for label, cumulative_count in self._per_label_completion_counts.items():
                     last_count = self._per_label_completion_counts_last_epoch.get(label, 0)
                     per_epoch_counts[label] = cumulative_count - last_count
 
-                # Log the per-epoch deltas (this is what you want to visualize)
                 info_dict[self._CURRICULUM_STAT_PREFIX + "per_label_samples_this_epoch"] = per_epoch_counts
 
-                # Also log cumulative for reference (optional, can be removed if not needed)
+            # Also log cumulative for reference (optional, can be removed if not needed)
+            if self._per_label_completion_counts:
                 info_dict[self._CURRICULUM_STAT_PREFIX + "per_label_cumulative_samples"] = (
                     self._per_label_completion_counts.copy()
                 )
 
-                # Update last epoch counts for next delta computation
-                self._per_label_completion_counts_last_epoch = self._per_label_completion_counts.copy()
+            # NOTE: Do NOT reset the baseline here - only reset at epoch boundaries
+            # via reset_epoch_counters() to get accurate per-epoch counts
 
             self._stats_update_counter = 0
 
@@ -197,6 +213,7 @@ class CurriculumEnv(PufferEnv):
             "_per_label_lp_scores",
             "_per_label_completion_counts",
             "_per_label_completion_counts_last_epoch",
+            "_aggregated_epoch_counts",
             "reset_epoch_counters",
             "_CURRICULUM_STAT_PREFIX",
         ):
