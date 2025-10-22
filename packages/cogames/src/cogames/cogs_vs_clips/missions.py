@@ -74,6 +74,9 @@ class SolarFlareVariant(MissionVariant):
         return mission
 
 
+
+
+
 VARIANTS = [
     MinedOutVariant,
     DarkSideVariant,
@@ -242,7 +245,6 @@ class MachinaProceduralExploreMission(Mission):
         return env
 
 
-
 class ProceduralOpenWorldMission(Mission):
     name: str = "open_world"
     description: str = "Collect resources and assemble HEARTs."
@@ -265,10 +267,22 @@ class ProceduralOpenWorldMission(Mission):
             base_biome=self.procedural_base_biome,
             base_biome_config=self.procedural_base_biome_config,
             extractor_coverage=0.005,
-            extractor_names=["chest", "charger", "germanium_extractor", "silicon_extractor",
-                                "oxygen_extractor", "carbon_extractor"],
-            extractor_weights={"chest": 1.0, "charger": 0.5, "germanium_extractor": 0.5, "silicon_extractor": 0.5,
-                                "oxygen_extractor": 0.5, "carbon_extractor": 0.5},
+            extractor_names=[
+                "chest",
+                "charger",
+                "germanium_extractor",
+                "silicon_extractor",
+                "oxygen_extractor",
+                "carbon_extractor",
+            ],
+            extractor_weights={
+                "chest": 1.0,
+                "charger": 0.5,
+                "germanium_extractor": 0.5,
+                "silicon_extractor": 0.5,
+                "oxygen_extractor": 0.5,
+                "carbon_extractor": 0.5,
+            },
             biome_weights={"caves": 0.5, "forest": 0.5, "city": 0.5, "desert": 0.5},
             dungeon_weights={"bsp": 0.6, "maze": 0.1, "radial": 0.1},
             biome_count=8,

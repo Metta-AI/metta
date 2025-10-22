@@ -26,6 +26,7 @@ def make_machina_procedural_map_builder(
     *,
     width: int = 100,
     height: int = 100,
+    seed: int | None = None,
     base_biome: str = "caves",
     base_biome_config: dict[str, Any] | None = None,
     extractor_coverage: float = 0.02,
@@ -262,4 +263,4 @@ def make_machina_procedural_map_builder(
         ),
     ]
 
-    return MapGen.Config(width=width, height=height, instance=base_cfg)
+    return MapGen.Config(width=width, height=height, instance=base_cfg, seed=seed)
