@@ -8,11 +8,7 @@ Steps to expose the PR similarity MCP server to Claude Desktop.
    uv pip install -e mcp_servers/pr_similarity
    ```
 
-2. Ensure credentials exist:
-
-   ```bash
-   export GEMINI_API_KEY="your_api_key"
-   ```
+2. Ensure `GEMINI_API_KEY` is exported in the shell where you launch Claude Desktop (or in its settings).
 
    Optionally override the cache location:
 

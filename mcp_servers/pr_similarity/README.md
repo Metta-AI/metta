@@ -17,8 +17,6 @@ uv pip install -e mcp_servers/pr_similarity
 | `GEMINI_API_KEY` | API key used to call the Gemini embedding endpoint | ✅ | – |
 | `PR_SIMILARITY_CACHE_PATH` | Override location for the embeddings cache | ❌ | `pr_embeddings.json` in the repo root |
 
-The installer does not bundle credentials. Make sure `GEMINI_API_KEY` is exported before starting the server.
-
 ## Usage
 
 Start the server (it speaks stdio MCP):
@@ -52,9 +50,9 @@ The repository versioned `.claude/settings.json` already registers the server un
 
 ### Codex CLI
 
-`.codex/settings.local.json` runs `codex mcp add metta-pr-similarity -- metta-pr-similarity-mcp`
-during session setup, so any Codex CLI that enters this repository will auto-register the server.
-You can confirm with `codex mcp list` after opening a new Codex session.
+`metta install` registers the MCP server via `codex mcp add metta-pr-similarity -- metta-pr-similarity-mcp`,
+so any Codex CLI that enters this repository will auto-register the server. You can confirm with
+`codex mcp list` after opening a new Codex session.
 
 Make sure the executable is on `PATH` (e.g. use the repo virtualenv). Once wired up, Codex and Claude can
 query the same similarity data the original CLI script uses.

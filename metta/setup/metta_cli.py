@@ -1,4 +1,5 @@
 #!/usr/bin/env -S uv run
+import json
 import re
 import shutil
 import subprocess
@@ -6,7 +7,9 @@ import sys
 from pathlib import Path
 from typing import TYPE_CHECKING, Annotated, Optional
 
+import boto3
 import typer
+from botocore.exceptions import BotoCoreError, ClientError
 from rich.console import Console
 from rich.progress import Progress, SpinnerColumn, TextColumn
 from rich.table import Table
@@ -147,6 +150,81 @@ app = typer.Typer(
     context_settings={"help_option_names": ["-h", "--help"]},
     callback=cli._init_all,
 )
+
+
+def _configure_pr_similarity_mcp_server() -> None:
+    codex_executable = shutil.which("codex")
+    if not codex_executable:
+        debug("Codex CLI not found on PATH. Skipping PR similarity MCP registration.")
+        return
+
+    command_path = shutil.which("metta-pr-similarity-mcp")
+    if not command_path:
+        warning(
+            "Unable to locate 'metta-pr-similarity-mcp' on PATH. Install the MCP package before configuring Codex.",
+        )
+        return
+
+    secret_name = "GEMINI-API-KEY"
+    region = "us-east-1"
+
+    try:
+        client = boto3.session.Session().client("secretsmanager", region_name=region)
+        raw_secret = client.get_secret_value(SecretId=secret_name)["SecretString"].strip()
+    except (BotoCoreError, ClientError, KeyError) as error:
+        warning(
+            "Skipping Codex MCP registration: could not read "
+            f"AWS Secrets Manager secret '{secret_name}' (region {region}): {error}",
+        )
+        return
+
+    if raw_secret.startswith("{"):
+        try:
+            payload = json.loads(raw_secret)
+            raw_secret = (payload.get("GEMINI_API_KEY") or payload.get("api_key") or payload.get("key") or "").strip()
+        except json.JSONDecodeError:
+            warning(f"Skipping Codex MCP registration: secret '{secret_name}' did not contain a usable API key.")
+            return
+
+    if not raw_secret:
+        warning(f"Skipping Codex MCP registration: secret '{secret_name}' did not contain a usable API key.")
+        return
+
+    api_key = raw_secret
+
+    for name in ("metta-pr-similarity", "metta-pr-similarity-mcp"):
+        subprocess.run(
+            [codex_executable, "mcp", "remove", name],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            check=False,
+        )
+
+    try:
+        subprocess.run(
+            [
+                codex_executable,
+                "mcp",
+                "add",
+                "--env",
+                f"GEMINI_API_KEY={api_key}",
+                "metta-pr-similarity",
+                command_path,
+            ],
+            check=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+    except subprocess.CalledProcessError as error:
+        stderr = (error.stderr or "").strip()
+        warning(
+            f"Failed to configure Codex MCP server 'metta-pr-similarity'. {stderr if stderr else error}",
+        )
+        return
+
+    info("Configured Codex MCP server 'metta-pr-similarity'.")
 
 
 def _partition_supported_lint_files(paths: list[str]) -> tuple[list[str], list[str]]:
@@ -332,6 +410,8 @@ def cmd_install(
             print()
         except Exception as e:
             error(f"  Error: {e}\n")
+
+    _configure_pr_similarity_mcp_server()
 
     if not non_interactive and check_status:
         cmd_status(components=components, non_interactive=non_interactive)

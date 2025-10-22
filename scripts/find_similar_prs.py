@@ -3,13 +3,7 @@ import sys
 import textwrap
 from pathlib import Path
 
-from metta.tools.pr_similarity import (
-    API_KEY_ENV,
-    DEFAULT_CACHE_PATH,
-    DEFAULT_TOP_K,
-    find_similar_prs,
-    require_api_key,
-)
+from metta.tools.pr_similarity import API_KEY_ENV, DEFAULT_CACHE_PATH, DEFAULT_TOP_K, find_similar_prs, require_api_key
 
 
 def parse_args() -> argparse.Namespace:
@@ -78,7 +72,10 @@ def format_description_block(text: str, width: int = 90, indent: int = 12, label
 def main() -> None:
     args = parse_args()
 
-    api_key = require_api_key(API_KEY_ENV)
+    try:
+        api_key = require_api_key(API_KEY_ENV)
+    except EnvironmentError as error:
+        sys.exit(f"error: {error}")
     description = args.description.strip()
 
     metadata, top_results = find_similar_prs(

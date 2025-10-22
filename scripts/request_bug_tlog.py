@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 import sys
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
@@ -19,10 +18,10 @@ except ImportError as exc:  # pragma: no cover - dependency may be optional
 else:
     IMPORT_ERROR = None
 
+from metta.tools.pr_similarity import API_KEY_ENV, require_api_key
 
 DEFAULT_MODEL = "gemini-2.5-flash"
 DEFAULT_OUTPUT_PATH = Path("bug_tlog.md")
-API_KEY_ENV = "GEMINI_API_KEY"
 
 
 def parse_args() -> argparse.Namespace:
@@ -146,9 +145,10 @@ def main() -> None:
 
     ensure_dependency_available()
 
-    api_key = os.getenv(API_KEY_ENV)
-    if not api_key:
-        raise EnvironmentError(f"Set {API_KEY_ENV} before running this script.")
+    try:
+        api_key = require_api_key(API_KEY_ENV)
+    except EnvironmentError as error:
+        raise RuntimeError(str(error)) from error
 
     pr_entries = read_pr_history(args.pr_history)
     selected_entries, json_payload = prepare_payload(

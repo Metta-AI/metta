@@ -10,10 +10,10 @@ from typing import Iterable, List, Sequence, Tuple, cast
 from google import genai
 from google.genai import types
 
-API_KEY_ENV = "GEMINI_API_KEY"
 DEFAULT_CACHE_PATH = Path("pr_embeddings.json")
 DEFAULT_TOP_K = 10
 TASK_FALLBACK = "semantic_similarity"
+API_KEY_ENV = "GEMINI_API_KEY"
 
 
 @dataclass(frozen=True)
