@@ -674,10 +674,14 @@ class PuffeRL:
             self.last_stats = self.stats
 
         stats_source = self.stats or self.last_stats or {}
-        filtered_stats = []
+        filtered_stats: list[tuple[str, float]] = []
         for metric, value in stats_source.items():
             metric_lower = metric.lower()
-            if not (metric.startswith("agent/") or "heart" in metric_lower):
+            if not (
+                metric.startswith("agent/")
+                or "heart" in metric_lower
+                or "reward" in metric_lower
+            ):
                 continue
             filtered_stats.append((metric, value))
 

@@ -233,7 +233,7 @@ class CvCAssemblerConfig(CvCStationConfig):
     def _tutorial_recipes(self) -> list[tuple[list[str], ProtocolConfig]]:
         return [
             (
-                [],
+                ["Any"],
                 ProtocolConfig(
                     input_resources={"energy": 1},
                     output_resources={"heart": 1},
