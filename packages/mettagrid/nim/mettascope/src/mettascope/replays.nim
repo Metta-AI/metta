@@ -588,7 +588,6 @@ proc loadReplayString*(jsonData: string, fileName: string): Replay =
       inventory: inventory,
       inventoryMax: obj["inventory_max"].getInt,
       color: expand[int](obj["color"], replay.maxSteps, 0),
-      vibeId: expand[int](obj["vibe_id"], replay.maxSteps, 0),
     )
     if "group_id" in obj:
       entity.groupId = obj["group_id"].getInt
@@ -614,6 +613,9 @@ proc loadReplayString*(jsonData: string, fileName: string): Replay =
       else:
         entity.frozenTime = 0
       entity.visionSize = 11 # TODO Fix this
+
+      if "vibe_id" in obj:
+        entity.vibeId = expand[int](obj["vibe_id"], replay.maxSteps, 0)
 
     if "input_resources" in obj:
       for pair in obj["input_resources"]:
