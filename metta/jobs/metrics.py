@@ -1,8 +1,17 @@
-"""WandB metrics extraction utilities."""
+"""WandB metrics extraction utilities.
+
+Consolidated metrics extraction for:
+- Extracting wandb run info from logs
+- Fetching metrics from wandb API
+- Extracting checkpoint paths
+- Extracting job IDs
+"""
 
 import re
 from dataclasses import dataclass
 from typing import Optional
+
+import wandb
 
 
 @dataclass
@@ -191,3 +200,58 @@ def extract_skypilot_job_id(log_text: str) -> Optional[str]:
             return match.group(1)
 
     return None
+
+
+def fetch_wandb_metrics(
+    wandb_info: WandBInfo,
+    metric_keys: list[str],
+    last_n_percent: float = 0.25,
+) -> dict[str, float]:
+    """Fetch metrics from wandb API and average over last N% of samples.
+
+    Args:
+        wandb_info: WandB run information
+        metric_keys: List of metric keys to fetch
+        last_n_percent: Fraction of samples to average (default: 0.25 = last 25%)
+
+    Returns:
+        Dict of metric_key -> averaged value
+    """
+    metrics: dict[str, float] = {}
+
+    try:
+        api = wandb.Api()
+        run = api.run(wandb_info.run_path)
+
+        for metric_key in metric_keys:
+            try:
+                # Fetch history for this metric
+                history = run.history(keys=[metric_key], pandas=False)
+
+                if not history:
+                    print(f"     Warning: No history found for metric {metric_key}")
+                    continue
+
+                # Extract values
+                values = [row.get(metric_key) for row in history if metric_key in row and row[metric_key] is not None]
+
+                if not values:
+                    print(f"     Warning: No values found for metric {metric_key}")
+                    continue
+
+                # Calculate average over last N%
+                n_samples = max(1, int(len(values) * last_n_percent))
+                last_values = values[-n_samples:]
+                avg = sum(last_values) / len(last_values)
+
+                print(f"     Wandb metric {metric_key}: {avg:.2f} (avg of last {len(last_values)} samples)")
+                metrics[metric_key] = avg
+
+            except Exception as e:
+                print(f"     Warning: Failed to fetch metric {metric_key}: {e}")
+                continue
+
+    except Exception as e:
+        print(f"     Error fetching from wandb: {e}")
+
+    return metrics

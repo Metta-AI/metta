@@ -11,7 +11,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Optional
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from devops.stable.tasks import TaskResult
 from metta.common.util.fs import get_repo_root
@@ -61,8 +61,8 @@ class ReleaseState(BaseModel):
     version: str
     created_at: str
     commit_sha: Optional[str] = None
-    results: dict[str, "TaskResult"] = {}
-    gates: list[dict] = []
+    results: dict[str, "TaskResult"] = Field(default_factory=dict)
+    gates: list[dict] = Field(default_factory=list)
     released: bool = False
 
 
