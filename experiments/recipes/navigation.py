@@ -54,19 +54,16 @@ class NavigationTaskGenerator(TaskGenerator):
         map_dir = bucket_values.get("game.map_builder.instance.dir", "")
         width = bucket_values.get("game.map_builder.width")
         height = bucket_values.get("game.map_builder.height")
-        altar_count = bucket_values.get(
-            "game.map_builder.instance.objects.altar"
-        ) or bucket_values.get("game.map_builder.objects.altar")
 
         # Create label based on task type
         if map_dir:
             # Dense task - use terrain directory
             # Extract just the terrain name from path like "varied_terrain/dense_large"
             terrain_name = map_dir.split("/")[-1] if "/" in map_dir else map_dir
-            label = f"{terrain_name}_altar{altar_count}"
+            label = terrain_name
         elif width and height:
             # Sparse task - use dimensions
-            label = f"random_{width}x{height}_altar{altar_count}"
+            label = f"random_{width}x{height}"
         else:
             label = "navigation"
 
