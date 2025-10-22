@@ -210,11 +210,11 @@ class CvCAssemblerConfig(CvCStationConfig):
                     ["heart"] * (i + 1),
                     ProtocolConfig(
                         input_resources={
-                            "carbon": self.heart_cost*2,
-                            "oxygen": self.heart_cost*2,
-                            "germanium": max(self.heart_cost//2 - i, 1),
-                            "silicon": self.heart_cost*5,
-                            "energy": self.heart_cost*2
+                            "carbon": self.heart_cost * 2,
+                            "oxygen": self.heart_cost * 2,
+                            "germanium": max(self.heart_cost // 2 - i, 1),
+                            "silicon": self.heart_cost * 5,
+                            "energy": self.heart_cost * 2,
                         },
                         output_resources={"heart": 1},
                     ),

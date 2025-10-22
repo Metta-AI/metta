@@ -41,6 +41,7 @@ class DarkSideVariant(MissionVariant):
         mission.energy_regen_amount = 0
         return mission
 
+
 class LonelyHeartVariant(MissionVariant):
     name: str = "lonely_heart"
     description: str = "Making hearts for one agent is easy."
@@ -48,6 +49,7 @@ class LonelyHeartVariant(MissionVariant):
     def apply(self, mission: Mission) -> Mission:
         mission.assembler.heart_cost = 1
         return mission
+
 
 class BrightSideVariant(MissionVariant):
     name: str = "super_charged"
