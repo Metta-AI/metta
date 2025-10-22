@@ -1,27 +1,21 @@
-FROM python:3.11-slim
+FROM ubuntu:24.04
+
+WORKDIR /workspace
+
+# Copy the entire metta repo
+COPY . /workspace/metta
 
 WORKDIR /workspace/metta
 
-# Install uv
-COPY --from=ghcr.io/astral-sh/uv:0.8.13 /uv /uvx /bin/
+# Install system dependencies
+RUN bash ./devops/tools/install-system.sh
 
-# Copy workspace metadata
-COPY .python-version pyproject.toml uv.lock ./
-
-# Install Python
-RUN uv python install
-
-# Copy only the packages we need
-COPY common/pyproject.toml common/
-COPY softmax/pyproject.toml softmax/
-COPY common/src common/src
-COPY softmax/src softmax/src
-
-# Install only common and softmax packages (uv will skip others not in the directory)
-RUN uv pip install --system -e ./common -e ./softmax
+# Install dependencies for softmax package only
+WORKDIR /workspace/metta/softmax
+RUN uv sync --frozen --no-dev
 
 # Verify imports work
-RUN python -c "import softmax.dashboard.report"
+RUN uv run python -c "import softmax.dashboard.report" 
 
 # Run the dashboard
-CMD ["python", "-m", "softmax.dashboard.report", "report", "--push"]
+CMD ["uv", "run", "python", "-m", "softmax.dashboard.report", "report", "--push"]
