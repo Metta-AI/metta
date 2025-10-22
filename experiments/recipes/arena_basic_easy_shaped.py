@@ -1,3 +1,4 @@
+import numpy as np
 from typing import Optional, Sequence
 
 import metta.cogworks.curriculum as cc
@@ -13,7 +14,7 @@ from metta.rl.loss import LossConfig
 from metta.rl.trainer_config import TorchProfilerConfig, TrainerConfig
 from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
 from metta.sim.simulation_config import SimulationConfig
-from metta.sweep.core import make_sweep, SweepParameters as SP, Distribution as D
+from metta.sweep.core import make_sweep, grid_search, SweepParameters as SP, Distribution as D
 from metta.tools.eval import EvaluateTool
 from metta.tools.play import PlayTool
 from metta.tools.replay import ReplayTool
@@ -235,3 +236,31 @@ def sweep(sweep_name: str) -> SweepTool:
         # The faster each individual trial, the lower you should set this number.
         num_parallel_trials=4,
     )
+
+def multiseed_sweep(sweep_name, multi_gpu = False):
+    random_seeds = list(np.random.randint(0, 1000000, size=5))
+    parameters = [SP.categorical("system.seed", random_seeds)]
+    print("For fair comparison, use: ", random_seeds)
+    train_overrides = {}
+    train_overrides["trainer.total_timesteps"] = 2_000_000_000
+    if multi_gpu:
+        train_overrides["trainer.scale_batches_by_world_size"] = True
+
+    # Use grid_search her
+    search_tool = grid_search(
+        name=sweep_name,
+        recipe="experiments.recipes.arena_basic_easy_shaped",
+        train_entrypoint="train",
+        eval_entrypoint="evaluate_in_sweep",
+        # Typically, "evaluator/eval_{suite}/score"
+        objective="evaluator/eval_sweep/score",
+        parameters=parameters,
+        max_trials=len(random_seeds),
+        # Default value is 1. We don't recommend going higher than 4.
+        # The faster each individual trial, the lower you should set this number.
+        num_parallel_trials=20,
+        train_overrides=train_overrides
+    )
+    if multi_gpu:
+        search_tool.gpus = 4
+    return search_tool
