@@ -2,6 +2,7 @@
 
 The runner handles:
 - Running tasks in dependency order via JobManager
+- Parallel execution of independent tasks
 - Caching task results
 - Retrying failed tasks
 - Skipping tasks when dependencies fail
@@ -12,6 +13,7 @@ The runner handles:
 from __future__ import annotations
 
 import sys
+import time
 from datetime import datetime
 
 from devops.stable.state import ReleaseState, save_state
@@ -68,6 +70,7 @@ class TaskRunner:
         state: ReleaseState,
         job_manager: JobManager,
         interactive: bool = True,
+        retry_failed: bool = False,
     ):
         """Initialize runner.
 
@@ -75,17 +78,20 @@ class TaskRunner:
             state: Release state to track results
             job_manager: JobManager for executing jobs
             interactive: If True, prompt for user verification after each task (default: True)
+            retry_failed: If True, retry failed tasks; if False, skip them (default: False)
         """
         self.state = state
         self.job_manager = job_manager
         self.interactive = interactive
+        self.retry_failed = retry_failed
         self._current_task_names: set[str] = set()
         self._batch_id = f"release_{state.version}"
 
     def run_all(self, tasks: list[Task]) -> None:
-        """Run all tasks, respecting dependencies.
+        """Run all tasks in parallel, respecting dependencies.
 
-        Tasks are executed in order, with each task waiting for its dependencies to complete.
+        Submits all ready tasks to JobManager and polls for completions.
+        When a task completes, newly-ready tasks are submitted.
         State is saved after each task completion.
         """
         # Build set of current task names for filtering
@@ -103,88 +109,57 @@ class TaskRunner:
                 del self.state.results[name]
             save_state(self.state)
 
-        for task in tasks:
-            result = self._run_with_deps(task)
-            self.state.results[task.name] = result
-            save_state(self.state)
+        # Build task lookup
+        task_by_name = {task.name: task for task in tasks}
 
-    def _run_with_deps(self, task: Task) -> TaskResult:
-        """Run task after ensuring dependencies complete."""
+        # Track task states
+        pending = set(tasks)  # Not yet submitted
+        submitted = set()  # Submitted to JobManager but not complete
+        completed = {}  # name -> TaskResult
 
-        # Check cache
-        if task.name in self.state.results:
-            cached = self.state.results[task.name]
-            # Skip if already passed or explicitly skipped
-            if cached.outcome in ("passed", "skipped"):
-                print(f"⏭️  {task.name} - cached ({cached.outcome})")
-                task.result = cached  # Restore for downstream dependencies
-                return cached
-            # Retry if failed or inconclusive
-            print(yellow(f"🔄 {task.name} - retrying previous {cached.outcome}"))
-
-        # Run dependencies first
-        for dep in task.dependencies:
-            dep_result = self._run_with_deps(dep)
-            if dep_result.outcome != "passed":
-                # Skip this task
-                result = TaskResult(
-                    name=task.name,
-                    started_at=datetime.utcnow().isoformat(timespec="seconds"),
-                    ended_at=datetime.utcnow().isoformat(timespec="seconds"),
-                    exit_code=0,
-                    outcome="skipped",
-                    error=f"Dependency {dep.name} did not pass",
-                )
-                print(yellow(f"⏭️  {task.name} - SKIPPED (dependency {dep.name} failed)"))
-                return result
-
-        # Run the task via JobManager
-        print(f"\n{'=' * 80}")
-        print(f"🔄 Running: {task.name}")
-        print(f"{'=' * 80}")
-
+        # Submit-poll loop with interrupt handling
         try:
-            # Inject checkpoint_uri from dependencies if needed
-            job_config = task.job_config
-            if task.dependencies and "policy_uri" not in job_config.args:
-                # Look for checkpoint_uri in dependency results
-                for dep in task.dependencies:
-                    if dep.result and "checkpoint_uri" in dep.result.artifacts:
-                        job_config.args["policy_uri"] = dep.result.artifacts["checkpoint_uri"]
-                        break
+            while pending or submitted:
+                # Submit all tasks with satisfied dependencies
+                ready_to_submit = [
+                    task for task in pending if self._dependencies_satisfied(task, completed, task_by_name)
+                ]
 
-            # Submit to JobManager
-            self.job_manager.submit(self._batch_id, job_config)
+                for task in ready_to_submit:
+                    submit_result = self._submit_task(task, completed)
+                    if submit_result:  # Task was actually submitted (not skipped/cached)
+                        pending.remove(task)
+                        submitted.add(task)
+                    else:  # Task was skipped or cached
+                        result = self.state.results[task.name]
+                        completed[task.name] = result
+                        pending.remove(task)
 
-            # Wait for job to complete
-            job_state = self.job_manager.wait_for_job(self._batch_id, task.name)
+                # Poll for completions
+                if submitted:
+                    completed_jobs = self.job_manager.poll()
+                    for batch_id, name in completed_jobs:
+                        if batch_id == self._batch_id and name in {t.name for t in submitted}:
+                            # Get the task object
+                            task = next(t for t in submitted if t.name == name)
 
-            # Evaluate result (business logic)
-            result = task.evaluate_result(job_state)
-            task.result = result  # Cache for downstream dependencies
+                            # Complete the task
+                            result = self._complete_task(task)
+                            completed[task.name] = result
+                            self.state.results[task.name] = result
+                            submitted.remove(task)
+                            save_state(self.state)
 
-            # Interactive verification
-            if self.interactive:
-                result = self._verify_result(result)
+                # Small sleep to avoid tight polling loop
+                if pending or submitted:
+                    time.sleep(0.1)
 
-            return result
-
-        except Exception as e:
-            result = TaskResult(
-                name=task.name,
-                started_at=datetime.utcnow().isoformat(timespec="seconds"),
-                ended_at=datetime.utcnow().isoformat(timespec="seconds"),
-                exit_code=1,
-                outcome="failed",
-                error=f"Exception: {e}",
-            )
-            print(red(f"❌ {task.name} - ERROR: {e}"))
-            import traceback
-
-            traceback.print_exc()
-            if self.interactive:
-                result = self._verify_result(result)
-            return result
+        except KeyboardInterrupt:
+            print(yellow("\n\n⚠️  Interrupted by user - cancelling all jobs..."))
+            cancelled = self.job_manager.cancel_batch(self._batch_id)
+            print(yellow(f"Cancelled {cancelled} job(s)"))
+            print(yellow("State has been saved. Re-run to resume from last completed task."))
+            sys.exit(130)  # Standard exit code for Ctrl+C
 
     def _verify_result(self, result: TaskResult) -> TaskResult:
         """Verify task result with user interaction.
@@ -215,3 +190,123 @@ class TaskRunner:
             result.error = None
 
         return result
+
+    def _dependencies_satisfied(
+        self, task: Task, completed: dict[str, TaskResult], task_by_name: dict[str, Task]
+    ) -> bool:
+        """Check if all dependencies are resolved (ready to process).
+
+        A dependency is resolved if it's completed or cached, regardless of outcome.
+        Tasks with failed dependencies will be skipped in _submit_task().
+        """
+        for dep in task.dependencies:
+            # Check completed dict first
+            if dep.name in completed:
+                # Dependency is resolved, continue
+                continue
+
+            # Check cached results
+            if dep.name in self.state.results:
+                cached = self.state.results[dep.name]
+                # Update completed dict with cached result
+                completed[dep.name] = cached
+                dep.result = cached
+                continue
+
+            # Dependency not resolved yet
+            return False
+
+        return True
+
+    def _submit_task(self, task: Task, completed: dict[str, TaskResult]) -> bool:
+        """Submit task to JobManager if not already cached.
+
+        Returns:
+            True if task was submitted to JobManager, False if cached/skipped
+        """
+        # Check cache first
+        if task.name in self.state.results:
+            cached = self.state.results[task.name]
+            # Skip if already passed or explicitly skipped
+            if cached.outcome in ("passed", "skipped"):
+                print(f"⏭️  {task.name} - cached ({cached.outcome})")
+                task.result = cached
+                return False
+            # Retry if failed or inconclusive (only if retry_failed=True)
+            if cached.outcome in ("failed", "inconclusive"):
+                if self.retry_failed:
+                    print(yellow(f"🔄 {task.name} - retrying previous {cached.outcome}"))
+                else:
+                    print(yellow(f"⏭️  {task.name} - skipping (previous {cached.outcome}, use --retry-failed to retry)"))
+                    task.result = cached
+                    return False
+
+        # Check if any dependency failed
+        for dep in task.dependencies:
+            dep_result = completed.get(dep.name) or self.state.results.get(dep.name)
+            if dep_result and dep_result.outcome != "passed":
+                # Skip this task
+                result = TaskResult(
+                    name=task.name,
+                    started_at=datetime.utcnow().isoformat(timespec="seconds"),
+                    ended_at=datetime.utcnow().isoformat(timespec="seconds"),
+                    exit_code=0,
+                    outcome="skipped",
+                    error=f"Dependency {dep.name} did not pass",
+                )
+                print(yellow(f"⏭️  {task.name} - SKIPPED (dependency {dep.name} failed)"))
+                self.state.results[task.name] = result
+                return False
+
+        # Inject checkpoint_uri from dependencies if needed
+        job_config = task.job_config
+        if task.dependencies and "policy_uri" not in job_config.args:
+            # Look for checkpoint_uri in dependency results
+            for dep in task.dependencies:
+                dep_result = completed.get(dep.name) or self.state.results.get(dep.name)
+                if dep_result and "checkpoint_uri" in dep_result.artifacts:
+                    job_config.args["policy_uri"] = dep_result.artifacts["checkpoint_uri"]
+                    break
+
+        # Submit to JobManager
+        print(f"\n{'=' * 80}")
+        print(f"🔄 Running: {task.name}")
+        print(f"{'=' * 80}")
+
+        self.job_manager.submit(self._batch_id, job_config)
+        return True
+
+    def _complete_task(self, task: Task) -> TaskResult:
+        """Complete a task by getting its result from JobManager and evaluating it."""
+        try:
+            # Get job state from JobManager
+            job_state = self.job_manager.get_job_state(self._batch_id, task.name)
+            if not job_state:
+                raise RuntimeError(f"Job state not found for {task.name}")
+
+            # Evaluate result (business logic)
+            result = task.evaluate_result(job_state)
+            task.result = result  # Cache for downstream dependencies
+
+            # Interactive verification
+            if self.interactive:
+                result = self._verify_result(result)
+
+            return result
+
+        except Exception as e:
+            result = TaskResult(
+                name=task.name,
+                started_at=datetime.utcnow().isoformat(timespec="seconds"),
+                ended_at=datetime.utcnow().isoformat(timespec="seconds"),
+                exit_code=1,
+                outcome="failed",
+                error=f"Exception: {e}",
+            )
+            print(red(f"❌ {task.name} - ERROR: {e}"))
+            import traceback
+
+            traceback.print_exc()
+            if self.interactive:
+                result = self._verify_result(result)
+            return result

@@ -1,29 +1,32 @@
 #!/usr/bin/env python3
 """Stable Release System - CLI
 
-Command-line interface for the release validation and deployment pipeline.
+Simple 3-mode interface for release pipeline.
 
-Usage:
-  ./devops/stable/release_stable.py                        # Run full release pipeline
-  ./devops/stable/release_stable.py all                    # Run full release pipeline (explicit)
-  ./devops/stable/release_stable.py prepare-tag            # Create staging tag
-  ./devops/stable/release_stable.py bugs                   # Check bug status
-  ./devops/stable/release_stable.py task-validation --task ci  # Run CI task
-  ./devops/stable/release_stable.py task-validation        # Run all validation tasks
-  ./devops/stable/release_stable.py summary                # Show validation summary
-  ./devops/stable/release_stable.py release                # Create release tag
-  ./devops/stable/release_stable.py announce               # Show announcement template
+Commands:
+  validate              Run validation (prepare-tag -> validation -> summary)
+  hotfix                Hotfix mode (prepare-tag -> summary, skip validation)
+  release               Create release (bug check -> release tag)
 
-Global options:
-  --version X           # Use specific version
-  --new                 # Force start a new release (ignore in-progress state)
-  --test                # Test mode (skip all git operations and actual release)
+Options:
+  --version X           Use specific version
+  --new                 Force new release (ignore in-progress state)
+  --test                Test mode (skip git operations)
+  --task PATTERN        Filter validation tasks (validate mode only)
+  --retry-failed        Retry failed tasks (validate mode only)
 
 Examples:
-  ./devops/stable/release_stable.py --new all              # Start new release and run full pipeline
-  ./devops/stable/release_stable.py --test all             # Test run without actual release
-  ./devops/stable/release_stable.py --version 2025.10.09-1030 summary  # Show summary for specific version
-  ./devops/stable/release_stable.py task-validation --task ci  # Run only CI tests
+  # Normal release workflow
+  ./devops/stable/release_stable.py validate     # 1. Validate
+  ./devops/stable/release_stable.py release      # 2. Release
+
+  # Hotfix workflow
+  ./devops/stable/release_stable.py hotfix       # 1. Skip validation
+  ./devops/stable/release_stable.py release      # 2. Release (still checks bugs)
+
+  # Development
+  ./devops/stable/release_stable.py validate --task ci  # Filter to CI only
+  ./devops/stable/release_stable.py validate --retry-failed  # Retry failures
 """
 
 from __future__ import annotations
@@ -47,7 +50,7 @@ from devops.stable.state import (
     save_state,
 )
 from devops.stable.tasks import get_all_tasks
-from metta.common.util.text_styles import bold, cyan, green
+from metta.common.util.text_styles import bold, cyan, green, yellow
 
 # ============================================================================
 # Constants
@@ -264,6 +267,7 @@ def step_bug_check(version: str, state: Optional[ReleaseState] = None, **_kwargs
 def step_task_validation(
     version: str,
     task_filter: Optional[str] = None,
+    retry_failed: bool = False,
     **_kwargs,
 ) -> None:
     """Step 3: Run validation tasks.
@@ -272,6 +276,7 @@ def step_task_validation(
         version: Release version
         task_filter: Task name to run (metta_ci, arena_local_smoke, arena_single_gpu_100m, etc.)
                     or None to run all tasks
+        retry_failed: If True, retry failed tasks; if False, skip them (default: False)
     """
     print("\n" + "=" * 60)
     print(bold("STEP 3: Task Validation"))
@@ -308,7 +313,7 @@ def step_task_validation(
     job_manager = JobManager(db_path=db_path, max_local_jobs=1, max_remote_jobs=4)
 
     # Create runner and run all tasks
-    runner = TaskRunner(state=state, job_manager=job_manager, interactive=True)
+    runner = TaskRunner(state=state, job_manager=job_manager, interactive=True, retry_failed=retry_failed)
     runner.run_all(tasks)
 
     # Print summary
@@ -374,8 +379,7 @@ def step_summary(version: str, **_kwargs) -> None:
                 training_job_id = result.job_id
 
     # Format metrics for display
-    sps_max = training_metrics.get("sps_max", "N/A")
-    sps_last = training_metrics.get("sps_last", "N/A")
+    sps = training_metrics.get("overview/sps", "N/A")
 
     # Get git log since last stable release
     git_log = git.git_log_since("origin/stable")
@@ -417,8 +421,7 @@ def step_summary(version: str, **_kwargs) -> None:
     print("")
     print("### Key Metrics")
     print("")
-    print(f"- Training throughput (SPS max): {sps_max}")
-    print(f"- Training throughput (SPS last): {sps_last}")
+    print(f"- Training throughput (SPS): {sps}")
     print("")
 
 
@@ -676,71 +679,64 @@ def common(
     print("")
 
 
-@app.command("prepare-tag")
-def cmd_prepare_tag():
-    """Create and push staging tag."""
-    state_version = f"v{_VERSION}"
-    state = load_or_create_state(state_version, git.get_current_commit())
-    step_prepare_tag(version=_VERSION, state=state)
-
-
-@app.command("bugs")
-def cmd_bugs():
-    """Check bug status in Asana."""
-    state_version = f"v{_VERSION}"
-    state = load_or_create_state(state_version, git.get_current_commit())
-    step_bug_check(version=_VERSION, state=state)
-
-
-@app.command("task-validation")
-def cmd_task_validation(
+@app.command("validate")
+def cmd_validate(
     task: Optional[str] = typer.Option(
         None,
         "--task",
-        help=f"Task name filter (available: {', '.join(t.name for t in get_all_tasks())})",
+        help="Filter validation tasks by name",
+    ),
+    retry_failed: bool = typer.Option(
+        False,
+        "--retry-failed",
+        help="Retry previously failed tasks (default: skip failed tasks)",
     ),
 ):
-    """Run validation tasks."""
-    step_task_validation(version=_VERSION, task_filter=task)
+    """Run validation pipeline (prepare-tag -> validation -> summary)."""
+    state_version = f"v{_VERSION}"
+    state = load_or_create_state(state_version, git.get_current_commit())
+
+    # Step 1: Prepare RC tag (automatic - skips if already done)
+    step_prepare_tag(version=_VERSION, state=state)
+
+    # Step 2: Run validation
+    step_task_validation(version=_VERSION, task_filter=task, retry_failed=retry_failed)
+
+    # Step 3: Show summary
+    step_summary(version=_VERSION)
 
 
-@app.command("summary")
-def cmd_summary():
-    """Show validation summary and release notes template."""
+@app.command("hotfix")
+def cmd_hotfix():
+    """Hotfix mode (prepare-tag -> summary, skip validation)."""
+    state_version = f"v{_VERSION}"
+    state = load_or_create_state(state_version, git.get_current_commit())
+
+    print(yellow("\n⚡ HOTFIX MODE: Skipping validation\n"))
+
+    # Step 1: Prepare RC tag
+    step_prepare_tag(version=_VERSION, state=state)
+
+    # Step 2: Show summary (no validation)
     step_summary(version=_VERSION)
 
 
 @app.command("release")
 def cmd_release():
-    """Create release tag and notes."""
-    step_release(version=_VERSION)
-
-
-@app.command("all")
-def cmd_all(
-    task: Optional[str] = typer.Option(
-        None,
-        "--task",
-        help="Optional validation filter (applies to task-validation step in the full pipeline)",
-    ),
-):
-    """Run full release pipeline."""
+    """Create release (bug check -> release tag)."""
     state_version = f"v{_VERSION}"
     state = load_or_create_state(state_version, git.get_current_commit())
 
-    # Run steps with state tracking
-    step_prepare_tag(version=_VERSION, state=state)
+    # Final gate: check for blocking bugs
     step_bug_check(version=_VERSION, state=state)
-    step_task_validation(version=_VERSION, task_filter=task)
-    step_summary(version=_VERSION)
+
+    # Create release
+    step_release(version=_VERSION)
 
 
 if __name__ == "__main__":
-    # Default to 'all' if no subcommand was provided
-    # Check if there's a command after options (--version, --new)
-    has_command = any(
-        arg in ["prepare-tag", "bugs", "task-validation", "summary", "release", "all"] for arg in sys.argv[1:]
-    )
+    # Default to 'validate' if no subcommand was provided
+    has_command = any(arg in ["validate", "hotfix", "release"] for arg in sys.argv[1:])
     if not has_command:
-        sys.argv.append("all")
+        sys.argv.append("validate")
     app()
