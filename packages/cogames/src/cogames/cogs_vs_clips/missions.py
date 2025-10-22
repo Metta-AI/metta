@@ -49,6 +49,15 @@ class DarkSideVariant(MissionVariant):
         return mission
 
 
+class LonelyHeartVariant(MissionVariant):
+    name: str = "lonely_heart"
+    description: str = "Making hearts for one agent is easy."
+
+    def apply(self, mission: Mission) -> Mission:
+        mission.assembler.heart_cost = 1
+        return mission
+
+
 class BrightSideVariant(MissionVariant):
     name: str = "super_charged"
     description: str = "The sun is shining on you. You recharge faster."
@@ -179,6 +188,7 @@ VARIANTS = [
     StoreBaseVariant,
     ExtractorBaseVariant,
     BothBaseVariant,
+    LonelyHeartVariant,
 ]
 
 
