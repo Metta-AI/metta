@@ -153,6 +153,17 @@ app = typer.Typer(
 
 
 def _configure_pr_similarity_mcp_server() -> None:
+    from metta.setup.saved_settings import UserType, get_saved_settings
+
+    saved_settings = get_saved_settings()
+    if saved_settings.user_type not in {UserType.SOFTMAX, UserType.SOFTMAX_DOCKER}:
+        debug(
+            f"Skipping PR similarity MCP registration for non-employee user type {saved_settings.user_type.value}",
+        )
+        return
+
+    _ensure_pr_similarity_cache()
+
     codex_executable = shutil.which("codex")
     if not codex_executable:
         debug("Codex CLI not found on PATH. Skipping PR similarity MCP registration.")
@@ -162,15 +173,6 @@ def _configure_pr_similarity_mcp_server() -> None:
     if not command_path:
         warning(
             "Unable to locate 'metta-pr-similarity-mcp' on PATH. Install the MCP package before configuring Codex.",
-        )
-        return
-
-    from metta.setup.saved_settings import UserType, get_saved_settings
-
-    saved_settings = get_saved_settings()
-    if saved_settings.user_type not in {UserType.SOFTMAX, UserType.SOFTMAX_DOCKER}:
-        debug(
-            f"Skipping PR similarity MCP registration for non-employee user type {saved_settings.user_type.value}",
         )
         return
 
@@ -253,6 +255,28 @@ def _partition_supported_lint_files(paths: list[str]) -> tuple[list[str], list[s
             cpp_files.append(path)
 
     return python_files, cpp_files
+
+
+def _ensure_pr_similarity_cache() -> None:
+    from metta.tools.pr_similarity import DEFAULT_CACHE_PATH, resolve_cache_paths
+
+    meta_path, vectors_path = resolve_cache_paths(DEFAULT_CACHE_PATH)
+    if meta_path.exists() and vectors_path.exists():
+        debug("PR similarity cache already present at %s", meta_path.parent)
+        return
+
+    bucket = "softmax-public"
+    prefix = "pr-cache/"
+
+    try:
+        session = boto3.session.Session()
+        client = session.client("s3")
+        meta_path.parent.mkdir(parents=True, exist_ok=True)
+        client.download_file(bucket, prefix + meta_path.name, str(meta_path))
+        client.download_file(bucket, prefix + vectors_path.name, str(vectors_path))
+        info(f"Downloaded PR similarity cache from s3://{bucket}/{prefix}")
+    except Exception as error:  # pragma: no cover - external dependency
+        warning(f"Unable to download PR similarity cache: {error}")
 
 
 def _run_ruff(python_targets: list[str] | None, *, fix: bool) -> None:
