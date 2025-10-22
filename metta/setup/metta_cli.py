@@ -165,6 +165,15 @@ def _configure_pr_similarity_mcp_server() -> None:
         )
         return
 
+    from metta.setup.saved_settings import UserType, get_saved_settings
+
+    saved_settings = get_saved_settings()
+    if saved_settings.user_type not in {UserType.SOFTMAX, UserType.SOFTMAX_DOCKER}:
+        debug(
+            f"Skipping PR similarity MCP registration for non-employee user type {saved_settings.user_type.value}",
+        )
+        return
+
     secret_name = "GEMINI-API-KEY"
     region = "us-east-1"
 
