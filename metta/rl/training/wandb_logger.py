@@ -34,6 +34,7 @@ class WandbLogger(TrainerComponent):
 
         # Add rollout breakdown metrics as per-epoch deltas of cumulative elapsed time
         elapsed = context.stopwatch.get_all_elapsed()
+
         def _delta(timer_name: str) -> float:
             cur = float(elapsed.get(timer_name, 0.0))
             prev = float(self._prev_elapsed.get(timer_name, 0.0))
