@@ -267,7 +267,7 @@ def _ensure_pr_similarity_cache(*, force: bool) -> None:
     if not meta_path.exists() or not vectors_path.exists():
         need_download = True
     else:
-        threshold = datetime.now(timezone.utc) - timedelta(days=7)
+        threshold = datetime.now(timezone.utc) - timedelta(days=2)
         meta_mtime = datetime.fromtimestamp(meta_path.stat().st_mtime, tz=timezone.utc)
         vectors_mtime = datetime.fromtimestamp(vectors_path.stat().st_mtime, tz=timezone.utc)
         if meta_mtime < threshold or vectors_mtime < threshold:
