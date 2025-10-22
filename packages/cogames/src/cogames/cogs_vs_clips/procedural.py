@@ -142,7 +142,12 @@ def make_machina_procedural_map_builder(
                 )
             )
         if w.get("radial", 0) > 0:
-            cands.append(RandomSceneCandidate(scene=RadialMaze.Config(arms=8, arm_width=5), weight=float(w["radial"])))
+            cands.append(
+                RandomSceneCandidate(
+                    scene=RadialMaze.Config(arms=8, arm_width=2),
+                    weight=float(w["radial"]),
+                )
+            )
         return cands
 
     # Compute max footprint per feature (size clamp inside zones)
