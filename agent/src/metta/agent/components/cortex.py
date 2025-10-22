@@ -160,7 +160,7 @@ class CortexTD(nn.Module):
         are often created on first use. Extend our flat index and shape map
         when we observe new leaves at runtime, and ensure store capacity.
         """
-        existing = {(b, c, leaf) for _fk, (b, c, leaf) in self._flat_entries}
+        existing = {leaf_path for _, leaf_path in self._flat_entries}
         for bkey in state.keys():
             btd = state.get(bkey)
             if not isinstance(btd, TensorDict):
@@ -200,21 +200,14 @@ class CortexTD(nn.Module):
         device = x.device
         dtype = x.dtype
 
-        # Infer TT (bptt) and batch size if absent (common during evaluation)
-        if "bptt" in td.keys():
-            TT = int(td["bptt"][0].item())
-        else:
-            TT = 1
-            td.set("bptt", torch.ones((x.shape[0],), device=device, dtype=torch.long))
-            logger.debug("[CortexTD] Missing 'bptt'; defaulting to 1.")
+        # Require TT (bptt) and batch size to be present
+        if "bptt" not in td.keys():
+            raise KeyError("'bptt' key is required in TensorDict but was not found.")
+        TT = int(td["bptt"][0].item())
 
-        if "batch" in td.keys():
-            B = int(td["batch"][0].item())
-        else:
-            total_len = int(x.shape[0])
-            B = max(total_len // max(TT, 1), 1)
-            td.set("batch", torch.full((B,), B, device=device, dtype=torch.long))
-            logger.debug("[CortexTD] Missing 'batch'; inferring B=%d from input.", B)
+        if "batch" not in td.keys():
+            raise KeyError("'batch' key is required in TensorDict but was not found.")
+        B = int(td["batch"][0].item())
 
         if TT <= 0 or B <= 0:
             raise ValueError("'bptt' and 'batch' must be positive integers")
