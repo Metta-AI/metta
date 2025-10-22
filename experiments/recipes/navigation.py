@@ -148,6 +148,7 @@ def make_curriculum(
 def train(
     curriculum: Optional[CurriculumConfig] = None,
     enable_detailed_slice_logging: bool = False,
+    run: Optional[str] = None,
 ) -> TrainTool:
     resolved_curriculum = curriculum or make_curriculum(
         enable_detailed_slice_logging=enable_detailed_slice_logging
@@ -162,6 +163,7 @@ def train(
     )
 
     return TrainTool(
+        run=run,
         trainer=trainer_cfg,
         training_env=TrainingEnvironmentConfig(curriculum=resolved_curriculum),
         evaluator=evaluator_cfg,
