@@ -137,14 +137,13 @@ class MettaGridCore:
             # Keep first num_agents spawn points, replace the rest with empty
             for idx in spawn_indices[num_agents:]:
                 game_map.grid[tuple(idx)] = "empty"
-        game_config_dict = self.__mg_config.game.model_dump()
-
-        # Create C++ config
+        # Create C++ config (pass GameConfig object directly to avoid re-validation issues from dicts)
         try:
-            c_cfg = from_mettagrid_config(game_config_dict)
+            c_cfg = from_mettagrid_config(self.__mg_config.game)
         except Exception as e:
             logger.error(f"Error creating C++ config: {e}")
-            logger.error(f"Game config: {game_config_dict}")
+            # Log serialized view for debugging
+            logger.error(f"Game config: {self.__mg_config.game.model_dump()}")
             raise e
 
         # Create C++ environment
