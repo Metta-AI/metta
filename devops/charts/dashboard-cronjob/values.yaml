@@ -20,7 +20,7 @@ resources:
     memory: 2Gi
   limits:
     cpu: 500m
-    memory: 3Gi
+    memory: 2Gi
 
 # Datadog metric tagging (for organizing metrics in Datadog)
 datadog:
