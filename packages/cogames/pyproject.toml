@@ -65,12 +65,6 @@ git_describe_command = [
   "--match",
   "cogames-v*",
 ]
-include = [
-  "src/cogames/maps/*.map",
-  "src/cogames/maps/**/*.map",
-  "src/cogames/assets/**/*",
-]
-
 [tool.pytest.ini_options]
 pythonpath = ["src"]
 
