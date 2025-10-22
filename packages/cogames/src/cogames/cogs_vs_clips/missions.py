@@ -212,9 +212,9 @@ class MachinaProceduralExploreMission(Mission):
             extractor_names=["chest"],
             extractor_weights={"chest": 1.0},
             biome_weights={"caves": 0.0, "forest": 0.5, "city": 0.3, "desert": 0.2},
-            dungeon_weights={"bsp": 0.5, "maze": 0.3, "radial": 0.2},
+            dungeon_weights={"bsp": 0.3, "maze": 0.5, "radial": 0.2},
             biome_count=6,
-            dungeon_count=4,
+            dungeon_count=8,
         )
         return super().instantiate(procedural_builder, num_cogs, variant)
 

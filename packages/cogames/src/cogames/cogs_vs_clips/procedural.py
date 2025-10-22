@@ -77,7 +77,7 @@ def make_machina_procedural_map_builder(
         if w.get("bsp", 0) > 0:
             cands.append(
                 RandomSceneCandidate(
-                    scene=BSP.Config(rooms=4, min_room_size=10, min_room_size_ratio=0.5, max_room_size_ratio=0.9),
+                    scene=BSP.Config(rooms=4, min_room_size=6, min_room_size_ratio=0.35, max_room_size_ratio=0.75),
                     weight=float(w["bsp"]),
                 )
             )
@@ -85,8 +85,9 @@ def make_machina_procedural_map_builder(
             cands.append(
                 RandomSceneCandidate(
                     scene=Maze.Config(
-                        room_size=IntConstantDistribution(value=8),
-                        wall_size=IntConstantDistribution(value=2),
+                        algorithm="dfs",
+                        room_size=IntConstantDistribution(value=4),
+                        wall_size=IntConstantDistribution(value=1),
                     ),
                     weight=float(w["maze"]),
                 )
