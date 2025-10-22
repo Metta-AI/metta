@@ -137,3 +137,4 @@ agent/src/metta/ops/agalite_kernels/_build/
 
 .terraform*
 terraform.tfstate
+.cache/torch_ext/

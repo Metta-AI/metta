@@ -15,6 +15,7 @@ dependencies = [
   "pydantic>=2.11.5",
   "tensordict",
   "einops",
+  "ninja>=1.11.1",
   "triton>=2.0.0; platform_system == 'Linux'",
 ]
 
