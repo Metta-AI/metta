@@ -1,5 +1,6 @@
 import math
 
+import numpy as np
 from pydantic import Field
 
 from mettagrid.mapgen.scene import Scene, SceneConfig
@@ -25,6 +26,8 @@ class RadialMaze(Scene[RadialMazeConfig]):
 
         cx, cy = self.width // 2, self.height // 2
 
+        carved = np.zeros((self.height, self.width), dtype=bool)
+
         for arm in range(self.config.arms):
             angle = 2 * math.pi * arm / self.config.arms
             ex = cx + int(round(arm_length * math.cos(angle)))
@@ -37,17 +40,7 @@ class RadialMaze(Scene[RadialMazeConfig]):
                         nx, ny = x + dx, y + dy
                         if 0 <= nx < self.width and 0 <= ny < self.height:
                             self.grid[ny, nx] = "empty"
-
-            if self.config.outline_walls and arm_width >= 2:
-                # Add a one-cell thick wall outline around the carved arm
-                for x, y in points:
-                    for dx in range(-(arm_width // 2) - 1, (arm_width // 2) + 2):
-                        for dy in range(-(arm_width // 2) - 1, (arm_width // 2) + 2):
-                            nx, ny = x + dx, y + dy
-                            if 0 <= nx < self.width and 0 <= ny < self.height:
-                                # Set to wall only if it's not part of the empty arm
-                                if self.grid[ny, nx] != "empty":
-                                    self.grid[ny, nx] = "wall"
+                            carved[ny, nx] = True
 
             # Choose the last in-bound point from the arm's path.
             special_point = None
@@ -58,6 +51,24 @@ class RadialMaze(Scene[RadialMazeConfig]):
                     break
             if special_point is not None:
                 self.make_area(special_point[0], special_point[1], 1, 1, tags=["endpoint"])
+
+        if self.config.outline_walls:
+            outline = np.zeros_like(carved)
+            H, W = carved.shape
+            for y in range(H):
+                for x in range(W):
+                    if not carved[y, x]:
+                        continue
+                    for dy in (-1, 0, 1):
+                        for dx in (-1, 0, 1):
+                            if dx == 0 and dy == 0:
+                                continue
+                            ny, nx = y + dy, x + dx
+                            if 0 <= ny < H and 0 <= nx < W and not carved[ny, nx]:
+                                outline[ny, nx] = True
+            # Draw walls on outline cells that are not part of the carved corridors
+            mask = outline & (~carved)
+            self.grid[mask] = "wall"
 
         # this could be found with Layout, but having a designated area is more convenient
         self.make_area(cx, cy, 1, 1, tags=["center"])

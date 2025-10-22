@@ -218,8 +218,8 @@ class MachinaProceduralExploreMission(Mission):
             # biome_count=8,
             # dungeon_count=4,
             density_scale=0.2,
-            max_biome_zone_fraction=0.50,
-            max_dungeon_zone_fraction=0.25,
+            max_biome_zone_fraction=0.20,
+            max_dungeon_zone_fraction=0.5,
         )
         return super().instantiate(procedural_builder, num_cogs, variant)
 
