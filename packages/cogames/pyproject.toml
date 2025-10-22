@@ -6,6 +6,9 @@ requires = [
 ]
 build-backend = "setuptools.build_meta"
 
+[tool.setuptools]
+include-package-data = true
+
 [project]
 name = "cogames"
 description = "Multi-agent cooperative games"
@@ -36,7 +39,15 @@ where = ["src"]
 include = ["cogames", "cogames.*"]
 
 [tool.setuptools.package-data]
-cogames = ["py.typed"]
+cogames = [
+  "py.typed",
+  "maps/*.map",
+  "maps/**/*.map",
+  "assets/**/*.json",
+  "assets/**/*.yaml",
+  "assets/**/*.yml",
+  "assets/**/*.txt",
+]
 
 [tool.setuptools_scm]
 tag_regex = "^cogames-v(?P<version>\\d+\\.\\d+\\.\\d+(?:\\.\\d+)?)$"
@@ -53,6 +64,11 @@ git_describe_command = [
   "--long",
   "--match",
   "cogames-v*",
+]
+include = [
+  "src/cogames/maps/*.map",
+  "src/cogames/maps/**/*.map",
+  "src/cogames/assets/**/*",
 ]
 
 [tool.pytest.ini_options]
