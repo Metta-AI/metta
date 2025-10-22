@@ -17,7 +17,7 @@ from metta.common.util.fs import get_repo_root
 from metta.setup.components.base import SetupModuleStatus
 from metta.setup.local_commands import app as local_app
 from metta.setup.symlink_setup import app as symlink_app
-from metta.setup.test_matrix import available_presets, run_preset
+from metta.setup.test_matrix import app as test_matrix_app
 from metta.setup.tools.book import app as book_app
 from metta.setup.utils import debug, error, info, success, warning
 from metta.utils.live_run_monitor import app as run_monitor_app
@@ -719,36 +719,6 @@ def grid_benchmark(
     success("MettaGrid benchmarks completed!")
 
 
-@app.command(name="ci", help="Run all Python unit tests and all MettaGrid C++ tests")
-def cmd_ci(
-    skip_app_backend: Annotated[
-        bool,
-        typer.Option(
-            "--skip-app-backend",
-            help="Skip the app_backend test suite regardless of environment settings.",
-        ),
-    ] = False,
-) -> None:
-    info("Running Python tests...")
-    exit_code = run_preset(
-        "ci",
-        extra_pytest_args=(),
-        skip_app_backend=True if skip_app_backend else None,
-    )
-    if exit_code != 0:
-        error("Python tests failed!")
-        raise typer.Exit(exit_code)
-    success("Python tests passed!")
-
-    info("\nBuilding and running C++ tests...")
-    exit_code = _run_mettagrid_target("test", verbose=False)
-    if exit_code != 0:
-        error("C++ tests failed!")
-        raise typer.Exit(exit_code)
-    success("C++ tests passed!")
-    success("\nAll CI tests passed!")
-
-
 @app.command(name="benchmark", help="Run C++ and Python benchmarks for mettagrid")
 def cmd_benchmark(
     verbose: Annotated[
@@ -773,38 +743,6 @@ def cmd_benchmark(
         info("3. Run Python benchmarks: uv run pytest benchmarks/test_mettagrid_env_benchmark.py -v --benchmark-only")
         raise typer.Exit(exit_code)
     success("Benchmarks completed!")
-
-
-@app.command(name="test", help="Run all Python unit tests", context_settings={"allow_extra_args": True})
-def cmd_test(
-    ctx: typer.Context,
-    preset: Annotated[str, typer.Option("--preset", "-p", help="Test preset to run.")] = "default",
-    skip_app_backend: Annotated[
-        bool,
-        typer.Option(
-            "--skip-app-backend",
-            help="Skip the app_backend suite (ci preset only).",
-        ),
-    ] = False,
-) -> None:
-    preset_normalized = preset.lower()
-    if preset_normalized not in available_presets():
-        error(f"Unknown preset '{preset}'. Available presets: {', '.join(available_presets())}")
-        raise typer.Exit(1)
-
-    extra_args = list(ctx.args or [])
-    try:
-        exit_code = run_preset(
-            preset_normalized,
-            extra_pytest_args=extra_args,
-            skip_app_backend=True if skip_app_backend else None,
-        )
-    except ValueError as exc:
-        error(str(exc))
-        raise typer.Exit(1) from exc
-
-    if exit_code != 0:
-        raise typer.Exit(exit_code)
 
 
 @app.command(
@@ -927,6 +865,7 @@ app.add_typer(local_app, name="local")
 app.add_typer(book_app, name="book")
 app.add_typer(symlink_app, name="symlink-setup")
 app.add_typer(softmax_system_health_app, name="softmax-system-health")
+app.add_typer(test_matrix_app, name="test")
 
 
 def main() -> None:
