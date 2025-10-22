@@ -139,7 +139,7 @@ def make_curriculum(
 
     return CurriculumConfig(
         task_generator=nav_tasks_with_labels,
-        num_active_tasks=1000,
+        num_active_tasks=50,
         algorithm_config=algorithm_config,
     )
 
