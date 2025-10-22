@@ -89,6 +89,7 @@ class AgentConfig(Config):
     supervisor: Optional[AnySupervisorConfig] = Field(
         default=None, description="Optional supervisor configuration for this agent"
     )
+    initial_vibe: int = Field(default=0, ge=0, description="Initial vibe value for this agent instance")
 
 
 class ActionConfig(Config):
@@ -106,10 +107,10 @@ class AttackActionConfig(ActionConfig):
     defense_resources: dict[str, int] = Field(default_factory=dict)
 
 
-class ChangeGlyphActionConfig(ActionConfig):
-    """Change glyph action configuration."""
+class ChangeVibeActionConfig(ActionConfig):
+    """Change vibe action configuration."""
 
-    number_of_glyphs: int = Field(default=0, ge=0, le=255)
+    number_of_vibes: int = Field(default=0, ge=0, le=255)
 
 
 class ResourceModActionConfig(ActionConfig):
@@ -133,7 +134,7 @@ class ActionsConfig(Config):
     rotate: ActionConfig = Field(default_factory=lambda: ActionConfig(enabled=False))
     attack: AttackActionConfig = Field(default_factory=lambda: AttackActionConfig(enabled=False))
     swap: ActionConfig = Field(default_factory=lambda: ActionConfig(enabled=False))
-    change_glyph: ChangeGlyphActionConfig = Field(default_factory=lambda: ChangeGlyphActionConfig(enabled=False))
+    change_vibe: ChangeVibeActionConfig = Field(default_factory=lambda: ChangeVibeActionConfig(enabled=False))
     resource_mod: ResourceModActionConfig = Field(default_factory=lambda: ResourceModActionConfig(enabled=False))
 
 
@@ -173,6 +174,7 @@ class GridObjectConfig(Config):
     map_char: str = Field(default="?", description="Character used in ASCII maps")
     render_symbol: str = Field(default="❓", description="Symbol used for rendering (e.g., emoji)")
     tags: list[str] = Field(default_factory=list, description="Tags for this object instance")
+    vibe: Optional[int] = Field(default=0, ge=0, le=255, description="Vibe value for this object instance")
 
 
 class WallConfig(GridObjectConfig):

@@ -14,7 +14,7 @@ from mettagrid.mettagrid_c import ActionConfig as CppActionConfig
 from mettagrid.mettagrid_c import AgentConfig as CppAgentConfig
 from mettagrid.mettagrid_c import AssemblerConfig as CppAssemblerConfig
 from mettagrid.mettagrid_c import AttackActionConfig as CppAttackActionConfig
-from mettagrid.mettagrid_c import ChangeGlyphActionConfig as CppChangeGlyphActionConfig
+from mettagrid.mettagrid_c import ChangeVibeActionConfig as CppChangeVibeActionConfig
 from mettagrid.mettagrid_c import ChestConfig as CppChestConfig
 from mettagrid.mettagrid_c import ClipperConfig as CppClipperConfig
 from mettagrid.mettagrid_c import ConverterConfig as CppConverterConfig
@@ -128,6 +128,7 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
                 )
 
         rewards_config = agent_props.get("rewards", {})
+        initial_vibe = agent_props.get("initial_vibe", 0)
 
         # Process stats rewards
         stat_rewards = rewards_config.get("stats", {})
@@ -227,6 +228,7 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
             "shareable_resources": shareable_resources,
             "inventory_regen_amounts": inventory_regen_amounts,
             "diversity_tracked_resources": diversity_tracked_resources,
+            "initial_vibe": initial_vibe,
         }
 
         if supervisor_config:
@@ -262,6 +264,7 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
                 cooldown_time=list(object_config.cooldown),
                 initial_resource_count=object_config.initial_resource_count,
                 recipe_details_obs=game_config.recipe_details_obs,
+                initial_vibe=object_config.vibe,
             )
             cpp_converter_config.tag_ids = tag_ids
             objects_cpp_params[object_type] = cpp_converter_config
@@ -269,7 +272,9 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
             # Convert tag names to IDs
             tag_ids = [tag_name_to_id[tag] for tag in object_config.tags]
 
-            cpp_wall_config = CppWallConfig(type_id=object_config.type_id, type_name=object_type)
+            cpp_wall_config = CppWallConfig(
+                type_id=object_config.type_id, type_name=object_type, initial_vibe=object_config.vibe
+            )
             cpp_wall_config.swappable = object_config.swappable
             cpp_wall_config.tag_ids = tag_ids
             objects_cpp_params[object_type] = cpp_wall_config
@@ -297,7 +302,9 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
             # Convert tag names to IDs
             tag_ids = [tag_name_to_id[tag] for tag in object_config.tags]
 
-            cpp_assembler_config = CppAssemblerConfig(type_id=object_config.type_id, type_name=object_type)
+            cpp_assembler_config = CppAssemblerConfig(
+                type_id=object_config.type_id, type_name=object_type, initial_vibe=object_config.vibe
+            )
             cpp_assembler_config.tag_ids = tag_ids
             cpp_assembler_config.recipes = recipes
             cpp_assembler_config.allow_partial_usage = object_config.allow_partial_usage
@@ -319,7 +326,9 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
                 position_index = FIXED_POSITIONS.index(pos)
                 position_deltas_map[position_index] = delta
 
-            cpp_chest_config = CppChestConfig(type_id=object_config.type_id, type_name=object_type)
+            cpp_chest_config = CppChestConfig(
+                type_id=object_config.type_id, type_name=object_type, initial_vibe=object_config.vibe
+            )
             cpp_chest_config.resource_type = resource_type_id
             cpp_chest_config.position_deltas = position_deltas_map
             cpp_chest_config.initial_inventory = object_config.initial_inventory
@@ -386,14 +395,14 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
                 resource_name_to_id[k]: v for k, v in action_config["defense_resources"].items()
             }
             actions_cpp_params[action_name] = CppAttackActionConfig(**action_cpp_params)
-        elif action_name == "change_glyph":
-            # Extract the specific parameters needed for ChangeGlyphActionConfig
-            change_glyph_params = {
+        elif action_name == "change_vibe":
+            # Extract the specific parameters needed for ChangeVibeActionConfig
+            change_vibe_params = {
                 "required_resources": action_cpp_params.get("required_resources", {}),
                 "consumed_resources": action_cpp_params.get("consumed_resources", {}),
-                "number_of_glyphs": action_config["number_of_glyphs"],
+                "number_of_vibes": action_config["number_of_vibes"],
             }
-            actions_cpp_params[action_name] = CppChangeGlyphActionConfig(**change_glyph_params)
+            actions_cpp_params[action_name] = CppChangeVibeActionConfig(**change_vibe_params)
         elif action_name == "resource_mod":
             # Extract the specific parameters needed for ResourceModConfig
             modifies_dict = action_config.get("modifies", {})
