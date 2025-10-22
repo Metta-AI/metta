@@ -93,7 +93,22 @@ class JobConfig(Config):
         Returns:
             Dict with keys: name, cmd, timeout_s, log_dir
         """
-        # Build command: uv run ./tools/run.py <module> <args> <overrides>
+        # Check if raw shell command is specified in metadata
+        if "cmd" in self.metadata:
+            import shlex
+
+            cmd = self.metadata["cmd"]
+            # Handle string commands - split into list
+            if isinstance(cmd, str):
+                cmd = shlex.split(cmd)
+            return {
+                "name": self.name,
+                "cmd": cmd,
+                "timeout_s": self.timeout_s,
+                "log_dir": log_dir,
+            }
+
+        # Default: Build command via run.py
         cmd = ["uv", "run", "./tools/run.py", self.module]
 
         # Add args

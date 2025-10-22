@@ -17,9 +17,11 @@ Usage:
 Global options:
   --version X           # Use specific version
   --new                 # Force start a new release (ignore in-progress state)
+  --test                # Test mode (skip all git operations and actual release)
 
 Examples:
   ./devops/stable/release_stable.py --new all              # Start new release and run full pipeline
+  ./devops/stable/release_stable.py --test all             # Test run without actual release
   ./devops/stable/release_stable.py --version 2025.10.09-1030 summary  # Show summary for specific version
   ./devops/stable/release_stable.py task-validation --task ci  # Run only CI tests
 """
@@ -99,12 +101,19 @@ def verify_on_rc_commit(version: str, step_name: str) -> str:
     try:
         rc_commit = git.run_git("rev-list", "-n", "1", rc_tag_name).strip()
     except git.GitError:
+        if _TEST_MODE:
+            print(f"[TEST MODE] RC tag {rc_tag_name} not found, using current commit")
+            return current_commit
         print(f"❌ RC tag {rc_tag_name} not found")
         print("   Run 'prepare-tag' step first to create the RC tag")
         sys.exit(1)
 
     # Verify we're on the RC commit
     if current_commit != rc_commit:
+        if _TEST_MODE:
+            print(f"[TEST MODE] Current commit ({current_commit}) doesn't match RC tag commit ({rc_commit})")
+            print("[TEST MODE] Continuing anyway in test mode")
+            return current_commit
         print(f"❌ ERROR: Not on RC commit for {step_name}")
         print(f"   Current commit:  {current_commit}")
         print(f"   RC tag commit:   {rc_commit} ({rc_tag_name})")
@@ -164,11 +173,16 @@ def step_prepare_tag(version: str, state: Optional[ReleaseState] = None, **_kwar
             except git.GitError:
                 pass
 
-        print(f"Creating staging tag: {tag_name}")
-        # Create lightweight tag
-        git.run_git("tag", tag_name)
-        git.run_git("push", "origin", tag_name)
-        print(green(f"✅ Staging tag {tag_name} created and pushed successfully"))
+        if _TEST_MODE:
+            print(f"[TEST MODE] Would create staging tag: {tag_name}")
+            print(f"[TEST MODE] Would push tag to origin: {tag_name}")
+            print(green("✅ [TEST MODE] Tag operations simulated successfully"))
+        else:
+            print(f"Creating staging tag: {tag_name}")
+            # Create lightweight tag
+            git.run_git("tag", tag_name)
+            git.run_git("push", "origin", tag_name)
+            print(green(f"✅ Staging tag {tag_name} created and pushed successfully"))
 
         # Mark as completed
         if state:
@@ -182,7 +196,8 @@ def step_prepare_tag(version: str, state: Optional[ReleaseState] = None, **_kwar
             save_state(state)
     except git.GitError as e:
         print(f"Failed to create/push tag: {e}")
-        sys.exit(1)
+        if not _TEST_MODE:
+            sys.exit(1)
 
 
 def step_bug_check(version: str, state: Optional[ReleaseState] = None, **_kwargs) -> None:
@@ -249,7 +264,6 @@ def step_bug_check(version: str, state: Optional[ReleaseState] = None, **_kwargs
 def step_task_validation(
     version: str,
     task_filter: Optional[str] = None,
-    reeval: bool = False,
     **_kwargs,
 ) -> None:
     """Step 3: Run validation tasks.
@@ -258,7 +272,6 @@ def step_task_validation(
         version: Release version
         task_filter: Task name to run (metta_ci, arena_local_smoke, arena_single_gpu_100m, etc.)
                     or None to run all tasks
-        reeval: If True, re-evaluate failed runs from existing logs instead of re-launching
     """
     print("\n" + "=" * 60)
     print(bold("STEP 3: Task Validation"))
@@ -287,8 +300,15 @@ def step_task_validation(
         tasks = all_tasks
         print("Running all tasks\n")
 
+    # Initialize JobManager
+    from metta.common.util.fs import get_repo_root
+    from metta.jobs import JobManager
+
+    db_path = get_repo_root() / "devops/stable/jobs.sqlite"
+    job_manager = JobManager(db_path=db_path, max_local_jobs=1, max_remote_jobs=4)
+
     # Create runner and run all tasks
-    runner = TaskRunner(state)
+    runner = TaskRunner(state=state, job_manager=job_manager, interactive=True)
     runner.run_all(tasks)
 
     # Print summary
@@ -484,84 +504,95 @@ def step_release(version: str, **_kwargs) -> None:
     except git.GitError as e:
         print(f"❌ Failed to find RC tag {rc_tag_name}: {e}")
         print("   Run prepare-tag step first")
-        sys.exit(1)
+        if not _TEST_MODE:
+            sys.exit(1)
+        rc_commit = git.get_current_commit()
+        print(f"[TEST MODE] Using current commit instead: {rc_commit}")
 
     # Create git tag pointing to the same commit as RC tag
     tag_name = f"v{version}"
-    try:
-        # Check if tag already exists
-        existing = git.run_git("tag", "-l", tag_name)
-        if existing.strip():
-            print(f"Tag {tag_name} already exists")
+
+    if _TEST_MODE:
+        print(f"\n[TEST MODE] Would create git tag: {tag_name} at {rc_commit}")
+        print(f"[TEST MODE] Would push tag to origin: {tag_name}")
+        print(f"[TEST MODE] Would update stable branch to {tag_name}")
+        print(f"[TEST MODE] Would create GitHub release: {tag_name}")
+        print(green("✅ [TEST MODE] Release operations simulated successfully"))
+    else:
+        try:
+            # Check if tag already exists
+            existing = git.run_git("tag", "-l", tag_name)
+            if existing.strip():
+                print(f"Tag {tag_name} already exists")
+                sys.exit(1)
+
+            # Create annotated tag at the RC commit
+            git.run_git("tag", "-a", tag_name, rc_commit, "-m", f"Release version {version}")
+            print(f"✅ Created git tag: {tag_name} at {rc_commit}")
+
+            # Push tag
+            git.run_git("push", "origin", tag_name)
+            print(f"✅ Pushed tag to origin: {tag_name}")
+
+        except git.GitError as e:
+            print(f"Failed to create/push tag: {e}")
             sys.exit(1)
 
-        # Create annotated tag at the RC commit
-        git.run_git("tag", "-a", tag_name, rc_commit, "-m", f"Release version {version}")
-        print(f"✅ Created git tag: {tag_name} at {rc_commit}")
+        # Update stable branch to point to this tag
+        print("\nUpdating stable branch...")
+        try:
+            # Fetch latest to ensure we have all tags
+            git.run_git("fetch", "origin")
 
-        # Push tag
-        git.run_git("push", "origin", tag_name)
-        print(f"✅ Pushed tag to origin: {tag_name}")
+            # Update local stable branch to the new tag
+            git.run_git("branch", "-f", "stable", tag_name)
 
-    except git.GitError as e:
-        print(f"Failed to create/push tag: {e}")
-        sys.exit(1)
+            # Push stable branch to origin (force update)
+            git.run_git("push", "origin", "stable", "--force-with-lease")
 
-    # Update stable branch to point to this tag
-    print("\nUpdating stable branch...")
-    try:
-        # Fetch latest to ensure we have all tags
-        git.run_git("fetch", "origin")
+            print(f"✅ Updated origin/stable branch to {tag_name}")
+        except git.GitError as e:
+            print(f"⚠️  Failed to update stable branch: {e}")
+            print("   You may need to update it manually:")
+            print(f"   git branch -f stable {tag_name}")
+            print("   git push origin stable --force-with-lease")
 
-        # Update local stable branch to the new tag
-        git.run_git("branch", "-f", "stable", tag_name)
+        # Mark state as released
+        state.released = True
+        save_state(state)
 
-        # Push stable branch to origin (force update)
-        git.run_git("push", "origin", "stable", "--force-with-lease")
+        # Create GitHub release using gh CLI
+        print("\nCreating GitHub release...")
+        try:
+            # Check if gh CLI is available
+            subprocess.run(["gh", "--version"], capture_output=True, check=True)
 
-        print(f"✅ Updated origin/stable branch to {tag_name}")
-    except git.GitError as e:
-        print(f"⚠️  Failed to update stable branch: {e}")
-        print("   You may need to update it manually:")
-        print(f"   git branch -f stable {tag_name}")
-        print("   git push origin stable --force-with-lease")
-
-    # Mark state as released
-    state.released = True
-    save_state(state)
-
-    # Create GitHub release using gh CLI
-    print("\nCreating GitHub release...")
-    try:
-        # Check if gh CLI is available
-        subprocess.run(["gh", "--version"], capture_output=True, check=True)
-
-        # Create GitHub release from tag with release notes
-        result = subprocess.run(
-            [
-                "gh",
-                "release",
-                "create",
-                tag_name,
-                "--title",
-                f"Release {version}",
-                "--notes-file",
-                str(release_notes_path),
-            ],
-            capture_output=True,
-            text=True,
-            check=True,
-        )
-        print(f"✅ Created GitHub release: {tag_name}")
-        print(f"   {result.stdout.strip()}")
-    except FileNotFoundError:
-        print("⚠️  GitHub CLI (gh) not installed - skipping GitHub release creation")
-        print("   Install: https://cli.github.com/")
-        print("   Or create release manually from tag")
-    except subprocess.CalledProcessError as e:
-        print(f"⚠️  Failed to create GitHub release: {e.stderr}")
-        print("   You may need to authenticate: gh auth login")
-        print("   Or create release manually from tag")
+            # Create GitHub release from tag with release notes
+            result = subprocess.run(
+                [
+                    "gh",
+                    "release",
+                    "create",
+                    tag_name,
+                    "--title",
+                    f"Release {version}",
+                    "--notes-file",
+                    str(release_notes_path),
+                ],
+                capture_output=True,
+                text=True,
+                check=True,
+            )
+            print(f"✅ Created GitHub release: {tag_name}")
+            print(f"   {result.stdout.strip()}")
+        except FileNotFoundError:
+            print("⚠️  GitHub CLI (gh) not installed - skipping GitHub release creation")
+            print("   Install: https://cli.github.com/")
+            print("   Or create release manually from tag")
+        except subprocess.CalledProcessError as e:
+            print(f"⚠️  Failed to create GitHub release: {e.stderr}")
+            print("   You may need to authenticate: gh auth login")
+            print("   Or create release manually from tag")
 
     print("\n" + "=" * 60)
     print("Release Complete!")
@@ -576,9 +607,6 @@ def step_release(version: str, **_kwargs) -> None:
 # ============================================================================
 # CLI Setup
 # ============================================================================
-
-app = typer.Typer(add_completion=False)
-_VERSION: str | None = None  # Set by callback
 
 
 def generate_version() -> str:
@@ -620,23 +648,31 @@ def resolve_version(explicit: Optional[str], force_new: bool) -> str:
 
 app = typer.Typer(add_completion=False)
 _VERSION: str | None = None  # Set by callback
+_TEST_MODE: bool = False  # Set by callback
 
 
 @app.callback()
 def common(
     version: Optional[str] = typer.Option(None, "--version", help="Version number (overrides auto-continue behavior)"),
     new: bool = typer.Option(False, "--new", help="Force start a new release (ignore in-progress state)"),
+    test: bool = typer.Option(False, "--test", help="Test mode (skip all git operations and actual release)"),
 ):
     """Stable Release System - automated release validation and deployment."""
-    global _VERSION
+    global _VERSION, _TEST_MODE
     _VERSION = resolve_version(version, new)
+    _TEST_MODE = test
 
     print("=" * 80)
-    print(bold(cyan(f"Stable Release System - Version {_VERSION}")))
+    if test:
+        print(bold(cyan(f"Stable Release System - Version {_VERSION} [TEST MODE]")))
+    else:
+        print(bold(cyan(f"Stable Release System - Version {_VERSION}")))
     print("=" * 80)
     print("\nContacts:")
     for contact in CONTACTS:
         print(f"  - {contact}")
+    if test:
+        print("\n⚠️  TEST MODE: No git operations or actual releases will be performed")
     print("")
 
 
@@ -663,14 +699,9 @@ def cmd_task_validation(
         "--task",
         help=f"Task name filter (available: {', '.join(t.name for t in get_all_tasks())})",
     ),
-    reeval: bool = typer.Option(
-        False,
-        "--reeval",
-        help="Re-evaluate failed runs from existing logs instead of re-launching",
-    ),
 ):
     """Run validation tasks."""
-    step_task_validation(version=_VERSION, task_filter=task, reeval=reeval)
+    step_task_validation(version=_VERSION, task_filter=task)
 
 
 @app.command("summary")
@@ -692,11 +723,6 @@ def cmd_all(
         "--task",
         help="Optional validation filter (applies to task-validation step in the full pipeline)",
     ),
-    reeval: bool = typer.Option(
-        False,
-        "--reeval",
-        help="Re-evaluate failed runs from existing logs instead of re-launching",
-    ),
 ):
     """Run full release pipeline."""
     state_version = f"v{_VERSION}"
@@ -705,7 +731,7 @@ def cmd_all(
     # Run steps with state tracking
     step_prepare_tag(version=_VERSION, state=state)
     step_bug_check(version=_VERSION, state=state)
-    step_task_validation(version=_VERSION, task_filter=task, reeval=reeval)
+    step_task_validation(version=_VERSION, task_filter=task)
     step_summary(version=_VERSION)
 
 
