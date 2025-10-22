@@ -41,10 +41,6 @@ class CurriculumEnv(PufferEnv):
         # Track first reset to avoid hasattr checks
         self._first_reset_done = False
 
-        # Cache for curriculum stats to avoid recomputation
-        self._cached_stats = {}
-        self._stats_cache_valid = False
-
         # Per-label metrics tracking
         self._per_label_lp_scores = {}
         self._per_label_completion_counts = {}  # Cumulative across all training
@@ -70,21 +66,12 @@ class CurriculumEnv(PufferEnv):
         self._aggregated_epoch_counts = aggregated_counts
 
     def _add_curriculum_stats_to_info(self, info_dict: dict) -> None:
-        """Add curriculum statistics to info dictionary for logging.
+        """Add label-specific curriculum statistics to info dictionary for logging.
 
-        This method consolidates the curriculum stats logging logic to avoid duplication
-        and enables batching of expensive stats calculations.
+        Only logs per-label metrics (completions and LP scores), not general curriculum stats.
         """
         # Only update curriculum stats periodically to reduce overhead
         if self._stats_update_counter >= self._stats_update_frequency:
-            if not self._stats_cache_valid:
-                self._cached_stats = self._curriculum.stats()
-                self._stats_cache_valid = True
-
-            # Use pre-computed prefix for better performance
-            for key, value in self._cached_stats.items():
-                info_dict[self._CURRICULUM_STAT_PREFIX + key] = value
-
             # Add per-label learning progress metrics
             if self._per_label_lp_scores:
                 info_dict[self._CURRICULUM_STAT_PREFIX + "per_label_lp_scores"] = self._per_label_lp_scores.copy()
@@ -105,12 +92,6 @@ class CurriculumEnv(PufferEnv):
 
                 info_dict[self._CURRICULUM_STAT_PREFIX + "per_label_samples_this_epoch"] = per_epoch_counts
 
-            # Also log cumulative for reference (optional, can be removed if not needed)
-            if self._per_label_completion_counts:
-                info_dict[self._CURRICULUM_STAT_PREFIX + "per_label_cumulative_samples"] = (
-                    self._per_label_completion_counts.copy()
-                )
-
             # NOTE: Do NOT reset the baseline here - only reset at epoch boundaries
             # via reset_epoch_counters() to get accurate per-epoch counts
 
@@ -124,14 +105,8 @@ class CurriculumEnv(PufferEnv):
         self._current_task = self._curriculum.get_task()
         self._env.set_mg_config(self._current_task.get_env_cfg())
 
-        # Invalidate stats cache on reset
-        self._stats_cache_valid = False
-
-        # Only log curriculum stats on reset if cache is invalid or this is first reset
+        # Mark that first reset is done (for future use)
         if not self._first_reset_done:
-            curriculum_stats = self._curriculum.stats()
-            for key, value in curriculum_stats.items():
-                info[self._CURRICULUM_STAT_PREFIX + key] = value
             self._first_reset_done = True
 
         return obs, info
@@ -168,10 +143,7 @@ class CurriculumEnv(PufferEnv):
             self._current_task = self._curriculum.get_task()
             self._env.set_mg_config(self._current_task.get_env_cfg())
 
-            # Invalidate stats cache when task changes
-            self._stats_cache_valid = False
-
-        # Add curriculum stats to info for logging (batched)
+        # Add label-specific curriculum stats to info for logging (batched)
         self._stats_update_counter += 1
         self._add_curriculum_stats_to_info(infos)
 
@@ -189,7 +161,6 @@ class CurriculumEnv(PufferEnv):
     def force_stats_update(self) -> None:
         """Force an immediate update of curriculum stats."""
         self._stats_update_counter = self._stats_update_frequency
-        self._stats_cache_valid = False
 
     def __getattribute__(self, name: str):
         """Intercept all attribute access and delegate to wrapped environment when appropriate.
@@ -207,8 +178,6 @@ class CurriculumEnv(PufferEnv):
             "_stats_update_frequency",
             "set_stats_update_frequency",
             "force_stats_update",
-            "_cached_stats",
-            "_stats_cache_valid",
             "_first_reset_done",
             "_per_label_lp_scores",
             "_per_label_completion_counts",
