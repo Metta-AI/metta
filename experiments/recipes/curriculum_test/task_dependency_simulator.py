@@ -9,16 +9,19 @@ for curriculum learning and stats reporting.
 import logging
 import random
 import time
+from collections import defaultdict
 from typing import Any, Dict, Optional
 
 import numpy as np
 import torch
 
-from metta.cogworks.curriculum import Curriculum, CurriculumConfig
+from metta.cogworks.curriculum import Curriculum, CurriculumConfig, CurriculumEnv
 from metta.cogworks.curriculum.task_generator import TaskGenerator, TaskGeneratorConfig
 from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
 from metta.common.tool import Tool
+from metta.rl.stats import accumulate_rollout_stats
 from mettagrid.config.mettagrid_config import MettaGridConfig
+from pufferlib import PufferEnv
 
 logger = logging.getLogger(__name__)
 
@@ -299,15 +302,7 @@ class TaskDependencySimulator:
             )
             if task_stats:
                 curriculum_samples = task_stats["completion_count"]
-                simulator_samples = int(self.total_sample_counts[0].item())
                 metrics["task_0_tracking/cumulative_samples"] = curriculum_samples
-
-                # Reduced frequency curriculum vs simulator comparison
-                if self.current_epoch % 500 == 0:
-                    task_class = self._current_task_0_curriculum_id % self.num_tasks
-                    print(
-                        f"Epoch {self.current_epoch}: Curriculum task 0 ID {self._current_task_0_curriculum_id} (task class: {task_class}) samples: {curriculum_samples}, Simulator task 0 samples: {simulator_samples}"
-                    )
             else:
                 metrics["task_0_tracking/cumulative_samples"] = 0
         else:
@@ -550,12 +545,6 @@ class TaskDependencySimulator:
             task_stats = curriculum._algorithm.task_tracker.get_task_stats(task_0_id)
             if task_stats:
                 curriculum_samples = task_stats["completion_count"]
-                # Periodic task 0 tracking (reduced frequency)
-                if self.current_epoch % 500 == 0:  # Log every 500 epochs
-                    task_class = task_0_id % self.num_tasks
-                    print(
-                        f"Epoch {self.current_epoch}: Task 0 curriculum ID {task_0_id} (task class: {task_class}) has {curriculum_samples} cumulative samples"
-                    )
 
         # Track the data
         self.task_0_lp_percentiles.append(percentile)
@@ -583,6 +572,93 @@ class TaskDependencySimulator:
             .sum()
             .item(),
         }
+
+
+class TaskDependencyEnv(PufferEnv):
+    """Mock environment for task dependency simulation.
+
+    This environment implements the PufferEnv interface so it can be wrapped
+    by CurriculumEnv, matching the exact setup used in real training.
+    """
+
+    def __init__(
+        self, simulator: "TaskDependencySimulator", task_config: MettaGridConfig
+    ):
+        """Initialize the task dependency environment.
+
+        Args:
+            simulator: The task dependency simulator instance
+            task_config: Initial task configuration with label
+        """
+        # Don't call super().__init__() - PufferEnv is just an interface
+        self.simulator = simulator
+        self.task_config = task_config
+        self.task_class = None  # Position in dependency chain (0, 1, 2, ...)
+        self.steps = 0
+        self.max_steps_per_episode = 1  # Each "episode" is one task sample
+        self.episode_reward = 0.0
+
+    def reset(self, *args, **kwargs):
+        """Reset the environment for a new episode."""
+        self.steps = 0
+        self.episode_reward = 0.0
+
+        # Extract task class from label (e.g., "taskclass0" -> 0)
+        if self.task_config.label.startswith("taskclass"):
+            self.task_class = int(self.task_config.label.replace("taskclass", ""))
+        else:
+            # Fallback for other label formats
+            self.task_class = 0
+
+        # Return dummy observation and empty info
+        return np.zeros((1,), dtype=np.float32), {}
+
+    def step(self, action):
+        """Take a step in the environment.
+
+        For the task dependency simulator, each step samples the task once
+        and immediately terminates the episode.
+        """
+        self.steps += 1
+
+        # Sample reward from simulator based on task class
+        reward = self.simulator.sample_task(self.task_class)
+        self.episode_reward = reward
+
+        # Episode terminates after one sample
+        terminal = True
+        truncated = False
+
+        # Emit stats via info dict (matching real environment pattern)
+        info = {
+            "task_dependency": {
+                "performance": self.simulator.P[self.task_class].item(),
+                "task_class": self.task_class,
+                "reward": reward,
+            }
+        }
+
+        return (
+            np.zeros((1,), dtype=np.float32),  # obs
+            np.array([reward], dtype=np.float32),  # reward
+            np.array([terminal], dtype=bool),  # terminal
+            np.array([truncated], dtype=bool),  # truncated
+            info,  # info dict
+        )
+
+    def get_episode_rewards(self):
+        """Return episode rewards for CurriculumEnv.
+
+        This is called by CurriculumEnv to determine task performance.
+        """
+        return np.array([self.episode_reward], dtype=np.float32)
+
+    def set_mg_config(self, config: MettaGridConfig):
+        """Allow CurriculumEnv to update task config.
+
+        This is called by CurriculumEnv when switching to a new task.
+        """
+        self.task_config = config
 
 
 class MockTaskGenerator(TaskGenerator):
@@ -655,6 +731,7 @@ def simulate_task_dependencies(
     num_tasks: int = 10,
     num_epochs: int = 100,
     samples_per_epoch: int = 50,
+    num_envs: int = 32,
     gamma: float = 0.1,
     lambda_forget: float = 0.1,
     performance_threshold: float = 0.9,
@@ -678,12 +755,19 @@ def simulate_task_dependencies(
     wandb_run_name: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
-    Run a complete task dependency simulation.
+    Run a complete task dependency simulation using vectorized environments.
+
+    This implementation matches real training by:
+    - Using CurriculumEnv wrapper around base environments
+    - Simulating multiple parallel environments (num_envs)
+    - Collecting stats via info dicts through accumulate_rollout_stats()
+    - Processing stats the same way as real training
 
     Args:
         num_tasks: Number of tasks in the chain
         num_epochs: Number of training epochs
-        samples_per_epoch: Samples per epoch
+        samples_per_epoch: Samples per epoch (per environment)
+        num_envs: Number of parallel environments (like vectorized training)
         gamma: Parent contribution factor
         lambda_forget: Forgetting rate
         performance_threshold: Success threshold
@@ -699,14 +783,15 @@ def simulate_task_dependencies(
         Simulation results dictionary
 
     Note:
-        - max_memory_tasks parameter removed (now automatically set to num_active_tasks)
-        - sampling_temperature parameter removed (not in refactored curriculum)
+        - Now uses vectorized environments with CurriculumEnv wrapper (Option C)
+        - Stats flow through accumulate_rollout_stats() like real training
+        - Multiple parallel environments simulate real training behavior
     """
     # Create simulator
     simulator = TaskDependencySimulator(
         num_tasks=num_tasks,
         num_epochs=num_epochs,
-        samples_per_epoch=samples_per_epoch,
+        samples_per_epoch=samples_per_epoch * num_envs,  # Total samples across all envs
         gamma=gamma,
         lambda_forget=lambda_forget,
         performance_threshold=performance_threshold,
@@ -715,7 +800,7 @@ def simulate_task_dependencies(
         task_noise_std=task_noise_std,
     )
 
-    # Create curriculum
+    # Create curriculum (shared across all environments)
     curriculum_config = create_curriculum(
         num_tasks=num_tasks,
         enable_detailed_slice_logging=enable_detailed_slice_logging,
@@ -734,35 +819,71 @@ def simulate_task_dependencies(
     )
     curriculum = Curriculum(curriculum_config)
 
-    # Run simulation
-    logger.info(f"Starting task dependency simulation for {num_epochs} epochs")
+    # Create vectorized environments wrapped with CurriculumEnv (matches real training!)
+    logger.info(
+        f"Creating {num_envs} vectorized environments with CurriculumEnv wrapper"
+    )
+    envs = []
+    for i in range(num_envs):
+        # Create base environment
+        initial_task = curriculum.get_task()
+        base_env = TaskDependencyEnv(simulator, initial_task.get_env_cfg())
+
+        # Wrap with CurriculumEnv (just like real training!)
+        curriculum_env = CurriculumEnv(base_env, curriculum)
+        envs.append(curriculum_env)
+
+    # Reset all environments
+    for env in envs:
+        env.reset()
+
+    # Run simulation with vectorized environments
+    logger.info(
+        f"Starting vectorized task dependency simulation for {num_epochs} epochs"
+    )
     simulator.reset()
     metrics_history = []
 
     for epoch in range(num_epochs):
-        # Simulate curriculum-driven task sampling
+        # Collect stats from all environments this epoch
+        rollout_stats = defaultdict(list)
+
+        # Each environment does samples_per_epoch steps
         for _ in range(samples_per_epoch):
-            # Get task from curriculum
-            task = curriculum.get_task()
-            task_id = task._task_id % num_tasks  # Ensure valid task ID
+            # Step all environments (matching vectorized training)
+            info_batch = []
 
-            # Sample the task and get reward
-            reward = simulator.sample_task(task_id)
+            for env in envs:
+                # Take a step (action doesn't matter for this simulation)
+                obs, reward, terminal, truncated, info = env.step(0)
+                info_batch.append(info)
 
-            # Update curriculum with task completion
-            task.complete(reward)
-            curriculum.update_task_performance(task._task_id, reward)
+                # Reset if episode terminated (happens every step in this simulation)
+                if terminal.any() or truncated.any():
+                    env.reset()
 
-        # Complete epoch and collect metrics
+            # Accumulate stats from all environments (matching real training!)
+            accumulate_rollout_stats(info_batch, rollout_stats)
+
+        # Complete epoch and collect metrics from simulator
         epoch_metrics = simulator.complete_epoch(curriculum)
-        epoch_metrics.update(curriculum.stats())
 
-        # Note: In refactored curriculum, evictions are handled automatically in get_task()
-        # when the pool is at capacity. No manual eviction processing needed.
+        # Add curriculum stats
+        curriculum_stats = curriculum.stats()
+        epoch_metrics.update(curriculum_stats)
 
         # Add learning progress score distributions
         lp_distributions = simulator._get_learning_progress_distributions(curriculum)
         epoch_metrics.update(lp_distributions)
+
+        # Add accumulated rollout stats (from info dicts)
+        # Process them the same way as real training
+        for key, values in rollout_stats.items():
+            # Per-label samples should be summed, others averaged
+            if "per_label_samples" in key or "tracked_task_completions" in key:
+                epoch_metrics[key] = np.sum(values)
+            else:
+                epoch_metrics[key] = np.mean(values)
 
         metrics_history.append(epoch_metrics)
 
@@ -843,12 +964,6 @@ def simulate_task_dependencies(
                     }
                 )
 
-        # Task 0 reward history charts removed for performance
-
-        # Task 0 learning progress charts removed for performance
-
-        # Sampling imbalance charts removed for performance
-
         # Log final summary
         wandb.log({"simulation_summary": results})
         wandb.finish()
@@ -878,6 +993,7 @@ class TaskDependencySimulationTool(Tool):
     num_tasks: int = 10
     num_epochs: int = 100
     samples_per_epoch: int = 50
+    num_envs: int = 1  # Number of parallel environments (vectorization)
     gamma: float = 0.5
     lambda_forget: float = 0.01
     performance_threshold: float = 0.9
@@ -917,6 +1033,7 @@ class TaskDependencySimulationTool(Tool):
                 num_tasks=self.num_tasks,
                 num_epochs=self.num_epochs,
                 samples_per_epoch=self.samples_per_epoch,
+                num_envs=self.num_envs,
                 gamma=self.gamma,
                 lambda_forget=self.lambda_forget,
                 performance_threshold=self.performance_threshold,
@@ -990,6 +1107,7 @@ def train(
     num_tasks: int = 10,
     num_epochs: int = 500,
     samples_per_epoch: int = 100,
+    num_envs: int = 4,
     run: Optional[str] = None,
 ) -> TaskDependencySimulationTool:
     """
@@ -999,29 +1117,43 @@ def train(
     curriculum learning system handles task dependencies. It simulates a chain
     of 10 tasks where each task depends on the previous one (0 -> 1 -> 2 -> ... -> 9).
 
+    Now uses vectorized environments with CurriculumEnv wrapper (Option C):
+    - Matches real training infrastructure exactly
+    - Stats flow through accumulate_rollout_stats()
+    - Multiple parallel environments simulate real training
+    - CurriculumEnv handles task management automatically
+
     The simulator shows:
     - How LP scores evolve for each task position
     - Sampling distribution across tasks (entropy, Gini coefficient)
     - Task eviction dynamics
     - Learning progress percentiles
+    - CurriculumEnv stats (pool_occupancy_gini, pool_lp_gini, etc.)
 
     Args:
         num_tasks: Number of tasks in dependency chain (default: 10)
         num_epochs: Number of training epochs (default: 500)
-        samples_per_epoch: Number of task samples per epoch (default: 100)
-        wandb_run_name: Optional name for wandb run
+        samples_per_epoch: Number of task samples per epoch per environment (default: 100)
+        num_envs: Number of parallel environments for vectorization (default: 4)
+        run: Optional name for wandb run
 
     Returns:
         Configured TaskDependencySimulationTool
 
     Usage:
+        # Basic usage
         uv run ./tools/run.py experiments.recipes.curriculum_test.task_dependency_simulator.train
+
+        # With custom parameters
+        uv run ./tools/run.py experiments.recipes.curriculum_test.task_dependency_simulator.train \\
+            num_tasks=15 num_epochs=1000 num_envs=8 run=my_experiment
     """
     return TaskDependencySimulationTool(
         # Simulation parameters - moderate task dynamics
         num_tasks=num_tasks,
         num_epochs=num_epochs,
         samples_per_epoch=samples_per_epoch,
+        num_envs=num_envs,  # Vectorized environments (matches real training)
         gamma=0.3,  # Moderate parent contribution
         lambda_forget=0.05,  # Slow forgetting
         performance_threshold=0.85,
