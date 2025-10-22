@@ -211,7 +211,7 @@ def test_cmd_all_creates_state_once(monkeypatch, tmp_path):
                 with patch("devops.stable.release_stable.step_summary") as mock_summary:
                     with patch("devops.stable.release_stable._VERSION", "2025.10.09-1430"):
                         with patch("gitta.get_current_commit", return_value="abc123"):
-                            cmd_all(task=None, reeval=False)
+                            cmd_all(task=None)
 
     # Verify all steps were called
     assert mock_prepare.called
