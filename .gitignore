@@ -118,6 +118,7 @@ mettagrid/MODULE.bazel.lock
 devops/stable/state/
 devops/stable/logs/
 devops/stable/release-notes/
+mcp_servers/pr_similarity/cache/
 
 # skypilot testing
 recipe_test_jobs.json

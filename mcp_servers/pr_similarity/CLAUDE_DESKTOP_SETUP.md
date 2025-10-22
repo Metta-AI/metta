@@ -13,7 +13,7 @@ Steps to expose the PR similarity MCP server to Claude Desktop.
    Optionally override the cache location:
 
    ```bash
-   export PR_SIMILARITY_CACHE_PATH="/absolute/path/to/pr_embeddings.json"
+   export PR_SIMILARITY_CACHE_PATH="/absolute/path/to/mcp_servers/pr_similarity/cache/pr_embeddings.json"
    ```
 
 3. The versioned `.claude/settings.json` already registers `metta-pr-similarity`, so no extra configuration

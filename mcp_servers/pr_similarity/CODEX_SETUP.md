@@ -11,7 +11,7 @@
    Optional cache override:
 
    ```bash
-   export PR_SIMILARITY_CACHE_PATH="/absolute/path/to/pr_embeddings.json"
+   export PR_SIMILARITY_CACHE_PATH="/absolute/path/to/mcp_servers/pr_similarity/cache/pr_embeddings.json"
    ```
 
 3. `metta install` registers the server with Codex, so no manual configuration is needed. Open a new Codex

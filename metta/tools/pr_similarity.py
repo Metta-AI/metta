@@ -10,7 +10,7 @@ from typing import Iterable, List, Sequence, Tuple, cast
 from google import genai
 from google.genai import types
 
-DEFAULT_CACHE_PATH = Path("pr_embeddings.json")
+DEFAULT_CACHE_PATH = Path("mcp_servers/pr_similarity/cache/pr_embeddings.json")
 DEFAULT_TOP_K = 10
 TASK_FALLBACK = "semantic_similarity"
 API_KEY_ENV = "GEMINI_API_KEY"

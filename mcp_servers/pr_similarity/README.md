@@ -15,7 +15,7 @@ uv pip install -e mcp_servers/pr_similarity
 | Variable | Purpose | Required | Default |
 | --- | --- | --- | --- |
 | `GEMINI_API_KEY` | API key used to call the Gemini embedding endpoint | ✅ | – |
-| `PR_SIMILARITY_CACHE_PATH` | Override location for the embeddings cache | ❌ | `pr_embeddings.json` in the repo root |
+| `PR_SIMILARITY_CACHE_PATH` | Override location for the embeddings cache | ❌ | `mcp_servers/pr_similarity/cache/pr_embeddings.json` |
 
 ## Usage
 

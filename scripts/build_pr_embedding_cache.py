@@ -13,7 +13,7 @@ from google import genai
 from google.genai import types
 
 DEFAULT_MODEL = "gemini-embedding-001"
-DEFAULT_CACHE_PATH = Path("pr_embeddings.json")
+DEFAULT_CACHE_PATH = Path("mcp_servers/pr_similarity/cache/pr_embeddings.json")
 API_KEY_ENV = "GEMINI_API_KEY"
 DEFAULT_BATCH_SIZE = 16
 TASK_TYPE = "semantic_similarity"
@@ -247,6 +247,7 @@ def write_cache(
     metadata: Dict[str, object],
     records: Dict[int, EmbeddingRecord],
 ) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
     payload = {
         "model": metadata.get("model", DEFAULT_MODEL),
         "task_type": metadata.get("task_type", TASK_TYPE),
