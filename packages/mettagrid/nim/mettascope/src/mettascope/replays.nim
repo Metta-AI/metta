@@ -3,6 +3,42 @@ import std/[json, tables],
   zippy, vmath, jsony
 
 type
+
+  ActionConfig* = object
+    enabled*: bool
+
+  Protocol* = object
+    inputResources*: Table[string, int]
+    outputResources*: Table[string, int]
+    cooldown*: int
+
+  RecipeInfoConfig* = tuple[pattern: seq[string], protocol: Protocol]
+
+  ObjectConfig* = object
+    name*: string
+    typeId*: int
+    mapChar*: string
+    renderSymbol*: string
+    tags*: seq[string]
+    `type`*: string
+    swappable*: bool
+    recipes*: seq[RecipeInfoConfig]
+
+  GameConfig* = object
+    resourceNames*: seq[string]
+    vibeNames*: seq[string]
+    numAgents*: int
+    maxSteps*: int
+    obsWidth*: int
+    obsHeight*: int
+    actions*: Table[string, ActionConfig]
+    objects*: Table[string, ObjectConfig]
+
+  Config* = object
+    label*: string
+    game*: GameConfig
+    desyncEpisodes*: bool
+
   ItemAmount* = object
     itemId*: int
     count*: int
@@ -18,6 +54,7 @@ type
     inventory*: seq[seq[ItemAmount]]
     inventoryMax*: int
     color*: seq[int]
+    vibeId*: seq[int]
 
     # Agent specific keys.
     actionId*: seq[int]
@@ -29,6 +66,7 @@ type
     frozenProgress*: seq[int]
     frozenTime*: int
     visionSize*: int
+
 
     # Building specific keys.
     inputResources*: seq[ItemAmount]
@@ -79,6 +117,7 @@ type
 
     drawnAgentActionMask*: uint64
     mgConfig*: JsonNode
+    config*: Config
 
     noopActionId*: int
     moveActionId*: int
@@ -99,6 +138,7 @@ type
     inventory*: seq[ItemAmount]
     inventoryMax*: int
     color*: int
+    vibeId*: int
 
     # Agent specific keys.
     actionId*: int
@@ -174,7 +214,6 @@ proc expand[T](data: JsonNode, numSteps: int, defaultValue: T): seq[T] =
     else:
       # Expand the sequence.
       # A sequence of pairs is expanded to a sequence of values.
-      var i = 0
       var j = 0
       var v: T = defaultValue
       for i in 0 ..< numSteps:
@@ -508,6 +547,7 @@ proc loadReplayString*(jsonData: string, fileName: string): Replay =
 
   if "mg_config" in jsonObj:
     replay.mgConfig = jsonObj["mg_config"]
+    replay.config = fromJson($(jsonObj["mg_config"]), Config)
 
   for obj in jsonObj["objects"]:
     let inventoryRaw = expand[seq[seq[int]]](obj["inventory"], replay.maxSteps, @[])
@@ -573,6 +613,9 @@ proc loadReplayString*(jsonData: string, fileName: string): Replay =
       else:
         entity.frozenTime = 0
       entity.visionSize = 11 # TODO Fix this
+
+      if "vibe_id" in obj:
+        entity.vibeId = expand[int](obj["vibe_id"], replay.maxSteps, 0)
 
     if "input_resources" in obj:
       for pair in obj["input_resources"]:
@@ -655,6 +698,7 @@ proc apply*(replay: Replay, step: int, objects: seq[ReplayEntity]) =
     entity.inventory.add(obj.inventory)
     entity.inventoryMax = obj.inventoryMax
     entity.color.add(obj.color)
+    entity.vibeId.add(obj.vibeId)
     entity.actionId.add(obj.actionId)
     entity.actionParameter.add(obj.actionParameter)
     entity.actionSuccess.add(obj.actionSuccess)
