@@ -417,7 +417,6 @@ def CentralizedTaskTracker(
     session_id: Optional[str] = None,
     ema_alpha: float = 0.1,
     task_struct_size: int = 12,
-    completion_history_size: int = 1000,
 ) -> TaskTracker:
     """Create a centralized (multi-process) task tracker with shared memory.
 
@@ -428,7 +427,6 @@ def CentralizedTaskTracker(
         session_id: Unique identifier for shared memory session
         ema_alpha: Alpha parameter for exponential moving average
         task_struct_size: Size of each task's data structure (default: 12)
-        completion_history_size: Size of completion history array (default: 1000)
 
     Returns:
         TaskTracker instance with SharedMemoryBackend
@@ -439,5 +437,4 @@ def CentralizedTaskTracker(
         session_id=session_id,
         use_shared_memory=True,
         task_struct_size=task_struct_size,
-        completion_history_size=completion_history_size,
     )
