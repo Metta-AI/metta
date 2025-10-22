@@ -589,15 +589,20 @@ class MockTaskGenerator(TaskGenerator):
     """Task generator that creates minimal configs for task dependency simulation."""
 
     class Config(TaskGeneratorConfig["MockTaskGenerator"]):
-        # No additional config needed - simulator handles all parameters
-        pass
+        # Number of tasks in the dependency chain
+        num_tasks: int = 10
 
     def __init__(self, config: "MockTaskGenerator.Config"):
         super().__init__(config)
+        self.num_tasks = config.num_tasks
 
     def _generate_task(self, task_id: int, rng) -> MettaGridConfig:
-        """Generate a minimal MettaGridConfig for task ID."""
-        return MettaGridConfig(label=f"task_dependency_{task_id}")
+        """Generate a minimal MettaGridConfig for task ID.
+
+        Label reflects task class (position in dependency chain) rather than task ID.
+        """
+        task_class = task_id % self.num_tasks
+        return MettaGridConfig(label=f"taskclass{task_class}")
 
 
 def create_curriculum(
@@ -621,7 +626,7 @@ def create_curriculum(
     Note: max_memory_tasks is automatically set to num_active_tasks in the refactored curriculum.
     Note: sampling_temperature has been removed in the refactored curriculum.
     """
-    task_gen_config = MockTaskGenerator.Config()
+    task_gen_config = MockTaskGenerator.Config(num_tasks=num_tasks)
 
     algorithm_config = LearningProgressConfig(
         use_bidirectional=use_bidirectional,
