@@ -318,6 +318,7 @@ jobs:
       - name: MettaGrid C++ benchmarks
         id: mettagrid-cpp-benchmarks
         run: |
+          cd packages/mettagrid
           make benchmark VERBOSE=1
 
   unit-tests-summary:
