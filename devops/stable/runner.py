@@ -1,7 +1,7 @@
 """Orchestrates validation task execution with dependency resolution.
 
 The runner handles:
-- Running tasks in dependency order
+- Running tasks in dependency order via JobManager
 - Caching task results
 - Retrying failed tasks
 - Skipping tasks when dependencies fail
@@ -14,9 +14,10 @@ from __future__ import annotations
 import sys
 from datetime import datetime
 
-from devops.stable.state import ReleaseState, get_log_dir, save_state
-from devops.stable.tasks import LocalCommandTask, LocalTrainingTask, Task, TaskResult
+from devops.stable.state import ReleaseState, save_state
+from devops.stable.tasks import Task, TaskResult
 from metta.common.util.text_styles import blue, green, red, yellow
+from metta.jobs import JobManager
 
 
 def _prompt_user_verification(result: TaskResult) -> bool:
@@ -60,18 +61,26 @@ def _prompt_user_verification(result: TaskResult) -> bool:
 
 
 class TaskRunner:
-    """Orchestrates task execution with dependency resolution."""
+    """Orchestrates task execution with dependency resolution via JobManager."""
 
-    def __init__(self, state: ReleaseState, interactive: bool = True):
+    def __init__(
+        self,
+        state: ReleaseState,
+        job_manager: JobManager,
+        interactive: bool = True,
+    ):
         """Initialize runner.
 
         Args:
             state: Release state to track results
+            job_manager: JobManager for executing jobs
             interactive: If True, prompt for user verification after each task (default: True)
         """
         self.state = state
+        self.job_manager = job_manager
         self.interactive = interactive
         self._current_task_names: set[str] = set()
+        self._batch_id = f"release_{state.version}"
 
     def run_all(self, tasks: list[Task]) -> None:
         """Run all tasks, respecting dependencies.
@@ -102,7 +111,7 @@ class TaskRunner:
     def _run_with_deps(self, task: Task) -> TaskResult:
         """Run task after ensuring dependencies complete."""
 
-        # Check cache and restore result to task (needed for job_id reuse)
+        # Check cache
         if task.name in self.state.results:
             cached = self.state.results[task.name]
             # Skip if already passed or explicitly skipped
@@ -112,9 +121,6 @@ class TaskRunner:
                 return cached
             # Retry if failed or inconclusive
             print(yellow(f"🔄 {task.name} - retrying previous {cached.outcome}"))
-            # Restore cached result so execute() can access job_id for remote jobs,
-            # but we'll clear it before run() so it actually executes
-            task.result = cached
 
         # Run dependencies first
         for dep in task.dependencies:
@@ -132,30 +138,37 @@ class TaskRunner:
                 print(yellow(f"⏭️  {task.name} - SKIPPED (dependency {dep.name} failed)"))
                 return result
 
-        # Run the task
+        # Run the task via JobManager
         print(f"\n{'=' * 80}")
         print(f"🔄 Running: {task.name}")
         print(f"{'=' * 80}")
 
-        # Inject log directory based on task type
-        if hasattr(task, "log_dir") and not task.log_dir:
-            # Determine if task is local or remote
-            if isinstance(task, (LocalCommandTask, LocalTrainingTask)):
-                task.log_dir = str(get_log_dir(self.state.version, "local"))
-            else:
-                task.log_dir = str(get_log_dir(self.state.version, "remote"))
-
-        # Save cached result to _cached_result so execute() can still access job_id
-        # but clear task.result so run() doesn't short-circuit
-        if hasattr(task, "result") and task.result:
-            task._cached_result = task.result
-            task.result = None
-
         try:
-            result = task.run()
+            # Inject checkpoint_uri from dependencies if needed
+            job_config = task.job_config
+            if task.dependencies and "policy_uri" not in job_config.args:
+                # Look for checkpoint_uri in dependency results
+                for dep in task.dependencies:
+                    if dep.result and "checkpoint_uri" in dep.result.artifacts:
+                        job_config.args["policy_uri"] = dep.result.artifacts["checkpoint_uri"]
+                        break
+
+            # Submit to JobManager
+            self.job_manager.submit(self._batch_id, job_config)
+
+            # Wait for job to complete
+            job_state = self.job_manager.wait_for_job(self._batch_id, task.name)
+
+            # Evaluate result (business logic)
+            result = task.evaluate_result(job_state)
+            task.result = result  # Cache for downstream dependencies
+
+            # Interactive verification
             if self.interactive:
                 result = self._verify_result(result)
+
             return result
+
         except Exception as e:
             result = TaskResult(
                 name=task.name,
