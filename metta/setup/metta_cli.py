@@ -4,6 +4,7 @@ import re
 import shutil
 import subprocess
 import sys
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import TYPE_CHECKING, Annotated, Optional
 
@@ -152,7 +153,7 @@ app = typer.Typer(
 )
 
 
-def _configure_pr_similarity_mcp_server() -> None:
+def _configure_pr_similarity_mcp_server(force: bool) -> None:
     from metta.setup.saved_settings import UserType, get_saved_settings
 
     saved_settings = get_saved_settings()
@@ -162,7 +163,7 @@ def _configure_pr_similarity_mcp_server() -> None:
         )
         return
 
-    _ensure_pr_similarity_cache()
+    _ensure_pr_similarity_cache(force=force)
 
     codex_executable = shutil.which("codex")
     if not codex_executable:
@@ -257,12 +258,23 @@ def _partition_supported_lint_files(paths: list[str]) -> tuple[list[str], list[s
     return python_files, cpp_files
 
 
-def _ensure_pr_similarity_cache() -> None:
+def _ensure_pr_similarity_cache(*, force: bool) -> None:
     from metta.tools.pr_similarity import DEFAULT_CACHE_PATH, resolve_cache_paths
 
     meta_path, vectors_path = resolve_cache_paths(DEFAULT_CACHE_PATH)
-    if meta_path.exists() and vectors_path.exists():
-        debug("PR similarity cache already present at %s", meta_path.parent)
+    need_download = force
+
+    if not meta_path.exists() or not vectors_path.exists():
+        need_download = True
+    else:
+        threshold = datetime.now(timezone.utc) - timedelta(days=7)
+        meta_mtime = datetime.fromtimestamp(meta_path.stat().st_mtime, tz=timezone.utc)
+        vectors_mtime = datetime.fromtimestamp(vectors_path.stat().st_mtime, tz=timezone.utc)
+        if meta_mtime < threshold or vectors_mtime < threshold:
+            need_download = True
+
+    if not need_download:
+        debug(f"PR similarity cache already present at {meta_path.parent}")
         return
 
     bucket = "softmax-public"
@@ -444,7 +456,7 @@ def cmd_install(
         except Exception as e:
             error(f"  Error: {e}\n")
 
-    _configure_pr_similarity_mcp_server()
+    _configure_pr_similarity_mcp_server(force=force)
 
     if not non_interactive and check_status:
         cmd_status(components=components, non_interactive=non_interactive)
