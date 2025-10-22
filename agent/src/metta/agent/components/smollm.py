@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from typing import List, Literal, Optional
+from typing import List, Literal, Optional, Protocol
 
 import torch
 from gymnasium.spaces import Discrete
@@ -12,13 +12,27 @@ from torch import nn
 
 import pufferlib.pytorch
 from metta.agent.components.component_config import ComponentConfig
-from metta.rl.training import EnvironmentMetaData
+
+
+class SupportsDiscreteActionSpace(Protocol):
+    """Protocol describing the minimal environment interface required."""
+
+    action_space: Discrete
+
+
+try:  # pragma: no cover - optional training env module
+    from metta.rl.training.training_environment import GameRules as _GameRules
+except Exception:  # pragma: no cover - used when training package unavailable
+    EnvInfo = SupportsDiscreteActionSpace
+else:
+    EnvInfo = _GameRules
+
 
 logger = logging.getLogger(__name__)
 
 try:
     from transformers import AutoModelForCausalLM
-except ImportError as exc:  # pragma: no cover - import error path exercised in runtime, not tests
+except Exception as exc:  # pragma: no cover - optional dependency may raise non-ImportError during import
     AutoModelForCausalLM = None
     _IMPORT_ERROR = exc
 else:  # pragma: no cover - exercised when dependency is installed
@@ -26,7 +40,7 @@ else:  # pragma: no cover - exercised when dependency is installed
 
 try:
     from peft import LoraConfig, TaskType, get_peft_model
-except ImportError:  # pragma: no cover - optional dependency
+except Exception:  # pragma: no cover - optional dependency may not be available
     LoraConfig = None
     TaskType = None
     get_peft_model = None
@@ -56,7 +70,7 @@ class SmolLLMBackboneConfig(ComponentConfig):
     lora_dropout: float = 0.05
     lora_target_modules: Optional[List[str]] = None
 
-    def make_component(self, env: EnvironmentMetaData):
+    def make_component(self, env: EnvInfo) -> "SmolLLMBackbone":
         return SmolLLMBackbone(env, self)
 
 
@@ -75,7 +89,7 @@ class LowRankLinear(nn.Module):
 class SmolLLMBackbone(nn.Module):
     """Backbone that projects Metta observation tokens into a pretrained SmolLLM."""
 
-    def __init__(self, env: EnvironmentMetaData, config: SmolLLMBackboneConfig):
+    def __init__(self, env: EnvInfo, config: SmolLLMBackboneConfig):
         super().__init__()
 
         if AutoModelForCausalLM is None:  # pragma: no cover - dependency missing in runtime
@@ -151,7 +165,7 @@ class SmolLLMBackbone(nn.Module):
 
         return td
 
-    def initialize_to_environment(self, env: EnvironmentMetaData, device: torch.device):
+    def initialize_to_environment(self, env: EnvInfo, device: torch.device):
         self.to(device)
 
         llm_dtype = next(self.llm.parameters()).dtype

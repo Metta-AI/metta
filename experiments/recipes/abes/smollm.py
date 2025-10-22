@@ -13,13 +13,14 @@ from experiments.recipes.arena_basic_easy_shaped import (
     play,
     replay,
     simulations,
-    sweep_async_progressive,
+    sweep as _arena_sweep,
     train as base_train,
 )
 from metta.agent.policies.smollm import SmolLLMConfig
 from metta.agent.policy import PolicyArchitecture
 from metta.cogworks.curriculum.curriculum import CurriculumConfig
 from metta.tools.train import TrainTool
+from metta.tools.sweep import SweepTool
 
 _FLASH_ATTENTION_AVAILABLE = importlib.util.find_spec("flash_attn") is not None
 
@@ -111,5 +112,28 @@ __all__ = [
     "evaluate",
     "evaluate_in_sweep",
     "sweep_async_progressive",
+    "sweep",
     "train",
 ]
+
+
+def sweep(
+    sweep_name: str,
+    **kwargs: object,
+) -> SweepTool:
+    """Expose the canonical arena sweep for SmolLLM recipes."""
+
+    return _delegate_sweep(sweep_name, **kwargs)
+
+
+def sweep_async_progressive(
+    sweep_name: str,
+    **kwargs: object,
+) -> SweepTool:
+    """Backward-compatible alias retained for historical CLI invocations."""
+
+    return _delegate_sweep(sweep_name, **kwargs)
+
+
+def _delegate_sweep(sweep_name: str, **kwargs: object) -> SweepTool:
+    return _arena_sweep(sweep_name, **kwargs)
