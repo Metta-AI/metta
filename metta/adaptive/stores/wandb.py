@@ -7,7 +7,8 @@ import wandb
 from dateutil import parser
 
 from metta.adaptive.models import RunInfo
-from metta.common.util.numpy_helpers import clean_numpy_types
+from collections.abc import Mapping
+
 from metta.common.util.retry import retry_on_exception
 
 logger = logging.getLogger(__name__)
@@ -130,8 +131,8 @@ class WandbStore:
             api = wandb.Api()
             run = api.run(f"{self.entity}/{self.project}/{run_id}")
 
-            # Deep clean the update to ensure it's JSON serializable
-            clean_update = deep_clean(summary_update)
+            # Updates come from scheduler metrics; assume they are already serializable
+            clean_update = dict(summary_update)
 
             # Debug log what we're updating
             logger.debug(f"[WandbStore] Updating run {run_id} summary with: {clean_update}")
@@ -145,9 +146,11 @@ class WandbStore:
 
             # Verify the update took effect
             refreshed_run = api.run(f"{self.entity}/{self.project}/{run_id}")
+            refreshed_summary = normalize_summary(refreshed_run.summary)
             logger.debug(
-                f"[WandbStore] After update, run {run_id} "
-                f"has_started_eval={refreshed_run.summary.get('has_started_eval')}"
+                "[WandbStore] After update, run %s has_started_eval=%s",
+                run_id,
+                refreshed_summary.get("has_started_eval"),
             )
 
             return True
@@ -157,8 +160,7 @@ class WandbStore:
 
     def _convert_run_to_info(self, run: Any) -> RunInfo:
         """Convert WandB run to RunInfo."""
-        summary = deep_clean(run.summary)
-        # assert isinstance(summary, dict)
+        summary = normalize_summary(run.summary)
 
         # Debug log the summary to see what's available
         logger.debug(
@@ -179,7 +181,12 @@ class WandbStore:
         has_been_evaluated = False
         has_failed = False
         # Check run state and runtime to determine actual status
-        runtime = float(run.summary.get("_runtime", 0))
+        runtime = float(summary.get("_runtime", 0))
+        if runtime == 0 and hasattr(run, "duration"):
+            try:
+                runtime = float(run.duration) if run.duration else 0.0
+            except Exception:
+                runtime = 0.0
 
         if run.state == self.STATUS_CRASHED or run.state == self.STATUS_FAILED or run.state == self.STATUS_CANCELLED:
             has_failed = True
@@ -230,35 +237,26 @@ class WandbStore:
         current_steps = None
 
         # Get total_timesteps from config. Handle both flat and nested configs.
-        if hasattr(run, "config"):
-            cfg_obj = run.config
-            try:
-                config = dict(cfg_obj)
-            except Exception:
-                config = {}
+        config_dict = normalize_config(getattr(run, "config", None))
 
-            def _extract_total_steps(d: dict) -> int | None:
-                # Direct path: top-level trainer
-                t = None
-                if isinstance(d, dict):
-                    if "trainer" in d and isinstance(d["trainer"], dict):
-                        t = d["trainer"].get("total_timesteps")
-                        if t is not None:
-                            try:
-                                return int(t)
-                            except Exception:
-                                pass
-                    # Nested path: search child dicts (e.g., {"TrainTool": {"trainer": {...}}})
-                    for v in d.values():
-                        if isinstance(v, dict):
-                            found = _extract_total_steps(v)
-                            if found is not None:
-                                return found
-                return None
+        def _extract_total_steps(d: dict) -> int | None:
+            if "trainer" in d and isinstance(d["trainer"], dict):
+                value = d["trainer"].get("total_timesteps")
+                if value is not None:
+                    try:
+                        return int(value)
+                    except (TypeError, ValueError):
+                        return None
+            for val in d.values():
+                if isinstance(val, dict):
+                    result = _extract_total_steps(val)
+                    if result is not None:
+                        return result
+            return None
 
-            maybe_total = _extract_total_steps(config)
-            if maybe_total is not None:
-                total_timesteps = maybe_total
+        maybe_total = _extract_total_steps(config_dict)
+        if maybe_total is not None:
+            total_timesteps = maybe_total
 
         # Get current_steps from summary
         if "metric/agent_step" in summary:
@@ -293,8 +291,12 @@ class WandbStore:
                 created_at = None
 
         # Calculate last_updated_at (always with UTC timezone)
-        if run.summary.get("_timestamp"):
-            last_updated_at = datetime.fromtimestamp(float(run.summary.get("_timestamp", 0)), tz=timezone.utc)
+        timestamp = summary.get("_timestamp")
+        if timestamp is not None:
+            try:
+                last_updated_at = datetime.fromtimestamp(float(timestamp), tz=timezone.utc)
+            except (TypeError, ValueError):
+                last_updated_at = created_at or datetime.now(timezone.utc)
         elif created_at:
             last_updated_at = created_at
         else:
@@ -324,24 +326,85 @@ class WandbStore:
         return info
 
 
-def deep_clean(obj):
-    """Convert object to JSON-serializable types."""
-    if isinstance(obj, dict):
-        # Already a regular dict, just recursively clean values
-        return {k: deep_clean(v) for k, v in obj.items()}
-    elif hasattr(obj, "items"):
-        # Handle dict-like objects (including WandB SummarySubDict)
-        # Convert to regular dict first, then recursively clean
-        return {k: deep_clean(v) for k, v in dict(obj).items()}
-    elif isinstance(obj, (list, tuple)):
-        return [deep_clean(v) for v in obj]
-    else:
-        # For any other type, use clean_numpy_types first
-        cleaned = clean_numpy_types(obj)
-        # Then verify it's serializable
+def normalize_summary(summary: Any) -> dict[str, Any]:
+    """Best-effort conversion of a WandB run summary to a plain dict."""
+
+    if summary is None:
+        return {}
+
+    # WandB HTTPSummary exposes _json_dict, which may itself be a dict or JSON string
+    if hasattr(summary, "_json_dict"):
+        raw = summary._json_dict  # type: ignore[attr-defined]
+        return normalize_summary(raw)
+
+    if isinstance(summary, Mapping):
+        return dict(summary)
+
+    if isinstance(summary, str):
+        summary = summary.strip()
+        if not summary:
+            return {}
         try:
-            json.dumps(cleaned)
-        except (TypeError, ValueError):
-            # If still not serializable, convert to string
-            return str(cleaned)
-        return cleaned
+            parsed = json.loads(summary)
+        except json.JSONDecodeError:
+            logger.warning("WandB summary string is not valid JSON; ignoring.")
+            return {}
+        if isinstance(parsed, Mapping):
+            return dict(parsed)
+        logger.warning("WandB summary JSON parsed to %s, not dict; ignoring.", type(parsed).__name__)
+        return {}
+
+    # Other types (lists/scalars) aren't expected here; treat as empty
+    return {}
+
+
+def normalize_config(config: Any) -> dict[str, Any]:
+    """Convert a WandB run config to a plain dict."""
+
+    if config is None:
+        return {}
+
+    if isinstance(config, Mapping):
+        return dict(config)
+
+    if hasattr(config, "to_dict"):
+        try:
+            return dict(config.to_dict())
+        except Exception:
+            pass
+
+    if hasattr(config, "json_config"):
+        try:
+            parsed = json.loads(config.json_config)
+            if isinstance(parsed, Mapping):
+                return dict(parsed)
+        except Exception:
+            pass
+
+    if hasattr(config, "key_vals"):
+        try:
+            return dict(config.key_vals)
+        except Exception:
+            pass
+
+    if hasattr(config, "_wandb"):
+        try:
+            return dict(config._wandb)
+        except Exception:
+            pass
+
+    if isinstance(config, str):
+        config = config.strip()
+        if not config:
+            return {}
+        try:
+            parsed = json.loads(config)
+            if isinstance(parsed, Mapping):
+                return dict(parsed)
+        except json.JSONDecodeError:
+            return {}
+
+    try:
+        return dict(config)
+    except Exception:
+        return {}
