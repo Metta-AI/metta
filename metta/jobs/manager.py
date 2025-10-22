@@ -68,11 +68,14 @@ class JobManager:
     # ---- Submit ----
 
     def submit(self, batch_id: str, config: JobConfig) -> None:
-        """Submit a job to the queue.
+        """Submit a job to the queue (idempotent).
 
         Creates JobState in DB:
         - If worker slot available: spawns Job instance immediately, marks 'running'
         - If no slots available: stays in 'pending', will auto-start when slot frees
+        - If job already exists: handles based on current status
+          - pending/running: no-op (already queued)
+          - completed/failed/cancelled: delete and re-submit
 
         JobManager handles all rate limiting - caller just submits!
 
@@ -81,7 +84,18 @@ class JobManager:
             config: Job configuration
         """
         with Session(self._engine) as session:
-            # Create job state
+            # Check if job already exists
+            existing = session.get(JobState, (batch_id, config.name))
+
+            if existing:
+                # If already pending or running, no-op
+                if existing.status in ("pending", "running"):
+                    return
+                # If completed/failed/cancelled, delete and re-submit
+                session.delete(existing)
+                session.commit()
+
+            # Create new job state
             job_state = JobState(
                 batch_id=batch_id,
                 name=config.name,
