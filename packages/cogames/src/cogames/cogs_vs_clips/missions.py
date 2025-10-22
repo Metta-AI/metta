@@ -13,7 +13,7 @@ from cogames.cogs_vs_clips.stations import (
     OxygenExtractorConfig,
     SiliconExtractorConfig,
 )
-from mettagrid.config.mettagrid_config import GridObjectConfig, MettaGridConfig
+from mettagrid.config.mettagrid_config import ChestConfig, GridObjectConfig, MettaGridConfig
 from mettagrid.map_builder.map_builder import MapBuilderConfig
 
 
@@ -195,8 +195,8 @@ class MachinaProceduralExploreMission(Mission):
     # Mission-level knobs for base shell biome
     procedural_base_biome: str = "caves"
     procedural_base_biome_config: dict[str, Any] | None = None
-    #Chests start with 1 heart in them and reward is based on what an agent holds in their inventory
-
+    # Set agents to hold 99 hearts each
+    heart_capacity: int = 99
 
     def instantiate(
         self,
@@ -211,10 +211,10 @@ class MachinaProceduralExploreMission(Mission):
             base_biome=self.procedural_base_biome,
             base_biome_config=self.procedural_base_biome_config,
             extractor_coverage=0.005,
-            extractor_names=["chest"],
-            extractor_weights={"chest": 1.0},
+            extractor_names=["chest", "charger"],
+            extractor_weights={"chest": 1.0, "charger": 0.5},
             biome_weights={"caves": 0.5, "forest": 0.5, "city": 0.5, "desert": 0.5},
-            dungeon_weights={"bsp": 0.2, "maze": 0.1, "radial": 0.1},
+            dungeon_weights={"bsp": 0.6, "maze": 0.1, "radial": 0.1},
             # biome_count=8,
             # dungeon_count=4,
             density_scale=0.2,
@@ -222,6 +222,75 @@ class MachinaProceduralExploreMission(Mission):
             max_dungeon_zone_fraction=0.5,
         )
         return super().instantiate(procedural_builder, num_cogs, variant)
+
+    def make_env(self) -> MettaGridConfig:
+        env = super().make_env()
+        # Reward agents for hearts they personally hold
+        if self.num_cogs and self.num_cogs > 0:
+            reward_weight = 1.0 / float(self.num_cogs)
+        else:
+            reward_weight = 1.0 / float(max(1, getattr(env.game, "num_agents", 1)))
+        env.game.agent.rewards.inventory = {"heart": reward_weight}
+        env.game.agent.rewards.stats = {}
+        env.game.agent.rewards.inventory_max = {}
+        env.game.agent.rewards.stats_max = {}
+
+        # Ensure every chest template starts with one heart
+        chest_cfg = env.game.objects.get("chest")
+        if isinstance(chest_cfg, ChestConfig):
+            chest_cfg.initial_inventory = 1
+        return env
+
+
+
+class ProceduralOpenWorldMission(Mission):
+    name: str = "open_world"
+    description: str = "Collect resources and assemble HEARTs."
+    site: Site = MACHINA_PROCEDURAL
+
+    # Mission-level knobs for base shell biome
+    procedural_base_biome: str = "caves"
+    procedural_base_biome_config: dict[str, Any] | None = None
+
+    def instantiate(
+        self,
+        map_builder: MapBuilderConfig,
+        num_cogs: int,
+        variant: MissionVariant | None = None,
+    ) -> "Mission":
+        procedural_builder = make_machina_procedural_map_builder(
+            num_cogs=num_cogs,
+            width=100,
+            height=100,
+            base_biome=self.procedural_base_biome,
+            base_biome_config=self.procedural_base_biome_config,
+            extractor_coverage=0.005,
+            extractor_names=["chest", "charger", "germanium_extractor", "silicon_extractor",
+                                "oxygen_extractor", "carbon_extractor"],
+            extractor_weights={"chest": 1.0, "charger": 0.5, "germanium_extractor": 0.5, "silicon_extractor": 0.5,
+                                "oxygen_extractor": 0.5, "carbon_extractor": 0.5},
+            biome_weights={"caves": 0.5, "forest": 0.5, "city": 0.5, "desert": 0.5},
+            dungeon_weights={"bsp": 0.6, "maze": 0.1, "radial": 0.1},
+            biome_count=8,
+            dungeon_count=4,
+            density_scale=0.4,
+            max_biome_zone_fraction=0.30,
+            max_dungeon_zone_fraction=0.2,
+        )
+        return super().instantiate(procedural_builder, num_cogs, variant)
+
+    def make_env(self) -> MettaGridConfig:
+        env = super().make_env()
+        # Reward agents for hearts they personally hold
+        if self.num_cogs and self.num_cogs > 0:
+            reward_weight = 1.0 / float(self.num_cogs)
+        else:
+            reward_weight = 1.0 / float(max(1, getattr(env.game, "num_agents", 1)))
+        env.game.agent.rewards.inventory = {"heart": reward_weight}
+        env.game.agent.rewards.stats = {}
+        env.game.agent.rewards.inventory_max = {}
+        env.game.agent.rewards.stats_max = {}
+        return env
 
 
 MISSIONS = [
@@ -235,6 +304,7 @@ MISSIONS = [
     HelloWorldOpenWorldMission,
     Machina1OpenWorldMission,
     MachinaProceduralExploreMission,
+    ProceduralOpenWorldMission,
 ]
 
 
