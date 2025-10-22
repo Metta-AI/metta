@@ -10,6 +10,8 @@ class RadialMazeConfig(SceneConfig):
     arms: int = Field(default=4, ge=4, le=12)
     arm_width: int = Field(default=4, ge=1)
     arm_length: int | None = None
+    clear_background: bool = Field(default=False, description="If True, fill area with walls before carving arms")
+    outline_walls: bool = Field(default=True, description="Outline arms with walls for visual clarity")
 
 
 class RadialMaze(Scene[RadialMazeConfig]):
@@ -18,7 +20,8 @@ class RadialMaze(Scene[RadialMazeConfig]):
     def render(self):
         arm_length = self.config.arm_length or min(self.width, self.height) // 2 - 1
         arm_width = self.config.arm_width
-        self.grid[:] = "wall"
+        if self.config.clear_background:
+            self.grid[:] = "wall"
 
         cx, cy = self.width // 2, self.height // 2
 
@@ -34,6 +37,17 @@ class RadialMaze(Scene[RadialMazeConfig]):
                         nx, ny = x + dx, y + dy
                         if 0 <= nx < self.width and 0 <= ny < self.height:
                             self.grid[ny, nx] = "empty"
+
+            if self.config.outline_walls and arm_width >= 2:
+                # Add a one-cell thick wall outline around the carved arm
+                for x, y in points:
+                    for dx in range(-(arm_width // 2) - 1, (arm_width // 2) + 2):
+                        for dy in range(-(arm_width // 2) - 1, (arm_width // 2) + 2):
+                            nx, ny = x + dx, y + dy
+                            if 0 <= nx < self.width and 0 <= ny < self.height:
+                                # Set to wall only if it's not part of the empty arm
+                                if self.grid[ny, nx] != "empty":
+                                    self.grid[ny, nx] = "wall"
 
             # Choose the last in-bound point from the arm's path.
             special_point = None
