@@ -6,7 +6,7 @@ from datetime import datetime
 from operator import ge, gt
 from typing import Callable, Literal, Optional
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from metta.common.util.text_styles import blue, cyan, green, magenta, red, yellow
 from metta.jobs.models import JobConfig
@@ -68,8 +68,8 @@ class TaskResult(BaseModel):
     ended_at: str
     outcome: Outcome  # "passed", "failed", "skipped"
     exit_code: int = 0
-    metrics: dict[str, float] = {}
-    artifacts: dict[str, str] = {}  # checkpoint_uri, wandb_run_id, etc.
+    metrics: dict[str, float] = Field(default_factory=dict)
+    artifacts: dict[str, str] = Field(default_factory=dict)  # checkpoint_uri, wandb_run_id, etc.
     logs_path: Optional[str] = None
     job_id: Optional[str] = None
     error: Optional[str] = None
@@ -225,15 +225,13 @@ class TrainingTask(Task):
         # Job succeeded - use JobState metrics and artifacts
         # JobManager already extracted wandb info and stored in job_state
         metrics = job_state.metrics
-        artifacts = (
-            {
-                "wandb_run_id": job_state.wandb_run_id,
-                "wandb_url": job_state.wandb_url,
-                "checkpoint_uri": job_state.checkpoint_uri,
-            }
-            if job_state.wandb_run_id
-            else {}
-        )
+        artifacts = {}
+        if job_state.wandb_run_id:
+            artifacts["wandb_run_id"] = job_state.wandb_run_id
+        if job_state.wandb_url:
+            artifacts["wandb_url"] = job_state.wandb_url
+        if job_state.checkpoint_uri:
+            artifacts["checkpoint_uri"] = job_state.checkpoint_uri
 
         # Fetch additional metrics from wandb if specified and not already in job_state
         if self.wandb_metrics and job_state.wandb_url:
