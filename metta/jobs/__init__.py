@@ -6,6 +6,8 @@ This package provides common components used by:
 - Adaptive sweeps (metta/adaptive/)
 """
 
-from metta.jobs.models import JobSpec
+from metta.jobs.manager import JobManager
+from metta.jobs.models import JobConfig, JobSpec
+from metta.jobs.state import JobState, JobStatus
 
-__all__ = ["JobSpec"]
+__all__ = ["JobManager", "JobConfig", "JobSpec", "JobState", "JobStatus"]
