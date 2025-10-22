@@ -157,9 +157,36 @@ class CurriculumEnv(PufferEnv):
         # Invalidate curriculum stats cache on reset (task pool may have changed)
         self._curriculum_stats_cache_valid = False
 
-        # Get a new task from curriculum
-        self._current_task = self._curriculum.get_task()
-        self._env.set_mg_config(self._current_task.get_env_cfg())
+        # Get a new task from curriculum, with retry logic for invalid configurations
+        max_retries = 10
+        for attempt in range(max_retries):
+            try:
+                self._current_task = self._curriculum.get_task()
+                self._env.set_mg_config(self._current_task.get_env_cfg())
+                break  # Success - exit retry loop
+            except (AssertionError, ValueError) as e:
+                # Handle configuration errors (e.g., agent count mismatch, map too small)
+                if attempt < max_retries - 1:
+                    # Log warning and try a new task
+                    import logging
+
+                    logger = logging.getLogger(__name__)
+                    logger.warning(
+                        f"Task configuration error (attempt {attempt + 1}/{max_retries}): {e}. Resampling new task..."
+                    )
+                    # Mark the task as invalid so it can be evicted
+                    if hasattr(self._current_task, "_task_id"):
+                        self._current_task.complete(-1.0)  # Mark as failed
+                    continue
+                else:
+                    # All retries exhausted - re-raise the error
+                    import logging
+
+                    logger = logging.getLogger(__name__)
+                    logger.error(
+                        f"Failed to find valid task configuration after {max_retries} attempts. Last error: {e}"
+                    )
+                    raise
 
         # Mark that first reset is done (for future use)
         if not self._first_reset_done:
@@ -202,8 +229,38 @@ class CurriculumEnv(PufferEnv):
                     infos["curriculum_stats/per_label_samples_this_epoch"] = {}
                 infos["curriculum_stats/per_label_samples_this_epoch"][label] = 1
 
-            self._current_task = self._curriculum.get_task()
-            self._env.set_mg_config(self._current_task.get_env_cfg())
+            # Get new task with retry logic for invalid configurations
+            max_retries = 10
+            for attempt in range(max_retries):
+                try:
+                    self._current_task = self._curriculum.get_task()
+                    self._env.set_mg_config(self._current_task.get_env_cfg())
+                    break  # Success - exit retry loop
+                except (AssertionError, ValueError) as e:
+                    # Handle configuration errors (e.g., agent count mismatch, map too small)
+                    if attempt < max_retries - 1:
+                        # Log warning and try a new task
+                        import logging
+
+                        logger = logging.getLogger(__name__)
+                        logger.warning(
+                            f"Task configuration error on episode completion "
+                            f"(attempt {attempt + 1}/{max_retries}): {e}. Resampling new task..."
+                        )
+                        # Mark the task as invalid so it can be evicted
+                        if hasattr(self._current_task, "_task_id"):
+                            self._current_task.complete(-1.0)  # Mark as failed
+                        continue
+                    else:
+                        # All retries exhausted - re-raise the error
+                        import logging
+
+                        logger = logging.getLogger(__name__)
+                        logger.error(
+                            f"Failed to find valid task configuration after {max_retries} attempts "
+                            f"on episode completion. Last error: {e}"
+                        )
+                        raise
 
         # Add label-specific curriculum stats to info for logging (batched)
         self._stats_update_counter += 1
