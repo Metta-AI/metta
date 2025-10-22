@@ -17,10 +17,10 @@ from torch import Tensor
 from metta.cogworks.curriculum import Curriculum, CurriculumConfig, env_curriculum
 from metta.rl.vecenv import make_vecenv
 from metta.utils.batch import calculate_batch_sizes
-from mettagrid.base_config import Config
 from mettagrid.builder.envs import make_arena
-from mettagrid.core import ObsFeature
+from mettagrid.config import Config
 from mettagrid.mettagrid_c import dtype_actions
+from mettagrid.simulator import ObservationFeature
 
 logger = logging.getLogger(__name__)
 
@@ -72,7 +72,7 @@ class TrainingEnvironmentConfig(Config):
 class GameRules:
     obs_width: int
     obs_height: int
-    obs_features: dict[str, ObsFeature]
+    obs_features: dict[str, ObservationFeature]
     action_names: List[str]
     num_agents: int
     observation_space: Any
@@ -179,8 +179,6 @@ class VectorizedTrainingEnvironment(TrainingEnvironment):
             batch_size=self._batch_size,
             num_workers=num_workers,
             zero_copy=cfg.zero_copy,
-            is_training=True,
-            replay_directory=str(self._replay_directory) if self._replay_directory else None,
         )
 
         # NOTE: Downstream rollout code currently assumes that PufferLib returns
@@ -191,15 +189,16 @@ class VectorizedTrainingEnvironment(TrainingEnvironment):
         # Initialize environment with seed
         self._vecenv.async_reset(cfg.seed)
 
+        sim = self._vecenv.driver_env.current_simulation
         self._game_rules = GameRules(
-            obs_width=self._vecenv.driver_env.obs_width,
-            obs_height=self._vecenv.driver_env.obs_height,
-            obs_features=self._vecenv.driver_env.observation_features,
-            action_names=self._vecenv.driver_env.action_names,
+            obs_width=sim.map_width,
+            obs_height=sim.map_height,
+            obs_features={feat.name: feat for feat in sim.features},
+            action_names=sim.action_names,
             num_agents=self._num_agents,
             observation_space=self._vecenv.driver_env.observation_space,
             action_space=self._vecenv.driver_env.single_action_space,
-            feature_normalizations=self._vecenv.driver_env.feature_normalizations,
+            feature_normalizations={feat.id: feat.normalization for feat in sim.features},
         )
 
     def __repr__(self) -> str:

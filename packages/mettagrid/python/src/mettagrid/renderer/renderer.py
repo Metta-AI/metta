@@ -1,21 +1,20 @@
 """Base renderer classes for game rendering."""
 
 from abc import abstractmethod
-from typing import Any, Dict, Literal
+from typing import Literal
 
-import numpy as np
 from typing_extensions import override
 
-from mettagrid.simulator import Simulator, SimulatorEventHandler
+from mettagrid.simulator import SimulatorEventHandler
 
-RenderMode = Literal["gui", "unicode", "none"]
+RenderMode = Literal["gui", "unicode", "log", "none"]
 
 
 class Renderer(SimulatorEventHandler):
     """Abstract base class for game renderers."""
 
-    def __init__(self, simulator: Simulator):
-        super().__init__(simulator)
+    def __init__(self):
+        super().__init__()
 
     @override
     def on_episode_start(self) -> None:
@@ -27,37 +26,13 @@ class Renderer(SimulatorEventHandler):
         """Render the current state. Override this for interactive renderers that need to handle input."""
         pass
 
-    @abstractmethod
-    def on_step(
-        self,
-        current_step: int,
-        observations: np.ndarray,
-        actions: np.ndarray,
-        rewards: np.ndarray,
-        infos: Dict[str, Any],
-    ) -> None:
-        """Render a single step and optionally get user input."""
+    @override
+    def on_step(self) -> None:
+        """Called after each simulator step. Subclasses can access simulator state."""
         pass
 
     @abstractmethod
-    def should_continue(self) -> bool:
-        """Check if rendering should continue.
-
-        Returns:
-            True if should continue, False to exit
-        """
-        pass
-
-    def get_user_actions(self) -> Dict[int, tuple[int, int]]:
-        """Get the current user actions for all agents.
-
-        Returns:
-            Dictionary mapping agent_id to (action_id, action_param)
-        """
-        return {}
-
-    @abstractmethod
-    def on_episode_end(self, infos: Dict[str, Any]) -> None:
+    def on_episode_end(self) -> None:
         """Clean up renderer resources."""
         pass
 
@@ -72,36 +47,31 @@ class NoRenderer(Renderer):
     def render(self) -> None:
         pass
 
-    def on_step(
-        self,
-        current_step: int,
-        observations: np.ndarray,
-        actions: np.ndarray,
-        rewards: np.ndarray,
-        infos: Dict[str, Any],
-    ) -> None:
-        return None
+    def on_step(self) -> None:
+        pass
 
-    def should_continue(self) -> bool:
-        return True
-
-    def on_episode_end(self, infos: Dict[str, Any]) -> None:
-        return None
+    def on_episode_end(self) -> None:
+        pass
 
 
-def create_renderer(simulator: Simulator, render_mode: RenderMode) -> Renderer:
+def create_renderer(render_mode: RenderMode) -> Renderer:
     """Create the appropriate renderer based on render_mode."""
-    if render_mode in ("unicode"):
+    if render_mode == "unicode":
         # Text-based interactive rendering
         from mettagrid.renderer.miniscope import MiniscopeRenderer
 
-        return MiniscopeRenderer(simulator)
-    elif render_mode in ("gui"):
+        return MiniscopeRenderer()
+    elif render_mode == "gui":
         # GUI-based interactive rendering
         from mettagrid.renderer.mettascope import MettascopeRenderer
 
-        return MettascopeRenderer(simulator)
-    elif render_mode in ("none"):
+        return MettascopeRenderer()
+    elif render_mode == "log":
+        # Logger-based rendering for debugging
+        from mettagrid.renderer.log_renderer import LogRenderer
+
+        return LogRenderer()
+    elif render_mode == "none":
         # No rendering
-        return NoRenderer(simulator)
+        return NoRenderer()
     raise ValueError(f"Invalid render_mode: {render_mode}")

@@ -5,28 +5,66 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, Optional, Tuple, Union
+from typing import TYPE_CHECKING, Any, Dict, Optional, Tuple, Union
 
 import torch
 
-from cogames.policy.interfaces import Policy, TrainablePolicy
+from mettagrid.policy.policy import MultiAgentPolicy as Policy
+from mettagrid.policy.policy import TrainablePolicy
 from mettagrid.util.module import load_symbol
 
+if TYPE_CHECKING:
+    from mettagrid.config.mettagrid_config import ActionsConfig
+
 _POLICY_CLASS_SHORTHAND: dict[str, str] = {
-    "random": "cogames.policy.random.RandomPolicy",
-    "noop": "cogames.policy.noop.NoopPolicy",
-    "simple": "cogames.policy.simple.SimplePolicy",
-    "token": "cogames.policy.token.TokenPolicy",
-    "lstm": "cogames.policy.lstm.LSTMPolicy",
-    "claude": "cogames.policy.claude.ClaudePolicy",
+    "random": "mettagrid.policy.random.RandomMultiAgentPolicy",
+    "noop": "mettagrid.policy.noop.NoopPolicy",
+    "stateless": "mettagrid.policy.stateless.StatelessPolicy",
+    "token": "mettagrid.policy.token.TokenPolicy",
+    "lstm": "mettagrid.policy.lstm.LSTMPolicy",
 }
 
 
 def initialize_or_load_policy(
-    policy_class_path: str, policy_data_path: Optional[str], device: "torch.device | None" = None
+    policy_class_path: str,
+    policy_data_path: Optional[str],
+    actions: "ActionsConfig",
+    device: "torch.device | None" = None,
+    env: Optional[Any] = None,
 ) -> Policy:
+    """Initialize a policy from its class path and optionally load weights.
+
+    Args:
+        policy_class_path: Full class path to the policy
+        policy_data_path: Optional path to policy checkpoint
+        actions: Actions configuration from the environment
+        device: Optional device to use for policy
+        env: Optional environment instance (required for some policies like LSTM)
+
+    Returns:
+        Initialized policy instance
+    """
+    import inspect
+
     policy_class = load_symbol(policy_class_path)
-    policy = policy_class(env, device or torch.device("cpu"))
+
+    # Check if policy requires obs_shape parameter (like LSTMPolicy)
+    sig = inspect.signature(policy_class.__init__)
+    params = list(sig.parameters.keys())
+
+    if "obs_shape" in params:
+        # LSTMPolicy-style: requires (actions, obs_shape, device)
+        if env is None:
+            raise TypeError(f"{policy_class_path} requires an environment instance to determine obs_shape")
+        if device is None:
+            device = torch.device("cpu")
+
+        # Extract obs_shape from the environment
+        obs_shape = env.single_observation_space.shape
+        policy = policy_class(actions, obs_shape, device)
+    else:
+        # Standard policy: requires just actions
+        policy = policy_class(actions)
 
     if policy_data_path:
         if not isinstance(policy, TrainablePolicy):
@@ -40,7 +78,7 @@ def resolve_policy_class_path(policy: str) -> str:
     """Resolve a policy shorthand or full class path.
 
     Args:
-        policy: Either a shorthand like "random", "simple", "token", "lstm" or a full class path.
+        policy: Either a shorthand like "random", "stateless", "token", "lstm" or a full class path.
 
     Returns:
         Full class path to the policy.

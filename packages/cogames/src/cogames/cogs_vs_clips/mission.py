@@ -1,6 +1,5 @@
 from pydantic import Field
 
-from cogames.cogs_vs_clips import vibes
 from cogames.cogs_vs_clips.stations import (
     CarbonExtractorConfig,
     ChargerConfig,
@@ -12,8 +11,7 @@ from cogames.cogs_vs_clips.stations import (
     SiliconExtractorConfig,
     resources,
 )
-from mettagrid.base_config import Config
-from mettagrid.builder.envs import ActionConfig
+from mettagrid.config import Config, vibes
 from mettagrid.config.mettagrid_config import (
     ActionsConfig,
     AgentConfig,
@@ -22,6 +20,8 @@ from mettagrid.config.mettagrid_config import (
     ClipperConfig,
     GameConfig,
     MettaGridConfig,
+    MoveActionConfig,
+    NoopActionConfig,
     ProtocolConfig,
 )
 from mettagrid.map_builder.map_builder import MapBuilderConfig
@@ -119,8 +119,8 @@ class Mission(Config):
             resource_names=resources,
             vibe_names=[vibe.name for vibe in vibes.VIBES],
             actions=ActionsConfig(
-                move=ActionConfig(consumed_resources={"energy": self.move_energy_cost}),
-                noop=ActionConfig(),
+                move=MoveActionConfig(consumed_resources={"energy": self.move_energy_cost}),
+                noop=NoopActionConfig(),
                 change_glyph=ChangeGlyphActionConfig(number_of_glyphs=len(vibes.VIBES)),
             ),
             agent=AgentConfig(

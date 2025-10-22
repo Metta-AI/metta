@@ -8,7 +8,7 @@ from typing import Any, ClassVar, Generic, Self, Type, TypeVar
 import yaml
 from pydantic import ModelWrapValidatorHandler, SerializeAsAny, model_serializer, model_validator
 
-from mettagrid.base_config import Config
+from mettagrid.config import Config
 from mettagrid.mapgen.types import MapGrid
 from mettagrid.util.module import load_symbol
 

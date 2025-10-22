@@ -1,7 +1,8 @@
 from __future__ import annotations
 
+from abc import abstractmethod
 from collections.abc import Iterable
-from typing import Annotated, Any, Literal, Optional, Union
+from typing import TYPE_CHECKING, Annotated, Any, Literal, Optional, Union
 
 from pydantic import (
     ConfigDict,
@@ -13,15 +14,32 @@ from pydantic import (
     model_validator,
 )
 
-from mettagrid.config.base_config import Config
-from mettagrid.map_builder.ascii import AsciiMapBuilder
-from mettagrid.map_builder.map_builder import AnyMapBuilderConfig
-from mettagrid.map_builder.random import RandomMapBuilder
+from mettagrid.config import Config
+from mettagrid.config.vibes import VIBES, Vibe
+
+if TYPE_CHECKING:
+    from mettagrid.simulator import Action
+
+# Forward reference - actual import happens at runtime when needed
+try:
+    from mettagrid.map_builder.map_builder import MapBuilderConfig
+
+    AnyMapBuilderConfig = SerializeAsAny[MapBuilderConfig]
+except ImportError:
+    # During module initialization, MapBuilderConfig might not be available yet
+    # We'll use string annotation and let Pydantic resolve it later
+    AnyMapBuilderConfig = "SerializeAsAny[MapBuilderConfig]"  # type: ignore
 
 # ===== Python Configuration Models =====
 
 # Left to right, top to bottom.
 FixedPosition = Literal["NW", "N", "NE", "W", "E", "SW", "S", "SE"]
+
+Directions = ["north", "south", "east", "west", "northeast", "northwest", "southeast", "southwest"]
+Direction = Literal["north", "south", "east", "west", "northeast", "northwest", "southeast", "southwest"]
+
+CardinalDirections = ["north", "south", "east", "west"]
+CardinalDirection = Literal["north", "south", "east", "west"]
 
 
 class AgentRewards(Config):
@@ -67,31 +85,99 @@ class AgentConfig(Config):
 class ActionConfig(Config):
     """Python action configuration."""
 
+    action_handler: str
     enabled: bool = Field(default=True)
     # required_resources defaults to consumed_resources. Otherwise, should be a superset of consumed_resources.
     required_resources: dict[str, int] = Field(default_factory=dict)
     consumed_resources: dict[str, float] = Field(default_factory=dict)
 
+    def actions(self) -> list[Action]:
+        if self.enabled:
+            return self._actions()
+        return []
 
-class AttackActionConfig(ActionConfig):
-    """Python attack action configuration."""
+    @abstractmethod
+    def _actions(self) -> list[Action]: ...
 
-    defense_resources: dict[str, int] = Field(default_factory=dict)
+
+class NoopActionConfig(ActionConfig):
+    """Noop action configuration."""
+
+    action_handler: str = Field(default="noop")
+
+    def _actions(self) -> list[Action]:
+        return [self.Noop()]
+
+    def Noop(self) -> Action:
+        from mettagrid.simulator import Action
+
+        return Action(name="noop")
+
+
+class MoveActionConfig(ActionConfig):
+    """Move action configuration."""
+
+    action_handler: str = Field(default="move")
+    allowed_directions: list[Direction] = Field(default_factory=lambda: CardinalDirections)
+
+    def _actions(self) -> list[Action]:
+        return [self.Move(direction) for direction in self.allowed_directions]
+
+    def Move(self, direction: Direction) -> Action:
+        from mettagrid.simulator import Action
+
+        return Action(name=f"move_{direction}")
 
 
 class ChangeGlyphActionConfig(ActionConfig):
     """Change glyph action configuration."""
 
+    action_handler: str = Field(default="change_glyph")
     number_of_glyphs: int = Field(default=0, ge=0, le=255)
+
+    def _actions(self) -> list[Action]:
+        return [self.ChangeGlyph(vibe) for vibe in VIBES[: self.number_of_glyphs]]
+
+    def ChangeGlyph(self, vibe: Vibe) -> Action:
+        from mettagrid.simulator import Action
+
+        return Action(name=f"change_glyph_{vibe.name}")
+
+
+class AttackActionConfig(ActionConfig):
+    """Python attack action configuration."""
+
+    action_handler: str = Field(default="attack")
+    defense_resources: dict[str, int] = Field(default_factory=dict)
+    target_locations: list[Literal["1", "2", "3", "4", "5", "6", "7", "8", "9"]] = Field(
+        default_factory=lambda: ["1", "2", "3", "4", "5", "6", "7", "8", "9"]
+    )
+
+    def _actions(self) -> list[Action]:
+        return [self.Attack(location) for location in self.target_locations]
+
+    def Attack(self, location: Literal["1", "2", "3", "4", "5", "6", "7", "8", "9"]) -> Action:
+        from mettagrid.simulator import Action
+
+        return Action(name=f"attack_{location}")
 
 
 class ResourceModActionConfig(ActionConfig):
     """Resource mod action configuration."""
 
+    action_handler: str = Field(default="resource_mod")
     modifies: dict[str, float] = Field(default_factory=dict)
     agent_radius: int = Field(default=0, ge=0, le=255)
     converter_radius: int = Field(default=0, ge=0, le=255)
     scales: bool = Field(default=False)
+
+    def _actions(self) -> list[Action]:
+        return [self.ResourceMod()]
+
+    def ResourceMod(self) -> Action:
+        from mettagrid.simulator import Action
+
+        return Action(name="resource_mod")
 
 
 class ActionsConfig(Config):
@@ -101,15 +187,17 @@ class ActionsConfig(Config):
     Omitted actions are disabled by default.
     """
 
-    noop: ActionConfig = Field(default_factory=lambda: ActionConfig())
-    move: ActionConfig = Field(default_factory=lambda: ActionConfig(enabled=False))  # Default movement action
-    rotate: ActionConfig = Field(default_factory=lambda: ActionConfig(enabled=False))
-    put_items: ActionConfig = Field(default_factory=lambda: ActionConfig(enabled=False))
-    get_items: ActionConfig = Field(default_factory=lambda: ActionConfig(enabled=False))
+    noop: NoopActionConfig = Field(default_factory=lambda: NoopActionConfig())
+    move: MoveActionConfig = Field(default_factory=lambda: MoveActionConfig())
     attack: AttackActionConfig = Field(default_factory=lambda: AttackActionConfig(enabled=False))
-    swap: ActionConfig = Field(default_factory=lambda: ActionConfig(enabled=False))
-    change_glyph: ChangeGlyphActionConfig = Field(default_factory=lambda: ChangeGlyphActionConfig(enabled=False))
+    change_glyph: ChangeGlyphActionConfig = Field(default_factory=lambda: ChangeGlyphActionConfig())
     resource_mod: ResourceModActionConfig = Field(default_factory=lambda: ResourceModActionConfig(enabled=False))
+
+    def actions(self) -> list[Action]:
+        return sum(
+            [action.actions() for action in [self.noop, self.move, self.attack, self.change_glyph, self.resource_mod]],
+            [],
+        )
 
 
 class GlobalObsConfig(Config):
@@ -313,7 +401,7 @@ class GameConfig(Config):
             "blueprint",
         ]
     )
-    vibe_names: list[str] = Field(default_factory=list, description="List of vibe names for assembler recipes")
+    vibe_names: list[str] = Field(default_factory=list)
     num_agents: int = Field(ge=1, default=24)
     # max_steps = zero means "no limit"
     max_steps: int = Field(ge=0, default=1000)
@@ -324,7 +412,7 @@ class GameConfig(Config):
     num_observation_tokens: int = Field(ge=1, default=200)
     agent: AgentConfig = Field(default_factory=AgentConfig)
     agents: list[AgentConfig] = Field(default_factory=list)
-    actions: ActionsConfig = Field(default_factory=lambda: ActionsConfig(noop=ActionConfig()))
+    actions: ActionsConfig = Field(default_factory=lambda: ActionsConfig())
     global_obs: GlobalObsConfig = Field(default_factory=GlobalObsConfig)
     objects: dict[str, AnyGridObjectConfig] = Field(default_factory=dict)
     resolved_type_ids: dict[str, int] = Field(default_factory=dict, exclude=True)
@@ -344,7 +432,11 @@ class GameConfig(Config):
     clipper: Optional[ClipperConfig] = Field(default=None, description="Global clipper configuration")
 
     # Map builder configuration - accepts any MapBuilder config
-    map_builder: AnyMapBuilderConfig = RandomMapBuilder.Config(agents=24)
+    map_builder: "AnyMapBuilderConfig" = Field(
+        default_factory=lambda: __import__(
+            "mettagrid.map_builder.random", fromlist=["RandomMapBuilder"]
+        ).RandomMapBuilder.Config(agents=24)
+    )
 
     # Feature Flags
     track_movement_metrics: bool = Field(
@@ -360,7 +452,26 @@ class GameConfig(Config):
     @model_validator(mode="after")
     def _assign_type_ids(self) -> "GameConfig":
         self._resolve_object_type_ids()
+        self._populate_vibe_names()
         return self
+
+    def _populate_vibe_names(self) -> None:
+        """Populate vibe_names from change_glyph action config if not already set."""
+        if not self.vibe_names:
+            from mettagrid.config.vibes import VIBES
+
+            num_glyphs = self.actions.change_glyph.number_of_glyphs
+            self.vibe_names = [vibe.name for vibe in VIBES[:num_glyphs]]
+
+    def model_dump(self, **kwargs):
+        """Override model_dump to ensure vibe_names is synced with change_glyph config."""
+        from mettagrid.config.vibes import VIBES
+
+        # Always update vibe_names to match current number_of_glyphs
+        num_glyphs = self.actions.change_glyph.number_of_glyphs
+        self.vibe_names = [vibe.name for vibe in VIBES[:num_glyphs]]
+
+        return super().model_dump(**kwargs)
 
     def _resolve_object_type_ids(self) -> None:
         resolved: dict[str, int] = {}
@@ -424,6 +535,8 @@ class MettaGridConfig(Config):
         return self
 
     def with_ascii_map(self, map_data: list[list[str]]) -> "MettaGridConfig":
+        from mettagrid.map_builder.ascii import AsciiMapBuilder
+
         self.game.map_builder = AsciiMapBuilder.Config(
             map_data=map_data,
             char_to_name_map={o.map_char: o.name for o in self.game.objects.values()},
@@ -435,9 +548,11 @@ class MettaGridConfig(Config):
         num_agents: int, width: int = 10, height: int = 10, border_width: int = 1, with_walls: bool = False
     ) -> "MettaGridConfig":
         """Create an empty room environment configuration."""
+        from mettagrid.map_builder.random import RandomMapBuilder
+
         map_builder = RandomMapBuilder.Config(agents=num_agents, width=width, height=height, border_width=border_width)
         actions = ActionsConfig(
-            move=ActionConfig(),
+            move=MoveActionConfig(),
         )
         objects = {}
         if border_width > 0 or with_walls:

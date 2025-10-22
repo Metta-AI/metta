@@ -1,8 +1,8 @@
 """Glyph picker component for miniscope renderer."""
 
-from mettagrid import MettaGridEnv
-from mettagrid.renderer.miniscope.miniscope_panel import SIDEBAR_WIDTH, PanelLayout
+from mettagrid.renderer.miniscope.miniscope_panel import PanelLayout
 from mettagrid.renderer.miniscope.miniscope_state import MiniscopeState, RenderMode
+from mettagrid.simulator import Action, Simulation
 
 from .base import MiniscopeComponent
 
@@ -19,19 +19,19 @@ class GlyphPickerComponent(MiniscopeComponent):
 
     def __init__(
         self,
-        env: MettaGridEnv,
+        sim: Simulation,
         state: MiniscopeState,
         panels: PanelLayout,
     ):
         """Initialize the glyph picker component.
 
         Args:
-            env: MettaGrid environment reference
+            sim: MettaGrid simulator reference
             state: Miniscope state reference
             panels: Panel layout containing all panels
         """
-        super().__init__(env=env, state=state, panels=panels)
-        self._set_panel(panels.get_sidebar_panel("glyph_picker"))
+        super().__init__(sim=sim, state=state, panels=panels)
+        self._panel = panels.sidebar
         self._glyph_query: str = ""
 
     def handle_input(self, ch: str) -> bool:
@@ -50,13 +50,13 @@ class GlyphPickerComponent(MiniscopeComponent):
                 if results:
                     glyph_id = results[0][0]
 
-            if glyph_id is not None and GLYPH_DATA and 0 <= glyph_id < len(GLYPH_DATA):
-                # Set glyph action - action name includes the glyph ID
-                action_name = f"change_glyph_{glyph_id}"
-                if self.env and action_name in self.env.action_names:
-                    change_glyph_idx = self.env.action_names.index(action_name)
-                    self.state.user_action = (change_glyph_idx, 0)
-                    self.state.should_step = True
+            if glyph_id is not None and 0 <= glyph_id < len(GLYPH_DATA):
+                # Set glyph action
+                # Note: For now, we create a basic Action with the change_glyph name
+                # The glyph_id parameter will need to be handled separately
+                # TODO: Enhance Action class to support parameters
+                self.state.user_action = Action(name="change_glyph")
+                self.state.should_step = True
                 self._exit_glyph_picker()
         elif ch == "\x1b":  # Escape
             self._exit_glyph_picker()
@@ -64,10 +64,10 @@ class GlyphPickerComponent(MiniscopeComponent):
             self._glyph_query = self._glyph_query[:-1] if self._glyph_query else ""
         elif ch == "[":
             # Cycle to previous agent
-            self._state.select_previous_agent(self._env.num_agents)
+            self._state.select_previous_agent(self._sim.state.num_agents)
         elif ch == "]":
             # Cycle to next agent
-            self._state.select_next_agent(self._env.num_agents)
+            self._state.select_next_agent(self._sim.state.num_agents)
         elif ch and ch.isprintable():
             self._glyph_query = self._glyph_query + ch
 
@@ -94,7 +94,7 @@ class GlyphPickerComponent(MiniscopeComponent):
         Returns:
             List of strings for display
         """
-        width = self._width if self._width else SIDEBAR_WIDTH
+        width = self._width if self._width else 40
         lines = []
 
         if not GLYPH_DATA:
@@ -114,8 +114,11 @@ class GlyphPickerComponent(MiniscopeComponent):
         if query and search_glyphs:
             results = search_glyphs(query)[:10]
         else:
-            # Show first 10 glyphs when no query
-            results = [(i, GLYPH_DATA[i]) for i in range(min(10, len(GLYPH_DATA)))]
+            # Show first 5 glyphs when no query
+            if GLYPH_DATA:
+                results = [(i, GLYPH_DATA[i]) for i in range(min(5, len(GLYPH_DATA)))]
+            else:
+                results = []
 
         if results:
             for idx, (_glyph_id, glyph) in enumerate(results):

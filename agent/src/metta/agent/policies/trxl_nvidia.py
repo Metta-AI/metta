@@ -388,7 +388,7 @@ class TRXLNvidiaConfig:
     clamp_len: int = -1
     ext_len: int = 0
     activation_checkpoint: bool = True
-    use_flash_checkpoint: bool = True
+    use_flash_checkpoint: bool = False
     allow_tf32: bool = True
     use_fused_layernorm: bool = False
 
