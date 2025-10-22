@@ -1,5 +1,9 @@
 [build-system]
-requires = ["setuptools>=61.0", "wheel", "setuptools_scm>=8"]
+requires = [
+  "setuptools==80.9.0",
+  "wheel==0.45.1",
+  "setuptools_scm==8.1.0",
+]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -20,6 +24,7 @@ dependencies = [
   "rich>=13.7.0",
   "fastapi>=0.115.0",
   "uvicorn>=0.34.0",
+  "httpx>=0.28.1",
 ]
 dynamic = ["version"]
 
@@ -39,9 +44,8 @@ version_scheme = "no-guess-dev"
 local_scheme = "node-and-date"
 root = "../.."
 fallback_version = "0.0.0"
-
-[tool.setuptools_scm.scm.git]
-describe_command = [
+# Provide a specific git command to be used in order to find the correct versioning tags
+git_describe_command = [
   "git",
   "describe",
   "--dirty",

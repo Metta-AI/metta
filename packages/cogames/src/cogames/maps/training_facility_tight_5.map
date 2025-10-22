@@ -8,11 +8,11 @@ map_data: |-
   #####.....@.....#####
   #####.###...###.#####
   #####.#.......#.#####
-  #####.#.c.+.o.#.#####
+  #####.#.C.+.O.#.#####
   #####...........#####
   #####@....&....@#####
   #####...........#####
-  #####.#.g.=.s.#.#####
+  #####.#.G.=.S.#.#####
   #####.#.......#.#####
   #####.###...###.#####
   #####.....@.....#####
@@ -25,10 +25,10 @@ char_to_name_map:
   "#": wall
   ".": empty
   "@": agent.agent
-  "c": carbon_ex_dep
   "+": charger
-  "o": oxygen_ex_dep
   "&": assembler
-  "g": germanium_ex_dep
   "=": chest
-  "s": silicon_ex_dep
+  "C": carbon_extractor
+  "O": oxygen_extractor
+  "G": germanium_extractor
+  "S": silicon_extractor

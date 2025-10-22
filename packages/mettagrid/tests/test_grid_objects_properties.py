@@ -10,7 +10,7 @@ from mettagrid.config.mettagrid_config import (
     ChestConfig,
     GameConfig,
     MettaGridConfig,
-    RecipeConfig,
+    ProtocolConfig,
     WallConfig,
 )
 from mettagrid.core import BoundingBox, MettaGridCore
@@ -39,7 +39,7 @@ def env_with_assembler():
                 "assembler": AssemblerConfig(
                     type_id=2,
                     recipes=[
-                        ([], RecipeConfig(input_resources={"iron": 10}, output_resources={"steel": 5}, cooldown=20))
+                        ([], ProtocolConfig(input_resources={"iron": 10}, output_resources={"steel": 5}, cooldown=20))
                     ],
                     max_uses=10,
                     allow_partial_usage=True,
