@@ -42,6 +42,18 @@ export type UnifiedInstitutionDTO = {
     joinedAt: Date;
     isActive: boolean;
   }>;
+  pendingRequests?: Array<{
+    id: string;
+    user: {
+      id: string;
+      name: string | null;
+      email: string | null;
+    };
+    role: string | null;
+    department: string | null;
+    title: string | null;
+    joinedAt: Date;
+  }>;
   recentPapers?: Array<{
     id: string;
     title: string;
@@ -155,6 +167,20 @@ function mapToUnifiedInstitution(
     ? institution.userInstitutions.find((ui) => ui.userId === sessionUserId)
     : null;
 
+  // Check if current user is an admin
+  const isAdmin =
+    membership?.role === "admin" && membership?.status === "APPROVED";
+
+  // Filter approved members
+  const approvedMembers = institution.userInstitutions.filter(
+    (ui) => ui.status === "APPROVED" && ui.isActive
+  );
+
+  // Filter pending requests (only include if user is admin)
+  const pendingRequests = isAdmin
+    ? institution.userInstitutions.filter((ui) => ui.status === "PENDING")
+    : [];
+
   const filteredUserInstitutions = institution.userInstitutions.filter((ui) =>
     includePending ? true : ui.status === "APPROVED" && ui.isActive
   );
@@ -183,7 +209,7 @@ function mapToUnifiedInstitution(
       membership?.status === "APPROVED" ? (membership?.role ?? null) : null,
     currentUserStatus: membership?.status ?? null,
     ...(includeMembers && {
-      members: filteredUserInstitutions.map((ui) => ({
+      members: approvedMembers.map((ui) => ({
         id: ui.id,
         user: ui.user,
         role: ui.role,
@@ -193,6 +219,21 @@ function mapToUnifiedInstitution(
         isActive: ui.isActive,
       })),
     }),
+    ...(includeMembers &&
+      isAdmin && {
+        pendingRequests: pendingRequests.map((ui) => ({
+          id: ui.id,
+          user: {
+            id: ui.user.id,
+            name: ui.user.name,
+            email: ui.user.email,
+          },
+          role: ui.role,
+          department: ui.department,
+          title: ui.title,
+          joinedAt: ui.joinedAt,
+        })),
+      }),
     recentPapers: papers.map((paper) => ({
       id: paper.id,
       title: paper.title,
@@ -267,16 +308,25 @@ export async function loadUserInstitutions(): Promise<UnifiedInstitutionDTO[]> {
     },
     include: {
       userInstitutions: {
-        where: { status: "APPROVED", isActive: true },
+        where: {
+          OR: [
+            // Include all approved active memberships
+            { status: "APPROVED", isActive: true },
+            // Include pending requests (these will be filtered per institution based on admin role)
+            { status: "PENDING" },
+          ],
+        },
         include: {
           user: {
             select: {
+              id: true,
               name: true,
               email: true,
             },
           },
         },
         orderBy: [
+          { status: "asc" }, // APPROVED first, then PENDING
           { role: "asc" }, // admins first
           { joinedAt: "asc" },
         ],
