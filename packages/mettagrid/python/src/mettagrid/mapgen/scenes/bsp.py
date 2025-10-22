@@ -102,9 +102,15 @@ class BSP(Scene[BSPConfig]):
             # draw lines on the original grid
             for line in lines:
                 if line.direction == "vertical":
-                    grid[line.start[1] : line.start[1] + line.length, line.start[0]] = "empty"
+                    y0 = max(0, line.start[1])
+                    y1 = min(grid.shape[0], line.start[1] + line.length)
+                    if 0 <= line.start[0] < grid.shape[1] and y0 < y1:
+                        grid[y0:y1, line.start[0]] = "empty"
                 else:
-                    grid[line.start[1], line.start[0] : line.start[0] + line.length] = "empty"
+                    x0 = max(0, line.start[0])
+                    x1 = min(grid.shape[1], line.start[0] + line.length)
+                    if 0 <= line.start[1] < grid.shape[0] and x0 < x1:
+                        grid[line.start[1], x0:x1] = "empty"
 
 
 class Zone:

@@ -195,6 +195,8 @@ class MachinaProceduralExploreMission(Mission):
     # Mission-level knobs for base shell biome
     procedural_base_biome: str = "caves"
     procedural_base_biome_config: dict[str, Any] | None = None
+    #Chests start with 1 heart in them and reward is based on what an agent holds in their inventory
+
 
     def instantiate(
         self,
@@ -208,13 +210,16 @@ class MachinaProceduralExploreMission(Mission):
             height=100,
             base_biome=self.procedural_base_biome,
             base_biome_config=self.procedural_base_biome_config,
-            extractor_coverage=0.02,
+            extractor_coverage=0.005,
             extractor_names=["chest"],
             extractor_weights={"chest": 1.0},
-            biome_weights={"caves": 0.0, "forest": 0.5, "city": 0.3, "desert": 0.2},
-            dungeon_weights={"bsp": 0.3, "maze": 0.5, "radial": 0.2},
-            biome_count=6,
-            dungeon_count=8,
+            biome_weights={"caves": 0.5, "forest": 0.5, "city": 0.5, "desert": 0.5},
+            dungeon_weights={"bsp": 0.2, "maze": 0.1, "radial": 0.1},
+            # biome_count=8,
+            # dungeon_count=4,
+            density_scale=0.2,
+            max_biome_zone_fraction=0.50,
+            max_dungeon_zone_fraction=0.25,
         )
         return super().instantiate(procedural_builder, num_cogs, variant)
 

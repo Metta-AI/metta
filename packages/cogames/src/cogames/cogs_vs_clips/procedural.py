@@ -1,15 +1,18 @@
 from typing import Any
 
+import numpy as np
+
 from mettagrid.map_builder.map_builder import MapBuilderConfig
 from mettagrid.mapgen.area import AreaWhere
 from mettagrid.mapgen.mapgen import MapGen
 from mettagrid.mapgen.random.int import IntConstantDistribution
-from mettagrid.mapgen.scene import ChildrenAction
+from mettagrid.mapgen.scene import ChildrenAction, SceneConfig
 from mettagrid.mapgen.scenes.base_hub import BaseHub
 from mettagrid.mapgen.scenes.biome_caves import BiomeCaves, BiomeCavesConfig
 from mettagrid.mapgen.scenes.biome_city import BiomeCity, BiomeCityConfig
 from mettagrid.mapgen.scenes.biome_desert import BiomeDesert, BiomeDesertConfig
 from mettagrid.mapgen.scenes.biome_forest import BiomeForest, BiomeForestConfig
+from mettagrid.mapgen.scenes.bounded_layout import BoundedLayout
 from mettagrid.mapgen.scenes.bsp import BSP, BSPLayout
 from mettagrid.mapgen.scenes.make_connected import MakeConnected
 from mettagrid.mapgen.scenes.maze import Maze
@@ -32,7 +35,30 @@ def make_machina_procedural_map_builder(
     dungeon_weights: dict[str, float] | None = None,
     biome_count: int | None = None,
     dungeon_count: int | None = None,
+    density_scale: float = 1.0,
+    max_biome_zone_fraction: float = 0.20,
+    max_dungeon_zone_fraction: float = 0.12,
 ) -> MapBuilderConfig:
+    def _autoscale_zone_counts(
+        w: int,
+        h: int,
+        *,
+        biome_density: float = 1.0,
+        dungeon_density: float = 1.0,
+    ) -> tuple[int, int]:
+        """Compute reasonable zone counts from available area.
+
+        Heuristic: target approx 6 biome zones and 6–8 dungeon zones on a 100x100 map,
+        scaled linearly by area and density.
+        """
+        area = max(1, w * h)
+        # Tunable divisors chosen to produce ~6 zones on 10_000 area by default
+        biome_divisor = max(800, int(1600 / max(0.1, biome_density)))
+        dungeon_divisor = max(800, int(1500 / max(0.1, dungeon_density)))
+        biomes = max(3, min(48, area // biome_divisor))
+        dungeons = max(3, min(48, area // dungeon_divisor))
+        return int(biomes), int(dungeons)
+
     biome_map: dict[str, tuple[type, type]] = {
         "caves": (BiomeCaves, BiomeCavesConfig),
         "forest": (BiomeForest, BiomeForestConfig),
@@ -50,11 +76,22 @@ def make_machina_procedural_map_builder(
     chest_weights = extractor_weights or {name: 1.0 for name in chest_names}
 
     # Optional layered biomes via BSPLayout
-    # Defaults: fewer, larger zones for more dramatic/interesting layouts
-    if biome_count is None:
-        biome_count = max(3, (width * height) // 3000)
-    if dungeon_count is None:
-        dungeon_count = max(2, (width * height) // 4000)
+    # Autoscale counts based on available area if not explicitly provided
+    if biome_count is None or dungeon_count is None:
+        auto_biomes, auto_dungeons = _autoscale_zone_counts(
+            width, height, biome_density=density_scale, dungeon_density=density_scale
+        )
+        biome_count = auto_biomes if biome_count is None else biome_count
+        dungeon_count = auto_dungeons if dungeon_count is None else dungeon_count
+
+    # Enforce upper bounds on per-zone footprint by increasing counts if needed
+    def _min_count_for_fraction(frac: float) -> int:
+        if frac <= 0:
+            return 1
+        return int(np.ceil(1.0 / min(0.9, max(0.02, float(frac)))))
+
+    biome_count = max(int(biome_count), _min_count_for_fraction(max_biome_zone_fraction))
+    dungeon_count = max(int(dungeon_count), _min_count_for_fraction(max_dungeon_zone_fraction))
 
     def _make_biome_candidates(weights: dict[str, float] | None) -> list[RandomSceneCandidate]:
         defaults = {"caves": 1.0, "forest": 1.0, "desert": 1.0, "city": 1.0}
@@ -82,31 +119,71 @@ def make_machina_procedural_map_builder(
                 )
             )
         if w.get("maze", 0) > 0:
+            # Prefer thinner corridors for clarity; include both DFS (winding) and Kruskal (grid-like)
+            maze_weight = float(w["maze"]) if isinstance(w.get("maze", 0), (int, float)) else 1.0
             cands.append(
                 RandomSceneCandidate(
                     scene=Maze.Config(
                         algorithm="dfs",
-                        room_size=IntConstantDistribution(value=4),
+                        room_size=IntConstantDistribution(value=2),
                         wall_size=IntConstantDistribution(value=1),
                     ),
-                    weight=float(w["maze"]),
+                    weight=maze_weight * 0.6,
+                )
+            )
+            cands.append(
+                RandomSceneCandidate(
+                    scene=Maze.Config(
+                        algorithm="kruskal",
+                        room_size=IntConstantDistribution(value=2),
+                        wall_size=IntConstantDistribution(value=1),
+                    ),
+                    weight=maze_weight * 0.4,
                 )
             )
         if w.get("radial", 0) > 0:
             cands.append(RandomSceneCandidate(scene=RadialMaze.Config(arms=8, arm_width=5), weight=float(w["radial"])))
         return cands
 
+    # Compute max footprint per feature (size clamp inside zones)
+    biome_max_w = max(10, int(min(width * max_biome_zone_fraction, width // 2)))
+    biome_max_h = max(10, int(min(height * max_biome_zone_fraction, height // 2)))
+    dungeon_max_w = max(10, int(min(width * max_dungeon_zone_fraction, width // 2)))
+    dungeon_max_h = max(10, int(min(height * max_dungeon_zone_fraction, height // 2)))
+
+    def _wrap_in_layout(scene_cfg: SceneConfig, tag: str, max_w: int, max_h: int) -> SceneConfig:
+        # Use BoundedLayout to clamp to both max_* and current zone size
+        return BoundedLayout.Config(
+            max_width=max_w,
+            max_height=max_h,
+            tag=tag,
+            children=[
+                ChildrenAction(
+                    scene=scene_cfg,
+                    where=AreaWhere(tags=[tag]),
+                    limit=1,
+                    order_by="first",
+                )
+            ],
+        )
+
     biome_layer: ChildrenAction | None = None
     biome_cands = _make_biome_candidates(biome_weights) if biome_weights is not None else []
     if biome_cands:
         # Fill only a subset of zones to preserve base shell background
         biome_fill_count = max(1, int(biome_count * 0.6))
+        # Wrap RandomScene in a clamped Layout so no single biome fills its entire zone
         biome_layer = ChildrenAction(
             scene=BSPLayout.Config(
                 area_count=biome_count,
                 children=[
                     ChildrenAction(
-                        scene=RandomScene.Config(candidates=biome_cands),
+                        scene=_wrap_in_layout(
+                            RandomScene.Config(candidates=biome_cands),
+                            tag="biome.zone",
+                            max_w=biome_max_w,
+                            max_h=biome_max_h,
+                        ),
                         where=AreaWhere(tags=["zone"]),
                         order_by="random",
                         limit=biome_fill_count,
@@ -123,12 +200,18 @@ def make_machina_procedural_map_builder(
     if dungeon_cands:
         # Fill only a subset of zones to preserve base shell background
         dungeon_fill_count = max(1, int(dungeon_count * 0.5))
+        # Wrap RandomScene in a clamped Layout so no single dungeon fills its entire zone
         dungeon_layer = ChildrenAction(
             scene=BSPLayout.Config(
                 area_count=dungeon_count,
                 children=[
                     ChildrenAction(
-                        scene=RandomScene.Config(candidates=dungeon_cands),
+                        scene=_wrap_in_layout(
+                            RandomScene.Config(candidates=dungeon_cands),
+                            tag="dungeon.zone",
+                            max_w=dungeon_max_w,
+                            max_h=dungeon_max_h,
+                        ),
                         where=AreaWhere(tags=["zone"]),
                         order_by="random",
                         limit=dungeon_fill_count,
