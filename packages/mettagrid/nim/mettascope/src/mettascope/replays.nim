@@ -1,4 +1,4 @@
-import std/[json],
+import std/[json, tables],
   boxy, fidget2/[hybridrender],
   zippy, vmath, jsony
 
@@ -10,7 +10,7 @@ type
   Entity* = ref object
     # Common keys.
     id*: int
-    typeId*: int
+    typeName*: string
     groupId*: int
     agentId*: int
     location*: seq[IVec3]
@@ -66,7 +66,7 @@ type
     actionNames*: seq[string]
     itemNames*: seq[string]
     groupNames*: seq[string]
-    typeImages*: seq[string]
+    typeImages*: Table[string, string]
     actionImages*: seq[string]
     actionAttackImages*: seq[string]
     actionIconImages*: seq[string]
@@ -90,6 +90,7 @@ type
   ReplayEntity* = ref object
     ## Replay entity does not have time series and only has the current step value.
     id*: int
+    typeName*: string
     typeId*: int
     groupId*: int
     agentId*: int
@@ -312,7 +313,13 @@ proc convertReplayV1ToV2(replayData: JsonNode): JsonNode =
     # Build v2 object.
     var obj = newJObject()
     obj["id"] = gridObject["id"]
-    obj["type_id"] = gridObject["type"]
+
+    let typeId = gridObject["type"].getInt
+    obj["type_id"] = newJInt(typeId)
+    if typeId >= 0 and typeId < replayData["object_types"].len:
+      obj["type_name"] = replayData["object_types"][typeId]
+    else:
+      obj["type_name"] = newJString("")
     obj["location"] = location
     obj["inventory"] = inventory
     # Ensure orientation exists; default to 0 if missing.
@@ -455,11 +462,12 @@ proc loadReplayString*(jsonData: string, fileName: string): Replay =
     mapSize: (jsonObj["map_size"][0].getInt, jsonObj["map_size"][1].getInt)
   )
 
-  replay.typeImages = newSeq[string](replay.typeNames.len)
-  for i in 0 ..< replay.typeNames.len:
-    replay.typeImages[i] = "objects/" & replay.typeNames[i]
-    if replay.typeImages[i] notin bxy:
-      replay.typeImages[i] = "objects/unknown"
+  replay.typeImages = initTable[string, string]()
+  for typeName in replay.typeNames:
+    var imagePath = "objects/" & typeName
+    if imagePath notin bxy:
+      imagePath = "objects/unknown"
+    replay.typeImages[typeName] = imagePath
 
   replay.actionImages = newSeq[string](replay.actionNames.len)
   for i in 0 ..< replay.actionNames.len:
@@ -520,19 +528,33 @@ proc loadReplayString*(jsonData: string, fileName: string): Replay =
         locationRaw[i][2].int32
       ))
 
+    var resolvedTypeName = ""
+    if "type_name" in obj:
+      resolvedTypeName = obj["type_name"].getStr
+
+    if resolvedTypeName.len == 0 and "type_id" in obj:
+      let candidateId = obj["type_id"].getInt
+      if candidateId >= 0 and candidateId < replay.typeNames.len:
+        resolvedTypeName = replay.typeNames[candidateId]
+
+    doAssert resolvedTypeName.len > 0,
+      "Unknown object type for replay entity"
+
     let entity = Entity(
       id: obj["id"].getInt,
-      typeId: obj["type_id"].getInt,
+      typeName: resolvedTypeName,
       location: location,
       orientation: expand[int](obj["orientation"], replay.maxSteps, 0),
       inventory: inventory,
       inventoryMax: obj["inventory_max"].getInt,
       color: expand[int](obj["color"], replay.maxSteps, 0),
     )
-    if "agent_id" in obj:
-      entity.isAgent = true
-      entity.agentId = obj["agent_id"].getInt
+    if "group_id" in obj:
       entity.groupId = obj["group_id"].getInt
+
+    entity.isAgent = resolvedTypeName == "agent"
+    if "agent_id" in obj:
+      entity.agentId = obj["agent_id"].getInt
       entity.isFrozen = expand[bool](obj["is_frozen"], replay.maxSteps, false)
       entity.actionId = expand[int](obj["action_id"], replay.maxSteps, 0)
       entity.actionParameter = expand[int](obj["action_param"], replay.maxSteps, 0)
@@ -612,7 +634,7 @@ proc loadReplay*(fileName: string): Replay =
 
 proc apply*(replay: Replay, step: int, objects: seq[ReplayEntity]) =
   ## Apply a replay step to the replay.
-  let agentTypeIndex = replay.typeNames.find("agent")
+  const agentTypeName = "agent"
   for obj in objects:
     let index = obj.id - 1
     while index >= replay.objects.len:
@@ -621,9 +643,11 @@ proc apply*(replay: Replay, step: int, objects: seq[ReplayEntity]) =
     let entity = replay.objects[index]
     doAssert entity.id == obj.id, "Object id mismatch"
 
-    entity.typeId = obj.typeId
-    if obj.typeId == agentTypeIndex:
-      entity.isAgent = true
+    var resolvedTypeName = obj.typeName
+    if resolvedTypeName.len == 0 and obj.typeId >= 0 and obj.typeId < replay.typeNames.len:
+      resolvedTypeName = replay.typeNames[obj.typeId]
+    entity.typeName = resolvedTypeName
+    entity.isAgent = resolvedTypeName == agentTypeName
     entity.groupId = obj.groupId
     entity.agentId = obj.agentId
     entity.location.add(obj.location)
@@ -664,7 +688,7 @@ proc apply*(replay: Replay, step: int, objects: seq[ReplayEntity]) =
   # Populate the agents field for agent entities
   if replay.agents.len == 0:
     for obj in replay.objects:
-      if obj.typeId == agentTypeIndex:
+      if obj.typeName == agentTypeName:
         replay.agents.add(obj)
     doAssert replay.agents.len == replay.numAgents, "Agents and numAgents mismatch"
 

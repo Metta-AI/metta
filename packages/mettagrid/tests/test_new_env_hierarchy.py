@@ -42,7 +42,7 @@ class TestNewEnvironmentHierarchy:
                     noop=ActionConfig(),
                     rotate=ActionConfig(),
                 ),
-                objects={"wall": WallConfig(type_id=1)},
+                objects={"wall": WallConfig()},
                 map_builder=AsciiMapBuilder.Config(
                     map_data=[
                         ["#", "#", "#", "#", "#"],
@@ -70,7 +70,7 @@ class TestNewEnvironmentHierarchy:
                     noop=ActionConfig(),
                     rotate=ActionConfig(),
                 ),
-                objects={"wall": WallConfig(type_id=1)},
+                objects={"wall": WallConfig()},
                 map_builder=AsciiMapBuilder.Config(
                     map_data=[
                         ["#", "#", "#", "#", "#"],
@@ -114,7 +114,7 @@ class TestNewEnvironmentHierarchy:
                     noop=ActionConfig(),
                     rotate=ActionConfig(),
                 ),
-                objects={"wall": WallConfig(type_id=1)},
+                objects={"wall": WallConfig()},
                 agents=[
                     AgentConfig(team_id=1),
                     AgentConfig(team_id=2),
@@ -151,7 +151,7 @@ class TestNewEnvironmentHierarchy:
                     noop=ActionConfig(),
                     rotate=ActionConfig(),
                 ),
-                objects={"wall": WallConfig(type_id=1)},
+                objects={"wall": WallConfig()},
                 agents=[
                     AgentConfig(team_id=1),
                     AgentConfig(team_id=2),

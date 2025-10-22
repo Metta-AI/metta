@@ -11,7 +11,7 @@ find "/UI/Main/**/ObjectInfo/OpenConfig":
       if replay.isNil or replay.mgConfig.isNil:
         "No replay config found."
       else:
-        let typeName = replay.typeNames[selection.typeId]
+        let typeName = selection.typeName
         if typeName == "agent":
           let agentConfig = replay.mgConfig["game"]["agent"]
           agentConfig.pretty
@@ -25,7 +25,7 @@ find "/UI/Main/**/ObjectInfo/OpenConfig":
             objConfig.pretty
     if not existsDir("tmp"):
       createDir("tmp")
-    let typeName = replay.typeNames[selection.typeId]
+    let typeName = selection.typeName
     writeFile("tmp/" & typeName & "_config.json", text)
     when defined(windows):
       discard execShellCmd("notepad tmp/" & typeName & "_config.json")
@@ -64,7 +64,7 @@ proc updateObjectInfo*() =
     p.find("**/Value").text = value
     params.addChild(p)
 
-  addParam("Type", replay.typeNames[selection.typeId])
+  addParam("Type", selection.typeName)
 
   if selection.isAgent:
     addParam("Agent ID", $selection.agentId)
