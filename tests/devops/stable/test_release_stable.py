@@ -37,19 +37,18 @@ class FakeTask(Task):
 
 def make_mock_job_manager(tmp_path: Path):
     """Create a mock JobManager that returns pre-configured JobStates."""
-    job_manager = Mock(spec=JobManager)
-    job_manager._job_states = {}
+    job_states = {}
 
     def mock_submit(batch_id: str, config: JobConfig):
         # Store config for later retrieval
-        job_manager._job_states[(batch_id, config.name)] = config
+        job_states[(batch_id, config.name)] = config
 
     def mock_poll():
         # Mark all submitted jobs as complete
-        return list(job_manager._job_states.keys())
+        return list(job_states.keys())
 
     def mock_get_job_state(batch_id: str, name: str):
-        config = job_manager._job_states.get((batch_id, name))
+        config = job_states.get((batch_id, name))
         if not config:
             return None
         return JobState(
@@ -67,10 +66,11 @@ def make_mock_job_manager(tmp_path: Path):
         # Immediately return completed job state
         return mock_get_job_state(batch_id, name)
 
-    job_manager.submit = mock_submit
-    job_manager.poll = mock_poll
-    job_manager.get_job_state = mock_get_job_state
-    job_manager.wait_for_job = mock_wait_for_job
+    job_manager = Mock(spec=JobManager)
+    job_manager.submit.side_effect = mock_submit
+    job_manager.poll.side_effect = mock_poll
+    job_manager.get_job_state.side_effect = mock_get_job_state
+    job_manager.wait_for_job.side_effect = mock_wait_for_job
 
     return job_manager
 
@@ -140,15 +140,15 @@ def test_run_task_skips_completed(tmp_path, monkeypatch):
     job_manager = make_mock_job_manager(tmp_path)
 
     runner = TaskRunner(state, job_manager, interactive=False)
-    result = runner._run_with_deps(task)
+    runner.run_all([task])
 
     # Should return existing result without re-running
-    assert result.outcome == "passed"
-    assert result.name == "already_passed"
+    assert state.results["already_passed"].outcome == "passed"
+    assert state.results["already_passed"].name == "already_passed"
 
 
-def test_run_task_retries_failed(tmp_path, monkeypatch):
-    """Test that failed tasks can be retried."""
+def test_run_task_skips_failed_by_default(tmp_path, monkeypatch):
+    """Test that failed tasks are skipped by default (no retry unless --retry-failed)."""
     monkeypatch.setattr("metta.common.util.fs.get_repo_root", lambda: tmp_path)
 
     state = ReleaseState(version="release_1.0.0", created_at="now")
@@ -164,11 +164,38 @@ def test_run_task_retries_failed(tmp_path, monkeypatch):
     task = FakeTask(name="failed_task", exit_code=0)
     job_manager = make_mock_job_manager(tmp_path)
 
-    runner = TaskRunner(state, job_manager, interactive=False)
-    result = runner._run_with_deps(task)
+    # Default: retry_failed=False (skip failed tasks)
+    runner = TaskRunner(state, job_manager, interactive=False, retry_failed=False)
+    runner.run_all([task])
+
+    # Should skip the failed task (not retry)
+    assert state.results["failed_task"].outcome == "failed"
+    assert state.results["failed_task"].error == "Previous failure"
+
+
+def test_run_task_retries_failed_when_enabled(tmp_path, monkeypatch):
+    """Test that failed tasks are retried when retry_failed=True."""
+    monkeypatch.setattr("metta.common.util.fs.get_repo_root", lambda: tmp_path)
+
+    state = ReleaseState(version="release_1.0.0", created_at="now")
+    state.results["failed_task"] = TaskResult(
+        name="failed_task",
+        started_at="now",
+        ended_at="now",
+        outcome="failed",
+        exit_code=1,
+        error="Previous failure",
+    )
+
+    task = FakeTask(name="failed_task", exit_code=0)
+    job_manager = make_mock_job_manager(tmp_path)
+
+    # Explicitly enable retry_failed=True
+    runner = TaskRunner(state, job_manager, interactive=False, retry_failed=True)
+    runner.run_all([task])
 
     # Should have retried and passed
-    assert result.outcome == "passed"
+    assert state.results["failed_task"].outcome == "passed"
 
 
 def test_run_task_skips_missing_dependencies(tmp_path, monkeypatch):
@@ -184,10 +211,10 @@ def test_run_task_skips_missing_dependencies(tmp_path, monkeypatch):
 
     job_manager = make_mock_job_manager(tmp_path)
     runner = TaskRunner(state, job_manager, interactive=False)
-    result = runner._run_with_deps(dependent_task)
+    runner.run_all([dependency, dependent_task])
 
     # Dependency will run and pass, so dependent task should also run
-    assert result.outcome == "passed"
+    assert state.results["dependent_task"].outcome == "passed"
 
 
 def test_run_task_skips_failed_dependencies(tmp_path, monkeypatch):
@@ -197,17 +224,20 @@ def test_run_task_skips_failed_dependencies(tmp_path, monkeypatch):
     state = ReleaseState(version="release_1.0.0", created_at="now")
 
     # Create mock job manager that returns failed state for failed_dep
-    job_manager = Mock(spec=JobManager)
-    job_manager._job_states = {}
+    job_states = {}
+    completed_jobs = set()
 
     def mock_submit(batch_id: str, config: JobConfig):
-        job_manager._job_states[(batch_id, config.name)] = config
+        job_states[(batch_id, config.name)] = config
 
     def mock_poll():
-        return list(job_manager._job_states.keys())
+        # Return jobs that haven't been polled yet
+        pending = [key for key in job_states.keys() if key not in completed_jobs]
+        completed_jobs.update(pending)
+        return pending
 
     def mock_get_job_state(batch_id: str, name: str):
-        config = job_manager._job_states.get((batch_id, name))
+        config = job_states.get((batch_id, name))
         if not config:
             return None
         # Return failed state for failed_dep
@@ -223,14 +253,10 @@ def test_run_task_skips_failed_dependencies(tmp_path, monkeypatch):
             logs_path=f"/fake/{name}.log",
         )
 
-    def mock_wait_for_job(batch_id: str, name: str, poll_interval_s: float = 1.0):
-        # Immediately return completed job state
-        return mock_get_job_state(batch_id, name)
-
-    job_manager.submit = mock_submit
-    job_manager.poll = mock_poll
-    job_manager.get_job_state = mock_get_job_state
-    job_manager.wait_for_job = mock_wait_for_job
+    job_manager = Mock(spec=JobManager)
+    job_manager.submit.side_effect = mock_submit
+    job_manager.poll.side_effect = mock_poll
+    job_manager.get_job_state.side_effect = mock_get_job_state
 
     # Create failed dependency
     failed_dep = FakeTask(name="failed_dep", exit_code=1)
@@ -240,10 +266,115 @@ def test_run_task_skips_failed_dependencies(tmp_path, monkeypatch):
     dependent_task.dependencies = [failed_dep]
 
     runner = TaskRunner(state, job_manager, interactive=False)
-    result = runner._run_with_deps(dependent_task)
+    runner.run_all([failed_dep, dependent_task])
 
-    assert result.outcome == "skipped"
-    assert "Dependency failed_dep did not pass" in result.error
+    assert state.results["eval_after_train"].outcome == "skipped"
+    assert "Dependency failed_dep did not pass" in state.results["eval_after_train"].error
+
+
+def test_run_all_with_parallel_execution(tmp_path, monkeypatch):
+    """Test that run_all executes independent tasks in parallel."""
+    monkeypatch.setattr("metta.common.util.fs.get_repo_root", lambda: tmp_path)
+
+    state = ReleaseState(version="release_1.0.0", created_at="now")
+
+    # Create two independent tasks (no dependencies)
+    task1 = FakeTask(name="task1", exit_code=0)
+    task2 = FakeTask(name="task2", exit_code=0)
+
+    job_manager = make_mock_job_manager(tmp_path)
+    runner = TaskRunner(state, job_manager, interactive=False, retry_failed=False)
+
+    # Run all tasks
+    runner.run_all([task1, task2])
+
+    # Both tasks should complete
+    assert "task1" in state.results
+    assert "task2" in state.results
+    assert state.results["task1"].outcome == "passed"
+    assert state.results["task2"].outcome == "passed"
+
+
+def test_run_all_respects_dependencies(tmp_path, monkeypatch):
+    """Test that run_all respects task dependencies."""
+    monkeypatch.setattr("metta.common.util.fs.get_repo_root", lambda: tmp_path)
+
+    state = ReleaseState(version="release_1.0.0", created_at="now")
+
+    # Create tasks with dependencies: task2 depends on task1
+    task1 = FakeTask(name="task1", exit_code=0)
+    task2 = FakeTask(name="task2", exit_code=0)
+    task2.dependencies = [task1]
+
+    job_manager = make_mock_job_manager(tmp_path)
+    runner = TaskRunner(state, job_manager, interactive=False, retry_failed=False)
+
+    # Run all tasks
+    runner.run_all([task1, task2])
+
+    # Both tasks should complete, task1 before task2
+    assert "task1" in state.results
+    assert "task2" in state.results
+    assert state.results["task1"].outcome == "passed"
+    assert state.results["task2"].outcome == "passed"
+
+
+def test_run_all_skips_on_failed_dependency(tmp_path, monkeypatch):
+    """Test that run_all skips tasks when dependencies fail."""
+    monkeypatch.setattr("metta.common.util.fs.get_repo_root", lambda: tmp_path)
+
+    state = ReleaseState(version="release_1.0.0", created_at="now")
+
+    # Create tasks: task1 fails, task2 depends on task1
+    task1 = FakeTask(name="task1", exit_code=1)  # Will fail
+    task2 = FakeTask(name="task2", exit_code=0)
+    task2.dependencies = [task1]
+
+    # Create mock that returns failure for task1
+    job_states = {}
+    completed_jobs = set()
+
+    def mock_submit(batch_id: str, config: JobConfig):
+        job_states[(batch_id, config.name)] = config
+
+    def mock_poll():
+        # Return jobs that haven't been polled yet
+        pending = [key for key in job_states.keys() if key not in completed_jobs]
+        completed_jobs.update(pending)
+        return pending
+
+    def mock_get_job_state(batch_id: str, name: str):
+        config = job_states.get((batch_id, name))
+        if not config:
+            return None
+        # task1 fails, others succeed
+        exit_code = 1 if name == "task1" else 0
+        return JobState(
+            batch_id=batch_id,
+            name=name,
+            config=config,
+            status="completed",
+            started_at="2025-01-01T00:00:00",
+            completed_at="2025-01-01T00:01:00",
+            exit_code=exit_code,
+            logs_path=str(tmp_path / f"{name}.log"),
+        )
+
+    job_manager = Mock(spec=JobManager)
+    job_manager.submit.side_effect = mock_submit
+    job_manager.poll.side_effect = mock_poll
+    job_manager.get_job_state.side_effect = mock_get_job_state
+
+    runner = TaskRunner(state, job_manager, interactive=False, retry_failed=False)
+
+    # Run all tasks
+    runner.run_all([task1, task2])
+
+    # task1 should fail, task2 should be skipped
+    assert "task1" in state.results
+    assert "task2" in state.results
+    assert state.results["task1"].outcome == "failed"
+    assert state.results["task2"].outcome == "skipped"
 
 
 def test_run_task_injects_policy_uri(tmp_path, monkeypatch):
@@ -282,7 +413,7 @@ def test_run_task_injects_policy_uri(tmp_path, monkeypatch):
 
     # Run evaluation task - should inject policy_uri from cached train result
     runner = TaskRunner(state, job_manager, interactive=False)
-    runner._run_with_deps(eval_task)
+    runner.run_all([train_task, eval_task])
 
     # Verify policy_uri was injected into the task's job_config
     assert "policy_uri" in eval_task.job_config.args
@@ -295,23 +426,28 @@ def test_run_task_handles_exceptions(tmp_path, monkeypatch):
 
     state = ReleaseState(version="release_1.0.0", created_at="now")
 
-    # Create mock job manager that raises exception on poll
+    # Create mock job manager that raises exception
     job_manager = Mock(spec=JobManager)
 
     def mock_submit(batch_id: str, config: JobConfig):
         pass
 
     def mock_poll():
+        # Return completed immediately
+        return [("release_release_1.0.0", "error_task")]
+
+    def mock_get_job_state(batch_id: str, name: str):
         raise RuntimeError("Simulated error")
 
-    job_manager.submit = mock_submit
-    job_manager.poll = mock_poll
+    job_manager.submit.side_effect = mock_submit
+    job_manager.poll.side_effect = mock_poll
+    job_manager.get_job_state.side_effect = mock_get_job_state
 
     task = FakeTask(name="error_task")
 
     runner = TaskRunner(state, job_manager, interactive=False)
-    result = runner._run_with_deps(task)
+    runner.run_all([task])
 
-    assert result.outcome == "failed"
-    assert "Exception" in result.error
-    assert result.exit_code == 1
+    assert state.results["error_task"].outcome == "failed"
+    assert "Exception" in state.results["error_task"].error
+    assert state.results["error_task"].exit_code == 1
