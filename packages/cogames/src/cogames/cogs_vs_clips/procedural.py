@@ -31,6 +31,10 @@ def make_machina_procedural_map_builder(
     base_biome_config: dict[str, Any] | None = None,
     extractor_coverage: float = 0.01,
     extractors: dict[str, float] | None = None,
+    hub_variant: str | None = None,
+    hub_corner_bundle: str | None = None,
+    hub_cross_bundle: str | None = None,
+    hub_cross_distance: int | None = None,
     biome_weights: dict[str, float] | None = None,
     dungeon_weights: dict[str, float] | None = None,
     biome_count: int | None = None,
@@ -238,6 +242,26 @@ def make_machina_procedural_map_builder(
             limit=1,
         )
 
+    corner_bundle = hub_corner_bundle
+    cross_bundle = hub_cross_bundle
+    cross_distance = hub_cross_distance if hub_cross_distance is not None else 4
+
+    match (hub_variant or "").lower():
+        case "store":
+            corner_bundle = "chests"
+            cross_bundle = "none"
+        case "extractor":
+            corner_bundle = "extractors"
+            cross_bundle = "none"
+        case "both":
+            corner_bundle = "chests"
+            cross_bundle = "extractors"
+        case _:
+            corner_bundle = hub_corner_bundle or "chests"
+            cross_bundle = hub_cross_bundle or "none"
+
+    cross_distance = hub_cross_distance if hub_cross_distance is not None else 4
+
     base_cfg.children = [
         # Optional biome/dungeon layers over the base shell
         *([biome_layer] if biome_layer is not None else []),
@@ -265,7 +289,14 @@ def make_machina_procedural_map_builder(
         ),
         # Place hub last to keep spawns intact; it self-centers and sizes internally
         ChildrenAction(
-            scene=BaseHub.Config(spawn_count=num_cogs, hub_width=21, hub_height=21),
+            scene=BaseHub.Config(
+                spawn_count=num_cogs,
+                hub_width=21,
+                hub_height=21,
+                corner_bundle=corner_bundle or "chests",
+                cross_bundle=cross_bundle or "none",
+                cross_distance=cross_distance,
+            ),
             where="full",
             order_by="last",
             limit=1,

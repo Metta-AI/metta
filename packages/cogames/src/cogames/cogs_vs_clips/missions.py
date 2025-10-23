@@ -133,6 +133,33 @@ class CavesBiomeVariant(MissionVariant):
         return mission
 
 
+class StoreBaseVariant(MissionVariant):
+    name: str = "store_base"
+    description: str = "Sanctum corners hold storage chests; cross remains clear."
+
+    def apply(self, mission: Mission) -> Mission:
+        mission.procedural_overrides.setdefault("hub_variant", "store")
+        return mission
+
+
+class ExtractorBaseVariant(MissionVariant):
+    name: str = "extractor_base"
+    description: str = "Sanctum corners host extractors; cross remains clear."
+
+    def apply(self, mission: Mission) -> Mission:
+        mission.procedural_overrides.setdefault("hub_variant", "extractor")
+        return mission
+
+
+class BothBaseVariant(MissionVariant):
+    name: str = "both_base"
+    description: str = "Sanctum corners store chests and cross arms host extractors."
+
+    def apply(self, mission: Mission) -> Mission:
+        mission.procedural_overrides.setdefault("hub_variant", "both")
+        return mission
+
+
 VARIANTS = [
     MinedOutVariant,
     DarkSideVariant,
@@ -143,6 +170,9 @@ VARIANTS = [
     ForestBiomeVariant,
     CityBiomeVariant,
     CavesBiomeVariant,
+    StoreBaseVariant,
+    ExtractorBaseVariant,
+    BothBaseVariant,
 ]
 
 
@@ -284,6 +314,7 @@ class MachinaProceduralExploreMission(ProceduralMissionBase):
         self.procedural_overrides = {
             "extractors": {"chest": 1.0, "charger": 1.0},
             "extractor_coverage": 0.004,
+            "hub_variant": "store",
         }
 
     def make_env(self) -> MettaGridConfig:

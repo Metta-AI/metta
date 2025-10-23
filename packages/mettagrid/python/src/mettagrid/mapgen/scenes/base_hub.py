@@ -9,6 +9,13 @@ DEFAULT_CORNER_CHESTS: tuple[str, str, str, str] = (
     "chest_silicon",
 )
 
+DEFAULT_EXTRACTORS: tuple[str, str, str, str] = (
+    "carbon_extractor",
+    "oxygen_extractor",
+    "germanium_extractor",
+    "silicon_extractor",
+)
+
 
 class BaseHubConfig(SceneConfig):
     assembler_object: str = "assembler"
@@ -21,6 +28,10 @@ class BaseHubConfig(SceneConfig):
     include_inner_wall: bool = True
     # Order: top-left, top-right, bottom-left, bottom-right.
     corner_objects: list[str] | None = None
+    corner_bundle: Literal["chests", "extractors", "none", "custom"] = "chests"
+    cross_objects: list[str] | None = None
+    cross_bundle: Literal["none", "chests", "extractors", "custom"] = "none"
+    cross_distance: int = 4
     layout: Literal["default", "tight"] = "default"
     charger_object: str = "charger"
     heart_chest_object: str = "chest_heart"
@@ -106,7 +117,40 @@ class BaseHub(Scene[BaseHubConfig]):
             return list(cfg.corner_objects)
         if cfg.corner_generator:
             return [cfg.corner_generator] * 4
+        if cfg.corner_bundle == "extractors":
+            return list(DEFAULT_EXTRACTORS)
+        if cfg.corner_bundle == "none":
+            return []
         return list(DEFAULT_CORNER_CHESTS)
+
+    def _resolve_cross_names(self) -> list[str]:
+        cfg = self.config
+        if cfg.cross_objects and len(cfg.cross_objects) == 4:
+            return list(cfg.cross_objects)
+        if cfg.cross_bundle == "chests":
+            return list(DEFAULT_CORNER_CHESTS)
+        if cfg.cross_bundle == "extractors":
+            return list(DEFAULT_EXTRACTORS)
+        return []
+
+    def _cross_positions(self, cx: int, cy: int, distance: int) -> list[tuple[int, int]]:
+        dist = max(1, distance)
+        return [
+            (cx, cy - dist),
+            (cx + dist, cy),
+            (cx, cy + dist),
+            (cx - dist, cy),
+        ]
+
+    def _place_named_objects(self, positions: Sequence[tuple[int, int]], names: Sequence[str]) -> None:
+        grid = self.grid
+        h, w = self.height, self.width
+
+        for (x, y), name in zip(positions, names, strict=False):
+            if not name:
+                continue
+            if 0 <= x < w and 0 <= y < h:
+                grid[y, x] = name
 
     def _render_default_layout(self, cx: int, cy: int) -> None:
         grid = self.grid
@@ -180,6 +224,11 @@ class BaseHub(Scene[BaseHubConfig]):
             if 1 <= x < w - 1 and 1 <= y < h - 1:
                 grid[y, x] = name
 
+        cross_names = self._resolve_cross_names()
+        if cross_names:
+            cross_positions = self._cross_positions(cx, cy, cfg.cross_distance)
+            self._place_named_objects(cross_positions, cross_names)
+
     def _render_tight_layout(self, cx: int, cy: int) -> None:
         grid = self.grid
         h, w = self.height, self.width
@@ -228,6 +277,11 @@ class BaseHub(Scene[BaseHubConfig]):
 
         for (x, y), name in zip(corner_positions, self._resolve_corner_names(), strict=False):
             place_building(x, y, name)
+
+        cross_names = self._resolve_cross_names()
+        if cross_names:
+            cross_positions = self._cross_positions(cx, cy, cfg.cross_distance)
+            self._place_named_objects(cross_positions, cross_names)
 
         self._ensure_clearance(building_positions)
 
