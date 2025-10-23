@@ -1,6 +1,53 @@
-# Datadog Dashboard Management - Status
+# Datadog Observability System - Status
 
-## ✅ Completed - Jsonnet-Based Approach
+## Overview
+
+This system provides two key capabilities:
+1. **Metrics Collection** - Automated collection and submission of GitHub metrics to Datadog
+2. **Dashboard Management** - Jsonnet-based composable dashboard system
+
+---
+
+## ✅ Completed - Metrics Collection (Phase 1 & 2B)
+
+We've built a production-ready metrics collection system for tracking GitHub repository health.
+
+### Phase 1: Metrics Implementation (Complete)
+
+**GitHub Metrics (25 total):**
+- ✅ Pull request metrics (8): open, merged, closed, cycle time, stale PRs, review coverage
+- ✅ Branch metrics (1): active branch count
+- ✅ Commit & code metrics (7): commits, hotfixes, reverts, lines added/deleted, files changed
+- ✅ CI/CD metrics (7): workflow runs, failures, duration (avg, p50, p90, p99), test status
+- ✅ Developer metrics (2): active developers, commits per developer
+
+**Documentation:**
+- ✅ `docs/METRIC_CONVENTIONS.md` - Naming patterns and conventions
+- ✅ `docs/CI_CD_METRICS.md` - Complete metric catalog with use cases
+- ✅ `WORKPLAN.md` - Implementation tracking and decisions
+
+### Phase 2B: Modular Architecture (Complete)
+
+**Common Infrastructure:**
+- ✅ `common/base.py` - BaseCollector abstract class
+- ✅ `common/decorators.py` - @metric decorator for registration
+- ✅ `common/datadog_client.py` - Datadog API wrapper with retry logic
+
+**GitHub Collector:**
+- ✅ `collectors/github/collector.py` - GitHubCollector with all 25 metrics
+- ✅ Organized into logical groups (PRs, branches, commits, CI/CD, developers)
+- ✅ Comprehensive error handling and logging
+- ✅ Uses modern datadog-api-client v2 API
+
+**Current Status:**
+- Collection frequency: Every 15 minutes (Kubernetes CronJob - pending deployment)
+- API usage: ~600 calls/hour (12% of 5000/hour limit)
+- Collection time: ~90 seconds
+- Strategy: "Overshoot and trim later" - collect now, refine based on dashboard usage
+
+---
+
+## ✅ Completed - Jsonnet-Based Dashboard Management
 
 We've successfully set up a Jsonnet-based workflow for managing Datadog dashboards with reusable, composable components.
 
@@ -139,22 +186,39 @@ After exploring multiple approaches, we chose Jsonnet because:
 
 ## 🚀 Next Steps
 
-### Immediate (To Complete Jsonnet Setup)
+### Phase 2C: CLI Integration (In Progress)
+
+**Metrics Collection:**
+- [ ] Update CLI to use new GitHubCollector
+- [ ] Add `metta datadog collect github` command
+- [ ] Support `--dry-run` and `--push` flags
+- [ ] Add `--verbose` for debugging
+- [ ] Test end-to-end metric collection and submission
+
+### Phase 3: EKS Deployment
+
+**Kubernetes Infrastructure:**
+- [ ] Create Helm chart for metrics collectors
+- [ ] Configure CronJob for 15-minute collection schedule
+- [ ] Set up AWS Secrets Manager integration
+- [ ] Deploy to EKS and verify metrics in Datadog
+- [ ] Monitor collection performance and API usage
+
+### Jsonnet Dashboard Setup (Lower Priority)
 
 - [ ] Create `lib/widgets.libsonnet` - Widget primitive functions
 - [ ] Create `lib/layout.libsonnet` - Grid layout helpers
-- [ ] Create `lib/dashboard.libsonnet` - Dashboard builder functions
 - [ ] Extract widgets from `templates/*.json` to create `components/*.libsonnet`
 - [ ] Create example dashboards in `dashboards/*.jsonnet` format
 - [ ] Test complete workflow: Edit .jsonnet → Build → Push → Verify
 
-### Optional Enhancements
+### Future Enhancements
 
-- [ ] Set up CI/CD to validate Jsonnet before merge
-- [ ] Add pre-commit hook to validate Jsonnet compilation
-- [ ] Document team widget library conventions
-- [ ] Create widget templates for common patterns
-- [ ] Build more sophisticated layout helpers (beyond simple grid)
+- [ ] Add AWS infrastructure metrics collector
+- [ ] Add custom application metrics collector
+- [ ] Set up alerts and monitors based on collected metrics
+- [ ] Build comprehensive project health dashboard
+- [ ] Add DORA metrics (deployment frequency, lead time, MTTR, change failure rate)
 
 ## 📝 Quick Reference
 
@@ -212,4 +276,4 @@ No Terraform complexity, no monolithic JSON files, just composable Jsonnet compo
 
 ---
 
-Last updated: 2025-10-22
+Last updated: 2025-10-23 (Phase 2B complete)

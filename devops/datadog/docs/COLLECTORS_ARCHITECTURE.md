@@ -1,5 +1,9 @@
 # Data Collectors Architecture
 
+> **Status**: Phase 2B Complete (2025-10-23)
+> **Implemented**: GitHub collector with BaseCollector pattern
+> **Remaining**: EKS deployment, additional collectors
+
 ## Vision
 
 A scalable, modular system for collecting metrics from multiple services (GitHub, Skypilot, WandB, EC2, Asana, etc.) and submitting them to Datadog. Each collector is a self-contained module that knows how to:
@@ -9,6 +13,18 @@ A scalable, modular system for collecting metrics from multiple services (GitHub
 4. Handle errors gracefully
 
 All collectors run as scheduled Kubernetes CronJobs, deployed via Helm charts.
+
+## Current Implementation (Phase 2B)
+
+**Completed:**
+- ✅ BaseCollector abstract class (`common/base.py`)
+- ✅ @metric decorator system (`common/decorators.py`)
+- ✅ DatadogClient wrapper (`common/datadog_client.py`)
+- ✅ GitHubCollector with all 25 metrics (`collectors/github/collector.py`)
+- ✅ Comprehensive error handling and logging
+- ✅ Modern datadog-api-client v2 API integration
+
+**Metrics are implemented directly in GitHubCollector class methods rather than as separate decorated functions**, but the @metric decorator is available for future standalone metrics.
 
 ## Directory Structure
 
