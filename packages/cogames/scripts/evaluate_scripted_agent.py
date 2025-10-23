@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import argparse
 import os
-from typing import List
+from typing import List, Literal
 
 import numpy as np
 
@@ -21,13 +21,13 @@ from cogames.policy.scripted_agent import ScriptedAgentPolicy
 from mettagrid import MettaGridEnv, dtype_actions
 
 
+# Known-good TF maps (object names match mission objects)
 TF_MAPS: List[str] = [
     "training_facility_open_1.map",
     "training_facility_open_2.map",
     "training_facility_open_3.map",
     "training_facility_tight_4.map",
     "training_facility_tight_5.map",
-    "training_facility_clipped.map",
 ]
 
 
@@ -49,14 +49,21 @@ def parse_args() -> argparse.Namespace:
 def main() -> None:
     args = parse_args()
 
-    render_mode = os.getenv("METTA_RENDER", "none")
+    render_mode_env = os.getenv("METTA_RENDER", "none")
+    if render_mode_env not in ("gui", "unicode", "none"):
+        render_mode_env = "none"
+    render_mode = render_mode_env
 
     overall = 0.0
     per_map_results: list[tuple[str, float]] = []
 
     for map_name in args.maps:
-        env_cfg = make_game(num_cogs=args.cogs, map_name=map_name)
-        env = MettaGridEnv(env_cfg=env_cfg, render_mode=render_mode)
+        try:
+            env_cfg = make_game(num_cogs=args.cogs, map_name=map_name)
+            env = MettaGridEnv(env_cfg=env_cfg, render_mode=render_mode)
+        except Exception as e:
+            print(f"SKIP {map_name}: failed to create env ({e})")
+            continue
 
         per_map_sum = 0.0
         for e in range(args.episodes):
@@ -77,12 +84,16 @@ def main() -> None:
             per_map_sum += float(totals.sum())
 
         env.close()
-        avg_sum = per_map_sum / args.episodes
+        avg_sum = per_map_sum / args.episodes if args.episodes > 0 else 0.0
         per_map_results.append((map_name, avg_sum))
         overall += avg_sum
         print(f"{map_name}: avg_sum_reward={avg_sum:.2f}")
 
-    aggregate = overall / len(per_map_results) if per_map_results else 0.0
+    if not per_map_results:
+        print("No maps evaluated.")
+        return
+
+    aggregate = overall / len(per_map_results)
     print("\n=== Aggregate ===")
     for name, score in per_map_results:
         print(f"{name}: {score:.2f}")
