@@ -11,14 +11,24 @@ loadExtensions()
 
 let bxy = newBoxy()
 
-proc generateTileMap(width: int, height: int, atlasPath: string): TileMap =
-# Generate a 1024x1024 texture where each pixel is a byte index into the 16x16 tile map
+proc weightedRandomInt*(weights: seq[int]): int =
+  ## Return a random integer between 0 and 7, with a weighted distribution.
+  var r = rand(sum(weights))
+  var acc = 0
+  for i, w in weights:
+    acc += w
+    if r <= acc:
+      return i
+  doAssert false, "should not happen"
+
+proc generateTileMap(width: int, height: int, tileSize: int, atlasPath: string): TileMap =
+  ## Generate a 1024x1024 texture where each pixel is a byte index into the 16x16 tile map.
 
   var terrainMap = newTileMap(
     width = width,
     height = height,
-    tileSize = 64,
-    atlasPath = "tools/blob7x7.png"
+    tileSize = tileSize,
+    atlasPath = atlasPath
   )
 
   let mb = width.float32 * height.float32/1024/1024
@@ -48,11 +58,11 @@ proc generateTileMap(width: int, height: int, atlasPath: string): TileMap =
     39, 39, 48, 32, 46, 46, 48, 32, 46, 46, 24, 43, 39, 39, 44, 45, 39, 39, 48,
     32, 46, 46, 48, 32, 46, 46, 28, 28, 8, 8, 21, 21, 8, 8, 33, 33, 7, 7, 33, 33,
     7, 7, 35, 35, 31, 31, 14, 14, 31, 31, 33, 33, 7, 7, 33, 33, 7, 7, 47, 47, 1,
-    1, 42, 42, 1, 1, 34, 34, 29, 29, 34, 34, 29, 29, 47, 47, 1, 1, 42, 42, 1, 1,
-    34, 34, 29, 29, 34, 34, 29, 29, 28, 28, 8, 8, 21, 21, 8, 8, 33, 33, 7, 7, 33,
+    1, 42, 42, 1, 1, 34, 34, 0, 0, 34, 34, 0, 0, 47, 47, 1, 1, 42, 42, 1, 1,
+    34, 34, 0, 0, 34, 34, 0, 0, 28, 28, 8, 8, 21, 21, 8, 8, 33, 33, 7, 7, 33,
     33, 7, 7, 35, 35, 31, 31, 14, 14, 31, 31, 33, 33, 7, 7, 33, 33, 7, 7, 47, 47,
-    1, 1, 42, 42, 1, 1, 34, 34, 29, 29, 34, 34, 29, 29, 47, 47, 1, 1, 42, 42, 1,
-    1, 34, 34, 29, 29, 34, 34, 29, 29
+    1, 1, 42, 42, 1, 1, 34, 34, 0, 0, 34, 34, 0, 0, 47, 47, 1, 1, 42, 42, 1,
+    1, 34, 34, 0, 0, 34, 34, 0, 0
   ]
   for i in 0 ..< terrainMap.indexData.len:
     # Create some patterns for more interesting visuals
@@ -69,10 +79,8 @@ proc generateTileMap(width: int, height: int, atlasPath: string): TileMap =
     # On off
     var tile: uint8 = 0
     if asteroidMap[y * width + x]:
-      tile = 0
+      tile = (49 + weightedRandomInt(@[100, 50, 25, 10, 5, 2, 1])).uint8
     else:
-      #tile = 29
-
       let
         pattern = (
           1 * asteroidMap.get(x-1, y+1) + # NW
@@ -99,18 +107,17 @@ var
   zoomVel: float32
   frame: int
 
-let terrainMap = generateTileMap(1024*16, 1024*16, "tools/blob7x7.png")
+let terrainMap = generateTileMap(1024, 1024, 64, "tools/blob7x8.png")
 
-# Called when it is time to draw a new frame.
 window.onFrame = proc() =
-  # Clear the screen and begin a new frame.
+  ## Clear the screen and begin a new frame.
   bxy.beginFrame(window.size)
 
   glClearColor(0.0, 0.0, 0.0, 1.0)
   glClear(GL_COLOR_BUFFER_BIT)
 
-  # Handle input for panning and zooming like hex example
-  # Left mouse button: drag to pan
+  # Handle input for panning and zooming.
+  # Left mouse button: drag to pan.
   # Mouse wheel: zoom in/out
   if window.buttonDown[MouseMiddle]:
     vel = window.mouseDelta.vec2 + vel * 0.1
@@ -135,7 +142,7 @@ window.onFrame = proc() =
   pos -= (oldAt - newAt).xy * (zoomPow2)
 
 
-  # Create MVP matrix
+  # Create MVP matrix.
   let projection = ortho(0.0f, window.size.x.float32, window.size.y.float32, 0.0f, -1.0f, 1.0f)
   let view = translate(vec3(pos.x, pos.y, 0.0f)) *
              scale(vec3(zoomPow2 * terrainMap.width.float32/2, zoomPow2 * terrainMap.height.float32/2, 1.0f))
