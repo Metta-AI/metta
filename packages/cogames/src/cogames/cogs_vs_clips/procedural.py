@@ -6,7 +6,7 @@ from mettagrid.map_builder.map_builder import MapBuilderConfig
 from mettagrid.mapgen.area import AreaWhere
 from mettagrid.mapgen.mapgen import MapGen
 from mettagrid.mapgen.random.int import IntConstantDistribution
-from mettagrid.mapgen.scene import ChildrenAction, SceneConfig
+from mettagrid.mapgen.scene import ChildrenAction, GridTransform, SceneConfig
 from mettagrid.mapgen.scenes.base_hub import BaseHub
 from mettagrid.mapgen.scenes.biome_caves import BiomeCaves, BiomeCavesConfig
 from mettagrid.mapgen.scenes.biome_city import BiomeCity, BiomeCityConfig
@@ -41,7 +41,6 @@ def make_machina_procedural_map_builder(
     extractors: dict[str, float] | None = None,
     extractor_names: list[str] | None = None,
     extractor_weights: dict[str, float] | None = None,
-    hub_variant: str | None = None,
     hub_corner_bundle: str | None = None,
     hub_cross_bundle: str | None = None,
     hub_cross_distance: int | None = None,
@@ -261,17 +260,6 @@ def make_machina_procedural_map_builder(
     corner_bundle = _normalize_bundle(hub_corner_bundle, "chests")
     cross_bundle = _normalize_bundle(hub_cross_bundle, "none")
 
-    match (hub_variant or "").lower():
-        case "store":
-            corner_bundle = "chests"
-            cross_bundle = "none"
-        case "extractor":
-            corner_bundle = "extractors"
-            cross_bundle = "none"
-        case "both":
-            corner_bundle = "chests"
-            cross_bundle = "extractors"
-
     cross_distance = hub_cross_distance if hub_cross_distance is not None else 7
 
     base_cfg.children = [
@@ -316,3 +304,195 @@ def make_machina_procedural_map_builder(
     ]
 
     return MapGen.Config(width=width, height=height, instance=base_cfg, seed=seed)
+
+
+def make_hub_only_map_builder(
+    num_cogs: int,
+    *,
+    width: int = 21,
+    height: int = 21,
+    seed: int | None = None,
+    layout: Literal["default", "tight"] = "default",
+    corner_bundle: HubBundle = "none",
+    cross_bundle: HubBundle = "none",
+    cross_distance: int = 7,
+    corner_objects: list[str] | None = None,
+    cross_objects: list[str] | None = None,
+    transforms: list[GridTransform] | None = None,
+) -> MapBuilderConfig:
+    """Build a hub-only map using RandomScene over BaseHub with random transforms.
+
+    Notes:
+    - If corner_objects is provided (len==4), BaseHub will use that set directly.
+    - corner_bundle/cross_bundle can be "none" | "chests" | "extractors".
+    - When both objects and bundle are provided, objects win (per BaseHub logic).
+    """
+
+    # Default transform set to randomize orientation/reflection
+    transform_set = transforms or [
+        GridTransform.IDENTITY,
+        GridTransform.ROT_90,
+        GridTransform.ROT_180,
+        GridTransform.ROT_270,
+        GridTransform.FLIP_H,
+        GridTransform.FLIP_V,
+        GridTransform.TRANSPOSE,
+        GridTransform.TRANSPOSE_ALT,
+    ]
+
+    base_kwargs: dict[str, Any] = {
+        "spawn_count": num_cogs,
+        "hub_width": width,
+        "hub_height": height,
+        "include_inner_wall": True,
+        "layout": layout,
+        "corner_bundle": corner_bundle,
+        "cross_bundle": cross_bundle,
+        "cross_distance": cross_distance,
+    }
+    if corner_objects is not None:
+        base_kwargs["corner_objects"] = list(corner_objects)
+    if cross_objects is not None:
+        base_kwargs["cross_objects"] = list(cross_objects)
+
+    candidates = [
+        RandomSceneCandidate(scene=BaseHub.Config(**base_kwargs, transform=t), weight=1.0) for t in transform_set
+    ]
+
+    return MapGen.Config(
+        width=width,
+        height=height,
+        seed=seed,
+        instance=RandomScene.Config(candidates=candidates),
+    )
+
+
+def apply_hub_overrides_to_builder(
+    builder: MapBuilderConfig,
+    *,
+    num_cogs: int,
+    overrides: dict[str, Any] | None = None,
+) -> MapBuilderConfig:
+    """If builder is a hub-only MapGen with BaseHub scenes, apply corner/cross overrides.
+
+    Best-effort: if structure is not recognized, return builder unchanged.
+    """
+    try:
+        if not isinstance(builder, MapGen.Config):
+            return builder
+
+        width = getattr(builder, "width", None) or 21
+        height = getattr(builder, "height", None) or 21
+
+        inst = getattr(builder, "instance", None)
+        if isinstance(inst, RandomScene.Config):
+            # Verify candidates are BaseHub configs; extract transforms
+            transforms: list[GridTransform] = []
+            basehub_seen = False
+            existing_corner_bundle: HubBundle | None = None
+            existing_cross_bundle: HubBundle | None = None
+            existing_cross_distance: int | None = None
+            for cand in inst.candidates:
+                scn = cand.scene
+                if isinstance(scn, BaseHub.Config):
+                    basehub_seen = True
+                    transforms.append(getattr(scn, "transform", GridTransform.IDENTITY))
+                    # Capture existing hub settings from the first BaseHub config we see
+                    if existing_corner_bundle is None:
+                        existing_corner_bundle = _normalize_bundle(getattr(scn, "corner_bundle", None), "chests")
+                    if existing_cross_bundle is None:
+                        existing_cross_bundle = _normalize_bundle(getattr(scn, "cross_bundle", None), "none")
+                    if existing_cross_distance is None:
+                        existing_cross_distance = int(getattr(scn, "cross_distance", 7) or 7)
+            if basehub_seen:
+                ov_corner = (overrides or {}).get("hub_corner_bundle")
+                ov_cross = (overrides or {}).get("hub_cross_bundle")
+                ov_dist = (overrides or {}).get("hub_cross_distance")
+
+                # If override not provided, preserve existing scene values
+                corner_bundle = (
+                    _normalize_bundle(ov_corner, existing_corner_bundle or "chests")
+                    if ov_corner is not None
+                    else (existing_corner_bundle or "chests")
+                )
+                cross_bundle = (
+                    _normalize_bundle(ov_cross, existing_cross_bundle or "none")
+                    if ov_cross is not None
+                    else (existing_cross_bundle or "none")
+                )
+                cross_distance = int(ov_dist) if ov_dist is not None else int(existing_cross_distance or 7)
+                return make_hub_only_map_builder(
+                    num_cogs=num_cogs,
+                    width=width,
+                    height=height,
+                    corner_bundle=corner_bundle,
+                    cross_bundle=cross_bundle,
+                    cross_distance=cross_distance,
+                    transforms=transforms or None,
+                )
+        return builder
+    except Exception:
+        return builder
+
+
+def apply_procedural_overrides_to_builder(
+    builder: MapBuilderConfig,
+    *,
+    num_cogs: int,
+    overrides: dict[str, Any] | None = None,
+) -> MapBuilderConfig:
+    """Apply mission-level procedural_overrides to a MapGen builder when possible.
+
+    Supports:
+    - Hub-only builders produced by make_hub_only_map_builder (RandomScene[BaseHub]).
+    - Machina builders produced by make_machina_procedural_map_builder (Biome* base scenes).
+    Falls back to the original builder if structure is unrecognized.
+    """
+    ov = overrides or {}
+
+    # 1) Try hub-only first
+    hub_applied = apply_hub_overrides_to_builder(builder, num_cogs=num_cogs, overrides=ov)
+    if hub_applied is not builder:
+        return hub_applied
+
+    # 2) Try machina-style (biome-based) procedural
+    try:
+        if not isinstance(builder, MapGen.Config):
+            return builder
+
+        base_inst = getattr(builder, "instance", None)
+        biome_bases = (BiomeCaves.Config, BiomeForest.Config, BiomeDesert.Config, BiomeCity.Config)
+        if isinstance(base_inst, biome_bases):
+            width = int(ov.get("width", getattr(builder, "width", 100) or 100))
+            height = int(ov.get("height", getattr(builder, "height", 100) or 100))
+            seed = ov.get("seed", getattr(builder, "seed", None))
+
+            allowed_keys = {
+                "base_biome",
+                "base_biome_config",
+                "extractor_coverage",
+                "extractors",
+                "extractor_names",
+                "extractor_weights",
+                "hub_corner_bundle",
+                "hub_cross_bundle",
+                "hub_cross_distance",
+                "biome_weights",
+                "dungeon_weights",
+                "biome_count",
+                "dungeon_count",
+                "density_scale",
+                "max_biome_zone_fraction",
+                "max_dungeon_zone_fraction",
+            }
+            kwargs = {k: v for k, v in ov.items() if k in allowed_keys}
+            return make_machina_procedural_map_builder(
+                num_cogs=num_cogs,
+                width=width,
+                height=height,
+                seed=seed,
+                **kwargs,
+            )
+        return builder
+    except Exception:
+        return builder
