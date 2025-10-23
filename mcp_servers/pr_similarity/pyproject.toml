@@ -13,6 +13,9 @@ dependencies = [
 [project.scripts]
 metta-pr-similarity-mcp = "pr_similarity.server:cli_main"
 
+[tool.setuptools.packages.find]
+include = ["pr_similarity"]
+
 [build-system]
 requires = ["setuptools==80.9.0", "wheel==0.45.1"]
 build-backend = "setuptools.build_meta"
