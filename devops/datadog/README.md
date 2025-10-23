@@ -140,9 +140,10 @@ touch collectors/skypilot/{__init__.py,collector.py,metrics.py,README.md}
 
 # 2. Implement collector (see guide)
 # 3. Add secrets to AWS Secrets Manager
-# 4. Configure Helm chart
+# 4. Configure Helm chart in devops/charts/
 # 5. Deploy
-helm upgrade --install datadog-collectors ./charts/collector-cronjobs
+cd ../charts
+helm upgrade --install datadog-collectors ./datadog-collectors
 ```
 
 ## Directory Structure
@@ -162,12 +163,6 @@ devops/datadog/
 │   ├── secrets.py         # AWS Secrets Manager access
 │   ├── registry.py        # Metric registry and auto-discovery
 │   └── decorators.py      # @metric decorator
-│
-├── charts/             # Helm charts for deployment
-│   └── collector-cronjobs/  # Unified CronJob chart
-│       ├── Chart.yaml
-│       ├── values.yaml      # Collector configurations
-│       └── templates/       # K8s CronJob templates
 │
 ├── lib/                # Jsonnet library (widget builders)
 ├── components/         # Reusable widget collections
