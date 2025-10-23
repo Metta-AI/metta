@@ -4,6 +4,7 @@
 #include <memory>
 #include <random>
 
+#include "../../cpp/third_party/libfixmath/fix16.h"
 #include "core/grid.hpp"
 #include "core/types.hpp"
 #include "objects/assembler.hpp"
@@ -64,24 +65,24 @@ TEST_F(ClipperTest, InfectionWeightCalculation) {
   Clipper clipper(*grid, unclip_recipes, length_scale, cutoff_distance, clip_rate, rng);
 
   // Test distance calculation
-  float dist_close = clipper.distance(*a1, *a2_close);
+  float dist_close = fix16_to_float(clipper.distance(*a1, *a2_close).value);
   EXPECT_FLOAT_EQ(dist_close, 2.0f);
 
-  float dist_medium = clipper.distance(*a1, *a3_medium);
+  float dist_medium = fix16_to_float(clipper.distance(*a1, *a3_medium).value);
   EXPECT_FLOAT_EQ(dist_medium, 5.0f);
 
-  float dist_far = clipper.distance(*a1, *a4_far);
+  float dist_far = fix16_to_float(clipper.distance(*a1, *a4_far).value);
   EXPECT_NEAR(dist_far, std::sqrt(50.0f), 0.001f);
 
   // Test infection weight calculation
-  float weight_close = clipper.infection_weight(*a1, *a2_close);
-  EXPECT_FLOAT_EQ(weight_close, std::exp(-2.0f / 2.0f));  // exp(-1)
+  float weight_close = fix16_to_float(clipper.infection_weight(*a1, *a2_close).value);
+  EXPECT_NEAR(weight_close, std::exp(-2.0f / 2.0f), 0.001f);  // exp(-1)
 
-  float weight_medium = clipper.infection_weight(*a1, *a3_medium);
-  EXPECT_FLOAT_EQ(weight_medium, std::exp(-5.0f / 2.0f));  // exp(-2.5)
+  float weight_medium = fix16_to_float(clipper.infection_weight(*a1, *a3_medium).value);
+  EXPECT_NEAR(weight_medium, std::exp(-5.0f / 2.0f), 0.001f);  // exp(-2.5)
 
   // Beyond cutoff should be 0
-  float weight_far = clipper.infection_weight(*a1, *a4_far);
+  float weight_far = fix16_to_float(clipper.infection_weight(*a1, *a4_far).value);
   EXPECT_FLOAT_EQ(weight_far, 0.0f);
 }
 
@@ -101,9 +102,9 @@ TEST_F(ClipperTest, WeightAdjustmentDuringClipping) {
   Clipper clipper(*grid, unclip_recipes, length_scale, cutoff_distance, clip_rate, rng);
 
   // Initially all assemblers should have weight 0
-  EXPECT_FLOAT_EQ(clipper.assembler_infection_weight[a1], 0.0f);
-  EXPECT_FLOAT_EQ(clipper.assembler_infection_weight[a2], 0.0f);
-  EXPECT_FLOAT_EQ(clipper.assembler_infection_weight[a3], 0.0f);
+  EXPECT_FLOAT_EQ(fix16_to_float(clipper.assembler_infection_weight[a1].value), 0.0f);
+  EXPECT_FLOAT_EQ(fix16_to_float(clipper.assembler_infection_weight[a2].value), 0.0f);
+  EXPECT_FLOAT_EQ(fix16_to_float(clipper.assembler_infection_weight[a3].value), 0.0f);
 
   // All should be in unclipped set
   EXPECT_EQ(clipper.unclipped_assemblers.count(a1), 1);
@@ -118,14 +119,14 @@ TEST_F(ClipperTest, WeightAdjustmentDuringClipping) {
   EXPECT_EQ(clipper.unclipped_assemblers.count(a2), 0);
 
   // Other assemblers should have increased weights
-  float expected_weight_a1 = clipper.infection_weight(*a2, *a1);  // exp(-2/2) = exp(-1)
-  float expected_weight_a3 = clipper.infection_weight(*a2, *a3);  // exp(-2/2) = exp(-1)
+  float expected_weight_a1 = fix16_to_float(clipper.infection_weight(*a2, *a1).value);  // exp(-2/2) = exp(-1)
+  float expected_weight_a3 = fix16_to_float(clipper.infection_weight(*a2, *a3).value);  // exp(-2/2) = exp(-1)
 
-  EXPECT_FLOAT_EQ(clipper.assembler_infection_weight[a1], expected_weight_a1);
-  EXPECT_FLOAT_EQ(clipper.assembler_infection_weight[a3], expected_weight_a3);
+  EXPECT_FLOAT_EQ(fix16_to_float(clipper.assembler_infection_weight[a1].value), expected_weight_a1);
+  EXPECT_FLOAT_EQ(fix16_to_float(clipper.assembler_infection_weight[a3].value), expected_weight_a3);
 
   // a2's weight should remain 0 (it's clipped)
-  EXPECT_FLOAT_EQ(clipper.assembler_infection_weight[a2], 0.0f);
+  EXPECT_FLOAT_EQ(fix16_to_float(clipper.assembler_infection_weight[a2].value), 0.0f);
 }
 
 // Test: infection weights are properly adjusted during unclipping
@@ -146,8 +147,8 @@ TEST_F(ClipperTest, WeightAdjustmentDuringUnclipping) {
   // Clip a2
   clipper.clip_assembler(*a2);
 
-  float weight_a1_after_clip = clipper.assembler_infection_weight[a1];
-  float weight_a3_after_clip = clipper.assembler_infection_weight[a3];
+  float weight_a1_after_clip = fix16_to_float(clipper.assembler_infection_weight[a1].value);
+  float weight_a3_after_clip = fix16_to_float(clipper.assembler_infection_weight[a3].value);
 
   EXPECT_GT(weight_a1_after_clip, 0.0f);
   EXPECT_GT(weight_a3_after_clip, 0.0f);
@@ -159,11 +160,11 @@ TEST_F(ClipperTest, WeightAdjustmentDuringUnclipping) {
   EXPECT_EQ(clipper.unclipped_assemblers.count(a2), 1);
 
   // Weights of a1 and a3 should have decreased back to 0
-  EXPECT_FLOAT_EQ(clipper.assembler_infection_weight[a1], 0.0f);
-  EXPECT_FLOAT_EQ(clipper.assembler_infection_weight[a3], 0.0f);
+  EXPECT_FLOAT_EQ(fix16_to_float(clipper.assembler_infection_weight[a1].value), 0.0f);
+  EXPECT_FLOAT_EQ(fix16_to_float(clipper.assembler_infection_weight[a3].value), 0.0f);
 
   // a2's weight should still be 0
-  EXPECT_FLOAT_EQ(clipper.assembler_infection_weight[a2], 0.0f);
+  EXPECT_FLOAT_EQ(fix16_to_float(clipper.assembler_infection_weight[a2].value), 0.0f);
 }
 
 // Test: multiple clipped assemblers accumulate infection weights correctly
@@ -187,17 +188,18 @@ TEST_F(ClipperTest, MultipleClippedAssemblersAccumulateWeights) {
   clipper.clip_assembler(*a2);
 
   // a4 should have accumulated weight from both a1 and a2
-  float weight_from_a1 = clipper.infection_weight(*a1, *a4);
-  float weight_from_a2 = clipper.infection_weight(*a2, *a4);
+  float weight_from_a1 = fix16_to_float(clipper.infection_weight(*a1, *a4).value);
+  float weight_from_a2 = fix16_to_float(clipper.infection_weight(*a2, *a4).value);
   float expected_total_weight = weight_from_a1 + weight_from_a2;
 
-  EXPECT_FLOAT_EQ(clipper.assembler_infection_weight[a4], expected_total_weight);
+  EXPECT_FLOAT_EQ(fix16_to_float(clipper.assembler_infection_weight[a4].value), expected_total_weight);
 
   // a3 should only have weight from a1 (a2 is further away)
-  float weight_from_a1_to_a3 = clipper.infection_weight(*a1, *a3);
-  float weight_from_a2_to_a3 = clipper.infection_weight(*a2, *a3);
+  float weight_from_a1_to_a3 = fix16_to_float(clipper.infection_weight(*a1, *a3).value);
+  float weight_from_a2_to_a3 = fix16_to_float(clipper.infection_weight(*a2, *a3).value);
 
-  EXPECT_FLOAT_EQ(clipper.assembler_infection_weight[a3], weight_from_a1_to_a3 + weight_from_a2_to_a3);
+  EXPECT_FLOAT_EQ(fix16_to_float(clipper.assembler_infection_weight[a3].value),
+                  weight_from_a1_to_a3 + weight_from_a2_to_a3);
 }
 
 // Test: pick_assembler_to_clip respects weights
@@ -297,7 +299,7 @@ TEST_F(ClipperPercolationTest, AutoLengthScaleBasic) {
   Clipper clipper(grid, {unclip_recipe}, -1.0f, 0.0f, 0.1f, rng);
 
   // Expected: (50 / sqrt(25)) * sqrt(4.51 / (4*π)) ≈ 5.991
-  EXPECT_NEAR(clipper.length_scale, 5.991f, 0.01f);
+  EXPECT_NEAR(fix16_to_float(clipper.length_scale), 5.991f, 0.01f);
 }
 
 // Test 2: Manual length_scale (positive value)
@@ -307,7 +309,7 @@ TEST_F(ClipperPercolationTest, ManualLengthScale) {
 
   Clipper clipper(grid, {unclip_recipe}, 3.14f, 0.0f, 0.1f, rng);
 
-  EXPECT_FLOAT_EQ(clipper.length_scale, 3.14f);
+  EXPECT_FLOAT_EQ(fix16_to_float(clipper.length_scale.value), 3.14f);
 }
 
 // Test 3: Clip-immune assemblers excluded from count
@@ -324,7 +326,7 @@ TEST_F(ClipperPercolationTest, ClipImmuneExcluded) {
 
   // Should use 20 (not 25) for calculation
   // Expected: (50 / sqrt(20)) * sqrt(4.51 / (4*π)) ≈ 6.704
-  EXPECT_NEAR(clipper.length_scale, 6.704f, 0.01f);
+  EXPECT_NEAR(fix16_to_float(clipper.length_scale.value), 6.704f, 0.01f);
 }
 
 // Test 4: No assemblers - keeps provided value
@@ -335,7 +337,7 @@ TEST_F(ClipperPercolationTest, NoAssemblers) {
   Clipper clipper(grid, {unclip_recipe}, 2.5f, 0.0f, 0.1f, rng);
 
   // Should keep provided length_scale when no buildings (no auto-calculation)
-  EXPECT_FLOAT_EQ(clipper.length_scale, 2.5f);
+  EXPECT_FLOAT_EQ(fix16_to_float(clipper.length_scale.value), 2.5f);
 }
 
 // Test 5: Grid size scaling (larger grid → larger length_scale)
@@ -402,8 +404,8 @@ TEST_F(ClipperPercolationTest, AutoCutoffDistance) {
   Clipper clipper(grid, {unclip_recipe}, -1.0f, 0.0f, 0.1f, rng);
 
   // Expected cutoff: 3 * 5.991 ≈ 17.973
-  EXPECT_NEAR(clipper.cutoff_distance, 3.0f * clipper.length_scale, 0.001f);
-  EXPECT_NEAR(clipper.cutoff_distance, 17.973f, 0.03f);
+  EXPECT_NEAR(fix16_to_float(clipper.cutoff_distance.value), 3.0f * fix16_to_float(clipper.length_scale.value), 0.001f);
+  EXPECT_NEAR(fix16_to_float(clipper.cutoff_distance.value), 17.973f, 0.03f);
 }
 
 // Test 9: Manual cutoff_distance is preserved
@@ -414,7 +416,7 @@ TEST_F(ClipperPercolationTest, ManualCutoffDistance) {
   Clipper clipper(grid, {unclip_recipe}, -1.0f, 20.0f, 0.1f, rng);
 
   // Should keep the provided cutoff_distance
-  EXPECT_FLOAT_EQ(clipper.cutoff_distance, 20.0f);
+  EXPECT_FLOAT_EQ(fix16_to_float(clipper.cutoff_distance.value), 20.0f);
 }
 
 // Test 10: Auto-cutoff with manual length_scale
@@ -425,5 +427,5 @@ TEST_F(ClipperPercolationTest, AutoCutoffWithManualLength) {
   Clipper clipper(grid, {unclip_recipe}, 5.0f, 0.0f, 0.1f, rng);
 
   // Should auto-calculate cutoff as 3 * 5.0
-  EXPECT_FLOAT_EQ(clipper.cutoff_distance, 15.0f);
+  EXPECT_FLOAT_EQ(fix16_to_float(clipper.cutoff_distance.value), 15.0f);
 }

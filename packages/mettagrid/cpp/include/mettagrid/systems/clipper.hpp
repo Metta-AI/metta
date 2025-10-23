@@ -2,13 +2,12 @@
 #define PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_SYSTEMS_CLIPPER_HPP_
 
 #include <algorithm>
-#include <cmath>
 #include <iostream>
 #include <memory>
-#include <numbers>
 #include <random>
 #include <vector>
 
+#include "../../third_party/libfixmath/fix16.hpp"
 #include "core/grid.hpp"
 #include "objects/assembler.hpp"
 
@@ -19,17 +18,17 @@ public:
   std::unordered_map<Assembler*, std::vector<Assembler*>> adjacent_assemblers;
   // A map of all assemblers to their current infection weight. This is the weight at which they'll be selected
   // for clipping (if currently unclipped).
-  std::unordered_map<Assembler*, float> assembler_infection_weight;
+  std::unordered_map<Assembler*, Fix16> assembler_infection_weight;
   // A set of assemblers that are adjacent to the set of clipped assemblers. Any unclipped assembler with
   // non-zero infection weight will be in this set.
   std::set<Assembler*> border_assemblers;
   // A set of all unclipped assemblers. Any assembler that is not in this set will be clipped.
   std::set<Assembler*> unclipped_assemblers;
 
-  float length_scale;
-  float cutoff_distance;
+  Fix16 length_scale;
+  Fix16 cutoff_distance;
   Grid& grid;
-  float clip_rate;
+  Fix16 clip_rate;
   std::mt19937 rng;
 
   Clipper(Grid& grid,
@@ -39,10 +38,10 @@ public:
           float clip_rate,
           std::mt19937 rng_init)
       : unclipping_recipes(std::move(recipe_ptrs)),
-        length_scale(length_scale),
-        cutoff_distance(cutoff_distance),
+        length_scale(Fix16(length_scale)),
+        cutoff_distance(Fix16(cutoff_distance)),
         grid(grid),
-        clip_rate(clip_rate),
+        clip_rate(Fix16(clip_rate)),
         rng(std::move(rng_init)) {
     std::vector<Assembler*> starting_clipped_assemblers;
     for (size_t obj_id = 1; obj_id < grid.objects.size(); obj_id++) {
@@ -52,7 +51,7 @@ public:
         // Skip clip-immune assemblers
         if (assembler->clip_immune) continue;
 
-        assembler_infection_weight[assembler] = 0.0f;
+        assembler_infection_weight[assembler] = Fix16(0);
         unclipped_assemblers.insert(assembler);
 
         if (assembler->start_clipped) {
@@ -63,11 +62,11 @@ public:
     }
 
     // Auto-calculate length_scale based on percolation theory if length_scale <= 0
-    if (length_scale <= 0.0f && !assembler_infection_weight.empty()) {
+    if (this->length_scale <= Fix16(0) && !assembler_infection_weight.empty()) {
       // Get grid dimensions
       GridCoord grid_width = grid.width;
       GridCoord grid_height = grid.height;
-      float grid_size = static_cast<float>(std::max(grid_width, grid_height));
+      Fix16 grid_size = Fix16((std::max(grid_width, grid_height)));
 
       // Calculate percolation-based length scale
       // The constant 4.51 is the critical percolation density λ_c for 2D continuum percolation,
@@ -77,21 +76,24 @@ public:
       // Note: Wikipedia provides a value of ~1.127 when defined in terms of radius,
       // We use diameter basis which becomes 4.51
 
-      constexpr float PERCOLATION_CONSTANT = 4.51f;
-      this->length_scale = (grid_size / std::sqrt(static_cast<float>(assembler_infection_weight.size()))) *
-                           std::sqrt(PERCOLATION_CONSTANT / (4.0f * std::numbers::pi_v<float>));
+      Fix16 PERCOLATION_CONSTANT = Fix16(4.51);
+      Fix16 PI = Fix16(3.14159265359);
+      Fix16 assembler_count = Fix16(static_cast<int16_t>(assembler_infection_weight.size()));
+      Fix16 sqrt_count = assembler_count.sqrt();
+      Fix16 sqrt_term = (PERCOLATION_CONSTANT / (Fix16(static_cast<int16_t>(4)) * PI)).sqrt();
+      this->length_scale = (grid_size / sqrt_count) * sqrt_term;
     }
     // else: use the provided positive length_scale value as-is
 
     // Auto-calculate cutoff_distance if not provided (cutoff_distance <= 0)
     // At 3*length_scale, exp(-3) ≈ 0.05, so weights beyond this are negligible
-    if (cutoff_distance <= 0.0f) {
-      this->cutoff_distance = 3.0f * this->length_scale;
+    if (this->cutoff_distance <= Fix16(0)) {
+      this->cutoff_distance = Fix16(static_cast<int16_t>(3)) * this->length_scale;
     }
 
     // This can be expensive, so only do it if the clipper is active. Note that having a Clipper with
     // a zero clip rate is value, since we can still clip assemblers that start clipped.
-    if (clip_rate > 0.0f) {
+    if (this->clip_rate > Fix16(0)) {
       compute_adjacencies();
     }
 
@@ -101,17 +103,23 @@ public:
     }
   }
 
-  float infection_weight(Assembler& from, Assembler& to) const {
-    float distance = this->distance(from, to);
-    if (cutoff_distance > 0.0f && distance > cutoff_distance) return 0.0f;
-    return std::exp(-distance / length_scale);
+  Fix16 infection_weight(Assembler& from, Assembler& to) const {
+    Fix16 distance = this->distance(from, to);
+    if (cutoff_distance > Fix16(0) && distance > cutoff_distance) return Fix16(0);
+    // Using fix16_exp from libfixmath
+    Fix16 neg_ratio = -(distance / length_scale);
+    return Fix16(fix16_exp(neg_ratio.value));
   }
 
   // it's a little funky to use L2 distance here, since everywhere else we use L1 or Linf.
-  float distance(Assembler& assembler_a, Assembler& assembler_b) const {
+  Fix16 distance(Assembler& assembler_a, Assembler& assembler_b) const {
     GridLocation location_a = assembler_a.location;
     GridLocation location_b = assembler_b.location;
-    return std::sqrt(std::pow(location_a.r - location_b.r, 2) + std::pow(location_a.c - location_b.c, 2));
+    // Cast to int to handle potential negative values from subtraction
+    Fix16 dr = Fix16(static_cast<int16_t>(location_a.r - location_b.r));
+    Fix16 dc = Fix16(static_cast<int16_t>(location_a.c - location_b.c));
+    Fix16 sum_squares = (dr * dr) + (dc * dc);
+    return sum_squares.sqrt();
   }
 
   void compute_adjacencies() {
@@ -141,12 +149,12 @@ public:
         GridCoord b_x = assembler_b->location.c;
 
         // If x difference exceeds cutoff_distance, no need to check further
-        if (b_x - a_x > cutoff_distance) {
+        if (Fix16(static_cast<int16_t>(b_x - a_x)) > cutoff_distance) {
           break;
         }
 
         // Calculate actual distance
-        float dist = distance(*assembler_a, *assembler_b);
+        Fix16 dist = distance(*assembler_a, *assembler_b);
 
         // If within cutoff_distance, they are adjacent
         if (dist <= cutoff_distance) {
@@ -189,20 +197,20 @@ public:
       assembler_infection_weight[adjacent] -= infection_weight(to_unclip, *adjacent);
     }
     unclipped_assemblers.insert(&to_unclip);
-    if (assembler_infection_weight[&to_unclip] > 0.0f) {
+    if (assembler_infection_weight[&to_unclip] > Fix16(0)) {
       border_assemblers.insert(&to_unclip);
     }
   }
 
   Assembler* pick_assembler_to_clip() {
-    float total_weight = 0.0f;
+    Fix16 total_weight = Fix16(0);
     for (auto& candidate_assembler : border_assemblers) {
       total_weight += assembler_infection_weight.at(candidate_assembler);
     }
-    float random_weight = std::generate_canonical<float, 10>(rng) * total_weight;
+    Fix16 random_weight = Fix16(std::generate_canonical<float, 10>(rng)) * total_weight;
     for (auto& candidate_assembler : border_assemblers) {
       random_weight -= assembler_infection_weight.at(candidate_assembler);
-      if (random_weight <= 0.0f) {
+      if (random_weight <= Fix16(0)) {
         return candidate_assembler;
       }
     }
@@ -218,7 +226,7 @@ public:
   }
 
   void maybe_clip_new_assembler() {
-    if (std::generate_canonical<float, 10>(rng) < clip_rate) {
+    if (Fix16(std::generate_canonical<float, 10>(rng)) < clip_rate) {
       Assembler* assembler = pick_assembler_to_clip();
       if (assembler) {
         clip_assembler(*assembler);
