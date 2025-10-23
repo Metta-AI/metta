@@ -87,7 +87,7 @@ class XLCellConfig(CellConfig):
     hidden_size: int | None = Field(default=None)
     n_heads: int = Field(default=4, ge=1)
     head_dim: int | None = Field(default=None, ge=1)
-    mem_len: int = Field(default=512, ge=0)
+    mem_len: int = Field(default=128, ge=0)
     attn_dropout: float = Field(default=0.0, ge=0.0, le=1.0)
     out_dropout: float = Field(default=0.0, ge=0.0, le=1.0)
     use_bias: bool = Field(default=True)
