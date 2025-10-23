@@ -6,7 +6,7 @@ import torch
 from cortex.kernels.pytorch.slstm import slstm_sequence_pytorch
 from cortex.kernels.triton.slstm import slstm_sequence_triton
 
-from packages.cortex.benchmarks.common import (
+from .common import (
     BenchmarkCase,
     BenchmarkDefinition,
     BenchmarkSettings,

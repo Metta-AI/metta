@@ -6,7 +6,7 @@ import torch
 from cortex.kernels.pytorch.mlstm import mlstm_chunkwise_simple
 from cortex.kernels.triton.mlstm import mlstm_chunkwise_triton
 
-from packages.cortex.benchmarks.common import (
+from .common import (
     BenchmarkCase,
     BenchmarkDefinition,
     BenchmarkSettings,

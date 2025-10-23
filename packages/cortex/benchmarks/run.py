@@ -23,13 +23,13 @@ else:  # pragma: no cover - script execution fallback
     if str(project_root) not in sys.path:
         sys.path.insert(0, str(project_root))
 
-    from packages.cortex.benchmarks import (  # type: ignore[import-not-found]
+    from cortex.benchmarks import (
         BenchmarkCase,
         BenchmarkDefinition,
         BenchmarkSettings,
         get_registry,
     )
-    from packages.cortex.benchmarks.common import ensure_device  # type: ignore[import-not-found]
+    from cortex.benchmarks.common import ensure_device
 
 
 def _format_available(registry: dict[str, BenchmarkDefinition]) -> str:

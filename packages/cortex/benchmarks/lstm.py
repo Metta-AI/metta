@@ -7,7 +7,7 @@ import torch.nn as nn
 from cortex.kernels.pytorch.lstm import lstm_sequence_pytorch
 from cortex.kernels.triton.lstm import lstm_sequence_triton
 
-from packages.cortex.benchmarks.common import (
+from .common import (
     BenchmarkCase,
     BenchmarkDefinition,
     BenchmarkSettings,

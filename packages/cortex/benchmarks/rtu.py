@@ -3,11 +3,11 @@ from __future__ import annotations
 from typing import Dict, Optional, Tuple
 
 import torch
-from cortex.backends import load_cuda_stream_diag
+from cortex.kernels.cuda.rtu.rtu_stream_diag_cuda import rtu_stream_diag_cuda
 from cortex.kernels.pytorch.rtu.rtu_stream_diag import rtu_stream_diag_pytorch
 from cortex.kernels.triton.rtu import rtu_stream_diag_triton  # type: ignore
 
-from packages.cortex.benchmarks.common import (
+from .common import (
     BenchmarkCase,
     BenchmarkDefinition,
     BenchmarkSettings,
@@ -37,8 +37,6 @@ def _run_case(case: BenchmarkCase, settings: BenchmarkSettings) -> Dict[str, obj
     B, T, H, use_resets, p = case.values
     device = torch.device(settings.device)
     dtype = settings.dtype
-
-    rtu_stream_diag_cuda = load_cuda_stream_diag()
 
     D = H
     x = torch.randn(B, T, D, device=device, dtype=dtype)

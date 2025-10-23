@@ -7,7 +7,7 @@ import torch.nn as nn
 from cortex.kernels.pytorch.conv1d import causal_conv1d_pytorch
 from cortex.kernels.triton.conv1d import causal_conv1d_triton
 
-from packages.cortex.benchmarks.common import (
+from .common import (
     BenchmarkCase,
     BenchmarkDefinition,
     BenchmarkSettings,

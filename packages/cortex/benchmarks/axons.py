@@ -8,7 +8,7 @@ import torch
 from cortex.cells.core import AxonCell
 from cortex.config import AxonConfig
 
-from packages.cortex.benchmarks.common import (
+from .common import (
     BenchmarkCase,
     BenchmarkDefinition,
     BenchmarkSettings,
