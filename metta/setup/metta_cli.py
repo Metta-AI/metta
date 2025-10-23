@@ -12,6 +12,7 @@ from rich.progress import Progress, SpinnerColumn, TextColumn
 from rich.table import Table
 
 import gitta as git
+from devops.datadog import datadog_app
 from metta.common.util.fs import get_repo_root
 from metta.setup.components.base import SetupModuleStatus
 from metta.setup.local_commands import app as local_app
@@ -23,11 +24,6 @@ from metta.setup.tools.test_runner.test_python import app as python_test_runner_
 from metta.setup.utils import debug, error, info, success, warning
 from metta.utils.live_run_monitor import app as run_monitor_app
 from softmax.dashboard.report import app as softmax_system_health_app
-
-try:
-    from devops.datadog import datadog_app
-except ImportError:
-    datadog_app = None
 
 if TYPE_CHECKING:
     from metta.setup.registry import SetupModule
@@ -837,10 +833,7 @@ app.add_typer(symlink_app, name="symlink-setup")
 app.add_typer(softmax_system_health_app, name="softmax-system-health")
 app.add_typer(python_test_runner_app, name="pytest")
 app.add_typer(cpp_test_runner_app, name="cpptest")
-
-# Datadog monitoring and dashboards
-if datadog_app:
-    app.add_typer(datadog_app, name="datadog", help="Datadog monitoring and dashboard management")
+app.add_typer(datadog_app, name="datadog", help="Datadog monitoring and dashboard management")
 
 
 def main() -> None:
