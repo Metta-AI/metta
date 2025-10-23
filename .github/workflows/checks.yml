@@ -261,7 +261,16 @@ jobs:
           if [[ "${{ needs.setup-checks.outputs.app_backend_has_changes }}" != "true" ]]; then
             ARGS+=(--skip-package app_backend)
           fi
-          uv run metta pytest --ci "${ARGS[@]}"
+          uv run metta pytest --ci --test-summary-out .ci-reports/python-tests "${ARGS[@]}"
+
+      - name: Upload Python test report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: python-tests-report
+          path: |
+            .ci-reports/python-tests.xml
+            .ci-reports/python-tests.md
 
   cpp-tests:
     name: "Tests - C++"

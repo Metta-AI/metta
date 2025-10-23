@@ -1,4 +1,6 @@
+import shutil
 import subprocess
+import tempfile
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Annotated, Iterable, Sequence
@@ -7,6 +9,11 @@ import typer
 from pydantic import BaseModel
 
 from metta.common.util.fs import get_repo_root
+from metta.setup.tools.test_runner.junit_summary import (
+    emit_annotations,
+    merge_reports,
+    summarize_report,
+)
 from metta.setup.utils import error, info
 
 
@@ -118,6 +125,14 @@ def run(
         "--changed",
         help="Run only tests impacted by staged/changed files using pytest-testmon.",
     ),
+    test_summary_out: Annotated[
+        Path | None,
+        typer.Option(
+            "--test-summary-out",
+            help="Write a Markdown summary (and companion JUnit XML) to this path. "
+            "Provide either a filename or a prefix without extension.",
+        ),
+    ] = None,
 ) -> None:
     extra_args = list(ctx.args or [])
     target_args = targets or []
@@ -129,7 +144,11 @@ def run(
         if package_args or skip_package_args or changed or ci:
             error("Explicit targets cannot be combined with suite filters, --changed, or --ci.")
             raise typer.Exit(1)
+        summary_path, junit_path = _resolve_summary_paths(test_summary_out)
+        if junit_path:
+            cmd.extend(["--junitxml", str(junit_path)])
         exit_code = _run_command([*cmd, *target_args, *extra_args])
+        _maybe_write_summary(junit_path, summary_path, exit_code)
         raise typer.Exit(exit_code)
 
     try:
@@ -139,19 +158,97 @@ def run(
         error(str(exc))
         raise typer.Exit(1) from exc
 
-    if ci:
-        cmd.extend(CI_FLAGS)
-        cmd.extend(extra_args)
+    summary_path, junit_path = _resolve_summary_paths(test_summary_out)
 
-        exit_code = 0
-        with ThreadPoolExecutor(max_workers=len(resolved_targets)) as pool:
-            for code in pool.map(lambda path: _run_command([*cmd, path]), resolved_targets):
-                exit_code = max(exit_code, code)
+    if ci:
+        exit_code = _run_ci(resolved_targets, extra_args, junit_path, summary_path)
         raise typer.Exit(exit_code)
     else:
         cmd.extend(DEFAULT_FLAGS)
         if changed:
             cmd.append("--testmon")
         cmd.extend(extra_args)
+        if junit_path:
+            cmd.extend(["--junitxml", str(junit_path)])
         cmd.extend(resolved_targets)
-        raise typer.Exit(_run_command(cmd))
+        exit_code = _run_command(cmd)
+        _maybe_write_summary(junit_path, summary_path, exit_code)
+        raise typer.Exit(exit_code)
+
+
+def _resolve_summary_paths(test_summary_out: Path | None) -> tuple[Path | None, Path | None]:
+    if test_summary_out is None:
+        return None, None
+
+    path = test_summary_out.expanduser()
+    if path.suffix:
+        summary_path = path
+        junit_path = path.with_suffix(".xml")
+    else:
+        summary_path = path.with_suffix(".md")
+        junit_path = path.with_suffix(".xml")
+
+    summary_path.parent.mkdir(parents=True, exist_ok=True)
+    junit_path.parent.mkdir(parents=True, exist_ok=True)
+    return summary_path, junit_path
+
+
+def _maybe_write_summary(junit_path: Path | None, summary_path: Path | None, exit_code: int) -> None:
+    if not junit_path or not summary_path:
+        return
+
+    if junit_path.exists():
+        summary = summarize_report(junit_path)
+        summary_path.write_text(summary, encoding="utf-8")
+        emit_annotations(junit_path)
+        info(f"Test summary written to {summary_path}")
+        info(f"JUnit report written to {junit_path}")
+    else:
+        info("JUnit report not produced; summary skipped.")
+
+
+def _run_ci(
+    targets: Sequence[str],
+    extra_args: Sequence[str],
+    junit_path: Path | None,
+    summary_path: Path | None,
+) -> int:
+    tmp_dir: Path | None = None
+    xml_paths: list[Path] = []
+    exit_code = 0
+
+    try:
+        if junit_path:
+            tmp_dir = Path(tempfile.mkdtemp(prefix="metta-pytest-ci-"))
+
+        def run_target(target: str) -> int:
+            cmd = ["uv", "run", "pytest", *CI_FLAGS, *extra_args]
+            xml_file: Path | None = None
+            if tmp_dir is not None:
+                safe_name = target.replace("/", "_").replace(":", "_")
+                xml_file = tmp_dir / f"{safe_name}.xml"
+                cmd.extend(["--junitxml", str(xml_file)])
+            cmd.append(target)
+            rc = _run_command(cmd)
+            if xml_file and xml_file.exists():
+                xml_paths.append(xml_file)
+            return rc
+
+        max_workers = min(len(targets), 8) or 1
+        with ThreadPoolExecutor(max_workers=max_workers) as pool:
+            for code in pool.map(run_target, targets):
+                exit_code = max(exit_code, code)
+
+        if junit_path and xml_paths:
+            merge_reports(xml_paths, junit_path)
+        if summary_path and junit_path and junit_path.exists():
+            summary = summarize_report(junit_path)
+            summary_path.write_text(summary, encoding="utf-8")
+            emit_annotations(junit_path)
+            info(f"Test summary written to {summary_path}")
+            info(f"JUnit report written to {junit_path}")
+    finally:
+        if tmp_dir and tmp_dir.exists():
+            shutil.rmtree(tmp_dir, ignore_errors=True)
+
+    return exit_code
