@@ -104,7 +104,9 @@ class EpisodeReplay:
     def log_step(self, current_step: int, actions: np.ndarray, rewards: np.ndarray):
         """Log a single step of the episode."""
         if current_step != self.step:
-            raise ValueError(f"Writing multiple steps at once: step {current_step} != Replay step {self.step}")
+            raise ValueError(
+                f"Writing multiple steps at once: step {current_step} != Replay step {self.step}. Probably a vecenv issue."
+            )
         self.total_rewards += rewards
         for i, grid_object in enumerate(self.env.grid_objects().values()):
             if len(self.objects) <= i:
