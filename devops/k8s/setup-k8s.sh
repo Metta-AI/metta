@@ -20,11 +20,11 @@ echo ""
 
 # Check prerequisites
 check_command() {
-    if ! command -v "$1" &> /dev/null; then
-        echo -e "${RED}Error: $1 is not installed${NC}"
-        echo "Please install $1 and try again"
-        exit 1
-    fi
+  if ! command -v "$1" &> /dev/null; then
+    echo -e "${RED}Error: $1 is not installed${NC}"
+    echo "Please install $1 and try again"
+    exit 1
+  fi
 }
 
 echo "Checking prerequisites..."
@@ -37,9 +37,9 @@ echo ""
 # Check AWS credentials
 echo "Checking AWS credentials..."
 if ! aws sts get-caller-identity &> /dev/null; then
-    echo -e "${RED}Error: AWS credentials not configured${NC}"
-    echo "Run: aws configure"
-    exit 1
+  echo -e "${RED}Error: AWS credentials not configured${NC}"
+  echo "Run: aws configure"
+  exit 1
 fi
 
 AWS_ACCOUNT=$(aws sts get-caller-identity --query Account --output text)
@@ -52,29 +52,29 @@ echo ""
 # Update kubeconfig
 echo "Updating kubeconfig for EKS cluster..."
 if aws eks update-kubeconfig --name "$CLUSTER_NAME" --region "$REGION"; then
-    echo -e "${GREEN}✓ Kubeconfig updated${NC}"
+  echo -e "${GREEN}✓ Kubeconfig updated${NC}"
 else
-    echo -e "${RED}Error: Failed to update kubeconfig${NC}"
-    echo "Make sure you have access to the EKS cluster: $CLUSTER_NAME"
-    exit 1
+  echo -e "${RED}Error: Failed to update kubeconfig${NC}"
+  echo "Make sure you have access to the EKS cluster: $CLUSTER_NAME"
+  exit 1
 fi
 echo ""
 
 # Verify kubectl access
 echo "Verifying kubectl access..."
 if kubectl cluster-info &> /dev/null; then
-    echo -e "${GREEN}✓ kubectl access verified${NC}"
-    kubectl cluster-info | head -1
+  echo -e "${GREEN}✓ kubectl access verified${NC}"
+  kubectl cluster-info | head -1
 else
-    echo -e "${RED}Error: Cannot access cluster${NC}"
-    exit 1
+  echo -e "${RED}Error: Cannot access cluster${NC}"
+  exit 1
 fi
 echo ""
 
 # List available namespaces
 echo "Available namespaces:"
-kubectl get namespaces -o custom-columns=NAME:.metadata.name,STATUS:.status.phase --no-headers | \
-    grep -E "(monitoring|observatory|skypilot)" || echo "  (none found)"
+kubectl get namespaces -o custom-columns=NAME:.metadata.name,STATUS:.status.phase --no-headers \
+  | grep -E "(monitoring|observatory|skypilot)" || echo "  (none found)"
 echo ""
 
 # Check helm
