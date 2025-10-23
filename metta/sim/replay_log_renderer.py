@@ -103,10 +103,6 @@ class EpisodeReplay:
 
     def log_step(self, current_step: int, actions: np.ndarray, rewards: np.ndarray):
         """Log a single step of the episode."""
-        if current_step != self.step:
-            raise ValueError(
-                f"Writing multiple steps at once: step {current_step} != Replay step {self.step}. Probably a vecenv issue."
-            )
         self.total_rewards += rewards
         for i, grid_object in enumerate(self.env.grid_objects().values()):
             if len(self.objects) <= i:
@@ -123,6 +119,10 @@ class EpisodeReplay:
 
             self._seq_key_merge(self.objects[i], self.step, update_object)
         self.step += 1
+        if current_step != self.step:
+            raise ValueError(
+                f"Writing multiple steps at once: step {current_step} != Replay step {self.step}. Probably a vecenv issue."
+            )
 
     def _seq_key_merge(self, grid_object: dict, step: int, update_object: dict):
         """Add a sequence keys to replay grid object."""
