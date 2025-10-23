@@ -23,7 +23,7 @@ Complete Datadog integration for Metta, including:
 Automated metric collection from multiple services via Kubernetes CronJobs:
 
 **Current Collectors:**
-- **GitHub**: PRs, commits, branches, CI/CD workflows, developer activity
+- **GitHub** ✅ **(Production)**: PRs, commits, branches, CI/CD workflows, developer activity
 - **Skypilot** *(planned)*: Jobs, clusters, compute costs
 - **WandB** *(planned)*: Training runs, experiments
 - **EC2** *(planned)*: Instances, costs, utilization
