@@ -4,6 +4,7 @@ from pydantic import Field
 
 from cogames.cogs_vs_clips import vibes
 from cogames.cogs_vs_clips.stations import (
+    RESOURCE_CHESTS,
     CarbonExtractorConfig,
     ChargerConfig,
     CvCAssemblerConfig,
@@ -11,7 +12,6 @@ from cogames.cogs_vs_clips.stations import (
     CvCWallConfig,
     GermaniumExtractorConfig,
     OxygenExtractorConfig,
-    RESOURCE_CHESTS,
     SiliconExtractorConfig,
     resources,
 )

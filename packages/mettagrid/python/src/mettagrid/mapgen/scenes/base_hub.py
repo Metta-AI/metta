@@ -2,7 +2,6 @@ from typing import Literal, Sequence
 
 from mettagrid.mapgen.scene import Scene, SceneConfig
 
-
 DEFAULT_CORNER_CHESTS: tuple[str, str, str, str] = (
     "chest_carbon",
     "chest_oxygen",
