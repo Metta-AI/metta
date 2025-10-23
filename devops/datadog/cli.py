@@ -410,7 +410,7 @@ def dashboard_clean() -> None:
 def collect(
     collector: Annotated[
         str,
-        typer.Argument(help="Collector name (e.g., 'github', 'skypilot')"),
+        typer.Argument(help="Collector name (e.g., 'github', 'skypilot', 'asana', 'health_fom')"),
     ],
     push: Annotated[
         bool,
@@ -442,7 +442,7 @@ def collect(
     else:
         logging.basicConfig(level=logging.INFO, format="%(message)s")
 
-    if collector in ("github", "skypilot", "asana"):
+    if collector in ("github", "skypilot", "asana", "health_fom"):
         # Run the collector using the standalone runner script
         # This ensures we have access to all project dependencies
         runner_script = DATADOG_DIR / "run_collector.py"

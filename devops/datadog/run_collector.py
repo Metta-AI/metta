@@ -17,6 +17,41 @@ import os
 import sys
 
 
+def get_datadog_credentials() -> tuple[str, str, str]:
+    """Get Datadog credentials from environment or AWS Secrets Manager.
+
+    Returns:
+        Tuple of (api_key, app_key, site)
+
+    Raises:
+        SystemExit if credentials cannot be found
+    """
+    api_key = os.getenv("DD_API_KEY")
+    app_key = os.getenv("DD_APP_KEY")
+    site = os.getenv("DD_SITE", "datadoghq.com")
+
+    # Fetch from AWS Secrets Manager if not in environment
+    if not api_key:
+        try:
+            from softmax.aws.secrets_manager import get_secretsmanager_secret
+
+            api_key = get_secretsmanager_secret("datadog/api-key")
+        except Exception as e:
+            print(f"Error: DD_API_KEY not found in environment or AWS Secrets Manager. {e}", file=sys.stderr)
+            sys.exit(1)
+
+    if not app_key:
+        try:
+            from softmax.aws.secrets_manager import get_secretsmanager_secret
+
+            app_key = get_secretsmanager_secret("datadog/app-key")
+        except Exception as e:
+            print(f"Error: DD_APP_KEY not found in environment or AWS Secrets Manager. {e}", file=sys.stderr)
+            sys.exit(1)
+
+    return api_key, app_key, site
+
+
 def run_github_collector(push: bool = False, verbose: bool = False, json_output: bool = False) -> dict:
     """Run the GitHub metrics collector."""
     from devops.datadog.collectors.github import GitHubCollector
@@ -70,14 +105,7 @@ def run_github_collector(push: bool = False, verbose: bool = False, json_output:
 
     # Push to Datadog if requested
     if push:
-        api_key = os.getenv("DD_API_KEY")
-        app_key = os.getenv("DD_APP_KEY")
-        site = os.getenv("DD_SITE", "datadoghq.com")
-
-        if not api_key or not app_key:
-            print("Error: DD_API_KEY and DD_APP_KEY must be set for --push", file=sys.stderr)
-            sys.exit(1)
-
+        api_key, app_key, site = get_datadog_credentials()
         print_status("Pushing metrics to Datadog...")
 
         # Create Datadog client
@@ -144,14 +172,7 @@ def run_skypilot_collector(push: bool = False, verbose: bool = False, json_outpu
 
     # Push to Datadog if requested
     if push:
-        api_key = os.getenv("DD_API_KEY")
-        app_key = os.getenv("DD_APP_KEY")
-        site = os.getenv("DD_SITE", "datadoghq.com")
-
-        if not api_key or not app_key:
-            print("Error: DD_API_KEY and DD_APP_KEY must be set for --push", file=sys.stderr)
-            sys.exit(1)
-
+        api_key, app_key, site = get_datadog_credentials()
         print_status("Pushing metrics to Datadog...")
 
         # Create Datadog client
@@ -245,14 +266,7 @@ def run_asana_collector(push: bool = False, verbose: bool = False, json_output: 
 
     # Push to Datadog if requested
     if push:
-        api_key = os.getenv("DD_API_KEY")
-        app_key = os.getenv("DD_APP_KEY")
-        site = os.getenv("DD_SITE", "datadoghq.com")
-
-        if not api_key or not app_key:
-            print("Error: DD_API_KEY and DD_APP_KEY must be set for --push", file=sys.stderr)
-            sys.exit(1)
-
+        api_key, app_key, site = get_datadog_credentials()
         print_status("Pushing metrics to Datadog...")
 
         # Create Datadog client
@@ -287,10 +301,77 @@ def run_asana_collector(push: bool = False, verbose: bool = False, json_output: 
     return metrics
 
 
+def run_health_fom_collector(push: bool = False, verbose: bool = False, json_output: bool = False) -> dict:
+    """Run the Health FoM collector."""
+    from devops.datadog.collectors.health_fom import HealthFomCollector
+    from devops.datadog.common.datadog_client import DatadogClient
+
+    # Setup logging
+    if verbose:
+        logging.basicConfig(level=logging.DEBUG, format="%(levelname)s: %(message)s")
+    else:
+        logging.basicConfig(level=logging.INFO, format="%(message)s")
+
+    # Helper to print messages (stderr for json mode, stdout otherwise)
+    def print_status(msg):
+        if json_output:
+            print(msg, file=sys.stderr)
+        else:
+            print(msg)
+
+    print_status("Collecting FoM metrics from Datadog...")
+
+    # Create and run collector
+    collector = HealthFomCollector()
+    metrics = collector.collect_safe()
+
+    if not metrics:
+        print("Warning: No metrics collected", file=sys.stderr)
+        sys.exit(1)
+
+    print_status(f"Collected {len(metrics)} FoM metrics")
+
+    # Push to Datadog if requested
+    if push:
+        api_key, app_key, site = get_datadog_credentials()
+        print_status("Pushing FoM metrics to Datadog...")
+
+        # Create Datadog client
+        datadog_client = DatadogClient(
+            api_key=api_key,
+            app_key=app_key,
+            site=site,
+        )
+
+        # Format metrics for submission
+        metrics_to_submit = []
+        for name, value in metrics.items():
+            if value is not None:
+                metrics_to_submit.append(
+                    {
+                        "metric": name,
+                        "value": value,
+                        "type": "gauge",
+                        "tags": ["source:health-fom-collector", "env:production"],
+                    }
+                )
+
+        # Submit metrics
+        success = datadog_client.submit_metrics_batch(metrics_to_submit)
+
+        if success:
+            print_status(f"Successfully pushed {len(metrics_to_submit)} FoM metrics to Datadog")
+        else:
+            print("Error: Failed to push FoM metrics to Datadog", file=sys.stderr)
+            sys.exit(1)
+
+    return metrics
+
+
 def main():
     """Main entry point."""
     parser = argparse.ArgumentParser(description="Run a Datadog metrics collector")
-    parser.add_argument("collector", help="Collector name (e.g., 'github', 'skypilot', 'asana')")
+    parser.add_argument("collector", help="Collector name (e.g., 'github', 'skypilot', 'asana', 'health_fom')")
     parser.add_argument("--push", action="store_true", help="Push metrics to Datadog")
     parser.add_argument("--verbose", "-v", action="store_true", help="Verbose output")
     parser.add_argument("--json", action="store_true", help="Output metrics as JSON")
@@ -378,9 +459,36 @@ def main():
                 traceback.print_exc()
             sys.exit(1)
 
+    elif args.collector == "health_fom":
+        try:
+            metrics = run_health_fom_collector(push=args.push, verbose=args.verbose, json_output=args.json)
+
+            if args.json:
+                print(json.dumps(metrics, indent=2, sort_keys=True))
+            else:
+                print("\nCollected FoM metrics:")
+                for key, value in sorted(metrics.items()):
+                    if value is not None:
+                        if isinstance(value, float):
+                            print(f"  {key}: {value:.3f}")
+                        else:
+                            print(f"  {key}: {value}")
+
+        except KeyboardInterrupt:
+            print("\nInterrupted", file=sys.stderr)
+            sys.exit(130)
+
+        except Exception as e:
+            print(f"Error: Failed to run {args.collector} collector: {e}", file=sys.stderr)
+            if args.verbose:
+                import traceback
+
+                traceback.print_exc()
+            sys.exit(1)
+
     else:
         print(f"Error: Unknown collector '{args.collector}'", file=sys.stderr)
-        print("Available collectors: github, skypilot, asana", file=sys.stderr)
+        print("Available collectors: github, skypilot, asana, health_fom", file=sys.stderr)
         sys.exit(1)
 
 
