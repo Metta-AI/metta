@@ -4,10 +4,10 @@ Key points:
 - Inventory comes only from observation tokens; if a token is absent, value is 0.
 - Heart is considered PRESENT (1) only if the FIRST 'inv:heart' token's first field equals 85 (0x55).
 - No swapping / heuristics — just read what the obs says.
-- Simple BFS to known targets; we discover absolute agent position from env.c_env.grid_objects().
-- Border detection: if we tried to move but position did not change (and last tick wasn’t a 'use' step),
-  we schedule a corrective turn this tick to avoid getting stuck on walls/borders.
-- On deposit detection (reward>0 while depositing OR heart transitions 1->0), we immediately re-target gather.
+- NO OMNISCIENCE: Stations are discovered visually; walls are learned from failed moves.
+- Frontier-based exploration: maintain unknown/free/wall grid; go to nearest frontier (unknown adjacent to free).
+- If frontier planning can’t find a step, fall back to a simple sweep. Add a tiny cycle breaker.
+- On deposit detection (reward>0 while depositing OR heart transitions 1->0), immediately re-target gather.
 
 You don't get an observation for an inventory that you don't have.
 """
@@ -73,10 +73,11 @@ class AgentState:
 # Implementation
 # ===============================
 class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
-    """Scripted policy with absolute position tracking and detailed logging."""
+    """Scripted policy with visual discovery, frontier exploration, and detailed logging."""
 
     # ---- Constants & thresholds ----
-    RECHARGE_THRESHOLD = 40
+    RECHARGE_START = 50  # enter recharge when below this (increased for larger maps)
+    RECHARGE_STOP = 90  # stay in recharge until at least this
     CARBON_REQ = 20
     OXYGEN_REQ = 20
     SILICON_REQ = 50
@@ -111,7 +112,7 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
             "chest": "chest",
         }
 
-        # Phase → station
+        # Phase → desired station
         self._phase_to_station: Dict[GamePhase, str] = {
             GamePhase.GATHER_GERMANIUM: "germanium_extractor",
             GamePhase.GATHER_SILICON: "silicon_extractor",
@@ -124,8 +125,11 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
 
         # Build type_id -> station name mapping for visual discovery
         self._type_id_to_station: Dict[int, str] = {}
+        self._wall_type_id: Optional[int] = None
         for type_id, name in enumerate(env.object_type_names):
-            if name and name != "wall" and not name.startswith("agent"):
+            if name == "wall":
+                self._wall_type_id = type_id
+            elif name and not name.startswith("agent"):
                 self._type_id_to_station[type_id] = name
 
         # Map geometry
@@ -133,8 +137,13 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
         self._map_width = env.c_env.map_width
 
         # Incremental knowledge - NO OMNISCIENCE
-        self._station_positions: Dict[str, Tuple[int, int]] = {}  # Discovered through observation
-        self._wall_positions: set[Tuple[int, int]] = set()  # Discovered through movement
+        self._station_positions: Dict[str, Tuple[int, int]] = {}  # discovered stations
+        self._wall_positions: set[Tuple[int, int]] = set()  # learned walls
+        self._visited_cells: set[Tuple[int, int]] = set()
+
+        # Occupancy: 0=unknown, 1=free, 2=wall
+        self._occ_unknown, self._occ_free, self._occ_wall = 0, 1, 2
+        self._occ = [[self._occ_unknown for _ in range(self._map_width)] for _ in range(self._map_height)]
 
         # Movement tracking
         self._prev_pos: Optional[Tuple[int, int]] = None
@@ -146,13 +155,15 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
         self._MOVE_W = self._action_lookup.get("move_west", -1)
         self._MOVE_SET = {self._MOVE_N, self._MOVE_S, self._MOVE_E, self._MOVE_W}
 
-        # Exploration state
-        self._exploration_direction: int = self._MOVE_E
-        self._stuck_counter: int = 0
+        # Cycle detection
+        self._loop_window: List[Tuple[int, int, int]] = []  # (r,c,last_action_idx or -1)
+        self._loop_window_max = 20
+
+        # Simple sweep memory
         self._recent_positions: List[Tuple[int, int]] = []
         self._max_recent_positions: int = 10
 
-        logger.info("Scripted agent initialized with visual discovery (no omniscience)")
+        logger.info("Scripted agent initialized with visual discovery + frontier exploration")
         logger.info(f"Map size: {self._map_height}x{self._map_width}")
         logger.info(
             "Inv feature IDs: "
@@ -166,7 +177,14 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
 
     # ---------- Visual Discovery ----------
     def _discover_stations_from_observation(self, obs: MettaGridObservation, state: AgentState) -> None:
-        """Discover stations by observing them (type_id feature in observations)."""
+        """Discover stations and walls by observing them. Mark occupancy grid properly.
+
+        Key rules:
+        - Empty cells are walkable (free)
+        - Walls are not walkable (wall)
+        - Stations are not walkable (wall) - you use them from adjacent cells
+        - Agents don't block movement (ignored)
+        """
         if state.agent_row == -1:
             return
 
@@ -176,58 +194,72 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
         obs_height_radius = obs_height // 2
         obs_width_radius = obs_width // 2
 
+        # Process all observed cells with type_id
         for tok in obs:
-            if tok[0] == 255:  # Sentinel
-                break
-            if tok[0] == 0x55:  # Inventory token
-                continue
+            if self._to_int(tok[1]) == type_id_feature:
+                # Relative coords encoded in tok[0] (hi nibble=row, lo nibble=col)
+                obs_r = int(self._to_int(tok[0]) >> 4)
+                obs_c = int(self._to_int(tok[0]) & 0x0F)
+                type_id = int(self._to_int(tok[2]))
 
-            if tok[1] == type_id_feature:
-                # Relative coordinates in observation window
-                obs_r = int(tok[0] >> 4)
-                obs_c = int(tok[0] & 0x0F)
-                type_id = int(tok[2])
-
-                # Convert to absolute map coordinates
+                # Absolute
                 map_r = obs_r - obs_height_radius + state.agent_row
                 map_c = obs_c - obs_width_radius + state.agent_col
+                if not (0 <= map_r < self._map_height and 0 <= map_c < self._map_width):
+                    continue
 
-                # Check if this is a station
-                if type_id in self._type_id_to_station:
+                # Determine what this cell is
+                if type_id == self._wall_type_id:
+                    # It's a wall - mark as unwalkable
+                    self._occ[map_r][map_c] = self._occ_wall
+                    self._wall_positions.add((map_r, map_c))
+                elif type_id in self._type_id_to_station:
+                    # It's a station - mark as unwalkable (you can't walk onto stations)
                     station_name = self._type_id_to_station[type_id]
+                    self._occ[map_r][map_c] = self._occ_wall
                     pos = (map_r, map_c)
-
                     if station_name not in self._station_positions:
                         self._station_positions[station_name] = pos
                         logger.info(f"Discovered {station_name} at {pos}")
+                elif not self._object_type_names[type_id].startswith("agent"):
+                    # It's some other object (not agent, not wall, not station) - mark as free
+                    self._occ[map_r][map_c] = self._occ_free
+
+        # Mark current agent position as free (we're standing here)
+        if 0 <= state.agent_row < self._map_height and 0 <= state.agent_col < self._map_width:
+            self._occ[state.agent_row][state.agent_col] = self._occ_free
 
     def _update_wall_knowledge(self, state: AgentState) -> None:
-        """Mark cells as walls when we try to move into them but don't move."""
+        """Update occupancy based on movement results.
+
+        - If we moved successfully, mark new cell as free
+        - If we tried to move but didn't, mark target as wall
+        """
         if not self._prev_pos or self._last_action_idx not in self._MOVE_SET:
             return
 
         current_pos = (state.agent_row, state.agent_col)
-        if current_pos != self._prev_pos:
-            return  # We moved, so no wall
 
-        # We didn't move - mark the target cell as a wall (unless it's a known station)
+        if current_pos != self._prev_pos:
+            # We moved! Mark new position as free and path between as free
+            self._occ[current_pos[0]][current_pos[1]] = self._occ_free
+            return
+
+        # We tried to move but didn't - target must be blocked
         dr, dc = self._action_to_dir(self._last_action_idx)
         if dr is None or dc is None:
             return
 
         wall_r = self._prev_pos[0] + dr
         wall_c = self._prev_pos[1] + dc
-
         if not (0 <= wall_r < self._map_height and 0 <= wall_c < self._map_width):
             return
 
-        # Don't mark stations as walls
-        wall_pos = (wall_r, wall_c)
-        is_station = wall_pos in self._station_positions.values()
-        if not is_station:
-            if wall_pos not in self._wall_positions:
-                logger.info(f"Marking wall at {wall_pos} (blocked move {self._last_action_idx})")
-            self._wall_positions.add(wall_pos)
+        # Mark as wall (could be actual wall or station)
+        if self._occ[wall_r][wall_c] != self._occ_wall:
+            logger.info(f"Marking blocked cell at ({wall_r},{wall_c})")
+        self._wall_positions.add((wall_r, wall_c))
+        self._occ[wall_r][wall_c] = self._occ_wall
 
     # ---------- Policy Interface ----------
     def agent_state(self) -> AgentState:
@@ -245,13 +277,19 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
         self._update_agent_position(state)
         self._update_rewards(obs, state)
 
-        # Discover stations visually and walls through movement
+        # Mark current as free
+        if 0 <= state.agent_row < self._map_height and 0 <= state.agent_col < self._map_width:
+            self._occ[state.agent_row][state.agent_col] = self._occ_free
+
+        # Discover stations + learn walls
         self._discover_stations_from_observation(obs, state)
         self._update_wall_knowledge(state)
 
-        # Deposit detection:
-        #  (a) heart transitioned 1->0, or
-        #  (b) while in deposit phase we saw positive last_reward
+        # Visited
+        if state.agent_row >= 0 and state.agent_col >= 0:
+            self._visited_cells.add((state.agent_row, state.agent_col))
+
+        # Deposit detection
         if (state.last_heart > 0 and state.heart == 0) or (
             state.current_phase == GamePhase.DEPOSIT_HEART and state.last_reward > 0
         ):
@@ -267,11 +305,28 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
         # Log (stdout)
         self._print_step_log(action_idx, state)
 
-        # Bookkeeping for next-tick border detection
+        # Stuck detection: if we keep trying the same action from the same position, force exploration
+        key = (state.agent_row, state.agent_col, action_idx)
+        self._loop_window.append(key)
+        if len(self._loop_window) > self._loop_window_max:
+            self._loop_window.pop(0)
+
+        # If stuck in a tight loop (same state repeated), try different direction
+        if self._loop_window.count(key) > 3:
+            if state.step_count % 10 == 0:
+                action_name = self._action_names[action_idx]
+                logger.info(f"Stuck at ({state.agent_row},{state.agent_col}) action={action_name}, trying alternatives")
+            # Try directions in order, avoiding the current stuck action
+            for a in (self._MOVE_E, self._MOVE_W, self._MOVE_S, self._MOVE_N):
+                if a in self._MOVE_SET and a != action_idx:
+                    action_idx = a
+                    # Clear loop window to give new direction a chance
+                    self._loop_window = []
+                    break
+
+        # Bookkeeping
         self._last_action_idx = action_idx
         self._prev_pos = (state.agent_row, state.agent_col)
-
-        # Track heart
         state.last_heart = state.heart
 
         return dtype_actions.type(action_idx), state
@@ -283,12 +338,11 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
             return int(x)
         except Exception:
             try:
-                return int(x.item())  # numpy scalar
+                return int(x.item())
             except Exception:
-                return int(x)  # last resort
+                return int(x)
 
     def _update_agent_position(self, state: AgentState) -> None:
-        """Update agent's absolute position from env.c_env.grid_objects."""
         try:
             for _obj_id, obj in self._env.c_env.grid_objects().items():
                 if obj.get("agent_id") == 0:
@@ -304,8 +358,7 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
             if last_reward_feat is None:
                 return
             for tok in obs:
-                fid = self._to_int(tok[1])
-                if fid == last_reward_feat:
+                if self._to_int(tok[1]) == last_reward_feat:
                     state.last_reward = float(self._to_int(tok[2]))
                     state.total_reward += state.last_reward
                     break
@@ -313,21 +366,16 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
             pass
 
     def _has_heart_from_obs(self, obs: MettaGridObservation) -> bool:
-        """Heart present only if FIRST 'inv:heart' token's first field == 85 (0x55)."""
         heart_fid = self._feature_name_to_id.get(self.HEART_FEATURE_NAME)
         if heart_fid is None:
             return False
-
         first_idx = None
         for i, tok in enumerate(obs):
-            fid = self._to_int(tok[1])
-            if fid == heart_fid:
+            if self._to_int(tok[1]) == heart_fid:
                 first_idx = i
                 break
-
         if first_idx is None:
             return False
-
         first_tok = obs[first_idx]
         first_field = self._to_int(first_tok[0])
         return first_field == self.HEART_SENTINEL_FIRST_FIELD
@@ -342,71 +390,136 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
         return 0
 
     def _update_inventory(self, obs: MettaGridObservation, state: AgentState) -> None:
-        """Parse inventory fields from tokens; no swaps, no guesses."""
         state.carbon = self._read_int_feature(obs, "inv:carbon")
         state.oxygen = self._read_int_feature(obs, "inv:oxygen")
         state.germanium = self._read_int_feature(obs, "inv:germanium")
         state.silicon = self._read_int_feature(obs, "inv:silicon")
         state.energy = self._read_int_feature(obs, "inv:energy")
-
-        # Heart: special rule (first token's first field must be 85)
         state.heart = 1 if self._has_heart_from_obs(obs) else 0
 
-    # ---------- Border detection ----------
-    def _maybe_apply_border_correction(self, state: AgentState) -> None:
+    # ---------- Occupancy / Frontier ----------
+    def _neighbors4(self, r: int, c: int):
+        for dr, dc in ((-1, 0), (1, 0), (0, -1), (0, 1)):
+            nr, nc = r + dr, c + dc
+            if 0 <= nr < self._map_height and 0 <= nc < self._map_width:
+                yield nr, nc
+
+    def _compute_frontiers(self) -> List[Tuple[int, int]]:
+        """Unknown cells that are 4-adjacent to a known free cell."""
+        fronts = []
+        for r in range(self._map_height):
+            for c in range(self._map_width):
+                if self._occ[r][c] != self._occ_unknown:
+                    continue
+                for nr, nc in self._neighbors4(r, c):
+                    if self._occ[nr][nc] == self._occ_free:
+                        fronts.append((r, c))
+                        break
+        return fronts
+
+    def _bfs_next_step_occ(self, start: Tuple[int, int], goal: Tuple[int, int]) -> Optional[Tuple[int, int]]:
+        """BFS through known-free cells only; returns next cell on path or None."""
+        if start == goal:
+            return start
+        q = deque([start])
+        parent = {start: None}
+        while q:
+            r, c = q.popleft()
+            for nr, nc in self._neighbors4(r, c):
+                if (nr, nc) in parent:
+                    continue
+                if self._occ[nr][nc] != self._occ_free:
+                    continue
+                parent[(nr, nc)] = (r, c)
+                if (nr, nc) == goal:
+                    step = (nr, nc)
+                    while parent[step] != start:
+                        step = parent[step]
+                    return step
+                q.append((nr, nc))
+        return None
+
+    def _bfs_next_step_optimistic(self, start: Tuple[int, int], goal: Tuple[int, int]) -> Optional[Tuple[int, int]]:
+        """BFS with optimistic assumption: unknown cells are walkable.
+
+        Only avoids cells known to be walls. This allows pathfinding through
+        unexplored areas, and we'll learn about walls when we bump into them.
         """
-        If last action was a move and our position did not change, assume a border/wall
-        and set a corrective action (turn). Skips correction if last tick was a 'use' attempt
-        (stepping into a station tile that resolves without movement).
-        """
-        if self._override_action_idx is not None:
-            return  # already scheduled
+        if start == goal:
+            return start
+        q = deque([start])
+        parent = {start: None}
+        while q:
+            r, c = q.popleft()
+            for nr, nc in self._neighbors4(r, c):
+                if (nr, nc) in parent:
+                    continue
+                # Skip only if definitely blocked (wall)
+                if self._occ[nr][nc] == self._occ_wall:
+                    continue
+                parent[(nr, nc)] = (r, c)
+                if (nr, nc) == goal:
+                    step = (nr, nc)
+                    while parent[step] != start:
+                        step = parent[step]
+                    return step
+                q.append((nr, nc))
+        return None
 
-        if self._last_action_idx not in self._MOVE_SET:
-            return
-        if self._prev_pos is None:
-            return
+    def _choose_frontier(self, state: AgentState) -> Optional[Tuple[int, int]]:
+        """Pick the nearest frontier by BFS distance over known-free cells."""
+        if state.agent_row < 0:
+            return None
+        start = (state.agent_row, state.agent_col)
+        fronts = set(self._compute_frontiers())
+        if not fronts:
+            return None
 
-        stayed = (state.agent_row, state.agent_col) == self._prev_pos
-        if not stayed:
-            return
+        q = deque([start])
+        seen = {start}
+        while q:
+            r, c = q.popleft()
+            for nr, nc in self._neighbors4(r, c):
+                if (nr, nc) in fronts:
+                    return (nr, nc)
+            for nr, nc in self._neighbors4(r, c):
+                if (nr, nc) in seen:
+                    continue
+                if self._occ[nr][nc] != self._occ_free:
+                    continue
+                seen.add((nr, nc))
+                q.append((nr, nc))
+        return None
 
-        if self._last_attempt_was_use:
-            return
+    def _plan_to_frontier_action(self, state: AgentState) -> Optional[int]:
+        """Plan one step toward the chosen frontier (if any)."""
+        target = self._choose_frontier(state)
+        if not target:
+            return None
 
-        # turn right relative to last move
-        right_turn = {
-            self._MOVE_N: self._MOVE_E,
-            self._MOVE_E: self._MOVE_S,
-            self._MOVE_S: self._MOVE_W,
-            self._MOVE_W: self._MOVE_N,
-        }.get(self._last_action_idx, self._action_lookup.get("noop", 0))
+        tr, tc = target
+        sr, sc = state.agent_row, state.agent_col
 
-        if right_turn == -1:
-            # try opposite, then left, then noop
-            opposite = {
-                self._MOVE_N: self._MOVE_S,
-                self._MOVE_S: self._MOVE_N,
-                self._MOVE_E: self._MOVE_W,
-                self._MOVE_W: self._MOVE_E,
-            }.get(self._last_action_idx, self._action_lookup.get("noop", 0))
-            if opposite != -1:
-                right_turn = opposite
-            else:
-                left = {
-                    self._MOVE_N: self._MOVE_W,
-                    self._MOVE_W: self._MOVE_S,
-                    self._MOVE_S: self._MOVE_E,
-                    self._MOVE_E: self._MOVE_N,
-                }.get(self._last_action_idx, self._action_lookup.get("noop", 0))
-                right_turn = left if left != -1 else self._action_lookup.get("noop", 0)
+        # If we're already adjacent to the frontier, step toward it directly
+        if abs(tr - sr) + abs(tc - sc) == 1:
+            return self._step_toward(tr - sr, tc - sc)
 
-        self._override_action_idx = right_turn
-        la = self._last_action_idx
-        la_name = self._action_names[la] if 0 <= la < len(self._action_names) else la
-        oa = self._override_action_idx
-        oa_name = self._action_names[oa] if 0 <= oa < len(self._action_names) else oa
-        logger.info(f"[Border] Stuck on move; turning. last_action={la_name}, new_action={oa_name}")
+        # Otherwise, path to a free neighbor of the frontier (excluding our current position)
+        candidates = [
+            (nr, nc)
+            for nr, nc in self._neighbors4(tr, tc)
+            if self._occ[nr][nc] == self._occ_free and (nr, nc) != (sr, sc)
+        ]
+        if not candidates:
+            return None
+
+        candidates.sort(key=lambda p: abs(p[0] - sr) + abs(p[1] - sc))
+        for goal in candidates:
+            step = self._bfs_next_step_occ((sr, sc), goal)
+            if step is not None:
+                dr, dc = step[0] - sr, step[1] - sc
+                return self._step_toward(dr, dc)
+        return None
 
     # ---------- Decision helpers ----------
     def _determine_phase(self, state: AgentState) -> GamePhase:
@@ -414,6 +527,12 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
             return GamePhase.DEPOSIT_HEART
 
         germ_needed = 5 if state.hearts_assembled == 0 else max(2, 5 - state.hearts_assembled)
+
+        if state.current_phase == GamePhase.RECHARGE and state.energy < self.RECHARGE_STOP:
+            return GamePhase.RECHARGE
+
+        if state.energy < self.RECHARGE_START:
+            return GamePhase.RECHARGE
 
         if (
             state.germanium >= germ_needed
@@ -423,9 +542,6 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
             and state.energy >= self.ENERGY_REQ
         ):
             return GamePhase.ASSEMBLE_HEART
-
-        if state.energy < self.RECHARGE_THRESHOLD:
-            return GamePhase.RECHARGE
 
         if state.germanium < germ_needed:
             return GamePhase.GATHER_GERMANIUM
@@ -439,17 +555,11 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
         return GamePhase.GATHER_GERMANIUM
 
     def _execute_phase(self, state: AgentState) -> int:
-        # Border correction disabled - BFS handles navigation
-        # if self._override_action_idx is not None:
-        #     action_idx = self._override_action_idx
-        #     self._override_action_idx = None
-        #     return action_idx
-
         station = self._phase_to_station.get(state.current_phase)
         if not station:
             return self._action_lookup.get("noop", 0)
 
-        # After a deposit, if we are still on the chest tile, immediately re-target gather to move away.
+        # After deposit, step off chest
         if state.just_deposited:
             gather_station = self._phase_to_station[GamePhase.GATHER_GERMANIUM]
             if state.agent_row != -1 and "chest" in self._station_positions:
@@ -472,42 +582,49 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
             action_name = f"change_glyph_{glyph_id}"
             return self._action_lookup.get(action_name, self._action_lookup.get("noop", 0))
 
-        # If we know absolute positions, navigate precisely
+        # If we know the station, go there via known-free BFS
         if station in self._station_positions and state.agent_row != -1:
             tr, tc = self._station_positions[station]
             dr, dc = tr - state.agent_row, tc - state.agent_col
-            manhattan = abs(dr) + abs(dc)
+            manhattan_dist = abs(dr) + abs(dc)
 
-            # Adjacent to station: attempt to 'step into' it (game resolves use w/o moving)
-            if manhattan == 1:
+            if manhattan_dist == 1:
+                # We're adjacent to the station - use it by stepping toward it
                 self._last_attempt_was_use = True
                 return self._step_toward(dr, dc)
 
-        # Navigate to station if discovered, otherwise explore
-        if station in self._station_positions and state.agent_row != -1:
-            tr, tc = self._station_positions[station]
-            dr, dc = tr - state.agent_row, tc - state.agent_col
+            # Path to an adjacent cell of the station (not the station itself)
+            # Use optimistic assumption: unknown cells are walkable until proven otherwise
+            adjacent_cells = [
+                (nr, nc)
+                for nr, nc in self._neighbors4(tr, tc)
+                if self._occ[nr][nc] != self._occ_wall  # Not known to be blocked
+            ]
+            if adjacent_cells:
+                # Pick the closest adjacent cell by manhattan distance
+                adjacent_cells.sort(key=lambda p: abs(p[0] - state.agent_row) + abs(p[1] - state.agent_col))
+                for goal in adjacent_cells:
+                    step = self._bfs_next_step_optimistic((state.agent_row, state.agent_col), goal)
+                    if step is not None:
+                        nr, nc = step
+                        self._last_attempt_was_use = False
+                        return self._step_toward(nr - state.agent_row, nc - state.agent_col)
 
-            # Adjacent: step into station
-            if abs(dr) + abs(dc) == 1:
-                self._last_attempt_was_use = True
-                return self._step_toward(dr, dc)
-
-            # Use BFS pathfinding
-            path = self._bfs_pathfind((state.agent_row, state.agent_col), (tr, tc))
-            if len(path) > 1:
-                next_r, next_c = path[1]
-                self._last_attempt_was_use = False
-                return self._step_toward(next_r - state.agent_row, next_c - state.agent_col)
-
-            # BFS failed, use exploration to navigate around
+            # Not yet reachable; reveal more map
+            self._last_attempt_was_use = False
+            act = self._plan_to_frontier_action(state)
+            if act is not None:
+                return act
             return self._explore_simple(state)
 
-        # Station not discovered yet - explore
+        # Unknown station: explore
         self._last_attempt_was_use = False
+        act = self._plan_to_frontier_action(state)
+        if act is not None:
+            return act
         return self._explore_simple(state)
 
-    # ---------- Navigation ----------
+    # ---------- Navigation primitives ----------
     def _step_toward(self, dr: int, dc: int) -> int:
         if dr > 0:
             return self._MOVE_S
@@ -518,160 +635,6 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
         if dc < 0:
             return self._MOVE_W
         return self._action_lookup.get("noop", 0)
-
-    def _navigate_to_station(self, station_name: str, state: AgentState) -> int:
-        if station_name not in self._station_positions:
-            return self._action_lookup.get("noop", 0)
-        if state.agent_row == -1 or state.agent_col == -1:
-            return self._fallback_navigate(state.current_phase)
-
-        start = (state.agent_row, state.agent_col)
-        goal = self._station_positions[station_name]
-        path = self._bfs_pathfind(start, goal)
-        if len(path) > 1:
-            next_r, next_c = path[1]
-            return self._step_toward(next_r - state.agent_row, next_c - state.agent_col)
-        return self._action_lookup.get("noop", 0)
-
-    def _bfs_pathfind(self, start: Tuple[int, int], goal: Tuple[int, int]) -> List[Tuple[int, int]]:
-        if start == goal:
-            return [start]
-
-        H, W = self._map_height, self._map_width
-        walls = self._wall_positions
-        stations = self._station_positions
-
-        q = deque([(start, [start])])
-        visited = {start}
-
-        while q:
-            (r, c), path = q.popleft()
-
-            for dr, dc in ((0, 1), (0, -1), (1, 0), (-1, 0)):
-                nr, nc = r + dr, c + dc
-
-                # Bounds
-                if not (0 <= nr < H and 0 <= nc < W):
-                    continue
-                nxt = (nr, nc)
-
-                # Walls
-                if nxt in walls:
-                    continue
-
-                # Don't traverse other stations (unless the goal)
-                if nxt in stations.values() and nxt != goal:
-                    continue
-
-                if nxt in visited:
-                    continue
-                visited.add(nxt)
-
-                new_path = path + [nxt]
-                if nxt == goal:
-                    return new_path
-                q.append((nxt, new_path))
-
-        return []
-
-    def _fallback_navigate(self, phase: GamePhase) -> int:
-        if phase in (GamePhase.GATHER_GERMANIUM, GamePhase.GATHER_SILICON, GamePhase.DEPOSIT_HEART):
-            return self._MOVE_S if self._MOVE_S != -1 else self._action_lookup.get("noop", 0)
-        if phase in (GamePhase.GATHER_CARBON, GamePhase.GATHER_OXYGEN):
-            return self._MOVE_N if self._MOVE_N != -1 else self._action_lookup.get("noop", 0)
-        return self._MOVE_S if self._MOVE_S != -1 else self._action_lookup.get("noop", 0)
-
-    # ---------- Exploration ----------
-    def _explore_simple(self, state: AgentState) -> int:
-        """Boustrophedon (snake) sweep with simple wall-following and loop avoidance."""
-        if state.agent_row == -1:
-            return self._action_lookup.get("noop", 0)
-
-        # Track position
-        current_pos = (state.agent_row, state.agent_col)
-        if not self._recent_positions or self._recent_positions[-1] != current_pos:
-            self._recent_positions.append(current_pos)
-            if len(self._recent_positions) > self._max_recent_positions:
-                self._recent_positions.pop(0)
-
-        # Prefer sweeping rows: move east on even rows and west on odd rows,
-        # moving south when blocked, with wall-follow fallback.
-        row_parity = state.agent_row % 2
-        preferred_dir = self._MOVE_E if row_parity == 0 else self._MOVE_W
-
-        # If last move didn't change position, try to move south to next row
-        stuck = self._prev_pos and self._last_action_idx in self._MOVE_SET and current_pos == self._prev_pos
-        if stuck:
-            self._stuck_counter += 1
-
-            # Try to drop down a row if possible
-            down_r, down_c = state.agent_row + 1, state.agent_col
-            if 0 <= down_r < self._map_height and (down_r, down_c) not in self._wall_positions:
-                return self._MOVE_S if self._MOVE_S != -1 else self._action_lookup.get("noop", 0)
-
-            # Otherwise, try alternate horizontal direction
-            alt = self._MOVE_W if preferred_dir == self._MOVE_E else self._MOVE_E
-            return alt if alt != -1 else self._action_lookup.get("noop", 0)
-
-        # If not stuck, attempt preferred horizontal direction unless known wall
-        dr, dc = self._action_to_dir(preferred_dir)
-        next_r = state.agent_row + (dr or 0)
-        next_c = state.agent_col + (dc or 0)
-        if (
-            preferred_dir in self._MOVE_SET
-            and 0 <= next_r < self._map_height
-            and 0 <= next_c < self._map_width
-            and (next_r, next_c) not in self._wall_positions
-        ):
-            return preferred_dir
-
-        # Try moving south when blocked horizontally
-        down_r, down_c = state.agent_row + 1, state.agent_col
-        if 0 <= down_r < self._map_height and (down_r, down_c) not in self._wall_positions:
-            return self._MOVE_S if self._MOVE_S != -1 else self._action_lookup.get("noop", 0)
-
-        # Fallback: choose direction away from recent positions, avoiding known walls
-        best_action = self._find_best_exploration_direction(state)
-        if best_action is not None:
-            return best_action
-
-        return preferred_dir if preferred_dir != -1 else self._action_lookup.get("noop", 0)
-
-    def _find_best_exploration_direction(self, state: AgentState) -> Optional[int]:
-        """Find direction to cell not recently visited."""
-        directions = [
-            (self._MOVE_N, (-1, 0)),
-            (self._MOVE_S, (1, 0)),
-            (self._MOVE_E, (0, 1)),
-            (self._MOVE_W, (0, -1)),
-        ]
-
-        best_action = None
-        best_score = -1
-
-        for action, (dr, dc) in directions:
-            nr = state.agent_row + dr
-            nc = state.agent_col + dc
-
-            if not (0 <= nr < self._map_height and 0 <= nc < self._map_width):
-                continue
-
-            next_pos = (nr, nc)
-            # Avoid known walls
-            if next_pos in self._wall_positions:
-                continue
-
-            # Score: higher if not in recent positions
-            if next_pos not in self._recent_positions:
-                score = 10
-            else:
-                score = self._recent_positions.index(next_pos)
-
-            if score > best_score:
-                best_score = score
-                best_action = action
-
-        return best_action
 
     def _action_to_dir(self, action_idx: int) -> Tuple[Optional[int], Optional[int]]:
         if action_idx == self._MOVE_N:
@@ -684,16 +647,72 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
             return (0, -1)
         return (None, None)
 
+    # ---------- Exploration fallback ----------
+    def _explore_simple(self, state: AgentState) -> int:
+        """Boustrophedon sweep with simple loop avoidance."""
+        if state.agent_row == -1:
+            return self._action_lookup.get("noop", 0)
+
+        cur = (state.agent_row, state.agent_col)
+        if not self._recent_positions or self._recent_positions[-1] != cur:
+            self._recent_positions.append(cur)
+            if len(self._recent_positions) > self._max_recent_positions:
+                self._recent_positions.pop(0)
+
+        row_parity = state.agent_row % 2
+        preferred_dir = self._MOVE_E if row_parity == 0 else self._MOVE_W
+
+        dr, dc = self._action_to_dir(preferred_dir)
+        nr, nc = state.agent_row + (dr or 0), state.agent_col + (dc or 0)
+        if (
+            preferred_dir in self._MOVE_SET
+            and 0 <= nr < self._map_height
+            and 0 <= nc < self._map_width
+            and (nr, nc) not in self._wall_positions
+        ):
+            return preferred_dir
+
+        down_r, down_c = state.agent_row + 1, state.agent_col
+        if 0 <= down_r < self._map_height and (down_r, down_c) not in self._wall_positions:
+            return self._MOVE_S if self._MOVE_S != -1 else self._action_lookup.get("noop", 0)
+
+        alt = self._find_best_exploration_direction(state)
+        if alt is not None:
+            return alt
+
+        return preferred_dir if preferred_dir != -1 else self._action_lookup.get("noop", 0)
+
+    def _find_best_exploration_direction(self, state: AgentState) -> Optional[int]:
+        directions = [
+            (self._MOVE_N, (-1, 0)),
+            (self._MOVE_S, (1, 0)),
+            (self._MOVE_E, (0, 1)),
+            (self._MOVE_W, (0, -1)),
+        ]
+        best_action, best_score = None, -1
+        recent = self._recent_positions
+
+        for action, (dr, dc) in directions:
+            nr, nc = state.agent_row + dr, state.agent_col + dc
+            if not (0 <= nr < self._map_height and 0 <= nc < self._map_width):
+                continue
+            np = (nr, nc)
+            if np in self._wall_positions:
+                continue
+            score = 10 if np not in recent else recent.index(np)
+            if score > best_score:
+                best_score = score
+                best_action = action
+
+        return best_action
+
     # ---------- Logging ----------
     def _print_step_log(self, action_idx: int, state: AgentState) -> None:
         try:
             action_name = self._action_names[action_idx] if 0 <= action_idx < len(self._action_names) else "?"
             target_station = self._phase_to_station.get(state.current_phase, "unknown")
             tr, tc = self._station_positions.get(target_station, (-1, -1))
-            if state.agent_row != -1 and tr != -1:
-                rel = f"({tr - state.agent_row},{tc - state.agent_col})"
-            else:
-                rel = "?"
+            rel = f"({tr - state.agent_row},{tc - state.agent_col})" if state.agent_row != -1 and tr != -1 else "?"
             print(
                 f"Timestep : {state.step_count}, Current phase: {state.current_phase}, "
                 f"action: {action_name}, target station: {target_station}, relative position: {rel}, "
