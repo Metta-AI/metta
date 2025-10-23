@@ -4,7 +4,7 @@ from typing import Any
 from pydantic import Field
 
 from cogames.cogs_vs_clips.mission import Mission, MissionVariant, Site
-from cogames.cogs_vs_clips.procedural import make_machina_procedural_map_builder
+from cogames.cogs_vs_clips.procedural import make_hub_only_map_builder, make_machina_procedural_map_builder
 from cogames.cogs_vs_clips.stations import (
     CarbonExtractorConfig,
     ChargerConfig,
@@ -199,7 +199,14 @@ VARIANTS = [
 TRAINING_FACILITY = Site(
     name="training_facility",
     description="COG Training Facility. Basic training facility with open spaces and no obstacles.",
-    map_builder=get_map("training_facility_open_1.map"),
+    map_builder=make_hub_only_map_builder(
+        num_cogs=4,
+        width=21,
+        height=21,
+        corner_bundle="chests",
+        cross_bundle="extractors",
+        cross_distance=7,
+    ),
     min_cogs=1,
     max_cogs=4,
 )
@@ -239,11 +246,33 @@ SITES = [
 # Training Facility Missions
 class HarvestMission(Mission):
     name: str = "harvest"
-    description: str = "Collect resources and store them in the communal chest. Make sure to stay charged!"
+    description: str = "Collect resources and store them in the appropriate chests. Make sure to stay charged!"
     site: Site = TRAINING_FACILITY
 
-    def configure(self):
-        pass
+    # Global Mission.instantiate now applies overrides; no per-mission override needed
+    def make_env(self) -> MettaGridConfig:
+        env = super().make_env()
+        # Log-shaped chest rewards at episode end via per-step telescoping
+        if self.num_cogs and self.num_cogs > 0:
+            reward_weight = 1.0 / float(self.num_cogs)
+        else:
+            reward_weight = 1.0 / float(max(1, getattr(env.game, "num_agents", 1)))
+
+        env.game.agent.rewards.inventory = {}
+        env.game.agent.rewards.stats = {
+            "chest.carbon.amount": reward_weight,
+            "chest.oxygen.amount": reward_weight,
+            "chest.germanium.amount": reward_weight,
+            "chest.silicon.amount": reward_weight,
+        }
+        env.game.agent.rewards.inventory_max = {}
+        env.game.agent.rewards.stats_max = {}
+        # Ensure that the extractors are configured to have high max uses
+        for name in ("germanium_extractor", "carbon_extractor", "oxygen_extractor", "silicon_extractor"):
+            cfg = env.game.objects.get(name)
+            if cfg is not None:
+                cfg.max_uses = 100  # type: ignore[attr-defined]
+        return env
 
 
 class AssembleMission(Mission):

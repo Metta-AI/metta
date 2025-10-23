@@ -34,7 +34,7 @@ class BaseHubConfig(SceneConfig):
     cross_distance: int = 4
     layout: Literal["default", "tight"] = "default"
     charger_object: str = "charger"
-    heart_chest_object: str = "chest_heart"
+    heart_chest_object: str = "chest"
 
 
 class BaseHub(Scene[BaseHubConfig]):

@@ -3,6 +3,7 @@ from typing import Any
 from pydantic import Field
 
 from cogames.cogs_vs_clips import vibes
+from cogames.cogs_vs_clips.procedural import apply_procedural_overrides_to_builder
 from cogames.cogs_vs_clips.stations import (
     RESOURCE_CHESTS,
     CarbonExtractorConfig,
@@ -12,7 +13,6 @@ from cogames.cogs_vs_clips.stations import (
     CvCWallConfig,
     GermaniumExtractorConfig,
     OxygenExtractorConfig,
-    RESOURCE_CHESTS,
     SiliconExtractorConfig,
     resources,
 )
@@ -104,6 +104,13 @@ class Mission(Config):
 
         if variant:
             mission = variant.apply(mission)
+
+        # Apply mission-level procedural overrides to supported builders (hub-only, machina, etc.)
+        mission.map = apply_procedural_overrides_to_builder(
+            mission.map or map_builder,
+            num_cogs=int(mission.num_cogs or 0),
+            overrides=getattr(mission, "procedural_overrides", {}) or {},
+        )
 
         return mission
 
