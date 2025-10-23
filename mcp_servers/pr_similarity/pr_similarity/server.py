@@ -83,6 +83,9 @@ def summarize_description(description: str, limit: int = 240) -> str:
 
 def build_context() -> ServerContext:
     cache_path = determine_cache_path()
+    from metta.tools.pr_similarity import resolve_cache_paths
+
+    meta_path, vectors_path = resolve_cache_paths(cache_path)
     try:
         api_key = require_api_key(API_KEY_ENV)
     except EnvironmentError as error:
@@ -91,7 +94,7 @@ def build_context() -> ServerContext:
     default_model: str | None = None
     task_type = PR_SIMILARITY.TASK_FALLBACK
 
-    if cache_path.exists():
+    if meta_path.exists() and vectors_path.exists():
         try:
             metadata, records = load_cache(cache_path)
             del records
@@ -100,7 +103,7 @@ def build_context() -> ServerContext:
         except Exception as error:
             logging.getLogger(__name__).warning("Failed to read cache metadata: %s", error)
     else:
-        raise FileNotFoundError(f"Embedding cache not found: {cache_path}")
+        raise FileNotFoundError(f"Embedding cache not found: {meta_path} / {vectors_path}")
 
     return ServerContext(
         cache_path=cache_path,
