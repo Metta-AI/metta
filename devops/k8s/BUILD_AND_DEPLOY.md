@@ -86,6 +86,267 @@ aws eks update-kubeconfig --name main --region us-east-1 --profile softmax-admin
 kubectl get nodes
 ```
 
+## Local Build and Deploy Workflow
+
+This section provides a complete end-to-end workflow for building and deploying locally, **instead of using the GitHub Actions CI/CD pipeline**.
+
+### When to Use Local Deployment
+
+- **Testing changes** before pushing to main
+- **Rapid iteration** during development
+- **Debug builds** with verbose output
+- **Custom configurations** not in the main workflow
+
+### Complete Local Workflow
+
+#### Step 1: Authenticate to AWS
+
+```bash
+# Login to AWS (if using SSO)
+aws sso login --profile softmax-admin
+
+# Configure kubectl for EKS
+aws eks update-kubeconfig --name main --region us-east-1 --profile softmax-admin
+
+# Verify cluster access
+kubectl get nodes
+```
+
+#### Step 2: Build Docker Image
+
+```bash
+# IMPORTANT: Build for linux/amd64 (production platform)
+# From repo root
+docker buildx build \
+  --platform linux/amd64 \
+  -f softmax/Dockerfile \
+  -t softmax-dashboard:local \
+  --load \
+  .
+
+# This will take 5-10 minutes on first build
+# Subsequent builds use cached layers
+```
+
+**Expected output:**
+- Building workspace packages
+- Installing dependencies via uv
+- Verifying all three collectors import successfully
+- Final message: "✓ All collectors imported successfully"
+
+#### Step 3: Tag for ECR
+
+```bash
+# Set variables
+export ECR_REGISTRY=751442549699.dkr.ecr.us-east-1.amazonaws.com
+export IMAGE_NAME=softmax-dashboard
+export TAG=local-$(date +%Y%m%d-%H%M%S)
+
+# Tag the image
+docker tag softmax-dashboard:local ${ECR_REGISTRY}/${IMAGE_NAME}:${TAG}
+docker tag softmax-dashboard:local ${ECR_REGISTRY}/${IMAGE_NAME}:latest
+
+# Verify tags
+docker images | grep softmax-dashboard
+```
+
+#### Step 4: Test Locally (Optional)
+
+Before pushing, you can test the image locally:
+
+```bash
+# Test GitHub collector
+docker run --rm \
+  -e AWS_PROFILE=softmax-admin \
+  -v ~/.aws:/root/.aws:ro \
+  softmax-dashboard:local \
+  uv run python devops/datadog/run_collector.py github --verbose
+
+# Test Skypilot collector
+docker run --rm \
+  -e AWS_PROFILE=softmax-admin \
+  -v ~/.aws:/root/.aws:ro \
+  softmax-dashboard:local \
+  uv run python devops/datadog/run_collector.py skypilot --verbose
+
+# Expected: Metrics collected successfully
+```
+
+#### Step 5: Login to ECR
+
+```bash
+# Get ECR login credentials and login
+aws ecr get-login-password --region us-east-1 --profile softmax-admin | \
+  docker login --username AWS --password-stdin ${ECR_REGISTRY}
+
+# Expected: "Login Succeeded"
+```
+
+#### Step 6: Push to ECR
+
+```bash
+# Push both tags
+docker push ${ECR_REGISTRY}/${IMAGE_NAME}:${TAG}
+docker push ${ECR_REGISTRY}/${IMAGE_NAME}:latest
+
+# This will take 2-5 minutes depending on connection
+```
+
+#### Step 7: Deploy to Kubernetes
+
+**Option A: Update existing deployment (recommended)**
+
+```bash
+# Update the GitHub collector CronJob with new image
+helm upgrade -n monitoring dashboard-cronjob ./devops/charts/dashboard-cronjob \
+  --set image.tag=${TAG}
+
+# Expected: "Release dashboard-cronjob has been upgraded"
+```
+
+**Option B: Deploy all three collectors**
+
+```bash
+# GitHub collector (every 15 minutes)
+helm upgrade -n monitoring github-collector ./devops/charts/dashboard-cronjob \
+  --set command[0]=uv \
+  --set command[1]=run \
+  --set command[2]=python \
+  --set command[3]=devops/datadog/run_collector.py \
+  --set command[4]=github \
+  --set command[5]=--push \
+  --set schedule="*/15 * * * *" \
+  --set datadog.service=github-collector \
+  --set image.tag=${TAG} \
+  --install
+
+# Skypilot collector (every 10 minutes)
+helm upgrade -n monitoring skypilot-collector ./devops/charts/dashboard-cronjob \
+  --set command[0]=uv \
+  --set command[1]=run \
+  --set command[2]=python \
+  --set command[3]=devops/datadog/run_collector.py \
+  --set command[4]=skypilot \
+  --set command[5]=--push \
+  --set schedule="*/10 * * * *" \
+  --set datadog.service=skypilot-collector \
+  --set image.tag=${TAG} \
+  --install
+
+# Asana collector (every 30 minutes)
+helm upgrade -n monitoring asana-collector ./devops/charts/dashboard-cronjob \
+  --set command[0]=uv \
+  --set command[1]=run \
+  --set command[2]=python \
+  --set command[3]=devops/datadog/run_collector.py \
+  --set command[4]=asana \
+  --set command[5]=--push \
+  --set schedule="*/30 * * * *" \
+  --set datadog.service=asana-collector \
+  --set image.tag=${TAG} \
+  --install
+```
+
+#### Step 8: Verify Deployment
+
+```bash
+# Check CronJob status
+kubectl get cronjobs -n monitoring
+
+# Check recent jobs
+kubectl get jobs -n monitoring --sort-by=.metadata.creationTimestamp | tail -5
+
+# View logs from most recent job
+kubectl logs -n monitoring -l app.kubernetes.io/name=dashboard-cronjob --tail=50
+
+# Expected: "Successfully pushed X metrics to Datadog"
+```
+
+#### Step 9: Force a Manual Run (Testing)
+
+```bash
+# Trigger a job immediately without waiting for the schedule
+kubectl create job --from=cronjob/dashboard-cronjob manual-test-$(date +%s) -n monitoring
+
+# Watch the job
+kubectl get jobs -n monitoring --watch
+
+# View logs
+kubectl logs -n monitoring job/manual-test-<timestamp>
+```
+
+### Quick Local Deploy (One-Liner)
+
+For rapid iteration, combine all steps:
+
+```bash
+# Build, tag, push, and deploy in one command
+export TAG=local-$(date +%Y%m%d-%H%M%S) && \
+docker buildx build --platform linux/amd64 -f softmax/Dockerfile -t softmax-dashboard:local --load . && \
+aws ecr get-login-password --region us-east-1 --profile softmax-admin | docker login --username AWS --password-stdin 751442549699.dkr.ecr.us-east-1.amazonaws.com && \
+docker tag softmax-dashboard:local 751442549699.dkr.ecr.us-east-1.amazonaws.com/softmax-dashboard:${TAG} && \
+docker push 751442549699.dkr.ecr.us-east-1.amazonaws.com/softmax-dashboard:${TAG} && \
+helm upgrade -n monitoring dashboard-cronjob ./devops/charts/dashboard-cronjob --set image.tag=${TAG} && \
+echo "✓ Deployed with tag: ${TAG}"
+```
+
+### Troubleshooting Local Deployment
+
+**Build Fails:**
+```bash
+# Clean Docker build cache
+docker builder prune -af
+
+# Check platform
+docker buildx ls
+# Should show linux/amd64 support
+
+# Try with verbose output
+docker buildx build --platform linux/amd64 --progress=plain -f softmax/Dockerfile -t softmax-dashboard:local --load .
+```
+
+**Push to ECR Fails:**
+```bash
+# Re-authenticate
+aws ecr get-login-password --region us-east-1 --profile softmax-admin | \
+  docker login --username AWS --password-stdin 751442549699.dkr.ecr.us-east-1.amazonaws.com
+
+# Verify credentials
+aws sts get-caller-identity --profile softmax-admin
+
+# Check repository exists
+aws ecr describe-repositories --repository-names softmax-dashboard --region us-east-1
+```
+
+**Deployment Fails:**
+```bash
+# Check Helm release status
+helm status -n monitoring dashboard-cronjob
+
+# View Helm history
+helm history -n monitoring dashboard-cronjob
+
+# Check pod events
+kubectl get pods -n monitoring
+kubectl describe pod <pod-name> -n monitoring
+
+# Rollback if needed
+helm rollback -n monitoring dashboard-cronjob
+```
+
+**Collectors Not Running:**
+```bash
+# Check CronJob is active
+kubectl get cronjob -n monitoring dashboard-cronjob -o yaml | grep suspend
+# Should show: suspend: false
+
+# Force a manual run
+kubectl create job --from=cronjob/dashboard-cronjob test-$(date +%s) -n monitoring
+
+# Check logs
+kubectl logs -n monitoring -l app.kubernetes.io/instance=dashboard-cronjob --tail=100
+```
+
 ## Building the Docker Image
 
 ### Platform Compatibility
