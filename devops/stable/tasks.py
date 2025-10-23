@@ -460,8 +460,18 @@ class EvaluationTask(LocalCommandTask):
 # ============================================================================
 
 
-def ci(name: str = "metta_ci", timeout_s: int = 1800) -> Task:
-    cmd = ["metta", "ci"]
+def python_ci(name: str = "python_ci", timeout_s: int = 1800) -> Task:
+    cmd = ["uv", "run", "metta", "pytest", "--ci"]
+    return LocalCommandTask(name=name, cmd=cmd, timeout_s=timeout_s)
+
+
+def cpp_ci(name: str = "cpp_ci", timeout_s: int = 1800) -> Task:
+    cmd = ["uv", "run", "metta", "cpptest", "--test"]
+    return LocalCommandTask(name=name, cmd=cmd, timeout_s=timeout_s)
+
+
+def cpp_benchmark(name: str = "cpp_benchmark", timeout_s: int = 1800) -> Task:
+    cmd = ["uv", "run", "metta", "cpptest", "--benchmark"]
     return LocalCommandTask(name=name, cmd=cmd, timeout_s=timeout_s)
 
 
@@ -573,7 +583,9 @@ def get_all_tasks() -> list[Task]:
     5. Evaluation on trained policy
     """
     # CI checks
-    ci_task = ci()
+    python_ci_task = python_ci()
+    cpp_ci_task = cpp_ci()
+    cpp_benchmark_task = cpp_benchmark()
 
     # Local smoke test
     smoke_run = f"stable.smoke.{datetime.now().strftime('%Y%m%d_%H%M%S')}"
@@ -622,4 +634,4 @@ def get_all_tasks() -> list[Task]:
         timeout_s=1800,
     )
 
-    return [ci_task, smoke, train_100m, train_2b, eval_task]
+    return [python_ci_task, cpp_ci_task, cpp_benchmark_task, smoke, train_100m, train_2b, eval_task]
