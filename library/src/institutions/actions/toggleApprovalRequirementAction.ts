@@ -10,7 +10,9 @@ import { prisma } from "@/lib/db/prisma";
 
 const inputSchema = zfd.formData({
   institutionId: zfd.text(z.string()),
-  requiresApproval: zfd.checkbox(),
+  requiresApproval: zfd.text(
+    z.enum(["true", "false"]).transform((val) => val === "true")
+  ),
 });
 
 export const toggleApprovalRequirementAction = actionClient

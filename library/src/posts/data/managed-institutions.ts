@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/db/prisma";
 import { auth } from "@/lib/auth";
 import type {
+  Author,
   Institution,
   InstitutionType,
   Paper,
@@ -41,21 +42,61 @@ export type UnifiedInstitutionDTO = {
     joinedAt: Date;
     isActive: boolean;
   }>;
+  pendingRequests?: Array<{
+    id: string;
+    user: {
+      id: string;
+      name: string | null;
+      email: string | null;
+    };
+    role: string | null;
+    department: string | null;
+    title: string | null;
+    joinedAt: Date;
+  }>;
   recentPapers?: Array<{
     id: string;
     title: string;
+    abstract: string | null;
     link: string | null;
     createdAt: Date;
     stars: number;
+    tags: string[];
     authors: Array<{
       id: string;
       name: string;
     }>;
+    institutions: string[];
   }>;
   authors?: Array<{
     id: string;
     name: string;
+    username: string | null;
+    email: string | null;
+    avatar: string | null;
+    institution: string | null;
+    department: string | null;
+    title: string | null;
+    expertise: string[];
+    hIndex: number | null;
+    totalCitations: number | null;
+    claimed: boolean;
+    recentActivity: Date | null;
     paperCount: number;
+    recentPapers: Array<{
+      id: string;
+      title: string;
+      link: string | null;
+      createdAt: Date;
+      stars: number;
+      abstract: string | null;
+      tags: string[];
+      authors: Array<{
+        id: string;
+        name: string;
+      }>;
+      institutions: string[];
+    }>;
   }>;
 };
 
@@ -76,14 +117,30 @@ type InstitutionWithRelations = Institution & {
             author: { id: string; name: string };
           }
         >;
+        paperInstitutions: Array<{
+          institution: { name: string };
+        }>;
       };
     }
   >;
-  authors: Array<{
-    id: string;
-    name: string;
-    paperAuthors: PaperAuthor[];
-  }>;
+  authors: Array<
+    Author & {
+      paperAuthors: Array<
+        PaperAuthor & {
+          paper: Paper & {
+            paperAuthors: Array<
+              PaperAuthor & {
+                author: { id: string; name: string };
+              }
+            >;
+            paperInstitutions: Array<{
+              institution: { name: string };
+            }>;
+          };
+        }
+      >;
+    }
+  >;
 };
 
 function mapToUnifiedInstitution(
@@ -109,6 +166,20 @@ function mapToUnifiedInstitution(
   const membership = sessionUserId
     ? institution.userInstitutions.find((ui) => ui.userId === sessionUserId)
     : null;
+
+  // Check if current user is an admin
+  const isAdmin =
+    membership?.role === "admin" && membership?.status === "APPROVED";
+
+  // Filter approved members
+  const approvedMembers = institution.userInstitutions.filter(
+    (ui) => ui.status === "APPROVED" && ui.isActive
+  );
+
+  // Filter pending requests (only include if user is admin)
+  const pendingRequests = isAdmin
+    ? institution.userInstitutions.filter((ui) => ui.status === "PENDING")
+    : [];
 
   const filteredUserInstitutions = institution.userInstitutions.filter((ui) =>
     includePending ? true : ui.status === "APPROVED" && ui.isActive
@@ -138,7 +209,7 @@ function mapToUnifiedInstitution(
       membership?.status === "APPROVED" ? (membership?.role ?? null) : null,
     currentUserStatus: membership?.status ?? null,
     ...(includeMembers && {
-      members: filteredUserInstitutions.map((ui) => ({
+      members: approvedMembers.map((ui) => ({
         id: ui.id,
         user: ui.user,
         role: ui.role,
@@ -148,21 +219,69 @@ function mapToUnifiedInstitution(
         isActive: ui.isActive,
       })),
     }),
+    ...(includeMembers &&
+      isAdmin && {
+        pendingRequests: pendingRequests.map((ui) => ({
+          id: ui.id,
+          user: {
+            id: ui.user.id,
+            name: ui.user.name,
+            email: ui.user.email,
+          },
+          role: ui.role,
+          department: ui.department,
+          title: ui.title,
+          joinedAt: ui.joinedAt,
+        })),
+      }),
     recentPapers: papers.map((paper) => ({
       id: paper.id,
       title: paper.title,
+      abstract: paper.abstract,
       link: paper.link,
       createdAt: paper.createdAt,
       stars: paper.stars,
+      tags: (paper.tags as string[]) || [],
       authors: paper.paperAuthors.map((pa) => ({
         id: pa.author.id,
         name: pa.author.name,
       })),
+      institutions:
+        "paperInstitutions" in paper && paper.paperInstitutions
+          ? paper.paperInstitutions.map((pi: any) => pi.institution.name)
+          : [],
     })),
     authors: institution.authors.map((author) => ({
       id: author.id,
       name: author.name,
+      username: author.username,
+      email: author.email,
+      avatar: author.avatar,
+      institution: author.institution,
+      department: author.department,
+      title: author.title,
+      expertise: (author.expertise as string[]) || [],
+      hIndex: author.hIndex,
+      totalCitations: author.totalCitations,
+      claimed: author.claimed,
+      recentActivity: author.recentActivity,
       paperCount: author.paperAuthors.length,
+      recentPapers: author.paperAuthors.slice(0, 5).map((pa) => ({
+        id: pa.paper.id,
+        title: pa.paper.title,
+        abstract: pa.paper.abstract,
+        link: pa.paper.link,
+        createdAt: pa.paper.createdAt,
+        stars: pa.paper.stars,
+        tags: (pa.paper.tags as string[]) || [],
+        authors: pa.paper.paperAuthors.map((paperAuthor) => ({
+          id: paperAuthor.author.id,
+          name: paperAuthor.author.name,
+        })),
+        institutions: pa.paper.paperInstitutions.map(
+          (pi) => pi.institution.name
+        ),
+      })),
     })),
   };
 }
@@ -189,16 +308,25 @@ export async function loadUserInstitutions(): Promise<UnifiedInstitutionDTO[]> {
     },
     include: {
       userInstitutions: {
-        where: { status: "APPROVED", isActive: true },
+        where: {
+          OR: [
+            // Include all approved active memberships
+            { status: "APPROVED", isActive: true },
+            // Include pending requests (these will be filtered per institution based on admin role)
+            { status: "PENDING" },
+          ],
+        },
         include: {
           user: {
             select: {
+              id: true,
               name: true,
               email: true,
             },
           },
         },
         orderBy: [
+          { status: "asc" }, // APPROVED first, then PENDING
           { role: "asc" }, // admins first
           { joinedAt: "asc" },
         ],
@@ -237,7 +365,7 @@ export async function loadUserInstitutions(): Promise<UnifiedInstitutionDTO[]> {
   });
 
   return institutions.map((institution) =>
-    mapToUnifiedInstitution(institution, {
+    mapToUnifiedInstitution(institution as InstitutionWithRelations, {
       sessionUserId: session.user?.id,
       includeMembers: true,
     })
@@ -314,11 +442,215 @@ export async function loadAllInstitutions(): Promise<UnifiedInstitutionDTO[]> {
   });
 
   return institutions.map((institution) =>
-    mapToUnifiedInstitution(institution, {
+    mapToUnifiedInstitution(institution as InstitutionWithRelations, {
       sessionUserId: session?.user?.id,
       includeMembers: false,
       includePending: true,
     })
+  );
+}
+
+/**
+ * Load a single institution by name (unified view for overlay/detail)
+ */
+export async function loadInstitutionByName(
+  name: string
+): Promise<UnifiedInstitutionDTO | null> {
+  const session = await auth();
+
+  const institution = await prisma.institution.findUnique({
+    where: { name },
+    include: {
+      userInstitutions: {
+        where: {
+          OR: [
+            // Include all approved active memberships
+            {
+              status: "APPROVED" as const,
+              isActive: true,
+            },
+            // Include current user's pending requests so they can see their status
+            ...(session?.user?.id
+              ? [
+                  {
+                    userId: session.user.id,
+                    status: "PENDING" as const,
+                  },
+                ]
+              : []),
+          ],
+        },
+        include: {
+          user: {
+            select: {
+              name: true,
+              email: true,
+            },
+          },
+        },
+      },
+      papers: {
+        include: {
+          paper: {
+            include: {
+              paperAuthors: {
+                include: {
+                  author: {
+                    select: {
+                      id: true,
+                      name: true,
+                    },
+                  },
+                },
+              },
+              paperInstitutions: {
+                include: {
+                  institution: {
+                    select: {
+                      name: true,
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+        orderBy: {
+          paper: { createdAt: "desc" },
+        },
+        take: 10, // Get more papers for detail view
+      },
+      authors: {
+        include: {
+          paperAuthors: {
+            include: {
+              paper: {
+                include: {
+                  paperAuthors: {
+                    include: {
+                      author: {
+                        select: {
+                          id: true,
+                          name: true,
+                        },
+                      },
+                    },
+                  },
+                  paperInstitutions: {
+                    include: {
+                      institution: {
+                        select: {
+                          name: true,
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+            orderBy: {
+              paper: {
+                createdAt: "desc",
+              },
+            },
+            take: 5, // Get recent papers per author
+          },
+        },
+        orderBy: [{ hIndex: "desc" }, { totalCitations: "desc" }],
+        take: 20, // Get more authors for detail view
+      },
+    },
+  });
+
+  if (!institution) {
+    return null;
+  }
+
+  // Derive authors from papers if direct author relationship is empty
+  let authorsForInstitution = institution.authors;
+
+  if (authorsForInstitution.length === 0) {
+    // Get unique authors from papers affiliated with this institution
+    const authorIds = new Set<string>();
+    const authorMap = new Map<
+      string,
+      { id: string; name: string; paperCount: number }
+    >();
+
+    for (const paperInst of institution.papers) {
+      for (const paperAuthor of paperInst.paper.paperAuthors) {
+        const authorId = paperAuthor.author.id;
+        if (!authorIds.has(authorId)) {
+          authorIds.add(authorId);
+          authorMap.set(authorId, {
+            id: paperAuthor.author.id,
+            name: paperAuthor.author.name,
+            paperCount: 1,
+          });
+        } else {
+          const existing = authorMap.get(authorId)!;
+          existing.paperCount++;
+        }
+      }
+    }
+
+    // Fetch full author data for these authors
+    if (authorIds.size > 0) {
+      authorsForInstitution = await prisma.author.findMany({
+        where: {
+          id: { in: Array.from(authorIds) },
+        },
+        include: {
+          paperAuthors: {
+            include: {
+              paper: {
+                include: {
+                  paperAuthors: {
+                    include: {
+                      author: {
+                        select: {
+                          id: true,
+                          name: true,
+                        },
+                      },
+                    },
+                  },
+                  paperInstitutions: {
+                    include: {
+                      institution: {
+                        select: {
+                          name: true,
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+            orderBy: {
+              paper: {
+                createdAt: "desc",
+              },
+            },
+            take: 5, // Get recent papers per author
+          },
+        },
+        orderBy: [{ hIndex: "desc" }, { totalCitations: "desc" }],
+        take: 20,
+      });
+    }
+  }
+
+  return mapToUnifiedInstitution(
+    {
+      ...institution,
+      authors: authorsForInstitution,
+    } as InstitutionWithRelations,
+    {
+      sessionUserId: session?.user?.id,
+      includeMembers: false,
+      includePending: true,
+    }
   );
 }
 

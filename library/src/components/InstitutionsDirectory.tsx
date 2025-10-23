@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useCallback, useMemo, useState } from "react";
-import { useAction } from "next-safe-action/hooks";
 import { Search } from "lucide-react";
 
 import { InstitutionCard } from "@/components/institutions/InstitutionCard";
@@ -9,12 +8,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { useFilterSort } from "@/lib/hooks/useFilterSort";
-import { useErrorHandling } from "@/lib/hooks/useErrorHandling";
+import { SortControls } from "@/components/ui/sort-controls";
 import { useOverlayNavigation } from "@/components/OverlayStack";
 import { InstitutionCreateForm } from "@/components/InstitutionCreateForm";
 import { InstitutionManagementModal } from "@/components/InstitutionManagementModal";
 import type { UnifiedInstitutionDTO } from "@/posts/data/managed-institutions";
-import { joinInstitutionAction } from "@/institutions/actions/joinInstitutionAction";
+import { useJoinInstitution } from "@/hooks/mutations/useJoinInstitution";
 
 interface InstitutionsDirectoryProps {
   directory: UnifiedInstitutionDTO[];
@@ -33,22 +32,10 @@ export const InstitutionsDirectory: React.FC<InstitutionsDirectoryProps> = ({
   const { openInstitution } = useOverlayNavigation();
 
   const {
+    mutate: joinInstitution,
+    isPending: isJoining,
     error: joinError,
-    setError: setJoinError,
-    clearError: clearJoinError,
-  } = useErrorHandling({
-    fallbackMessage: "Failed to join institution.",
-  });
-
-  const { execute: joinInstitution, isExecuting: isJoining } = useAction(
-    joinInstitutionAction,
-    {
-      onSuccess: () => {
-        clearJoinError();
-      },
-      onError: (error) => setJoinError(error),
-    }
-  );
+  } = useJoinInstitution();
 
   const allInstitutions = useMemo<UnifiedInstitutionDTO[]>(() => {
     const byId = new Map<string, UnifiedInstitutionDTO>();
@@ -98,9 +85,7 @@ export const InstitutionsDirectory: React.FC<InstitutionsDirectoryProps> = ({
 
   const handleJoin = useCallback(
     (institution: UnifiedInstitutionDTO) => {
-      const formData = new FormData();
-      formData.append("institutionId", institution.id);
-      joinInstitution(formData);
+      joinInstitution({ institutionId: institution.id });
     },
     [joinInstitution]
   );
@@ -141,9 +126,6 @@ export const InstitutionsDirectory: React.FC<InstitutionsDirectoryProps> = ({
           claimed: false,
           isFollowing: false,
           recentActivity: null,
-          orcid: null,
-          googleScholarId: null,
-          arxivId: null,
           createdAt: new Date(),
           updatedAt: new Date(),
           paperCount: author.paperCount,
@@ -209,37 +191,22 @@ export const InstitutionsDirectory: React.FC<InstitutionsDirectoryProps> = ({
           </div>
 
           {/* Sort Controls */}
-          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-            <span className="text-sm font-medium text-gray-600">Sort by:</span>
-            <div className="flex flex-wrap gap-2">
-              {sortOptions.map((option) => {
-                const isActive = sortBy === option.key;
-                return (
-                  <Button
-                    key={option.key}
-                    variant={isActive ? "default" : "outline"}
-                    size="sm"
-                    onClick={() => {
-                      if (isActive) {
-                        setSortDirection(
-                          sortDirection === "asc" ? "desc" : "asc"
-                        );
-                      } else {
-                        setSortBy(option.key);
-                        setSortDirection(
-                          option.key === "name" ? "asc" : "desc"
-                        );
-                      }
-                    }}
-                  >
-                    {option.label}
-                  </Button>
-                );
-              })}
-            </div>
-          </div>
+          <SortControls
+            sortOptions={sortOptions}
+            sortBy={sortBy}
+            sortDirection={sortDirection}
+            onSortChange={(key) => {
+              setSortBy(key);
+              setSortDirection(key === "name" ? "asc" : "desc");
+            }}
+            onDirectionToggle={() =>
+              setSortDirection(sortDirection === "asc" ? "desc" : "asc")
+            }
+          />
 
-          {joinError && <p className="text-destructive text-sm">{joinError}</p>}
+          {joinError && (
+            <p className="text-destructive text-sm">{joinError.message}</p>
+          )}
 
           {/* Institutions Grid */}
           {filteredAndSortedItems.length > 0 ? (

@@ -5,6 +5,7 @@ import {
 } from "../../scripts/fetch-arxiv-paper";
 import { extractInstitutionsFromPdf } from "./pdf-institution-extractor";
 import { PaperAbstractService } from "./paper-abstract-service";
+import { JobQueueService } from "./job-queue";
 import { Logger } from "./logging/logger";
 
 /**
@@ -32,9 +33,6 @@ async function getOrCreateAuthor(authorName: string) {
         name: normalizedName,
         email: null,
         institution: null,
-        orcid: null,
-        googleScholarId: null,
-        arxivId: null,
       },
     });
     Logger.debug("Created author", { authorName: normalizedName });
@@ -114,21 +112,7 @@ export async function autoImportArxivPaper(
 
       // Check if existing paper needs LLM abstract generation
       if (!existingPaper.llmAbstract) {
-        Logger.info("Queuing LLM abstract generation for existing paper", {
-          paperId: existingPaper.id,
-        });
-        try {
-          const { queueLLMAbstractGeneration } = await import(
-            "./background-jobs"
-          );
-          await queueLLMAbstractGeneration(existingPaper.id);
-        } catch (error) {
-          Logger.error(
-            "Failed to queue LLM abstract for existing paper",
-            error instanceof Error ? error : new Error(String(error)),
-            { paperId: existingPaper.id }
-          );
-        }
+        await JobQueueService.queueLLMAbstractGeneration(existingPaper.id);
       }
 
       return existingPaper.id;
@@ -166,32 +150,10 @@ export async function autoImportArxivPaper(
     });
 
     // Generate LLM abstract in the background using job queue
-    Logger.info("Queuing LLM abstract generation for paper", {
-      paperId: paper.id,
-    });
-    try {
-      const { queueLLMAbstractGeneration } = await import("./background-jobs");
-      await queueLLMAbstractGeneration(paper.id);
-    } catch (error) {
-      Logger.error(
-        "Failed to queue LLM abstract for paper",
-        error instanceof Error ? error : new Error(String(error)),
-        { paperId: paper.id }
-      );
-    }
+    await JobQueueService.queueLLMAbstractGeneration(paper.id);
 
     // Auto-tag the paper in the background using job queue
-    Logger.info("Queuing auto-tagging for paper", { paperId: paper.id });
-    try {
-      const { queueAutoTagging } = await import("./background-jobs");
-      await queueAutoTagging(paper.id);
-    } catch (error) {
-      Logger.error(
-        "Failed to queue auto-tagging for paper",
-        error instanceof Error ? error : new Error(String(error)),
-        { paperId: paper.id }
-      );
-    }
+    await JobQueueService.queueAutoTagging(paper.id);
 
     return paper.id;
   } catch (error) {

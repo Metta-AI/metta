@@ -10,6 +10,8 @@ import { X, Users, UserPlus, Trash2, Globe, Lock } from "lucide-react";
 import { manageGroupMembershipAction } from "@/groups/actions/manageGroupMembershipAction";
 import { useErrorHandling } from "@/lib/hooks/useErrorHandling";
 import { getUserDisplayName } from "@/lib/utils/user";
+import { useDeleteGroup } from "@/hooks/mutations/admin/useDeleteGroup";
+import { Tabs } from "@/components/ui/tabs";
 import {
   Form,
   FormControl,
@@ -56,6 +58,11 @@ interface GroupManagementModalProps {
     members?: GroupMember[];
   };
   currentUserRole?: string | null;
+  currentUser: {
+    id: string;
+    name?: string | null;
+    email?: string | null;
+  } | null;
 }
 
 const addGroupMemberSchema = z.object({
@@ -75,8 +82,11 @@ export const GroupManagementModal: FC<GroupManagementModalProps> = ({
   onClose,
   group,
   currentUserRole,
+  currentUser,
 }) => {
-  const [activeTab, setActiveTab] = useState<"members" | "add">("members");
+  const [activeTab, setActiveTab] = useState<
+    "members" | "add" | "settings" | "leave"
+  >("members");
   const [localMembers, setLocalMembers] = useState<GroupMember[]>(
     group.members || []
   );
@@ -94,6 +104,8 @@ export const GroupManagementModal: FC<GroupManagementModalProps> = ({
     fallbackMessage: "Failed to manage membership. Please try again.",
   });
 
+  const deleteGroupMutation = useDeleteGroup();
+
   useEffect(() => {
     setLocalMembers(group.members || []);
   }, [group.members]);
@@ -109,7 +121,18 @@ export const GroupManagementModal: FC<GroupManagementModalProps> = ({
   const { execute: manageMembership, isExecuting } = useAction(
     manageGroupMembershipAction,
     {
-      onSuccess: () => {
+      onSuccess: (data, input) => {
+        // Check if current user just left the group
+        const formData = input as FormData;
+        const action = formData.get("action") as string;
+        const userEmail = formData.get("userEmail") as string;
+
+        if (action === "remove" && userEmail === currentUser?.email) {
+          // Current user left the group, close the modal
+          onClose();
+          return;
+        }
+
         if (activeTab === "add") {
           const values = form.getValues();
           const newMember: GroupMember = {
@@ -162,7 +185,51 @@ export const GroupManagementModal: FC<GroupManagementModalProps> = ({
     manageMembership(formData);
   };
 
+  const handleDeleteGroup = () => {
+    if (
+      !window.confirm(
+        `Are you sure you want to delete "${group.name}"? This action cannot be undone and will remove all members.`
+      )
+    ) {
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append("groupId", group.id);
+
+    deleteGroupMutation.mutate(
+      { groupId: group.id },
+      {
+        onSuccess: () => {
+          onClose();
+        },
+      }
+    );
+  };
+
+  const handleLeaveGroup = () => {
+    if (
+      !window.confirm(
+        `Are you sure you want to leave "${group.name}"? You can rejoin later if it's a public group.`
+      )
+    ) {
+      return;
+    }
+
+    if (!currentUser?.email) {
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append("groupId", group.id);
+    formData.append("userEmail", currentUser.email);
+    formData.append("action", "remove");
+
+    manageMembership(formData);
+  };
+
   const isAdmin = currentUserRole === "admin";
+  const isMember = !!currentUserRole;
 
   if (!isOpen) return null;
 
@@ -202,36 +269,34 @@ export const GroupManagementModal: FC<GroupManagementModalProps> = ({
                 form.reset(defaultAddGroupValues);
                 onClose();
               }}
-              className="rounded-lg p-1 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600"
+              className="cursor-pointer rounded-lg p-1 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600"
             >
               <X className="h-5 w-5" />
             </button>
           </div>
 
-          {isAdmin && (
-            <div className="mt-4 flex gap-2">
-              <button
-                onClick={() => setActiveTab("members")}
-                className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
-                  activeTab === "members"
-                    ? "bg-blue-100 text-blue-700"
-                    : "text-gray-600 hover:bg-gray-100"
-                }`}
-              >
-                Members ({memberCount})
-              </button>
-              <button
-                onClick={() => setActiveTab("add")}
-                className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
-                  activeTab === "add"
-                    ? "bg-blue-100 text-blue-700"
-                    : "text-gray-600 hover:bg-gray-100"
-                }`}
-              >
-                Add Member
-              </button>
-            </div>
-          )}
+          <div className="mt-4">
+            {isAdmin ? (
+              <Tabs
+                tabs={[
+                  { id: "members", label: `Members (${memberCount})` },
+                  { id: "add", label: "Add Member" },
+                  { id: "settings", label: "Settings" },
+                ]}
+                activeTab={activeTab}
+                onTabChange={(tab) => setActiveTab(tab as typeof activeTab)}
+              />
+            ) : isMember ? (
+              <Tabs
+                tabs={[
+                  { id: "members", label: `Members (${memberCount})` },
+                  { id: "leave", label: "Leave Group" },
+                ]}
+                activeTab={activeTab}
+                onTabChange={(tab) => setActiveTab(tab as typeof activeTab)}
+              />
+            ) : null}
+          </div>
         </div>
 
         <div
@@ -281,7 +346,7 @@ export const GroupManagementModal: FC<GroupManagementModalProps> = ({
                         <button
                           onClick={() => handleRemoveMember(member.user.email!)}
                           disabled={isExecuting}
-                          className="rounded-md p-1.5 text-gray-400 transition-colors hover:bg-red-50 hover:text-red-600 disabled:opacity-50"
+                          className="cursor-pointer rounded-md p-1.5 text-gray-400 transition-colors hover:bg-red-50 hover:text-red-600 disabled:opacity-50"
                           title="Remove member"
                         >
                           <Trash2 className="h-4 w-4" />
@@ -369,6 +434,82 @@ export const GroupManagementModal: FC<GroupManagementModalProps> = ({
                 </div>
               </form>
             </Form>
+          )}
+
+          {activeTab === "settings" && isAdmin && (
+            <div className="space-y-6">
+              {/* Danger Zone - Delete Group */}
+              <div className="rounded-lg border border-red-200 bg-red-50 p-4">
+                <div className="flex items-start justify-between">
+                  <div>
+                    <h3 className="text-sm font-semibold text-red-900">
+                      Delete Group
+                    </h3>
+                    <p className="mt-1 text-sm text-red-700">
+                      Permanently delete this group and remove all members. This
+                      action cannot be undone.
+                    </p>
+                  </div>
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    onClick={handleDeleteGroup}
+                    disabled={deleteGroupMutation.isPending}
+                    className="ml-4"
+                  >
+                    <Trash2 className="mr-2 h-4 w-4" />
+                    {deleteGroupMutation.isPending ? "Deleting..." : "Delete"}
+                  </Button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {activeTab === "leave" && isMember && !isAdmin && (
+            <div className="space-y-6">
+              {/* Leave Group Section */}
+              <div className="rounded-lg border border-orange-200 bg-orange-50 p-6">
+                <div className="space-y-4">
+                  <div>
+                    <h3 className="text-sm font-semibold text-orange-900">
+                      Leave This Group
+                    </h3>
+                    <p className="mt-2 text-sm text-orange-700">
+                      You are currently a member of{" "}
+                      <strong>{group.name}</strong>.
+                    </p>
+                    <p className="mt-2 text-sm text-orange-700">
+                      If you leave:
+                    </p>
+                    <ul className="mt-2 list-inside list-disc space-y-1 text-sm text-orange-700">
+                      <li>You will be removed from the group</li>
+                      <li>You will no longer see group-specific content</li>
+                      {group.isPublic && (
+                        <li>
+                          You can rejoin at any time since it's a public group
+                        </li>
+                      )}
+                      {!group.isPublic && (
+                        <li>
+                          You will need to be re-invited to rejoin (private
+                          group)
+                        </li>
+                      )}
+                    </ul>
+                  </div>
+                  <div className="flex justify-end pt-2">
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      onClick={handleLeaveGroup}
+                      disabled={isExecuting}
+                    >
+                      {isExecuting ? "Leaving..." : "Leave Group"}
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            </div>
           )}
         </div>
       </div>

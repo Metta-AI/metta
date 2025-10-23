@@ -3,13 +3,19 @@
 import { useQuery } from "@tanstack/react-query";
 import * as notificationsApi from "@/lib/api/resources/notifications";
 
-export function useNotifications(params?: {
-  limit?: number;
-  includeRead?: boolean;
-}) {
+export function useNotifications(
+  params?: {
+    limit?: number;
+    includeRead?: boolean;
+  },
+  options?: {
+    enabled?: boolean;
+  }
+) {
   return useQuery({
     queryKey: ["notifications", params],
     queryFn: () => notificationsApi.listNotifications(params),
+    enabled: options?.enabled,
   });
 }
 

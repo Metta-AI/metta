@@ -13,14 +13,17 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
 
   const { searchParams } = new URL(request.url);
   const page = parseInt(searchParams.get("page") || "1", 10);
-  const limit = parseInt(searchParams.get("limit") || "20", 10);
+  const limit = Math.min(parseInt(searchParams.get("limit") || "20", 10), 100); // Cap at 100 to prevent abuse
   const search = searchParams.get("search") || "";
   const showBannedOnly = searchParams.get("banned") === "true";
 
   const skip = (page - 1) * limit;
 
   // Build where clause for filtering
-  const whereClause: any = {};
+  const whereClause: any = {
+    // Exclude system bot user
+    email: { not: "library_bot@system" },
+  };
 
   if (showBannedOnly) {
     whereClause.isBanned = true;
@@ -93,7 +96,7 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     pagination: {
       page,
       limit,
-      totalCount,
+      total: totalCount,
       totalPages,
       hasNextPage: page < totalPages,
       hasPrevPage: page > 1,

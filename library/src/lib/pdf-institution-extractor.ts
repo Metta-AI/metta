@@ -1,5 +1,6 @@
 import { PdfReader } from "pdfreader";
 import Anthropic from "@anthropic-ai/sdk";
+import { config } from "./config";
 import { Logger } from "./logging/logger";
 
 /**
@@ -127,7 +128,7 @@ async function extractInstitutionsWithLLM(
   Logger.info("Using LLM to extract institutions", { authorNames });
 
   // Get API key from environment
-  const anthropicApiKey = process.env.ANTHROPIC_API_KEY;
+  const anthropicApiKey = config.llm.anthropicApiKey;
 
   if (!anthropicApiKey) {
     Logger.warn("ANTHROPIC_API_KEY not found, falling back to mock parsing");

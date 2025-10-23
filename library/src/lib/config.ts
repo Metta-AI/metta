@@ -36,6 +36,10 @@ const configSchema = z.object({
       .string()
       .transform((s) => s.split(",").map((d) => d.trim()))
       .default(""),
+    adminEmails: z
+      .string()
+      .transform((s) => s.split(",").map((email) => email.trim()))
+      .default(""),
   }),
 
   // Discord OAuth (optional)
@@ -43,6 +47,7 @@ const configSchema = z.object({
     clientId: z.string().optional(),
     clientSecret: z.string().optional(),
     redirectUri: z.string().url().optional(),
+    botToken: z.string().optional(),
   }),
 
   // Google OAuth (optional)
@@ -64,7 +69,14 @@ const configSchema = z.object({
     profile: z.string().optional(),
     sesAccessKey: z.string().optional(),
     sesSecretKey: z.string().optional(),
-    s3Bucket: z.string().optional(),
+    s3AccessKey: z.string().optional(),
+    s3SecretKey: z.string().optional(),
+  }),
+
+  // S3 Storage (optional)
+  s3: z.object({
+    bucketName: z.string().optional(),
+    region: z.string().default("us-east-1"),
   }),
 
   // SMTP (optional fallback for email)
@@ -78,23 +90,6 @@ const configSchema = z.object({
   // LLM Services
   llm: z.object({
     anthropicApiKey: z.string().optional(),
-  }),
-
-  // Adobe PDF Services (optional)
-  adobe: z.object({
-    clientId: z.string().optional(),
-    clientSecret: z.string().optional(),
-  }),
-
-  // Asana Integration (optional)
-  asana: z.object({
-    apiKey: z.string().optional(),
-    token: z.string().optional(),
-    papersProjectId: z.string().optional(),
-    workspaceId: z.string().optional(),
-    paperLinkFieldId: z.string().optional(),
-    arxivIdFieldId: z.string().optional(),
-    abstractFieldId: z.string().optional(),
   }),
 
   // Feature Flags
@@ -128,12 +123,14 @@ function loadConfig(): Config {
         secret: process.env.NEXTAUTH_SECRET,
         url: process.env.NEXTAUTH_URL,
         allowedDomains: process.env.ALLOWED_EMAIL_DOMAINS,
+        adminEmails: process.env.ADMIN_EMAILS,
       },
 
       discord: {
         clientId: process.env.DISCORD_CLIENT_ID,
         clientSecret: process.env.DISCORD_CLIENT_SECRET,
         redirectUri: process.env.DISCORD_REDIRECT_URI,
+        botToken: process.env.DISCORD_BOT_TOKEN,
       },
 
       google: {
@@ -152,7 +149,13 @@ function loadConfig(): Config {
         profile: process.env.AWS_PROFILE,
         sesAccessKey: process.env.AWS_SES_ACCESS_KEY_ID,
         sesSecretKey: process.env.AWS_SES_SECRET_ACCESS_KEY,
-        s3Bucket: process.env.AWS_S3_BUCKET,
+        s3AccessKey: process.env.AWS_S3_ACCESS_KEY_ID,
+        s3SecretKey: process.env.AWS_S3_SECRET_ACCESS_KEY,
+      },
+
+      s3: {
+        bucketName: process.env.AWS_S3_BUCKET,
+        region: process.env.AWS_S3_REGION,
       },
 
       smtp: {
@@ -164,21 +167,6 @@ function loadConfig(): Config {
 
       llm: {
         anthropicApiKey: process.env.ANTHROPIC_API_KEY,
-      },
-
-      adobe: {
-        clientId: process.env.ADOBE_CLIENT_ID,
-        clientSecret: process.env.ADOBE_CLIENT_SECRET,
-      },
-
-      asana: {
-        apiKey: process.env.ASANA_API_KEY,
-        token: process.env.ASANA_TOKEN,
-        papersProjectId: process.env.ASANA_PAPERS_PROJECT_ID,
-        workspaceId: process.env.ASANA_WORKSPACE_ID,
-        paperLinkFieldId: process.env.ASANA_PAPER_LINK_FIELD_ID,
-        arxivIdFieldId: process.env.ASANA_ARXIV_ID_FIELD_ID,
-        abstractFieldId: process.env.ASANA_ABSTRACT_FIELD_ID,
       },
 
       features: {

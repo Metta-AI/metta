@@ -58,6 +58,9 @@ export const MentionInput: React.FC<MentionInputProps> = ({
   } | null>(null);
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // Remove ref from textareaProps if it exists (we need our own ref for positioning)
+  const { ref: _, ...restTextareaProps } = textareaProps as any;
   const suggestionsRef = useRef<HTMLDivElement>(null);
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -227,22 +230,25 @@ export const MentionInput: React.FC<MentionInputProps> = ({
 
     const textarea = textareaRef.current;
     const style = window.getComputedStyle(textarea);
-    const font = `${style.fontSize} ${style.fontFamily}`;
 
-    // Create a temporary span to measure text
-    const span = document.createElement("span");
-    span.style.font = font;
-    span.style.visibility = "hidden";
-    span.style.position = "absolute";
-    span.textContent = value.slice(0, currentMention.start);
-    document.body.appendChild(span);
+    // Calculate line height
+    const lineHeight =
+      parseInt(style.lineHeight) || parseInt(style.fontSize) * 1.5;
 
-    const textWidth = span.offsetWidth;
-    document.body.removeChild(span);
+    // Count newlines before the mention to determine current line
+    const textBeforeMention = value.slice(0, currentMention.start);
+    const lineNumber = (textBeforeMention.match(/\n/g) || []).length;
+
+    // Calculate vertical position: account for padding + line number + one line below
+    const paddingTop = parseInt(style.paddingTop) || 0;
+    const verticalPos = paddingTop + lineNumber * lineHeight + lineHeight;
+
+    // Calculate horizontal position - simple left align for now
+    const paddingLeft = parseInt(style.paddingLeft) || 0;
 
     return {
-      top: textarea.offsetTop + 25, // Rough line height
-      left: Math.min(textWidth, textarea.offsetWidth - 200), // Keep suggestions in bounds
+      top: verticalPos,
+      left: paddingLeft,
     };
   };
 
@@ -250,6 +256,8 @@ export const MentionInput: React.FC<MentionInputProps> = ({
     switch (suggestion.type) {
       case "user":
         return <User className="h-4 w-4 text-blue-500" />;
+      case "bot":
+        return <span className="text-base">🤖</span>;
       case "group-relative":
       case "group-absolute":
         return <Users className="h-4 w-4 text-green-500" />;
@@ -270,7 +278,7 @@ export const MentionInput: React.FC<MentionInputProps> = ({
         onChange={handleTextChange}
         onKeyDown={handleKeyDown}
         className={`w-full resize-none ${className}`}
-        {...textareaProps}
+        {...restTextareaProps}
       />
 
       {showSuggestions && suggestions.length > 0 && (

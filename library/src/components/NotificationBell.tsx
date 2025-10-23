@@ -1,23 +1,17 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from "react";
-import { Bell, X, Check, CheckCheck } from "lucide-react";
+import { Bell, X, CheckCheck } from "lucide-react";
 import Link from "next/link";
 
-import { getUserDisplayName } from "@/lib/utils/user";
-import { markNotificationsReadAction } from "@/notifications/actions/markNotificationsReadAction";
+import { type NotificationDTO } from "@/lib/api/resources/notifications";
 import {
-  listNotifications,
-  getNotificationCounts,
-  type NotificationDTO,
-} from "@/lib/api/resources/notifications";
+  useNotifications,
+  useNotificationCounts,
+} from "@/hooks/queries/useNotifications";
+import { useMarkNotificationsRead } from "@/hooks/mutations/useMarkNotificationsRead";
 
 type Notification = NotificationDTO;
-
-interface NotificationCounts {
-  total: number;
-  unread: number;
-}
 
 interface NotificationBellProps {
   className?: string;
@@ -27,31 +21,29 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({
   className = "",
 }) => {
   const [isOpen, setIsOpen] = useState(false);
-  const [notifications, setNotifications] = useState<Notification[]>([]);
-  const [counts, setCounts] = useState<NotificationCounts>({
-    total: 0,
-    unread: 0,
-  });
-  const [isLoading, setIsLoading] = useState(false);
-  const [hasLoaded, setHasLoaded] = useState(false);
-
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  // Load notification counts on mount and periodically
-  useEffect(() => {
-    loadCounts();
+  // Query for notification counts with automatic polling
+  const { data: counts } = useNotificationCounts();
 
-    // Poll for new notifications every 30 seconds
-    const interval = setInterval(loadCounts, 30000);
-    return () => clearInterval(interval);
-  }, []);
+  // Query for full notifications - only fetch when dropdown is open
+  const {
+    data: notificationsData,
+    isLoading,
+    refetch: refetchNotifications,
+  } = useNotifications({ limit: 20, includeRead: true }, { enabled: isOpen });
 
-  // Load full notifications when dropdown opens
+  // Mutation for marking notifications as read
+  const markReadMutation = useMarkNotificationsRead();
+
+  const notifications = notificationsData?.notifications ?? [];
+
+  // Refetch notifications when dropdown opens
   useEffect(() => {
-    if (isOpen && !hasLoaded) {
-      loadNotifications();
+    if (isOpen) {
+      refetchNotifications();
     }
-  }, [isOpen, hasLoaded]);
+  }, [isOpen, refetchNotifications]);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -68,60 +60,12 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  const loadCounts = async () => {
-    try {
-      const newCounts = await getNotificationCounts();
-      setCounts(newCounts);
-    } catch (error) {
-      console.error("Error loading notification counts:", error);
-    }
-  };
-
-  const loadNotifications = async () => {
-    setIsLoading(true);
-    try {
-      const data = await listNotifications({ limit: 20, includeRead: true });
-      setNotifications(data.notifications);
-      setCounts(data.counts);
-      setHasLoaded(true);
-    } catch (error) {
-      console.error("Error loading notifications:", error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
   const markAsRead = async (notificationIds: string[]) => {
-    try {
-      await markNotificationsReadAction({ notificationIds });
-
-      // Update local state
-      setNotifications((prev) =>
-        prev.map((n) =>
-          notificationIds.includes(n.id) ? { ...n, isRead: true } : n
-        )
-      );
-
-      // Update counts
-      setCounts((prev) => ({
-        ...prev,
-        unread: Math.max(0, prev.unread - notificationIds.length),
-      }));
-    } catch (error) {
-      console.error("Error marking notifications as read:", error);
-    }
+    markReadMutation.mutate({ notificationIds });
   };
 
   const markAllAsRead = async () => {
-    try {
-      await markNotificationsReadAction({ markAllRead: true });
-
-      // Update local state
-      setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
-      setCounts((prev) => ({ ...prev, unread: 0 }));
-    } catch (error) {
-      console.error("Error marking all notifications as read:", error);
-    }
+    markReadMutation.mutate({ markAllRead: true });
   };
 
   const handleNotificationClick = (notification: Notification) => {
@@ -175,7 +119,7 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({
         aria-label="Notifications"
       >
         <Bell className="h-5 w-5" />
-        {counts.unread > 0 && (
+        {counts && counts.unread > 0 && (
           <span className="absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-xs font-medium text-white">
             {counts.unread > 99 ? "99+" : counts.unread}
           </span>
@@ -190,7 +134,7 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({
           <div className="flex items-center justify-between border-b border-gray-200 px-4 py-3">
             <h3 className="font-semibold text-gray-900">Notifications</h3>
             <div className="flex items-center gap-2">
-              {counts.unread > 0 && (
+              {counts && counts.unread > 0 && (
                 <button
                   onClick={markAllAsRead}
                   className="flex items-center gap-1 rounded px-2 py-1 text-xs text-gray-600 hover:bg-gray-100"
@@ -250,10 +194,6 @@ const NotificationItem: React.FC<NotificationItemProps> = ({
   formatTimeAgo,
   getNotificationIcon,
 }) => {
-  const actorName = notification.actor
-    ? getUserDisplayName(notification.actor.name, notification.actor.email)
-    : "Someone";
-
   const content = (
     <div
       className={`flex cursor-pointer items-start gap-3 px-4 py-3 transition-colors hover:bg-gray-50 ${

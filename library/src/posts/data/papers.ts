@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/db/prisma";
 import { auth } from "@/lib/auth";
+import { Logger } from "@/lib/logging/logger";
 
 /**
  * Paper data structure that matches the database schema
@@ -20,7 +21,6 @@ export interface Paper {
   source: string | null;
   externalId: string | null;
   stars: number | null;
-  starred: boolean | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -33,7 +33,6 @@ export interface UserInteraction {
   paperId: string;
   starred: boolean | null;
   readAt: Date | null;
-  queued: boolean | null;
   notes: string | null;
 }
 
@@ -52,7 +51,6 @@ export interface User {
  */
 export interface PaperWithUserContext extends Paper {
   isStarredByCurrentUser: boolean;
-  isQueuedByCurrentUser: boolean;
 }
 
 /**
@@ -80,7 +78,6 @@ export async function loadPapersWithUserContext(): Promise<{
               select: {
                 id: true,
                 name: true,
-                orcid: true,
                 institution: true,
               },
             },
@@ -127,12 +124,10 @@ export async function loadPapersWithUserContext(): Promise<{
         authors: paper.paperAuthors.map((pa) => ({
           id: pa.author.id,
           name: pa.author.name,
-          orcid: pa.author.orcid,
           institution: pa.author.institution,
         })),
         institutions: paper.paperInstitutions.map((pi) => pi.institution.name),
         isStarredByCurrentUser: userInteraction?.starred || false,
-        isQueuedByCurrentUser: userInteraction?.queued || false,
       };
     });
 
@@ -142,7 +137,10 @@ export async function loadPapersWithUserContext(): Promise<{
       interactions,
     };
   } catch (error) {
-    console.error("Error loading papers with user context:", error);
+    Logger.error(
+      "Error loading papers with user context",
+      error instanceof Error ? error : new Error(String(error))
+    );
     throw new Error("Failed to load papers from database");
   }
 }
@@ -168,7 +166,6 @@ export async function loadPapers(): Promise<{
               select: {
                 id: true,
                 name: true,
-                orcid: true,
                 institution: true,
               },
             },
@@ -199,7 +196,6 @@ export async function loadPapers(): Promise<{
       authors: paper.paperAuthors.map((pa) => ({
         id: pa.author.id,
         name: pa.author.name,
-        orcid: pa.author.orcid,
         institution: pa.author.institution,
       })),
       institutions: paper.paperInstitutions.map((pi) => pi.institution.name),
@@ -211,7 +207,10 @@ export async function loadPapers(): Promise<{
       interactions,
     };
   } catch (error) {
-    console.error("Error loading papers:", error);
+    Logger.error(
+      "Error loading papers",
+      error instanceof Error ? error : new Error(String(error))
+    );
     throw new Error("Failed to load papers from database");
   }
 }
@@ -235,7 +234,6 @@ export async function loadPapersForUser(userId: string): Promise<{
               select: {
                 id: true,
                 name: true,
-                orcid: true,
                 institution: true,
               },
             },
@@ -265,7 +263,6 @@ export async function loadPapersForUser(userId: string): Promise<{
       authors: paper.paperAuthors.map((pa) => ({
         id: pa.author.id,
         name: pa.author.name,
-        orcid: pa.author.orcid,
         institution: pa.author.institution,
       })),
       institutions: paper.paperInstitutions.map((pi) => pi.institution.name),
@@ -276,7 +273,10 @@ export async function loadPapersForUser(userId: string): Promise<{
       userInteractions,
     };
   } catch (error) {
-    console.error("Error loading papers for user:", error);
+    Logger.error(
+      "Error loading papers for user",
+      error instanceof Error ? error : new Error(String(error))
+    );
     throw new Error("Failed to load papers for user");
   }
 }
