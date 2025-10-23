@@ -34,21 +34,12 @@ class PreUpBlock(BaseBlock):
         self.activate_cell_input = bool(config.activate_cell_input)
 
     def _should_apply_cell_act(self) -> bool:
-        """Best-effort check whether the wrapped cell is an mLSTM.
+        """Check whether the wrapped cell is an mLSTM."""
+        from cortex.cells.mlstm import mLSTMCell  # type: ignore
 
-        Avoids an import-time hard dependency by importing lazily and
-        falling back to a name check if needed.
-        """
-        try:
-            from cortex.cells.mlstm import mLSTMCell  # type: ignore
-
-            if isinstance(self.cell, mLSTMCell) and not self.cell.use_axon_qkv:
-                return True
-            else:
-                return False
-        except Exception:
-            # Fallback to class name heuristic
-            return "mlstm" in self.cell.__class__.__name__.lower()
+        if isinstance(self.cell, mLSTMCell) and not self.cell.use_axon_qkv:
+            return True
+        return False
 
     def forward(
         self,

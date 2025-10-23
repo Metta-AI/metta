@@ -17,13 +17,10 @@ def _get_cell_tag(config_class: type[CellConfig]) -> str:
 
     We expect Pydantic v2 `model_fields` to contain a default for `cell_type`.
     """
-    try:
-        field = config_class.model_fields["cell_type"]  # type: ignore[attr-defined]
-        tag = field.default  # type: ignore[assignment]
-        if isinstance(tag, str) and tag:
-            return tag
-    except Exception:  # pragma: no cover - defensive
-        pass
+    field = config_class.model_fields["cell_type"]  # type: ignore[attr-defined]
+    tag = field.default  # type: ignore[assignment]
+    if isinstance(tag, str) and tag:
+        return tag
     raise ValueError(f"Cell config {config_class.__name__} must define a default 'cell_type' field")
 
 

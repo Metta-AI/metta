@@ -19,13 +19,10 @@ _BLOCK_CONFIG_BY_TAG: Dict[str, type[BlockConfig]] = {}
 
 
 def _get_block_tag(config_class: type[BlockConfig]) -> str:
-    try:
-        field = config_class.model_fields["block_type"]  # type: ignore[attr-defined]
-        tag = field.default  # type: ignore[assignment]
-        if isinstance(tag, str) and tag:
-            return tag
-    except Exception:  # pragma: no cover - defensive
-        pass
+    field = config_class.model_fields["block_type"]  # type: ignore[attr-defined]
+    tag = field.default  # type: ignore[assignment]
+    if isinstance(tag, str) and tag:
+        return tag
     raise ValueError(f"Block config {config_class.__name__} must define a default 'block_type' field")
 
 
