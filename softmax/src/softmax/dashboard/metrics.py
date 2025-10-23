@@ -7,6 +7,7 @@ from pydantic import BaseModel
 
 from gitta import (
     get_branches,
+    get_commit_with_stats,
     get_commits,
     get_pull_requests,
     get_workflow_run_jobs,
@@ -302,6 +303,7 @@ def get_lines_added_7d() -> int:
     repo = f"{METTA_GITHUB_ORGANIZATION}/{METTA_GITHUB_REPO}"
 
     try:
+        # First get the list of commits to extract SHAs
         commits = get_commits(
             repo=repo,
             branch="main",
@@ -310,9 +312,21 @@ def get_lines_added_7d() -> int:
             Authorization=_get_github_auth_header(),
         )
 
+        # Fetch each commit individually to get stats
         total_additions = 0
         for commit in commits:
-            stats = commit.get("stats", {})
+            sha = commit.get("sha")
+            if not sha:
+                continue
+
+            # Get full commit with stats
+            commit_with_stats = get_commit_with_stats(
+                repo=repo,
+                sha=sha,
+                Authorization=_get_github_auth_header(),
+            )
+
+            stats = commit_with_stats.get("stats", {})
             total_additions += stats.get("additions", 0)
 
         return total_additions
@@ -328,6 +342,7 @@ def get_lines_deleted_7d() -> int:
     repo = f"{METTA_GITHUB_ORGANIZATION}/{METTA_GITHUB_REPO}"
 
     try:
+        # First get the list of commits to extract SHAs
         commits = get_commits(
             repo=repo,
             branch="main",
@@ -336,9 +351,21 @@ def get_lines_deleted_7d() -> int:
             Authorization=_get_github_auth_header(),
         )
 
+        # Fetch each commit individually to get stats
         total_deletions = 0
         for commit in commits:
-            stats = commit.get("stats", {})
+            sha = commit.get("sha")
+            if not sha:
+                continue
+
+            # Get full commit with stats
+            commit_with_stats = get_commit_with_stats(
+                repo=repo,
+                sha=sha,
+                Authorization=_get_github_auth_header(),
+            )
+
+            stats = commit_with_stats.get("stats", {})
             total_deletions += stats.get("deletions", 0)
 
         return total_deletions
@@ -354,6 +381,7 @@ def get_files_changed_7d() -> int:
     repo = f"{METTA_GITHUB_ORGANIZATION}/{METTA_GITHUB_REPO}"
 
     try:
+        # First get the list of commits to extract SHAs
         commits = get_commits(
             repo=repo,
             branch="main",
@@ -365,9 +393,22 @@ def get_files_changed_7d() -> int:
         # Use a set to track unique files
         files = set()
         for commit in commits:
-            files_data = commit.get("files", [])
+            sha = commit.get("sha")
+            if not sha:
+                continue
+
+            # Get full commit with stats and files list
+            commit_with_stats = get_commit_with_stats(
+                repo=repo,
+                sha=sha,
+                Authorization=_get_github_auth_header(),
+            )
+
+            files_data = commit_with_stats.get("files", [])
             for file_data in files_data:
-                files.add(file_data.get("filename"))
+                filename = file_data.get("filename")
+                if filename:
+                    files.add(filename)
 
         return len(files)
     except Exception as e:
