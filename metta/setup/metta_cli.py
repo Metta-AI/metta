@@ -1,5 +1,4 @@
 #!/usr/bin/env -S uv run
-import json
 import re
 import shutil
 import subprocess
@@ -174,27 +173,16 @@ def _configure_pr_similarity_mcp_server(force: bool) -> None:
 
     try:
         client = boto3.session.Session().client("secretsmanager", region_name=region)
-        raw_secret = client.get_secret_value(SecretId=secret_name)["SecretString"].strip()
+        api_key = client.get_secret_value(SecretId=secret_name)["SecretString"].strip()
     except (BotoCoreError, ClientError, KeyError) as error:
         warning(
             "Skipping Codex MCP registration: could not read "
             f"AWS Secrets Manager secret '{secret_name}' (region {region}): {error}",
         )
         return
-
-    if raw_secret.startswith("{"):
-        try:
-            payload = json.loads(raw_secret)
-            raw_secret = (payload.get("GEMINI_API_KEY") or payload.get("api_key") or payload.get("key") or "").strip()
-        except json.JSONDecodeError:
-            warning(f"Skipping Codex MCP registration: secret '{secret_name}' did not contain a usable API key.")
-            return
-
-    if not raw_secret:
+    if not api_key:
         warning(f"Skipping Codex MCP registration: secret '{secret_name}' did not contain a usable API key.")
         return
-
-    api_key = raw_secret
 
     for name in ("metta-pr-similarity", "metta-pr-similarity-mcp"):
         subprocess.run(
