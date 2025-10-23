@@ -3,9 +3,17 @@ from typing import Literal, Sequence
 from mettagrid.mapgen.scene import Scene, SceneConfig
 
 
+DEFAULT_CORNER_CHESTS: tuple[str, str, str, str] = (
+    "chest_carbon",
+    "chest_oxygen",
+    "chest_germanium",
+    "chest_silicon",
+)
+
+
 class BaseHubConfig(SceneConfig):
     assembler_object: str = "assembler"
-    corner_generator: str = "generator_red"
+    corner_generator: str | None = None
     spawn_symbol: str = "agent.agent"
     # If set, place at least this many spawn pads (best-effort) in the hub
     spawn_count: int | None = None
@@ -16,6 +24,7 @@ class BaseHubConfig(SceneConfig):
     corner_objects: list[str] | None = None
     layout: Literal["default", "tight"] = "default"
     charger_object: str = "charger"
+    heart_chest_object: str = "chest_heart"
 
 
 class BaseHub(Scene[BaseHubConfig]):
@@ -66,48 +75,23 @@ class BaseHub(Scene[BaseHubConfig]):
             grid[cy - gate_half : cy + gate_half + 1, w - 1] = "empty"
             grid[cy - gate_half : cy + gate_half + 1, w - 2] = "empty"
 
-        # Carve layout
-        corridor_width = 3
-        half = corridor_width // 2
-        xL = max(1, cx - half)
-        xR = min(w - 1, cx + half + 1)
-        yT = max(1, cy - half)
-        yB = min(h - 1, cy + half + 1)
-        grid[1 : h - 1, xL:xR] = "empty"
-        grid[yT:yB, 1 : w - 1] = "empty"
+        original_grid = self.grid
+        original_height = self.height
+        original_width = self.width
 
-        # Place central altar, charger, chest
-        if 1 <= cx < w - 1 and 1 <= cy < h - 1:
-            grid[cy, cx] = cfg.assembler_object
-            if 1 <= cy - 3 < h - 1:
-                grid[cy - 3, cx] = cfg.charger_object
-            if 1 <= cy + 3 < h - 1:
-                grid[cy + 3, cx] = "chest"
+        try:
+            self.grid = grid
+            self.height = h
+            self.width = w
 
-        # Dynamic spawns
-        desired_spawns = max(0, int(cfg.spawn_count)) if cfg.spawn_count is not None else 4
-        positions: list[tuple[int, int]] = [(cx, cy - 2), (cx + 2, cy), (cx, cy + 2), (cx - 2, cy)]
-        radius = 3
-        while len(positions) < desired_spawns and radius < max(h, w):
-            ring = [
-                (cx + radius, cy),
-                (cx - radius, cy),
-                (cx, cy + radius),
-                (cx, cy - radius),
-                (cx + radius, cy + radius),
-                (cx + radius, cy - radius),
-                (cx - radius, cy + radius),
-                (cx - radius, cy - radius),
-            ]
-            for p in ring:
-                if len(positions) >= desired_spawns:
-                    break
-                positions.append(p)
-            radius += 1
-
-        for x, y in positions[:desired_spawns]:
-            if 1 <= x < w - 1 and 1 <= y < h - 1 and grid[y, x] == "empty":
-                grid[y, x] = cfg.spawn_symbol
+            if cfg.layout == "tight":
+                self._render_tight_layout(cx, cy)
+            else:
+                self._render_default_layout(cx, cy)
+        finally:
+            self.grid = original_grid
+            self.height = original_height
+            self.width = original_width
 
     def _place_spawn_pads(self, positions: Sequence[tuple[int, int]]) -> None:
         grid = self.grid
@@ -121,7 +105,9 @@ class BaseHub(Scene[BaseHubConfig]):
         cfg = self.config
         if cfg.corner_objects and len(cfg.corner_objects) == 4:
             return list(cfg.corner_objects)
-        return [cfg.corner_generator] * 4
+        if cfg.corner_generator:
+            return [cfg.corner_generator] * 4
+        return list(DEFAULT_CORNER_CHESTS)
 
     def _render_default_layout(self, cx: int, cy: int) -> None:
         grid = self.grid
@@ -150,7 +136,7 @@ class BaseHub(Scene[BaseHubConfig]):
 
             chest_y = cy + 3
             if 1 <= chest_y < h - 1:
-                grid[chest_y, cx] = "chest"
+                grid[chest_y, cx] = cfg.heart_chest_object
 
         # Spawn pads: ensure at least spawn_count if provided, otherwise place 4
         desired = max(0, int(cfg.spawn_count)) if cfg.spawn_count is not None else 4
@@ -232,7 +218,7 @@ class BaseHub(Scene[BaseHubConfig]):
 
         chest_y = cy + 2
         if 1 <= cx < w - 1 and 1 <= chest_y < h - 1:
-            place_building(cx, chest_y, "chest")
+            place_building(cx, chest_y, cfg.heart_chest_object)
 
         corner_positions = [
             (cx - 2, cy - 2),
