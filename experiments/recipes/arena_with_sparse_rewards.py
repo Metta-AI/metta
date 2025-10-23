@@ -70,10 +70,6 @@ def make_curriculum(
     # Enable/disable attacks for variety
     arena_tasks.add_bucket("game.actions.attack.consumed_resources.laser", [1, 100])
 
-    # Vary initial resources in buildings
-    for obj in ["mine_red", "generator_red", "altar", "lasery", "armory"]:
-        arena_tasks.add_bucket(f"game.objects.{obj}.initial_resource_count", [0, 1])
-
     if algorithm_config is None:
         algorithm_config = LearningProgressConfig(
             use_bidirectional=True,

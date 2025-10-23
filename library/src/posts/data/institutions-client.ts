@@ -1,45 +1,9 @@
-// Client-side only institution data types and functions
+import { institutions } from "@/lib/api/resources";
 
-export type InstitutionDTO = {
-  name: string;
-  paperCount: number;
-  authorCount: number;
-  totalStars: number;
-  avgStars: number;
-  recentActivity: Date | string | null;
-  topCategories: string[];
-  recentPapers: Array<{
-    id: string;
-    title: string;
-    link: string | null;
-    createdAt: Date | string;
-    stars: number;
-    authors: Array<{
-      id: string;
-      name: string;
-    }>;
-  }>;
-  authors: Array<{
-    id: string;
-    name: string;
-    paperCount: number;
-  }>;
-};
+export type InstitutionDTO = institutions.InstitutionDetail;
 
-// Client-side version that fetches from an API endpoint
 export async function loadInstitutionClient(
   institutionName: string
 ): Promise<InstitutionDTO | null> {
-  try {
-    const response = await fetch(
-      `/api/institutions/${encodeURIComponent(institutionName)}`
-    );
-    if (!response.ok) {
-      return null;
-    }
-    return await response.json();
-  } catch (error) {
-    console.error("Error loading institution:", error);
-    return null;
-  }
+  return institutions.getInstitutionByName(institutionName);
 }

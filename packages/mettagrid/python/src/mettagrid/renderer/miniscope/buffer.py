@@ -43,6 +43,9 @@ class MapBuffer:
         self._cursor_row: Optional[int] = None
         self._cursor_col: Optional[int] = None
 
+        # Highlighted agent state (for glyph picker)
+        self._highlighted_agent_id: Optional[int] = None
+
         # Cached grid objects
         self._last_grid_objects: Optional[Dict[int, dict]] = None
 
@@ -53,65 +56,39 @@ class MapBuffer:
         height: Optional[int] = None,
         width: Optional[int] = None,
     ) -> None:
-        """Set the viewport parameters.
-
-        Args:
-            center_row: Center row for viewport (None for full map)
-            center_col: Center column for viewport (None for full map)
-            height: Height of viewport (None for full map)
-            width: Width of viewport (None for full map)
-        """
+        """Set viewport parameters for map rendering."""
         self._viewport_center_row = center_row
         self._viewport_center_col = center_col
         self._viewport_height = height
         self._viewport_width = width
 
     def set_cursor(self, row: Optional[int], col: Optional[int]) -> None:
-        """Set the cursor position.
-
-        Args:
-            row: Row position of cursor (None to hide cursor)
-            col: Column position of cursor (None to hide cursor)
-        """
+        """Set the cursor position used in select mode."""
         self._cursor_row = row
         self._cursor_col = col
 
-    def move_viewport(self, delta_row: int = 0, delta_col: int = 0) -> None:
-        """Move the viewport by the given deltas.
+    def set_highlighted_agent(self, agent_id: Optional[int]) -> None:
+        """Track which agent should be highlighted in the viewport."""
+        self._highlighted_agent_id = agent_id
 
-        Args:
-            delta_row: Rows to move (positive = down, negative = up)
-            delta_col: Columns to move (positive = right, negative = left)
-        """
+    def move_viewport(self, delta_row: int = 0, delta_col: int = 0) -> None:
+        """Move the viewport by the given deltas."""
         if self._viewport_center_row is not None:
             self._viewport_center_row += delta_row
         if self._viewport_center_col is not None:
             self._viewport_center_col += delta_col
 
     def center_viewport_on(self, row: int, col: int) -> None:
-        """Center the viewport on a specific position.
-
-        Args:
-            row: Row to center on
-            col: Column to center on
-        """
+        """Center the viewport on the given coordinates."""
         self._viewport_center_row = row
         self._viewport_center_col = col
 
     def get_bounds(self) -> tuple[int, int, int, int]:
-        """Get the current bounds.
-
-        Returns:
-            Tuple of (min_row, min_col, height, width)
-        """
+        """Return cached full-map bounds as (min_row, min_col, height, width)."""
         return (self._min_row, self._min_col, self._height, self._width)
 
     def get_viewport_bounds(self) -> tuple[int, int, int, int]:
-        """Get the current viewport bounds.
-
-        Returns:
-            Tuple of (view_min_row, view_min_col, view_height, view_width)
-        """
+        """Return the active viewport bounds as (row, col, height, width)."""
         if self._viewport_center_row is not None and self._viewport_height is not None:
             view_min_row = max(self._min_row, self._viewport_center_row - self._viewport_height // 2)
             view_max_row = min(self._min_row + self._height, view_min_row + self._viewport_height)
@@ -131,25 +108,18 @@ class MapBuffer:
         return (view_min_row, view_min_col, view_height, view_width)
 
     def _ensure_bounds(self, grid_objects: Dict[int, dict]) -> None:
-        """Compute and cache bounds if not already set or if grid changed."""
+        """Compute bounds if needed and cache the grid snapshot."""
         if not self._bounds_set or grid_objects != self._last_grid_objects:
             self._min_row, self._min_col, self._height, self._width = self._compute_bounds(grid_objects)
             self._bounds_set = True
             self._last_grid_objects = grid_objects
 
     def _compute_bounds(self, grid_objects: Dict[int, dict]) -> tuple[int, int, int, int]:
-        """Compute bounding box for grid objects.
-
-        Args:
-            grid_objects: Dictionary of grid objects
-
-        Returns:
-            Tuple of (min_row, min_col, height, width)
-        """
+        """Compute a bounding box for the provided grid objects."""
         rows = []
         cols = []
         for obj in grid_objects.values():
-            type_name = self._object_type_names[obj["type"]]
+            type_name = obj["type_name"]
             if type_name == "wall":
                 rows.append(obj["r"])
                 cols.append(obj["c"])
@@ -186,8 +156,12 @@ class MapBuffer:
 
         # Determine viewport bounds
         if viewport_center_row is not None and viewport_height is not None:
-            view_min_row = max(self._min_row, viewport_center_row - viewport_height // 2)
-            view_max_row = min(self._min_row + self._height, view_min_row + viewport_height)
+            clamped_height = max(1, min(self._height, viewport_height))
+            view_min_row = max(self._min_row, viewport_center_row - clamped_height // 2)
+            view_max_row = view_min_row + clamped_height
+            if view_max_row > self._min_row + self._height:
+                view_max_row = self._min_row + self._height
+                view_min_row = max(self._min_row, view_max_row - clamped_height)
             view_height = view_max_row - view_min_row
         else:
             view_min_row = self._min_row
@@ -195,8 +169,12 @@ class MapBuffer:
             view_max_row = self._min_row + self._height
 
         if viewport_center_col is not None and viewport_width is not None:
-            view_min_col = max(self._min_col, viewport_center_col - viewport_width // 2)
-            view_max_col = min(self._min_col + self._width, view_min_col + viewport_width)
+            clamped_width = max(1, min(self._width, viewport_width))
+            view_min_col = max(self._min_col, viewport_center_col - clamped_width // 2)
+            view_max_col = view_min_col + clamped_width
+            if view_max_col > self._min_col + self._width:
+                view_max_col = self._min_col + self._width
+                view_min_col = max(self._min_col, view_max_col - clamped_width)
             view_width = view_max_col - view_min_col
         else:
             view_min_col = self._min_col
@@ -215,7 +193,12 @@ class MapBuffer:
             c = obj_c - view_min_col
             # Skip objects outside viewport bounds
             if 0 <= r < view_height and 0 <= c < view_width:
-                grid[r][c] = get_symbol_for_object(obj, self._object_type_names, self._symbol_map)
+                # Check if this is the highlighted agent
+                if self._highlighted_agent_id is not None and obj.get("agent_id") == self._highlighted_agent_id:
+                    # Use a distinctive symbol for highlighted agent
+                    grid[r][c] = "⭐"
+                else:
+                    grid[r][c] = get_symbol_for_object(obj, self._object_type_names, self._symbol_map)
 
         # Add selection cursor if in select mode
         if self._cursor_row is not None and self._cursor_col is not None:
@@ -234,26 +217,26 @@ class MapBuffer:
         # Replace edges with full-width arrows
         if has_more_top:
             for c in range(view_width):
-                grid[0][c] = "🔼"
+                grid[0][c] = "▲ " if c < view_width - 1 else "▲"
         if has_more_bottom:
             for c in range(view_width):
-                grid[view_height - 1][c] = "🔽"
+                grid[view_height - 1][c] = "▼ " if c < view_width - 1 else "▼"
         if has_more_left:
             for r in range(view_height):
-                grid[r][0] = "◀️"
+                grid[r][0] = "◀ " if view_width > 1 else "◀"
         if has_more_right:
             for r in range(view_height):
-                grid[r][view_width - 1] = "▶️"
+                grid[r][view_width - 1] = "▶" if view_width > 1 else "▶"
 
         # Handle corners - show diagonal arrows when both edges have more content
         if has_more_top and has_more_left:
-            grid[0][0] = "↖️"
+            grid[0][0] = "◤ " if view_width > 1 else "◤"
         if has_more_top and has_more_right:
-            grid[0][view_width - 1] = "↗️"
+            grid[0][view_width - 1] = "◥" if view_width > 1 else "◥"
         if has_more_bottom and has_more_left:
-            grid[view_height - 1][0] = "↙️"
+            grid[view_height - 1][0] = "◣ " if view_width > 1 else "◣"
         if has_more_bottom and has_more_right:
-            grid[view_height - 1][view_width - 1] = "↘️"
+            grid[view_height - 1][view_width - 1] = "◢" if view_width > 1 else "◢"
 
         lines = ["".join(row) for row in grid]
         return "\n".join(lines)
@@ -263,15 +246,7 @@ class MapBuffer:
         grid_objects: Dict[int, dict],
         use_viewport: bool = True,
     ) -> str:
-        """Render the grid buffer.
-
-        Args:
-            grid_objects: Dictionary of grid objects to render
-            use_viewport: Whether to use viewport settings (False for full map)
-
-        Returns:
-            Buffer string with newlines
-        """
+        """Render the grid buffer as a newline-delimited string."""
         self._ensure_bounds(grid_objects)
         return self._build_grid_buffer(grid_objects, use_viewport)
 

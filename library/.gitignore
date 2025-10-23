@@ -25,6 +25,7 @@ yarn-error.log*
 # Local env files
 .env
 .env*.local
+!.env.example
 
 # Vercel
 .vercel
@@ -34,12 +35,8 @@ yarn-error.log*
 next-env.d.ts
 
 # Prisma
-/prisma/migrations/
 /prisma/*.db
 /prisma/*.db-journal
-
-# Prisma
-/prisma/migrations
 
 # Debug PDF files (from Adobe/PDF processing issues)
 debug-adobe-error-*.pdf

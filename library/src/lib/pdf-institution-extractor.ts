@@ -1,5 +1,7 @@
 import { PdfReader } from "pdfreader";
 import Anthropic from "@anthropic-ai/sdk";
+import { config } from "./config";
+import { Logger } from "./logging/logger";
 
 /**
  * Interface for PDF text items with coordinates
@@ -123,16 +125,13 @@ async function extractInstitutionsWithLLM(
   textChunks: string[],
   authorNames: string[]
 ): Promise<string[]> {
-  console.log("🤖 Using LLM to extract institutions...");
-  console.log("Author names:", authorNames);
+  Logger.info("Using LLM to extract institutions", { authorNames });
 
   // Get API key from environment
-  const anthropicApiKey = process.env.ANTHROPIC_API_KEY;
+  const anthropicApiKey = config.llm.anthropicApiKey;
 
   if (!anthropicApiKey) {
-    console.warn(
-      "⚠️ ANTHROPIC_API_KEY not found, falling back to mock parsing"
-    );
+    Logger.warn("ANTHROPIC_API_KEY not found, falling back to mock parsing");
     return fallbackInstitutionExtraction(textChunks, authorNames);
   }
 
@@ -201,7 +200,7 @@ From the text, I can identify:
       const institutionText = content.text.trim();
 
       if (institutionText === "NONE" || !institutionText) {
-        console.log("🏛️ LLM found no institutions");
+        Logger.info("LLM found no institutions");
         return [];
       }
 
@@ -242,14 +241,16 @@ From the text, I can identify:
           );
         });
 
-      console.log("🏛️ LLM extracted institutions:", institutions);
+      Logger.info("LLM extracted institutions", { institutions });
       return institutions;
     }
 
     throw new Error("Unexpected response format from LLM");
   } catch (error) {
-    console.error("❌ LLM API error:", error);
-    console.log("🔄 Falling back to rule-based parsing");
+    Logger.error(
+      "LLM API error, falling back to rule-based parsing",
+      error instanceof Error ? error : new Error(String(error))
+    );
     return fallbackInstitutionExtraction(textChunks, authorNames);
   }
 }
@@ -261,7 +262,7 @@ function fallbackInstitutionExtraction(
   textChunks: string[],
   authorNames: string[]
 ): string[] {
-  console.log("🔧 Using fallback rule-based institution extraction");
+  Logger.info("Using fallback rule-based institution extraction");
 
   const institutionKeywords = [
     "university",
@@ -302,7 +303,7 @@ function fallbackInstitutionExtraction(
     }
   });
 
-  console.log("🏛️ Fallback extracted institutions:", institutions);
+  Logger.info("Fallback extracted institutions", { institutions });
   return [...new Set(institutions)]; // Remove duplicates
 }
 
@@ -318,7 +319,7 @@ export async function extractInstitutionsFromPdf(
     const textChunks = await extractFirstPageText(pdfBuffer);
 
     if (textChunks.length === 0) {
-      console.log("No text found in PDF");
+      Logger.warn("No text found in PDF for institution extraction");
       return [];
     }
 
@@ -326,7 +327,7 @@ export async function extractInstitutionsFromPdf(
     const relevantChunks = findTextNearAuthors(textChunks, authorNames);
 
     if (relevantChunks.length === 0) {
-      console.log("No relevant text found near author names");
+      Logger.warn("No relevant text found near author names");
       return [];
     }
 
@@ -338,7 +339,10 @@ export async function extractInstitutionsFromPdf(
 
     return institutions;
   } catch (error) {
-    console.error("Error extracting institutions from PDF:", error);
+    Logger.error(
+      "Error extracting institutions from PDF",
+      error instanceof Error ? error : new Error(String(error))
+    );
     return [];
   }
 }

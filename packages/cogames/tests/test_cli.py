@@ -21,15 +21,15 @@ def test_missions_list_command():
 
     # Check that the output contains expected content
     output = result.stdout
-    assert "training_facility_1" in output
-    assert "Agents" in output
+    assert "training_facility" in output
+    assert "Cogs" in output
     assert "Map Size" in output
 
 
 def test_missions_describe_command():
     """Test that 'cogames missions <mission_name>' describes a specific mission."""
     result = subprocess.run(
-        ["uv", "run", "cogames", "missions", "-m", "training_facility_1"],
+        ["uv", "run", "cogames", "missions", "-m", "training_facility"],
         cwd=cogames_root,
         capture_output=True,
         text=True,
@@ -40,7 +40,7 @@ def test_missions_describe_command():
 
     # Check that the output contains expected game details
     output = result.stdout
-    assert "training_facility_1" in output
+    assert "training_facility" in output
     assert "Mission Configuration:" in output
     assert "Number of agents:" in output
     assert "Available Actions:" in output
@@ -89,6 +89,8 @@ def test_make_mission_command():
 
     try:
         # Run make-game and write to temp file
+        # Note: Don't set width/height or agents since training_facility uses an AsciiMapBuilder
+        # with fixed dimensions and spawn points
         result = subprocess.run(
             [
                 "uv",
@@ -96,11 +98,7 @@ def test_make_mission_command():
                 "cogames",
                 "make-mission",
                 "-m",
-                "random",
-                "--width",
-                "100",
-                "--height",
-                "100",
+                "training_facility",
                 "--output",
                 str(tmp_path),
             ],

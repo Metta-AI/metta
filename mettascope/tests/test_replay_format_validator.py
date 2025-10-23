@@ -253,7 +253,7 @@ def _validate_object(obj: dict[str, Any], obj_index: int, replay_data: dict[str,
     # All objects have these required fields.
     required_fields = [
         "id",
-        "type_id",
+        "type_name",
         "location",
         "orientation",
         "inventory",
@@ -267,10 +267,9 @@ def _validate_object(obj: dict[str, Any], obj_index: int, replay_data: dict[str,
     _validate_static_value(obj["id"], f"{obj_name}.id", int)
     _validate_positive_int(obj["id"], f"{obj_name}.id")
 
-    type_id = obj["type_id"]
-    _validate_static_value(type_id, f"{obj_name}.type_id", int)
-    _validate_non_negative_number(type_id, f"{obj_name}.type_id")
-    assert type_id < len(replay_data["type_names"]), f"{obj_name}.type_id {type_id} out of range"
+    type_name = obj["type_name"]
+    _validate_static_value(type_name, f"{obj_name}.type_name", str)
+    assert type_name in replay_data["type_names"], f"{obj_name}.type_name '{type_name}' not in type_names list"
 
     _validate_static_value(obj["is_swappable"], f"{obj_name}.is_swappable", bool)
 
@@ -430,7 +429,7 @@ def _make_valid_replay(file_name: str = "sample.json.z") -> dict[str, Any]:
         "objects": [
             {
                 "id": 1,
-                "type_id": 0,
+                "type_name": "agent",
                 "agent_id": 0,
                 "is_agent": True,
                 "vision_size": 11,
@@ -453,7 +452,7 @@ def _make_valid_replay(file_name: str = "sample.json.z") -> dict[str, Any]:
             },
             {
                 "id": 2,
-                "type_id": 0,
+                "type_name": "agent",
                 "agent_id": 1,
                 "is_agent": True,
                 "vision_size": 11,

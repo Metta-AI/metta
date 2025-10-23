@@ -2,30 +2,51 @@
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toggleStarAction } from "@/posts/actions/toggleStarAction";
+import { queryKeys } from "@/lib/hooks/useServerMutation";
 
 interface StarData {
   totalStars: number;
   isStarredByCurrentUser: boolean;
 }
 
+interface ToggleStarVariables {
+  paperId: string;
+}
+
+/**
+ * Hook for toggling paper stars with optimistic updates
+ *
+ * This provides optimistic UI updates for better UX, with automatic
+ * rollback on error and cache synchronization on success.
+ */
 export function useStarMutation() {
   const queryClient = useQueryClient();
 
-  return useMutation({
-    mutationFn: async (paperId: string) => {
+  return useMutation<
+    unknown,
+    Error,
+    ToggleStarVariables,
+    { previousStars?: StarData }
+  >({
+    mutationFn: async ({ paperId }: ToggleStarVariables) => {
       const formData = new FormData();
       formData.append("paperId", paperId);
-      return await toggleStarAction(formData);
+      const result = await toggleStarAction(formData);
+
+      if (result.serverError) {
+        throw new Error(result.serverError);
+      }
+
+      return result.data;
     },
-    onMutate: async (paperId: string) => {
+
+    onMutate: async ({ paperId }) => {
       // Cancel any outgoing refetches for this paper
-      await queryClient.cancelQueries({ queryKey: ["paper-stars", paperId] });
+      const starQueryKey = queryKeys.papers.stars(paperId);
+      await queryClient.cancelQueries({ queryKey: starQueryKey });
 
       // Snapshot the previous value
-      const previousStars = queryClient.getQueryData<StarData>([
-        "paper-stars",
-        paperId,
-      ]);
+      const previousStars = queryClient.getQueryData<StarData>(starQueryKey);
 
       // Optimistically update the star state
       if (previousStars) {
@@ -36,30 +57,31 @@ export function useStarMutation() {
           isStarredByCurrentUser: !previousStars.isStarredByCurrentUser,
         };
 
-        queryClient.setQueryData<StarData>(["paper-stars", paperId], newData);
-        console.log(`Updated star data for ${paperId}:`, newData);
-      } else {
-        console.warn(`No previous star data found for paper ${paperId}`);
+        queryClient.setQueryData<StarData>(starQueryKey, newData);
       }
 
       // Return context for rollback
       return { previousStars };
     },
-    onError: (err, paperId, context) => {
+
+    onError: (_err, { paperId }, context) => {
       // Revert optimistic update on error
       if (context?.previousStars) {
         queryClient.setQueryData(
-          ["paper-stars", paperId],
+          queryKeys.papers.stars(paperId),
           context.previousStars
         );
       }
     },
-    onSettled: (data, error, paperId) => {
+
+    onSettled: (_data, _error, { paperId }) => {
       // Always refetch to ensure we have the latest data
-      queryClient.invalidateQueries({ queryKey: ["paper-stars", paperId] });
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.papers.stars(paperId),
+      });
       // Also invalidate any related queries
-      queryClient.invalidateQueries({ queryKey: ["papers"] });
-      queryClient.invalidateQueries({ queryKey: ["feed"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.papers.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.feed.all });
     },
   });
 }
