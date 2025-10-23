@@ -17,6 +17,7 @@ from metta.setup.components.base import SetupModuleStatus
 from metta.setup.local_commands import app as local_app
 from metta.setup.symlink_setup import app as symlink_app
 from metta.setup.tools.book import app as book_app
+from metta.setup.tools.code_formatters import get_formatters, parse_format_types, partition_files_by_type, run_formatter
 from metta.setup.tools.test_runner.test_cpp import app as cpp_test_runner_app
 from metta.setup.tools.test_runner.test_python import app as python_test_runner_app
 from metta.setup.utils import debug, error, info, success, warning
@@ -137,43 +138,6 @@ app = typer.Typer(
     context_settings={"help_option_names": ["-h", "--help"]},
     callback=cli._init_all,
 )
-
-
-def _partition_supported_lint_files(paths: list[str]) -> tuple[list[str], list[str]]:
-    python_files: list[str] = []
-    cpp_files: list[str] = []
-    seen: set[str] = set()
-
-    for raw_path in paths:
-        if not (raw_path and (path := raw_path.strip()) and path not in seen):
-            continue
-        seen.add(path)
-
-        suffix = Path(path).suffix.lower()
-        if path.endswith(".py"):
-            python_files.append(path)
-        elif suffix in {".cpp", ".hpp", ".h"}:
-            cpp_files.append(path)
-
-    return python_files, cpp_files
-
-
-def _run_ruff(python_targets: list[str] | None, *, fix: bool) -> None:
-    check_cmd = ["uv", "run", "--active", "ruff", "check"]
-    format_cmd = ["uv", "run", "--active", "ruff", "format"]
-
-    if fix:
-        check_cmd.append("--fix")
-    else:
-        format_cmd.append("--check")
-
-    for cmd in [format_cmd, check_cmd]:
-        cmd.extend(python_targets or [])
-        info(f"Running: {' '.join(cmd)}")
-        try:
-            subprocess.run(cmd, cwd=cli.repo_root, check=True)
-        except subprocess.CalledProcessError as e:
-            raise typer.Exit(e.returncode) from e
 
 
 def _bump_version(version: str) -> str:
@@ -636,38 +600,132 @@ def cmd_lint(
     files: Annotated[Optional[list[str]], typer.Argument()] = None,
     fix: Annotated[bool, typer.Option("--fix", help="Apply fixes automatically")] = False,
     staged: Annotated[bool, typer.Option("--staged", help="Only lint staged files")] = False,
+    check: Annotated[bool, typer.Option("--check", help="Check formatting without modifying files")] = False,
+    type: Annotated[
+        Optional[str],
+        typer.Option(
+            "--type",
+            "-t",
+            help="Comma-separated file types (e.g., 'json,yaml'). Default: all detected types.",
+        ),
+    ] = None,
 ):
-    python_targets: list[str] | None
-    cpp_targets: list[str] | None
+    """Run linting and formatting on code files.
 
+    By default, formats and lints all detected file types. Use --type to restrict to specific types.
+
+    Examples:
+        metta lint                    # Format and lint all detected files
+        metta lint --fix              # Format and lint with auto-fix
+        metta lint --type json,yaml   # Only format JSON and YAML files
+        metta lint --check            # Check formatting without modifying
+        metta lint --staged --fix     # Format and lint only staged files
+    """
+    # Get available formatters
+    formatters = get_formatters(cli.repo_root)
+
+    # Determine which files to process
     if files is not None:
-        python_targets, cpp_targets = _partition_supported_lint_files(files)
+        target_files = files
     elif staged:
         staged_output = git.run_git("diff", "--cached", "--name-only", "--diff-filter=ACM")
-        staged_files = [f for f in staged_output.strip().split("\n") if f]
-        python_targets, cpp_targets = _partition_supported_lint_files(staged_files)
+        target_files = [f for f in staged_output.strip().split("\n") if f]
     else:
-        python_targets = None
-        cpp_targets = None
+        target_files = None
 
-    # Run ruff if the user specified targets that include python files or they did not specify any targets
-    if python_targets is not None and not python_targets:
-        info("No Python files to lint")
+    # Partition files by type
+    if target_files is not None:
+        files_by_type = partition_files_by_type(target_files)
     else:
-        _run_ruff(python_targets, fix=fix)
+        # No specific files provided - will format all files of each type
+        files_by_type = {}
 
-    # Run cpplint if the user specified targets that include c++ files or they did not specify any targets
-    if cpp_targets is not None and not cpp_targets:
-        info("No C++ files to lint")
+    # Determine which types to format
+    if type:
+        try:
+            types_to_format = parse_format_types(type, formatters)
+        except ValueError as e:
+            error(str(e))
+            raise typer.Exit(1) from e
     else:
-        script_path = cli.repo_root / "packages" / "mettagrid" / "tests" / "cpplint.sh"
-        res = subprocess.run(["bash", str(script_path)], cwd=cli.repo_root, check=False, capture_output=True)
-        if res.returncode != 0:
-            error("C++ linting failed")
-            info(res.stderr.decode("utf-8"))
-            raise typer.Exit(res.returncode)
+        # Default: format all detected types (or all types if no files specified)
+        if files_by_type:
+            types_to_format = list(files_by_type.keys())
         else:
-            success("C++ linting passed!")
+            # No specific files - format all supported types
+            types_to_format = ["python", "json", "markdown", "shell", "toml", "yaml"]
+            if "cpp" in formatters:
+                types_to_format.append("cpp")
+
+    failed_formatters = []
+    failed_linters = []
+
+    # Run formatters for each type
+    for file_type in types_to_format:
+        if file_type not in formatters:
+            continue
+
+        formatter = formatters[file_type]
+        type_files = files_by_type.get(file_type) if files_by_type else None
+
+        # Skip if we have a file list and no files of this type
+        if files_by_type and not type_files:
+            continue
+
+        # Run formatter
+        success_fmt = run_formatter(
+            file_type,
+            formatter,
+            cli.repo_root,
+            check_only=check or not fix,
+            files=type_files,
+        )
+
+        if not success_fmt:
+            failed_formatters.append(formatter.name)
+
+    # Run Python linting (ruff check) if Python files are involved
+    if "python" in types_to_format:
+        python_files = files_by_type.get("python") if files_by_type else None
+
+        if python_files is not None and not python_files:
+            info("No Python files to lint")
+        else:
+            check_cmd = ["uv", "run", "--active", "ruff", "check"]
+            if fix:
+                check_cmd.append("--fix")
+            if python_files:
+                check_cmd.extend(python_files)
+
+            info(f"Running: {' '.join(check_cmd)}")
+            try:
+                subprocess.run(check_cmd, cwd=cli.repo_root, check=True)
+            except subprocess.CalledProcessError:
+                failed_linters.append("Python (ruff check)")
+
+    # Run C++ linting if C++ files are involved
+    if "cpp" in types_to_format and "cpp" in formatters:
+        cpp_files = files_by_type.get("cpp") if files_by_type else None
+
+        if cpp_files is not None and not cpp_files:
+            info("No C++ files to lint")
+        else:
+            script_path = cli.repo_root / "packages" / "mettagrid" / "tests" / "cpplint.sh"
+            res = subprocess.run(["bash", str(script_path)], cwd=cli.repo_root, check=False, capture_output=True)
+            if res.returncode != 0:
+                failed_linters.append("C++")
+                error("C++ linting failed")
+                info(res.stderr.decode("utf-8"))
+
+    # Print summary
+    if failed_formatters or failed_linters:
+        if failed_formatters:
+            error(f"Formatting failed for: {', '.join(failed_formatters)}")
+        if failed_linters:
+            error(f"Linting failed for: {', '.join(failed_linters)}")
+        raise typer.Exit(1)
+    else:
+        success("All linting and formatting complete")
 
 
 @app.command(name="tool", help="Run a tool from the tools/ directory", context_settings={"allow_extra_args": True})

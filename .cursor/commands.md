@@ -94,6 +94,39 @@ uv run ./tools/run.py analyze arena eval_db_uri=./train_dir/eval_$TEST_ID/stats.
 grep -r "agent_raw" train_dir/test_$TEST_ID/wandb || echo "✓ No agent_raw metrics in wandb logs"
 ```
 
+## Code Quality
+
+### Linting and Formatting
+
+```bash
+# Run linting and formatting (all file types by default)
+metta lint
+
+# Format and lint with auto-fix
+metta lint --fix
+
+# Format specific file types only
+metta lint --type json,yaml
+metta lint --type python
+
+# Check formatting without modifying files
+metta lint --check
+
+# Format only staged files
+metta lint --staged --fix
+```
+
+**Supported File Types:**
+- `python` - Python files (ruff format + ruff check)
+- `json` - JSON files
+- `markdown` (alias: `md`) - Markdown files
+- `shell` (alias: `sh`) - Shell scripts
+- `toml` - TOML config files
+- `yaml` (alias: `yml`) - YAML config files
+- `cpp` - C++ files (if mettagrid Makefile available)
+
+---
+
 ## Common Issues and Solutions
 
 1. **Training runs forever**: Use `trainer.total_timesteps=X` to limit training steps
