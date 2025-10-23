@@ -128,13 +128,14 @@ class Mission(Config):
         reward_stats: dict[str, float]
         if self.reward_profile == "heart_focus":
             reward_stats = {
-                "heart.gained": 0.25,
-                "chest.heart.deposited": 1.0,
-                "carbon.gained": 0.02,
-                "oxygen.gained": 0.02,
-                "germanium.gained": 0.05,
-                "silicon.gained": 0.02,
-                "energy.gained": 0.005,
+                "heart.gained": 2.0,
+                "chest.heart.deposited": 5.0,
+                "carbon.gained": 0.2,
+                "oxygen.gained": 0.2,
+                "germanium.gained": 0.3,
+                "silicon.gained": 0.2,
+                "energy.gained": 0.1,
+                "gear.gained": 0.5,
             }
         else:
             reward_stats = {"chest.heart.amount": 1 / self.num_cogs}

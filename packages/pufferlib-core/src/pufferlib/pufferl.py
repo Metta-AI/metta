@@ -674,18 +674,9 @@ class PuffeRL:
             self.last_stats = self.stats
 
         stats_source = self.stats or self.last_stats or {}
-        filtered_stats = {
-            metric: value
-            for metric, value in stats_source.items()
-            if (
-                metric.startswith("agent/")
-                or "heart" in metric.lower()
-                or "reward" in metric.lower()
-            )
-        }
 
         # do some reordering of stats so that important metrics are always shown
-        prioritized_stats = self._reorder_stats_for_dashboard(filtered_stats or stats_source)
+        prioritized_stats = self._reorder_stats_for_dashboard(stats_source)
 
         for metric, value in prioritized_stats:
             try:  # Discard non-numeric values
@@ -718,9 +709,14 @@ class PuffeRL:
             if name in stats:
                 new_stats.append((name, stats[name]))
 
-        for name, value in stats.items():
-            if name not in priority_metrics:
-                new_stats.append((name, value))
+        agent_stats = sorted(name for name in stats if name.startswith("agent/") and name not in priority_metrics)
+        other_stats = sorted(name for name in stats if name not in priority_metrics and not name.startswith("agent/"))
+
+        for name in agent_stats:
+            new_stats.append((name, stats[name]))
+
+        for name in other_stats:
+            new_stats.append((name, stats[name]))
 
         return new_stats
 
