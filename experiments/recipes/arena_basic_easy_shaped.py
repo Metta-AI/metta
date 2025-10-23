@@ -281,6 +281,55 @@ def sweep(sweep_name: str) -> SweepTool:
         num_parallel_trials=4,
     )
 
+
+def sweep_multi_gpu_params(sweep_name: str) -> SweepTool:
+    """Bayesian sweep targeting multi-GPU batch/minibatch/LR interactions."""
+    parameters = [
+        SP.param(
+            "lr_multiplier",
+            D.UNIFORM,
+            min=1.3,
+            max=2.2,
+            search_center=1.8,
+        ),
+        SP.categorical("minibatch_size_multiplier", [0.5, 1.0, 2.0]),
+        SP.param(
+            "trainer.losses.loss_configs.ppo.clip_coef",
+            D.UNIFORM,
+            min=0.18,
+            max=0.32,
+            search_center=0.26,
+        ),
+        SP.param(
+            "trainer.losses.loss_configs.ppo.ent_coef",
+            D.LOG_NORMAL,
+            min=5e-3,
+            max=2e-2,
+            search_center=0.01,
+        ),
+        SP.param(
+            "trainer.losses.loss_configs.ppo.gae_lambda",
+            D.UNIFORM,
+            min=0.86,
+            max=0.94,
+            search_center=0.9,
+        ),
+    ]
+
+    sweep_tool = make_sweep(
+        name=sweep_name,
+        recipe="experiments.recipes.arena_basic_easy_shaped",
+        train_entrypoint="train_multi_gpu",
+        eval_entrypoint="evaluate_in_sweep",
+        objective="evaluator/eval_sweep/score",
+        parameters=parameters,
+        max_trials=60,
+        num_parallel_trials=4,
+    )
+
+    sweep_tool.gpus = 4
+    return sweep_tool
+
 def multiseed_sweep(sweep_name, multi_gpu = False):
     # Generate Python-int seeds (avoid numpy.int64 for JSON serialization)
     random_seeds = [740515, 252833, 397562, 512512, 906302]
