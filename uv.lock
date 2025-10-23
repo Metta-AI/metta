@@ -1207,17 +1207,30 @@ dependencies = [
     { name = "httpx" },
 ]
 
+[package.optional-dependencies]
+aws = [
+    { name = "boto3" },
+]
+
 [package.dev-dependencies]
 dev = [
+    { name = "boto3" },
+    { name = "botocore" },
     { name = "pytest" },
     { name = "pytest-cov" },
 ]
 
 [package.metadata]
-requires-dist = [{ name = "httpx", specifier = ">=0.24.0" }]
+requires-dist = [
+    { name = "boto3", marker = "extra == 'aws'", specifier = ">=1.26.0" },
+    { name = "httpx", specifier = ">=0.24.0" },
+]
+provides-extras = ["aws"]
 
 [package.metadata.requires-dev]
 dev = [
+    { name = "boto3", specifier = ">=1.26.0" },
+    { name = "botocore", specifier = ">=1.29.0" },
     { name = "pytest", specifier = ">=8.3.3" },
     { name = "pytest-cov", specifier = ">=6.1.1" },
 ]
