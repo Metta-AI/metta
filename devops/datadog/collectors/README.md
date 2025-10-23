@@ -17,8 +17,8 @@ All collectors share a common base class and follow consistent patterns.
 
 | Collector | Status | Priority | Metrics | Schedule | Description |
 |-----------|--------|----------|---------|----------|-------------|
-| [github](github/) | ✅ Implemented | High | 17+ | 15 min | PRs, commits, CI/CD, branches, developers |
-| [skypilot](skypilot/) | 📋 Planned | High | 15+ | 10 min | Jobs, clusters, compute costs |
+| [github](github/) | ✅ Implemented | High | 25 | 15 min | PRs, commits, CI/CD, branches, developers |
+| [skypilot](skypilot/) | ✅ Implemented | High | 30 | 10 min | Jobs, clusters, runtime stats, resource utilization |
 | [wandb](wandb/) | 📋 Planned | Medium | 15+ | 30 min | Training runs, experiments, GPU hours |
 | [ec2](ec2/) | 📋 Planned | High | 20+ | 5 min | Instances, costs, utilization |
 | [asana](asana/) | 📋 Planned | Low | 15+ | 6 hours | Tasks, projects, velocity |
@@ -38,17 +38,48 @@ All collectors share a common base class and follow consistent patterns.
 
 **Docs**: [github/README.md](github/README.md) | [CI/CD Metrics](../docs/CI_CD_METRICS.md)
 
-### Skypilot Collector 📋
+### Skypilot Collector ✅
 
-**Planned** - Job orchestration and compute tracking
+**Implemented** - Job orchestration and compute tracking (30 metrics)
 
-**Key Metrics**:
+**Job Status Metrics**:
 - `skypilot.jobs.running`, `skypilot.jobs.queued` - Job status
-- `skypilot.compute.cost_7d` - Cost tracking
-- `skypilot.clusters.active` - Resource usage
-- `skypilot.jobs.avg_duration_minutes` - Performance
+- `skypilot.jobs.failed`, `skypilot.jobs.failed_7d` - Failure tracking
+- `skypilot.jobs.succeeded`, `skypilot.jobs.cancelled` - Completion status
+- `skypilot.clusters.active` - Active clusters
 
-**Docs**: [skypilot/README.md](skypilot/README.md)
+**Runtime Distribution** (for running jobs):
+- `skypilot.jobs.runtime_seconds.{min,max,avg,p50,p90,p99}` - Statistical distribution
+- `skypilot.jobs.runtime_buckets.{0_1h,1_4h,4_24h,over_24h}` - Histogram buckets
+
+**Resource Utilization**:
+- `skypilot.resources.gpus.{l4,a10g,h100}_count` - GPU types in use
+- `skypilot.resources.gpus.total_count` - Total GPUs
+- `skypilot.resources.{spot,ondemand}_jobs` - Spot vs on-demand split
+
+**Reliability Metrics**:
+- `skypilot.jobs.with_recoveries` - Jobs that recovered from failures
+- `skypilot.jobs.recovery_count.{avg,max}` - Recovery statistics
+
+**Regional Distribution**:
+- `skypilot.regions.{us_east_1,us_west_2,other}` - Geographic distribution
+
+**Team Activity**:
+- `skypilot.users.active_count` - Number of active users
+
+**Usage**:
+```bash
+# Collect metrics (dry-run)
+metta datadog collect skypilot
+
+# Push metrics to Datadog
+metta datadog collect skypilot --push
+```
+
+**Dashboard Ideas**:
+- **Runtime heatmap**: Visualize job duration distribution to spot stuck jobs
+- **Resource efficiency**: Track spot vs on-demand ratio over time
+- **Alert on p99 > 48h**: Catch long-running jobs that might be stuck
 
 ### WandB Collector 📋
 
