@@ -50,9 +50,6 @@ devops/datadog/
 │   ├── registry.py                # Collector registry
 │   └── decorators.py              # Metric decorators
 │
-├── docker/                        # Docker configuration
-│   └── Dockerfile                 # Image for all collectors
-│
 ├── scripts/                       # Management scripts
 │   ├── run_collector.py           # CLI to run any collector
 │   ├── list_collectors.py         # List available collectors
@@ -70,7 +67,16 @@ devops/datadog/
         ├── test_github.py
         ├── test_skypilot.py
         └── ...
+
+devops/charts/
+└── datadog-collectors/            # Helm chart for Kubernetes deployment
+    ├── Chart.yaml
+    ├── values.yaml                # Collector configurations
+    └── templates/
+        └── cronjob.yaml           # CronJob template for all collectors
 ```
+
+**Note**: Helm charts are kept in `devops/charts/` alongside other project charts for consistency with Helm best practices.
 
 ## Architecture Principles
 
@@ -821,7 +827,7 @@ pytest devops/datadog/tests/collectors/test_github.py -v
 ```bash
 # Build and push image
 cd devops/datadog
-docker build -t 751442549699.dkr.ecr.us-east-1.amazonaws.com/datadog-collectors:latest -f charts/collector-image/Dockerfile .
+docker build -t 751442549699.dkr.ecr.us-east-1.amazonaws.com/datadog-collectors:latest .
 docker push 751442549699.dkr.ecr.us-east-1.amazonaws.com/datadog-collectors:latest
 ```
 
