@@ -521,7 +521,7 @@ def remote_train(
             module="experiments.recipes.arena.train",
             args=["trainer.total_timesteps=100000000"],
             acceptance=[("overview/sps", ge, 40000)],
-            wandb_metrics=["overview/sps", "env_agent/heart.get"],
+            wandb_metrics=["overview/sps", "env_agent/heart.gained"],
         )
     """
     base_args = [f"--gpus={gpus}", f"--nodes={nodes}"]
@@ -606,9 +606,9 @@ def get_all_tasks() -> list[Task]:
         nodes=1,
         acceptance=[
             ("overview/sps", ge, 40000),
-            ("env_agent/heart.get", gt, 0.5),
+            ("env_agent/heart.gained", gt, 0.5),
         ],
-        wandb_metrics=["overview/sps", "env_agent/heart.get"],
+        wandb_metrics=["overview/sps", "env_agent/heart.gained"],
     )
 
     # Multi-GPU training - 2B timesteps
@@ -621,9 +621,9 @@ def get_all_tasks() -> list[Task]:
         nodes=4,
         acceptance=[
             ("overview/sps", ge, 40000),
-            ("env_agent/heart.get", gt, 10.0),
+            ("env_agent/heart.gained", gt, 10.0),
         ],
-        wandb_metrics=["overview/sps", "env_agent/heart.get"],
+        wandb_metrics=["overview/sps", "env_agent/heart.gained"],
     )
 
     # Evaluation - depends on multi-GPU training

@@ -1176,6 +1176,15 @@ wheels = [
 ]
 
 [[package]]
+name = "git-filter-repo"
+version = "2.47.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/b9/bb/7a283f568af6b0528ade65e8ace84bd6ba46003e429101bcd62c232d01a5/git_filter_repo-2.47.0.tar.gz", hash = "sha256:411b27e68a080c07a69c233cb526dbc2d848b09a72f10477f4444dd0822cf290", size = 275743, upload-time = "2024-12-04T03:10:48.2Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/60/60/d3943f0880ebcb7e0bdf79254d10dddd39c7b656eeecae32b8806ff66dec/git_filter_repo-2.47.0-py3-none-any.whl", hash = "sha256:2cd04929b9024e83e65db571cbe36aec65ead0cb5f9ec5abe42158654af5ad83", size = 76282, upload-time = "2024-12-04T03:10:46.064Z" },
+]
+
+[[package]]
 name = "gitdb"
 version = "4.0.12"
 source = { registry = "https://pypi.org/simple" }
@@ -1201,9 +1210,11 @@ wheels = [
 
 [[package]]
 name = "gitta"
-version = "0.1.0"
+version = "0.2.0"
 source = { editable = "packages/gitta" }
 dependencies = [
+    { name = "anthropic" },
+    { name = "git-filter-repo" },
     { name = "httpx" },
 ]
 
@@ -1211,15 +1222,21 @@ dependencies = [
 dev = [
     { name = "pytest" },
     { name = "pytest-cov" },
+    { name = "pytest-xdist" },
 ]
 
 [package.metadata]
-requires-dist = [{ name = "httpx", specifier = ">=0.24.0" }]
+requires-dist = [
+    { name = "anthropic", specifier = ">=0.18.0" },
+    { name = "git-filter-repo", specifier = ">=2.38.0" },
+    { name = "httpx", specifier = ">=0.24.0" },
+]
 
 [package.metadata.requires-dev]
 dev = [
     { name = "pytest", specifier = ">=8.3.3" },
     { name = "pytest-cov", specifier = ">=6.1.1" },
+    { name = "pytest-xdist", specifier = ">=3.8.0" },
 ]
 
 [[package]]

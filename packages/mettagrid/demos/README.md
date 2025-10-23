@@ -9,14 +9,17 @@ and run them with only the target library installed.
 ## Goals of these demos
 
 1. **Prove Compatibility**
+
    - Show each adapter (PettingZoo, Gymnasium/SB3, PufferLib) can reset/step/close cleanly
    - Run a short end-to-end "training" loop in the target ecosystem to exercise the whole API
 
 2. **Keep Boundaries Clean**
+
    - No calls into Metta training utilities (`train.py`, simulation loops, etc.)
    - Only import the adapter (`MettaGridPettingZooEnv`, `MettaGridGymEnv`, `MettaGridPufferEnv`) + curriculum
 
 3. **Be CI-Friendly**
+
    - Hard cap on steps/timesteps (≤~300) so they finish fast
    - Deterministic seeds and simple asserts to catch regressions
 

@@ -230,7 +230,7 @@ class ScorecardWidget(anywidget.AnyWidget):
             client: ScorecardClient instance
             search_term: Search term to filter policies by name
             restrict_to_policy_ids: List of policy IDs to include (e.g., ["123", "456"])
-            restrict_to_metrics: List of metrics to include (e.g., ["reward", "heart.get"])
+            restrict_to_metrics: List of metrics to include (e.g., ["reward", "heart.gained"])
             restrict_to_policy_names: List of policy name filters (e.g., ["relh.skypilot", "daveey.arena.rnd"])
             restrict_to_eval_names: List of specific evaluation names to include (e.g., ["navigation/labyrinth", "memory/easy"])
             policy_selector: "best" or "latest" policy selection strategy
