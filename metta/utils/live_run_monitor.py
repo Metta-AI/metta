@@ -144,7 +144,7 @@ def _get_status_color(status: "JobStatus") -> str:
         return "white"
 
 
-def make_rich_monitor_table(runs: list["RunInfo"], score_metric: str = "env_agent/heart.get") -> Table:
+def make_rich_monitor_table(runs: list["RunInfo"], score_metric: str = "env_agent/heart.gained") -> Table:
     """Create rich table for run monitoring."""
 
     # Create table
@@ -207,7 +207,7 @@ def create_run_banner(
     name_filter: Optional[str],
     runs: list["RunInfo"],
     display_limit: int = 10,
-    score_metric: str = "env_agent/heart.get",
+    score_metric: str = "env_agent/heart.gained",
     api_rpm: Optional[float] = None,
 ):
     """Create a banner with run information."""
@@ -311,7 +311,7 @@ def live_monitor_runs(
     clear_screen: bool = True,
     display_limit: int = 10,
     fetch_limit: int = 50,
-    score_metric: str = "env_agent/heart.get",
+    score_metric: str = "env_agent/heart.gained",
     max_rpm: int = 60,
     burst_rpm: Optional[int] = None,
     runs_cache_ttl_sec: int = 60,
@@ -471,12 +471,12 @@ def live_monitor_runs_test(
             # Vary the status
             if i < 2:
                 status = JobStatus.COMPLETED
-                summary = {"env_agent/heart.get": 0.85 + i * 0.05}
+                summary = {"env_agent/heart.gained": 0.85 + i * 0.05}
                 current_steps = 1000000000
                 total_timesteps = 1000000000
             elif i < 4:
                 status = JobStatus.IN_TRAINING
-                summary = {"env_agent/heart.get": 0.75 + i * 0.05}
+                summary = {"env_agent/heart.gained": 0.75 + i * 0.05}
                 current_steps = 500000000 + i * 100000000
                 total_timesteps = 1000000000
             elif i < 6:
@@ -569,7 +569,7 @@ def cli(
             "--score-metric",
             help="Metric key in run.summary to use for score",
         ),
-    ] = "env_agent/heart.get",
+    ] = "env_agent/heart.gained",
     max_rpm: Annotated[int, typer.Option("--max-rpm", help="Global API request budget per minute")] = 60,
     burst_rpm: Annotated[
         Optional[int],
