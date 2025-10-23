@@ -120,21 +120,54 @@ class EpisodeReplay:
             self._seq_key_merge(self.objects[i], self.step, update_object)
         self.step += 1
 
+    @staticmethod
+    def _is_step_sequence(history: Any) -> bool:
+        """Return True when history is a list of [step, value] pairs."""
+        if not isinstance(history, list):
+            return False
+        if not history:
+            return False
+        tail = history[-1]
+        return isinstance(tail, (list, tuple)) and len(tail) >= 2
+
+    def _ensure_history(self, grid_object: dict, key: str, step: int, value: Any) -> None:
+        """Normalize history so future appends always operate on [step, value] pairs."""
+        if key not in grid_object:
+            if step == 0:
+                grid_object[key] = [[step, value]]
+            else:
+                grid_object[key] = [[0, 0], [step, value]]
+            return
+
+        history = grid_object[key]
+        if self._is_step_sequence(history):
+            return
+
+        previous = history
+        if isinstance(previous, list) and previous:
+            candidate = previous[-1]
+            if isinstance(candidate, (list, tuple)) and len(candidate) >= 2:
+                previous = candidate[-1]
+        grid_object[key] = [[0, previous]]
+        if step != 0:
+            grid_object[key].append([step, value])
+
     def _seq_key_merge(self, grid_object: dict, step: int, update_object: dict):
         """Add a sequence keys to replay grid object."""
         for key, value in update_object.items():
-            if key not in grid_object:
-                # Add new key.
-                if step == 0:
-                    grid_object[key] = [[step, value]]
-                else:
-                    grid_object[key] = [[0, 0], [step, value]]
-            else:
-                # Only add new entry if it has changed:
+            self._ensure_history(grid_object, key, step, value)
+            if self._is_step_sequence(grid_object[key]):
                 if grid_object[key][-1][1] != value:
                     grid_object[key].append([step, value])
+
         # If key has vanished, add a zero entry.
-        for key in grid_object.keys():
+        for key in list(grid_object.keys()):
+            current_value = (
+                grid_object[key][-1][1]
+                if self._is_step_sequence(grid_object[key])
+                else grid_object[key]
+            )
+            self._ensure_history(grid_object, key, step, current_value)
             if key not in update_object:
                 if grid_object[key][-1][1] != 0:
                     grid_object[key].append([step, 0])
