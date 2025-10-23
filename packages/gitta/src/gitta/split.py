@@ -21,8 +21,6 @@ from .github import create_pr
 
 @dataclass
 class FileDiff:
-    """Represents a diff for a single file"""
-
     filename: str
     additions: list[str]
     deletions: list[str]
@@ -32,8 +30,6 @@ class FileDiff:
 
 @dataclass
 class SplitDecision:
-    """Represents how to split the PR"""
-
     group1_files: list[str]
     group2_files: list[str]
     group1_description: str
@@ -547,7 +543,6 @@ def split_pr(
 
 
 def main():
-    """Main CLI entry point."""
     parser = argparse.ArgumentParser(
         description="Split large PRs into smaller, logically isolated ones",
         formatter_class=argparse.RawDescriptionHelpFormatter,
