@@ -368,7 +368,7 @@ To add new widget types to `lib/widgets.libsonnet`:
 2. **Export Example**: Use `./scripts/export_dashboard.py` to see real JSON
 3. **Extract Pattern**: Identify the `definition` structure
 4. **Create Function**: Add to `lib/widgets.libsonnet` with parameterization
-5. **Test**: Build dashboard with `make build` and verify JSON
+5. **Test**: Build dashboard with `metta datadog dashboard build` and verify JSON
 
 ### Example: Adding New Widget Type
 ```jsonnet

@@ -102,7 +102,7 @@ source ./load_env.sh
 
 ```bash
 # See all currently collected metrics
-metta softmax-system-health report
+metta datadog collect github
 
 # Output shows 17+ metrics across categories:
 # - Pull Requests (open, merged, time to merge)
@@ -110,6 +110,9 @@ metta softmax-system-health report
 # - Commits (total, per developer, hotfixes)
 # - CI/CD (workflow runs, failures, duration)
 # - Developers (active count, productivity)
+
+# Push metrics to Datadog
+metta datadog collect github --push
 ```
 
 ### Deploy a Dashboard
@@ -124,9 +127,9 @@ source ./load_env.sh
 # Daily workflow
 vim components/ci.libsonnet         # Edit widget components
 vim dashboards/my_dashboard.jsonnet # Compose dashboard
-make build                          # Build JSON from Jsonnet
-make diff                           # Review changes
-make push                           # Upload to Datadog
+metta datadog dashboard build        # Build JSON from Jsonnet
+metta datadog dashboard diff         # Review changes
+metta datadog dashboard push         # Upload to Datadog
 ```
 
 ### Add a New Collector
@@ -201,12 +204,22 @@ devops/datadog/
 ## Common Commands
 
 ```bash
-make help           # Show all available commands
-make list           # List dashboards in Datadog
-make list-metrics   # Discover available metrics
-make build          # Build all dashboards from Jsonnet
-make push           # Upload dashboards to Datadog
-make pull           # Download dashboards (for reference)
+# Dashboard management
+metta datadog dashboard build        # Build all dashboards from Jsonnet
+metta datadog dashboard push         # Upload dashboards to Datadog
+metta datadog dashboard pull         # Download dashboards (for reference)
+metta datadog dashboard list         # List dashboards in Datadog
+metta datadog dashboard metrics      # Discover available metrics
+metta datadog dashboard diff         # Show git diff of changes
+metta datadog dashboard clean        # Remove generated JSON files
+
+# Collector management
+metta datadog collect github         # Run GitHub collector (dry-run)
+metta datadog collect github --push  # Run and push metrics to Datadog
+metta datadog list-collectors        # List available collectors
+
+# Utility
+metta datadog env                    # Check environment variables
 ```
 
 ## Architecture Philosophy
@@ -234,6 +247,6 @@ make pull           # Download dashboards (for reference)
 ---
 
 **Ready to get started?**
-- View metrics: `metta softmax-system-health report`
+- View metrics: `metta datadog collect github`
 - Deploy dashboards: [Quick Start Guide](docs/QUICK_START.md)
 - Add collectors: [Adding New Collector](docs/ADDING_NEW_COLLECTOR.md)
