@@ -446,17 +446,20 @@ metta datadog collect github --push --verbose
 **Goal**: Deploy to production, verify metrics flowing correctly
 
 #### 3A. Update Helm Deployment (1 day)
-**Tasks**:
-- [ ] Update `devops/charts/dashboard-cronjob/values.yaml`
-  - Change command to use new CLI: `metta datadog collect github --push`
-  - Keep same schedule (15 minutes)
-  - Keep same secrets (AWS Secrets Manager IAM role)
-  - Add environment variables for new structure
+**Status**: 🔄 Helm chart updated, ready for deployment
 
-- [ ] Test Helm chart locally
+**Tasks**:
+- [x] Update `devops/charts/dashboard-cronjob/values.yaml`
+  - ✅ Changed command to use new collector: `devops/datadog/run_collector.py github --push`
+  - ✅ Kept same schedule (15 minutes)
+  - ✅ Kept same secrets (AWS Secrets Manager IAM role)
+  - ✅ Updated service name to `github-collector`
+  - ✅ Updated README with new collector architecture
+
+- [x] Test Helm chart locally
   ```bash
   helm template devops/charts/dashboard-cronjob
-  # Verify command is correct, secrets mounted, environment set
+  # ✅ Verified: command is correct, secrets mounted, environment set
   ```
 
 - [ ] Deploy to staging/test environment first
