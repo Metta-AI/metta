@@ -1,35 +1,35 @@
-#!/usr/bin/env -S uv run python
 from __future__ import annotations
 
 import argparse
+import importlib
+import os
 import sys
 from typing import List, Sequence
 
 import torch
 
-if __package__:
-    from . import (
-        BenchmarkCase,
-        BenchmarkDefinition,
-        BenchmarkSettings,
-        get_registry,
-    )
-    from .common import ensure_device
-else:  # pragma: no cover - script execution fallback
-    import pathlib
+# Import from sibling module normally, so this script can be run directly
+from common import (
+    BenchmarkCase,
+    BenchmarkDefinition,
+    BenchmarkSettings,
+    ensure_device,
+    get_registry,
+)
 
-    package_dir = pathlib.Path(__file__).resolve().parent
-    project_root = package_dir.parents[2]
-    if str(project_root) not in sys.path:
-        sys.path.insert(0, str(project_root))
 
-    from cortex.benchmarks import (
-        BenchmarkCase,
-        BenchmarkDefinition,
-        BenchmarkSettings,
-        get_registry,
-    )
-    from cortex.benchmarks.common import ensure_device
+def _load_benchmarks() -> None:
+    """Import all benchmark modules in this directory to populate the registry."""
+    here = os.path.dirname(__file__)
+    pkg = __package__ or ""
+    for entry in os.listdir(here):
+        if not entry.endswith(".py"):
+            continue
+        mod_name = entry[:-3]
+        if mod_name in {"__init__", "common", "run"}:
+            continue
+        fullname = f"{pkg}.{mod_name}" if pkg else mod_name
+        importlib.import_module(fullname)
 
 
 def _format_available(registry: dict[str, BenchmarkDefinition]) -> str:
@@ -113,6 +113,8 @@ def run(argv: Sequence[str] | None = None) -> int:
 
     args = parser.parse_args(argv)
 
+    # Ensure all benchmark modules are imported so their registrations run
+    _load_benchmarks()
     registry = dict(get_registry())
     if not registry:
         print("No benchmarks registered.", file=sys.stderr)
@@ -171,5 +173,9 @@ def run(argv: Sequence[str] | None = None) -> int:
     return 0
 
 
+def main() -> int:
+    return run()
+
+
 if __name__ == "__main__":
-    raise SystemExit(run())
+    raise SystemExit(main())
