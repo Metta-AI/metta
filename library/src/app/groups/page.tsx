@@ -5,6 +5,7 @@ import {
   OverlayStackProvider,
   OverlayStackRenderer,
 } from "@/components/OverlayStack";
+import { auth } from "@/lib/auth";
 
 /**
  * Groups Page
@@ -13,11 +14,21 @@ import {
  * integrated into a single cohesive view.
  */
 export default async function GroupsPage() {
-  const [userGroups, allGroups, userInstitutions] = await Promise.all([
+  const [userGroups, allGroups, userInstitutions, session] = await Promise.all([
     loadUserGroups(),
     loadAllDiscoverableGroups(),
     loadUserInstitutions(),
+    auth(),
   ]);
+
+  // Only pass user if they have a valid session
+  const currentUser = session?.user?.id
+    ? {
+        id: session.user.id,
+        name: session.user.name,
+        email: session.user.email,
+      }
+    : null;
 
   return (
     <OverlayStackProvider>
@@ -28,6 +39,7 @@ export default async function GroupsPage() {
           id: inst.id,
           name: inst.name,
         }))}
+        currentUser={currentUser}
       />
       <OverlayStackRenderer />
     </OverlayStackProvider>

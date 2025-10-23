@@ -3,12 +3,8 @@ import {
   DEFAULT_SERVER_ERROR_MESSAGE,
 } from "next-safe-action";
 import { isAppError, getUserMessage } from "./errors";
+import { config } from "./config";
 import { Logger } from "./logging/logger";
-
-/**
- * @deprecated Use specific error classes from ./errors instead
- */
-export class ActionError extends Error {}
 
 export const actionClient = createSafeActionClient({
   handleServerError(e) {
@@ -20,13 +16,8 @@ export const actionClient = createSafeActionClient({
       return e.message;
     }
 
-    // Handle legacy ActionError
-    if (e instanceof ActionError) {
-      return e.message;
-    }
-
     // For unexpected errors, return generic message in production
-    if (process.env.NODE_ENV === "production") {
+    if (config.nodeEnv === "production") {
       return DEFAULT_SERVER_ERROR_MESSAGE;
     }
 

@@ -1,13 +1,11 @@
 "use client";
 
-import { useState } from "react";
 import {
   PaperWithUserContext,
   User,
   UserInteraction,
 } from "@/posts/data/papers";
 import { useStarMutation } from "@/hooks/useStarMutation";
-import { toggleQueueAction } from "@/posts/actions/toggleQueueAction";
 import { getUserInitials } from "@/lib/utils/user";
 import { useOverlayNavigation } from "./OverlayStack";
 import { signOut } from "next-auth/react";
@@ -20,8 +18,6 @@ interface MeViewProps {
     image: string | null;
   };
   starredPapers: PaperWithUserContext[];
-  queuedPapers: PaperWithUserContext[];
-  allPapers: PaperWithUserContext[];
   users: User[];
   interactions: UserInteraction[];
 }
@@ -29,8 +25,6 @@ interface MeViewProps {
 export function MeView({
   user,
   starredPapers,
-  queuedPapers,
-  allPapers,
   users,
   interactions,
 }: MeViewProps) {
@@ -45,32 +39,14 @@ export function MeView({
     starMutation.mutate({ paperId });
   };
 
-  // Handle toggle queue
-  const handleToggleQueue = async (paperId: string) => {
-    try {
-      const formData = new FormData();
-      formData.append("paperId", paperId);
-      await toggleQueueAction(formData);
-
-      // Local state update is now handled by the overlay stack system
-    } catch (error) {
-      console.error("Error toggling queue:", error);
-    }
-  };
-
   // Handle paper click
   const handlePaperClick = (paper: PaperWithUserContext) => {
-    openPaper(paper, users, interactions, handleToggleStar, handleToggleQueue);
+    openPaper(paper, users, interactions, handleToggleStar);
   };
 
   // Handle remove from starred
   const handleRemoveFromStarred = async (paperId: string) => {
     await handleToggleStar(paperId);
-  };
-
-  // Handle remove from queued
-  const handleRemoveFromQueued = async (paperId: string) => {
-    await handleToggleQueue(paperId);
   };
 
   // Handle sign out
@@ -181,63 +157,6 @@ export function MeView({
             ) : (
               <div className="rounded-lg border border-gray-200 bg-white p-4 text-center">
                 <p className="text-gray-500">No starred papers yet.</p>
-              </div>
-            )}
-          </div>
-
-          {/* Queued Papers Section */}
-          <div className="mb-8">
-            <h2 className="mb-3 text-xl font-bold text-gray-900">
-              Queued ({queuedPapers.length})
-            </h2>
-            {queuedPapers.length > 0 ? (
-              <div className="divide-y divide-gray-200 rounded-lg border border-gray-200 bg-white">
-                {queuedPapers.map((paper) => (
-                  <div key={paper.id} className="p-3 hover:bg-gray-50">
-                    <div className="flex items-center justify-between">
-                      <div className="min-w-0 flex-1">
-                        <button
-                          onClick={() => handlePaperClick(paper)}
-                          className="w-full text-left transition-colors hover:text-blue-600"
-                        >
-                          <h3 className="truncate text-base font-medium text-gray-900">
-                            {paper.title}
-                          </h3>
-                          {paper.authors && paper.authors.length > 0 && (
-                            <p className="mt-1 text-sm text-gray-600">
-                              {paper.authors
-                                .map((author) => author.name)
-                                .join(", ")}
-                            </p>
-                          )}
-                        </button>
-                      </div>
-                      <button
-                        onClick={() => handleRemoveFromQueued(paper.id)}
-                        className="ml-3 rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-red-50 hover:text-red-600"
-                        title="Remove from queue"
-                      >
-                        <svg
-                          className="h-4 w-4"
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M6 18L18 6M6 6l12 12"
-                          />
-                        </svg>
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="rounded-lg border border-gray-200 bg-white p-4 text-center">
-                <p className="text-gray-500">No queued papers yet.</p>
               </div>
             )}
           </div>

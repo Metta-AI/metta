@@ -15,7 +15,6 @@ export type FeedPostDTO = {
   content: string | null;
   images: string[];
   postType: "user-post" | "paper-post" | "pure-paper" | "quote-post";
-  queues: number;
   replies: number;
   quotedPostIds: string[];
   quotedPosts?: {
@@ -53,7 +52,6 @@ export type FeedPostDTO = {
     externalId: string | null;
     stars: number;
     starred: boolean;
-    queued: boolean;
     createdAt: Date;
     updatedAt: Date;
     llmAbstract?: LLMAbstract | null;
@@ -99,7 +97,6 @@ export function toFeedPostDTO(
       | "paper-post"
       | "pure-paper"
       | "quote-post",
-    queues: dbModel.queues ?? 0,
     replies: dbModel.replies ?? 0,
     quotedPostIds: dbModel.quotedPostIds ?? [],
     quotedPosts: dbModel.quotedPosts?.map((qp) => ({
@@ -129,7 +126,6 @@ export function toFeedPostDTO(
             paper.paperAuthors?.map((pa) => ({
               id: pa.author.id,
               name: pa.author.name,
-              orcid: pa.author.orcid,
               institution: pa.author.institution,
             })) || [],
           institutions:
@@ -140,7 +136,6 @@ export function toFeedPostDTO(
           externalId: paper.externalId,
           stars: paper.userPaperInteractions?.length ?? 0,
           starred: userPaperInteractionsMap.get(paper.id)?.starred ?? false,
-          queued: userPaperInteractionsMap.get(paper.id)?.queued ?? false,
           createdAt: paper.createdAt,
           updatedAt: paper.updatedAt,
           llmAbstract: paper.llmAbstract,
@@ -214,7 +209,6 @@ export async function loadFeedPosts({
                 select: {
                   id: true,
                   name: true,
-                  orcid: true,
                   institution: true,
                 },
               },
@@ -302,7 +296,7 @@ export async function loadFeedPosts({
   let userPaperInteractionsMap = new Map<string, any>();
 
   if (session?.user?.id) {
-    // Fetch user paper interactions (for starred/queued status)
+    // Fetch user paper interactions (for starred status)
     const paperIds = rows
       .filter((row) => row.paperId)
       .map((row) => row.paperId!)

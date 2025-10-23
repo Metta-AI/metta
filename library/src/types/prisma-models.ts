@@ -21,7 +21,6 @@ export interface PrismaUser {
 export interface PrismaAuthor {
   id: string;
   name: string;
-  orcid: string | null;
   institution: string | null;
 }
 
@@ -154,9 +153,6 @@ export interface PrismaAuthorWithRelations {
   totalCitations: number | null;
   claimed: boolean;
   recentActivity: Date | null;
-  orcid: string | null;
-  googleScholarId: string | null;
-  arxivId: string | null;
   createdAt: Date;
   updatedAt: Date;
   paperAuthors: PrismaPaperAuthorForAuthor[];

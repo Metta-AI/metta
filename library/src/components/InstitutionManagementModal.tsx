@@ -10,8 +10,10 @@ import { toast } from "sonner";
 
 import { manageUserMembershipAction } from "@/institutions/actions/manageUserMembershipAction";
 import { toggleApprovalRequirementAction } from "@/institutions/actions/toggleApprovalRequirementAction";
+import { approveRejectMembershipAction } from "@/institutions/actions/approveRejectMembershipAction";
 import { useErrorHandling } from "@/lib/hooks/useErrorHandling";
 import { getUserDisplayName } from "@/lib/utils/user";
+import { formatDate } from "@/lib/utils/date";
 import {
   Form,
   FormControl,
@@ -31,6 +33,7 @@ import {
 } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { Tabs } from "@/components/ui/tabs";
 
 interface InstitutionMember {
   id: string;
@@ -45,6 +48,19 @@ interface InstitutionMember {
   isActive: boolean;
 }
 
+interface PendingRequest {
+  id: string;
+  user: {
+    id: string;
+    name: string | null;
+    email: string | null;
+  };
+  role: string | null;
+  department: string | null;
+  title: string | null;
+  joinedAt: Date;
+}
+
 interface InstitutionManagementModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -53,6 +69,7 @@ interface InstitutionManagementModalProps {
     name: string;
     requiresApproval?: boolean;
     members?: InstitutionMember[];
+    pendingRequests?: PendingRequest[];
   };
   currentUserRole?: string | null;
 }
@@ -82,15 +99,25 @@ const addMemberDefaults: AddMemberValues = {
 export const InstitutionManagementModal: FC<
   InstitutionManagementModalProps
 > = ({ isOpen, onClose, institution, currentUserRole }) => {
-  const [activeTab, setActiveTab] = useState<"members" | "add" | "settings">(
-    "members"
-  );
+  const [activeTab, setActiveTab] = useState<
+    "members" | "add" | "settings" | "pending"
+  >("members");
   const [localMembers, setLocalMembers] = useState<InstitutionMember[]>(
     institution.members || []
+  );
+  const [localPendingRequests, setLocalPendingRequests] = useState<
+    PendingRequest[]
+  >(institution.pendingRequests || []);
+  const [localRequiresApproval, setLocalRequiresApproval] = useState<boolean>(
+    institution.requiresApproval || false
   );
   const pendingMembershipActionRef = useRef<"add" | "remove" | null>(null);
   const pendingMemberEmailRef = useRef<string | null>(null);
   const pendingApprovalRef = useRef<boolean | null>(null);
+  const pendingRequestActionRef = useRef<{
+    email: string;
+    action: "approve" | "reject";
+  } | null>(null);
 
   const form = useForm<AddMemberValues>({
     resolver: zodResolver(addMemberSchema),
@@ -107,7 +134,13 @@ export const InstitutionManagementModal: FC<
 
   useEffect(() => {
     setLocalMembers(institution.members || []);
-  }, [institution.members]);
+    setLocalPendingRequests(institution.pendingRequests || []);
+    setLocalRequiresApproval(institution.requiresApproval || false);
+  }, [
+    institution.members,
+    institution.pendingRequests,
+    institution.requiresApproval,
+  ]);
 
   useEffect(() => {
     if (!isOpen) {
@@ -173,6 +206,7 @@ export const InstitutionManagementModal: FC<
       onSuccess: () => {
         const requiresApproval = pendingApprovalRef.current;
         if (requiresApproval !== null) {
+          setLocalRequiresApproval(requiresApproval);
           toast.success(
             requiresApproval
               ? "Membership approval now required"
@@ -188,12 +222,46 @@ export const InstitutionManagementModal: FC<
       },
     });
 
+  const { execute: approveRejectMembership, isExecuting: isProcessingRequest } =
+    useAction(approveRejectMembershipAction, {
+      onSuccess: () => {
+        const requestAction = pendingRequestActionRef.current;
+        if (requestAction) {
+          // Remove the request from local state
+          setLocalPendingRequests((prev) =>
+            prev.filter((req) => req.user.email !== requestAction.email)
+          );
+          toast.success(
+            `Membership request ${requestAction.action === "approve" ? "approved" : "rejected"}`
+          );
+        }
+        pendingRequestActionRef.current = null;
+      },
+      onError: (error) => {
+        console.error("Error processing membership request:", error);
+        toast.error("Failed to process membership request");
+        pendingRequestActionRef.current = null;
+      },
+    });
+
   const handleApprovalToggle = (requiresApproval: boolean) => {
     pendingApprovalRef.current = requiresApproval;
     const formData = new FormData();
     formData.append("institutionId", institution.id);
     formData.append("requiresApproval", requiresApproval.toString());
     toggleApproval(formData);
+  };
+
+  const handleMembershipAction = (
+    userEmail: string,
+    action: "approve" | "reject"
+  ) => {
+    pendingRequestActionRef.current = { email: userEmail, action };
+    const formData = new FormData();
+    formData.append("institutionId", institution.id);
+    formData.append("userEmail", userEmail);
+    formData.append("action", action);
+    approveRejectMembership(formData);
   };
 
   const handleRemoveMember = (memberEmail: string) => {
@@ -225,6 +293,10 @@ export const InstitutionManagementModal: FC<
   if (!isOpen) return null;
 
   const memberCount = useMemo(() => localMembers.length, [localMembers.length]);
+  const pendingCount = useMemo(
+    () => localPendingRequests.length,
+    [localPendingRequests.length]
+  );
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
@@ -239,44 +311,27 @@ export const InstitutionManagementModal: FC<
             </div>
             <button
               onClick={onClose}
-              className="rounded-lg p-1 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600"
+              className="cursor-pointer rounded-lg p-1 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600"
             >
               <X className="h-5 w-5" />
             </button>
           </div>
 
           {isAdmin && (
-            <div className="mt-4 flex gap-2">
-              <button
-                onClick={() => setActiveTab("members")}
-                className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
-                  activeTab === "members"
-                    ? "bg-blue-100 text-blue-700"
-                    : "text-gray-600 hover:bg-gray-100"
-                }`}
-              >
-                Members ({memberCount})
-              </button>
-              <button
-                onClick={() => setActiveTab("add")}
-                className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
-                  activeTab === "add"
-                    ? "bg-blue-100 text-blue-700"
-                    : "text-gray-600 hover:bg-gray-100"
-                }`}
-              >
-                Add Member
-              </button>
-              <button
-                onClick={() => setActiveTab("settings")}
-                className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
-                  activeTab === "settings"
-                    ? "bg-blue-100 text-blue-700"
-                    : "text-gray-600 hover:bg-gray-100"
-                }`}
-              >
-                Settings
-              </button>
+            <div className="mt-4">
+              <Tabs
+                tabs={[
+                  { id: "members", label: `Members (${memberCount})` },
+                  {
+                    id: "pending",
+                    label: `Pending Requests${pendingCount > 0 ? ` (${pendingCount})` : ""}`,
+                  },
+                  { id: "add", label: "Add Member" },
+                  { id: "settings", label: "Settings" },
+                ]}
+                activeTab={activeTab}
+                onTabChange={(tab) => setActiveTab(tab as typeof activeTab)}
+              />
             </div>
           )}
         </div>
@@ -348,6 +403,88 @@ export const InstitutionManagementModal: FC<
             </div>
           )}
 
+          {activeTab === "pending" && isAdmin && (
+            <div className="space-y-4">
+              {localPendingRequests.length > 0 ? (
+                localPendingRequests.map((request) => (
+                  <div
+                    key={request.id}
+                    className="flex items-center justify-between rounded-lg border border-amber-200 bg-amber-50 p-4"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="flex h-8 w-8 items-center justify-center rounded-full bg-amber-100 text-sm font-medium text-amber-700">
+                        {request.user.name
+                          ?.split(" ")
+                          .map((n) => n[0])
+                          .join("")
+                          .toUpperCase() ||
+                          request.user.email
+                            ?.split("@")[0]?.[0]
+                            ?.toUpperCase() ||
+                          "?"}
+                      </div>
+                      <div>
+                        <div className="font-medium text-gray-900">
+                          {getUserDisplayName(
+                            request.user.name,
+                            request.user.email
+                          )}
+                        </div>
+                        <div className="text-sm text-gray-500">
+                          {request.user.email}
+                        </div>
+                        <div className="mt-1 text-xs text-gray-400">
+                          Requested {formatDate(request.joinedAt)}
+                          {(request.role ||
+                            request.department ||
+                            request.title) && (
+                            <>
+                              {" • "}
+                              {[request.role, request.department, request.title]
+                                .filter(Boolean)
+                                .join(" • ")}
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex gap-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() =>
+                          handleMembershipAction(request.user.email!, "approve")
+                        }
+                        disabled={isProcessingRequest}
+                      >
+                        Approve
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="destructive"
+                        onClick={() =>
+                          handleMembershipAction(request.user.email!, "reject")
+                        }
+                        disabled={isProcessingRequest}
+                      >
+                        Reject
+                      </Button>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div className="py-8 text-center text-gray-500">
+                  <Users className="mx-auto h-12 w-12 text-gray-300" />
+                  <p className="mt-2">No pending requests</p>
+                  <p className="mt-1 text-sm">
+                    Users who request to join this institution will appear here
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
+
           {activeTab === "add" && isAdmin && (
             <Form {...form}>
               <form
@@ -359,7 +496,9 @@ export const InstitutionManagementModal: FC<
                   name="userEmail"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>User Email *</FormLabel>
+                      <FormLabel>
+                        User Email <span className="text-red-500">*</span>
+                      </FormLabel>
                       <FormControl>
                         <Input
                           {...field}
@@ -368,7 +507,6 @@ export const InstitutionManagementModal: FC<
                           autoComplete="email"
                         />
                       </FormControl>
-                      <FormMessage />
                     </FormItem>
                   )}
                 />
@@ -378,7 +516,9 @@ export const InstitutionManagementModal: FC<
                   name="role"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Role</FormLabel>
+                      <FormLabel>
+                        Role <span className="text-red-500">*</span>
+                      </FormLabel>
                       <Select
                         value={field.value}
                         onValueChange={field.onChange}
@@ -396,7 +536,6 @@ export const InstitutionManagementModal: FC<
                           <SelectItem value="faculty">Faculty</SelectItem>
                         </SelectContent>
                       </Select>
-                      <FormMessage />
                     </FormItem>
                   )}
                 />
@@ -417,7 +556,6 @@ export const InstitutionManagementModal: FC<
                           placeholder="e.g., Computer Science"
                         />
                       </FormControl>
-                      <FormMessage />
                     </FormItem>
                   )}
                 />
@@ -438,7 +576,6 @@ export const InstitutionManagementModal: FC<
                           placeholder="e.g., Senior Researcher"
                         />
                       </FormControl>
-                      <FormMessage />
                     </FormItem>
                   )}
                 />
@@ -479,7 +616,7 @@ export const InstitutionManagementModal: FC<
                         Membership Approval
                       </h4>
                       <p className="mt-1 text-sm text-gray-600">
-                        {institution.requiresApproval
+                        {localRequiresApproval
                           ? "New members require admin approval before they can join"
                           : "Users can join this institution automatically"}
                       </p>
@@ -488,7 +625,7 @@ export const InstitutionManagementModal: FC<
                       <input
                         type="checkbox"
                         className="peer sr-only"
-                        checked={institution.requiresApproval || false}
+                        checked={localRequiresApproval}
                         onChange={(e) => handleApprovalToggle(e.target.checked)}
                         disabled={isTogglingApproval}
                       />

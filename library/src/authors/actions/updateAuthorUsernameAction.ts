@@ -5,7 +5,7 @@ import { zfd } from "zod-form-data";
 import { z } from "zod/v4";
 
 import { actionClient } from "@/lib/actionClient";
-import { getSessionOrRedirect } from "@/lib/auth";
+import { getAdminSessionOrRedirect } from "@/lib/adminAuth";
 import { prisma } from "@/lib/db/prisma";
 import { validateAuthorUsername } from "@/lib/name-validation";
 
@@ -26,7 +26,8 @@ const inputSchema = zfd.formData({
 export const updateAuthorUsernameAction = actionClient
   .inputSchema(inputSchema)
   .action(async ({ parsedInput: input }) => {
-    const session = await getSessionOrRedirect();
+    // Require admin access - will be updated when author claiming is implemented
+    await getAdminSessionOrRedirect();
 
     // Find the author
     const author = await prisma.author.findUnique({
@@ -36,9 +37,6 @@ export const updateAuthorUsernameAction = actionClient
     if (!author) {
       throw new Error("Author not found");
     }
-
-    // TODO: Add permission check - only the author themselves or admins should be able to set usernames
-    // This would need to be implemented when author claiming/authentication is added
 
     // Validate username uniqueness across all entity types
     await validateAuthorUsername(input.username, input.authorId);

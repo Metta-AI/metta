@@ -17,7 +17,6 @@ export default async function loadPost(postId: string): Promise<PostDTO> {
                 select: {
                   id: true,
                   name: true,
-                  orcid: true,
                   institution: true,
                 },
               },

@@ -21,9 +21,6 @@ export type AuthorDTO = {
   claimed: boolean;
   isFollowing: boolean;
   recentActivity: Date | null;
-  orcid: string | null;
-  googleScholarId: string | null;
-  arxivId: string | null;
   createdAt: Date;
   updatedAt: Date;
   paperCount: number;
@@ -105,9 +102,6 @@ function mapToAuthorDTO(
     claimed: author.claimed,
     isFollowing: false, // Default to not following for now
     recentActivity: author.recentActivity,
-    orcid: author.orcid,
-    googleScholarId: author.googleScholarId,
-    arxivId: author.arxivId,
     createdAt: author.createdAt,
     updatedAt: author.updatedAt,
     paperCount: author.paperAuthors.length,
