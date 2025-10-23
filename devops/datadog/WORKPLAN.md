@@ -464,27 +464,44 @@ metta datadog collect github --push --verbose
 
 - [ ] Deploy to staging/test environment first
   ```bash
-  helm upgrade --install datadog-collectors \
-    devops/charts/dashboard-cronjob \
-    --namespace monitoring-test \
+  # Setup kubectl access
+  ./devops/k8s/setup-k8s.sh main
+
+  # Deploy to staging
+  ./devops/k8s/deploy-helm-chart.sh \
+    --chart devops/charts/dashboard-cronjob \
+    --release dashboard-cronjob-staging \
+    --namespace monitoring-staging \
+    --set schedule="*/30 * * * *" \
+    --set datadog.env="staging" \
     --create-namespace
   ```
 
 - [ ] Monitor test deployment
   ```bash
-  kubectl get cronjobs -n monitoring-test
-  kubectl get jobs -n monitoring-test
-  kubectl logs -n monitoring-test -l collector=github --tail=100
+  kubectl get cronjobs -n monitoring-staging
+  kubectl get jobs -n monitoring-staging --sort-by=.metadata.creationTimestamp
+  kubectl logs -n monitoring-staging -l app.kubernetes.io/name=dashboard-cronjob --tail=100
+
+  # Manually trigger for immediate testing
+  kubectl create job --from=cronjob/dashboard-cronjob-staging test-run-$(date +%s) -n monitoring-staging
   ```
+
+**Deployment Helper Scripts** (✅ Created):
+- `devops/k8s/setup-k8s.sh` - Configure kubectl/helm for EKS
+- `devops/k8s/deploy-helm-chart.sh` - Deploy Helm charts with options
+- `devops/k8s/README.md` - General K8s deployment documentation
+- `devops/datadog/docs/DEPLOYMENT_GUIDE.md` - Datadog collector specific deployment guide
 
 #### 3B. Production Rollout (1 day)
 **Tasks**:
 - [ ] Deploy to production
   ```bash
-  helm upgrade --install datadog-collectors \
-    devops/charts/dashboard-cronjob \
+  ./devops/k8s/deploy-helm-chart.sh \
+    --chart devops/charts/dashboard-cronjob \
+    --release dashboard-cronjob \
     --namespace monitoring \
-    --create-namespace
+    --cluster main
   ```
 
 - [ ] Monitor first collection run
