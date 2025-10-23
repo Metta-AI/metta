@@ -11,9 +11,9 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ENV_FILE="$SCRIPT_DIR/.env"
 
 if [ ! -f "$ENV_FILE" ]; then
-    echo "Error: .env file not found at $ENV_FILE" >&2
-    echo "Copy .env.sample to .env and fill in your credentials" >&2
-    return 1 2>/dev/null || exit 1
+  echo "Error: .env file not found at $ENV_FILE" >&2
+  echo "Copy .env.sample to .env and fill in your credentials" >&2
+  return 1 2> /dev/null || exit 1
 fi
 
 # Load environment variables
@@ -27,15 +27,15 @@ export TF_VAR_datadog_app_key="$DD_APP_KEY"
 
 # Verify credentials are set
 if [ "$DD_API_KEY" = "your_api_key_here" ] || [ -z "$DD_API_KEY" ]; then
-    echo "⚠️  Warning: DD_API_KEY is not set or is using placeholder value" >&2
-    echo "Edit $ENV_FILE and add your actual Datadog API key" >&2
-    return 1 2>/dev/null || exit 1
+  echo "⚠️  Warning: DD_API_KEY is not set or is using placeholder value" >&2
+  echo "Edit $ENV_FILE and add your actual Datadog API key" >&2
+  return 1 2> /dev/null || exit 1
 fi
 
 if [ "$DD_APP_KEY" = "your_app_key_here" ] || [ -z "$DD_APP_KEY" ]; then
-    echo "⚠️  Warning: DD_APP_KEY is not set or is using placeholder value" >&2
-    echo "Edit $ENV_FILE and add your actual Datadog Application key" >&2
-    return 1 2>/dev/null || exit 1
+  echo "⚠️  Warning: DD_APP_KEY is not set or is using placeholder value" >&2
+  echo "Edit $ENV_FILE and add your actual Datadog Application key" >&2
+  return 1 2> /dev/null || exit 1
 fi
 
 echo "✓ Datadog credentials loaded successfully"
