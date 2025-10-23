@@ -4,8 +4,8 @@
 
 Concrete implementation plan for building all Datadog dashboards in the Metta observability system. This workplan focuses exclusively on dashboard creation, assuming collectors are implemented per the main [WORKPLAN.md](../WORKPLAN.md).
 
-**Status**: Phase 1 in progress - 2/3 dashboards complete (GitHub ✅, Skypilot ✅)
-**Last Updated**: 2025-10-23 (Skypilot dashboard deployed)
+**Status**: Phase 1 complete - 3/3 dashboards deployed (GitHub ✅, Skypilot ✅, Health Rollup ✅)
+**Last Updated**: 2025-10-23 (System Health Rollup dashboard deployed)
 **Related Docs**: [DASHBOARD_DESIGN.md](DASHBOARD_DESIGN.md), [HEALTH_DASHBOARD_SPEC.md](HEALTH_DASHBOARD_SPEC.md)
 
 ---
@@ -16,17 +16,67 @@ Concrete implementation plan for building all Datadog dashboards in the Metta ob
 |-----------|---------------------|---------|----------|-----------|--------------|
 | GitHub CI/CD | GitHub collector | ✅ **Complete** | P0 | 2 hours | [a53-9nk-w6j](https://app.datadoghq.com/dashboard/a53-9nk-w6j/github-cicd-dashboard) |
 | Skypilot Jobs | Skypilot collector | ✅ **Complete** | P1 | 1.5 hours | [ndg-4cn-2h2](https://app.datadoghq.com/dashboard/ndg-4cn-2h2/skypilot-jobs-dashboard) |
-| System Health Rollup | FoM collector | Not started | P0 | 8 hours (est) | - |
+| System Health Rollup | FoM collector | ✅ **Complete** | P0 | 2 hours | [2mx-kfj-8pi](https://app.datadoghq.com/dashboard/2mx-kfj-8pi/system-health-rollup) |
 | Training & WandB | WandB collector | Blocked | P1 | 6 hours (est) | - |
 | Eval & Testing | Eval collector | Blocked | P2 | 4 hours (est) | - |
 | Collector Health | All collectors | Not started | P2 | 3 hours (est) | - |
 
-**Progress**: 2/6 complete (33%)
-**Total Effort**: ~21.5 hours remaining (~3 days of focused work)
+**Progress**: 3/6 complete (50%)
+**Total Effort**: ~13 hours remaining (~2 days of focused work)
 
 ---
 
 ## Completed Dashboards
+
+### ✅ System Health Rollup Dashboard (2025-10-23)
+
+**Dashboard**: [System Health Rollup](https://app.datadoghq.com/dashboard/2mx-kfj-8pi/system-health-rollup)
+**ID**: `2mx-kfj-8pi`
+**Time Spent**: 2 hours (vs 8 hour estimate)
+**Approach**: JSON-first with timeseries widgets
+
+**What We Built**:
+- **9 widgets** across 8 rows
+- **2 note widgets**: Dashboard overview and future phases
+- **7 timeseries widgets**: All CI FoM metrics with area charts and threshold markers
+- All metrics normalized to [0.0, 1.0] Figure of Merit (FoM) scale
+- Color coding: Green (0.7-1.0) = Healthy, Yellow (0.3-0.7) = Warning, Red (0.0-0.3) = Critical
+
+**Key Features**:
+- ✅ Figure of Merit (FoM) visualization for CI/CD health metrics
+- ✅ Threshold markers showing target/warning/critical levels for each metric
+- ✅ Area charts for trend visualization
+- ✅ Consistent color palette across all widgets
+- ✅ Note widgets explaining FoM scale and future phases
+- ✅ 7-day rolling window for trend analysis
+
+**Metrics Used** (7 CI FoM metrics from GitHub collector):
+- `health.ci.tests_passing.fom` - Binary: all tests passing = 1.0
+- `health.ci.failing_workflows.fom` - Fewer is better: 0→1.0, 5+→0.0
+- `health.ci.hotfix_count.fom` - Fewer is better: 0→1.0, 10+→0.0
+- `health.ci.revert_count.fom` - Fewer is better: 0→1.0, 2+→0.0
+- `health.ci.duration_p90.fom` - Faster is better: 3min→1.0, 10min+→0.0
+- `health.ci.stale_prs.fom` - Fewer is better: 0→1.0, 50+→0.0
+- `health.ci.pr_cycle_time.fom` - Faster is better: 24h→1.0, 72h+→0.0
+
+**Phase 1 Complete**:
+- ✅ FoM collector implemented with 7 CI metric formulas
+- ✅ Comprehensive unit tests (16 test cases, all passing)
+- ✅ Dashboard deployed and accessible
+- ✅ Bug fix: FoM clamping to [0.0, 1.0] range
+
+**Future Phases**:
+- Phase 2: Training metrics (9 FoMs) - requires WandB collector
+- Phase 3: Eval metrics (5 FoMs) - requires Eval collector
+
+**Learnings**:
+1. **Note widget validation** - Note widgets don't support `title` property (API validation error)
+2. **Reflow type** - Must use `reflow_type: "fixed"` when specifying layout properties
+3. **FoM scaling** - Linear scaling formulas with proper clamping to [0.0, 1.0] range
+4. **Test-driven development** - Unit tests caught clamping bug before deployment
+5. **Efficient development** - 2 hours vs 8 hour estimate (75% faster than planned)
+
+---
 
 ### ✅ Skypilot Jobs Dashboard (2025-10-23)
 
