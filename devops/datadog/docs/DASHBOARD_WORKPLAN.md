@@ -14,8 +14,8 @@ Concrete implementation plan for building all Datadog dashboards in the Metta ob
 
 | Dashboard | Collector Dependency | Status | Priority | Time Spent | Dashboard ID |
 |-----------|---------------------|---------|----------|-----------|--------------|
-| GitHub CI/CD | GitHub collector | ✅ **Complete** | P0 | 2 hours | [a53-9nk-w6j](https://app.datadoghq.com/dashboard/a53-9nk-w6j/github-cicd-dashboard) |
-| Skypilot Jobs | Skypilot collector | ✅ **Complete** | P1 | 1.5 hours | [ndg-4cn-2h2](https://app.datadoghq.com/dashboard/ndg-4cn-2h2/skypilot-jobs-dashboard) |
+| GitHub CI/CD | GitHub collector | ✅ **Complete** | P0 | 2 hours | [7gy-9ub-2sq](https://app.datadoghq.com/dashboard/7gy-9ub-2sq/github-cicd-dashboard) |
+| Skypilot Jobs | Skypilot collector | ✅ **Complete** | P1 | 1.5 hours | [wjp-n4n-dsf](https://app.datadoghq.com/dashboard/wjp-n4n-dsf/skypilot-jobs-dashboard) |
 | System Health Rollup | FoM collector | ✅ **Complete** | P0 | 2 hours | [2mx-kfj-8pi](https://app.datadoghq.com/dashboard/2mx-kfj-8pi/system-health-rollup) |
 | Training & WandB | WandB collector | Blocked | P1 | 6 hours (est) | - |
 | Eval & Testing | Eval collector | Blocked | P2 | 4 hours (est) | - |
@@ -80,8 +80,8 @@ Concrete implementation plan for building all Datadog dashboards in the Metta ob
 
 ### ✅ Skypilot Jobs Dashboard (2025-10-23)
 
-**Dashboard**: [Skypilot Jobs](https://app.datadoghq.com/dashboard/ndg-4cn-2h2/skypilot-jobs-dashboard)
-**ID**: `ndg-4cn-2h2`
+**Dashboard**: [Skypilot Jobs](https://app.datadoghq.com/dashboard/wjp-n4n-dsf/skypilot-jobs-dashboard)
+**ID**: `wjp-n4n-dsf`
 **Time Spent**: 1.5 hours (vs 4 hour estimate)
 **Approach**: JSON-first (same as GitHub)
 
@@ -125,8 +125,8 @@ Concrete implementation plan for building all Datadog dashboards in the Metta ob
 
 ### ✅ GitHub CI/CD Dashboard (2025-10-23)
 
-**Dashboard**: [GitHub CI/CD](https://app.datadoghq.com/dashboard/a53-9nk-w6j/github-cicd-dashboard)
-**ID**: `a53-9nk-w6j`
+**Dashboard**: [GitHub CI/CD](https://app.datadoghq.com/dashboard/7gy-9ub-2sq/github-cicd-dashboard)
+**ID**: `7gy-9ub-2sq`
 **Time Spent**: 2 hours (vs 6 hour estimate)
 **Approach**: JSON-first (not GUI as originally planned)
 
