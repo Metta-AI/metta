@@ -93,7 +93,9 @@ class HealthFomCollector(BaseCollector):
             # 5. CI Duration P90 (faster is better: 3min→1.0, 10min+→0.0)
             ci_duration = self._query_metric("github.ci.duration_p90_minutes")
             if ci_duration is not None:
-                foms["health.ci.duration_p90.fom"] = max(1.0 - (ci_duration - 3.0) / (10.0 - 3.0), 0.0)
+                # Clamp to [0.0, 1.0] range
+                fom_value = 1.0 - (ci_duration - 3.0) / (10.0 - 3.0)
+                foms["health.ci.duration_p90.fom"] = max(0.0, min(1.0, fom_value))
 
             # 6. Stale PRs (fewer is better: 0→1.0, 50+→0.0)
             stale_prs = self._query_metric("github.prs.stale_count_14d")
@@ -103,7 +105,9 @@ class HealthFomCollector(BaseCollector):
             # 7. PR Cycle Time (faster is better: 24h→1.0, 72h+→0.0)
             cycle_time = self._query_metric("github.prs.cycle_time_hours")
             if cycle_time is not None:
-                foms["health.ci.pr_cycle_time.fom"] = max(1.0 - (cycle_time - 24.0) / (72.0 - 24.0), 0.0)
+                # Clamp to [0.0, 1.0] range
+                fom_value = 1.0 - (cycle_time - 24.0) / (72.0 - 24.0)
+                foms["health.ci.pr_cycle_time.fom"] = max(0.0, min(1.0, fom_value))
 
         except Exception as e:
             self.logger.error(f"Failed to calculate CI FoMs: {e}")
