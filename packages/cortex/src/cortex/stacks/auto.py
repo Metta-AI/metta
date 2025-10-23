@@ -21,11 +21,7 @@ def build_cortex_auto_config(
     d_hidden: int,
     num_layers: int = 4,
     block_pattern: str | None = None,
-    # Axon generally defaults to a PostUp block. However, when the FIRST
-    # layer is Axon and no explicit Axon block is provided, we default that
-    # first Axon layer to a PassThrough block to preserve identity behavior
-    # and avoid redundant projections at the input boundary.
-    axon_postup: PostUpBlockConfig | PreUpBlockConfig | None = None,
+    axon_postup: PostUpBlockConfig | None = None,
     mlstm_preup: PreUpBlockConfig | None = None,
     xl_postup: PostUpBlockConfig | None = None,
     slstm_postup: PostUpBlockConfig | None = None,
@@ -36,7 +32,7 @@ def build_cortex_auto_config(
 
     # Resolve pattern over {A, X, M, S}
     if block_pattern is None:
-        base = "AMS"
+        base = "AXMS"
         block_pattern = (base * ((num_layers + len(base) - 1) // len(base)))[:num_layers]
     else:
         if len(block_pattern) != num_layers:

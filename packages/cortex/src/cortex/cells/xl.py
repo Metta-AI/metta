@@ -92,8 +92,13 @@ class XLCell(MemoryCell):
         nn.init.zeros_(self.v)
 
     def init_state(self, batch: int, *, device: torch.device | str, dtype: torch.dtype) -> TensorDict:
-        mem = torch.zeros(batch, 0, self.d_model, device=device, dtype=dtype)
-        mem_seg = torch.zeros(batch, 0, device=device, dtype=torch.long)
+        if self.mem_len > 0:
+            # Preallocate full memory length so downstream caches observe a fixed shape.
+            mem = torch.zeros(batch, self.mem_len, self.d_model, device=device, dtype=dtype)
+            mem_seg = torch.full((batch, self.mem_len), -1, device=device, dtype=torch.long)
+        else:
+            mem = torch.zeros(batch, 0, self.d_model, device=device, dtype=dtype)
+            mem_seg = torch.zeros(batch, 0, device=device, dtype=torch.long)
         return TensorDict({"mem": mem, "mem_seg": mem_seg}, batch_size=[batch])
 
     def forward(
