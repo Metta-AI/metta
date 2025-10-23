@@ -9,8 +9,8 @@ from metta.jobs import JobConfig, JobManager
 def test_job_manager_basic():
     """Test basic JobManager functionality."""
     with tempfile.TemporaryDirectory() as tmpdir:
-        db_path = Path(tmpdir) / "jobs.db"
-        manager = JobManager(db_path, max_local_jobs=2, max_remote_jobs=5)
+        base_dir = Path(tmpdir)
+        manager = JobManager(base_dir, max_local_jobs=2, max_remote_jobs=5)
 
         # Submit a simple local job
         config = JobConfig(
@@ -22,26 +22,25 @@ def test_job_manager_basic():
         )
 
         # Submit job
-        manager.submit("test_batch", config)
+        manager.submit(config)
 
         # Check status
-        status = manager.get_status("test_batch", "test_job")
+        status = manager.get_status("test_job")
         assert status in ("pending", "running"), f"Expected pending or running, got {status}"
 
         # Job state should exist
-        job_state = manager.get_job_state("test_batch", "test_job")
+        job_state = manager.get_job_state("test_job")
         assert job_state is not None
         assert job_state.name == "test_job"
-        assert job_state.batch_id == "test_batch"
 
 
-def test_job_manager_batch_operations():
-    """Test batch operations."""
+def test_job_manager_group_operations():
+    """Test group operations."""
     with tempfile.TemporaryDirectory() as tmpdir:
-        db_path = Path(tmpdir) / "jobs.db"
-        manager = JobManager(db_path)
+        base_dir = Path(tmpdir)
+        manager = JobManager(base_dir)
 
-        # Submit multiple jobs to same batch
+        # Submit multiple jobs to same group
         for i in range(3):
             config = JobConfig(
                 name=f"job_{i}",
@@ -49,11 +48,12 @@ def test_job_manager_batch_operations():
                 args={"i": i},
                 execution="local",
                 timeout_s=60,
+                group="group_1",
             )
-            manager.submit("batch_1", config)
+            manager.submit(config)
 
-        # Get all jobs in batch
-        jobs = manager.get_batch_jobs("batch_1")
+        # Get all jobs in group
+        jobs = manager.get_group_jobs("group_1")
         assert len(jobs) == 3
         assert "job_0" in jobs
         assert "job_1" in jobs
