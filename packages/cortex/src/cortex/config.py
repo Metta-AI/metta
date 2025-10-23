@@ -86,6 +86,27 @@ class sLSTMCellConfig(CellConfig):
     axon_layer_config: AxonConfig | None = Field(default=None)
 
 
+class XLCellConfig(CellConfig):
+    """Configuration for Transformer-XL style attention cell.
+
+    - If ``head_dim`` is None, it is inferred as ``hidden_size // n_heads``
+      and requires divisibility.
+    - ``mem_len`` controls rolling memory length (0 disables memory).
+    """
+
+    cell_type: str = "xl"
+    hidden_size: int | None = Field(default=None)
+    n_heads: int = Field(default=4, ge=1)
+    head_dim: int | None = Field(default=None, ge=1)
+    mem_len: int = Field(default=512, ge=0)
+    attn_dropout: float = Field(default=0.0, ge=0.0, le=1.0)
+    out_dropout: float = Field(default=0.0, ge=0.0, le=1.0)
+    use_bias: bool = Field(default=True)
+    # Optional AxonLayer-backed Q/K/V projections
+    use_axon_qkv: bool = Field(default=False)
+    axon_qkv_config: AxonConfig | None = Field(default=None)
+
+
 class AxonConfig(CellConfig):
     """Configuration for the Axons cell (streaming RTU, diagonal input weights).
 
@@ -250,6 +271,7 @@ __all__ = [
     "LSTMCellConfig",
     "mLSTMCellConfig",
     "sLSTMCellConfig",
+    "XLCellConfig",
     "AxonConfig",
     "BlockConfig",
     "PassThroughBlockConfig",
