@@ -214,7 +214,6 @@ proc updateScrubber() =
   # Ensure the scrubber fill is visible at step 0: minimum width ~1px.
   fillW = max(fillW, 1f)
   if nodeScrubber.size.x != fillW:
-    nodeScrubber.size.x = fillW
     nodeScrubber.dirty = true
 
 proc drawTimeline*(panel: Panel) =
