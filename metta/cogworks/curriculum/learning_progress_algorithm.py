@@ -118,6 +118,9 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         self._task_labels: Dict[int, str] = {}  # task_id -> label
         self._label_completion_counts: Dict[str, int] = {}  # label -> count
 
+        # Track which labels are currently active (have tasks in pool)
+        self._active_labels: set[str] = set()
+
     @property
     def lp_scorer(self):
         """Compatibility property for tests that expect lp_scorer attribute."""
@@ -212,8 +215,18 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         # Learning progress specific cleanup
         self._remove_task_from_scoring(task_id)
 
-        # Remove from label tracking
-        self._task_labels.pop(task_id, None)
+        # Remove from label tracking and clean up inactive labels
+        evicted_label = self._task_labels.pop(task_id, None)
+        if evicted_label:
+            # Check if this label still has any active tasks
+            if evicted_label not in self._task_labels.values():
+                # No more tasks with this label - remove from active set
+                self._active_labels.discard(evicted_label)
+                # Clean up completion counts for inactive labels to prevent unbounded growth
+                self._label_completion_counts.pop(evicted_label, None)
+
+        # Remove from slice analyzer to prevent memory leak
+        self.slice_analyzer.remove_task(task_id)
 
         # Invalidate stats cache when task state changes
         self.cache_coordinator.invalidate_stats_cache()
@@ -290,6 +303,7 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
             label = task.get_label()
             if label:
                 self._task_labels[task._task_id] = label
+                self._active_labels.add(label)
 
         # Extract and update slice values if available
         slice_values = task.get_slice_values()

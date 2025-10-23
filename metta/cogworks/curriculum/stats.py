@@ -237,6 +237,22 @@ class SliceAnalyzer:
         """Invalidate the density statistics cache."""
         self._density_cache_valid = False
 
+    def remove_task(self, task_id: int) -> None:
+        """Remove a task from slice tracking to prevent memory leaks.
+
+        Args:
+            task_id: The task ID to remove from tracking
+        """
+        # Remove task from all slice tracking dictionaries
+        for slice_name in list(self._slice_tracking.keys()):
+            self._slice_tracking[slice_name].pop(task_id, None)
+
+        # Note: We don't remove from completion counts as those are aggregated statistics
+        # that should persist even after individual tasks are evicted
+
+        # Invalidate cache since we modified tracking data
+        self._density_cache_valid = False
+
     def get_state(self) -> Dict[str, Any]:
         """Get slice analyzer state for checkpointing."""
         return {
