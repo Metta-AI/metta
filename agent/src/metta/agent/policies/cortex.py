@@ -14,12 +14,7 @@ from metta.agent.policy import PolicyArchitecture
 
 
 class CortexBaseConfig(PolicyArchitecture):
-    """ViT-style policy that uses a Cortex stack as the core memory module.
-
-    Matches the ViTReset layout but swaps the LSTM core for a Cortex stack
-    (defaults to xLSTM). Keeps actor/critic heads and dims consistent by
-    projecting the Cortex output to the same hidden size as the original LSTM.
-    """
+    """ViT-style policy with Cortex stack (xLSTM) replacing LSTM core."""
 
     class_path: str = "metta.agent.policy_auto_builder.PolicyAutoBuilder"
 

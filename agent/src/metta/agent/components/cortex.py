@@ -47,11 +47,7 @@ def _as_reset_mask(
 
 
 class CortexTDConfig(ComponentConfig):
-    """Config for integrating a Cortex stack as a Metta component.
-
-    This component manages state caching internally and exposes a TensorDict API
-    compatible with ``PolicyAutoBuilder``.
-    """
+    """Configuration for Cortex stack integration with TensorDict state caching."""
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
@@ -74,7 +70,7 @@ class CortexTDConfig(ComponentConfig):
 
 
 class CortexTD(nn.Module):
-    """Stateful component integrating a ``CortexStack`` with Metta TensorDicts."""
+    """Stateful Cortex stack component with TensorDict integration."""
 
     def __init__(self, config: CortexTDConfig) -> None:
         super().__init__()
@@ -136,30 +132,19 @@ class CortexTD(nn.Module):
         # Eval-time logging is done at DEBUG level each time keys are inferred
 
     def _prime_state_template(self) -> None:
-        """Prime by running a zero‑step init and recording any lazy leaves.
-
-        Delegates the zero‑step logic to ``_zero_step_init_state`` to avoid dupes.
-        """
+        """Initialize state template by running zero-step to materialize lazy leaves."""
         s1 = self._zero_step_init_state(batch=1, device=torch.device("cpu"), dtype=torch.float32)
         self._maybe_register_new_leaves(s1)
 
     def _zero_step_init_state(self, *, batch: int, device: torch.device, dtype: torch.dtype) -> TensorDict:
-        """Return initial state via one zero-input step from None.
-
-        Ensures lazy leaves are materialized and shapes/devices match runtime.
-        """
+        """Create initial state with zero-input forward pass to materialize all leaves."""
         x0 = torch.zeros(batch, int(self.d_hidden), device=device, dtype=dtype)
         with torch.no_grad():
             _y, s1 = self.stack.step(x0, None)
         return s1
 
     def _maybe_register_new_leaves(self, state: TensorDict) -> None:
-        """Register lazily-created leaves so gather/scatter includes them.
-
-        AxonLayer-managed substates under groups like 'mlstm' or 'mlstm_qkv'
-        are often created on first use. Extend our flat index and shape map
-        when we observe new leaves at runtime, and ensure store capacity.
-        """
+        """Register lazily-created state leaves and ensure store capacity."""
         existing = {leaf_path for _, leaf_path in self._flat_entries}
         for bkey in state.keys():
             btd = state.get(bkey)
@@ -384,12 +369,7 @@ class CortexTD(nn.Module):
         device: torch.device,
         dtype: torch.dtype,
     ) -> TensorDict:
-        """Gather a batch state from a slot-indexed store without running a forward pass.
-
-        - For empty requests, returns a zero state built from the known leaf shapes.
-        - For non-empty, builds the nested TensorDict structure and fills leaves by
-          index_select from the store, zeroing rows where slot == -1.
-        """
+        """Gather batch state from slot-indexed store, zeroing invalid slots."""
         # Fast path: no slots requested -> return all zeros
         if slot_ids.numel() == 0:
             out = TensorDict({}, batch_size=[B], device=device)
