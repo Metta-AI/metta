@@ -1,0 +1,28 @@
+load("@rules_cc//cc:defs.bzl", "cc_library")
+
+cc_library(
+    name = "libfixmath",
+    srcs = [
+        "fix16.c",
+        "fix16_exp.c",
+        "fix16_sqrt.c",
+        "fix16_str.c",
+        "fix16_trig.c",
+        "fract32.c",
+        "uint32.c",
+    ],
+    hdrs = [
+        "fix16.h",
+        "fix16.hpp",
+        "fix16_trig_sin_lut.h",
+        "fixmath.h",
+        "fract32.h",
+        "int64.h",
+        "uint32.h",
+    ],
+    copts = [
+        "-DFIXMATH_NO_OVERFLOW",  # For better performance
+    ],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+)

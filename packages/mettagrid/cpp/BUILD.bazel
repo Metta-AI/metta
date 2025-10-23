@@ -34,6 +34,9 @@ pybind_library(
     ],
     includes = ["include/mettagrid"],
     visibility = ["//visibility:public"],
+    deps = [
+        "//cpp/third_party/libfixmath",
+    ],
 )
 
 # Python bindings
@@ -49,6 +52,9 @@ pybind_extension(
     copts = COPTS,
     includes = ["include/mettagrid", "."],
     visibility = ["//visibility:public"],
+    deps = [
+        "//cpp/third_party/libfixmath",
+    ],
 )
 
 # C++ tests would go here when moved
