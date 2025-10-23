@@ -52,7 +52,6 @@ CI_FLAGS: tuple[str, ...] = (
     "--durations=10",
     "-v",
 )
-TESTMON_FLAGS: tuple[str, ...] = ("--testmon", "--testmon-label=staged")
 
 
 def _run_command(args: Sequence[str]) -> int:
@@ -152,7 +151,7 @@ def run(
     else:
         cmd.extend(DEFAULT_FLAGS)
         if changed:
-            cmd.extend(TESTMON_FLAGS)
+            cmd.append("--testmon")
         cmd.extend(extra_args)
         cmd.extend(resolved_targets)
         raise typer.Exit(_run_command(cmd))
