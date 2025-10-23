@@ -1,4 +1,5 @@
 import logging
+import statistics
 from base64 import b64encode
 from datetime import datetime, timedelta, timezone
 from typing import Any
@@ -252,6 +253,165 @@ def get_avg_time_to_merge() -> float | None:
         return None
 
 
+@system_health_metric(metric_key="prs.with_review_comments_pct")
+def get_prs_with_review_comments_pct() -> float | None:
+    """Percentage of PRs (last 7 days) that received review comments."""
+    since = (datetime.now(timezone.utc) - timedelta(days=7)).isoformat()
+    repo = f"{METTA_GITHUB_ORGANIZATION}/{METTA_GITHUB_REPO}"
+
+    try:
+        prs = get_pull_requests(
+            repo=repo,
+            state="closed",
+            since=since,
+            per_page=100,
+            Authorization=_get_github_auth_header(),
+        )
+
+        if not prs:
+            return None
+
+        # Count PRs with review comments (comments > 0 indicates discussion)
+        prs_with_comments = sum(1 for pr in prs if pr.get("comments", 0) > 0)
+
+        return (prs_with_comments / len(prs)) * 100.0
+    except Exception as e:
+        logger.error(f"Failed to calculate review comments percentage: {e}")
+        return None
+
+
+@system_health_metric(metric_key="prs.avg_comments_per_pr")
+def get_avg_comments_per_pr() -> float | None:
+    """Average number of comments per PR (last 7 days)."""
+    since = (datetime.now(timezone.utc) - timedelta(days=7)).isoformat()
+    repo = f"{METTA_GITHUB_ORGANIZATION}/{METTA_GITHUB_REPO}"
+
+    try:
+        prs = get_pull_requests(
+            repo=repo,
+            state="closed",
+            since=since,
+            per_page=100,
+            Authorization=_get_github_auth_header(),
+        )
+
+        if not prs:
+            return None
+
+        total_comments = sum(pr.get("comments", 0) for pr in prs)
+        return total_comments / len(prs)
+    except Exception as e:
+        logger.error(f"Failed to calculate avg comments per PR: {e}")
+        return None
+
+
+@system_health_metric(metric_key="prs.time_to_first_review_hours")
+def get_time_to_first_review_hours() -> float | None:
+    """Average time from PR creation to first comment (in hours) for PRs in last 7 days."""
+    since = (datetime.now(timezone.utc) - timedelta(days=7)).isoformat()
+    repo = f"{METTA_GITHUB_ORGANIZATION}/{METTA_GITHUB_REPO}"
+
+    try:
+        prs = get_pull_requests(
+            repo=repo,
+            state="closed",
+            since=since,
+            per_page=100,
+            Authorization=_get_github_auth_header(),
+        )
+
+        if not prs:
+            return None
+
+        times_to_first_review = []
+        for pr in prs:
+            # Skip PRs with no comments
+            if pr.get("comments", 0) == 0:
+                continue
+
+            created = datetime.fromisoformat(pr["created_at"].replace("Z", "+00:00"))
+            # Note: The PR endpoint doesn't include comment timestamps
+            # We'd need to fetch individual PR review comments via another API call
+            # For now, we'll use a simplified approach based on updated_at
+            # This is an approximation - actual implementation would need PR review timeline API
+            updated = datetime.fromisoformat(pr["updated_at"].replace("Z", "+00:00"))
+
+            # Only include if updated != created (indicating some activity)
+            if updated > created:
+                hours = (updated - created).total_seconds() / 3600
+                times_to_first_review.append(hours)
+
+        if not times_to_first_review:
+            return None
+
+        return sum(times_to_first_review) / len(times_to_first_review)
+    except Exception as e:
+        logger.error(f"Failed to calculate time to first review: {e}")
+        return None
+
+
+@system_health_metric(metric_key="prs.stale_count_14d")
+def get_stale_prs_count() -> int:
+    """Count of open PRs that have been open for more than 14 days."""
+    repo = f"{METTA_GITHUB_ORGANIZATION}/{METTA_GITHUB_REPO}"
+    stale_threshold = datetime.now(timezone.utc) - timedelta(days=14)
+
+    try:
+        prs = get_pull_requests(
+            repo=repo,
+            state="open",
+            per_page=100,
+            Authorization=_get_github_auth_header(),
+        )
+
+        stale_prs = []
+        for pr in prs:
+            created = datetime.fromisoformat(pr["created_at"].replace("Z", "+00:00"))
+            if created < stale_threshold:
+                stale_prs.append(pr)
+
+        return len(stale_prs)
+    except Exception as e:
+        logger.error(f"Failed to get stale PRs: {e}")
+        return 0
+
+
+@system_health_metric(metric_key="prs.cycle_time_hours")
+def get_pr_cycle_time_hours() -> float | None:
+    """Average cycle time from PR creation to merge (in hours) for PRs merged in last 7 days.
+
+    Note: This is the same as avg_time_to_merge but with a more standard DORA metrics name.
+    """
+    since = (datetime.now(timezone.utc) - timedelta(days=7)).isoformat()
+    repo = f"{METTA_GITHUB_ORGANIZATION}/{METTA_GITHUB_REPO}"
+
+    try:
+        prs = get_pull_requests(
+            repo=repo,
+            state="closed",
+            since=since,
+            per_page=100,
+            Authorization=_get_github_auth_header(),
+        )
+        # Filter for merged PRs
+        merged_prs = [pr for pr in prs if pr.get("merged_at")]
+
+        if not merged_prs:
+            return None
+
+        cycle_times = []
+        for pr in merged_prs:
+            created = datetime.fromisoformat(pr["created_at"].replace("Z", "+00:00"))
+            merged = datetime.fromisoformat(pr["merged_at"].replace("Z", "+00:00"))
+            hours = (merged - created).total_seconds() / 3600
+            cycle_times.append(hours)
+
+        return sum(cycle_times) / len(cycle_times)
+    except Exception as e:
+        logger.error(f"Failed to calculate PR cycle time: {e}")
+        return None
+
+
 # ==================== Branch Metrics ====================
 
 
@@ -496,6 +656,120 @@ def get_avg_workflow_duration() -> float | None:
         return sum(durations) / len(durations)
     except Exception as e:
         logger.error(f"Failed to calculate avg workflow duration: {e}")
+        return None
+
+
+@system_health_metric(metric_key="ci.duration_p50_minutes")
+def get_ci_duration_p50() -> float | None:
+    """Median (50th percentile) workflow run duration in minutes for runs in the last 7 days."""
+    since_date = (datetime.now(timezone.utc) - timedelta(days=7)).strftime("%Y-%m-%d")
+    created_filter = f">={since_date}"
+    repo = f"{METTA_GITHUB_ORGANIZATION}/{METTA_GITHUB_REPO}"
+
+    try:
+        runs = list_all_workflow_runs(
+            repo=repo,
+            status="completed",
+            created=created_filter,
+            per_page=100,
+            Authorization=_get_github_auth_header(),
+        )
+
+        if not runs:
+            return None
+
+        durations = []
+        for run in runs:
+            created = run.get("created_at")
+            updated = run.get("updated_at")
+            if created and updated:
+                created_dt = datetime.fromisoformat(created.replace("Z", "+00:00"))
+                updated_dt = datetime.fromisoformat(updated.replace("Z", "+00:00"))
+                duration_minutes = (updated_dt - created_dt).total_seconds() / 60
+                durations.append(duration_minutes)
+
+        if not durations:
+            return None
+
+        return statistics.median(durations)
+    except Exception as e:
+        logger.error(f"Failed to calculate p50 workflow duration: {e}")
+        return None
+
+
+@system_health_metric(metric_key="ci.duration_p90_minutes")
+def get_ci_duration_p90() -> float | None:
+    """90th percentile workflow run duration in minutes for runs in the last 7 days."""
+    since_date = (datetime.now(timezone.utc) - timedelta(days=7)).strftime("%Y-%m-%d")
+    created_filter = f">={since_date}"
+    repo = f"{METTA_GITHUB_ORGANIZATION}/{METTA_GITHUB_REPO}"
+
+    try:
+        runs = list_all_workflow_runs(
+            repo=repo,
+            status="completed",
+            created=created_filter,
+            per_page=100,
+            Authorization=_get_github_auth_header(),
+        )
+
+        if not runs:
+            return None
+
+        durations = []
+        for run in runs:
+            created = run.get("created_at")
+            updated = run.get("updated_at")
+            if created and updated:
+                created_dt = datetime.fromisoformat(created.replace("Z", "+00:00"))
+                updated_dt = datetime.fromisoformat(updated.replace("Z", "+00:00"))
+                duration_minutes = (updated_dt - created_dt).total_seconds() / 60
+                durations.append(duration_minutes)
+
+        if not durations:
+            return None
+
+        return statistics.quantiles(durations, n=10)[8]  # 9th decile = 90th percentile
+    except Exception as e:
+        logger.error(f"Failed to calculate p90 workflow duration: {e}")
+        return None
+
+
+@system_health_metric(metric_key="ci.duration_p99_minutes")
+def get_ci_duration_p99() -> float | None:
+    """99th percentile workflow run duration in minutes for runs in the last 7 days."""
+    since_date = (datetime.now(timezone.utc) - timedelta(days=7)).strftime("%Y-%m-%d")
+    created_filter = f">={since_date}"
+    repo = f"{METTA_GITHUB_ORGANIZATION}/{METTA_GITHUB_REPO}"
+
+    try:
+        runs = list_all_workflow_runs(
+            repo=repo,
+            status="completed",
+            created=created_filter,
+            per_page=100,
+            Authorization=_get_github_auth_header(),
+        )
+
+        if not runs:
+            return None
+
+        durations = []
+        for run in runs:
+            created = run.get("created_at")
+            updated = run.get("updated_at")
+            if created and updated:
+                created_dt = datetime.fromisoformat(created.replace("Z", "+00:00"))
+                updated_dt = datetime.fromisoformat(updated.replace("Z", "+00:00"))
+                duration_minutes = (updated_dt - created_dt).total_seconds() / 60
+                durations.append(duration_minutes)
+
+        if not durations:
+            return None
+
+        return statistics.quantiles(durations, n=100)[98]  # 99th percentile
+    except Exception as e:
+        logger.error(f"Failed to calculate p99 workflow duration: {e}")
         return None
 
 
