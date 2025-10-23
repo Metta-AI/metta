@@ -34,6 +34,15 @@ spec:
               value: {{ .Values.image.tag | quote }}
             - name: DD_SITE
               value: {{ .Values.datadog.site | quote }}
+            {{- if .Values.asana }}
+            # Asana configuration (workspace and project IDs are not secrets)
+            - name: ASANA_WORKSPACE_GID
+              value: {{ .Values.asana.workspaceGid | quote }}
+            {{- if .Values.asana.bugsProjectGid }}
+            - name: ASANA_BUGS_PROJECT_GID
+              value: {{ .Values.asana.bugsProjectGid | quote }}
+            {{- end }}
+            {{- end }}
             # Secrets are accessed from AWS Secrets Manager via the serviceAccount IAM role
             # The softmax.aws.secrets_manager module handles fetching them at runtime
             resources:
