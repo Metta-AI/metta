@@ -1,0 +1,347 @@
+/**
+ * Mention resolution utilities
+ *
+ * Resolves different types of mentions to actual user IDs for notifications
+ */
+
+import { prisma } from "@/lib/db/prisma";
+import { ParsedMention, parseMentions } from "./mentions";
+import { Logger } from "./logging/logger";
+
+export interface ResolvedMention {
+  type: "user" | "group" | "institution";
+  originalMention: string;
+  userIds: string[];
+  groupName?: string;
+  institutionName?: string;
+}
+
+/**
+ * Resolve all mentions from a list of mention strings to user IDs
+ */
+export async function resolveMentions(
+  mentionStrings: string[],
+  currentUserId: string
+): Promise<ResolvedMention[]> {
+  const resolved: ResolvedMention[] = [];
+
+  // Parse all mentions from the strings
+  const allParsedMentions: ParsedMention[] = [];
+  for (const mentionString of mentionStrings) {
+    const parsed = parseMentions(mentionString);
+    allParsedMentions.push(...parsed);
+  }
+
+  for (const mention of allParsedMentions) {
+    try {
+      const resolution = await resolveSingleMention(mention, currentUserId);
+      if (resolution && resolution.userIds.length > 0) {
+        resolved.push(resolution);
+      }
+    } catch (error) {
+      Logger.error(
+        "Failed to resolve mention",
+        error instanceof Error ? error : new Error(String(error)),
+        { mention: mention.raw }
+      );
+    }
+  }
+
+  return resolved;
+}
+
+/**
+ * Resolve a single parsed mention to user IDs
+ */
+async function resolveSingleMention(
+  mention: ParsedMention,
+  currentUserId: string
+): Promise<ResolvedMention | null> {
+  switch (mention.type) {
+    case "user":
+    case "institution":
+      // Both user and institution mentions use the same resolution logic
+      // resolveUserMention tries user -> institution -> group in sequence
+      return resolveUserMention(mention, currentUserId);
+
+    case "group-relative":
+      return resolveRelativeGroupMention(mention, currentUserId);
+
+    case "group-absolute":
+      return resolveAbsoluteGroupMention(mention);
+
+    case "group-institution":
+      return resolveInstitutionGroupMention(mention);
+
+    default:
+      return null;
+  }
+}
+
+/**
+ * Resolve @username mentions (could be user or institution)
+ */
+async function resolveUserMention(
+  mention: ParsedMention,
+  currentUserId: string
+): Promise<ResolvedMention | null> {
+  // Handle both user-type mentions (mention.username) and institution-type mentions (mention.institutionName)
+  const searchTerm = mention.username || mention.institutionName;
+  if (!searchTerm) return null;
+
+  // First try to find user by email prefix (since usernames are typically email prefixes)
+  const user = await prisma.user.findFirst({
+    where: {
+      OR: [
+        { email: { startsWith: searchTerm + "@" } },
+        { name: { equals: searchTerm, mode: "insensitive" } },
+      ],
+    },
+    select: { id: true, email: true, name: true },
+  });
+
+  if (user) {
+    return {
+      type: "user",
+      originalMention: mention.raw,
+      userIds: [user.id],
+    };
+  }
+
+  // If no user found, try to find institution with this name
+  const institution = await prisma.institution.findUnique({
+    where: { name: searchTerm },
+    select: {
+      id: true,
+      name: true,
+      userInstitutions: {
+        where: {
+          status: "APPROVED",
+          isActive: true,
+        },
+        select: {
+          user: {
+            select: { id: true },
+          },
+        },
+      },
+    },
+  });
+
+  if (institution) {
+    const userIds = institution.userInstitutions.map((ui) => ui.user.id);
+    return {
+      type: "institution",
+      originalMention: mention.raw,
+      userIds,
+      institutionName: institution.name,
+    };
+  }
+
+  // If no institution found, try to find a group the user is a member of
+  const group = await prisma.group.findFirst({
+    where: {
+      name: searchTerm,
+      userGroups: {
+        some: {
+          userId: currentUserId,
+          isActive: true,
+        },
+      },
+    },
+    include: {
+      userGroups: {
+        where: { isActive: true },
+        include: { user: { select: { id: true } } },
+      },
+      institution: {
+        select: { name: true },
+      },
+    },
+  });
+
+  if (group) {
+    const userIds = group.userGroups.map((ug) => ug.user.id);
+    return {
+      type: "group",
+      originalMention: mention.raw,
+      userIds,
+      groupName: group.name,
+      institutionName: group.institution.name,
+    };
+  }
+
+  return null;
+}
+
+/**
+ * Resolve @/groupname mentions (relative to user's institutions)
+ */
+async function resolveRelativeGroupMention(
+  mention: ParsedMention,
+  currentUserId: string
+): Promise<ResolvedMention | null> {
+  if (!mention.groupName) return null;
+
+  // Get user's institutions
+  const userInstitutions = await prisma.userInstitution.findMany({
+    where: {
+      userId: currentUserId,
+      isActive: true,
+    },
+    select: { institutionId: true },
+  });
+
+  const institutionIds = userInstitutions.map((ui) => ui.institutionId);
+  if (institutionIds.length === 0) return null;
+
+  // Find groups with this name in user's institutions
+  const groups = await prisma.group.findMany({
+    where: {
+      name: mention.groupName,
+      institutionId: { in: institutionIds },
+    },
+    include: {
+      userGroups: {
+        where: { isActive: true },
+        include: { user: { select: { id: true } } },
+      },
+      institution: {
+        select: { name: true },
+      },
+    },
+  });
+
+  if (groups.length === 0) return null;
+
+  // Get all unique user IDs from all matching groups
+  const userIds = new Set<string>();
+  let institutionName = "";
+
+  for (const group of groups) {
+    institutionName = group.institution.name;
+    for (const userGroup of group.userGroups) {
+      userIds.add(userGroup.user.id);
+    }
+  }
+
+  return {
+    type: "group",
+    originalMention: mention.raw,
+    userIds: Array.from(userIds),
+    groupName: mention.groupName,
+    institutionName,
+  };
+}
+
+/**
+ * Resolve @domain.com/groupname mentions (absolute group references)
+ */
+async function resolveAbsoluteGroupMention(
+  mention: ParsedMention
+): Promise<ResolvedMention | null> {
+  if (!mention.domain || !mention.groupName) return null;
+
+  // Find institution by domain
+  const institution = await prisma.institution.findUnique({
+    where: { domain: mention.domain },
+    select: { id: true, name: true },
+  });
+
+  if (!institution) return null;
+
+  // Find group in the specific institution
+  const group = await prisma.group.findUnique({
+    where: {
+      name_institutionId: {
+        name: mention.groupName,
+        institutionId: institution.id,
+      },
+    },
+    include: {
+      userGroups: {
+        where: { isActive: true },
+        include: { user: { select: { id: true } } },
+      },
+    },
+  });
+
+  if (!group) return null;
+
+  const userIds = group.userGroups.map((ug) => ug.user.id);
+
+  return {
+    type: "group",
+    originalMention: mention.raw,
+    userIds,
+    groupName: mention.groupName,
+    institutionName: institution.name,
+  };
+}
+
+/**
+ * Get all unique user IDs from resolved mentions (excluding the current user)
+ */
+export function extractUserIdsFromResolution(
+  resolvedMentions: ResolvedMention[],
+  excludeUserId?: string
+): string[] {
+  const userIds = new Set<string>();
+
+  for (const resolution of resolvedMentions) {
+    for (const userId of resolution.userIds) {
+      if (userId !== excludeUserId) {
+        userIds.add(userId);
+      }
+    }
+  }
+
+  return Array.from(userIds);
+}
+
+/**
+ * Resolve @institution-name/groupname mentions
+ */
+async function resolveInstitutionGroupMention(
+  mention: ParsedMention
+): Promise<ResolvedMention | null> {
+  if (!mention.institutionName || !mention.groupName) return null;
+
+  // Find institution by name
+  const institution = await prisma.institution.findUnique({
+    where: { name: mention.institutionName },
+    select: { id: true, name: true },
+  });
+
+  if (!institution) return null;
+
+  // Find group in the specific institution
+  const group = await prisma.group.findUnique({
+    where: {
+      name_institutionId: {
+        name: mention.groupName,
+        institutionId: institution.id,
+      },
+    },
+    include: {
+      userGroups: {
+        where: { isActive: true },
+        include: { user: { select: { id: true } } },
+      },
+    },
+  });
+
+  if (!group) return null;
+
+  const userIds = group.userGroups.map((ug) => ug.user.id);
+
+  return {
+    type: "group",
+    originalMention: mention.raw,
+    userIds,
+    groupName: mention.groupName,
+    institutionName: institution.name,
+  };
+}
+
+// No direct group mention handler; all supported mention types are covered above.

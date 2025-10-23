@@ -1,5 +1,13 @@
-import { PdfContent } from "./pdf-content-extractor";
 import { extractPdfWithOpenAI } from "./openai-pdf-extractor";
+import { Logger } from "./logging/logger";
+
+/**
+ * Minimal PDF content structure (for backward compatibility)
+ */
+interface PdfContent {
+  abstract?: string;
+  pageCount?: number;
+}
 
 /**
  * Structure for LLM-generated enhanced abstracts
@@ -35,7 +43,7 @@ export interface EnhancedFigure {
  */
 export async function generateLLMAbstract(
   paperTitle: string,
-  pdfContent: PdfContent,
+  pdfContent?: PdfContent,
   pdfUrl?: string,
   homepageUrl?: string,
   pdfBuffer?: Buffer
@@ -43,31 +51,29 @@ export async function generateLLMAbstract(
   // Use the new enhanced Anthropic extraction if available
   if (process.env.ANTHROPIC_API_KEY) {
     try {
-      console.log(
+      Logger.info(
         "🤖 Generating enhanced abstract with OpenAI + Adobe for paper:",
-        paperTitle
+        { paperTitle }
       );
       return await generateEnhancedAbstractWithOpenAI(
-        pdfContent,
         pdfUrl,
         homepageUrl,
         pdfBuffer
       );
     } catch (error) {
-      console.warn(
-        "⚠️ Enhanced Anthropic generation failed:",
-        error instanceof Error ? error.message : String(error)
-      );
+      Logger.warn("⚠️ Enhanced Anthropic generation failed:", {
+        error: error instanceof Error ? error.message : String(error),
+      });
     }
   }
 
   // Fallback to basic structure
-  console.log("🔄 Using basic fallback for paper:", paperTitle);
+  Logger.info("🔄 Using basic fallback for paper:", { paperTitle });
   return {
     title: paperTitle,
     shortExplanation: "Enhanced abstract generation not available.",
-    summary: pdfContent.abstract || "No summary available.",
-    pageCount: pdfContent.pageCount || 0,
+    summary: pdfContent?.abstract || "No summary available.",
+    pageCount: pdfContent?.pageCount || 0,
     figuresWithImages: [],
     pdfUrl,
     homepageUrl,
@@ -80,17 +86,16 @@ export async function generateLLMAbstract(
  * Generate enhanced abstract using our new OpenAI + Adobe extraction
  */
 async function generateEnhancedAbstractWithOpenAI(
-  pdfContent: PdfContent,
   pdfUrl?: string,
   homepageUrl?: string,
   pdfBuffer?: Buffer
 ): Promise<LLMAbstract> {
   try {
-    console.log("🚀 Using enhanced OpenAI + Adobe extraction...");
+    Logger.info("🚀 Using enhanced OpenAI + Adobe extraction...");
 
     // Use provided buffer or fetch from URL if needed
     if (!pdfBuffer && pdfUrl) {
-      console.log("📥 Fetching PDF buffer from URL...");
+      Logger.info("📥 Fetching PDF buffer from URL...");
       const response = await fetch(pdfUrl);
       if (!response.ok) {
         throw new Error(`Failed to fetch PDF: ${response.status}`);
@@ -129,12 +134,12 @@ async function generateEnhancedAbstractWithOpenAI(
       version: "2.0", // Enhanced version with OpenAI + Adobe
     };
 
-    console.log(
+    Logger.info(
       `✅ Enhanced abstract generated with ${enhancedAbstract.figuresWithImages.length} figures`
     );
     return enhancedAbstract;
   } catch (error) {
-    console.error("❌ Error in enhanced abstract generation:", error);
+    Logger.error("❌ Error in enhanced abstract generation:", error);
     throw error;
   }
 }
@@ -145,7 +150,7 @@ async function generateEnhancedAbstractWithOpenAI(
 export async function updateLLMAbstractIfNeeded(
   existingAbstract: LLMAbstract,
   paperTitle: string,
-  pdfContent: PdfContent,
+  pdfContent?: PdfContent,
   pdfUrl?: string,
   homepageUrl?: string,
   pdfBuffer?: Buffer
@@ -156,7 +161,7 @@ export async function updateLLMAbstractIfNeeded(
   }
 
   // Regenerate for older versions
-  console.log("🔄 Updating abstract to version 2.0...");
+  Logger.info("🔄 Updating abstract to version 2.0...");
   return await generateLLMAbstract(
     paperTitle,
     pdfContent,

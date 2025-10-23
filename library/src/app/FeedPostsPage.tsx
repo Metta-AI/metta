@@ -2,7 +2,6 @@
 
 import { FC, useEffect, useRef, useState } from "react";
 
-import { InfiniteScroll } from "@/components/InfiniteScroll";
 import { useMathJax } from "@/components/MathJaxProvider";
 import { usePaginator } from "@/lib/hooks/usePaginator";
 import { Paginated } from "@/lib/paginated";
@@ -16,7 +15,6 @@ import { useOverlayNavigation } from "@/components/OverlayStack";
 import { useStarMutation } from "@/hooks/useStarMutation";
 import { toggleQueueAction } from "@/posts/actions/toggleQueueAction";
 import UserCard from "@/components/UserCard";
-import { PaperSidebar } from "@/components/PaperSidebar";
 
 import { FeedPost } from "./FeedPost";
 import { NewPostForm } from "./NewPostForm";
@@ -56,13 +54,6 @@ export const FeedPostsPage: FC<{
   // User card state
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
 
-  // Global comment expansion state - only one post can have expanded comments at a time
-  const [expandedPostId, setExpandedPostId] = useState<string | null>(null);
-
-  // Selected post for paper sidebar
-  const [selectedPostForPaper, setSelectedPostForPaper] =
-    useState<FeedPostDTO | null>(null);
-
   // Handle paper click using overlay navigation
   const handlePaperClick = (paperId: string) => {
     const paper = papersData.papers.find((p) => p.id === paperId);
@@ -90,28 +81,9 @@ export const FeedPostsPage: FC<{
     setSelectedUser(null);
   };
 
-  // Handle comment toggle - only one post can have expanded comments
-  const handleCommentToggle = (postId: string) => {
-    setExpandedPostId((current) => (current === postId ? null : postId));
-  };
-
-  // Handle post selection for paper sidebar
-  const handlePostSelect = (post: FeedPostDTO) => {
-    setSelectedPostForPaper(post);
-    // Also expand comments for the selected post
-    setExpandedPostId(post.id);
-  };
-
-  // Handle paper sidebar close
-  const handlePaperSidebarClose = () => {
-    setSelectedPostForPaper(null);
-    // Also close expanded comments when closing paper sidebar
-    setExpandedPostId(null);
-  };
-
   // Handle toggle star
   const handleToggleStar = (paperId: string) => {
-    starMutation.mutate(paperId);
+    starMutation.mutate({ paperId });
   };
 
   // Handle toggle queue
@@ -127,56 +99,81 @@ export const FeedPostsPage: FC<{
     }
   };
 
-  // MathJax rendering effect - single debounced call
+  const feedScrollRef = useRef<HTMLDivElement>(null);
+  const loadMoreRef = useRef<HTMLDivElement>(null);
+
+  // Infinite scroll with IntersectionObserver
   useEffect(() => {
-    if (mathJaxLoaded && feedRef.current) {
+    if (!page.loadNext || page.loading) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && page.loadNext) {
+          page.loadNext(10);
+        }
+      },
+      { threshold: 0.1 }
+    );
+
+    if (loadMoreRef.current) {
+      observer.observe(loadMoreRef.current);
+    }
+
+    return () => observer.disconnect();
+  }, [page.loadNext, page.loading]);
+
+  // MathJax rendering
+  useEffect(() => {
+    if (mathJaxLoaded && feedScrollRef.current) {
       const renderMathContent = async () => {
         try {
-          await renderMath(feedRef.current!);
+          await renderMath(feedScrollRef.current!);
         } catch (error) {
           console.error("MathJax rendering failed for feed:", error);
         }
       };
-
-      // Single delayed call to avoid race conditions
       const timeoutId = setTimeout(renderMathContent, 200);
-
       return () => {
         clearTimeout(timeoutId);
       };
     }
-  }, [mathJaxLoaded, page.items, renderMath]); // Re-render when posts change
+  }, [mathJaxLoaded, page.items, renderMath]);
 
   return (
-    <div className="flex h-screen">
+    <div className="flex h-auto w-full flex-col md:flex-row">
       {/* Main feed area */}
-      <div className="flex-1 overflow-y-auto">
+      <div ref={feedScrollRef} className="h-full flex-1 overflow-y-auto">
         {/* Post Composition */}
         <NewPostForm />
-        {/* Feed with Infinite Scroll */}
-        <div ref={feedRef} className="mt-6 ml-6 max-w-2xl">
+        {/* Feed */}
+        <div className="mx-4 mt-6 max-w-2xl md:mr-4 md:ml-6">
           {page.items.length > 0 ? (
-            <InfiniteScroll
-              loadNext={page.loadNext!}
-              hasMore={!!page.loadNext}
-              loading={page.loading}
-            >
-              <div className="flex flex-col gap-4">
-                {page.items.map((post) => (
-                  <FeedPost
-                    key={post.id}
-                    post={post}
-                    onPaperClick={handlePaperClick}
-                    onUserClick={handleUserClick}
-                    currentUser={currentUser}
-                    isCommentsExpanded={expandedPostId === post.id}
-                    onCommentToggle={() => handleCommentToggle(post.id)}
-                    onPostSelect={() => handlePostSelect(post)}
-                    isSelected={selectedPostForPaper?.id === post.id}
-                  />
-                ))}
-              </div>
-            </InfiniteScroll>
+            <div className="space-y-3">
+              {page.items.map((post) => (
+                <FeedPost
+                  key={post.id}
+                  post={post}
+                  onPaperClick={handlePaperClick}
+                  onUserClick={handleUserClick}
+                  currentUser={currentUser}
+                  isCommentsExpanded={false}
+                  onCommentToggle={() => {}}
+                  highlightedCommentId={null}
+                />
+              ))}
+
+              {/* Load more trigger */}
+              {page.loadNext && (
+                <div ref={loadMoreRef} className="py-6">
+                  {page.loading && (
+                    <div className="flex items-center justify-center gap-2 text-gray-500">
+                      <div className="h-4 w-4 animate-spin rounded-full border-2 border-gray-300 border-t-blue-600" />
+                      <span>Loading more posts...</span>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
           ) : (
             <div className="rounded-lg border border-gray-200 bg-white p-8 text-center">
               <div className="mb-4 text-gray-400">
@@ -203,6 +200,7 @@ export const FeedPostsPage: FC<{
             </div>
           )}
         </div>
+
         {/* User Card */}
         {selectedUser && (
           <UserCard
@@ -214,16 +212,6 @@ export const FeedPostsPage: FC<{
           />
         )}
       </div>
-
-      {/* Right sidebar - Paper Overview */}
-      {selectedPostForPaper?.paper && (
-        <div className="flex-1">
-          <PaperSidebar
-            paper={selectedPostForPaper.paper}
-            onClose={handlePaperSidebarClose}
-          />
-        </div>
-      )}
     </div>
   );
 };

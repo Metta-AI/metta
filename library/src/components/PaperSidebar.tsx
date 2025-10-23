@@ -1,6 +1,6 @@
 "use client";
 
-import { FC, useRef, useState } from "react";
+import { FC, useRef, useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Download } from "lucide-react";
 import { FeedPostDTO } from "@/posts/data/feed";
@@ -8,8 +8,9 @@ import { LLMAbstract } from "@/lib/llm-abstract-generator-clean";
 import { useOverlayNavigation } from "@/components/OverlayStack";
 import { StarWidgetQuery } from "@/components/StarWidgetQuery";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/Button";
-import { AuthorDTO, loadAuthorClient } from "@/posts/data/authors-client";
+import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
+import { useAuthor, useAuthors } from "@/hooks/queries";
 
 interface PaperSidebarProps {
   paper: FeedPostDTO["paper"];
@@ -36,6 +37,32 @@ interface LLMAbstractViewProps {
 export const PaperSidebar: FC<PaperSidebarProps> = ({ paper, onClose }) => {
   const router = useRouter();
   const { openAuthor, openInstitution } = useOverlayNavigation();
+  const [selectedAuthorId, setSelectedAuthorId] = useState<string | null>(null);
+  const [searchName, setSearchName] = useState<string | null>(null);
+
+  // Fetch author by ID when selected
+  const { data: authorById } = useAuthor(selectedAuthorId!, {
+    enabled: !!selectedAuthorId,
+  });
+
+  // Fallback: search by name if ID fetch failed
+  const { data: authorsByName } = useAuthors(
+    { search: searchName! },
+    { enabled: !!searchName && !authorById }
+  );
+
+  // Open author when data is loaded
+  useEffect(() => {
+    if (authorById) {
+      openAuthor(authorById);
+      setSelectedAuthorId(null);
+      setSearchName(null);
+    } else if (authorsByName && authorsByName.length > 0) {
+      openAuthor(authorsByName[0]);
+      setSelectedAuthorId(null);
+      setSearchName(null);
+    }
+  }, [authorById, authorsByName, openAuthor]);
 
   // Handle tag click to navigate to papers view with tag filter
   const handleTagClick = (tag: string) => {
@@ -44,74 +71,20 @@ export const PaperSidebar: FC<PaperSidebarProps> = ({ paper, onClose }) => {
     router.push(`/papers?${params.toString()}`);
   };
 
-  // Handle clicking on an author
-  const handleAuthorClick = async (authorId: string, authorName: string) => {
-    try {
-      // Try to load full author data by ID first
-      let fullAuthor = await loadAuthorClient(authorId);
-
-      // If that fails, try searching by name via the authors API
-      if (!fullAuthor) {
-        try {
-          const searchResponse = await fetch(
-            `/api/authors?search=${encodeURIComponent(authorName)}`
-          );
-          if (searchResponse.ok) {
-            const searchResults = await searchResponse.json();
-            if (searchResults.length > 0) {
-              // Use the first matching author
-              fullAuthor = searchResults[0];
-            }
-          }
-        } catch (searchError) {
-          console.log("Search by name failed:", searchError);
-        }
-      }
-
-      if (fullAuthor) {
-        openAuthor(fullAuthor);
-      } else {
-        // Fallback: create a minimal author object if all loading attempts fail
-        const fallbackAuthor: AuthorDTO = {
-          id: authorId,
-          name: authorName,
-          username: null,
-          email: null,
-          avatar: null,
-          institution: null,
-          department: null,
-          title: null,
-          expertise: [],
-          hIndex: null,
-          totalCitations: null,
-          claimed: false,
-          isFollowing: false,
-          recentActivity: null,
-          orcid: null,
-          googleScholarId: null,
-          arxivId: null,
-          createdAt: new Date(),
-          updatedAt: new Date(),
-          paperCount: 0,
-          recentPapers: [],
-        };
-        openAuthor(fallbackAuthor);
-      }
-    } catch (error) {
-      console.error("Error loading author:", error);
-    }
+  // Handle clicking on an author - trigger reactive fetch
+  const handleAuthorClick = (authorId: string, authorName: string) => {
+    setSelectedAuthorId(authorId);
+    setSearchName(authorName); // Fallback if ID doesn't work
   };
 
   // Handle clicking on an institution
   const handleInstitutionClick = (institutionName: string) => {
-    // For now, we'll open with just the name and empty arrays
-    // The institution overlay will load the full institution data
     openInstitution(institutionName, [], []);
   };
 
   if (!paper) {
     return (
-      <div className="h-screen flex-1 overflow-y-auto border-l bg-neutral-50">
+      <div className="h-full overflow-y-auto bg-neutral-50 md:h-screen md:w-[55%] md:flex-shrink-0 md:border-l">
         <div className="px-4 py-4">
           <div className="text-center text-neutral-500">
             <p className="text-sm">No paper associated with this post</p>
@@ -122,228 +95,256 @@ export const PaperSidebar: FC<PaperSidebarProps> = ({ paper, onClose }) => {
   }
 
   return (
-    <div className="h-screen flex-1 overflow-y-auto border-l bg-white">
-      <div className="space-y-4 px-4 py-4">
-        {/* Header row: star + title + download */}
-        <div className="flex items-start gap-2.5">
-          <div className="mt-0.5">
-            <StarWidgetQuery
-              paperId={paper.id}
-              initialTotalStars={paper.stars}
-              initialIsStarredByCurrentUser={paper.starred}
-              size="sm"
-            />
-          </div>
-          <div className="min-w-0 flex-1">
-            {paper.source === "arxiv" && paper.externalId ? (
-              <a
-                href={`https://arxiv.org/abs/${paper.externalId}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-[15.5px] leading-[1.3] font-semibold tracking-tight text-neutral-900 hover:underline"
-              >
-                {paper.title}
-              </a>
-            ) : (
-              <div className="text-[15.5px] leading-[1.3] font-semibold tracking-tight text-neutral-900">
-                {paper.title}
-              </div>
-            )}
-            <div className="mt-1 flex items-center gap-2 text-[12.5px] text-neutral-600">
+    <div className="flex h-full flex-col bg-white md:h-screen md:w-[55%] md:flex-shrink-0 md:border-l">
+      {/* Mobile header with close button */}
+      <div className="flex flex-shrink-0 items-center justify-between border-b border-gray-200 bg-white px-4 py-3 shadow-sm md:hidden">
+        <h2 className="text-lg font-semibold text-gray-900">Paper Details</h2>
+        {onClose && (
+          <button
+            onClick={onClose}
+            className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-700"
+            title="Close paper details"
+          >
+            <svg
+              className="h-5 w-5"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M6 18L18 6M6 6l12 12"
+              />
+            </svg>
+          </button>
+        )}
+      </div>
+
+      <div className="flex-1 overflow-y-auto">
+        <div className="space-y-4 px-4 py-4">
+          {/* Header row: star + title + download */}
+          <div className="flex items-start gap-2.5">
+            <div className="mt-0.5">
+              <StarWidgetQuery
+                paperId={paper.id}
+                initialTotalStars={paper.stars}
+                initialIsStarredByCurrentUser={paper.starred}
+                size="sm"
+              />
+            </div>
+            <div className="min-w-0 flex-1">
               {paper.source === "arxiv" && paper.externalId ? (
                 <a
                   href={`https://arxiv.org/abs/${paper.externalId}`}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="hover:underline"
+                  className="text-[15.5px] leading-[1.3] font-semibold tracking-tight text-neutral-900 hover:underline"
                 >
-                  arXiv
+                  {paper.title}
                 </a>
               ) : (
-                "Unknown Venue"
+                <div className="text-[15.5px] leading-[1.3] font-semibold tracking-tight text-neutral-900">
+                  {paper.title}
+                </div>
+              )}
+              <div className="mt-1 flex items-center gap-2 text-[12.5px] text-neutral-600">
+                {paper.source === "arxiv" && paper.externalId ? (
+                  <a
+                    href={`https://arxiv.org/abs/${paper.externalId}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="hover:underline"
+                  >
+                    arXiv
+                  </a>
+                ) : (
+                  "Unknown Venue"
+                )}
+              </div>
+            </div>
+            <div className="flex items-center gap-2 pl-2">
+              {(paper.source === "arxiv" && paper.externalId) || paper.link ? (
+                <Button
+                  size="sm"
+                  variant="default"
+                  onClick={() => {
+                    const pdfUrl =
+                      paper.source === "arxiv" && paper.externalId
+                        ? `https://arxiv.org/pdf/${paper.externalId}.pdf`
+                        : paper.link;
+                    if (pdfUrl) {
+                      const filename =
+                        paper.source === "arxiv" && paper.externalId
+                          ? `${paper.externalId}.pdf`
+                          : `${paper.title.replace(/[^a-z0-9]/gi, "_").toLowerCase()}.pdf`;
+
+                      // Use our API endpoint to proxy the PDF download
+                      const downloadUrl = `/api/download-pdf?url=${encodeURIComponent(pdfUrl)}&filename=${encodeURIComponent(filename)}`;
+
+                      // Create a temporary anchor element to trigger download
+                      const link = document.createElement("a");
+                      link.href = downloadUrl;
+                      link.download = filename;
+                      document.body.appendChild(link);
+                      link.click();
+                      document.body.removeChild(link);
+                    }
+                  }}
+                  type="button"
+                >
+                  <Download className="h-4 w-4" />
+                </Button>
+              ) : null}
+
+              {/* Close button - Desktop only */}
+              {onClose && (
+                <button
+                  onClick={onClose}
+                  className="hidden rounded-lg p-1 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600 md:block"
+                  title="Close paper details"
+                >
+                  <svg
+                    className="h-4 w-4"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M6 18L18 6M6 6l12 12"
+                    />
+                  </svg>
+                </button>
               )}
             </div>
           </div>
-          <div className="flex items-center gap-2 pl-2">
-            {(paper.source === "arxiv" && paper.externalId) || paper.link ? (
-              <Button
-                size="small"
-                theme="default"
-                onClick={() => {
-                  const pdfUrl =
-                    paper.source === "arxiv" && paper.externalId
-                      ? `https://arxiv.org/pdf/${paper.externalId}.pdf`
-                      : paper.link;
-                  if (pdfUrl) {
-                    const filename =
-                      paper.source === "arxiv" && paper.externalId
-                        ? `${paper.externalId}.pdf`
-                        : `${paper.title.replace(/[^a-z0-9]/gi, "_").toLowerCase()}.pdf`;
 
-                    // Use our API endpoint to proxy the PDF download
-                    const downloadUrl = `/api/download-pdf?url=${encodeURIComponent(pdfUrl)}&filename=${encodeURIComponent(filename)}`;
+          <hr className="border-neutral-200" />
 
-                    // Create a temporary anchor element to trigger download
-                    const link = document.createElement("a");
-                    link.href = downloadUrl;
-                    link.download = filename;
-                    document.body.appendChild(link);
-                    link.click();
-                    document.body.removeChild(link);
-                  }
-                }}
-                type="button"
-              >
-                <Download className="h-4 w-4" />
-              </Button>
-            ) : null}
-
-            {/* Close button */}
-            {onClose && (
-              <button
-                onClick={onClose}
-                className="rounded-lg p-1 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600"
-                title="Close paper details"
-              >
-                <svg
-                  className="h-4 w-4"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M6 18L18 6M6 6l12 12"
-                  />
-                </svg>
-              </button>
-            )}
-          </div>
-        </div>
-
-        <hr className="border-neutral-200" />
-
-        {/* Authors as clickable chips */}
-        {paper.authors && paper.authors.length > 0 && (
-          <section>
-            <div className="mb-1 text-[12px] font-semibold text-neutral-700">
-              Authors
-            </div>
-            <div className="flex flex-wrap gap-1">
-              {paper.authors.map((author) => (
-                <button
-                  key={author.id}
-                  onClick={() => handleAuthorClick(author.id, author.name)}
-                  className="inline-block cursor-pointer"
-                >
-                  <Badge
-                    variant="secondary"
-                    className="rounded-md transition-colors hover:bg-neutral-200"
+          {/* Authors as clickable chips */}
+          {paper.authors && paper.authors.length > 0 && (
+            <section>
+              <div className="mb-1 text-[12px] font-semibold text-neutral-700">
+                Authors
+              </div>
+              <div className="flex flex-wrap gap-1">
+                {paper.authors.map((author) => (
+                  <button
+                    key={author.id}
+                    onClick={() => handleAuthorClick(author.id, author.name)}
+                    className="inline-block cursor-pointer"
                   >
-                    {author.name}
-                  </Badge>
-                </button>
-              ))}
-            </div>
-          </section>
-        )}
+                    <Badge
+                      variant="secondary"
+                      className="rounded-md text-[11px] transition-colors hover:bg-neutral-200"
+                    >
+                      {author.name}
+                    </Badge>
+                  </button>
+                ))}
+              </div>
+            </section>
+          )}
 
-        {/* Institutions as clickable chips */}
-        {paper.institutions && paper.institutions.length > 0 && (
-          <section>
-            <div className="mb-1 text-[12px] font-semibold text-neutral-700">
-              Institutions
-            </div>
-            <div className="flex flex-wrap gap-1">
-              {paper.institutions.map((institution, index) => (
-                <button
-                  key={index}
-                  onClick={() => handleInstitutionClick(institution)}
-                  className="inline-block cursor-pointer"
-                >
-                  <Badge
-                    variant="secondary"
-                    className="rounded-md transition-colors hover:bg-neutral-200"
+          {/* Institutions as clickable chips */}
+          {paper.institutions && paper.institutions.length > 0 && (
+            <section>
+              <div className="mb-1 text-[12px] font-semibold text-neutral-700">
+                Institutions
+              </div>
+              <div className="flex flex-wrap gap-1">
+                {paper.institutions.map((institution, index) => (
+                  <button
+                    key={index}
+                    onClick={() => handleInstitutionClick(institution)}
+                    className="inline-block cursor-pointer"
                   >
-                    {institution}
-                  </Badge>
-                </button>
-              ))}
-            </div>
-          </section>
-        )}
+                    <Badge
+                      variant="secondary"
+                      className="rounded-md text-[11px] transition-colors hover:bg-neutral-200"
+                    >
+                      {institution}
+                    </Badge>
+                  </button>
+                ))}
+              </div>
+            </section>
+          )}
 
-        {/* Topic tags */}
-        {paper.tags && paper.tags.length > 0 && (
-          <section>
-            <div className="mb-1 text-[12px] font-semibold text-neutral-700">
-              Tags
-            </div>
-            <div className="flex flex-wrap gap-1">
-              {paper.tags.map((tag, index) => (
-                <a
-                  key={index}
-                  href="#"
-                  className="inline-block"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    handleTagClick(tag);
-                  }}
-                >
-                  <Badge variant="secondary" className="rounded-md">
-                    {tag}
-                  </Badge>
-                </a>
-              ))}
-            </div>
-          </section>
-        )}
+          {/* Topic tags */}
+          {paper.tags && paper.tags.length > 0 && (
+            <section>
+              <div className="mb-1 text-[12px] font-semibold text-neutral-700">
+                Tags
+              </div>
+              <div className="flex flex-wrap gap-1">
+                {paper.tags.map((tag, index) => (
+                  <a
+                    key={index}
+                    href="#"
+                    className="inline-block"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      handleTagClick(tag);
+                    }}
+                  >
+                    <Badge variant="secondary" className="rounded-md">
+                      {tag}
+                    </Badge>
+                  </a>
+                ))}
+              </div>
+            </section>
+          )}
 
-        {/* Enhanced Abstract or Original Abstract */}
-        {paper.llmAbstract ? (
-          <LLMAbstractView
-            llmAbstract={paper.llmAbstract as LLMAbstract}
-            originalAbstract={paper.abstract}
-            pdfUrl={
-              paper.source === "arxiv" && paper.externalId
-                ? `https://arxiv.org/pdf/${paper.externalId}.pdf`
-                : paper.link || undefined
-            }
-            homepageUrl={
-              paper.source === "arxiv" && paper.externalId
-                ? `https://arxiv.org/abs/${paper.externalId}`
-                : undefined
-            }
-          />
-        ) : paper.abstract ? (
-          <section>
-            <div className="mb-1 text-[12px] font-semibold text-neutral-700">
-              Abstract
-            </div>
-            <div className="text-[13.5px] leading-[1.6] whitespace-pre-wrap text-neutral-800">
-              {paper.abstract}
-            </div>
-          </section>
-        ) : null}
+          {/* Enhanced Abstract or Original Abstract */}
+          {paper.llmAbstract ? (
+            <LLMAbstractView
+              llmAbstract={paper.llmAbstract as LLMAbstract}
+              originalAbstract={paper.abstract}
+              pdfUrl={
+                paper.source === "arxiv" && paper.externalId
+                  ? `https://arxiv.org/pdf/${paper.externalId}.pdf`
+                  : paper.link || undefined
+              }
+              homepageUrl={
+                paper.source === "arxiv" && paper.externalId
+                  ? `https://arxiv.org/abs/${paper.externalId}`
+                  : undefined
+              }
+            />
+          ) : paper.abstract ? (
+            <section>
+              <div className="mb-1 text-[12px] font-semibold text-neutral-700">
+                Abstract
+              </div>
+              <div className="text-[13.5px] leading-[1.6] whitespace-pre-wrap text-neutral-800">
+                {paper.abstract}
+              </div>
+            </section>
+          ) : null}
 
-        {/* Timestamps */}
-        <div className="mt-6 border-t border-neutral-200 pt-4">
-          <div className="space-y-1 text-xs text-neutral-500">
-            <div>
-              <span className="font-medium">Created:</span>{" "}
-              {new Date(paper.createdAt).toLocaleDateString()}
-            </div>
-            <div>
-              <span className="font-medium">Updated:</span>{" "}
-              {new Date(paper.updatedAt).toLocaleDateString()}
+          {/* Timestamps */}
+          <div className="mt-6 border-t border-neutral-200 pt-4">
+            <div className="space-y-1 text-xs text-neutral-500">
+              <div>
+                <span className="font-medium">Created:</span>{" "}
+                {new Date(paper.createdAt).toLocaleDateString()}
+              </div>
+              <div>
+                <span className="font-medium">Updated:</span>{" "}
+                {new Date(paper.updatedAt).toLocaleDateString()}
+              </div>
             </div>
           </div>
-        </div>
 
-        {/* Spacer to ensure last content isn't flush to bottom */}
-        <div className="h-8" />
+          {/* Spacer to ensure last content isn't flush to bottom */}
+          <div className="h-8" />
+        </div>
       </div>
     </div>
   );

@@ -8,8 +8,13 @@ export interface Paper {
   id: string;
   title: string;
   abstract: string | null;
-  authors?: { id: string; name: string; orcid?: string | null; institution?: string | null }[];
-  institutions: string[] | null;
+  authors?: {
+    id: string;
+    name: string;
+    orcid?: string | null;
+    institution?: string | null;
+  }[];
+  institutions: string[];
   tags: string[] | null;
   link: string | null;
   source: string | null;
@@ -52,7 +57,7 @@ export interface PaperWithUserContext extends Paper {
 
 /**
  * Load all papers from the database with their user interactions and current user context
- * 
+ *
  * This function fetches papers and their associated user interactions,
  * and determines the current user's interaction status for each paper.
  */
@@ -66,7 +71,7 @@ export async function loadPapersWithUserContext(): Promise<{
     const session = await auth();
     const currentUserId = session?.user?.id;
 
-    // Fetch all papers with their authors
+    // Fetch all papers with their authors and institutions
     const papers = await prisma.paper.findMany({
       include: {
         paperAuthors: {
@@ -76,17 +81,27 @@ export async function loadPapersWithUserContext(): Promise<{
                 id: true,
                 name: true,
                 orcid: true,
-                institution: true
-              }
-            }
-          }
-        }
-      }
+                institution: true,
+              },
+            },
+          },
+        },
+        paperInstitutions: {
+          select: {
+            institution: {
+              select: {
+                id: true,
+                name: true,
+              },
+            },
+          },
+        },
+      },
     });
-    
+
     // Fetch all users
     const users = await prisma.user.findMany();
-    
+
     // Fetch all user interactions
     const interactions = await prisma.userPaperInteraction.findMany();
 
@@ -100,40 +115,41 @@ export async function loadPapersWithUserContext(): Promise<{
 
     // Create a map of current user's interactions for quick lookup
     const currentUserInteractionsMap = new Map<string, UserInteraction>();
-    currentUserInteractions.forEach(interaction => {
+    currentUserInteractions.forEach((interaction) => {
       currentUserInteractionsMap.set(interaction.paperId, interaction);
     });
 
     // Add current user context to papers and transform author data
-    const papersWithContext: PaperWithUserContext[] = papers.map(paper => {
+    const papersWithContext: PaperWithUserContext[] = papers.map((paper) => {
       const userInteraction = currentUserInteractionsMap.get(paper.id);
       return {
         ...paper,
-        authors: paper.paperAuthors.map(pa => ({
+        authors: paper.paperAuthors.map((pa) => ({
           id: pa.author.id,
           name: pa.author.name,
           orcid: pa.author.orcid,
-          institution: pa.author.institution
+          institution: pa.author.institution,
         })),
+        institutions: paper.paperInstitutions.map((pi) => pi.institution.name),
         isStarredByCurrentUser: userInteraction?.starred || false,
         isQueuedByCurrentUser: userInteraction?.queued || false,
       };
     });
-    
+
     return {
       papers: papersWithContext,
       users,
-      interactions
+      interactions,
     };
   } catch (error) {
-    console.error('Error loading papers with user context:', error);
-    throw new Error('Failed to load papers from database');
+    console.error("Error loading papers with user context:", error);
+    throw new Error("Failed to load papers from database");
   }
 }
 
 /**
  * Load all papers from the database with their user interactions
- * 
+ *
  * This function fetches papers and their associated user interactions,
  * transforming the data to match the expected format for the papers view.
  */
@@ -143,7 +159,7 @@ export async function loadPapers(): Promise<{
   interactions: UserInteraction[];
 }> {
   try {
-    // Fetch all papers with their authors
+    // Fetch all papers with their authors and institutions
     const papers = await prisma.paper.findMany({
       include: {
         paperAuthors: {
@@ -153,45 +169,56 @@ export async function loadPapers(): Promise<{
                 id: true,
                 name: true,
                 orcid: true,
-                institution: true
-              }
-            }
-          }
-        }
-      }
+                institution: true,
+              },
+            },
+          },
+        },
+        paperInstitutions: {
+          select: {
+            institution: {
+              select: {
+                id: true,
+                name: true,
+              },
+            },
+          },
+        },
+      },
     });
-    
+
     // Fetch all users
     const users = await prisma.user.findMany();
-    
+
     // Fetch all user interactions
     const interactions = await prisma.userPaperInteraction.findMany();
-    
-    // Transform papers to include author data
-    const papersWithAuthors = papers.map(paper => ({
+
+    // Transform papers to include author data and institutions
+    const papersWithAuthors = papers.map((paper) => ({
       ...paper,
-      authors: paper.paperAuthors.map(pa => ({
+      authors: paper.paperAuthors.map((pa) => ({
         id: pa.author.id,
         name: pa.author.name,
         orcid: pa.author.orcid,
-        institution: pa.author.institution
-      }))
+        institution: pa.author.institution,
+      })),
+      institutions: paper.paperInstitutions.map((pi) => pi.institution.name),
     }));
-    
+
     return {
       papers: papersWithAuthors,
       users,
-      interactions
+      interactions,
     };
   } catch (error) {
-    console.error('Error loading papers:', error);
-    throw new Error('Failed to load papers from database');
+    console.error("Error loading papers:", error);
+    throw new Error("Failed to load papers from database");
   }
 }
 
 /**
  * Load papers with user interaction data for a specific user
- * 
+ *
  * @param userId - The ID of the user to load interactions for
  */
 export async function loadPapersForUser(userId: string): Promise<{
@@ -199,7 +226,7 @@ export async function loadPapersForUser(userId: string): Promise<{
   userInteractions: UserInteraction[];
 }> {
   try {
-    // Fetch all papers with their authors
+    // Fetch all papers with their authors and institutions
     const papers = await prisma.paper.findMany({
       include: {
         paperAuthors: {
@@ -209,36 +236,47 @@ export async function loadPapersForUser(userId: string): Promise<{
                 id: true,
                 name: true,
                 orcid: true,
-                institution: true
-              }
-            }
-          }
-        }
-      }
+                institution: true,
+              },
+            },
+          },
+        },
+        paperInstitutions: {
+          select: {
+            institution: {
+              select: {
+                id: true,
+                name: true,
+              },
+            },
+          },
+        },
+      },
     });
-    
+
     // Fetch user interactions for the specific user
     const userInteractions = await prisma.userPaperInteraction.findMany({
       where: { userId },
     });
-    
-    // Transform papers to include author data
-    const papersWithAuthors = papers.map(paper => ({
+
+    // Transform papers to include author data and institutions
+    const papersWithAuthors = papers.map((paper) => ({
       ...paper,
-      authors: paper.paperAuthors.map(pa => ({
+      authors: paper.paperAuthors.map((pa) => ({
         id: pa.author.id,
         name: pa.author.name,
         orcid: pa.author.orcid,
-        institution: pa.author.institution
-      }))
+        institution: pa.author.institution,
+      })),
+      institutions: paper.paperInstitutions.map((pi) => pi.institution.name),
     }));
-    
+
     return {
       papers: papersWithAuthors,
-      userInteractions
+      userInteractions,
     };
   } catch (error) {
-    console.error('Error loading papers for user:', error);
-    throw new Error('Failed to load papers for user');
+    console.error("Error loading papers for user:", error);
+    throw new Error("Failed to load papers for user");
   }
-} 
+}
