@@ -48,6 +48,7 @@ SUITES: tuple[Suite, ...] = (
     Suite(name="cogames", target=Path("packages/cogames/tests")),
     Suite(name="gitta", target=Path("packages/gitta/tests")),
     Suite(name="mettagrid", target=Path("packages/mettagrid/tests")),
+    Suite(name="cortex", target=Path("packages/cortex/tests")),
 )
 
 
