@@ -149,7 +149,7 @@ def pull():
 - `github.commits.total_7d`, `github.commits.per_developer_7d`, `github.commits.hotfix`, `github.commits.reverts`
 - `github.ci.workflow_runs_7d`, `github.ci.failed_workflows_7d`, `github.ci.avg_workflow_duration_minutes`, `github.ci.tests_passing_on_main`
 - `github.developers.active_7d`
-- `github.code.lines_added_7d`, `github.code.lines_deleted_7d`, `github.code.files_changed_7d` (broken)
+- `github.code.lines_added_7d`, `github.code.lines_deleted_7d`, `github.code.files_changed_7d` ✅ (fixed 2025-10-23)
 
 **Questions to Answer**:
 1. **What are we actually trying to measure?**
