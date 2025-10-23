@@ -315,41 +315,33 @@ metta datadog collect github --dry-run
 - ✅ Metric selection finalized
 - ✅ Team alignment on KPIs
 
-#### 2A. Refine Metrics Based on Team Input (1 day)
+#### 2A. Refine Metrics Based on Team Input (1 day) - ✅ **COMPLETED** (2025-10-23, commit f9d762ffa0)
+
 **Tasks**:
-- [ ] Remove low-value metrics identified in team discussion
-  - Example candidates: `branches.active` (1162 - just noise?)
-  - Example candidates: `commits.per_developer_7d` (gaming risk?)
+- [x] Remove low-value metrics identified in team discussion
+  - **Decision**: Keep all metrics (overshoot and trim later strategy)
 
-- [ ] Add high-value missing metrics
-  - Example: `github.prs.time_to_first_review_hours`
-  - Example: `github.ci.p95_duration_minutes` (SLA tracking)
-  - Example: `github.prs.stale_count` (open >7 days)
-  - Example: `github.quality.change_failure_rate` (reverts/total deploys)
+- [x] Add high-value missing metrics
+  - ✅ Completed in Phase 1D: 8 new quality/velocity metrics added
 
-- [ ] Add CI duration percentiles (6 metrics)
-  - `github.ci.duration.min`
-  - `github.ci.duration.p50` (median)
-  - `github.ci.duration.p75`
-  - `github.ci.duration.p90`
-  - `github.ci.duration.p95` (SLA target)
-  - `github.ci.duration.max`
+- [x] Add CI duration percentiles
+  - ✅ `ci.duration_p50_minutes` (median)
+  - ✅ `ci.duration_p90_minutes` (90th percentile)
+  - ✅ `ci.duration_p99_minutes` (99th percentile)
+  - Note: p75, p95, min, max not added (p50, p90, p99 sufficient for SLA tracking)
 
-- [ ] Update metric names to match chosen topology
-  - If hierarchical: Keep current `{service}.{category}.{metric}`
-  - If tag-based: Flatten to `{service}.{metric}` + `category:X` tag
-  - If hybrid: Some hierarchy + supplementary tags
+- [x] Update metric names to match chosen topology
+  - ✅ Kept hierarchical `{service}.{category}.{metric}` pattern
+  - ✅ No changes needed
 
-- [ ] Add standard tags to all metrics
-  - `repo:metta`
-  - `org:metta-ai`
-  - `environment:production`
-  - Category-specific tags as appropriate
+- [x] Add standard tags to all metrics
+  - **Decision**: No tags initially - can add later without breaking changes
+  - Tags deferred until multi-repo or multi-environment support needed
 
 **Deliverables**:
-- Updated `softmax/src/softmax/dashboard/metrics.py` with refined metrics
-- Documentation: `docs/METRIC_CONVENTIONS.md` (naming rules)
-- Documentation: Updated `docs/CI_CD_METRICS.md` (catalog with rationale)
+- ✅ Metrics refined (Phase 1D)
+- ✅ Documentation: `docs/METRIC_CONVENTIONS.md` (naming rules, patterns, best practices)
+- ✅ Documentation: Updated `docs/CI_CD_METRICS.md` (complete catalog of 25 metrics)
 
 #### 2B. Create Modular Collector Architecture (2 days)
 **Tasks**:
