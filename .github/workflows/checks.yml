@@ -253,13 +253,13 @@ jobs:
           echo "PUFFERLIB_CACHE_DIR=$HOME/pufferlib-cache" >> $GITHUB_ENV
           mkdir -p $HOME/pufferlib-cache
 
-      - name: Run all package tests
+      - name: Run Python tests
         shell: bash
         run: |
           set -eo pipefail
           ARGS=()
           if [[ "${{ needs.setup-checks.outputs.app_backend_has_changes }}" != "true" ]]; then
-            ARGS+=(--nosuite app_backend)
+            ARGS+=(--skip-package app_backend)
           fi
           uv run metta pytest --ci "${ARGS[@]}"
 

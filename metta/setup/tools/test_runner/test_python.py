@@ -22,7 +22,7 @@ class _Config(BaseSettings):
 test_config = _Config()
 
 
-class Suite(BaseModel):
+class Package(BaseModel):
     name: str
     target: Path
 
@@ -38,17 +38,17 @@ class Suite(BaseModel):
         return root / self.target
 
 
-SUITES: tuple[Suite, ...] = (
-    Suite(name="tests", target=Path("tests")),
-    Suite(name="mettascope", target=Path("mettascope/tests")),
-    Suite(name="agent", target=Path("agent/tests")),
-    Suite(name="app_backend", target=Path("app_backend/tests")),
-    Suite(name="common", target=Path("common/tests")),
-    Suite(name="codebot", target=Path("packages/codebot/tests")),
-    Suite(name="cogames", target=Path("packages/cogames/tests")),
-    Suite(name="gitta", target=Path("packages/gitta/tests")),
-    Suite(name="mettagrid", target=Path("packages/mettagrid/tests")),
-    Suite(name="cortex", target=Path("packages/cortex/tests")),
+PACKAGES: tuple[Package, ...] = (
+    Package(name="tests", target=Path("tests")),
+    Package(name="mettascope", target=Path("mettascope/tests")),
+    Package(name="agent", target=Path("agent/tests")),
+    Package(name="app_backend", target=Path("app_backend/tests")),
+    Package(name="common", target=Path("common/tests")),
+    Package(name="codebot", target=Path("packages/codebot/tests")),
+    Package(name="cogames", target=Path("packages/cogames/tests")),
+    Package(name="gitta", target=Path("packages/gitta/tests")),
+    Package(name="mettagrid", target=Path("packages/mettagrid/tests")),
+    Package(name="cortex", target=Path("packages/cortex/tests")),
 )
 
 
@@ -71,38 +71,38 @@ def _run_command(args: Sequence[str]) -> int:
     return completed.returncode
 
 
-def _resolve_suites(
+def _resolve_package_targets(
     include: Iterable[str],
     exclude: Iterable[str],
-) -> list[Suite]:
-    suite_map = {suite.key: suite for suite in SUITES}
+) -> list[Package]:
+    package_map = {package.key: package for package in PACKAGES}
     include_keys = [name.lower() for name in include]
     exclude_keys = {name.lower() for name in exclude}
 
-    selected: list[Suite]
+    selected: list[Package]
     if include_keys:
-        missing = [name for name in include_keys if name not in suite_map]
+        missing = [name for name in include_keys if name not in package_map]
         if missing:
             raise ValueError(f"Unknown suite(s): {', '.join(missing)}")
-        selected = [suite_map[name] for name in include_keys]
+        selected = [package_map[name] for name in include_keys]
     else:
-        selected = list(SUITES)
+        selected = list(PACKAGES)
 
     if exclude_keys:
-        selected = [suite for suite in selected if suite.key not in exclude_keys]
+        selected = [package for package in selected if package.key not in exclude_keys]
 
     return selected
 
 
-def _collect_suite_targets(suites: Iterable[Suite]) -> list[str]:
+def _collect_package_targets(packages: Iterable[Package]) -> list[str]:
     targets: list[Path] = []
-    for suite in suites:
-        path = suite.target_path
+    for package in packages:
+        path = package.target_path
         if not path.exists():
-            raise ValueError(f"Test suite directory missing: {path}")
+            raise ValueError(f"Test package directory missing: {path}")
         targets.append(path)
     if not targets:
-        raise ValueError("No suite targets resolved.")
+        raise ValueError("No package targets resolved.")
     return [str(t.relative_to(get_repo_root())) for t in targets]
 
 
@@ -118,8 +118,12 @@ def run(
     ctx: typer.Context,
     targets: Annotated[list[str] | None, typer.Argument(help="Explicit pytest targets.")] = None,
     ci: bool = typer.Option(False, "--ci", help="Use CI-style settings and parallel suite execution."),
-    suite: Annotated[list[str] | None, typer.Option("--suite", "-s", help="Limit to specific named suite(s).")] = None,
-    nosuite: Annotated[list[str] | None, typer.Option("--nosuite", help="Exclude suite(s) by name.")] = None,
+    packages: Annotated[
+        list[str] | None, typer.Option("--package", "-p", help="Limit to specific named package(s).")
+    ] = None,
+    skip_packages: Annotated[
+        list[str] | None, typer.Option("--skip-package", help="Exclude package(s) by name.")
+    ] = None,
     changed: bool = typer.Option(
         False,
         "--changed",
@@ -128,20 +132,20 @@ def run(
 ) -> None:
     extra_args = list(ctx.args or [])
     target_args = targets or []
-    suite_args = suite or []
-    nosuite_args = nosuite or []
+    package_args = packages or []
+    skip_package_args = skip_packages or []
 
     cmd = ["uv", "run", "pytest"]
     if target_args:
-        if suite_args or nosuite_args or changed or ci:
+        if package_args or skip_package_args or changed or ci:
             error("Explicit targets cannot be combined with suite filters, --changed, or --ci.")
             raise typer.Exit(1)
         exit_code = _run_command([*cmd, *target_args, *extra_args])
         raise typer.Exit(exit_code)
 
     try:
-        selected_suites = _resolve_suites(suite_args, nosuite_args)
-        resolved_targets = _collect_suite_targets(selected_suites)
+        selected = _resolve_package_targets(package_args, skip_package_args)
+        resolved_targets = _collect_package_targets(selected)
     except ValueError as exc:
         error(str(exc))
         raise typer.Exit(1) from exc
