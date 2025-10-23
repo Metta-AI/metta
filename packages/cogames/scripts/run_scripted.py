@@ -18,12 +18,12 @@ from mettagrid import MettaGridEnv, dtype_actions
 logger = logging.getLogger("cogames.run_scripted")
 
 
-def run_episode(num_cogs: int = 2, max_steps: int = 500, seed: int = 1) -> None:
+def run_episode(num_cogs: int = 2, max_steps: int = 3, seed: int = 1) -> None:
     """Run a single episode using the scripted policy and log progress."""
     env_cfg = make_game(num_cogs=num_cogs)
 
     # Create env with no rendering (headless)
-    env = MettaGridEnv(env_cfg=env_cfg, render_mode="none")
+    env = MettaGridEnv(env_cfg=env_cfg, render_mode="gui")
 
     policy = ScriptedAgentPolicy(env)
 
@@ -46,7 +46,7 @@ def run_episode(num_cogs: int = 2, max_steps: int = 500, seed: int = 1) -> None:
 
         # Ask each agent for an action
         for agent_id in range(env.num_agents):
-            a = agent_policies[agent_id].step(obs[agent_id : agent_id + 1])
+            a = agent_policies[agent_id].step(obs[agent_id])
             # Ensure scalar int
             actions[agent_id] = int(a)
 
@@ -55,10 +55,9 @@ def run_episode(num_cogs: int = 2, max_steps: int = 500, seed: int = 1) -> None:
         total_rewards += rewards
 
         # Log actions and rewards for first few steps and periodically
-        if step < 30 or step % 50 == 0:
-            act_strings = [action_names[int(a)] if int(a) < len(action_names) else str(int(a)) for a in actions]
-            logger.info(f"step={step} actions={act_strings} rewards={rewards} total_rewards={total_rewards}")
-
+        act_strings = [action_names[int(a)] if int(a) < len(action_names) else str(int(a)) for a in actions]
+        logger.info(f"step={step} actions={act_strings} rewards={rewards} total_rewards={total_rewards}")
+        print(f"step={step} actions={act_strings} rewards={rewards} total_rewards={total_rewards}")
         step += 1
 
         if all(dones) or all(truncated):
@@ -69,4 +68,4 @@ def run_episode(num_cogs: int = 2, max_steps: int = 500, seed: int = 1) -> None:
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
-    run_episode(num_cogs=2, max_steps=1000, seed=1)
+    run_episode(num_cogs=2, max_steps=100, seed=1)
