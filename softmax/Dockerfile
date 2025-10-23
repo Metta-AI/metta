@@ -18,4 +18,4 @@ RUN uv sync --frozen --no-dev
 RUN uv run python -c "import softmax.dashboard.report" 
 
 # Run the dashboard
-CMD ["uv", "run", "python", "-m", "softmax.dashboard.report", "report", "--push"]
+CMD ["uv", "run", "python", "-m", "softmax.dashboard.report", "--push"]

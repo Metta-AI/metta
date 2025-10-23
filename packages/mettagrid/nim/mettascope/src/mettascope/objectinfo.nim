@@ -44,17 +44,21 @@ proc updateObjectInfo*() =
   let
     params = x.find("Params")
     param = x.find("Params/Param").copy()
+    vibeArea = x.find("VibeArea")
     inventoryArea = x.find("InventoryArea")
     inventory = x.find("InventoryArea/Inventory")
     item = x.find("InventoryArea/Inventory/Item").copy()
     recipeArea = x.find("RecipeArea")
     recipe = x.find("RecipeArea/Recipe").copy()
+    recipeVibes = recipe.find("Vibes")
     recipeInput = recipe.find("Inputs")
     recipeOutput = recipe.find("Outputs")
 
   params.removeChildren()
+  vibeArea.hide()
   inventory.removeChildren()
   recipeArea.removeChildren()
+  recipeVibes.removeChildren()
   recipeInput.removeChildren()
   recipeOutput.removeChildren()
 
@@ -66,6 +70,7 @@ proc updateObjectInfo*() =
 
   addParam("Type", selection.typeName)
 
+
   if selection.isAgent:
     addParam("Agent ID", $selection.agentId)
     addParam("Reward", $selection.totalReward.at)
@@ -73,7 +78,8 @@ proc updateObjectInfo*() =
       let vibeId = selection.vibeId.at
       if vibeId < replay.config.game.vibeNames.len:
         let vibeName = replay.config.game.vibeNames[vibeId]
-        addParam("Vibe", vibeName)
+        vibeArea.find("**/Icon").fills[0].imageRef = "../../vibe" / vibeName
+        vibeArea.show()
 
   if selection.cooldownRemaining.at > 0:
     addParam("Cooldown Remaining", $selection.cooldownRemaining.at)
@@ -96,13 +102,17 @@ proc updateObjectInfo*() =
     i.find("**/Amount").text = $itemAmount.count
     area.addChild(i)
 
-  proc addRecipe(recipeInfo: RecipeInfo) =
-    var recipeNode = recipe.copy()
-    for resource in recipeInfo.inputs:
-      recipeNode.find("**/Inputs").addResource(resource)
-    for resource in recipeInfo.outputs:
-      recipeNode.find("**/Outputs").addResource(resource)
-    recipeArea.addChild(recipeNode)
+  proc resourceTableToSeq(table: Table[string, int]): seq[ItemAmount] =
+    ## Converts a resource table to a sequence of item amounts.
+    for name, count in table:
+      let itemId = replay.itemNames.find(name)
+      result.add(ItemAmount(itemId: itemId, count: count))
+
+  proc addVibe(area: Node, vibe: string) =
+    let v = item.copy()
+    v.find("**/Image").fills[0].imageRef = "../../vibe" / vibe
+    v.find("**/Amount").text = ""
+    area.addChild(v)
 
   if selection.inventory.at.len == 0:
     inventoryArea.remove()
@@ -110,24 +120,28 @@ proc updateObjectInfo*() =
     for itemAmount in selection.inventory.at:
       inventory.addResource(itemAmount)
 
-  if selection.inputResources.len > 0 or selection.outputResources.len > 0:
-    var recipeInfo = RecipeInfo()
-    recipeInfo.inputs = selection.inputResources
-    recipeInfo.outputs = selection.outputResources
-    addRecipe(recipeInfo)
+  proc addRecipe(
+    vibes: seq[string],
+    inputs: seq[ItemAmount],
+    outputs: seq[ItemAmount],
+  ) =
+    var recipeNode = recipe.copy()
+    for vibe in vibes:
+      recipeNode.find("**/Vibes").addVibe(vibe)
+    for resource in inputs:
+      recipeNode.find("**/Inputs").addResource(resource)
+    for resource in outputs:
+      recipeNode.find("**/Outputs").addResource(resource)
+    recipeArea.addChild(recipeNode)
 
-  var mergedRecipes: Table[string, RecipeInfo]
-  for recipe in selection.recipes:
-    let key = $recipe.inputs & "->" & $recipe.outputs
-    mergedRecipes[key] = recipe
-
-  for recipe in mergedRecipes.values:
-    addRecipe(recipe)
-
-  if mergedRecipes.len == 0 and
-    selection.inputResources.len == 0 and
-    selection.outputResources.len == 0:
-      recipeArea.remove()
+  for name, obj in replay.config.game.objects:
+    if name == selection.typeName:
+      for recipe in obj.recipes:
+        addRecipe(
+          recipe.pattern,
+          recipe.protocol.inputResources.resourceTableToSeq,
+          recipe.protocol.outputResources.resourceTableToSeq
+        )
 
   x.position = vec2(0, 0)
   objectInfoPanel.node.removeChildren()
