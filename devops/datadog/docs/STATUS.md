@@ -211,12 +211,36 @@ After exploring multiple approaches, we chose Jsonnet because:
 - ✅ Tested template rendering locally
 - ✅ Updated README with collector documentation
 
-**Phase 3B: Deployment - 🔄 Ready**
+**Phase 3B: Deployment - 🔄 Ready with Helper Scripts**
+- ✅ Created deployment helper scripts in `devops/k8s/`:
+  - `setup-k8s.sh` - Configure kubectl and helm for EKS access
+  - `deploy-helm-chart.sh` - Deploy Helm charts with customizable options
+  - `README.md` - General Kubernetes deployment documentation
+- ✅ Created `DEPLOYMENT_GUIDE.md` - Complete guide for deploying Datadog collectors
 - [ ] Deploy to staging/test environment
 - [ ] Monitor test deployment logs
 - [ ] Deploy to production
 - [ ] Verify all 25 metrics flowing to Datadog
 - [ ] Monitor collection performance and API usage
+
+**Deployment Commands**:
+```bash
+# Setup kubectl access
+./devops/k8s/setup-k8s.sh main
+
+# Deploy to staging
+./devops/k8s/deploy-helm-chart.sh \
+  --chart devops/charts/dashboard-cronjob \
+  --release dashboard-cronjob-staging \
+  --namespace monitoring-staging \
+  --create-namespace
+
+# Deploy to production
+./devops/k8s/deploy-helm-chart.sh \
+  --chart devops/charts/dashboard-cronjob \
+  --release dashboard-cronjob \
+  --namespace monitoring
+```
 
 ### Jsonnet Dashboard Setup (Lower Priority)
 
