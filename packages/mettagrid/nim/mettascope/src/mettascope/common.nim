@@ -103,24 +103,36 @@ type
     actionId*: int
     argument*: int
 
-  DestinationType* = enum
-    Move # Move to a specific position.
-    Bump # Bump an object at a specific position to interact with it.
+  ObjectiveType* = enum
+    ObjMove # Move to a specific position.
+    ObjBump # Bump an object at a specific position to interact with it.
+    ObjAction # Execute a specific action (like vibe).
 
-  Destination* = object
-    pos*: IVec2
-    destinationType*: DestinationType
-    approachDir*: IVec2 ## Direction to approach from for Bump actions (e.g., ivec2(-1, 0) means approach from the left).
-    repeat*: bool ## If true, this destination will be re-queued at the end when completed.
+  Objective* = object
+    case objectiveType*: ObjectiveType
+    of ObjMove, ObjBump:
+      pos*: IVec2
+      approachDir*: IVec2 ## Direction to approach from for Bump actions (e.g., ivec2(-1, 0) means approach from the left).
+    of ObjAction:
+      actionId*: int
+      argument*: int
+    repeat*: bool ## If true, this objective will be re-queued at the end when completed.
 
   PathActionType* = enum
     PathMove # Move to a position.
     PathBump # Bump at current position.
+    PathDoAction # Execute an action (like vibe).
 
   PathAction* = object
-    actionType*: PathActionType
-    pos*: IVec2 ## Target position for PathMove, or bump target for PathBump.
-    bumpDir*: IVec2 ## Direction to bump for PathBump actions.
+    case actionType*: PathActionType
+    of PathMove:
+      pos*: IVec2 ## Target position for PathMove.
+    of PathBump:
+      bumpPos*: IVec2 ## Bump target position.
+      bumpDir*: IVec2 ## Direction to bump for PathBump actions.
+    of PathDoAction:
+      actionId*: int ## Action ID to execute.
+      argument*: int ## Argument for the action.
 
 var
   requestActions*: seq[ActionRequest]
@@ -132,8 +144,8 @@ var
 var
   ## Path queue for each agent. Maps agentId to a sequence of path actions.
   agentPaths* = initTable[int, seq[PathAction]]()
-  ## Destination queue for each agent. Maps agentId to a sequence of destinations.
-  agentDestinations* = initTable[int, seq[Destination]]()
+  ## Objective queue for each agent. Maps agentId to a sequence of objectives.
+  agentObjectives* = initTable[int, seq[Objective]]()
   ## Track mouse down position to distinguish clicks from drags.
   mouseDownPos*: Vec2
 

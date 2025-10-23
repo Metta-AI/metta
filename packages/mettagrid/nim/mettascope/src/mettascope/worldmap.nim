@@ -50,14 +50,12 @@ proc useSelections*(panel: Panel) =
         gridPos.y >= 0 and gridPos.y < replay.mapSize[1]:
         let startPos = selection.location.at(step).xy
 
-        # Determine if this is a Bump or Move destination.
+        # Determine if this is a Bump or Move objective.
         let targetObj = getObjectAtLocation(gridPos)
-        var destType = Move
-        var approachDir = ivec2(0, 0)
+        var objective: Objective
         if targetObj != nil:
           let typeName = targetObj.typeName
           if typeName != "agent" and typeName != "wall":
-            destType = Bump
             # Calculate which quadrant of the tile was clicked.
             # The tile center is at gridPos, and mousePos has fractional parts.
             let
@@ -68,6 +66,7 @@ proc useSelections*(panel: Panel) =
             # Divide the tile into 4 quadrants at 45-degree angles (diamond shape).
             # If the click is more horizontal than vertical, use left/right approach.
             # If the click is more vertical than horizontal, use top/bottom approach.
+            var approachDir: IVec2
             if abs(offsetX) > abs(offsetY):
               # Left or right quadrant.
               if offsetX > 0:
@@ -80,23 +79,26 @@ proc useSelections*(panel: Panel) =
                 approachDir = ivec2(0, 1)   # Clicked bottom, approach from bottom.
               else:
                 approachDir = ivec2(0, -1)  # Clicked top, approach from top.
-
-        let destination = Destination(pos: gridPos, destinationType: destType, approachDir: approachDir, repeat: rDown)
+            objective = Objective(objectiveType: ObjBump, pos: gridPos, approachDir: approachDir, repeat: rDown)
+          else:
+            objective = Objective(objectiveType: ObjMove, pos: gridPos, approachDir: ivec2(0, 0), repeat: rDown)
+        else:
+          objective = Objective(objectiveType: ObjMove, pos: gridPos, approachDir: ivec2(0, 0), repeat: rDown)
 
         if shiftDown:
-          # Queue up additional destinations.
-          if not agentDestinations.hasKey(selection.agentId) or agentDestinations[selection.agentId].len == 0:
-            # No existing destinations, start fresh.
-            agentDestinations[selection.agentId] = @[destination]
+          # Queue up additional objectives.
+          if not agentObjectives.hasKey(selection.agentId) or agentObjectives[selection.agentId].len == 0:
+            # No existing objectives, start fresh.
+            agentObjectives[selection.agentId] = @[objective]
             recomputePath(selection.agentId, startPos)
           else:
-            # Append to existing destinations.
-            agentDestinations[selection.agentId].add(destination)
-            # Recompute path to include all destinations.
+            # Append to existing objectives.
+            agentObjectives[selection.agentId].add(objective)
+            # Recompute path to include all objectives.
             recomputePath(selection.agentId, startPos)
         else:
-          # Replace the entire destination queue.
-          agentDestinations[selection.agentId] = @[destination]
+          # Replace the entire objective queue.
+          agentObjectives[selection.agentId] = @[objective]
           recomputePath(selection.agentId, startPos)
 
 proc drawFloor*() =
@@ -447,32 +449,33 @@ proc drawPlannedPath*() =
       )
       currentPos = action.pos
 
-    # Draw final queued destination.
-    if agentDestinations.hasKey(agentId):
-      let destinations = agentDestinations[agentId]
-      if destinations.len > 0:
-        let dest = destinations[^1]
-        bxy.drawImage(
-          "selection",
-          dest.pos.vec2,
-          angle = 0,
-          scale = 1.0 / 200.0,
-          tint = color(1, 1, 1, 0.5)
-        )
+    # Draw final queued objective.
+    if agentObjectives.hasKey(agentId):
+      let objectives = agentObjectives[agentId]
+      if objectives.len > 0:
+        let obj = objectives[^1]
+        if obj.objectiveType in {ObjMove, ObjBump}:
+          bxy.drawImage(
+            "selection",
+            obj.pos.vec2,
+            angle = 0,
+            scale = 1.0 / 200.0,
+            tint = color(1, 1, 1, 0.5)
+          )
 
-      # Draw approach arrows for bump destinations.
-      for dest in destinations:
-        if dest.destinationType == Bump and (dest.approachDir.x != 0 or dest.approachDir.y != 0):
-          let approachPos = ivec2(dest.pos.x + dest.approachDir.x, dest.pos.y + dest.approachDir.y)
-          let offset = vec2(-dest.approachDir.x.float32 * 0.35, -dest.approachDir.y.float32 * 0.35)
+      # Draw approach arrows for bump objectives.
+      for obj in objectives:
+        if obj.objectiveType == ObjBump and (obj.approachDir.x != 0 or obj.approachDir.y != 0):
+          let approachPos = ivec2(obj.pos.x + obj.approachDir.x, obj.pos.y + obj.approachDir.y)
+          let offset = vec2(-obj.approachDir.x.float32 * 0.35, -obj.approachDir.y.float32 * 0.35)
           var rotation: float32 = 0
-          if dest.approachDir.x > 0:
+          if obj.approachDir.x > 0:
             rotation = Pi / 2
-          elif dest.approachDir.x < 0:
+          elif obj.approachDir.x < 0:
             rotation = -Pi / 2
-          elif dest.approachDir.y > 0:
+          elif obj.approachDir.y > 0:
             rotation = 0
-          elif dest.approachDir.y < 0:
+          elif obj.approachDir.y < 0:
             rotation = Pi
           bxy.drawImage(
             "actions/arrow",

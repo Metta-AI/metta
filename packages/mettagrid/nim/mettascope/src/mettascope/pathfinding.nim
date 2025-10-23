@@ -90,26 +90,26 @@ proc findPath*(start, goal: IVec2): seq[IVec2] =
   return @[]
 
 proc clearPath*(agentId: int) =
-  ## Clear the path and destination for an agent.
+  ## Clear the path and objectives for an agent.
   agentPaths.del(agentId)
-  agentDestinations.del(agentId)
+  agentObjectives.del(agentId)
 
 
 proc recomputePath*(agentId: int, currentPos: IVec2) =
-  ## Recompute the path for an agent through all their queued destinations.
-  if not agentDestinations.hasKey(agentId) or agentDestinations[agentId].len == 0:
+  ## Recompute the path for an agent through all their queued objectives.
+  if not agentObjectives.hasKey(agentId) or agentObjectives[agentId].len == 0:
     agentPaths.del(agentId)
     return
-  
-  # Compute path actions through all destinations.
+
+  # Compute path actions through all path-based objectives (Move/Bump).
   var pathActions: seq[PathAction] = @[]
   var lastPos = currentPos
-  
-  for destIdx, dest in agentDestinations[agentId]:
-    case dest.destinationType
-    of Move:
-      # For moving, path directly to the destination.
-      let movePath = findPath(lastPos, dest.pos)
+
+  for objIdx, obj in agentObjectives[agentId]:
+    case obj.objectiveType
+    of ObjMove:
+      # For moving, path directly to the objective.
+      let movePath = findPath(lastPos, obj.pos)
       if movePath.len == 0:
         clearPath(agentId)
         return
@@ -117,10 +117,10 @@ proc recomputePath*(agentId: int, currentPos: IVec2) =
       for pos in movePath:
         if pos != lastPos:
           pathActions.add(PathAction(actionType: PathMove, pos: pos))
-      lastPos = dest.pos
-    of Bump:
+      lastPos = obj.pos
+    of ObjBump:
       # For bumping, path to the specified approach position.
-      let approachPos = ivec2(dest.pos.x + dest.approachDir.x, dest.pos.y + dest.approachDir.y)
+      let approachPos = ivec2(obj.pos.x + obj.approachDir.x, obj.pos.y + obj.approachDir.y)
       if not isWalkablePos(approachPos):
         # Approach position is not walkable, clear path.
         clearPath(agentId)
@@ -137,11 +137,18 @@ proc recomputePath*(agentId: int, currentPos: IVec2) =
       # Add the bump action.
       pathActions.add(PathAction(
         actionType: PathBump,
-        pos: dest.pos,
-        bumpDir: ivec2(dest.pos.x - approachPos.x, dest.pos.y - approachPos.y),
+        bumpPos: obj.pos,
+        bumpDir: ivec2(obj.pos.x - approachPos.x, obj.pos.y - approachPos.y),
       ))
       lastPos = approachPos
-  
+    of ObjAction:
+      # Add action as a path action to maintain synchronization.
+      pathActions.add(PathAction(
+        actionType: PathDoAction,
+        actionId: obj.actionId,
+        argument: obj.argument
+      ))
+
   if pathActions.len > 0:
     agentPaths[agentId] = pathActions
   else:
