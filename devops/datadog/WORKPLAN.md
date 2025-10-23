@@ -345,35 +345,29 @@ metta datadog collect github --dry-run
 
 #### 2B. Create Modular Collector Architecture (2 days)
 **Tasks**:
-- [ ] Create `devops/datadog/common/base.py`
+- [x] Create `devops/datadog/common/base.py`
   - `BaseCollector` abstract class
   - Health monitoring utilities
   - Error handling patterns
 
-- [ ] Create `devops/datadog/common/decorators.py`
+- [x] Create `devops/datadog/common/decorators.py`
   - `@metric` decorator for automatic registration
   - Supports tags, metric type, description
 
-- [ ] Create `devops/datadog/common/datadog_client.py`
+- [x] Create `devops/datadog/common/datadog_client.py`
   - Datadog metric submission wrapper
   - Batch submission for efficiency
   - Retry logic and error handling
+  - Uses datadog-api-client v2 API
 
-- [ ] Create `devops/datadog/common/secrets.py`
-  - AWS Secrets Manager integration
-  - Secret caching with TTL
-  - Error handling for missing secrets
-
-- [ ] Create `devops/datadog/collectors/github/collector.py`
+- [x] Create `devops/datadog/collectors/github/collector.py`
   - `GitHubCollector(BaseCollector)` implementation
-  - Move authentication logic
-  - Implement `collect_metrics()` method
+  - Authentication logic integrated
+  - Implements `collect_metrics()` method
+  - All 25 metrics implemented in collector class
+  - Organized into logical groups (PRs, branches, commits, CI/CD, developers)
 
-- [ ] Move metrics to `devops/datadog/collectors/github/metrics.py`
-  - Refactor to use `@metric` decorator
-  - Keep same metric keys (no breaking changes)
-  - Add tags based on Phase 1 decisions
-  - Group by category (PRs, commits, CI/CD, developers, code)
+**Note**: Metrics are implemented within the GitHubCollector class rather than as separate decorated functions. The `@metric` decorator is available for future standalone metric functions. AWS Secrets Manager integration is handled by existing infrastructure (softmax.aws.secrets_manager).
 
 **Example metric definition**:
 ```python
@@ -404,6 +398,14 @@ uv run python -m devops.datadog.collectors.github --dry-run | jq '.metrics | len
 # Test push to Datadog
 uv run python -m devops.datadog.collectors.github --push
 ```
+
+**Deliverables**:
+- ✅ Common infrastructure: BaseCollector, @metric decorator, DatadogClient
+- ✅ GitHubCollector with all 25 metrics implemented
+- ✅ Test script for manual verification
+- ✅ Lazy imports to avoid CLI dependency conflicts
+- ✅ Modern datadog-api-client v2 API integration
+- ✅ Commit: c7fe951889 (feat: implement modular collector architecture for Datadog metrics)
 
 #### 2C. Create Unified CLI Runner (integrated with 1B)
 **Tasks**:
