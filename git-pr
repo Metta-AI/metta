@@ -25,9 +25,9 @@ uv sync
 uv run metta lint --fix
 
 # Run tests for Metta
-uv run metta test
+uv run metta pytest
 # Run tests for MettaGrid
-uv run metta grid test
+uv run metta cpptest
 
 # Submit the PR
 gt submit

@@ -224,8 +224,8 @@ jobs:
           cd observatory
           pnpm run lint
 
-  unit-tests:
-    name: "Unit Tests - Python"
+  python-tests:
+    name: "Tests - Python"
     needs: [graphite-ci-optimizer, setup-checks]
     if: |
       (needs.graphite-ci-optimizer.outputs.should_skip == 'false') &&
@@ -255,12 +255,16 @@ jobs:
 
       - name: Run all package tests
         shell: bash
-        env:
-          RUN_APP_BACKEND_TESTS: ${{ needs.setup-checks.outputs.app_backend_has_changes == 'true' && 'true' || 'false' }}
-        run: uv run metta test --preset ci
+        run: |
+          set -eo pipefail
+          ARGS=()
+          if [[ "${{ needs.setup-checks.outputs.app_backend_has_changes }}" != "true" ]]; then
+            ARGS+=(--nosuite app_backend)
+          fi
+          uv run metta pytest --ci "${ARGS[@]}"
 
-  mettagrid-cpp:
-    name: "MettaGrid C++ Build & Test"
+  cpp-tests:
+    name: "Tests - C++"
     needs: [graphite-ci-optimizer, setup-checks]
     if: |
       (needs.graphite-ci-optimizer.outputs.should_skip == 'false') &&
@@ -309,17 +313,17 @@ jobs:
           restore-keys: |
             bazel-${{ runner.os }}-
 
-      - name: MettaGrid C++ tests
+      - name: Run C++ tests
         id: mettagrid-cpp-tests
-        run: uv run metta grid test --verbose
+        run: uv run metta cpptest --verbose
 
-      - name: MettaGrid C++ benchmarks
+      - name: Run C++ benchmarks
         id: mettagrid-cpp-benchmarks
-        run: uv run metta grid benchmark --verbose
+        run: uv run metta cpptest benchmark --verbose
 
-  unit-tests-summary:
+  tests-summary:
     name: "Tests"
-    needs: [unit-tests, mettagrid-cpp]
+    needs: [python-tests, cpp-tests]
     if: always()
     runs-on: ubuntu-latest
     steps:
