@@ -8,7 +8,8 @@ image:
 
 # Command to run - can be overridden for different collectors
 # Uses the new modular collector architecture
-command: ["uv", "run", "python", "devops/datadog/run_collector.py", "github", "--push"]
+# Path is relative to /workspace/metta/softmax (container working directory)
+command: ["uv", "run", "python", "../devops/datadog/run_collector.py", "github", "--push"]
 
 serviceAccount:
   create: true
