@@ -30,26 +30,50 @@ export const toggleStarAction = actionClient
     if (existingInteraction) {
       // Update existing interaction
       const currentStarred = existingInteraction.starred;
-      await prisma.userPaperInteraction.update({
-        where: {
-          userId_paperId: {
-            userId: session.user.id,
-            paperId: input.paperId,
+      const newStarred = !currentStarred;
+
+      await prisma.$transaction([
+        prisma.userPaperInteraction.update({
+          where: {
+            userId_paperId: {
+              userId: session.user.id,
+              paperId: input.paperId,
+            },
           },
-        },
-        data: {
-          starred: !currentStarred,
-        },
-      });
+          data: {
+            starred: newStarred,
+          },
+        }),
+        // Update the paper's star count
+        prisma.paper.update({
+          where: { id: input.paperId },
+          data: {
+            stars: {
+              increment: newStarred ? 1 : -1,
+            },
+          },
+        }),
+      ]);
     } else {
       // Create new interaction record with starred = true
-      await prisma.userPaperInteraction.create({
-        data: {
-          userId: session.user.id,
-          paperId: input.paperId,
-          starred: true,
-        },
-      });
+      await prisma.$transaction([
+        prisma.userPaperInteraction.create({
+          data: {
+            userId: session.user.id,
+            paperId: input.paperId,
+            starred: true,
+          },
+        }),
+        // Increment the paper's star count
+        prisma.paper.update({
+          where: { id: input.paperId },
+          data: {
+            stars: {
+              increment: 1,
+            },
+          },
+        }),
+      ]);
     }
 
     // Revalidate multiple pages to show updated state

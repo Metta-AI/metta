@@ -2,12 +2,15 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { signOut } from "next-auth/react";
+import { useMobileNav } from "./MobileNavProvider";
+import { useEffect, useRef } from "react";
 
 /**
  * Library Sidebar Component
  *
  * This component recreates the left-hand navigation sidebar from the original observatory app.
- * It provides navigation between different views: Feed, Papers, Authors, Institutions, and Me.
+ * It provides navigation between different views: Feed, Papers, Authors, Institutions, Groups, and Me.
  * Uses simplified gray outline icons as per user preferences.
  */
 
@@ -98,6 +101,61 @@ const navigationItems = [
     ),
   },
   {
+    id: "groups",
+    label: "Groups",
+    href: "/groups",
+    icon: (
+      <svg
+        className="h-5 w-5"
+        fill="none"
+        stroke="currentColor"
+        viewBox="0 0 24 24"
+        suppressHydrationWarning
+      >
+        <rect
+          x="3"
+          y="3"
+          width="7"
+          height="7"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeWidth={2}
+          rx="1"
+        />
+        <rect
+          x="14"
+          y="3"
+          width="7"
+          height="7"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeWidth={2}
+          rx="1"
+        />
+        <rect
+          x="14"
+          y="14"
+          width="7"
+          height="7"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeWidth={2}
+          rx="1"
+        />
+        <rect
+          x="3"
+          y="14"
+          width="7"
+          height="7"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeWidth={2}
+          rx="1"
+        />
+      </svg>
+    ),
+  },
+  {
     id: "me",
     label: "Me",
     href: "/me",
@@ -118,6 +176,54 @@ const navigationItems = [
       </svg>
     ),
   },
+  {
+    id: "settings",
+    label: "Settings",
+    href: "/settings",
+    icon: (
+      <svg
+        className="h-5 w-5"
+        fill="none"
+        stroke="currentColor"
+        viewBox="0 0 24 24"
+        suppressHydrationWarning
+      >
+        <path
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeWidth={2}
+          d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"
+        />
+        <path
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeWidth={2}
+          d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+        />
+      </svg>
+    ),
+  },
+  {
+    id: "signout",
+    label: "Sign Out",
+    href: "#", // We'll handle this specially
+    icon: (
+      <svg
+        className="h-5 w-5"
+        fill="none"
+        stroke="currentColor"
+        viewBox="0 0 24 24"
+        suppressHydrationWarning
+      >
+        <path
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeWidth={2}
+          d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"
+        />
+      </svg>
+    ),
+  },
 ];
 
 /**
@@ -129,8 +235,9 @@ const navigationItems = [
 function getActiveNavFromPath(pathname: string): string {
   if (pathname.includes("/authors")) return "authors";
   if (pathname.includes("/institutions")) return "institutions";
+  if (pathname.includes("/groups")) return "groups";
   if (pathname.includes("/papers")) return "papers";
-
+  if (pathname.includes("/settings")) return "settings";
   if (pathname.includes("/me")) return "me";
   return "feed"; // Default to feed view for root path
 }
@@ -138,51 +245,67 @@ function getActiveNavFromPath(pathname: string): string {
 export function LibrarySidebar() {
   const pathname = usePathname();
   const activeNav = getActiveNavFromPath(pathname);
+  const { isSidebarOpen, closeSidebar } = useMobileNav();
+
+  // Close sidebar when navigating on mobile
+  const prevPathname = useRef(pathname);
+  useEffect(() => {
+    if (prevPathname.current !== pathname) {
+      closeSidebar();
+      prevPathname.current = pathname;
+    }
+  }, [pathname, closeSidebar]);
 
   return (
-    <div className="fixed top-0 left-0 z-10 flex h-full w-48 flex-col border-r border-gray-200 bg-white">
-      {/* Header Section */}
-      <div className="border-b border-gray-100 px-6 py-6">
-        <div className="flex items-center gap-3">
-          {/* Bookshelf Icon */}
-          <svg
-            className="h-6 w-6 text-gray-500"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            suppressHydrationWarning
-          >
-            <path d="M3 18h18" />
-            <rect x="3" y="8" width="3.6" height="10" />
-            <rect x="6.6" y="6" width="3.6" height="12" />
-            <rect x="10.2" y="9" width="3.6" height="9" />
-            <rect x="13.8" y="7" width="3.6" height="11" />
-            <rect x="17.4" y="5" width="3.6" height="13" />
-          </svg>
-          <h1 className="text-lg font-semibold text-gray-900">Library</h1>
-        </div>
-      </div>
+    <>
+      {/* Mobile backdrop - transparent but clickable */}
+      {isSidebarOpen && (
+        <div className="inset-0 z-40 md:hidden" onClick={closeSidebar} />
+      )}
 
-      {/* Navigation Section */}
-      <nav className="flex-1 space-y-1 px-3 py-4">
-        {navigationItems.map((item) => (
-          <Link
-            key={item.id}
-            href={item.href}
-            className={`mx-1 flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left transition-colors ${
-              activeNav === item.id
-                ? "bg-primary-50 text-primary-700 border-primary-200 border"
-                : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
-            }`}
-          >
-            {item.icon}
-            <span className="text-sm font-medium">{item.label}</span>
-          </Link>
-        ))}
-      </nav>
-    </div>
+      {/* Sidebar */}
+      <div
+        className={`z-50 flex h-full w-48 flex-col border-r border-gray-200 bg-white transition-transform duration-300 ease-in-out md:z-10 md:translate-x-0 ${
+          isSidebarOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"
+        }`}
+      >
+        {/* Header Section - removed, logo moved to TopMenu */}
+
+        {/* Navigation Section */}
+        <nav className="flex-1 space-y-1 px-3 py-4">
+          {navigationItems.map((item) => {
+            // Handle Sign Out specially
+            if (item.id === "signout") {
+              return (
+                <button
+                  key={item.id}
+                  onClick={() => signOut()}
+                  className="mx-1 flex w-full cursor-pointer items-center gap-3 rounded-lg px-3 py-2.5 text-left text-gray-600 transition-colors hover:bg-gray-50 hover:text-gray-900"
+                >
+                  {item.icon}
+                  <span className="text-sm font-medium">{item.label}</span>
+                </button>
+              );
+            }
+
+            // Regular navigation items
+            return (
+              <Link
+                key={item.id}
+                href={item.href}
+                className={`mx-1 flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left transition-colors ${
+                  activeNav === item.id
+                    ? "bg-primary-50 text-primary-700 border-primary-200 border"
+                    : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
+                }`}
+              >
+                {item.icon}
+                <span className="text-sm font-medium">{item.label}</span>
+              </Link>
+            );
+          })}
+        </nav>
+      </div>
+    </>
   );
 }

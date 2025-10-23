@@ -67,14 +67,20 @@ export const DeleteConfirmationModal: FC<DeleteConfirmationModalProps> = ({
         {/* Actions */}
         <div className="flex gap-3">
           <button
-            onClick={onClose}
+            onClick={(e) => {
+              e.stopPropagation();
+              onClose();
+            }}
             disabled={isDeleting}
             className="flex-1 rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
           >
             Cancel
           </button>
           <button
-            onClick={onConfirm}
+            onClick={(e) => {
+              e.stopPropagation();
+              onConfirm();
+            }}
             disabled={isDeleting}
             className="flex-1 rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
           >
