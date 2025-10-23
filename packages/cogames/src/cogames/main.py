@@ -23,6 +23,7 @@ from cogames.cli.base import console
 from cogames.cli.login import DEFAULT_COGAMES_SERVER, perform_login
 from cogames.cli.mission import describe_mission, get_mission_name_and_config, get_mission_names_and_configs
 from cogames.cli.policy import get_policy_spec, get_policy_specs, policy_arg_example, policy_arg_w_proportion_example
+from cogames.cli.submit import DEFAULT_SUBMIT_SERVER, submit_command
 from cogames.curricula import make_rotation
 from cogames.device import resolve_training_device
 from mettagrid import MettaGridEnv
@@ -403,7 +404,6 @@ def login_cmd(
         auth_server_url=server,
         token_file_name="cogames.yaml",
         token_storage_key="login_tokens",
-        extra_uris={},
     )
 
     if temp_auth.has_saved_token() and not force:
@@ -417,6 +417,69 @@ def login_cmd(
     else:
         console.print("[red]Authentication failed![/red]")
         raise typer.Exit(1)
+
+
+@app.command(name="submit", help="Submit a policy to CoGames competitions")
+def submit_cmd(
+    ctx: typer.Context,
+    policy: str = typer.Option(
+        ...,
+        "--policy",
+        "-p",
+        help=f"Policy specification: {policy_arg_example}",
+    ),
+    name: Optional[str] = typer.Option(
+        None,
+        "--name",
+        "-n",
+        help="Optional name for the submission",
+    ),
+    include_files: Optional[list[str]] = typer.Option(  # noqa: B008
+        None,
+        "--include-files",
+        "-f",
+        help="Files or directories to include in submission (can be specified multiple times)",
+    ),
+    login_server: str = typer.Option(
+        DEFAULT_COGAMES_SERVER,
+        "--login-server",
+        help="Login/authentication server URL",
+    ),
+    server: str = typer.Option(
+        DEFAULT_SUBMIT_SERVER,
+        "--server",
+        "-s",
+        help="Submission server URL",
+    ),
+    dry_run: bool = typer.Option(
+        False,
+        "--dry-run",
+        help="Run validation only without submitting",
+    ),
+    skip_validation: bool = typer.Option(
+        False,
+        "--skip-validation",
+        help="Skip policy validation in isolated environment",
+    ),
+) -> None:
+    """Submit a policy to CoGames competitions.
+
+    This command validates your policy, creates a submission package,
+    and uploads it to the CoGames server.
+
+    The policy will be tested in an isolated environment before submission
+    (unless --skip-validation is used).
+    """
+    submit_command(
+        ctx=ctx,
+        policy=policy,
+        name=name,
+        include_files=include_files,
+        login_server=login_server,
+        server=server,
+        dry_run=dry_run,
+        skip_validation=skip_validation,
+    )
 
 
 if __name__ == "__main__":

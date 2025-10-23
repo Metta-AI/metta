@@ -674,18 +674,20 @@ class PuffeRL:
             self.last_stats = self.stats
 
         stats_source = self.stats or self.last_stats or {}
-        filtered_stats: list[tuple[str, float]] = []
-        for metric, value in stats_source.items():
-            metric_lower = metric.lower()
-            if not (
+        filtered_stats = {
+            metric: value
+            for metric, value in stats_source.items()
+            if (
                 metric.startswith("agent/")
-                or "heart" in metric_lower
-                or "reward" in metric_lower
-            ):
-                continue
-            filtered_stats.append((metric, value))
+                or "heart" in metric.lower()
+                or "reward" in metric.lower()
+            )
+        }
 
-        for metric, value in filtered_stats:
+        # do some reordering of stats so that important metrics are always shown
+        prioritized_stats = self._reorder_stats_for_dashboard(filtered_stats or stats_source)
+
+        for metric, value in prioritized_stats:
             try:  # Discard non-numeric values
                 int(value)
             except:
@@ -704,6 +706,23 @@ class PuffeRL:
             console.print(dashboard)
 
         print("\033[0;0H" + capture.get())
+
+    def _reorder_stats_for_dashboard(self, stats: dict[str, float]) -> list[tuple[str, float]]:
+        priority_metrics = ["agent/avg_reward_per_agent", "agent/energy.amount", "agent/status.max_steps_without_motion"]
+        new_stats: list[tuple[str, float]] = []
+
+        if not stats:
+            return new_stats
+
+        for name in priority_metrics:
+            if name in stats:
+                new_stats.append((name, stats[name]))
+
+        for name, value in stats.items():
+            if name not in priority_metrics:
+                new_stats.append((name, value))
+
+        return new_stats
 
 
 def compute_puff_advantage(

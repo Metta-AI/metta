@@ -7,7 +7,7 @@ image:
   tag: "latest"
 
 # Command to run - can be overridden for different scripts
-command: ["uv", "run", "python", "-m", "softmax.dashboard.report", "report", "--push"]
+command: ["uv", "run", "python", "-m", "softmax.dashboard.report", "--push"]
 
 serviceAccount:
   create: true
@@ -17,7 +17,7 @@ serviceAccount:
 resources:
   requests:
     cpu: 100m
-    memory: 1Gi
+    memory: 2Gi
   limits:
     cpu: 500m
     memory: 2Gi
