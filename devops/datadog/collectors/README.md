@@ -17,11 +17,11 @@ All collectors share a common base class and follow consistent patterns.
 
 | Collector | Status | Priority | Metrics | Schedule | Description |
 |-----------|--------|----------|---------|----------|-------------|
-| [github](github/) | ✅ Implemented | High | 25 | 15 min | PRs, commits, CI/CD, branches, developers |
+| [github](github/) | ✅ Implemented | High | 24 | 15 min | PRs, commits, CI/CD, branches, developers |
 | [skypilot](skypilot/) | ✅ Implemented | High | 30 | 10 min | Jobs, clusters, runtime stats, resource utilization |
+| [asana](asana/) | ✅ Implemented | Medium | 14 | 6 hours | Project health, bugs tracking, team velocity |
 | [wandb](wandb/) | 📋 Planned | Medium | 15+ | 30 min | Training runs, experiments, GPU hours |
 | [ec2](ec2/) | 📋 Planned | High | 20+ | 5 min | Instances, costs, utilization |
-| [asana](asana/) | 📋 Planned | Low | 15+ | 6 hours | Tasks, projects, velocity |
 
 ## Quick Reference
 
@@ -105,17 +105,37 @@ metta datadog collect skypilot --push
 
 **Docs**: [ec2/README.md](ec2/README.md)
 
-### Asana Collector 📋
+### Asana Collector ✅
 
-**Planned** - Project management metrics (low priority)
+**Implemented** - Project management and bugs tracking (14 metrics)
 
-**Key Metrics**:
-- `asana.tasks.open`, `asana.tasks.overdue` - Task tracking
-- `asana.tasks.completion_rate_7d` - Team velocity
-- `asana.projects.at_risk` - Project health
-- `asana.tasks.high_priority` - Priority distribution
+**Project Health Metrics**:
+- `asana.projects.active` - Active projects count
+- `asana.projects.on_track` - Projects on track
+- `asana.projects.at_risk` - Projects at risk
+- `asana.projects.off_track` - Projects off track
 
-**Docs**: [asana/README.md](asana/README.md)
+**Bugs Project Metrics** (if configured):
+- `asana.projects.bugs.total_open` - Total open bugs
+- `asana.projects.bugs.triage_count` - Bugs in triage
+- `asana.projects.bugs.active_count` - Bugs being worked on
+- `asana.projects.bugs.backlog_count` - Bugs in backlog
+- `asana.projects.bugs.completed_7d` - Bugs completed in 7 days
+- `asana.projects.bugs.completed_30d` - Bugs completed in 30 days
+- `asana.projects.bugs.created_7d` - New bugs in 7 days
+- `asana.projects.bugs.avg_age_days` - Average bug age
+- `asana.projects.bugs.oldest_bug_days` - Oldest bug age
+
+**Usage**:
+```bash
+# Collect metrics (dry-run)
+uv run python devops/datadog/run_collector.py asana --verbose
+
+# Push metrics to Datadog
+uv run python devops/datadog/run_collector.py asana --push
+```
+
+**Setup**: See [SECRETS_SETUP.md](../SECRETS_SETUP.md) for configuring Asana access token and workspace/project IDs.
 
 ## Architecture
 
@@ -188,11 +208,10 @@ See [ADDING_NEW_COLLECTOR.md](../docs/ADDING_NEW_COLLECTOR.md) for step-by-step 
 Quick steps:
 1. Create `collectors/{service}/` directory
 2. Implement `collector.py` (inherit `BaseCollector`)
-3. Define metrics in `metrics.py` using `@metric` decorator
-4. Add secrets to AWS Secrets Manager
-5. Configure in Helm `values.yaml`
-6. Test locally: `python -m devops.datadog.scripts.run_collector {service}`
-7. Deploy with Helm
+3. Add secrets to AWS Secrets Manager (see [SECRETS_SETUP.md](../SECRETS_SETUP.md))
+4. Configure in Helm `values.yaml` (environment variables for configuration)
+5. Test locally: `uv run python devops/datadog/run_collector.py {service} --verbose`
+6. Deploy with Helm
 
 ## Secrets Management
 
@@ -209,7 +228,9 @@ Examples:
 - `skypilot/api-key`
 - `wandb/api-key`
 - `ec2/access-key-id`
-- `asana/personal-access-token`
+- `asana/access-token`
+- `datadog/api-key`
+- `datadog/app-key`
 
 ## Testing
 
@@ -217,10 +238,13 @@ Examples:
 
 ```bash
 # Test collector without pushing to Datadog
-python -m devops.datadog.scripts.run_collector github --verbose
+uv run python devops/datadog/run_collector.py github --verbose
 
 # Push to Datadog
-python -m devops.datadog.scripts.run_collector github --push
+uv run python devops/datadog/run_collector.py github --push
+
+# Validate secrets configuration
+uv run python devops/datadog/scripts/validate_secrets.py
 ```
 
 ### Unit Tests
@@ -252,28 +276,25 @@ Alert: GitHub collector hasn't reported metrics in 30 minutes
 
 ## Roadmap
 
-### Phase 1: Current State ✅
-- GitHub collector implemented (in `softmax/dashboard`)
-- 17 metrics collecting
-- Deployed as CronJob
+### Phase 1: Core Collectors ✅
+- ✅ GitHub collector (24 metrics)
+- ✅ Skypilot collector (30 metrics)
+- ✅ Asana collector (14 metrics)
+- ✅ AWS Secrets Manager integration
+- ✅ Deployed as Kubernetes CronJobs
 
-### Phase 2: Architecture Migration 📋
-- Refactor GitHub to new structure
-- Implement base collector pattern
-- Create shared utilities
-
-### Phase 3: New Collectors 📋
+### Phase 2: Additional Collectors 📋
 Priority order:
-1. **Skypilot** (compute cost visibility)
-2. **EC2** (infrastructure visibility)
-3. **WandB** (training visibility)
-4. **Asana** (optional, if needed)
+1. **WandB** (training visibility) - Planned
+2. **EC2** (infrastructure visibility) - Planned
+3. **Custom metrics** (as needed)
 
-### Phase 4: Enhancements 📋
+### Phase 3: Enhancements 📋
 - Dashboard auto-generation from metadata
 - Historical data backfill
 - Metric validation and schemas
 - Collector dependency management
+- Alert templates based on collector metrics
 
 ## Contributing
 

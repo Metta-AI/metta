@@ -30,6 +30,11 @@ datadog:
   service: "github-collector"
   site: "datadoghq.com"
 
+# GitHub configuration
+github:
+  org: "PufferAI"
+  repo: "metta"
+
 # Asana configuration (workspace and project IDs are not secrets)
 asana:
   workspaceGid: "1209016784099267"  # Company workspace
