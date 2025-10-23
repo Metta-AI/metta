@@ -282,8 +282,7 @@ class MachinaProceduralExploreMission(ProceduralMissionBase):
         self.heart_capacity = 99
         # Only chests for explore mission
         self.procedural_overrides = {
-            "extractor_names": ["chest"],
-            "extractor_weights": {"chest": 1.0},
+            "extractors": {"chest": 1.0, "charger": 1.0},
             "extractor_coverage": 0.004,
         }
 
