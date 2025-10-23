@@ -302,7 +302,7 @@ def multiseed_sweep(sweep_name, multi_gpu = False):
         # Typically, "evaluator/eval_{suite}/score"
         objective="evaluator/eval_sweep/score",
         parameters=parameters,
-        max_trials=len(random_seeds),
+        max_trials=len(random_seeds)*3,
         # Default value is 1. We don't recommend going higher than 4.
         # The faster each individual trial, the lower you should set this number.
         num_parallel_trials=20,
