@@ -163,8 +163,6 @@ class BothBaseVariant(MissionVariant):
         mission.procedural_overrides["hub_variant"] = "both"
         mission.procedural_overrides["hub_corner_bundle"] = "chests"
         mission.procedural_overrides["hub_cross_bundle"] = "extractors"
-        # Push cross objects 3 tiles further than the default (4 -> 7)
-        mission.procedural_overrides["hub_cross_distance"] = 7
         return mission
 
 
