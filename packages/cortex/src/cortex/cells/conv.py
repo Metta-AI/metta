@@ -13,11 +13,11 @@ from cortex.cells.base import MemoryCell
 from cortex.cells.registry import register_cell
 from cortex.config import CausalConv1dConfig
 from cortex.kernels.pytorch.conv1d import causal_conv1d_pytorch
-from cortex.kernels.triton.conv1d import causal_conv1d_triton
 from cortex.types import MaybeState, ResetMask, Tensor
 from cortex.utils import select_backend
 
 
+@register_cell(CausalConv1dConfig)
 class CausalConv1d(MemoryCell):
     """Causal 1D convolution with depthwise or channel-mixing modes and stateful buffering."""
 
@@ -99,7 +99,7 @@ class CausalConv1d(MemoryCell):
         assert self.conv is not None  # kernel_size > 0 guaranteed by early return
 
         # Triton is only available for channel-mixing mode
-        triton_fn = causal_conv1d_triton if self.cfg.channel_mixing else None
+        triton_fn = "cortex.kernels.triton.conv1d:causal_conv1d_triton" if self.cfg.channel_mixing else None
 
         # Select backend at runtime
         backend_fn = select_backend(
@@ -145,14 +145,6 @@ class CausalConv1d(MemoryCell):
         mask_expanded = mask.to(dtype=state["conv"].dtype).view(-1, 1, 1)
         state["conv"] = state["conv"] * (1.0 - mask_expanded)
         return state
-
-
-# Register the cell if config is available
-try:
-    register_cell(CausalConv1dConfig)(CausalConv1d)
-except (NameError, ImportError):
-    # Config might not be defined yet
-    pass
 
 
 __all__ = ["CausalConv1d"]

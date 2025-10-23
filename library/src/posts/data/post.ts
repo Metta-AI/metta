@@ -17,7 +17,6 @@ export default async function loadPost(postId: string): Promise<PostDTO> {
                 select: {
                   id: true,
                   name: true,
-                  orcid: true,
                   institution: true,
                 },
               },
@@ -72,7 +71,7 @@ export default async function loadPost(postId: string): Promise<PostDTO> {
   }
 
   const postDTO = toFeedPostDTO(
-    post,
+    post as any,
     usersMap,
     papersMap,
     userPaperInteractionsMap

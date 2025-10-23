@@ -3,18 +3,19 @@ requires = ["setuptools==80.9.0", "wheel==0.45.1"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "cortex"
+name = "cortexcore"
 version = "0.1.0"
 description = "Memory module library for Metta policies"
 readme = "README.md"
 requires-python = ">=3.11"
-license = "MIT"
-authors = [{ name = "Metta AI" }]
+license = { text = "MIT" }
+authors = [{ name = "Subhojeet Pramanik", email = "email@subho.in" }]
 dependencies = [
   "torch",
   "pydantic>=2.11.5",
   "tensordict",
   "einops",
+  "ninja>=1.11.1",
   "triton>=2.0.0; platform_system == 'Linux'",
 ]
 
@@ -30,6 +31,9 @@ cortex = ["py.typed"]
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]
+markers = [
+  "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+]
 
 [tool.coverage.run]
 source = ["cortex"]

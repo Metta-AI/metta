@@ -22,20 +22,38 @@ A social feed and knowledge repository for AI research papers, built with Next.j
    ```
 
 2. **Set up environment variables**:
-   Create a `.env.local` file with the following content:
 
+   Copy `.env.example` to `.env.local`:
+
+   ```bash
+   cp .env.example .env.local
    ```
-   DATABASE_URL=postgres://localhost/metta_library
-   DEV_MODE=true
-   ```
+
+   Then update the values in `.env.local` for your local environment.
+
+   **Required variables for basic development:**
+   - `DATABASE_URL` - Your PostgreSQL connection string
+   - `NEXTAUTH_SECRET` - Generate with `openssl rand -base64 32`
+   - `NEXTAUTH_URL` - Usually `http://localhost:3001`
+   - `DEV_MODE=true` - Enables fake email provider for magic links
+
+   **Optional integrations:**
+   - **S3 Storage**: Set `AWS_S3_BUCKET` and `AWS_S3_REGION` for image uploads
+   - **Discord**: Set `DISCORD_*` variables for OAuth and notifications
+   - **Google OAuth**: Set `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`
+   - **Email Notifications**: Set `AWS_SES_*` or `SMTP_*` variables
+   - **Redis**: Required for background jobs (institution extraction, LLM abstracts)
+   - **LLM Services**: Set `ANTHROPIC_API_KEY` for paper analysis features
+
+   See `.env.example` for complete documentation of all available variables.
 
 3. **Generate authentication secret**:
 
-   ```bash
-   pnpm auth secret
-   ```
+```bash
+pnpm auth secret
+```
 
-   This will populate your `.env.local` file with a random `AUTH_SECRET`.
+This will populate your `.env.local` file with a random `NEXTAUTH_SECRET`.
 
 4. **Set up the database**:
 
@@ -43,8 +61,8 @@ A social feed and knowledge repository for AI research papers, built with Next.j
    # Generate Prisma client
    pnpm prisma generate
 
-   # Run database migrations (if any)
-   pnpm prisma db push
+   # Create a development migration baseline
+   pnpm prisma migrate dev --name init
    ```
 
 ### Running
@@ -127,7 +145,7 @@ The application implements cursor-based pagination for efficient data loading:
 - `pnpm format` - Format code with Prettier
 - `pnpm prisma studio` - Open Prisma Studio for database management
 - `pnpm prisma generate` - Generate Prisma client
-- `pnpm prisma db push` - Push schema changes to database
+- `pnpm prisma migrate dev` - Create & apply schema migrations locally
 - `pnpm fetch-arxiv` - Fetch arXiv paper metadata as JSON
 - `pnpm test-arxiv` - Test the arXiv fetcher module
 

@@ -1,19 +1,24 @@
 import { FC } from "react";
 
-import { Button, type ButtonProps } from "@/components/ui/Button";
+import { Button } from "@/components/ui/button";
 
-type Props = {
-  loadNext: (count: number) => void;
-  size?: ButtonProps["size"];
-};
+interface LoadMoreProps {
+  loadNext: (limit?: number) => void;
+  isLoading?: boolean;
+  label?: string;
+  limit?: number;
+}
 
-// Note: it's possible to refactor this component into a fully automated
-// "infinite scroll" version, that would call `loadNext` when scrolled into view.
-export const LoadMore: FC<Props> = ({ loadNext, size }) => {
+export const LoadMore: FC<LoadMoreProps> = ({
+  loadNext,
+  isLoading = false,
+  label = "Load more",
+  limit = 20,
+}) => {
   return (
     <div className="mt-4">
-      <Button size={size} onClick={() => loadNext(20)}>
-        Load more
+      <Button onClick={() => loadNext(limit)} disabled={isLoading}>
+        {isLoading ? "Loading..." : label}
       </Button>
     </div>
   );

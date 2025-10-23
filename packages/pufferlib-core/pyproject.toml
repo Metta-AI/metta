@@ -61,7 +61,6 @@ version_scheme = "no-guess-dev"
 local_scheme = "node-and-date"
 root = "../.."
 fallback_version = "0.0.0"
-
 # Provide a specific git command to be used in order to find the correct versioning tags
 git_describe_command = [
   "git",

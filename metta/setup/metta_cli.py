@@ -21,24 +21,14 @@ from metta.setup.components.base import SetupModuleStatus
 from metta.setup.local_commands import app as local_app
 from metta.setup.symlink_setup import app as symlink_app
 from metta.setup.tools.book import app as book_app
+from metta.setup.tools.test_runner.test_cpp import app as cpp_test_runner_app
+from metta.setup.tools.test_runner.test_python import app as python_test_runner_app
 from metta.setup.utils import debug, error, info, success, warning
 from metta.utils.live_run_monitor import app as run_monitor_app
 from softmax.dashboard.report import app as softmax_system_health_app
 
 if TYPE_CHECKING:
     from metta.setup.registry import SetupModule
-
-PYTHON_TEST_FOLDERS = [
-    "tests",
-    "mettascope/tests",
-    "agent/tests",
-    "app_backend/tests",
-    "common/tests",
-    "packages/codebot/tests",
-    "packages/cogames/tests",
-    "packages/gitta/tests",
-    "packages/mettagrid/tests",
-]
 
 VERSION_PATTERN = re.compile(r"^(\d+\.\d+\.\d+(?:\.\d+)?)$")
 DEFAULT_INITIAL_VERSION = "0.0.0.1"
@@ -886,115 +876,6 @@ def cmd_lint(
             success("C++ linting passed!")
 
 
-@app.command(name="ci", help="Run all Python unit tests and all Mettagrid C++ tests")
-def cmd_ci():
-    info("Running Python tests...")
-    python_test_cmd = [
-        "uv",
-        "run",
-        "pytest",
-        *PYTHON_TEST_FOLDERS,
-        "--benchmark-disable",
-        "-n",
-        "auto",
-    ]
-
-    try:
-        subprocess.run(python_test_cmd, cwd=cli.repo_root, check=True)
-        success("Python tests passed!")
-    except subprocess.CalledProcessError as e:
-        error("Python tests failed!")
-        raise typer.Exit(e.returncode) from e
-
-    info("\nBuilding and running C++ tests...")
-    mettagrid_dir = cli.repo_root / "packages" / "mettagrid"
-
-    try:
-        subprocess.run(["make", "test"], cwd=mettagrid_dir, check=True)
-        success("C++ tests passed!")
-        # Note: Benchmarks are not run in CI as they're for performance testing, not correctness
-        # To run benchmarks manually, use: cd packages/mettagrid && make benchmark
-    except subprocess.CalledProcessError as e:
-        error("C++ tests failed!")
-        raise typer.Exit(e.returncode) from e
-
-    success("\nAll CI tests passed!")
-
-
-@app.command(name="benchmark", help="Run C++ and Python benchmarks for mettagrid")
-def cmd_benchmark(
-    verbose: bool = typer.Option(
-        False,
-        "--verbose",
-        "-v",
-        help="Verbose test output. Includes e.g. Python print statements within tests.",
-    ),
-):
-    """Run performance benchmarks for the mettagrid package."""
-    mettagrid_dir = cli.repo_root / "packages" / "mettagrid"
-
-    info("Running mettagrid benchmarks...")
-    info("Note: This may fail if Python environment is not properly configured.")
-    info("If it fails, try running directly: cd packages/mettagrid && make benchmark")
-
-    make_cmd = ["make", "benchmark"]
-    if verbose:
-        make_cmd.append("VERBOSE=1")
-
-    try:
-        subprocess.run(make_cmd, cwd=mettagrid_dir, check=True)
-        success("Benchmarks completed!")
-    except subprocess.CalledProcessError as e:
-        error("Benchmark execution failed!")
-        info("\nTroubleshooting:")
-        info("1. Try building first: cd packages/mettagrid && make build-prod")
-        info("2. Run benchmark binary directly: ./build-release/test_mettagrid_env_benchmark")
-        info("3. Run Python benchmarks: uv run pytest benchmarks/test_mettagrid_env_benchmark.py -v --benchmark-only")
-        raise typer.Exit(e.returncode) from e
-
-
-@app.command(name="test", help="Run all Python unit tests", context_settings={"allow_extra_args": True})
-def cmd_test(ctx: typer.Context):
-    cmd = [
-        "uv",
-        "run",
-        "pytest",
-        *PYTHON_TEST_FOLDERS,
-        "--benchmark-disable",
-        "-n",
-        "auto",
-    ]
-    if ctx.args:
-        cmd.extend(ctx.args)
-    try:
-        info(f"Running: {' '.join(cmd)}")
-        subprocess.run(cmd, cwd=cli.repo_root, check=True)
-    except subprocess.CalledProcessError as e:
-        raise typer.Exit(e.returncode) from e
-
-
-@app.command(
-    name="pytest",
-    help="Run pytest with passed arguments",
-    context_settings={"allow_extra_args": True, "allow_interspersed_args": False},
-)
-def cmd_pytest(ctx: typer.Context):
-    cmd = [
-        "uv",
-        "run",
-        "pytest",
-        "--benchmark-disable",
-        "-n",
-        "auto",
-    ]
-    if ctx.args:
-        cmd.extend(ctx.args)
-    try:
-        subprocess.run(cmd, cwd=cli.repo_root, check=True)
-    except subprocess.CalledProcessError as e:
-        raise typer.Exit(e.returncode) from e
-
-
 @app.command(name="tool", help="Run a tool from the tools/ directory", context_settings={"allow_extra_args": True})
 def cmd_tool(
     tool_name: Annotated[str, typer.Argument(help="Name of the tool to run")],
@@ -1093,6 +974,8 @@ app.add_typer(local_app, name="local")
 app.add_typer(book_app, name="book")
 app.add_typer(symlink_app, name="symlink-setup")
 app.add_typer(softmax_system_health_app, name="softmax-system-health")
+app.add_typer(python_test_runner_app, name="pytest")
+app.add_typer(cpp_test_runner_app, name="cpptest")
 
 
 def main() -> None:

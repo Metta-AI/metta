@@ -30,129 +30,80 @@ export type InstitutionDTO = {
  * Load all institutions with aggregated statistics from papers
  */
 export async function loadInstitutions(): Promise<InstitutionDTO[]> {
-  // Get all papers with institutions and their user interactions for star counting
-  const papers = await prisma.paper.findMany({
-    where: {
-      institutions: {
-        isEmpty: false,
-      },
-    },
-    select: {
-      id: true,
-      title: true,
-      link: true,
-      createdAt: true,
-      stars: true,
-      institutions: true,
-      tags: true,
-      paperAuthors: {
-        select: {
-          author: {
-            select: {
-              id: true,
-              name: true,
+  // Get all institutions with their papers via the join table
+  const institutions = await prisma.institution.findMany({
+    include: {
+      papers: {
+        include: {
+          paper: {
+            include: {
+              paperAuthors: {
+                include: {
+                  author: {
+                    select: {
+                      id: true,
+                      name: true,
+                    },
+                  },
+                },
+              },
+              userPaperInteractions: {
+                where: {
+                  starred: true,
+                },
+                select: {
+                  starred: true,
+                },
+              },
             },
           },
         },
       },
-      userPaperInteractions: {
-        where: {
-          starred: true,
-        },
-        select: {
-          starred: true,
-        },
-      },
-    },
-    orderBy: {
-      createdAt: "desc",
     },
   });
 
-  // Aggregate data by institution
-  const institutionMap = new Map<
-    string,
-    {
-      papers: Array<{
-        id: string;
-        title: string;
-        link: string | null;
-        createdAt: Date;
-        stars: number;
-        userStars: number;
-        tags: string[];
-        authors: Array<{ id: string; name: string }>;
-      }>;
-      authors: Set<string>;
-      authorDetails: Map<
-        string,
-        { id: string; name: string; paperCount: number }
-      >;
-    }
-  >();
+  // Map institutions to DTO format
+  const institutionDTOs: InstitutionDTO[] = institutions.map((institution) => {
+    const papers = institution.papers.map((pi) => pi.paper);
 
-  // Process each paper
-  papers.forEach((paper) => {
-    const paperAuthors = paper.paperAuthors.map((pa) => pa.author);
-    const userStarCount = paper.userPaperInteractions.length; // Count of users who starred this paper
+    // Track authors and their paper counts
+    const authorDetails = new Map<
+      string,
+      { id: string; name: string; paperCount: number }
+    >();
+    const authorSet = new Set<string>();
 
-    paper.institutions.forEach((institution) => {
-      if (!institutionMap.has(institution)) {
-        institutionMap.set(institution, {
-          papers: [],
-          authors: new Set(),
-          authorDetails: new Map(),
-        });
-      }
+    papers.forEach((paper) => {
+      paper.paperAuthors.forEach((pa) => {
+        authorSet.add(pa.author.id);
 
-      const instData = institutionMap.get(institution)!;
-
-      // Add paper with user star count
-      instData.papers.push({
-        id: paper.id,
-        title: paper.title,
-        link: paper.link,
-        createdAt: paper.createdAt,
-        stars: paper.stars,
-        userStars: userStarCount,
-        tags: paper.tags,
-        authors: paperAuthors,
-      });
-
-      // Track authors
-      paperAuthors.forEach((author) => {
-        instData.authors.add(author.id);
-
-        if (instData.authorDetails.has(author.id)) {
-          const authorDetail = instData.authorDetails.get(author.id)!;
-          authorDetail.paperCount++;
+        if (authorDetails.has(pa.author.id)) {
+          authorDetails.get(pa.author.id)!.paperCount++;
         } else {
-          instData.authorDetails.set(author.id, {
-            id: author.id,
-            name: author.name,
+          authorDetails.set(pa.author.id, {
+            id: pa.author.id,
+            name: pa.author.name,
             paperCount: 1,
           });
         }
       });
     });
-  });
 
-  // Convert to InstitutionDTO array
-  const institutions: InstitutionDTO[] = Array.from(
-    institutionMap.entries()
-  ).map(([name, data]) => {
-    const sortedPapers = data.papers.sort(
+    // Sort papers by date
+    const sortedPapers = papers.sort(
       (a, b) => b.createdAt.getTime() - a.createdAt.getTime()
     );
-    const recentPapers = sortedPapers.slice(0, 5);
 
-    const totalUserStars = data.papers.reduce((sum, paper) => sum + paper.userStars, 0);
-    const avgStars =
-      data.papers.length > 0 ? totalUserStars / data.papers.length : 0;
+    // Calculate stars
+    const totalUserStars = papers.reduce(
+      (sum, paper) => sum + paper.userPaperInteractions.length,
+      0
+    );
+    const avgStars = papers.length > 0 ? totalUserStars / papers.length : 0;
 
     // Get top categories from tags
     const categoryCount = new Map<string, number>();
-    data.papers.forEach((paper) => {
+    papers.forEach((paper) => {
       paper.tags.forEach((tag) => {
         categoryCount.set(tag, (categoryCount.get(tag) || 0) + 1);
       });
@@ -163,22 +114,32 @@ export async function loadInstitutions(): Promise<InstitutionDTO[]> {
       .slice(0, 5)
       .map(([category]) => category);
 
-    // Get most recent activity
-    const recentActivity =
-      sortedPapers.length > 0 ? sortedPapers[0].createdAt : null;
+    // Get recent papers
+    const recentPapers = sortedPapers.slice(0, 5).map((paper) => ({
+      id: paper.id,
+      title: paper.title,
+      link: paper.link,
+      createdAt: paper.createdAt,
+      stars: paper.stars,
+      authors: paper.paperAuthors.map((pa) => ({
+        id: pa.author.id,
+        name: pa.author.name,
+      })),
+    }));
 
-    // Convert authors to array and sort by paper count
-    const authors = Array.from(data.authorDetails.values())
+    // Get top authors
+    const authors = Array.from(authorDetails.values())
       .sort((a, b) => b.paperCount - a.paperCount)
-      .slice(0, 10); // Top 10 authors
+      .slice(0, 10);
 
     return {
-      name,
-      paperCount: data.papers.length,
-      authorCount: data.authors.size,
+      name: institution.name,
+      paperCount: papers.length,
+      authorCount: authorSet.size,
       totalStars: totalUserStars,
       avgStars: Math.round(avgStars * 10) / 10,
-      recentActivity,
+      recentActivity:
+        sortedPapers.length > 0 ? sortedPapers[0].createdAt : null,
       topCategories,
       recentPapers,
       authors,
@@ -186,7 +147,7 @@ export async function loadInstitutions(): Promise<InstitutionDTO[]> {
   });
 
   // Sort by paper count (most active institutions first)
-  return institutions.sort((a, b) => b.paperCount - a.paperCount);
+  return institutionDTOs.sort((a, b) => b.paperCount - a.paperCount);
 }
 
 /**
