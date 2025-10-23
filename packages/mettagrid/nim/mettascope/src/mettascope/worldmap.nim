@@ -1,7 +1,8 @@
 import
   std/[math, os, strutils, tables, strformat, random],
   boxy, vmath, windy, fidget2/[hybridrender, common],
-  common, panels, actions, utils, replays, objectinfo, pathfinding, tilemap
+  common, panels, actions, utils, replays, objectinfo, pathfinding, tilemap,
+  ../../tests/perlin
 
 const TS = 1.0 / 64.0 # Tile scale.
 
@@ -100,8 +101,10 @@ proc buildAtlas*() =
       let name = path.replace(dataDir & "/", "").replace(".png", "")
       bxy.addImage(name, readImage(path))
 
-  let terrainMap = generateTileMap(1024, 1024, 64, "tools/blob7x8.png")
-  terrainMap.setupGPU()
+  bxy.flush()
+  let terrainMap = generateTileMap(1024, 1024, 64, dataDir & "/blob7x8.png")
+  bxy.reinitialize()
+
 
 proc useSelections*(panel: Panel) =
   ## Reads the mouse position and selects the thing under it.
@@ -673,6 +676,20 @@ proc drawWorldMain*() =
     drawGrid()
 
   drawThoughtBubbles()
+
+
+  if terrainMap != nil:
+    bxy.flush()
+    let m = bxy.getTransform()
+    # let mvp = mat4(
+    #   m[0, 0], m[0, 1], m[0, 2], 0,
+    #   m[1, 0], m[1, 1], m[1, 2], 0,
+    #   0, 0, 0, 1,
+    #   m[2, 0], m[2, 1], m[2, 2], 1
+    # )
+    let mvp = mat4()
+    terrainMap.draw(mvp, 1.0f)
+    bxy.reinitialize()
 
 proc fitFullMap*(panel: Panel) =
   ## Set zoom and pan so the full map fits in the panel.
