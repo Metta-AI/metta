@@ -30,8 +30,7 @@ def make_machina_procedural_map_builder(
     base_biome: str = "caves",
     base_biome_config: dict[str, Any] | None = None,
     extractor_coverage: float = 0.01,
-    extractor_names: list[str] | None = None,
-    extractor_weights: dict[str, float] | None = None,
+    extractors: dict[str, float] | None = None,
     biome_weights: dict[str, float] | None = None,
     dungeon_weights: dict[str, float] | None = None,
     biome_count: int | None = None,
@@ -82,11 +81,9 @@ def make_machina_procedural_map_builder(
         "carbon_extractor": 0.3,
     }
 
-    names = extractor_names or list(default_extractors.keys())
-    weights = extractor_weights or {name: default_extractors.get(name, 1.0) for name in names}
-
-    chest_names = names
-    chest_weights = weights
+    extractor_config = extractors or default_extractors
+    extractor_names_final = list(extractor_config.keys())
+    extractor_weights_final = extractor_config
 
     # Optional layered biomes via BSPLayout
     # Autoscale counts based on available area if not explicitly provided
@@ -249,8 +246,8 @@ def make_machina_procedural_map_builder(
         ChildrenAction(
             scene=UniformExtractorScene.Config(
                 target_coverage=extractor_coverage,
-                extractor_names=chest_names,
-                extractor_weights=chest_weights,
+                extractor_names=extractor_names_final,
+                extractor_weights=extractor_weights_final,
                 clear_existing=False,
             ),
             where="full",
