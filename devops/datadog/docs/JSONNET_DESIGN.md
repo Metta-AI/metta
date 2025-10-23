@@ -231,10 +231,10 @@ brew install jsonnet
 jsonnet dashboards/softmax_health.jsonnet > templates/softmax_health.json
 
 # Build all dashboards
-make build-dashboards
+metta datadog dashboard build
 
 # Push to Datadog
-make push
+metta datadog dashboard push
 ```
 
 ### Updated Makefile
@@ -251,7 +251,7 @@ build-dashboards:
 
 # Complete workflow
 workflow: build-dashboards diff
-	@echo "Ready to push. Run: make push"
+	@echo "Ready to push. Run: metta datadog dashboard push"
 ```
 
 ## Advanced: CSS Grid-Like Syntax

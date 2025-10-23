@@ -2,7 +2,34 @@
 
 This directory contains local issue tracking files for Datadog collector development work.
 
+## Work Plan
+
+See **[WORKPLAN.md](WORKPLAN.md)** for the comprehensive execution strategy that coordinates all issues below.
+
+**Key Insight**: Don't migrate architecture until we've validated the metric naming pattern and finalized metric selection.
+
+**Timeline**: 13 days (2.5 weeks) across 4 phases
+1. Foundation & Research (2-3 days)
+2. Team Alignment & Quick Wins (3-4 days)
+3. Deployment & Verification (2-3 days)
+4. Documentation & PR Finalization (1-2 days)
+
 ## Active Issues
+
+### [ISSUE-pr-review-feedback.md](ISSUE-pr-review-feedback.md)
+**Status**: 📋 Planned | **Priority**: High
+
+Address review feedback from PR #3384 before merging to main.
+
+**Key Concerns**:
+- Validate metric naming topology (`{service}.{category}.{metric_name}` vs tags)
+- Replace Makefile with Typer CLI for better composability
+- Review and refine metric selection with team input
+- Document metric rationale and KPIs
+
+**Reviewer**: @nishu-builder
+
+---
 
 ### [ISSUE-migrate-github-collector.md](ISSUE-migrate-github-collector.md)
 **Status**: 📋 Planned | **Priority**: High
