@@ -66,16 +66,16 @@ We use **Jsonnet** (instead of raw JSON or Terraform) because:
 
 ```bash
 # 1. Pull dashboards from Datadog
-make pull
+metta datadog dashboard pull
 
 # 2. Edit JSON files
 vim templates/softmax_system_health.json
 
 # 3. See what changed
-make diff
+metta datadog dashboard diff
 
 # 4. Push to Datadog
-make push
+metta datadog dashboard push
 
 # 5. Commit to git
 git add templates/
@@ -96,10 +96,10 @@ vim components/ci.libsonnet
 vim dashboards/softmax_health.jsonnet
 
 # 3. Build JSON from Jsonnet
-make build
+metta datadog dashboard build
 
 # 4. Push to Datadog
-make push
+metta datadog dashboard push
 
 # 5. Version control
 git commit
@@ -112,11 +112,11 @@ components/*.libsonnet (reusable widgets)
         ↓
 dashboards/*.jsonnet (compose dashboards)
         ↓
-make build (generate JSON with jsonnet)
+metta datadog dashboard build (generate JSON with jsonnet)
         ↓
 templates/*.json (generated output)
         ↓
-make push (upload to Datadog)
+metta datadog dashboard push (upload to Datadog)
         ↓
 Datadog UI (updated!)
         ↓
@@ -241,13 +241,13 @@ local widgets = import '../lib/widgets.libsonnet';
 
 ```bash
 # List all metrics
-make list-metrics
+metta datadog dashboard metrics
 
 # Search for specific metrics
-./list_metrics.py --search=cpu
+uv run python devops/datadog/scripts/list_metrics.py --search=cpu
 
 # Find metrics to use in your widgets
-./list_metrics.py --search=commits
+uv run python devops/datadog/scripts/list_metrics.py --search=commits
 ```
 
 ---
@@ -310,13 +310,13 @@ local apm = import '../components/apm.libsonnet';
 
 ```bash
 # Build JSON from Jsonnet
-make build
+metta datadog dashboard build
 
 # Review generated JSON
 cat templates/my_dashboard.json
 
 # Push to Datadog
-make push
+metta datadog dashboard push
 ```
 
 ---
@@ -326,7 +326,7 @@ make push
 ### List All Dashboards
 
 ```bash
-make list
+metta datadog dashboard list
 ```
 
 Shows all dashboards in your Datadog account with IDs, titles, and URLs.
@@ -334,7 +334,7 @@ Shows all dashboards in your Datadog account with IDs, titles, and URLs.
 ### Pull All Dashboards
 
 ```bash
-make pull
+metta datadog dashboard pull
 ```
 
 Downloads all dashboards as JSON files to `templates/`.
@@ -342,7 +342,7 @@ Downloads all dashboards as JSON files to `templates/`.
 ### Export Specific Dashboard
 
 ```bash
-make export ID=abc-123-def
+metta datadog dashboard export abc-123-def
 ```
 
 Downloads one dashboard by ID to `templates/dashboard_abc-123-def.json`.
@@ -355,13 +355,13 @@ vim templates/softmax_system_health.json
 
 # Option 2: Edit in Datadog UI, then pull
 # (Make changes in UI)
-make pull  # Sync changes to local JSON
+metta datadog dashboard pull  # Sync changes to local JSON
 ```
 
 ### Review Changes
 
 ```bash
-make diff
+metta datadog dashboard diff
 ```
 
 Shows git diff of all JSON changes.
@@ -370,10 +370,10 @@ Shows git diff of all JSON changes.
 
 ```bash
 # Dry run first (safe - no changes)
-make dry-run
+metta datadog dashboard push --dry-run
 
 # Actually push
-make push
+metta datadog dashboard push
 ```
 
 ### Create New Dashboard
@@ -383,7 +383,7 @@ make push
 ```bash
 # 1. Create dashboard in Datadog UI
 # 2. Pull it down
-make pull
+metta datadog dashboard pull
 
 # 3. Find the new JSON file
 ls -lt templates/  # Shows newest first
@@ -411,7 +411,7 @@ git commit -m "Remove deprecated dashboard"
 
 ```bash
 # 1. Export the dashboard you want to clone
-make export ID=abc-123-def
+metta datadog dashboard export abc-123-def
 
 # 2. Copy and edit
 cp templates/dashboard_abc-123-def.json templates/my_new_dashboard.json
@@ -422,7 +422,7 @@ vim templates/my_new_dashboard.json
 # Change the "title" field
 
 # 4. Push to create new dashboard
-make push
+metta datadog dashboard push
 ```
 
 ---
@@ -434,18 +434,18 @@ make push
 Always pull latest from Datadog before making changes:
 
 ```bash
-make pull
+metta datadog dashboard pull
 vim templates/my_dashboard.json
-make push
+metta datadog dashboard push
 ```
 
-### 2. Use make diff
+### 2. Use metta datadog dashboard diff
 
 Review changes before pushing:
 
 ```bash
-make diff    # See what changed
-make push    # Only if changes look good
+metta datadog dashboard diff    # See what changed
+metta datadog dashboard push    # Only if changes look good
 ```
 
 ### 3. Small, Focused Changes
@@ -453,12 +453,12 @@ make push    # Only if changes look good
 ```bash
 # Good - one dashboard at a time
 vim templates/dashboard1.json
-make diff
-make push
+metta datadog dashboard diff
+metta datadog dashboard push
 
 # Less ideal - many changes at once
 vim templates/*.json
-make push  # Harder to debug if something fails
+metta datadog dashboard push  # Harder to debug if something fails
 ```
 
 ### 4. Descriptive Commit Messages
@@ -494,18 +494,20 @@ To create a new dashboard from existing one:
 
 ---
 
-## Makefile Commands Reference
+## CLI Commands Reference
 
 | Command | Description |
 |---------|-------------|
-| `make help` | Show all available commands |
-| `make list` | List all dashboards in Datadog |
-| `make pull` | Download all dashboards as JSON |
-| `make push` | Upload all JSON dashboards to Datadog |
-| `make export ID=xxx` | Download specific dashboard |
-| `make diff` | Show git diff of changes |
-| `make dry-run` | Preview push without making changes |
-| `make clean` | Remove temporary files |
+| `metta datadog dashboard --help` | Show all available commands |
+| `metta datadog dashboard list` | List all dashboards in Datadog |
+| `metta datadog dashboard pull` | Download all dashboards as JSON |
+| `metta datadog dashboard push` | Upload all JSON dashboards to Datadog |
+| `metta datadog dashboard export <id>` | Download specific dashboard |
+| `metta datadog dashboard diff` | Show git diff of changes |
+| `metta datadog dashboard push --dry-run` | Preview push without making changes |
+| `metta datadog dashboard clean` | Remove generated JSON files |
+| `metta datadog dashboard build` | Build dashboards from Jsonnet |
+| `metta datadog dashboard metrics` | List available metrics |
 
 ---
 
@@ -522,12 +524,12 @@ source ./load_env.sh
 
 ```bash
 # Forgot to pull first
-make push
+metta datadog dashboard push
 # Error: No JSON files found in templates/
 
 # Solution:
-make pull
-make push
+metta datadog dashboard pull
+metta datadog dashboard push
 ```
 
 ### Push Says "Created" Instead of "Updated"
@@ -543,7 +545,7 @@ Check the `"id"` field in your JSON file.
 
 ```bash
 # Invalid JSON
-make push
+metta datadog dashboard push
 # Error: Invalid JSON in my_dashboard.json
 
 # Solution: Validate JSON

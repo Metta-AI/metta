@@ -128,14 +128,14 @@ local ci = import '../components/ci.libsonnet';
 
 ```bash
 # Build JSON from Jsonnet
-make build
+metta datadog dashboard build
 
 # Review generated JSON
 cat templates/test.json
 
 # Push to Datadog
 source ./load_env.sh
-make push
+metta datadog dashboard push
 ```
 
 ## Daily Workflow
@@ -146,13 +146,13 @@ vim components/ci.libsonnet
 vim dashboards/my_dashboard.jsonnet
 
 # 2. Build JSON from Jsonnet
-make build
+metta datadog dashboard build
 
 # 3. Review changes
-make diff
+metta datadog dashboard diff
 
 # 4. Push to Datadog
-make push
+metta datadog dashboard push
 
 # 5. Commit source files (.jsonnet, not .json!)
 git add components/ dashboards/ lib/
@@ -165,11 +165,11 @@ Find metrics to use in your widgets:
 
 ```bash
 # List all metrics
-make list-metrics
+metta datadog dashboard metrics
 
-# Search for specific metrics
-./scripts/list_metrics.py --search=cpu
-./scripts/list_metrics.py --search=commits
+# Search for specific metrics (using CLI directly)
+uv run python devops/datadog/scripts/list_metrics.py --search=cpu
+uv run python devops/datadog/scripts/list_metrics.py --search=commits
 ```
 
 ## Example: Grid Layout
@@ -213,12 +213,12 @@ local ci = import '../components/ci.libsonnet';
 ## Common Commands
 
 ```bash
-make help          # Show all available commands
-make list-metrics  # Discover metrics
-make build         # Build dashboards from Jsonnet
-make diff          # Show changes
-make push          # Upload to Datadog
-make list          # List dashboards in Datadog
+metta datadog dashboard --help     # Show all available commands
+metta datadog dashboard metrics    # Discover metrics
+metta datadog dashboard build      # Build dashboards from Jsonnet
+metta datadog dashboard diff       # Show changes
+metta datadog dashboard push       # Upload to Datadog
+metta datadog dashboard list       # List dashboards in Datadog
 ```
 
 ## Example: Mix and Match
@@ -275,7 +275,7 @@ source ./load_env.sh
 2. **Extract existing dashboards**:
    ```bash
    # Pull current dashboards
-   make pull
+   metta datadog dashboard pull
 
    # Convert to Jsonnet components
    # (manual extraction - see existing templates/)
@@ -292,7 +292,7 @@ source ./load_env.sh
 2. **Use grid layouts** - Easier than manual positioning
 3. **Mix and match** - Combine widgets from different components
 4. **Version control .jsonnet** - Not .json (those are generated)
-5. **Discover metrics** - Use `make list-metrics` to find data sources
+5. **Discover metrics** - Use `metta datadog dashboard metrics` to find data sources
 
 ---
 
