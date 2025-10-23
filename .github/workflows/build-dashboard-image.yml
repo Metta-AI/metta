@@ -10,6 +10,8 @@ on:
     paths:
       - "softmax/**"
       - "common/**"
+      - "devops/datadog/**"
+      - "devops/charts/dashboard-cronjob/**"
       - "devops/tools/install-system.sh"
       - "install.sh"
       - ".github/workflows/build-dashboard-image.yml"

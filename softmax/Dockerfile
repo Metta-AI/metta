@@ -10,12 +10,12 @@ WORKDIR /workspace/metta
 # Install system dependencies
 RUN bash ./devops/tools/install-system.sh
 
-# Install dependencies for softmax package only
-WORKDIR /workspace/metta/softmax
+# Install all dependencies (includes asana, skypilot, github libraries)
 RUN uv sync --frozen --no-dev
 
-# Verify imports work
-RUN uv run python -c "import softmax.dashboard.report" 
+# Verify collector imports work
+RUN uv run python -c "from devops.datadog.collectors import GitHubCollector, SkypilotCollector, AsanaCollector; print('✓ All collectors imported successfully')"
 
-# Run the dashboard
-CMD ["uv", "run", "python", "-m", "softmax.dashboard.report", "--push"]
+# Default command runs GitHub collector
+# Helm chart will override this command to run specific collectors
+CMD ["uv", "run", "python", "devops/datadog/run_collector.py", "github", "--push"]
