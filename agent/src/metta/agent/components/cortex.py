@@ -200,13 +200,8 @@ class CortexTD(nn.Module):
         device = x.device
         dtype = x.dtype
 
-        # Require TT (bptt) and batch size to be present
-        if "bptt" not in td.keys():
-            raise KeyError("'bptt' key is required in TensorDict but was not found.")
         TT = int(td["bptt"][0].item())
 
-        if "batch" not in td.keys():
-            raise KeyError("'batch' key is required in TensorDict but was not found.")
         B = int(td["batch"][0].item())
 
         if TT <= 0 or B <= 0:
