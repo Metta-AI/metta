@@ -165,6 +165,7 @@ def _configure_pr_similarity_mcp_server(force: bool) -> None:
 
     _ensure_pr_similarity_cache(force=force)
     _install_pr_similarity_package(force=force)
+    _install_claude_mcp_server(force=force)
 
     codex_executable = shutil.which("codex")
     if not codex_executable:
@@ -309,6 +310,66 @@ def _install_pr_similarity_package(*, force: bool) -> None:
     except subprocess.CalledProcessError as error:  # pragma: no cover - external dependency
         stderr = (error.stderr or "").strip()
         warning(f"Failed to install metta-pr-similarity package: {stderr if stderr else error}")
+
+
+def _install_claude_mcp_server(*, force: bool) -> None:
+    if shutil.which("claude") is None:
+        debug("Claude CLI not found on PATH. Skipping Claude MCP configuration.")
+        return
+
+    if shutil.which("metta-pr-similarity-mcp") is None:
+        warning("metta-pr-similarity-mcp is not available on PATH; skipping Claude MCP registration.")
+        return
+
+    from metta.setup.saved_settings import UserType, get_saved_settings
+    from metta.tools.pr_similarity import API_KEY_ENV, require_api_key
+
+    saved_settings = get_saved_settings()
+    if saved_settings.user_type not in {UserType.SOFTMAX, UserType.SOFTMAX_DOCKER}:
+        debug(
+            f"Skipping Claude MCP registration for non-employee user type {saved_settings.user_type.value}",
+        )
+        return
+
+    command_path = shutil.which("metta-pr-similarity-mcp")
+    if command_path is None:
+        warning("metta-pr-similarity-mcp is not available on PATH; skipping Claude MCP registration.")
+        return
+
+    if not force:
+        subprocess.run(
+            ["claude", "mcp", "remove", "metta-pr-similarity"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            check=False,
+        )
+
+    command = [
+        "claude",
+        "mcp",
+        "add",
+        "--transport",
+        "stdio",
+        "metta-pr-similarity",
+        "--env",
+        f"{API_KEY_ENV}={require_api_key(API_KEY_ENV)}",
+        "--",
+        command_path,
+    ]
+
+    try:
+        subprocess.run(
+            command,
+            check=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+        info("Configured Claude MCP server 'metta-pr-similarity'.")
+    except subprocess.CalledProcessError as error:  # pragma: no cover - external dependency
+        stderr = (error.stderr or "").strip()
+        warning(f"Failed to configure Claude MCP server: {stderr if stderr else error}")
 
 
 def _run_ruff(python_targets: list[str] | None, *, fix: bool) -> None:
