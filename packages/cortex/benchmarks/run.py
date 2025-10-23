@@ -4,12 +4,23 @@ import argparse
 import importlib
 import os
 import sys
+from pathlib import Path
 from typing import List, Sequence
 
 import torch
 
-# Import from sibling module normally, so this script can be run directly
-from common import (
+if __package__ in (None, ""):
+    _FILE = Path(__file__).resolve()
+    _pkg_root = _FILE.parent  # packages/cortex/benchmarks
+    _parent = _pkg_root.parent  # packages/cortex
+    if str(_parent) not in sys.path:
+        sys.path.insert(0, str(_parent))
+    _src = _parent / "src"
+    if _src.exists() and str(_src) not in sys.path:
+        sys.path.insert(0, str(_src))
+    __package__ = _pkg_root.name
+
+from .common import (
     BenchmarkCase,
     BenchmarkDefinition,
     BenchmarkSettings,
