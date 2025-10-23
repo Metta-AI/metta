@@ -51,7 +51,7 @@ def base_config():
             swap=ActionConfig(),
         ),
         objects={
-            "wall": WallConfig(type_id=1, swappable=False),
+            "wall": WallConfig(swappable=False),
         },
         agent=AgentConfig(rewards=AgentRewards()),
         allow_diagonals=True,

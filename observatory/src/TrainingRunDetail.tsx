@@ -7,7 +7,7 @@ import { EvalSelector } from './components/EvalSelector'
 import { MetricSelector } from './components/MetricSelector'
 import { TagEditor } from './TagEditor'
 import { DescriptionEditor } from './DescriptionEditor'
-import { METTASCOPE_REPLAY_URL } from './constants'
+import { METTASCOPE_REPLAY_URL_PREFIX } from './constants'
 import { getShortName } from './utils/evalNameUtils'
 
 const TRAINING_RUN_DETAIL_CSS = `
@@ -364,8 +364,7 @@ export function TrainingRunDetail({ repo }: TrainingRunDetailProps) {
     const evalData = scorecardData?.cells[policyUri]?.[evalName]
     if (!evalData?.replayUrl) return
 
-    const replay_url_prefix = `${METTASCOPE_REPLAY_URL}/?replayUrl=`
-    window.open(replay_url_prefix + evalData.replayUrl, '_blank')
+    window.open(METTASCOPE_REPLAY_URL_PREFIX + evalData.replayUrl, '_blank')
   }
 
   const toggleLock = () => {

@@ -90,37 +90,40 @@ class CoreTrainingLoop:
 
         while not self.experience.ready_for_training:
             # Get observation from environment
-            o, r, d, t, info, training_env_id, _, num_steps = env.get_observations()
+            with context.stopwatch("_rollout.env_wait"):
+                o, r, d, t, info, training_env_id, _, num_steps = env.get_observations()
             last_env_id = training_env_id
 
             # Prepare data for policy
-            td = buffer_step[training_env_id].clone()
-            target_device = td.device
-            td["env_obs"] = o.to(device=target_device, non_blocking=True)
+            with context.stopwatch("_rollout.td_prep"):
+                td = buffer_step[training_env_id].clone()
+                target_device = td.device
+                td["env_obs"] = o.to(device=target_device, non_blocking=True)
 
-            td["rewards"] = r.to(device=target_device, non_blocking=True)
+                td["rewards"] = r.to(device=target_device, non_blocking=True)
 
-            # CRITICAL FIX for MPS: Convert dtype BEFORE moving to device, and use blocking transfer
-            # MPS has two bugs:
-            # 1. bool->float32 conversion during .to(device=mps, dtype=float32) produces NaN
-            # 2. non_blocking=True causes race conditions with uninitialized data
-            # Solution: Convert dtype on CPU first, then use blocking transfer to MPS
-            if target_device.type == "mps":
-                td["dones"] = d.to(dtype=torch.float32).to(device=target_device, non_blocking=False)
-                td["truncateds"] = t.to(dtype=torch.float32).to(device=target_device, non_blocking=False)
-            else:
-                # On CUDA/CPU, combined conversion is safe and faster
-                td["dones"] = d.to(device=target_device, dtype=torch.float32, non_blocking=True)
-                td["truncateds"] = t.to(device=target_device, dtype=torch.float32, non_blocking=True)
-            td["training_env_ids"] = self._gather_env_indices(training_env_id, td.device).unsqueeze(1)
-            self.add_last_action_to_td(td, env)
+                # CRITICAL FIX for MPS: Convert dtype BEFORE moving to device, and use blocking transfer
+                # MPS has two bugs:
+                # 1. bool->float32 conversion during .to(device=mps, dtype=float32) produces NaN
+                # 2. non_blocking=True causes race conditions with uninitialized data
+                # Solution: Convert dtype on CPU first, then use blocking transfer to MPS
+                if target_device.type == "mps":
+                    td["dones"] = d.to(dtype=torch.float32).to(device=target_device, non_blocking=False)
+                    td["truncateds"] = t.to(dtype=torch.float32).to(device=target_device, non_blocking=False)
+                else:
+                    # On CUDA/CPU, combined conversion is safe and faster
+                    td["dones"] = d.to(device=target_device, dtype=torch.float32, non_blocking=True)
+                    td["truncateds"] = t.to(device=target_device, dtype=torch.float32, non_blocking=True)
+                td["training_env_ids"] = self._gather_env_indices(training_env_id, td.device).unsqueeze(1)
+                self.add_last_action_to_td(td, env)
 
-            self._ensure_rollout_metadata(td)
+                self._ensure_rollout_metadata(td)
 
             # Allow losses to mutate td (policy inference, bookkeeping, etc.)
-            context.training_env_id = training_env_id
-            for loss in self.losses.values():
-                loss.rollout(td, context)
+            with context.stopwatch("_rollout.inference"):
+                context.training_env_id = training_env_id
+                for loss in self.losses.values():
+                    loss.rollout(td, context)
 
             assert "actions" in td, "No loss performed inference - at least one loss must generate actions"
             raw_actions = td["actions"].detach()
@@ -154,7 +157,8 @@ class CoreTrainingLoop:
             target_buffer.copy_(actions_column)
 
             # Ship actions to the environment
-            env.send_actions(td["actions"].cpu().numpy())
+            with context.stopwatch("_rollout.send"):
+                env.send_actions(td["actions"].cpu().numpy())
 
             infos_list: list[dict[str, Any]] = list(info) if info else []
             if infos_list:

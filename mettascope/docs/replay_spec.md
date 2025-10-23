@@ -43,9 +43,10 @@ These are the constants that are stored at the top of the replay.
 }
 ```
 
-There are several key-to-string mapping arrays that are stored in the replay. We don't want to store full strings
-everywhere so we store `type_id`, `action_id`, `items`, `group_id` as numbers. They correspond to `type_names`,
-`action_names`, `item_names`, `group_names`.
+There are several key-to-string mapping arrays stored in the replay. Objects refer to these mappings by using
+lightweight identifiers: `type_name` must match an entry in `type_names`, while `action_id`, `items`, and `group_id`
+remain numeric indices into `action_names`, `item_names`, and `group_names` respectively. Legacy replays may still
+include a numeric `type_id`, but new data should rely on the string `type_name` field.
 
 ```json
 {
@@ -90,7 +91,7 @@ can be a number, boolean, or a list of numbers.
 ```json
 {
   "id": 99,
-  "type_id": 2,
+  "type_name": "agent",
   "agent_id": 0,
   "rotation": [[0, 1], [10, 2], [20, 3]],
   "location": [[0, [10, 10]], [1, [11, 10]], [2, [12, 11]]],
@@ -99,10 +100,11 @@ can be a number, boolean, or a list of numbers.
 }
 ```
 
-In this example, the agent `type_id` - 2 in this case - never changes, so it's a constant. When looking up
-`type_names[type_id]`, we get the name of the type, which is `"agent"`. The mapping between IDs and names can change
-between replays. The `id` is a constant as well. All objects have IDs. The `agent_id` is a constant as well. Note there
-are two IDs, one for the object and one for the agent. Agents have two IDs. The `rotation` is a time series of values.
+In this example, the agent `type_name` is `"agent"`, which must appear in the `type_names` array. Legacy files might
+also include a numeric `type_id`; when present it maps into `type_names[type_id]`. The mapping between entries and
+names can change between replays. The `id` is a constant as well. All objects have IDs. The `agent_id` is a constant as
+well. Note there are two IDs, one for the object and one for the agent. Agents have two IDs. The `rotation` is a time
+series of values.
 The rotation is 1 at step 0, 2 at step 10, and 3 at step 20.
 
 Here is the expanded version of the `rotation` key:
@@ -130,7 +132,8 @@ As another example, if the `rotation` key was always 1, it could also be stored 
 Here are the keys supported for both agents and objects:
 
 - `id` - Usually a constant. The id of the object.
-- `type_id` - Usually a constant. The type of the object that references the `type_names` array.
+- `type_name` - Usually a constant. The type of the object; its value must be present in the `type_names` array. Legacy
+  data may include a numeric `type_id` as an additional field mapping into the same array.
 - `location` - The [x, y, z] location of the object (sometimes called the column and row). Note: The z coordinate is for
   the layer, it is currently unused and typically set to 0.
 - `orientation` - The rotation of the object.
@@ -224,7 +227,7 @@ On step 0:
 
 ```json
 {
-  "type_id": 2,
+  "type_name": "agent",
   "id": 99,
   "agent_id": 0,
   "rotation": 3,
@@ -234,7 +237,7 @@ On step 0:
 }
 ````
 
-On later steps, only the `id` is required and any changed keys are sent. Many keys like `type_id`, `agent_id`,
+On later steps, only the `id` is required and any changed keys are sent. Many keys like `type_name`, `agent_id`,
 `group_id`, etc. don't change so they are only sent on step 0. While other keys like `location`, `inventory`, etc. are
 sent every time they change.
 

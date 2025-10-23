@@ -224,8 +224,8 @@ jobs:
           cd observatory
           pnpm run lint
 
-  unit-tests:
-    name: "Unit Tests - Python"
+  python-tests:
+    name: "Tests - Python"
     needs: [graphite-ci-optimizer, setup-checks]
     if: |
       (needs.graphite-ci-optimizer.outputs.should_skip == 'false') &&
@@ -253,14 +253,18 @@ jobs:
           echo "PUFFERLIB_CACHE_DIR=$HOME/pufferlib-cache" >> $GITHUB_ENV
           mkdir -p $HOME/pufferlib-cache
 
-      - name: Run all package tests
+      - name: Run Python tests
         shell: bash
-        env:
-          RUN_APP_BACKEND_TESTS: ${{ needs.setup-checks.outputs.app_backend_has_changes == 'true' && 'true' || 'false' }}
-        run: .github/scripts/run_package_tests.sh
+        run: |
+          set -eo pipefail
+          ARGS=()
+          if [[ "${{ needs.setup-checks.outputs.app_backend_has_changes }}" != "true" ]]; then
+            ARGS+=(--skip-package app_backend)
+          fi
+          uv run metta pytest --ci "${ARGS[@]}"
 
-  mettagrid-cpp-build:
-    name: "MettaGrid C++ Build & Test"
+  cpp-tests:
+    name: "Tests - C++"
     needs: [graphite-ci-optimizer, setup-checks]
     if: |
       (needs.graphite-ci-optimizer.outputs.should_skip == 'false') &&
@@ -309,15 +313,17 @@ jobs:
           restore-keys: |
             bazel-${{ runner.os }}-
 
-      - name: Build MettaGrid C++ (with coverage)
-        id: mettagrid_build_check
-        run: |
-          cd packages/mettagrid
-          make coverage VERBOSE=1
+      - name: Run C++ unit tests
+        id: mettagrid-cpp-tests
+        run: uv run metta cpptest --test --verbose
 
-  unit-tests-summary:
+      - name: Run C++ benchmarks
+        id: mettagrid-cpp-benchmarks
+        run: uv run metta cpptest --benchmark --verbose
+
+  tests-summary:
     name: "Tests"
-    needs: [unit-tests, mettagrid-cpp-build]
+    needs: [python-tests, cpp-tests]
     if: always()
     runs-on: ubuntu-latest
     steps:
