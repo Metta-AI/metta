@@ -100,6 +100,9 @@ proc buildAtlas*() =
       let name = path.replace(dataDir & "/", "").replace(".png", "")
       bxy.addImage(name, readImage(path))
 
+  let terrainMap = generateTileMap(1024, 1024, 64, "tools/blob7x8.png")
+  terrainMap.setupGPU()
+
 proc useSelections*(panel: Panel) =
   ## Reads the mouse position and selects the thing under it.
   let modifierDown = when defined(macosx):
