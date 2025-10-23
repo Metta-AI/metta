@@ -515,6 +515,8 @@ class PuffeRL:
         for k in list(self.stats.keys()):
             v = self.stats[k]
             try:
+                if k == "agent/avg_reward_per_agent":
+                    print("DEBUG raw avg rewards", v)
                 v = np.mean(v)
             except:
                 del self.stats[k]
@@ -670,15 +672,59 @@ class PuffeRL:
         right.add_column(f"{c1}Value", justify="right", width=10)
         i = 0
 
-        if self.stats:
-            self.last_stats = self.stats
+        raw_stats = self.stats if len(self.stats) > 0 else (self.last_stats or {})
 
-        stats_source = self.stats or self.last_stats or {}
+        stats_source: dict[str, float] = {}
+        for metric, value in raw_stats.items():
+            if isinstance(value, (list, tuple)):
+                if len(value) == 0:
+                    continue
+                stats_source[metric] = float(np.mean(value))
+            else:
+                try:
+                    stats_source[metric] = float(value)
+                except (TypeError, ValueError):
+                    continue
 
-        # do some reordering of stats so that important metrics are always shown
-        prioritized_stats = self._reorder_stats_for_dashboard(stats_source)
+        if stats_source:
+            # store a copy so clearing self.stats later doesn't wipe the cached data
+            self.last_stats = dict(stats_source)
 
-        for metric, value in prioritized_stats:
+        if not stats_source:
+            return
+
+        print("DEBUG stats_source", stats_source)
+
+        priority_metrics = [
+            "agent/avg_reward_per_agent",
+            "per_label_rewards/mettagrid",
+            "agent/energy.amount",
+            "agent/status.max_steps_without_motion",
+        ]
+
+        ordered_stats: list[tuple[str, float]] = []
+        for name in priority_metrics:
+            if name in stats_source:
+                ordered_stats.append((name, stats_source[name]))
+
+        agent_stats = sorted(
+            (name, value)
+            for name, value in stats_source.items()
+            if name.startswith("agent/") and name not in priority_metrics
+        )
+        other_stats = sorted(
+            (name, value)
+            for name, value in stats_source.items()
+            if not name.startswith("agent/") and name not in priority_metrics
+        )
+
+        agent_stats = [item for item in agent_stats if item[0] not in priority_metrics]
+        other_stats = [item for item in other_stats if item[0] not in priority_metrics]
+
+        ordered_stats.extend(agent_stats)
+        ordered_stats.extend(other_stats)
+
+        for metric, value in ordered_stats:
             try:  # Discard non-numeric values
                 int(value)
             except:
@@ -697,28 +743,6 @@ class PuffeRL:
             console.print(dashboard)
 
         print("\033[0;0H" + capture.get())
-
-    def _reorder_stats_for_dashboard(self, stats: dict[str, float]) -> list[tuple[str, float]]:
-        priority_metrics = ["agent/avg_reward_per_agent", "agent/energy.amount", "agent/status.max_steps_without_motion"]
-        new_stats: list[tuple[str, float]] = []
-
-        if not stats:
-            return new_stats
-
-        for name in priority_metrics:
-            if name in stats:
-                new_stats.append((name, stats[name]))
-
-        agent_stats = sorted(name for name in stats if name.startswith("agent/") and name not in priority_metrics)
-        other_stats = sorted(name for name in stats if name not in priority_metrics and not name.startswith("agent/"))
-
-        for name in agent_stats:
-            new_stats.append((name, stats[name]))
-
-        for name in other_stats:
-            new_stats.append((name, stats[name]))
-
-        return new_stats
 
 
 def compute_puff_advantage(

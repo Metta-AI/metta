@@ -1,5 +1,3 @@
-from typing import Literal
-
 from pydantic import Field
 
 from cogames.cogs_vs_clips import vibes
@@ -76,9 +74,6 @@ class Mission(Config):
     gear_capacity: int = Field(default=5)
     move_energy_cost: int = Field(default=2)
     heart_capacity: int = Field(default=1)
-    change_glyph_enabled: bool = Field(default=True)
-    glyph_limit: int | None = Field(default=None, ge=0, le=len(vibes.VIBES))
-    reward_profile: Literal["default", "heart_focus"] = Field(default="default")
 
     def instantiate(
         self, map_builder: MapBuilderConfig, num_cogs: int, variant: MissionVariant | None = None
@@ -118,40 +113,6 @@ class Mission(Config):
         if self.num_cogs is None:
             raise ValueError("Cannot make_env without num_cogs. Call instantiate() first.")
 
-        resource_limits: dict[str | tuple[str, ...], int] = {
-            "heart": self.heart_capacity,
-            "energy": self.energy_capacity,
-            ("carbon", "oxygen", "germanium", "silicon"): self.cargo_capacity,
-            ("scrambler", "modulator", "decoder", "resonator"): self.gear_capacity,
-        }
-
-        reward_stats: dict[str, float]
-        if self.reward_profile == "heart_focus":
-            reward_stats = {
-                "heart.gained": 2.0,
-                "chest.heart.deposited": 5.0,
-                "carbon.gained": 0.2,
-                "oxygen.gained": 0.2,
-                "germanium.gained": 0.3,
-                "silicon.gained": 0.2,
-                "energy.gained": 0.1,
-                "gear.gained": 0.5,
-            }
-        else:
-            reward_stats = {"chest.heart.amount": 1 / self.num_cogs}
-
-        agent_config = AgentConfig(
-            resource_limits=resource_limits,
-            rewards=AgentRewards(
-                stats=reward_stats,
-            ),
-            initial_inventory={
-                "energy": self.energy_capacity,
-            },
-            shareable_resources=["energy"],
-            inventory_regen_amounts={"energy": self.energy_regen_amount},
-        )
-
         game = GameConfig(
             map_builder=self.map,
             num_agents=self.num_cogs,
@@ -160,12 +121,24 @@ class Mission(Config):
             actions=ActionsConfig(
                 move=ActionConfig(consumed_resources={"energy": self.move_energy_cost}),
                 noop=ActionConfig(),
-                change_glyph=ChangeGlyphActionConfig(
-                    enabled=self.change_glyph_enabled,
-                    number_of_glyphs=self._resolve_glyph_limit(),
-                ),
+                change_glyph=ChangeGlyphActionConfig(number_of_glyphs=len(vibes.VIBES)),
             ),
-            agent=agent_config,
+            agent=AgentConfig(
+                resource_limits={
+                    "heart": self.heart_capacity,
+                    "energy": self.energy_capacity,
+                    ("carbon", "oxygen", "germanium", "silicon"): self.cargo_capacity,
+                    ("scrambler", "modulator", "decoder", "resonator"): self.gear_capacity,
+                },
+                rewards=AgentRewards(
+                    stats={"chest.heart.amount": 1 / self.num_cogs},
+                ),
+                initial_inventory={
+                    "energy": self.energy_capacity,
+                },
+                shareable_resources=["energy"],
+                inventory_regen_amounts={"energy": self.energy_regen_amount},
+            ),
             inventory_regen_interval=1,
             clipper=ClipperConfig(
                 unclipping_recipes=[
@@ -199,10 +172,4 @@ class Mission(Config):
                 "silicon_extractor": self.silicon_extractor.station_cfg(),
             },
         )
-
         return MettaGridConfig(game=game)
-
-    def _resolve_glyph_limit(self) -> int:
-        if self.glyph_limit is None:
-            return len(vibes.VIBES)
-        return max(0, min(self.glyph_limit, len(vibes.VIBES)))
