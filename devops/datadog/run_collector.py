@@ -15,6 +15,29 @@ import json
 import logging
 import os
 import sys
+from pathlib import Path
+
+
+def load_env_file() -> None:
+    """Load .env file from devops/datadog/ if it exists."""
+    # Try to find .env file
+    env_paths = [
+        Path("devops/datadog/.env"),  # From repo root
+        Path(".env"),  # From devops/datadog/
+    ]
+
+    for env_path in env_paths:
+        if env_path.exists():
+            with open(env_path) as f:
+                for line in f:
+                    line = line.strip()
+                    if line and not line.startswith("#"):
+                        if "=" in line:
+                            key, value = line.split("=", 1)
+                            # Only set if not already in environment
+                            if key.strip() not in os.environ:
+                                os.environ[key.strip()] = value.strip()
+            return
 
 
 def get_datadog_credentials() -> tuple[str, str, str]:
@@ -370,6 +393,9 @@ def run_health_fom_collector(push: bool = False, verbose: bool = False, json_out
 
 def main():
     """Main entry point."""
+    # Load .env file if it exists
+    load_env_file()
+
     parser = argparse.ArgumentParser(description="Run a Datadog metrics collector")
     parser.add_argument("collector", help="Collector name (e.g., 'github', 'skypilot', 'asana', 'health_fom')")
     parser.add_argument("--push", action="store_true", help="Push metrics to Datadog")

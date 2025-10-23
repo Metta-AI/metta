@@ -25,9 +25,9 @@ Automated metric collection from multiple services via Kubernetes CronJobs:
 **Current Collectors:**
 - **GitHub** ✅ **(Production)**: PRs, commits, branches, CI/CD workflows, developer activity
 - **Skypilot** ✅ **(Production)**: Jobs, clusters, resource utilization
+- **Asana** ✅ **(Production)**: Project health, bugs tracking, team velocity
 - **WandB** *(planned)*: Training runs, experiments
 - **EC2** *(planned)*: Instances, costs, utilization
-- **Asana** *(planned)*: Tasks, projects, velocity
 
 Each collector:
 - Runs on schedule (5-30 minute intervals)
@@ -83,17 +83,19 @@ aws configure
 aws secretsmanager get-secret-value --secret-id github/dashboard-token --region us-east-1
 ```
 
-### Datadog API Keys
+### Datadog API Keys & Secrets
 
-For dashboard management, set up Datadog credentials:
+All secrets are stored in AWS Secrets Manager. See [SECRETS_SETUP.md](SECRETS_SETUP.md) for complete setup guide.
+
+For local development, you can override with environment variables:
 ```bash
 cd devops/datadog
-cp .env.sample .env
-# Edit .env and add:
-#   DD_API_KEY=your-api-key
-#   DD_APP_KEY=your-app-key
-#   DD_SITE=datadoghq.com
+cp .env .env.local  # Create local override (gitignored)
+# Edit .env.local with local development credentials
 source ./load_env.sh
+
+# Or validate your AWS secrets configuration:
+uv run python scripts/validate_secrets.py
 ```
 
 ## Quick Start
@@ -120,9 +122,8 @@ metta datadog collect github --push
 ```bash
 # Setup (one time)
 cd devops/datadog
-cp .env.sample .env
-# Edit .env with your Datadog API credentials
-source ./load_env.sh
+# Configure secrets (see SECRETS_SETUP.md for complete guide)
+uv run python scripts/validate_secrets.py  # Validate configuration
 
 # Daily workflow
 vim components/ci.libsonnet         # Edit widget components
