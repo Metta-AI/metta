@@ -25,8 +25,21 @@ find "/UI/Main/**/VibePanel":
         let objective = Objective(kind: action, actionId: vibeActionId, argument: -1, repeat: false)
         if not agentObjectives.hasKey(selection.agentId) or agentObjectives[selection.agentId].len == 0:
           agentObjectives[selection.agentId] = @[objective]
+          # Append vibe action directly to path queue.
+          agentPaths[selection.agentId] = @[
+            PathAction(kind: action, actionId: vibeActionId, argument: -1)
+          ]
         else:
           agentObjectives[selection.agentId].add(objective)
+          # Push the vibe action to the end of the current path.
+          if agentPaths.hasKey(selection.agentId):
+            agentPaths[selection.agentId].add(
+              PathAction(kind: action, actionId: vibeActionId, argument: -1)
+            )
+          else:
+            agentPaths[selection.agentId] = @[
+              PathAction(kind: action, actionId: vibeActionId, argument: -1)
+            ]
       else:
         # Execute immediately.
         sendAction(selection.agentId, vibeActionId, -1)
