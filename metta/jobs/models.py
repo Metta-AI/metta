@@ -51,6 +51,9 @@ class JobConfig(Config):
     # Job type hint (for specialized behavior)
     job_type: Literal["train", "eval", "task"] = "train"
 
+    # Group (for organizational grouping and batch operations)
+    group: str | None = None
+
     # Metadata (experiment_id, tags, etc.)
     metadata: dict[str, Any] = Field(default_factory=dict)
 

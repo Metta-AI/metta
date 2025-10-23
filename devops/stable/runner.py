@@ -85,7 +85,14 @@ class TaskRunner:
         self.interactive = interactive
         self.retry_failed = retry_failed
         self._current_task_names: set[str] = set()
-        self._batch_id = f"release_{state.version}"
+
+    def _get_job_name(self, task: Task) -> str:
+        """Generate globally unique job name for JobManager.
+
+        Format: {version}_{task_name}
+        Example: "v2025.10.22_metta_ci"
+        """
+        return f"{self.state.version}_{task.name}"
 
     def run_all(self, tasks: list[Task]) -> None:
         """Run all tasks in parallel, respecting dependencies.
@@ -138,11 +145,10 @@ class TaskRunner:
                 # Poll for completions
                 if submitted:
                     completed_jobs = self.job_manager.poll()
-                    for batch_id, name in completed_jobs:
-                        if batch_id == self._batch_id and name in {t.name for t in submitted}:
-                            # Get the task object
-                            task = next(t for t in submitted if t.name == name)
-
+                    for job_name in completed_jobs:
+                        # Find the task with this job name
+                        task = next((t for t in submitted if self._get_job_name(t) == job_name), None)
+                        if task:
                             # Complete the task
                             result = self._complete_task(task)
                             completed[task.name] = result
@@ -156,7 +162,7 @@ class TaskRunner:
 
         except KeyboardInterrupt:
             print(yellow("\n\n⚠️  Interrupted by user - cancelling all jobs..."))
-            cancelled = self.job_manager.cancel_batch(self._batch_id)
+            cancelled = self.job_manager.cancel_group(self.state.version)
             print(yellow(f"Cancelled {cancelled} job(s)"))
             print(yellow("State has been saved. Re-run to resume from last completed task."))
             sys.exit(130)  # Standard exit code for Ctrl+C
@@ -268,19 +274,44 @@ class TaskRunner:
                     job_config.args["policy_uri"] = dep_result.artifacts["checkpoint_uri"]
                     break
 
+        # Set unique job name and group for JobManager
+        job_name = self._get_job_name(task)
+        job_config.name = job_name
+        job_config.group = self.state.version
+
+        # Check if job already exists in JobManager (for resumption after interrupt)
+        existing_state = self.job_manager.get_job_state(job_name)
+        if existing_state:
+            # Job already exists - either running or completed
+            if existing_state.status in ("pending", "running"):
+                print(
+                    f"⏭️  {task.name} - already submitted (status: {existing_state.status}), attaching to existing job"
+                )
+                return True  # Mark as submitted so we track it
+            else:
+                # Completed/failed/cancelled - should not happen since we checked state.results earlier
+                print(yellow(f"⚠️  {task.name} - found stale job in JobManager with status {existing_state.status}"))
+                return False
+
         # Submit to JobManager
         print(f"\n{'=' * 80}")
         print(f"🔄 Running: {task.name}")
         print(f"{'=' * 80}")
 
-        self.job_manager.submit(self._batch_id, job_config)
-        return True
+        try:
+            self.job_manager.submit(job_config)
+            return True
+        except ValueError as e:
+            # This shouldn't happen since we checked above, but handle it gracefully
+            print(yellow(f"⚠️  {task.name} - failed to submit: {e}"))
+            return False
 
     def _complete_task(self, task: Task) -> TaskResult:
         """Complete a task by getting its result from JobManager and evaluating it."""
         try:
             # Get job state from JobManager
-            job_state = self.job_manager.get_job_state(self._batch_id, task.name)
+            job_name = self._get_job_name(task)
+            job_state = self.job_manager.get_job_state(job_name)
             if not job_state:
                 raise RuntimeError(f"Job state not found for {task.name}")
 
