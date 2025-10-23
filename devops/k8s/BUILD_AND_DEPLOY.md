@@ -88,11 +88,23 @@ kubectl get nodes
 
 ## Building the Docker Image
 
+### Platform Compatibility
+
+**Important**: The production environment runs on **Linux AMD64** (x86_64). If you're building on macOS ARM64 (Apple Silicon), you must build for the correct platform:
+
+```bash
+# ✅ Correct - Build for linux/amd64 (production platform)
+docker buildx build --platform linux/amd64 -f softmax/Dockerfile -t softmax-dashboard:local .
+
+# ❌ Incorrect - Builds for your local platform (macOS ARM64)
+docker build -f softmax/Dockerfile -t softmax-dashboard:local .
+```
+
 ### Build Locally
 
 ```bash
-# From repo root
-docker build -f softmax/Dockerfile -t softmax-dashboard:local .
+# From repo root - build for linux/amd64 (production platform)
+docker buildx build --platform linux/amd64 -f softmax/Dockerfile -t softmax-dashboard:local --load .
 
 # Verify the image
 docker images | grep softmax-dashboard
@@ -108,13 +120,15 @@ docker run --rm \
 ### Build with Specific Tag
 
 ```bash
-# Build with version tag
-docker build -f softmax/Dockerfile -t softmax-dashboard:v1.0.0 .
+# Build with version tag (for linux/amd64)
+docker buildx build --platform linux/amd64 -f softmax/Dockerfile -t softmax-dashboard:v1.0.0 --load .
 
-# Build with git commit SHA
+# Build with git commit SHA (for linux/amd64)
 GIT_SHA=$(git rev-parse --short HEAD)
-docker build -f softmax/Dockerfile -t softmax-dashboard:sha-${GIT_SHA} .
+docker buildx build --platform linux/amd64 -f softmax/Dockerfile -t softmax-dashboard:sha-${GIT_SHA} --load .
 ```
+
+**Note**: The `--load` flag loads the image into your local Docker daemon. Without it, the image is only built but not available locally.
 
 ## Pushing to ECR
 
@@ -413,8 +427,8 @@ asana = "^5.0.0"
 ```
 
 ```bash
-# Test locally
-docker build -f softmax/Dockerfile -t softmax-dashboard:test .
+# Test locally (build for linux/amd64)
+docker buildx build --platform linux/amd64 -f softmax/Dockerfile -t softmax-dashboard:test --load .
 docker run --rm softmax-dashboard:test \
   uv run python -c "import asana; print('OK')"
 ```
@@ -424,8 +438,8 @@ docker run --rm softmax-dashboard:test \
 ### One-Line Deploy
 
 ```bash
-# Build, push, and deploy in one go
-docker build -f softmax/Dockerfile -t softmax-dashboard:local . && \
+# Build, push, and deploy in one go (for linux/amd64 platform)
+docker buildx build --platform linux/amd64 -f softmax/Dockerfile -t softmax-dashboard:local --load . && \
   docker tag softmax-dashboard:local 751442549699.dkr.ecr.us-east-1.amazonaws.com/softmax-dashboard:latest && \
   docker push 751442549699.dkr.ecr.us-east-1.amazonaws.com/softmax-dashboard:latest && \
   helm upgrade -n monitoring dashboard-cronjob ./devops/charts/dashboard-cronjob
