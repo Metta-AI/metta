@@ -30,6 +30,11 @@ datadog:
   service: "github-collector"
   site: "datadoghq.com"
 
+# Asana configuration (workspace and project IDs are not secrets)
+asana:
+  workspaceGid: "1209016784099267"  # Company workspace
+  bugsProjectGid: "1210062854657778"  # Bugs project
+
 # CronJob configuration
 successfulJobsHistoryLimit: 3
 failedJobsHistoryLimit: 3

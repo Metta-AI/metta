@@ -216,12 +216,14 @@ def run_asana_collector(push: bool = False, verbose: bool = False, json_output: 
             print(f"Error: Asana token not found. {e}", file=sys.stderr)
             sys.exit(1)
 
-    # Get workspace and bugs project IDs
+    # Get workspace and bugs project IDs from environment variables
+    # These are set in the Helm chart (devops/charts/dashboard-cronjob/values.yaml)
     workspace_gid = os.getenv("ASANA_WORKSPACE_GID")
     bugs_project_gid = os.getenv("ASANA_BUGS_PROJECT_GID")
 
     if not workspace_gid:
         print("Error: ASANA_WORKSPACE_GID environment variable not set", file=sys.stderr)
+        print("  Set it in Helm chart or export ASANA_WORKSPACE_GID=<your-workspace-id>", file=sys.stderr)
         sys.exit(1)
 
     print_status(f"Collecting metrics from Asana workspace {workspace_gid}...")
