@@ -5,6 +5,9 @@
 #     "typer>=0.19.2",
 #     "requests",
 #     "rich",
+#     "datadog-api-client>=2.43.0",
+#     "httpx",
+#     "boto3",
 # ]
 # ///
 """Datadog Management CLI.
@@ -430,24 +433,96 @@ def collect(
         # Actually push metrics to Datadog
         uv run ./devops/datadog/cli.py collect github --push
     """
-    # For now, use existing metta command for GitHub collector
+    import json
+    import logging
+
+    # Setup logging level
+    if verbose:
+        logging.basicConfig(level=logging.DEBUG, format="%(levelname)s: %(message)s")
+    else:
+        logging.basicConfig(level=logging.INFO, format="%(message)s")
+
     if collector == "github":
-        cmd = ["metta", "softmax-system-health", "report"]
+        # Run the collector using the standalone runner script
+        # This ensures we have access to all project dependencies
+        runner_script = DATADOG_DIR / "run_collector.py"
+
+        cmd = ["uv", "run", "python", str(runner_script), collector]
+
         if push:
+            # Check Datadog env vars before running
+            check_datadog_env()
             cmd.append("--push")
 
-        console.print(f"Running GitHub collector{'...' if not push else ' (pushing to Datadog)...'}")
+        if verbose:
+            cmd.append("--verbose")
+
+        # Add --json flag to get structured output
+        cmd.append("--json")
 
         try:
-            subprocess.run(cmd, check=True)
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                check=True,
+            )
+
+            # Parse JSON output
+            metrics = json.loads(result.stdout)
+
+            # Display metrics
+            console.print(f"\n[green]✓[/green] Collected {len(metrics)} metrics:\n")
+
+            if verbose:
+                # Detailed JSON output
+                console.print(json.dumps(metrics, indent=2, sort_keys=True))
+            else:
+                # Summary table
+                table = Table(title="GitHub Metrics")
+                table.add_column("Metric", style="cyan")
+                table.add_column("Value", style="green", justify="right")
+
+                for key, value in sorted(metrics.items()):
+                    if value is not None:
+                        # Format numbers nicely
+                        if isinstance(value, float):
+                            formatted_value = f"{value:.2f}"
+                        else:
+                            formatted_value = str(value)
+                        table.add_row(key, formatted_value)
+
+                console.print(table)
 
             if push:
-                console.print("[green]✓[/green] Metrics pushed to Datadog")
+                console.print("\n[green]✓[/green] Successfully pushed metrics to Datadog")
             else:
-                console.print("[green]✓[/green] Dry-run complete (use --push to submit metrics)")
+                console.print("\n[dim]Dry-run mode. Use --push to submit metrics to Datadog.[/dim]")
 
-        except subprocess.CalledProcessError:
+        except subprocess.CalledProcessError as e:
             console.print(f"[red]Error:[/red] Failed to run {collector} collector")
+            if verbose and e.stderr:
+                console.print(f"\n{e.stderr}")
+            raise typer.Exit(1) from None
+
+        except KeyboardInterrupt:
+            console.print("\n[yellow]Interrupted[/yellow]")
+            raise typer.Exit(130) from None
+
+        except json.JSONDecodeError as e:
+            console.print("[red]Error:[/red] Failed to parse collector output")
+            if verbose:
+                console.print(f"Details: {e}")
+                console.print(f"Output: {result.stdout}")
+            raise typer.Exit(1) from None
+
+        except Exception as e:
+            console.print("[red]Error:[/red] Unexpected error")
+            if verbose:
+                console.print(f"Details: {e}")
+                import traceback
+
+                traceback.print_exc()
             raise typer.Exit(1) from None
 
     else:
