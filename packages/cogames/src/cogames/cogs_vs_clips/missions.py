@@ -138,7 +138,9 @@ class StoreBaseVariant(MissionVariant):
     description: str = "Sanctum corners hold storage chests; cross remains clear."
 
     def apply(self, mission: Mission) -> Mission:
-        mission.procedural_overrides.setdefault("hub_variant", "store")
+        mission.procedural_overrides["hub_variant"] = "store"
+        mission.procedural_overrides["hub_corner_bundle"] = "chests"
+        mission.procedural_overrides["hub_cross_bundle"] = "none"
         return mission
 
 
@@ -147,7 +149,9 @@ class ExtractorBaseVariant(MissionVariant):
     description: str = "Sanctum corners host extractors; cross remains clear."
 
     def apply(self, mission: Mission) -> Mission:
-        mission.procedural_overrides.setdefault("hub_variant", "extractor")
+        mission.procedural_overrides["hub_variant"] = "extractor"
+        mission.procedural_overrides["hub_corner_bundle"] = "extractors"
+        mission.procedural_overrides["hub_cross_bundle"] = "none"
         return mission
 
 
@@ -156,7 +160,11 @@ class BothBaseVariant(MissionVariant):
     description: str = "Sanctum corners store chests and cross arms host extractors."
 
     def apply(self, mission: Mission) -> Mission:
-        mission.procedural_overrides.setdefault("hub_variant", "both")
+        mission.procedural_overrides["hub_variant"] = "both"
+        mission.procedural_overrides["hub_corner_bundle"] = "chests"
+        mission.procedural_overrides["hub_cross_bundle"] = "extractors"
+        # Push cross objects 3 tiles further than the default (4 -> 7)
+        mission.procedural_overrides["hub_cross_distance"] = 7
         return mission
 
 
@@ -315,6 +323,8 @@ class MachinaProceduralExploreMission(ProceduralMissionBase):
             "extractors": {"chest": 1.0, "charger": 1.0},
             "extractor_coverage": 0.004,
             "hub_variant": "store",
+            "hub_corner_bundle": "chests",
+            "hub_cross_bundle": "none",
         }
 
     def make_env(self) -> MettaGridConfig:

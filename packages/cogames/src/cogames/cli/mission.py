@@ -187,15 +187,34 @@ def get_mission(
     def apply_variants_to_config(
         mission: Mission, map_builder: MapBuilderConfig, num_cogs: int
     ) -> tuple[MettaGridConfig, Mission]:
-        """Apply variants and return both MettaGridConfig and Mission."""
-        # Instantiate the mission with specific map and num_cogs, applying variants in the process
-        instantiated_mission = mission.instantiate(map_builder, num_cogs)
+        """Apply variants and return both MettaGridConfig and Mission.
+
+        Important: Variants must be applied BEFORE finalizing the map builder.
+        For procedural missions, the map builder is reconstructed inside
+        `instantiate` based on `procedural_overrides`. If we apply variants
+        after instantiation, those overrides won't affect the generated map.
+        To preserve existing variant semantics (multiple variants in order and
+        after `configure()`), we compose the provided variants into a single
+        variant and pass it into `instantiate`.
+        """
 
         if variants:
-            # Apply all variants in sequence
-            for variant in variants:
-                instantiated_mission = variant.apply(instantiated_mission)
+            # Compose multiple variants so they apply in order during instantiate
+            class _CombinedVariant(MissionVariant):
+                name: str = "combined"
+                description: str = "Composite of CLI variants applied in order"
 
+                def apply(self, m: Mission) -> Mission:  # type: ignore[override]
+                    for v in variants:
+                        m = v.apply(m)
+                    return m
+
+            combined_variant = _CombinedVariant()
+        else:
+            combined_variant = None
+
+        # Instantiate with the combined variant to ensure overrides affect map
+        instantiated_mission = mission.instantiate(map_builder, num_cogs, combined_variant)
         return instantiated_mission.make_env(), instantiated_mission
 
     if mission_name is not None:

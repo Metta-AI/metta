@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, Literal, cast
 
 import numpy as np
 
@@ -19,6 +19,14 @@ from mettagrid.mapgen.scenes.maze import Maze
 from mettagrid.mapgen.scenes.radial_maze import RadialMaze
 from mettagrid.mapgen.scenes.random_scene import RandomScene, RandomSceneCandidate
 from mettagrid.mapgen.scenes.uniform_extractors import UniformExtractorScene
+
+HubBundle = Literal["chests", "extractors", "none", "custom"]
+
+
+def _normalize_bundle(value: str | None, default: HubBundle) -> HubBundle:
+    if value in {"chests", "extractors", "none", "custom"}:
+        return cast(HubBundle, value)
+    return default
 
 
 def make_machina_procedural_map_builder(
@@ -242,9 +250,8 @@ def make_machina_procedural_map_builder(
             limit=1,
         )
 
-    corner_bundle = hub_corner_bundle
-    cross_bundle = hub_cross_bundle
-    cross_distance = hub_cross_distance if hub_cross_distance is not None else 4
+    corner_bundle = _normalize_bundle(hub_corner_bundle, "chests")
+    cross_bundle = _normalize_bundle(hub_cross_bundle, "none")
 
     match (hub_variant or "").lower():
         case "store":
@@ -256,9 +263,6 @@ def make_machina_procedural_map_builder(
         case "both":
             corner_bundle = "chests"
             cross_bundle = "extractors"
-        case _:
-            corner_bundle = hub_corner_bundle or "chests"
-            cross_bundle = hub_cross_bundle or "none"
 
     cross_distance = hub_cross_distance if hub_cross_distance is not None else 4
 
