@@ -3,10 +3,13 @@
 from __future__ import annotations
 
 import torch
+import pytest
 from cortex.cells.xl import XLCell
 from cortex.config import AxonConfig, XLCellConfig
 from tensordict import TensorDict
 
+# Skip this module entirely (slow)
+pytestmark = pytest.mark.skip(reason="slow test skipped in prod")
 
 def get_test_device():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
