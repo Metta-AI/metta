@@ -162,22 +162,33 @@ graph TD
 ### Phase 1: Team Alignment & Quick Wins (3-4 days)
 **Goal**: Address review feedback with team input, deliver independent improvements
 
-**Status**: ✅ Typer CLI Complete | 📋 Team Discussion Pending | 📋 Code Stats Pending
+**Status**: ✅ Typer CLI Complete | ✅ Team Discussion Complete | ✅ Code Stats Fixed | 🚧 New Metrics In Progress
 
-#### 1A. Team Discussion (1 meeting, ~1 hour)
+#### 1A. Team Discussion (1 meeting, ~1 hour) - ✅ **COMPLETED** (2025-10-23)
+
 **Topics**:
-- [ ] Review metric naming research and prototype results
-- [ ] Discuss current metrics - keep, remove, or modify?
-- [ ] Define KPIs - what are we trying to measure and why?
-- [ ] Identify critical missing metrics
-- [ ] Decide on naming topology and tag strategy
-- [ ] Agree on CLI approach (metta datadog vs. standalone)
+- [x] Review metric naming research and prototype results
+- [x] Discuss current metrics - keep, remove, or modify?
+- [x] Define KPIs - what are we trying to measure and why?
+- [x] Identify critical missing metrics
+- [x] Decide on naming topology and tag strategy
+- [x] Agree on CLI approach (metta datadog vs. standalone)
 
 **Outcomes**:
-- [ ] Decision: Metric naming pattern (document in `docs/METRIC_CONVENTIONS.md`)
-- [ ] Decision: Metric selection (update `docs/CI_CD_METRICS.md`)
-- [ ] Decision: CLI integration approach
-- [ ] Action items for implementation
+- ✅ **Decision: Metric naming pattern** - Keep hierarchical `{service}.{category}.{metric}`
+  - No need for tags now, can add later if needed
+  - Intuitive and works well for hundreds/thousands of metrics
+- ✅ **Decision: Metric selection** - Overshoot and trim later approach
+  - Keep all existing 17 metrics (no removals)
+  - Add 8 new quality/velocity metrics (Phase 1D)
+  - Let dashboard usage guide future refinement
+  - Can't go back in time - better to collect now
+- ✅ **Decision: Goals** - Optimize for Quality + Velocity
+  1. **Quality**: reverts, hotfixes, CI failures, review depth
+  2. **Velocity**: PR flow, review speed, CI performance
+  3. **Visibility**: only if supporting top-line goals
+- ✅ **Decision: CLI approach** - Already completed in Phase 1B
+  - `metta datadog` integration complete
 
 #### 1B. Typer CLI Migration (1-2 days) - ✅ **COMPLETED**
 **Why first**: Independent work, clear deliverable, addresses review feedback
@@ -253,6 +264,43 @@ metta datadog collect github --dry-run
 **Risk mitigation**:
 - Monitor API usage in first hour of deployment
 - If rate limits become an issue, add caching or reduce collection frequency
+
+#### 1D. Add Quality & Velocity Metrics (1 day) - **In Progress**
+
+**Why now**: Team aligned on goals, quick implementation, high value
+
+**New Metrics** (8 total):
+
+**Quality Metrics** (2):
+- [ ] `github.prs.with_review_comments_pct` - % PRs with review discussion (any comments)
+- [ ] `github.prs.avg_comments_per_pr` - Average depth of review discussion
+
+**Velocity Metrics** (6):
+- [ ] `github.prs.time_to_first_review_hours` - Time until first comment
+- [ ] `github.prs.stale_count_14d` - PRs open >14 days (matches workflow stale label)
+- [ ] `github.prs.cycle_time_hours` - Open to merge duration
+- [ ] `github.ci.duration_p50_minutes` - Median CI duration
+- [ ] `github.ci.duration_p90_minutes` - 90th percentile CI duration
+- [ ] `github.ci.duration_p99_minutes` - 99th percentile CI duration
+
+**Tasks**:
+- [ ] Implement PR review metrics (review comments %, avg comments)
+- [ ] Implement PR velocity metrics (time to review, stale count, cycle time)
+- [ ] Implement CI percentile metrics (p50, p90, p99)
+- [ ] Test locally: `metta softmax-system-health report`
+- [ ] Verify values are reasonable
+- [ ] Update documentation
+
+**Design Notes**:
+- **Review comments**: Count PRs with `comments > 0` as "reviewed" (goal: identify review bottleneck)
+- **Stale threshold**: 14 days (matches existing GitHub workflow)
+- **Keep existing signals**: Don't combine reverts/hotfixes into change_failure_rate
+- **Location**: Add to `softmax/src/softmax/dashboard/metrics.py` (will migrate to github collector in Phase 2)
+
+**Success criteria**:
+- All 8 new metrics return reasonable values
+- No API rate limit issues
+- Collection time remains under 2 minutes
 
 ---
 
