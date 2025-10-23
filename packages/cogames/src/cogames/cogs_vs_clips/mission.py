@@ -12,6 +12,7 @@ from cogames.cogs_vs_clips.stations import (
     CvCWallConfig,
     GermaniumExtractorConfig,
     OxygenExtractorConfig,
+    RESOURCE_CHESTS,
     SiliconExtractorConfig,
     resources,
 )
