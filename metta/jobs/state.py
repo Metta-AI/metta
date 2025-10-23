@@ -17,12 +17,11 @@ class JobState(SQLModel, table=True):
     This tracks the runtime status, results, and extracted artifacts
     from a job execution. Persisted to SQLite via SQLModel.
 
-    Composite primary key: (batch_id, name) allows multiple batches
-    to share the same database.
+    Primary key: name (must be globally unique within database).
+    Group information is stored in the config for organizational purposes.
     """
 
-    # Composite primary key
-    batch_id: str = Field(primary_key=True)
+    # Primary key
     name: str = Field(primary_key=True)
 
     # Job configuration (stored as JSON TEXT, exposed as 'config' property)
