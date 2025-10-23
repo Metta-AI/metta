@@ -54,8 +54,8 @@ proc processActions*() =
 
     let nextAction = pathActions[0]
 
-    case nextAction.actionType
-    of PathMove:
+    case nextAction.kind
+    of move:
       # Execute movement action.
       let dx = nextAction.pos.x - currentPos.x
       let dy = nextAction.pos.y - currentPos.y
@@ -64,45 +64,45 @@ proc processActions*() =
       # Remove this action from the queue.
       agentPaths[agentId].delete(0)
       # Check if we completed an objective.
-      let obj = agentObjectives[agentId][0]
-      if obj.objectiveType == ObjMove and nextAction.pos == obj.pos:
+      let objective = agentObjectives[agentId][0]
+      if objective.kind == move and nextAction.pos == objective.pos:
         # Completed this Move objective.
         agentObjectives[agentId].delete(0)
-        if obj.repeat:
+        if objective.repeat:
           # Re-queue this objective at the end.
-          agentObjectives[agentId].add(obj)
+          agentObjectives[agentId].add(objective)
           recomputePath(agentId, nextAction.pos)
         elif agentObjectives[agentId].len == 0:
           # No more objectives, clear the path.
           agentPaths.del(agentId)
-    of PathBump:
+    of bump:
       # Execute bump action.
       let targetOrientation = getOrientationFromDelta(nextAction.bumpDir.x.int, nextAction.bumpDir.y.int)
       sendAction(agentId, replay.moveActionId, targetOrientation.int)
       # Remove this action from the queue.
       agentPaths[agentId].delete(0)
       # Remove the corresponding objective.
-      let obj = agentObjectives[agentId][0]
+      let objective = agentObjectives[agentId][0]
       agentObjectives[agentId].delete(0)
-      if obj.repeat:
+      if objective.repeat:
         # Re-queue this objective at the end.
-        agentObjectives[agentId].add(obj)
+        agentObjectives[agentId].add(objective)
         recomputePath(agentId, currentPos)
       elif agentObjectives[agentId].len == 0:
         # No more objectives, clear the path.
         agentPaths.del(agentId)
-    of PathDoAction:
+    of action:
       # Execute action (like vibe).
       sendAction(agentId, nextAction.actionId, nextAction.argument)
       # Remove this action from the queue.
       agentPaths[agentId].delete(0)
       # Remove the corresponding objective.
-      let obj = agentObjectives[agentId][0]
-      if obj.objectiveType == ObjAction:
+      let objective = agentObjectives[agentId][0]
+      if objective.kind == action:
         agentObjectives[agentId].delete(0)
-        if obj.repeat:
+        if objective.repeat:
           # Re-queue this objective at the end.
-          agentObjectives[agentId].add(obj)
+          agentObjectives[agentId].add(objective)
           recomputePath(agentId, currentPos)
         elif agentObjectives[agentId].len == 0:
           # No more objectives, clear the path.

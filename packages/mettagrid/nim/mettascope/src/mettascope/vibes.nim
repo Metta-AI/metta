@@ -22,7 +22,7 @@ find "/UI/Main/**/VibePanel":
 
       if shiftDown:
         # Queue the vibe action as an objective.
-        let objective = Objective(objectiveType: ObjAction, actionId: vibeActionId, argument: -1, repeat: false)
+        let objective = Objective(kind: action, actionId: vibeActionId, argument: -1, repeat: false)
         if not agentObjectives.hasKey(selection.agentId) or agentObjectives[selection.agentId].len == 0:
           agentObjectives[selection.agentId] = @[objective]
         else:

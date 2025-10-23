@@ -105,22 +105,22 @@ proc recomputePath*(agentId: int, currentPos: IVec2) =
   var pathActions: seq[PathAction] = @[]
   var lastPos = currentPos
 
-  for objIdx, obj in agentObjectives[agentId]:
-    case obj.objectiveType
-    of ObjMove:
+  for objIdx, objective in agentObjectives[agentId]:
+    case objective.kind
+    of move:
       # For moving, path directly to the objective.
-      let movePath = findPath(lastPos, obj.pos)
+      let movePath = findPath(lastPos, objective.pos)
       if movePath.len == 0:
         clearPath(agentId)
         return
-      # Convert positions to PathMove actions.
+      # Convert positions to move actions.
       for pos in movePath:
         if pos != lastPos:
-          pathActions.add(PathAction(actionType: PathMove, pos: pos))
-      lastPos = obj.pos
-    of ObjBump:
+          pathActions.add(PathAction(kind: move, pos: pos))
+      lastPos = objective.pos
+    of bump:
       # For bumping, path to the specified approach position.
-      let approachPos = ivec2(obj.pos.x + obj.approachDir.x, obj.pos.y + obj.approachDir.y)
+      let approachPos = ivec2(objective.pos.x + objective.approachDir.x, objective.pos.y + objective.approachDir.y)
       if not isWalkablePos(approachPos):
         # Approach position is not walkable, clear path.
         clearPath(agentId)
@@ -133,20 +133,20 @@ proc recomputePath*(agentId: int, currentPos: IVec2) =
           return
         for pos in movePath:
           if pos != lastPos:
-            pathActions.add(PathAction(actionType: PathMove, pos: pos))
+            pathActions.add(PathAction(kind: move, pos: pos))
       # Add the bump action.
       pathActions.add(PathAction(
-        actionType: PathBump,
-        bumpPos: obj.pos,
-        bumpDir: ivec2(obj.pos.x - approachPos.x, obj.pos.y - approachPos.y),
+        kind: bump,
+        bumpPos: objective.pos,
+        bumpDir: ivec2(objective.pos.x - approachPos.x, objective.pos.y - approachPos.y),
       ))
       lastPos = approachPos
-    of ObjAction:
+    of action:
       # Add action as a path action to maintain synchronization.
       pathActions.add(PathAction(
-        actionType: PathDoAction,
-        actionId: obj.actionId,
-        argument: obj.argument
+        kind: action,
+        actionId: objective.actionId,
+        argument: objective.argument
       ))
 
   if pathActions.len > 0:

@@ -79,11 +79,11 @@ proc useSelections*(panel: Panel) =
                 approachDir = ivec2(0, 1)   # Clicked bottom, approach from bottom.
               else:
                 approachDir = ivec2(0, -1)  # Clicked top, approach from top.
-            objective = Objective(objectiveType: ObjBump, pos: gridPos, approachDir: approachDir, repeat: rDown)
+            objective = Objective(kind: bump, pos: gridPos, approachDir: approachDir, repeat: rDown)
           else:
-            objective = Objective(objectiveType: ObjMove, pos: gridPos, approachDir: ivec2(0, 0), repeat: rDown)
+            objective = Objective(kind: move, pos: gridPos, approachDir: ivec2(0, 0), repeat: rDown)
         else:
-          objective = Objective(objectiveType: ObjMove, pos: gridPos, approachDir: ivec2(0, 0), repeat: rDown)
+          objective = Objective(kind: move, pos: gridPos, approachDir: ivec2(0, 0), repeat: rDown)
 
         if shiftDown:
           # Queue up additional objectives.
@@ -420,7 +420,7 @@ proc drawPlannedPath*() =
     var currentPos = agent.location.at(step).xy
 
     for action in pathActions:
-      if action.actionType != PathMove:
+      if action.kind != PathActionType.move:
         continue
       # Draw arrow from current position to target position.
       let
@@ -453,29 +453,29 @@ proc drawPlannedPath*() =
     if agentObjectives.hasKey(agentId):
       let objectives = agentObjectives[agentId]
       if objectives.len > 0:
-        let obj = objectives[^1]
-        if obj.objectiveType in {ObjMove, ObjBump}:
+        let objective = objectives[^1]
+        if objective.kind in {ObjectiveType.move, ObjectiveType.bump}:
           bxy.drawImage(
             "selection",
-            obj.pos.vec2,
+            objective.pos.vec2,
             angle = 0,
             scale = 1.0 / 200.0,
             tint = color(1, 1, 1, 0.5)
           )
 
       # Draw approach arrows for bump objectives.
-      for obj in objectives:
-        if obj.objectiveType == ObjBump and (obj.approachDir.x != 0 or obj.approachDir.y != 0):
-          let approachPos = ivec2(obj.pos.x + obj.approachDir.x, obj.pos.y + obj.approachDir.y)
-          let offset = vec2(-obj.approachDir.x.float32 * 0.35, -obj.approachDir.y.float32 * 0.35)
+      for objective in objectives:
+        if objective.kind == ObjectiveType.bump and (objective.approachDir.x != 0 or objective.approachDir.y != 0):
+          let approachPos = ivec2(objective.pos.x + objective.approachDir.x, objective.pos.y + objective.approachDir.y)
+          let offset = vec2(-objective.approachDir.x.float32 * 0.35, -objective.approachDir.y.float32 * 0.35)
           var rotation: float32 = 0
-          if obj.approachDir.x > 0:
+          if objective.approachDir.x > 0:
             rotation = Pi / 2
-          elif obj.approachDir.x < 0:
+          elif objective.approachDir.x < 0:
             rotation = -Pi / 2
-          elif obj.approachDir.y > 0:
+          elif objective.approachDir.y > 0:
             rotation = 0
-          elif obj.approachDir.y < 0:
+          elif objective.approachDir.y < 0:
             rotation = Pi
           bxy.drawImage(
             "actions/arrow",
