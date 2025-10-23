@@ -6,9 +6,23 @@ export type FeedPostDTO = {
   id: string;
   title: string;
   content: string | null;
-  postType: "user-post" | "paper-post" | "pure-paper";
+  images: string[];
+  postType: "user-post" | "paper-post" | "pure-paper" | "quote-post";
   queues: number;
   replies: number;
+  quotedPostIds: string[];
+  quotedPosts?: {
+    id: string;
+    title: string;
+    content: string | null;
+    author: {
+      id: string;
+      name: string | null;
+      email: string | null;
+      image: string | null;
+    };
+    createdAt: Date;
+  }[];
   author: {
     id: string;
     name: string | null;
@@ -72,9 +86,27 @@ export function toFeedPostDTO(
     id: dbModel.id,
     title: dbModel.title,
     content: dbModel.content,
-    postType: dbModel.postType as "user-post" | "paper-post" | "pure-paper",
+    images: dbModel.images ?? [],
+    postType: dbModel.postType as
+      | "user-post"
+      | "paper-post"
+      | "pure-paper"
+      | "quote-post",
     queues: dbModel.queues ?? 0,
     replies: dbModel.replies ?? 0,
+    quotedPostIds: dbModel.quotedPostIds ?? [],
+    quotedPosts: dbModel.quotedPosts?.map((qp: any) => ({
+      id: qp.id,
+      title: qp.title,
+      content: qp.content,
+      author: {
+        id: qp.authorId,
+        name: qp.author?.name ?? null,
+        email: qp.author?.email ?? null,
+        image: qp.author?.image ?? null,
+      },
+      createdAt: qp.createdAt,
+    })),
     author: {
       id: dbModel.authorId,
       name: author?.name ?? null,
@@ -184,8 +216,49 @@ export async function loadFeedPosts({
     },
   });
 
+  // Separate query to load quoted posts for posts that have quotedPostIds
+  const allQuotedPostIds = [
+    ...new Set(allRows.flatMap((row) => row.quotedPostIds || [])),
+  ];
+  const quotedPostsMap = new Map();
+
+  if (allQuotedPostIds.length > 0) {
+    const quotedPosts = await prisma.post.findMany({
+      where: {
+        id: {
+          in: allQuotedPostIds,
+        },
+      },
+      select: {
+        id: true,
+        title: true,
+        content: true,
+        authorId: true,
+        createdAt: true,
+        author: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            image: true,
+          },
+        },
+      },
+    });
+
+    quotedPosts.forEach((qp) => quotedPostsMap.set(qp.id, qp));
+  }
+
+  // Add quoted posts to each row
+  const rowsWithQuotedPosts = allRows.map((row) => ({
+    ...row,
+    quotedPosts: (row.quotedPostIds || [])
+      .map((id) => quotedPostsMap.get(id))
+      .filter(Boolean),
+  }));
+
   // Calculate lastActivityAt for each post and sort by it
-  const postsWithActivity = allRows
+  const postsWithActivity = rowsWithQuotedPosts
     .map((row) => ({
       ...row,
       lastActivityAt:

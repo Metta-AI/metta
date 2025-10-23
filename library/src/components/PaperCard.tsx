@@ -41,9 +41,9 @@ export const PaperCard: FC<PaperCardProps> = ({ paper, onPaperClick }) => {
   const llmAbstract = paper.llmAbstract as LLMAbstract | null;
 
   return (
-    <div className="rounded-xl border border-neutral-200 bg-white p-2.5">
+    <div className="rounded-xl border border-neutral-200 bg-white p-3 md:p-2.5">
       {/* Header with star widget and title */}
-      <div className="flex items-start gap-2">
+      <div className="flex items-start gap-2 md:gap-3">
         <div className="mt-0.5 shrink-0">
           <StarWidgetQuery
             paperId={paper.id}
@@ -53,7 +53,7 @@ export const PaperCard: FC<PaperCardProps> = ({ paper, onPaperClick }) => {
             readonly={true}
           />
         </div>
-        <div className="min-w-0">
+        <div className="min-w-0 flex-1">
           {/* Paper title - clickable */}
           <h3
             className="cursor-pointer text-[15.5px] leading-[1.3] font-semibold tracking-tight text-neutral-900 transition-colors hover:text-blue-600"
@@ -64,7 +64,7 @@ export const PaperCard: FC<PaperCardProps> = ({ paper, onPaperClick }) => {
 
           {/* Tags */}
           {paper.tags && paper.tags.length > 0 && (
-            <div className="mt-1 flex flex-wrap gap-1">
+            <div className="mt-1.5 flex flex-wrap gap-1">
               {paper.tags.map((tag, index) => (
                 <button
                   key={index}
@@ -74,7 +74,7 @@ export const PaperCard: FC<PaperCardProps> = ({ paper, onPaperClick }) => {
                     params.set("search", tag);
                     window.open(`/papers?${params.toString()}`, "_blank");
                   }}
-                  className="cursor-pointer rounded-md px-2 py-0.5 text-[12px] font-bold transition-colors hover:bg-neutral-200"
+                  className="cursor-pointer rounded-md px-2 py-1 text-xs font-bold transition-colors hover:bg-neutral-200 md:py-0.5 md:text-[12px]"
                   style={{ backgroundColor: "#EFF3F9", color: "#131720" }}
                   title={`Click to view all papers tagged with "${tag}"`}
                 >
