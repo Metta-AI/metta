@@ -11,7 +11,7 @@ from .mettagrid_config import (
     GameConfig,
     GlobalObsConfig,
     MettaGridConfig,
-    RecipeConfig,
+    ProtocolConfig,
     WallConfig,
 )
 
@@ -28,6 +28,6 @@ __all__ = [
     "GameConfig",
     "GlobalObsConfig",
     "MettaGridConfig",
-    "RecipeConfig",
+    "ProtocolConfig",
     "WallConfig",
 ]

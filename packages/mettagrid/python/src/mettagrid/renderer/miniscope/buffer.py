@@ -149,7 +149,7 @@ class MapBuffer:
         rows = []
         cols = []
         for obj in grid_objects.values():
-            type_name = self._object_type_names[obj["type"]]
+            type_name = obj["type_name"]
             if type_name == "wall":
                 rows.append(obj["r"])
                 cols.append(obj["c"])

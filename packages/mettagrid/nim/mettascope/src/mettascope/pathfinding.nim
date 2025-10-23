@@ -24,7 +24,7 @@ proc isWalkablePos*(pos: IVec2): bool =
     return false
   let obj = getObjectAtLocation(pos)
   if obj != nil:
-    let typeName = replay.typeNames[obj.typeId]
+    let typeName = obj.typeName
     if typeName != "agent":
       return false
   return true

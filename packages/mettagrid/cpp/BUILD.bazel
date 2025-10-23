@@ -20,6 +20,9 @@ COPTS = [
 # Core C++ library for tests
 pybind_library(
     name = "mettagrid_core",
+    srcs = glob([
+        "src/mettagrid/**/*.cpp",
+    ]),
     hdrs = glob([
         "include/mettagrid/**/*.hpp",
     ]),
@@ -40,6 +43,7 @@ pybind_extension(
         "bindings/mettagrid_c.cpp",
         "bindings/mettagrid_c.hpp",
     ] + glob([
+        "src/mettagrid/**/*.cpp",
         "include/mettagrid/**/*.hpp",
     ]),
     copts = COPTS,

@@ -26,18 +26,16 @@ def make_arena(
 ) -> MettaGridConfig:
     objects = {
         "wall": building.wall,
-        "altar": building.altar,
-        "mine_red": building.mine_red,
-        "generator_red": building.generator_red,
-        "lasery": building.lasery,
-        "armory": building.armory,
+        "altar": building.assembler_altar,
+        "mine_red": building.assembler_mine_red,
+        "generator_red": building.assembler_generator_red,
+        "lasery": building.assembler_lasery,
+        "armory": building.assembler_armory,
     }
 
     actions = ActionsConfig(
         noop=ActionConfig(),
         move=ActionConfig(),
-        put_items=ActionConfig(),
-        get_items=ActionConfig(),
         attack=AttackActionConfig(
             consumed_resources={
                 "laser": 1,
@@ -99,7 +97,7 @@ def make_navigation(num_agents: int) -> MettaGridConfig:
         type_id=8,
         map_char="_",
         render_symbol="🛣️",
-        recipes=[([], building.RecipeConfig(input_resources={}, output_resources={"heart": 1}, cooldown=255))],
+        recipes=[([], building.ProtocolConfig(input_resources={}, output_resources={"heart": 1}, cooldown=255))],
     )
     cfg = MettaGridConfig(
         game=GameConfig(

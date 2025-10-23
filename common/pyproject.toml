@@ -8,7 +8,7 @@ version = "0.1.0"
 description = "Common utilities for metta packages"
 authors = [{ name = "David Bloomin", email = "daveey@gmail.com" }]
 requires-python = "==3.11.7"
-license = "MIT"
+license = { text = "MIT" }
 readme = "README.md"
 urls = { Homepage = "https://daveey.github.io", Repository = "https://github.com/Metta-AI/metta" }
 dependencies = ["rich>=14.1", "wandb>=0.21.2"]
