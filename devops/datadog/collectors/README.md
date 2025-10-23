@@ -131,7 +131,7 @@ Every collector automatically gets:
 All collectors deploy as Kubernetes CronJobs via single Helm chart:
 
 ```yaml
-# charts/collector-cronjobs/values.yaml
+# devops/charts/datadog-collectors/values.yaml
 collectors:
   github:
     enabled: true
@@ -144,8 +144,9 @@ collectors:
 
 Deploy:
 ```bash
+cd devops/charts
 helm upgrade --install datadog-collectors \
-  ./charts/collector-cronjobs \
+  ./datadog-collectors \
   --namespace monitoring
 ```
 
