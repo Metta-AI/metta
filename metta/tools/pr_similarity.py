@@ -5,11 +5,19 @@ import math
 import os
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterable, List, Sequence, Tuple, cast
+from typing import Any, Iterable, List, Sequence, Tuple, cast
 
 import numpy as np
-from google import genai
-from google.genai import types
+
+try:
+    from google import genai
+    from google.genai import types
+except ImportError as import_error:  # pragma: no cover - optional dependency
+    genai = None  # type: ignore[assignment]
+    types = None  # type: ignore[assignment]
+    IMPORT_ERROR = import_error
+else:
+    IMPORT_ERROR = None
 
 DEFAULT_CACHE_PATH = Path("mcp_servers/pr_similarity/cache/pr_embeddings")
 DEFAULT_TOP_K = 10
@@ -137,16 +145,28 @@ def load_cache(path: Path) -> Tuple[CacheMetadata, List[EmbeddingRecord]]:
     raise FileNotFoundError(f"Embedding cache not found: {meta_path} / {vectors_path}")
 
 
-def create_client(api_key: str) -> genai.Client:
+def _ensure_genai_available() -> None:
+    if genai is None or types is None:
+        message = "google-genai is required. Install with `uv pip install google-genai`."
+        if IMPORT_ERROR is not None:
+            raise RuntimeError(message) from IMPORT_ERROR
+        raise RuntimeError(message)
+
+
+def create_client(api_key: str) -> Any:
+    _ensure_genai_available()
+    assert genai is not None
     return genai.Client(api_key=api_key)
 
 
 def embed_text(
-    client: genai.Client,
+    client: Any,
     text: str,
     model: str,
     task_type: str,
 ) -> List[float]:
+    _ensure_genai_available()
+    assert types is not None
     config = types.EmbedContentConfig(task_type=task_type)
     response = client.models.embed_content(
         model=model,
@@ -191,7 +211,7 @@ def find_similar_prs(
     cache_path: Path = DEFAULT_CACHE_PATH,
     model_override: str | None = None,
     api_key: str | None = None,
-    client: genai.Client | None = None,
+    client: Any | None = None,
 ) -> Tuple[CacheMetadata, List[Tuple[float, EmbeddingRecord]]]:
     if top_k <= 0:
         raise ValueError("top_k must be greater than zero.")
