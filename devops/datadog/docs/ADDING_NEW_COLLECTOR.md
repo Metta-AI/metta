@@ -319,7 +319,7 @@ aws secretsmanager create-secret \
 
 ### Step 5: Configure Helm Deployment
 
-Add your collector to `charts/collector-cronjobs/values.yaml`:
+Add your collector to `devops/charts/datadog-collectors/values.yaml`:
 
 ```yaml
 collectors:
@@ -545,8 +545,9 @@ Store in AWS Secrets Manager (us-east-1):
 Deployed as Kubernetes CronJob via Helm:
 
 ```bash
+cd devops/charts
 helm upgrade --install datadog-collectors \
-  ./charts/collector-cronjobs \
+  ./datadog-collectors \
   --set collectors.{collector_name}.enabled=true
 ```
 
@@ -599,14 +600,15 @@ Build and deploy your collector:
 # 1. Build Docker image (includes all collectors)
 cd devops/datadog
 docker build -t 751442549699.dkr.ecr.us-east-1.amazonaws.com/datadog-collectors:latest \
-  -f charts/collector-image/Dockerfile ../..
+  -f docker/Dockerfile ../..
 
 # 2. Push to ECR
 docker push 751442549699.dkr.ecr.us-east-1.amazonaws.com/datadog-collectors:latest
 
 # 3. Deploy with Helm
+cd ../charts
 helm upgrade --install datadog-collectors \
-  ./charts/collector-cronjobs \
+  ./datadog-collectors \
   --namespace monitoring \
   --set collectors.{collector_name}.enabled=true
 
