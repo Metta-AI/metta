@@ -5,3 +5,6 @@ useDefault = true
 [allowlist]
 # Ignore files by path pattern
 paths = ['''packages/mettagrid/nim/mettascope/data/fidget/.*\.json''']
+
+# Ignore metric keys in decorators (false positives)
+regexes = ['''@system_health_metric\(metric_key="[^"]+"\)''']
