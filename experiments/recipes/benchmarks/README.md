@@ -1,14 +1,3 @@
-# Metta Benchmarking Suite
-
-This directory contains standardized benchmark recipes for evaluating different architectures and training configurations in the Metta AI framework.
-
-## Benchmark Configuration
-
-All benchmark recipes are configured for **standardized evaluation**:
-- **No curriculum learning** by default (fixed environments)
-- **No combat mode** (attacks disabled in arena_prog_7)
-- Consistent evaluation metrics across all recipes
-
 ## Available Benchmarks
 
 ### 1. arena_prog_7
@@ -33,27 +22,6 @@ In-context learning task with resource chains.
 ## Benchmark Matrix
 
 | Architecture | Hyperparameters | Seeds | Map |
-|-------------|-----------------|-------|-----|
-| ViT_PPO | PPO h1/h2 | TBD | arena_prog_7 |
-| ViT_PPO_CL | PPO_CL h1'/h2'/h3/h4/h5 | TBD | arena_prog_7 |
-| Transformer_PPO | PPO h1/h2 | TBD | arena_prog_7 |
-| Transformer_PPO_CL | PPO_CL h1'/h2'/h3/h4/h5 | TBD | arena_prog_7 |
-| ViT_PPO | PPO h1/h2 | TBD | assembly_lines |
-| ViT_PPO_CL | PPO_CL h1'/h2'/h3/h4/h5 | TBD | assembly_lines |
-| Transformer_PPO | PPO h1/h2 | TBD | assembly_lines |
-| Transformer_PPO_CL | PPO_CL h1'/h2'/h3/h4/h5 | TBD | assembly_lines |
-| ViT_PPO | PPO h1/h2 | TBD | navigation |
-| ViT_PPO_CL | PPO_CL h1'/h2'/h3/h4/h5 | TBD | navigation |
-| Transformer_PPO | PPO h1/h2 | TBD | navigation |
-| Transformer_PPO_CL | PPO_CL h1'/h2'/h3/h4/h5 | TBD | navigation |
-
-**Legend:**
-- **ViT_PPO**: Vision Transformer with standard PPO
-- **ViT_PPO_CL**: Vision Transformer with PPO and Curriculum Learning
-- **Transformer_PPO**: Standard Transformer with PPO
-- **Transformer_PPO_CL**: Standard Transformer with PPO and Curriculum Learning
-- **h1/h2**: Hyperparameter configurations from sweep phase 1
-- **h1'/h2'/h3/h4/h5**: Hyperparameter configurations from sweep phase 2
 
 ## Benchmarking Process
 
