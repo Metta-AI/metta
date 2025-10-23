@@ -44,12 +44,15 @@ from .git import (
 # GitHub API functionality
 from .github import (
     create_pr,
+    get_branches,
     get_commits,
     get_latest_commit,
     get_matched_pr,
+    get_pull_requests,
     get_workflow_run_jobs,
     get_workflow_runs,
     github_client,
+    list_all_workflow_runs,
     post_commit_status,
     run_gh,
 )
@@ -95,6 +98,9 @@ __all__ = [
     "get_commits",
     "get_workflow_runs",
     "get_workflow_run_jobs",
+    "get_pull_requests",
+    "get_branches",
+    "list_all_workflow_runs",
     # Filter
     "filter_repo",
 ]

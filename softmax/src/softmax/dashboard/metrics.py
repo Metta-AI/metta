@@ -5,7 +5,14 @@ from typing import Any
 
 from pydantic import BaseModel
 
-from gitta import get_commits, get_workflow_run_jobs, get_workflow_runs
+from gitta import (
+    get_branches,
+    get_commits,
+    get_pull_requests,
+    get_workflow_run_jobs,
+    get_workflow_runs,
+    list_all_workflow_runs,
+)
 from metta.common.util.constants import METTA_GITHUB_ORGANIZATION, METTA_GITHUB_REPO
 from softmax.aws.secrets_manager import get_secretsmanager_secret
 from softmax.dashboard.registry import system_health_metric
@@ -144,3 +151,351 @@ def get_latest_unit_tests_failed() -> int | None:
             if job_status.status == "completed"
         )
     )
+
+
+# ==================== Pull Request Metrics ====================
+
+
+@system_health_metric(metric_key="prs.open")
+def get_open_prs_count() -> int:
+    """Count of currently open pull requests."""
+    repo = f"{METTA_GITHUB_ORGANIZATION}/{METTA_GITHUB_REPO}"
+
+    try:
+        prs = get_pull_requests(
+            repo=repo,
+            state="open",
+            per_page=100,
+            Authorization=_get_github_auth_header(),
+        )
+        return len(prs)
+    except Exception as e:
+        logger.error(f"Failed to get open PRs: {e}")
+        return 0
+
+
+@system_health_metric(metric_key="prs.merged_7d")
+def get_merged_prs_7d() -> int:
+    """Count of pull requests merged in the last 7 days."""
+    since = (datetime.now(timezone.utc) - timedelta(days=7)).isoformat()
+    repo = f"{METTA_GITHUB_ORGANIZATION}/{METTA_GITHUB_REPO}"
+
+    try:
+        prs = get_pull_requests(
+            repo=repo,
+            state="closed",
+            since=since,
+            per_page=100,
+            Authorization=_get_github_auth_header(),
+        )
+        # Filter for merged PRs (closed but merged)
+        merged = [pr for pr in prs if pr.get("merged_at")]
+        return len(merged)
+    except Exception as e:
+        logger.error(f"Failed to get merged PRs: {e}")
+        return 0
+
+
+@system_health_metric(metric_key="prs.closed_without_merge_7d")
+def get_closed_without_merge_prs_7d() -> int:
+    """Count of pull requests closed without merge in the last 7 days."""
+    since = (datetime.now(timezone.utc) - timedelta(days=7)).isoformat()
+    repo = f"{METTA_GITHUB_ORGANIZATION}/{METTA_GITHUB_REPO}"
+
+    try:
+        prs = get_pull_requests(
+            repo=repo,
+            state="closed",
+            since=since,
+            per_page=100,
+            Authorization=_get_github_auth_header(),
+        )
+        # Filter for closed but not merged PRs
+        closed_no_merge = [pr for pr in prs if not pr.get("merged_at")]
+        return len(closed_no_merge)
+    except Exception as e:
+        logger.error(f"Failed to get closed PRs: {e}")
+        return 0
+
+
+@system_health_metric(metric_key="prs.avg_time_to_merge_hours")
+def get_avg_time_to_merge() -> float | None:
+    """Average time from PR creation to merge (in hours) for PRs merged in last 7 days."""
+    since = (datetime.now(timezone.utc) - timedelta(days=7)).isoformat()
+    repo = f"{METTA_GITHUB_ORGANIZATION}/{METTA_GITHUB_REPO}"
+
+    try:
+        prs = get_pull_requests(
+            repo=repo,
+            state="closed",
+            since=since,
+            per_page=100,
+            Authorization=_get_github_auth_header(),
+        )
+        # Filter for merged PRs
+        merged_prs = [pr for pr in prs if pr.get("merged_at")]
+
+        if not merged_prs:
+            return None
+
+        times_to_merge = []
+        for pr in merged_prs:
+            created = datetime.fromisoformat(pr["created_at"].replace("Z", "+00:00"))
+            merged = datetime.fromisoformat(pr["merged_at"].replace("Z", "+00:00"))
+            hours = (merged - created).total_seconds() / 3600
+            times_to_merge.append(hours)
+
+        return sum(times_to_merge) / len(times_to_merge)
+    except Exception as e:
+        logger.error(f"Failed to calculate avg time to merge: {e}")
+        return None
+
+
+# ==================== Branch Metrics ====================
+
+
+@system_health_metric(metric_key="branches.active")
+def get_active_branches_count() -> int:
+    """Count of active branches (excluding main/master)."""
+    repo = f"{METTA_GITHUB_ORGANIZATION}/{METTA_GITHUB_REPO}"
+
+    try:
+        branches = get_branches(
+            repo=repo,
+            Authorization=_get_github_auth_header(),
+        )
+        # Filter out main/master branches
+        active = [b for b in branches if b["name"] not in ("main", "master")]
+        return len(active)
+    except Exception as e:
+        logger.error(f"Failed to get active branches: {e}")
+        return 0
+
+
+# ==================== Code Change Metrics ====================
+
+
+@system_health_metric(metric_key="commits.total_7d")
+def get_commits_7d() -> int:
+    """Total number of commits in the last 7 days."""
+    since = (datetime.now(timezone.utc) - timedelta(days=7)).isoformat()
+    repo = f"{METTA_GITHUB_ORGANIZATION}/{METTA_GITHUB_REPO}"
+
+    try:
+        commits = get_commits(
+            repo=repo,
+            branch="main",
+            since=since,
+            per_page=100,
+            Authorization=_get_github_auth_header(),
+        )
+        return len(commits)
+    except Exception as e:
+        logger.error(f"Failed to get commits: {e}")
+        return 0
+
+
+@system_health_metric(metric_key="code.lines_added_7d")
+def get_lines_added_7d() -> int:
+    """Total lines of code added in the last 7 days."""
+    since = (datetime.now(timezone.utc) - timedelta(days=7)).isoformat()
+    repo = f"{METTA_GITHUB_ORGANIZATION}/{METTA_GITHUB_REPO}"
+
+    try:
+        commits = get_commits(
+            repo=repo,
+            branch="main",
+            since=since,
+            per_page=100,
+            Authorization=_get_github_auth_header(),
+        )
+
+        total_additions = 0
+        for commit in commits:
+            stats = commit.get("stats", {})
+            total_additions += stats.get("additions", 0)
+
+        return total_additions
+    except Exception as e:
+        logger.error(f"Failed to get lines added: {e}")
+        return 0
+
+
+@system_health_metric(metric_key="code.lines_deleted_7d")
+def get_lines_deleted_7d() -> int:
+    """Total lines of code deleted in the last 7 days."""
+    since = (datetime.now(timezone.utc) - timedelta(days=7)).isoformat()
+    repo = f"{METTA_GITHUB_ORGANIZATION}/{METTA_GITHUB_REPO}"
+
+    try:
+        commits = get_commits(
+            repo=repo,
+            branch="main",
+            since=since,
+            per_page=100,
+            Authorization=_get_github_auth_header(),
+        )
+
+        total_deletions = 0
+        for commit in commits:
+            stats = commit.get("stats", {})
+            total_deletions += stats.get("deletions", 0)
+
+        return total_deletions
+    except Exception as e:
+        logger.error(f"Failed to get lines deleted: {e}")
+        return 0
+
+
+@system_health_metric(metric_key="code.files_changed_7d")
+def get_files_changed_7d() -> int:
+    """Total number of files changed in the last 7 days."""
+    since = (datetime.now(timezone.utc) - timedelta(days=7)).isoformat()
+    repo = f"{METTA_GITHUB_ORGANIZATION}/{METTA_GITHUB_REPO}"
+
+    try:
+        commits = get_commits(
+            repo=repo,
+            branch="main",
+            since=since,
+            per_page=100,
+            Authorization=_get_github_auth_header(),
+        )
+
+        # Use a set to track unique files
+        files = set()
+        for commit in commits:
+            files_data = commit.get("files", [])
+            for file_data in files_data:
+                files.add(file_data.get("filename"))
+
+        return len(files)
+    except Exception as e:
+        logger.error(f"Failed to get files changed: {e}")
+        return 0
+
+
+# ==================== CI/CD Runtime Metrics ====================
+
+
+@system_health_metric(metric_key="ci.workflow_runs_7d")
+def get_workflow_runs_7d() -> int:
+    """Total number of workflow runs in the last 7 days."""
+    since_date = (datetime.now(timezone.utc) - timedelta(days=7)).strftime("%Y-%m-%d")
+    created_filter = f">={since_date}"
+    repo = f"{METTA_GITHUB_ORGANIZATION}/{METTA_GITHUB_REPO}"
+
+    try:
+        runs = list_all_workflow_runs(
+            repo=repo,
+            created=created_filter,
+            per_page=100,
+            Authorization=_get_github_auth_header(),
+        )
+        return len(runs)
+    except Exception as e:
+        logger.error(f"Failed to get workflow runs: {e}")
+        return 0
+
+
+@system_health_metric(metric_key="ci.failed_workflows_7d")
+def get_failed_workflows_7d() -> int:
+    """Number of failed workflow runs in the last 7 days."""
+    since_date = (datetime.now(timezone.utc) - timedelta(days=7)).strftime("%Y-%m-%d")
+    created_filter = f">={since_date}"
+    repo = f"{METTA_GITHUB_ORGANIZATION}/{METTA_GITHUB_REPO}"
+
+    try:
+        runs = list_all_workflow_runs(
+            repo=repo,
+            status="completed",
+            created=created_filter,
+            per_page=100,
+            Authorization=_get_github_auth_header(),
+        )
+        failed = [run for run in runs if run.get("conclusion") == "failure"]
+        return len(failed)
+    except Exception as e:
+        logger.error(f"Failed to get failed workflows: {e}")
+        return 0
+
+
+@system_health_metric(metric_key="ci.avg_workflow_duration_minutes")
+def get_avg_workflow_duration() -> float | None:
+    """Average workflow run duration in minutes for runs in the last 7 days."""
+    since_date = (datetime.now(timezone.utc) - timedelta(days=7)).strftime("%Y-%m-%d")
+    created_filter = f">={since_date}"
+    repo = f"{METTA_GITHUB_ORGANIZATION}/{METTA_GITHUB_REPO}"
+
+    try:
+        runs = list_all_workflow_runs(
+            repo=repo,
+            status="completed",
+            created=created_filter,
+            per_page=100,
+            Authorization=_get_github_auth_header(),
+        )
+
+        if not runs:
+            return None
+
+        durations = []
+        for run in runs:
+            created = run.get("created_at")
+            updated = run.get("updated_at")
+            if created and updated:
+                created_dt = datetime.fromisoformat(created.replace("Z", "+00:00"))
+                updated_dt = datetime.fromisoformat(updated.replace("Z", "+00:00"))
+                duration_minutes = (updated_dt - created_dt).total_seconds() / 60
+                durations.append(duration_minutes)
+
+        if not durations:
+            return None
+
+        return sum(durations) / len(durations)
+    except Exception as e:
+        logger.error(f"Failed to calculate avg workflow duration: {e}")
+        return None
+
+
+# ==================== Developer Activity Metrics ====================
+
+
+@system_health_metric(metric_key="developers.active_7d")
+def get_active_developers_7d() -> int:
+    """Number of unique developers who committed in the last 7 days."""
+    since = (datetime.now(timezone.utc) - timedelta(days=7)).isoformat()
+    repo = f"{METTA_GITHUB_ORGANIZATION}/{METTA_GITHUB_REPO}"
+
+    try:
+        commits = get_commits(
+            repo=repo,
+            branch="main",
+            since=since,
+            per_page=100,
+            Authorization=_get_github_auth_header(),
+        )
+
+        # Use set to track unique authors
+        authors = set()
+        for commit in commits:
+            author = commit.get("commit", {}).get("author", {}).get("email")
+            if author:
+                authors.add(author)
+
+        return len(authors)
+    except Exception as e:
+        logger.error(f"Failed to get active developers: {e}")
+        return 0
+
+
+@system_health_metric(metric_key="commits.per_developer_7d")
+def get_avg_commits_per_developer_7d() -> float | None:
+    """Average commits per developer in the last 7 days."""
+    total_commits = get_commits_7d()
+    active_devs = get_active_developers_7d()
+
+    if active_devs == 0:
+        return None
+
+    return total_commits / active_devs
