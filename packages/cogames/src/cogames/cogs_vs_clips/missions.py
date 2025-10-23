@@ -511,6 +511,7 @@ class MachinaProceduralExploreMission(ProceduralMissionBase):
         self.procedural_overrides = {
             "extractors": {"chest": 1.0, "charger": 1.0},
             "extractor_coverage": 0.004,
+            #be able to add the distributions here
         }
 
     def make_env(self) -> MettaGridConfig:
