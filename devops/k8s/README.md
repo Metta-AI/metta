@@ -2,6 +2,8 @@
 
 This directory contains helper scripts for deploying applications to Kubernetes/EKS.
 
+> **📘 For complete build and deployment workflow**, see [BUILD_AND_DEPLOY.md](./BUILD_AND_DEPLOY.md) which covers Docker image building, ECR push, Helm deployment, and troubleshooting.
+
 ## Overview
 
 The Metta project uses:
