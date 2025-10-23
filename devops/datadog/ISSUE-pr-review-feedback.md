@@ -19,12 +19,13 @@ From PR review on 2025-10-23:
 
 ## Issues to Address
 
-### 1. Metric Naming Topology & Tags Strategy
+### 1. Metric Naming Topology & Tags Strategy ✅ **RESOLVED** (2025-10-23)
 
-**Concern**: Current `{service}.{category}.{metric_name}` pattern needs validation
-- Need to ensure it works well with dashboard queries
-- Datadog has tags - should we be using those instead of/in addition to metric names?
-- Splitting on metric names may not be easy in Datadog queries
+**Decision**: Keep hierarchical `{service}.{category}.{metric_name}` pattern
+- Works well for hundreds/thousands of metrics
+- Intuitive for both humans and AI agents
+- Can add supplementary tags later if needed without breaking existing metrics
+- No need to migrate or change architecture
 
 **Current Pattern**:
 ```python
@@ -53,19 +54,16 @@ github.ci.workflow_runs_7d
    - Hierarchical metric names?
    - Hybrid approach?
 
-**Investigation Needed**:
-- [ ] Research Datadog metric naming best practices
-- [ ] Test dashboard queries with current naming pattern
-- [ ] Test dashboard queries with tag-based approach
-- [ ] Review how existing Datadog integrations organize metrics
-- [ ] Check if we can easily filter/group by metric name segments
-- [ ] Prototype both approaches in a test dashboard
+**Investigation Completed**:
+- [x] Research Datadog metric naming best practices - Hierarchical works well
+- [x] Validate approach with team - Decision to keep current pattern
+- [x] Confirm no breaking changes needed
 
-**Decision Criteria**:
-- Ease of creating dashboard widgets
-- Flexibility for future aggregations
-- Consistency with Datadog ecosystem
-- Query performance
+**Rationale**:
+- Hierarchical naming is industry standard
+- No practical limit on metric count
+- Tags can be added later if needed
+- Don't fix what isn't broken
 
 ### 2. Replace Makefile with Typer CLI ✅
 
@@ -139,9 +137,13 @@ def pull():
 - All commands tested and working
 - Documentation updated (README.md, STATUS.md, etc.)
 
-### 3. Review and Improve Metric Selection
+### 3. Review and Improve Metric Selection 🚧 **IN PROGRESS** (2025-10-23)
 
-**Concern**: Actual metrics selected don't feel super well-chosen
+**Strategy**: Overshoot and trim later based on dashboard usage
+- Keep all existing 17 metrics (no removals)
+- Add 8 new quality/velocity metrics
+- Let real usage guide future refinement
+- Can't go back in time to collect historical data
 
 **Current Metrics** (17 implemented):
 - `github.prs.open`, `github.prs.merged_7d`, `github.prs.closed_without_merge_7d`, `github.prs.avg_time_to_merge_hours`
@@ -151,37 +153,31 @@ def pull():
 - `github.developers.active_7d`
 - `github.code.lines_added_7d`, `github.code.lines_deleted_7d`, `github.code.files_changed_7d` ✅ (fixed 2025-10-23)
 
-**Questions to Answer**:
-1. **What are we actually trying to measure?**
-   - Developer productivity?
-   - Code quality?
-   - CI/CD health?
-   - Project velocity?
+**New Metrics Being Added** (8 total):
 
-2. **What metrics would be most valuable for decision-making?**
-   - Example: Is "active branches" useful, or just noisy?
-   - Example: Is "commits per developer" meaningful, or does it incentivize wrong behavior?
+*Quality Metrics (2):*
+- `github.prs.with_review_comments_pct` - % PRs with review discussion
+- `github.prs.avg_comments_per_pr` - Depth of review
 
-3. **What metrics align with team goals?**
-   - Ship faster? → Track PR merge time, CI duration
-   - Maintain quality? → Track test coverage, revert rate, CI failure rate
-   - Team health? → Track PR review time, work distribution
+*Velocity Metrics (6):*
+- `github.prs.time_to_first_review_hours` - Review responsiveness
+- `github.prs.stale_count_14d` - PRs open >14 days
+- `github.prs.cycle_time_hours` - Open to merge duration
+- `github.ci.duration_p50_minutes` - Median CI time
+- `github.ci.duration_p90_minutes` - 90th percentile
+- `github.ci.duration_p99_minutes` - 99th percentile
 
-4. **Are there missing critical metrics?**
-   - PR review turnaround time
-   - Deployment frequency
-   - Change failure rate (reverts/rollbacks)
-   - Test flakiness
-   - Code review coverage (% PRs reviewed before merge)
+**Team Goals Clarified**:
+1. **Quality** (Primary) - reverts, hotfixes, CI failures, review depth
+2. **Velocity** (Primary) - PR flow, review speed, CI performance
+3. **Visibility** (Supporting) - only if supporting top-line goals
 
 **Action Items**:
-- [ ] **Meeting with team**: Discuss what metrics actually matter
-- [ ] **Review existing dashboards**: What do we currently look at?
-- [ ] **Define KPIs**: What are we trying to improve?
-- [ ] **Prioritize metrics**: Which ones drive decisions vs. just noise?
-- [ ] **Remove low-value metrics**: Cut metrics that don't inform actions
-- [ ] **Add missing high-value metrics**: Fill gaps based on KPIs
-- [ ] **Document metric rationale**: Why each metric exists and how to interpret it
+- [x] **Meeting with team**: Completed - goals and strategy aligned
+- [x] **Define KPIs**: Quality + Velocity focus
+- [ ] **Add missing high-value metrics**: In progress (Phase 1D)
+- [ ] **Review after dashboard deployment**: Trim based on actual usage
+- [ ] **Document metric rationale**: Will update after deployment
 
 **Potential Improvements**:
 ```python
