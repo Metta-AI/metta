@@ -164,6 +164,7 @@ def _configure_pr_similarity_mcp_server(force: bool) -> None:
         return
 
     _ensure_pr_similarity_cache(force=force)
+    _install_pr_similarity_package(force=force)
 
     codex_executable = shutil.which("codex")
     if not codex_executable:
@@ -289,6 +290,25 @@ def _ensure_pr_similarity_cache(*, force: bool) -> None:
         info(f"Downloaded PR similarity cache from s3://{bucket}/{prefix}")
     except Exception as error:  # pragma: no cover - external dependency
         warning(f"Unable to download PR similarity cache: {error}")
+
+
+def _install_pr_similarity_package(*, force: bool) -> None:
+    if shutil.which("metta-pr-similarity-mcp") and not force:
+        return
+
+    package_path = cli.repo_root / "mcp_servers" / "pr_similarity"
+    try:
+        subprocess.run(
+            ["uv", "pip", "install", "-e", str(package_path)],
+            check=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+        info("Installed metta-pr-similarity MCP package.")
+    except subprocess.CalledProcessError as error:  # pragma: no cover - external dependency
+        stderr = (error.stderr or "").strip()
+        warning(f"Failed to install metta-pr-similarity package: {stderr if stderr else error}")
 
 
 def _run_ruff(python_targets: list[str] | None, *, fix: bool) -> None:

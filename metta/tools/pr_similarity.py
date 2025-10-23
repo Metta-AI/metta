@@ -62,6 +62,12 @@ def _load_legacy_cache(path: Path) -> Tuple[CacheMetadata, List[EmbeddingRecord]
 
     entries: List[EmbeddingRecord] = []
     for item in data.get("entries", []):
+        vector_data = item.get("vector")
+        if vector_data is None:
+            raise ValueError(
+                "Legacy embedding cache is missing inline vector data. "
+                "Make sure both JSON and NPZ files from the new format are present.",
+            )
         entries.append(
             EmbeddingRecord(
                 pr_number=int(item["pr_number"]),
@@ -73,7 +79,7 @@ def _load_legacy_cache(path: Path) -> Tuple[CacheMetadata, List[EmbeddingRecord]
                 files_changed=int(item.get("files_changed", 0)),
                 commit_sha=item.get("commit_sha", ""),
                 authored_at=item.get("authored_at", ""),
-                vector=list(item["vector"]),
+                vector=list(vector_data),
             ),
         )
 
@@ -125,8 +131,8 @@ def load_cache(path: Path) -> Tuple[CacheMetadata, List[EmbeddingRecord]]:
 
         return metadata, entries
 
-    if path.exists():
-        return _load_legacy_cache(path)
+    if meta_path.exists():
+        return _load_legacy_cache(meta_path)
 
     raise FileNotFoundError(f"Embedding cache not found: {meta_path} / {vectors_path}")
 
