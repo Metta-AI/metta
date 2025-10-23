@@ -257,17 +257,11 @@ jobs:
         shell: bash
         run: |
           set -eo pipefail
-          mkdir -p .ci-reports
           ARGS=()
           if [[ "${{ needs.setup-checks.outputs.app_backend_has_changes }}" != "true" ]]; then
-            ARGS+=(--nosuite app_backend)
+            ARGS+=(--skip-package app_backend)
           fi
-          uv run metta pytest --ci "${ARGS[@]}" -- --junitxml=.ci-reports/python-tests.xml
-
-      - name: Summarize Python test failures
-        if: failure()
-        run: |
-          uv run python .github/scripts/summarize_junit.py .ci-reports/python-tests.xml .ci-reports/python-test-summary.md
+          uv run metta pytest --ci --test-summary-out .ci-reports/python-tests "${ARGS[@]}"
 
       - name: Upload Python test report
         if: always()
@@ -276,7 +270,7 @@ jobs:
           name: python-tests-report
           path: |
             .ci-reports/python-tests.xml
-            .ci-reports/python-test-summary.md
+            .ci-reports/python-tests.md
 
   cpp-tests:
     name: "Tests - C++"

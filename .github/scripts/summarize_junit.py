@@ -12,94 +12,9 @@ optionally, writes the same content to the provided markdown file.
 from __future__ import annotations
 
 import sys
-import xml.etree.ElementTree as ET
 from pathlib import Path
-from typing import Iterable, NamedTuple
 
-SUMMARY_HEADER = "🔴 Pytest failures"
-REPRO_TEMPLATE = "uv run metta pytest -- {target}"
-
-
-class Failure(NamedTuple):
-    file: str | None
-    line: int | None
-    testcase: str
-    message: str
-    details: str
-    target: str
-
-
-def _iter_failures(xml_path: Path) -> Iterable[Failure]:
-    try:
-        tree = ET.parse(xml_path)
-    except ET.ParseError as exc:
-        raise SystemExit(f"Unable to parse JUnit report: {exc}") from exc
-
-    root = tree.getroot()
-    for testcase in root.iter("testcase"):
-        failures = list(testcase.findall("failure")) + list(testcase.findall("error"))
-        if not failures:
-            continue
-
-        file_attr = testcase.attrib.get("file")
-        try:
-            line_attr = int(testcase.attrib["line"])
-        except (KeyError, ValueError):
-            line_attr = None
-
-        classname = testcase.attrib.get("classname", "")
-        name = testcase.attrib.get("name", "<unknown>")
-        testcase_name = f"{classname}.{name}" if classname else name
-        target = file_attr or classname.replace(".", "/")
-        pytest_target = f"{target}::{name}" if target else name
-
-        for failure in failures:
-            message = failure.attrib.get("message", "").strip()
-            details = (failure.text or "").strip()
-            yield Failure(
-                file=file_attr,
-                line=line_attr,
-                testcase=testcase_name,
-                message=message or details.splitlines()[0] if details else "",
-                details=details,
-                target=pytest_target,
-            )
-
-
-def _format_failure(failure: Failure) -> str:
-    header = f"- `{failure.testcase}`"
-    if failure.message:
-        header += f": {failure.message}"
-    repro = REPRO_TEMPLATE.format(target=failure.target)
-    lines = [header, f"  - reproducible via `{repro}`"]
-    if failure.details:
-        snippet = "\n".join(f"    {line}" for line in failure.details.splitlines()[:20])
-        lines.append("  - details:\n" + snippet)
-    return "\n".join(lines)
-
-
-def _emit_annotations(failure: Failure) -> None:
-    if failure.file:
-        location = f"file={failure.file}"
-        if failure.line:
-            location += f",line={failure.line}"
-        message = failure.message or failure.testcase
-        print(f"::error {location}::{message}")
-
-
-def summarize(xml_path: Path) -> str:
-    failures = list(_iter_failures(xml_path))
-    if not failures:
-        return "✅ Pytest reported no failures."
-
-    for failure in failures:
-        _emit_annotations(failure)
-
-    parts = [SUMMARY_HEADER, ""]
-    for failure in failures:
-        parts.append(_format_failure(failure))
-        parts.append("")
-    return "\n".join(parts).rstrip() + "\n"
+from metta.setup.tools.test_runner.junit_summary import emit_annotations, summarize_report
 
 
 def main() -> None:
@@ -111,7 +26,8 @@ def main() -> None:
     if not report.exists():
         raise SystemExit(f"Report not found: {report}")
 
-    summary = summarize(report)
+    summary = summarize_report(report)
+    emit_annotations(report)
     print(summary)
 
     if len(sys.argv) == 3:
