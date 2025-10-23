@@ -65,10 +65,6 @@ export interface BackgroundJobs {
     paperId: string;
     arxivUrl: string;
   };
-  "extract-authors": {
-    paperId: string;
-    arxivUrl: string;
-  };
   "generate-llm-abstract": {
     paperId: string;
   };
@@ -98,19 +94,6 @@ export const institutionQueue = new Queue("institution-extraction", {
     backoff: {
       type: "exponential",
       delay: 2000, // Start with 2s delay, then 4s, 8s
-    },
-  },
-});
-
-export const authorQueue = new Queue("author-extraction", {
-  connection: redisConfig,
-  defaultJobOptions: {
-    removeOnComplete: 100,
-    removeOnFail: 50,
-    attempts: 3,
-    backoff: {
-      type: "exponential",
-      delay: 2000,
     },
   },
 });
@@ -173,25 +156,6 @@ export class JobQueueService {
       {
         // Rate limiting: process with 3 second delay
         delay: 3000,
-      }
-    );
-  }
-
-  /**
-   * Queue author extraction for a paper
-   */
-  static async queueAuthorExtraction(
-    paperId: string,
-    arxivUrl: string
-  ): Promise<void> {
-    Logger.info(`📤 Queuing author extraction for paper ${paperId}`);
-
-    await authorQueue.add(
-      "extract-authors",
-      { paperId, arxivUrl },
-      {
-        // Rate limiting: process with 2 second delay
-        delay: 2000,
       }
     );
   }
@@ -270,23 +234,16 @@ export class JobQueueService {
    * Get queue statistics for monitoring
    */
   static async getQueueStats() {
-    const [
-      institutionStats,
-      authorStats,
-      llmStats,
-      taggingStats,
-      notificationStats,
-    ] = await Promise.all([
-      institutionQueue.getJobCounts(),
-      authorQueue.getJobCounts(),
-      llmQueue.getJobCounts(),
-      taggingQueue.getJobCounts(),
-      externalNotificationQueue.getJobCounts(),
-    ]);
+    const [institutionStats, llmStats, taggingStats, notificationStats] =
+      await Promise.all([
+        institutionQueue.getJobCounts(),
+        llmQueue.getJobCounts(),
+        taggingQueue.getJobCounts(),
+        externalNotificationQueue.getJobCounts(),
+      ]);
 
     return {
       institution: institutionStats,
-      author: authorStats,
       llm: llmStats,
       tagging: taggingStats,
       notifications: notificationStats,
@@ -300,7 +257,6 @@ export class JobQueueService {
     Logger.info("🛑 Shutting down job queues...");
     await Promise.all([
       institutionQueue.close(),
-      authorQueue.close(),
       llmQueue.close(),
       taggingQueue.close(),
       externalNotificationQueue.close(),

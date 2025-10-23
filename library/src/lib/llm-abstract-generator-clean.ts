@@ -1,4 +1,5 @@
-import { extractPdfWithOpenAI } from "./openai-pdf-extractor";
+import { extractPdfContent } from "./pdf-extractor";
+import { config } from "./config";
 import { Logger } from "./logging/logger";
 
 /**
@@ -49,7 +50,7 @@ export async function generateLLMAbstract(
   pdfBuffer?: Buffer
 ): Promise<LLMAbstract> {
   // Use the new enhanced Anthropic extraction if available
-  if (process.env.ANTHROPIC_API_KEY) {
+  if (config.llm.anthropicApiKey) {
     try {
       Logger.info(
         "🤖 Generating enhanced abstract with OpenAI + Adobe for paper:",
@@ -110,7 +111,7 @@ async function generateEnhancedAbstractWithOpenAI(
     }
 
     // Use our enhanced extraction
-    const extraction = await extractPdfWithOpenAI(pdfBuffer);
+    const extraction = await extractPdfContent(pdfBuffer);
 
     // Convert to LLMAbstract format
     const enhancedAbstract: LLMAbstract = {
@@ -142,31 +143,4 @@ async function generateEnhancedAbstractWithOpenAI(
     Logger.error("❌ Error in enhanced abstract generation:", error);
     throw error;
   }
-}
-
-/**
- * Update LLM abstract if needed (for backward compatibility)
- */
-export async function updateLLMAbstractIfNeeded(
-  existingAbstract: LLMAbstract,
-  paperTitle: string,
-  pdfContent?: PdfContent,
-  pdfUrl?: string,
-  homepageUrl?: string,
-  pdfBuffer?: Buffer
-): Promise<LLMAbstract | null> {
-  // For now, always use the existing abstract if version 2.0
-  if (existingAbstract.version === "2.0") {
-    return null; // No update needed
-  }
-
-  // Regenerate for older versions
-  Logger.info("🔄 Updating abstract to version 2.0...");
-  return await generateLLMAbstract(
-    paperTitle,
-    pdfContent,
-    pdfUrl,
-    homepageUrl,
-    pdfBuffer
-  );
 }

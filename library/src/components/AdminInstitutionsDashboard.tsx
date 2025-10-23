@@ -13,7 +13,6 @@ import { getInitialsFromName } from "@/lib/utils/text";
 import { formatDate } from "@/lib/utils/date";
 import { useErrorHandling } from "@/lib/hooks/useErrorHandling";
 import { manageInstitutionOwnershipAction } from "@/institutions/actions/manageInstitutionOwnershipAction";
-import { toggleApprovalRequirementAction } from "@/institutions/actions/toggleApprovalRequirementAction";
 import { approveRejectMembershipAction } from "@/institutions/actions/approveRejectMembershipAction";
 import { listAdminInstitutions } from "@/lib/api/resources/admin";
 
@@ -67,27 +66,6 @@ export const AdminInstitutionsDashboard: React.FC<
     clearError: clearOwnershipError,
   } = useErrorHandling({ fallbackMessage: "Failed to update ownership" });
 
-  const { execute: manageOwnership, isExecuting: isManagingOwnership } =
-    useAction(manageInstitutionOwnershipAction, {
-      onSuccess: () => {
-        setActionData({ userEmail: "", action: "assign_admin" });
-        setSelectedInstitutionId(null);
-        void refreshInstitutions();
-        clearOwnershipError();
-      },
-      onError: (error) => setOwnershipError(error),
-    });
-
-  const { execute: toggleApproval, isExecuting: isTogglingApproval } =
-    useAction(toggleApprovalRequirementAction, {
-      onSuccess: () => void refreshInstitutions(),
-    });
-
-  const { execute: approveRejectMembership, isExecuting: isProcessingRequest } =
-    useAction(approveRejectMembershipAction, {
-      onSuccess: () => void refreshInstitutions(),
-    });
-
   const refreshInstitutions = useCallback(async () => {
     try {
       const data = await listAdminInstitutions();
@@ -106,6 +84,48 @@ export const AdminInstitutionsDashboard: React.FC<
       console.error("Failed to refresh institutions:", error);
     }
   }, []);
+
+  const { execute: manageOwnership, isExecuting: isManagingOwnership } =
+    useAction(manageInstitutionOwnershipAction, {
+      onSuccess: () => {
+        setActionData({ userEmail: "", action: "assign_admin" });
+        setSelectedInstitutionId(null);
+        void refreshInstitutions();
+        clearOwnershipError();
+      },
+      onError: (error) => setOwnershipError(error),
+    });
+
+  const [isTogglingApproval, setIsTogglingApproval] = useState(false);
+
+  const toggleApproval = useCallback(
+    async (institutionId: string, requiresApproval: boolean) => {
+      setIsTogglingApproval(true);
+      try {
+        const response = await fetch("/api/admin/institutions", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ institutionId, requiresApproval }),
+        });
+
+        if (!response.ok) {
+          throw new Error("Failed to update approval requirement");
+        }
+
+        await refreshInstitutions();
+      } catch (error) {
+        console.error("Error toggling approval:", error);
+      } finally {
+        setIsTogglingApproval(false);
+      }
+    },
+    [refreshInstitutions]
+  );
+
+  const { execute: approveRejectMembership, isExecuting: isProcessingRequest } =
+    useAction(approveRejectMembershipAction, {
+      onSuccess: () => void refreshInstitutions(),
+    });
 
   useEffect(() => {
     void refreshInstitutions();
@@ -197,42 +217,8 @@ export const AdminInstitutionsDashboard: React.FC<
           </span>
         ),
       },
-      {
-        id: "actions",
-        header: "Actions",
-        enableSorting: false,
-        cell: ({ row }) => {
-          const institution = row.original;
-          return (
-            <div className="flex flex-wrap gap-2">
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => {
-                  const formData = new FormData();
-                  formData.append("institutionId", institution.id);
-                  formData.append(
-                    "requiresApproval",
-                    (!institution.requiresApproval).toString()
-                  );
-                  toggleApproval(formData);
-                }}
-                disabled={isTogglingApproval}
-              >
-                {institution.requiresApproval ? "Disable" : "Require"} approval
-              </Button>
-              <Button
-                size="sm"
-                onClick={() => setSelectedInstitutionId(institution.id)}
-              >
-                Manage
-              </Button>
-            </div>
-          );
-        },
-      },
     ],
-    [isTogglingApproval, toggleApproval]
+    [isTogglingApproval]
   );
 
   const handleOwnershipAction = useCallback(
@@ -374,12 +360,9 @@ export const AdminInstitutionsDashboard: React.FC<
                   <Button
                     size="sm"
                     variant="outline"
-                    onClick={() => {
-                      const formData = new FormData();
-                      formData.append("institutionId", selectedInstitution.id);
-                      formData.append("requiresApproval", "false");
-                      toggleApproval(formData);
-                    }}
+                    onClick={() =>
+                      toggleApproval(selectedInstitution.id, false)
+                    }
                     disabled={isTogglingApproval}
                   >
                     Disable approval
@@ -387,12 +370,7 @@ export const AdminInstitutionsDashboard: React.FC<
                 ) : (
                   <Button
                     size="sm"
-                    onClick={() => {
-                      const formData = new FormData();
-                      formData.append("institutionId", selectedInstitution.id);
-                      formData.append("requiresApproval", "true");
-                      toggleApproval(formData);
-                    }}
+                    onClick={() => toggleApproval(selectedInstitution.id, true)}
                     disabled={isTogglingApproval}
                   >
                     Require approval

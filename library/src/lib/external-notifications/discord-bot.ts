@@ -8,6 +8,7 @@
 
 import { prisma } from "@/lib/db/prisma";
 import type { NotificationWithDetails } from "./email";
+import { config } from "../config";
 import { Logger } from "../logging/logger";
 
 export interface DiscordNotificationEmbed {
@@ -37,8 +38,8 @@ export class DiscordBotService {
   private rateLimitRemaining: Map<string, number> = new Map();
 
   constructor() {
-    this.baseUrl = process.env.NEXTAUTH_URL || "http://localhost:3001";
-    this.botToken = process.env.DISCORD_BOT_TOKEN || null;
+    this.baseUrl = config.auth.url;
+    this.botToken = config.discord.botToken || null;
     this.isConfigured = !!this.botToken;
 
     if (this.isConfigured) {
@@ -325,7 +326,10 @@ export class DiscordBotService {
 
     // Base embed structure
     const embed = {
-      timestamp: notification.createdAt.toISOString(),
+      timestamp:
+        typeof notification.createdAt === "string"
+          ? notification.createdAt
+          : notification.createdAt.toISOString(),
       footer: {
         text: "Library Notifications",
       },

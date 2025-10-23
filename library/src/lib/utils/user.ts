@@ -54,13 +54,3 @@ export function getUserDisplayName(
   if (email) return email.split("@")[0];
   return "Unknown User";
 }
-
-/**
- * Type guard to check if a user object has required display information
- */
-export function hasUserDisplayInfo(user: {
-  name?: string | null;
-  email?: string | null;
-}): boolean {
-  return Boolean(user.name || user.email);
-}

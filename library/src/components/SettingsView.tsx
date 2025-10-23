@@ -3,67 +3,45 @@
 import { useState, useEffect } from "react";
 import { User } from "next-auth";
 import { toast } from "sonner";
-import {
-  getDiscordStatus,
-  unlinkDiscord,
-  getDiscordBotStatus,
-  sendTestDiscordNotification,
-  getNotificationPreferences,
-  updateNotificationPreferences,
-} from "@/lib/api/resources/settings";
-
-import type {
-  DiscordStatus,
-  DiscordBotStatus,
-  NotificationPreferences,
-} from "@/lib/api/resources/settings";
-
-type DiscordLinkStatus = DiscordStatus;
+import { useDiscordStatus } from "@/hooks/queries/useSettings";
+import { useBotStatus } from "@/hooks/queries/useSettings";
+import { useNotificationPreferences } from "@/hooks/queries/useSettings";
+import { useUnlinkDiscord } from "@/hooks/mutations/useUnlinkDiscord";
+import { useUpdateNotificationPreferences } from "@/hooks/mutations/useUpdateNotificationPreferences";
 
 interface SettingsViewProps {
   user: User;
 }
 
 export function SettingsView({ user }: SettingsViewProps) {
-  const [discordStatus, setDiscordStatus] = useState<DiscordLinkStatus>({
-    isLinked: false,
-  });
-  const [botStatus, setBotStatus] = useState<DiscordBotStatus | null>(null);
-  const [preferences, setPreferences] = useState<NotificationPreferences>({});
-  const [loading, setLoading] = useState(true);
-  const [testingDiscord, setTestingDiscord] = useState(false);
-  const [testMessage, setTestMessage] = useState("");
+  // TanStack Query hooks
+  const {
+    data: discordStatusData,
+    isLoading: isLoadingDiscord,
+    refetch: refetchDiscordStatus,
+  } = useDiscordStatus();
+  const { data: botStatusData, isLoading: isLoadingBot } = useBotStatus();
+  const {
+    data: preferencesData,
+    isLoading: isLoadingPreferences,
+    refetch: refetchPreferences,
+  } = useNotificationPreferences();
+
+  // Mutations
+  const unlinkDiscordMutation = useUnlinkDiscord();
+  const updatePreferencesMutation = useUpdateNotificationPreferences();
+
+  // UI-only state
   const [urlMessage, setUrlMessage] = useState<{
     type: "success" | "error";
     message: string;
   } | null>(null);
 
-  const loadDiscordStatus = async () => {
-    try {
-      const data = await getDiscordStatus();
-      setDiscordStatus(data);
-    } catch (error) {
-      console.error("Failed to load Discord status:", error);
-    }
-  };
-
-  const loadBotStatus = async () => {
-    try {
-      const data = await getDiscordBotStatus();
-      setBotStatus(data.configuration);
-    } catch (error) {
-      console.error("Failed to load bot status:", error);
-    }
-  };
-
-  const loadNotificationPreferences = async () => {
-    try {
-      const data = await getNotificationPreferences();
-      setPreferences(data.preferences || {});
-    } catch (error) {
-      console.error("Failed to load notification preferences:", error);
-    }
-  };
+  // Extract data from queries with defaults
+  const discordStatus = discordStatusData || { isLinked: false };
+  const botStatus = botStatusData?.configuration ?? null;
+  const preferences = preferencesData?.preferences || {};
+  const loading = isLoadingDiscord || isLoadingBot || isLoadingPreferences;
 
   const handleDiscordOAuth = () => {
     const clientId = process.env.NEXT_PUBLIC_DISCORD_CLIENT_ID;
@@ -77,16 +55,17 @@ export function SettingsView({ user }: SettingsViewProps) {
   };
 
   const handleDiscordUnlink = async () => {
-    try {
-      await unlinkDiscord();
-      setDiscordStatus({ isLinked: false });
-      // Reload preferences to update Discord settings
-      await loadNotificationPreferences();
-      toast.success("Discord account unlinked successfully");
-    } catch (error) {
-      console.error("Failed to unlink Discord:", error);
-      toast.error("Failed to unlink Discord account");
-    }
+    unlinkDiscordMutation.mutate(undefined, {
+      onSuccess: () => {
+        // Refetch preferences to update Discord settings
+        refetchPreferences();
+        toast.success("Discord account unlinked successfully");
+      },
+      onError: (error) => {
+        console.error("Failed to unlink Discord:", error);
+        toast.error("Failed to unlink Discord account");
+      },
+    });
   };
 
   const handlePreferenceChange = async (
@@ -102,39 +81,12 @@ export function SettingsView({ user }: SettingsViewProps) {
       },
     };
 
-    setPreferences(newPreferences);
-
-    try {
-      await updateNotificationPreferences(newPreferences);
-    } catch (error) {
-      console.error("Failed to update preferences:", error);
-      // Revert on failure
-      await loadNotificationPreferences();
-      toast.error("Failed to update preferences");
-    }
-  };
-
-  const handleTestDiscord = async () => {
-    if (!discordStatus.isLinked) {
-      toast.error("Please link your Discord account first");
-      return;
-    }
-
-    setTestingDiscord(true);
-    try {
-      const data = await sendTestDiscordNotification();
-      if (data.success) {
-        toast.success("Test Discord DM sent successfully");
-        setTestMessage("");
-      } else {
-        toast.error(`Failed to send test Discord DM: ${data.message}`);
-      }
-    } catch (error) {
-      console.error("Failed to test Discord:", error);
-      toast.error("Failed to send test Discord DM");
-    } finally {
-      setTestingDiscord(false);
-    }
+    updatePreferencesMutation.mutate(newPreferences, {
+      onError: (error) => {
+        console.error("Failed to update preferences:", error);
+        toast.error("Failed to update preferences");
+      },
+    });
   };
 
   const notificationTypes = [
@@ -165,23 +117,15 @@ export function SettingsView({ user }: SettingsViewProps) {
       window.history.replaceState({}, "", "/settings");
       // Reload data if Discord was linked
       if (success === "discord_linked") {
-        loadDiscordStatus();
-        loadNotificationPreferences();
+        refetchDiscordStatus();
+        refetchPreferences();
       }
     } else if (error && message) {
       toast.error(message);
       // Clean up URL
       window.history.replaceState({}, "", "/settings");
     }
-  }, []);
-
-  // Load initial data
-  useEffect(() => {
-    Promise.all([
-      loadDiscordStatus(),
-      loadBotStatus(),
-      loadNotificationPreferences(),
-    ]).finally(() => setLoading(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   if (loading) {
@@ -336,31 +280,6 @@ export function SettingsView({ user }: SettingsViewProps) {
                   </div>
                 )}
               </div>
-
-              {/* Test Discord */}
-              {discordStatus.isLinked && botStatus?.ready && (
-                <div className="rounded-lg bg-blue-50 p-4">
-                  <h3 className="mb-3 font-medium text-blue-900">
-                    Test Discord DM
-                  </h3>
-                  <div className="space-y-3">
-                    <textarea
-                      value={testMessage}
-                      onChange={(e) => setTestMessage(e.target.value)}
-                      placeholder="Enter a custom test message (optional)"
-                      className="w-full resize-none rounded-lg border border-gray-300 p-3"
-                      rows={2}
-                    />
-                    <button
-                      onClick={handleTestDiscord}
-                      disabled={testingDiscord}
-                      className="rounded-lg bg-blue-600 px-4 py-2 text-white transition-colors hover:bg-blue-700 disabled:bg-blue-400"
-                    >
-                      {testingDiscord ? "Sending..." : "Send Test DM"}
-                    </button>
-                  </div>
-                </div>
-              )}
             </div>
           </div>
 

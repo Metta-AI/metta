@@ -1,7 +1,7 @@
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db/prisma";
 import {
   generateLLMAbstract,
-  updateLLMAbstractIfNeeded,
   LLMAbstract,
 } from "./llm-abstract-generator-clean";
 import { Logger } from "./logging/logger";
@@ -97,7 +97,7 @@ export class PaperAbstractService {
       // Find papers without LLM abstracts that have PDF links
       const papersNeedingAbstracts = await prisma.paper.findMany({
         where: {
-          llmAbstract: null as any,
+          llmAbstract: null,
           link: { not: null },
         },
         select: { id: true },
@@ -292,7 +292,7 @@ export class PaperAbstractService {
       await prisma.paper.update({
         where: { id: paperId },
         data: {
-          llmAbstract: null as any,
+          llmAbstract: Prisma.DbNull,
           llmAbstractGeneratedAt: null,
         },
       });

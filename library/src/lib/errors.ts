@@ -8,6 +8,8 @@
  * - Better error messages for users
  */
 
+import { config } from "./config";
+
 /**
  * Base application error class
  *
@@ -134,11 +136,8 @@ export class BadRequestError extends AppError {
  * Used when external service is unavailable
  */
 export class ServiceUnavailableError extends AppError {
-  constructor(
-    service: string,
-    message: string = `${service} is temporarily unavailable`
-  ) {
-    super(message, "SERVICE_UNAVAILABLE", 503, { service });
+  constructor(message: string, details?: { service?: string }) {
+    super(message, "SERVICE_UNAVAILABLE", 503, details);
   }
 }
 
@@ -175,7 +174,7 @@ export function getUserMessage(error: unknown): string {
 
   if (error instanceof Error) {
     // Don't expose internal error messages in production
-    if (process.env.NODE_ENV === "production") {
+    if (config.nodeEnv === "production") {
       return "An unexpected error occurred";
     }
     return error.message;

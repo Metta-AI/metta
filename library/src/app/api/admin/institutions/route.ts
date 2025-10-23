@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod/v4";
 
 import { getAdminSessionOrRedirect } from "@/lib/adminAuth";
 import { prisma } from "@/lib/db/prisma";
@@ -103,5 +104,37 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
       admins: institution.userInstitutions,
       pendingRequests: pendingByInstitution[institution.id] || [],
     })),
+  });
+});
+
+/**
+ * PATCH /api/admin/institutions
+ * Update institution settings (admin only)
+ */
+export const PATCH = withErrorHandler(async (request: NextRequest) => {
+  await getAdminSessionOrRedirect();
+
+  const bodySchema = z.object({
+    institutionId: z.string(),
+    requiresApproval: z.boolean(),
+  });
+
+  const body = await request.json();
+  const { institutionId, requiresApproval } = bodySchema.parse(body);
+
+  const institution = await prisma.institution.update({
+    where: { id: institutionId },
+    data: { requiresApproval },
+    select: {
+      id: true,
+      name: true,
+      requiresApproval: true,
+    },
+  });
+
+  return NextResponse.json({
+    success: true,
+    message: `Approval requirement ${requiresApproval ? "enabled" : "disabled"} for ${institution.name}`,
+    institution,
   });
 });

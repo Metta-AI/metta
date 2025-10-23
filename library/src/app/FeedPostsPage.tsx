@@ -1,6 +1,7 @@
 "use client";
 
 import { FC, useEffect, useRef, useState } from "react";
+import { MessageCircle } from "lucide-react";
 
 import { useMathJax } from "@/components/MathJaxProvider";
 import { usePaginator } from "@/lib/hooks/usePaginator";
@@ -13,7 +14,6 @@ import {
 } from "@/posts/data/papers";
 import { useOverlayNavigation } from "@/components/OverlayStack";
 import { useStarMutation } from "@/hooks/useStarMutation";
-import { toggleQueueAction } from "@/posts/actions/toggleQueueAction";
 import UserCard from "@/components/UserCard";
 
 import { FeedPost } from "./FeedPost";
@@ -45,7 +45,6 @@ export const FeedPostsPage: FC<{
 }> = ({ posts: initialPosts, papersData, currentUser }) => {
   const page = usePaginator(initialPosts);
   const { mathJaxLoaded, renderMath } = useMathJax();
-  const feedRef = useRef<HTMLDivElement>(null);
   const { openPaper } = useOverlayNavigation();
 
   // Star mutation
@@ -62,8 +61,7 @@ export const FeedPostsPage: FC<{
         paper,
         papersData.users,
         papersData.interactions,
-        handleToggleStar,
-        handleToggleQueue
+        handleToggleStar
       );
     }
   };
@@ -86,21 +84,18 @@ export const FeedPostsPage: FC<{
     starMutation.mutate({ paperId });
   };
 
-  // Handle toggle queue
-  const handleToggleQueue = async (paperId: string) => {
-    try {
-      const formData = new FormData();
-      formData.append("paperId", paperId);
-      await toggleQueueAction(formData);
-
-      // The overlay stack handles its own state updates
-    } catch (error) {
-      console.error("Error toggling queue:", error);
-    }
+  // Handle post deletion - optimistically remove from list
+  const handlePostDeleted = (postId: string) => {
+    page.remove((post) => post.id === postId);
   };
 
   const feedScrollRef = useRef<HTMLDivElement>(null);
   const loadMoreRef = useRef<HTMLDivElement>(null);
+
+  // Handle new post creation - prepend to feed
+  const handlePostCreated = (newPost: FeedPostDTO) => {
+    page.prepend(newPost);
+  };
 
   // Infinite scroll with IntersectionObserver
   useEffect(() => {
@@ -144,7 +139,7 @@ export const FeedPostsPage: FC<{
       {/* Main feed area */}
       <div ref={feedScrollRef} className="h-full flex-1 overflow-y-auto">
         {/* Post Composition */}
-        <NewPostForm />
+        <NewPostForm onPostCreated={handlePostCreated} />
         {/* Feed */}
         <div className="mx-4 mt-6 max-w-2xl md:mr-4 md:ml-6">
           {page.items.length > 0 ? (
@@ -159,6 +154,7 @@ export const FeedPostsPage: FC<{
                   isCommentsExpanded={false}
                   onCommentToggle={() => {}}
                   highlightedCommentId={null}
+                  onPostDeleted={handlePostDeleted}
                 />
               ))}
 
@@ -177,19 +173,7 @@ export const FeedPostsPage: FC<{
           ) : (
             <div className="rounded-lg border border-gray-200 bg-white p-8 text-center">
               <div className="mb-4 text-gray-400">
-                <svg
-                  className="mx-auto h-12 w-12"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"
-                  />
-                </svg>
+                <MessageCircle className="mx-auto h-12 w-12" />
               </div>
               <h3 className="mb-2 text-lg font-medium text-gray-900">
                 No posts yet

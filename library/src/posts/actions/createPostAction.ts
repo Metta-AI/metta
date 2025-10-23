@@ -7,23 +7,24 @@ import { z } from "zod/v4";
 import { actionClient } from "@/lib/actionClient";
 import { getSessionOrRedirect } from "@/lib/auth";
 import { prisma } from "@/lib/db/prisma";
-import { checkUserNotBanned } from "@/lib/banCheck";
 import {
   processArxivAutoImport,
   detectArxivUrl,
 } from "@/lib/arxiv-auto-import";
-import { queueArxivInstitutionProcessing } from "@/lib/background-jobs";
+import { JobQueueService } from "@/lib/job-queue";
 import { parseMentions } from "@/lib/mentions";
 import {
   resolveMentions,
   extractUserIdsFromResolution,
 } from "@/lib/mention-resolution";
 import { createMentionNotifications } from "@/lib/notifications";
+import { Logger } from "@/lib/logging/logger";
 import {
   extractPostIdsFromContent,
   validatePostIds,
   shouldBeQuotePost,
 } from "@/lib/post-link-parser";
+import { toFeedPostDTO, type FeedPostDTO } from "@/posts/data/feed";
 
 const inputSchema = zfd.formData({
   title: zfd.text(z.string().min(1).max(255)),
@@ -42,9 +43,6 @@ export const createPostAction = actionClient
   .action(async ({ parsedInput: input }) => {
     const session = await getSessionOrRedirect();
 
-    // Check if user is banned
-    await checkUserNotBanned(session.user.id);
-
     // Import arXiv paper synchronously for instant paper preview
     let paperId = input.paperId || null;
     let postType = input.postType || "user-post";
@@ -56,7 +54,9 @@ export const createPostAction = actionClient
       try {
         images = JSON.parse(input.images);
       } catch (error) {
-        console.error("Error parsing images:", error);
+        Logger.warn("Error parsing images", {
+          error: error instanceof Error ? error.message : String(error),
+        });
       }
     }
 
@@ -75,11 +75,14 @@ export const createPostAction = actionClient
           session.user.id
         );
 
-        console.log(
-          `📧 Resolved ${mentionStrings.length} mentions to ${mentionedUserIds.length} users`
-        );
+        Logger.info("Resolved mentions", {
+          mentionCount: mentionStrings.length,
+          userCount: mentionedUserIds.length,
+        });
       } catch (error) {
-        console.error("Error parsing or resolving mentions:", error);
+        Logger.warn("Error parsing or resolving mentions", {
+          error: error instanceof Error ? error.message : String(error),
+        });
       }
     }
 
@@ -91,7 +94,9 @@ export const createPostAction = actionClient
       try {
         quotedPostIds = JSON.parse(input.quotedPostIds);
       } catch (error) {
-        console.error("Error parsing quotedPostIds:", error);
+        Logger.warn("Error parsing quotedPostIds", {
+          error: error instanceof Error ? error.message : String(error),
+        });
       }
     }
 
@@ -122,7 +127,9 @@ export const createPostAction = actionClient
         if (importedPaperId) {
           paperId = importedPaperId;
           postType = "paper-post"; // Set as paper post immediately
-          console.log(`✅ arXiv paper imported synchronously: ${paperId}`);
+          Logger.info("arXiv paper imported synchronously", {
+            paperId: importedPaperId,
+          });
         }
       }
     }
@@ -151,11 +158,16 @@ export const createPostAction = actionClient
 
     // If we imported a paper, queue institution enhancement in background
     if (paperId && arxivUrl) {
-      console.log("🏛️ Queuing institution processing for paper:", paperId);
+      Logger.info("Queuing institution processing for paper", { paperId });
       // Fire and forget - enhance paper with institutions
-      queueArxivInstitutionProcessing(paperId, arxivUrl).catch((error) => {
-        console.error("Failed to queue institution processing:", error);
-      });
+      JobQueueService.queueInstitutionExtraction(paperId, arxivUrl).catch(
+        (error) => {
+          Logger.error(
+            "Failed to queue institution processing",
+            error instanceof Error ? error : new Error(String(error))
+          );
+        }
+      );
     }
 
     // Create notifications for mentioned users
@@ -174,12 +186,148 @@ export const createPostAction = actionClient
           actionUrl
         );
       } catch (error) {
-        console.error("Error creating mention notifications:", error);
+        Logger.error(
+          "Error creating mention notifications",
+          error instanceof Error ? error : new Error(String(error))
+        );
         // Don't fail the post creation if notifications fail
       }
     }
 
     revalidatePath("/");
 
-    return { id: post.id };
+    // Fetch the complete post data to return to the client
+    const fullPost = await prisma.post.findUnique({
+      where: { id: post.id },
+      include: {
+        author: true,
+        comments: {
+          select: {
+            createdAt: true,
+          },
+          orderBy: {
+            createdAt: "desc",
+          },
+          take: 1,
+        },
+        paper: {
+          select: {
+            id: true,
+            title: true,
+            abstract: true,
+            tags: true,
+            link: true,
+            source: true,
+            externalId: true,
+            createdAt: true,
+            updatedAt: true,
+            llmAbstract: true,
+            llmAbstractGeneratedAt: true,
+            paperInstitutions: {
+              select: {
+                institution: {
+                  select: {
+                    id: true,
+                    name: true,
+                  },
+                },
+              },
+            },
+            paperAuthors: {
+              include: {
+                author: {
+                  select: {
+                    id: true,
+                    name: true,
+                    institution: true,
+                  },
+                },
+              },
+            },
+            userPaperInteractions: {
+              where: {
+                starred: true,
+              },
+              select: {
+                userId: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!fullPost) {
+      throw new Error("Failed to fetch created post");
+    }
+
+    // Fetch quoted posts if any
+    const quotedPosts =
+      fullPost.quotedPostIds && fullPost.quotedPostIds.length > 0
+        ? await prisma.post.findMany({
+            where: {
+              id: {
+                in: fullPost.quotedPostIds,
+              },
+            },
+            select: {
+              id: true,
+              title: true,
+              content: true,
+              authorId: true,
+              createdAt: true,
+              author: {
+                select: {
+                  id: true,
+                  name: true,
+                  email: true,
+                  image: true,
+                },
+              },
+            },
+          })
+        : [];
+
+    // Convert to maps for toFeedPostDTO
+    const usersMap = new Map([[fullPost.author.id, fullPost.author]]);
+    const papersMap = new Map();
+    if (fullPost.paper) {
+      papersMap.set(fullPost.paper.id, fullPost.paper);
+    }
+
+    // Get user paper interaction for starred status
+    const userPaperInteractionsMap = new Map();
+    if (fullPost.paperId && session.user.id) {
+      const interaction = await prisma.userPaperInteraction.findUnique({
+        where: {
+          userId_paperId: {
+            userId: session.user.id,
+            paperId: fullPost.paperId,
+          },
+        },
+      });
+      if (interaction) {
+        userPaperInteractionsMap.set(
+          `${session.user.id}_${fullPost.paperId}`,
+          interaction
+        );
+      }
+    }
+
+    const feedPostDTO = toFeedPostDTO(
+      {
+        ...fullPost,
+        quotedPosts,
+        postType: fullPost.postType as
+          | "user-post"
+          | "paper-post"
+          | "pure-paper"
+          | "quote-post",
+      } as any, // Type assertion: toFeedPostDTO only needs comments[].createdAt which we have
+      usersMap,
+      papersMap,
+      userPaperInteractionsMap
+    );
+
+    return { post: feedPostDTO };
   });
