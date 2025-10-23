@@ -101,8 +101,7 @@ class ObjectInfoComponent(MiniscopeComponent):
         if selected_obj is None:
             table.add_row("Status", "(empty space)")
         else:
-            object_type_names = self._get_object_type_names()
-            type_name = object_type_names[selected_obj["type"]] if object_type_names else str(selected_obj["type"])
+            type_name = selected_obj["type_name"]
             table.add_row("Type", type_name)
             actual_r = selected_obj.get("r", "?")
             actual_c = selected_obj.get("c", "?")

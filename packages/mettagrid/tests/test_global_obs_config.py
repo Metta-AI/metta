@@ -33,7 +33,7 @@ def create_test_env(global_obs_config: dict[str, bool]):
             noop=ActionConfig(enabled=True),
             move=ActionConfig(enabled=True),
         ),
-        objects={"wall": WallConfig(type_id=1, swappable=False)},
+        objects={"wall": WallConfig(swappable=False)},
     )
 
     game_map = [
@@ -147,7 +147,7 @@ def test_global_obs_default_values():
             action_failure_penalty=0,
         ),
         actions=ActionsConfig(noop=ActionConfig(enabled=True)),
-        objects={"wall": WallConfig(type_id=1, swappable=False)},
+        objects={"wall": WallConfig(swappable=False)},
     )
 
     game_map = [["agent.agent"]]

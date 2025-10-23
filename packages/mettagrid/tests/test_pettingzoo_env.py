@@ -66,7 +66,7 @@ def make_pettingzoo_env(num_agents=3, max_steps=100):
                 noop=ActionConfig(),
                 rotate=ActionConfig(),
             ),
-            objects={"wall": WallConfig(type_id=1)},
+            objects={"wall": WallConfig()},
             agents=agents,
             map_builder=AsciiMapBuilder.Config(
                 map_data=map_data,
