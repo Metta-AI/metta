@@ -33,7 +33,7 @@ def get_symbol_for_object(obj: dict, object_type_names: list[str], symbol_map: d
     Returns:
         Emoji symbol string
     """
-    type_name = object_type_names[obj["type"]]
+    type_name = obj["type_name"]
 
     # Handle numbered agents specially
     if type_name.startswith("agent"):

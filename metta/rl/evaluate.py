@@ -9,7 +9,7 @@ import wandb
 from metta.app_backend.clients.stats_client import StatsClient
 from metta.app_backend.routes.eval_task_routes import TaskCreateRequest, TaskResponse
 from metta.common.util.collections import remove_none_keys
-from metta.common.util.constants import METTASCOPE_REPLAY_URL
+from metta.common.util.constants import METTASCOPE_REPLAY_URL_PREFIX
 from metta.common.wandb.context import WandbRun
 from metta.rl.checkpoint_manager import CheckpointManager
 from metta.sim.simulation_config import SimulationConfig
@@ -114,7 +114,7 @@ def upload_replay_html(
 
 
 def _form_mettascope_link(url: str, name: str) -> str:
-    return f'<a href="{METTASCOPE_REPLAY_URL}/?replayUrl={url}" target="_blank">{name}</a>'
+    return f'<a href="{METTASCOPE_REPLAY_URL_PREFIX}{url}" target="_blank">{name}</a>'
 
 
 def _upload_replay_html(

@@ -1,7 +1,7 @@
 # This example shows a draggable panel UI like in a large editor like VS Code or Blender.
 
 import
-  std/[random, sequtils],
+  std/[sequtils],
   fidget2, bumpy, chroma, windy, boxy, fidget2/hybridrender,
   common
 
@@ -18,6 +18,7 @@ var
   dragArea: Area
   objectInfoTemplate*: Node
   envConfigTemplate*: Node
+  vibeTemplate*: Node
 
 proc updateMouse*(panel: Panel) =
   let box = Rect(
@@ -404,6 +405,7 @@ find "/UI/Main":
     panelTemplate = find("**/Panel").copy()
 
     objectInfoTemplate = find("../ObjectInfo").copy()
+    vibeTemplate = find("../VibePanel").copy()
 
     find("Area").remove()
 

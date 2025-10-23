@@ -1,7 +1,7 @@
 import
   genny, fidget2, openGL, jsony, vmath,
   ../src/mettascope, ../src/mettascope/[replays, common, worldmap, timeline,
-  envconfig]
+  envconfig, vibes]
 
 type
   ActionRequest* = object
@@ -36,6 +36,7 @@ proc init(dataDir: string, replay: string): RenderResponse =
     )
     common.replay = loadReplayString(replay, "MettaScope")
     updateEnvConfig()
+    updateVibePanel()
     return
   except Exception:
     echo "############ Error initializing Mettascope #################"

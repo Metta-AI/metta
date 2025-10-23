@@ -27,8 +27,7 @@ export function renderMinimapObjects(offset: Vec2f) {
     const location = gridObject.location.get()
     const x = location[0]
     const y = location[1]
-    const type = gridObject.typeId
-    const typeName = state.replay.typeNames[type]
+    const typeName = gridObject.typeName
     let color = parseHtmlColor('#FFFFFF')
     if (typeName === 'wall') {
       color = parseHtmlColor('#61574B')
@@ -43,8 +42,7 @@ export function renderMinimapObjects(offset: Vec2f) {
     const location = gridObject.location.get()
     const x = location[0]
     const y = location[1]
-    const type = gridObject.typeId
-    const typeName = state.replay.typeNames[type]
+    const typeName = gridObject.typeName
     const pipScale = 0.3
     if (typeName === 'agent') {
       const agentId = gridObject.agentId
@@ -89,8 +87,7 @@ export function renderMinimapVisualRanges(offset: Vec2f) {
     } else {
       // When there is no selected grid object, update the visibility map for all agents.
       for (const gridObject of state.replay.objects) {
-        const typeName = state.replay.typeNames[gridObject.typeId]
-        if (typeName === 'agent') {
+        if (gridObject.typeName === 'agent') {
           updateVisibilityMap(gridObject)
         }
       }

@@ -30,7 +30,7 @@ class LearningProgressConfig(CurriculumAlgorithmConfig):
     progress_smoothing: float = 0.05  # For bidirectional reweighting
 
     # Task distribution and sampling
-    num_active_tasks: int = 16
+    num_active_tasks: int = 1000
     rand_task_rate: float = 0.25
     sample_threshold: int = 10
     memory: int = 25

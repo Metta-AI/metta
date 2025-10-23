@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=61.0"]
+requires = ["setuptools==80.9.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -21,6 +21,7 @@ dependencies = [
   "psycopg[binary,pool]>=3.2.9",
   "pydantic>=2.11.5",
   "pytest-asyncio>=1.0.0",
+  "python-multipart>=0.0.20",
   "httpx>=0.28.1",
   "wandb>=0.19.11",
   "metta-common",

@@ -25,7 +25,6 @@ from mettagrid.config import AssemblerConfig, MettaGridConfig
 def mettagrid(num_agents: int = 24) -> MettaGridConfig:
     arena_env = eb.make_arena(num_agents=num_agents)
 
-    # Replace converters with assemblers
     arena_env.game.objects.update(
         {
             "altar": building.assembler_altar,
@@ -57,10 +56,6 @@ def make_curriculum(
     # enable or disable attacks. we use cost instead of 'enabled'
     # to maintain action space consistency.
     arena_tasks.add_bucket("game.actions.attack.consumed_resources.laser", [1, 100])
-
-    # sometimes add initial_items to the buildings
-    for obj in ["mine_red", "generator_red", "altar", "lasery", "armory"]:
-        arena_tasks.add_bucket(f"game.objects.{obj}.initial_resource_count", [0, 1])
 
     if algorithm_config is None:
         algorithm_config = LearningProgressConfig(
