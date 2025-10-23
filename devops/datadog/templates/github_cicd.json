@@ -406,11 +406,8 @@
     },
     {
       "definition": {
-        "title": "Force Merges (Coming Soon)",
-        "title_size": "16",
-        "title_align": "left",
         "type": "note",
-        "content": "**Force Merge tracking**\n\nMetric: `github.commits.force_merge_7d`\n\nStatus: To be added in Phase 2\n\nTarget: < 7 per week",
+        "content": "**Force Merge Tracking (Coming Soon)**\n\nMetric: `github.commits.force_merge_7d`\n\nStatus: To be added in Phase 2\n\nTarget: < 7 per week",
         "background_color": "gray",
         "font_size": "14",
         "text_align": "left",
@@ -610,11 +607,8 @@
     },
     {
       "definition": {
-        "title": "Top Contributors (Coming Soon)",
-        "title_size": "16",
-        "title_align": "left",
         "type": "note",
-        "content": "**Top Contributors Widget**\n\nShows: Top 10 developers by commit count\n\nMetric: `sum:github.commits.total_7d{*} by {author}`\n\nStatus: Requires collector extension to tag commits by author\n\nPlanned for Phase 2",
+        "content": "**Top Contributors (Coming Soon)**\n\nShows: Top 10 developers by commit count\n\nMetric: `sum:github.commits.total_7d{*} by {author}`\n\nStatus: Requires collector extension to tag commits by author\n\nPlanned for Phase 2",
         "background_color": "gray",
         "font_size": "14",
         "text_align": "left",
