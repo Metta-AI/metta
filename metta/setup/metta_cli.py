@@ -670,28 +670,6 @@ def cmd_lint(
             success("C++ linting passed!")
 
 
-@app.command(
-    name="pytest",
-    help="Run pytest with passed arguments",
-    context_settings={"allow_extra_args": True, "allow_interspersed_args": False},
-)
-def cmd_pytest(ctx: typer.Context):
-    cmd = [
-        "uv",
-        "run",
-        "pytest",
-        "--benchmark-disable",
-        "-n",
-        "auto",
-    ]
-    if ctx.args:
-        cmd.extend(ctx.args)
-    try:
-        subprocess.run(cmd, cwd=cli.repo_root, check=True)
-    except subprocess.CalledProcessError as e:
-        raise typer.Exit(e.returncode) from e
-
-
 @app.command(name="tool", help="Run a tool from the tools/ directory", context_settings={"allow_extra_args": True})
 def cmd_tool(
     tool_name: Annotated[str, typer.Argument(help="Name of the tool to run")],

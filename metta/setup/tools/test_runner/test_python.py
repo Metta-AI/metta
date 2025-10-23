@@ -1,20 +1,22 @@
+from __future__ import annotations
+
 import subprocess
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
-from typing import Sequence
+from typing import Annotated, Iterable, Sequence
 
 import typer
 from pydantic import BaseModel, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from metta.common.util.fs import get_repo_root
-from metta.setup.utils import error, info, warning
+from metta.setup.utils import error, info
 
 
 class _Config(BaseSettings):
     model_config = SettingsConfigDict(extra="ignore")
 
-    METTA_TEST_WORKERS: int | str | None = Field(default=None, description="Number of test workers to use.")
-    RUN_APP_BACKEND_TESTS: bool = Field(default=True, description="Whether to run the app_backend tests.")
+    METTA_TEST_WORKERS: str | None = Field(default=None, description="Number of test workers to use.")
 
 
 test_config = _Config()
@@ -22,107 +24,140 @@ test_config = _Config()
 
 class Suite(BaseModel):
     name: str
-    target: str
+    target: Path
+
+    @property
+    def key(self) -> str:
+        return self.name.lower()
 
     @property
     def target_path(self) -> Path:
-        return get_repo_root() / self.target
-
-    @property
-    def target_enclosing_dir(self) -> Path:
-        return self.target_path.parent
+        root = get_repo_root()
+        if self.target.is_absolute():
+            return self.target
+        return root / self.target
 
 
 SUITES: tuple[Suite, ...] = (
-    Suite(name="tests", target="tests"),
-    Suite(name="mettascope", target="mettascope/tests"),
-    Suite(name="agent", target="agent/tests"),
-    Suite(name="app_backend", target="app_backend/tests"),
-    Suite(name="common", target="common/tests"),
-    Suite(name="codebot", target="packages/codebot/tests"),
-    Suite(name="cogames", target="packages/cogames/tests"),
-    Suite(name="gitta", target="packages/gitta/tests"),
-    Suite(name="mettagrid", target="packages/mettagrid/tests"),
+    Suite(name="tests", target=Path("tests")),
+    Suite(name="mettascope", target=Path("mettascope/tests")),
+    Suite(name="agent", target=Path("agent/tests")),
+    Suite(name="app_backend", target=Path("app_backend/tests")),
+    Suite(name="common", target=Path("common/tests")),
+    Suite(name="codebot", target=Path("packages/codebot/tests")),
+    Suite(name="cogames", target=Path("packages/cogames/tests")),
+    Suite(name="gitta", target=Path("packages/gitta/tests")),
+    Suite(name="mettagrid", target=Path("packages/mettagrid/tests")),
 )
 
 
-def _run_command(args: Sequence[str], *, cwd: Path) -> int:
-    info(f"→ {' '.join(args)} (cwd={cwd})")
-    completed = subprocess.run(args, cwd=cwd, check=False)
+DEFAULT_FLAGS: tuple[str, ...] = ("--benchmark-disable",)
+CI_FLAGS: tuple[str, ...] = (
+    "--timeout=100",
+    "--timeout-method=thread",
+    "--benchmark-skip",
+    "--maxfail=1",
+    "--disable-warnings",
+    "--durations=10",
+    "-v",
+)
+TESTMON_FLAGS: tuple[str, ...] = ("--testmon", "--testmon-label=staged")
+
+
+def _run_command(args: Sequence[str]) -> int:
+    info(f"→ {' '.join(args)}")
+    completed = subprocess.run(args, cwd=get_repo_root(), check=False)
     return completed.returncode
 
 
-def _run_default(*args: Sequence[str]) -> int:
-    for suite in SUITES:
-        if not suite.target_path.exists():
-            error(f"Test suite directory missing: {suite.target_path}")
-            return 1
+def _resolve_suites(
+    include: Iterable[str],
+    exclude: Iterable[str],
+) -> list[Suite]:
+    suite_map = {suite.key: suite for suite in SUITES}
+    include_keys = [name.lower() for name in include]
+    exclude_keys = {name.lower() for name in exclude}
 
-    cmd = [
-        "uv",
-        "run",
-        "pytest",
-        *[str(suite.target) for suite in SUITES],
-        "--benchmark-disable",
-        "-n",
-        test_config.METTA_TEST_WORKERS or "auto",
-        *args,
-    ]
-    return _run_command(cmd, cwd=get_repo_root())
+    selected: list[Suite]
+    if include_keys:
+        missing = [name for name in include_keys if name not in suite_map]
+        if missing:
+            raise ValueError(f"Unknown suite(s): {', '.join(missing)}")
+        selected = [suite_map[name] for name in include_keys]
+    else:
+        selected = list(SUITES)
 
+    if exclude_keys:
+        selected = [suite for suite in selected if suite.key not in exclude_keys]
 
-def _run_ci(*args: Sequence[str]) -> int:
-    base_args = [
-        "-n",
-        test_config.METTA_TEST_WORKERS or "4",
-        "--timeout=100",
-        "--timeout-method=thread",
-        "--benchmark-skip",
-        "--maxfail=1",
-        "--disable-warnings",
-        "--durations=10",
-        "-v",
-    ]
-
-    for suite in SUITES:
-        if not test_config.RUN_APP_BACKEND_TESTS and suite.name == "app_backend":
-            info(f"Skipping {suite.name} suite")
-            continue
-
-        if not suite.target_path.exists():
-            warning(f"Suite directory missing: {suite.target_path}")
-            return 1
-
-        cmd = [
-            "uv",
-            "run",
-            "pytest",
-            *base_args,
-            str(suite.target_path),
-            *args,
-        ]
-
-        exit_code = _run_command(cmd, cwd=suite.target_enclosing_dir)
-        if exit_code != 0:
-            return exit_code
-
-    return 0
+    return selected
 
 
-app = typer.Typer(help="Python test runner")
+def _collect_suite_targets(suites: Iterable[Suite]) -> list[str]:
+    targets: list[Path] = []
+    for suite in suites:
+        path = suite.target_path
+        if not path.exists():
+            raise ValueError(f"Test suite directory missing: {path}")
+        targets.append(path)
+    if not targets:
+        raise ValueError("No suite targets resolved.")
+    return [str(t.relative_to(get_repo_root())) for t in targets]
 
 
-@app.command(context_settings={"allow_extra_args": True, "allow_interspersed_args": False})
+app = typer.Typer(
+    help="Python test runner",
+    invoke_without_command=True,
+    context_settings={"allow_extra_args": True, "allow_interspersed_args": False},
+)
+
+
+@app.callback()
 def run(
     ctx: typer.Context,
-    preset: str = typer.Option("default", "--preset", "-p", help="Test preset to run."),
+    targets: Annotated[list[str] | None, typer.Argument(help="Explicit pytest targets.")] = None,
+    ci: bool = typer.Option(False, "--ci", help="Use CI-style settings and parallel suite execution."),
+    suite: Annotated[list[str] | None, typer.Option("--suite", "-s", help="Limit to specific named suite(s).")] = None,
+    nosuite: Annotated[list[str] | None, typer.Option("--nosuite", help="Exclude suite(s) by name.")] = None,
+    changed: bool = typer.Option(
+        False,
+        "--changed",
+        help="Run only tests impacted by staged/changed files using pytest-testmon.",
+    ),
 ) -> None:
     extra_args = list(ctx.args or [])
-    normalized = preset.lower()
-    if normalized == "default":
-        _run_default(*extra_args)
-    elif normalized == "ci":
-        _run_ci(*extra_args)
+    target_args = targets or []
+    suite_args = suite or []
+    nosuite_args = nosuite or []
+
+    cmd = ["uv", "run", "pytest"]
+    if target_args:
+        if suite_args or nosuite_args or changed or ci:
+            error("Explicit targets cannot be combined with suite filters, --changed, or --ci.")
+            raise typer.Exit(1)
+        exit_code = _run_command([*cmd, *target_args, *extra_args])
+        raise typer.Exit(exit_code)
+
+    try:
+        selected_suites = _resolve_suites(suite_args, nosuite_args)
+        resolved_targets = _collect_suite_targets(selected_suites)
+    except ValueError as exc:
+        error(str(exc))
+        raise typer.Exit(1) from exc
+
+    if ci:
+        cmd.extend(["-n", test_config.METTA_TEST_WORKERS or "4", *CI_FLAGS])
+        cmd.extend(extra_args)
+
+        exit_code = 0
+        with ThreadPoolExecutor(max_workers=len(resolved_targets)) as pool:
+            for code in pool.map(lambda path: _run_command([*cmd, path]), resolved_targets):
+                exit_code = max(exit_code, code)
+        raise typer.Exit(exit_code)
     else:
-        warning(f"Unknown preset '{preset}'")
-        raise typer.Exit(1)
+        cmd.extend(["-n", test_config.METTA_TEST_WORKERS or "auto", *DEFAULT_FLAGS])
+        if changed:
+            cmd.extend(TESTMON_FLAGS)
+        cmd.extend(extra_args)
+        cmd.extend(resolved_targets)
+        raise typer.Exit(_run_command(cmd))
