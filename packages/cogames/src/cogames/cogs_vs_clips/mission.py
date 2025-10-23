@@ -11,6 +11,7 @@ from cogames.cogs_vs_clips.stations import (
     CvCWallConfig,
     GermaniumExtractorConfig,
     OxygenExtractorConfig,
+    RESOURCE_CHESTS,
     SiliconExtractorConfig,
     resources,
 )
@@ -178,6 +179,7 @@ class Mission(Config):
                 "oxygen_extractor": self.oxygen_extractor.station_cfg(),
                 "germanium_extractor": self.germanium_extractor.station_cfg(),
                 "silicon_extractor": self.silicon_extractor.station_cfg(),
+                **RESOURCE_CHESTS,
             },
         )
         return MettaGridConfig(game=game)
