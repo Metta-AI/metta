@@ -264,7 +264,7 @@ def make_machina_procedural_map_builder(
             corner_bundle = "chests"
             cross_bundle = "extractors"
 
-    cross_distance = hub_cross_distance if hub_cross_distance is not None else 4
+    cross_distance = hub_cross_distance if hub_cross_distance is not None else 7
 
     base_cfg.children = [
         # Optional biome/dungeon layers over the base shell
