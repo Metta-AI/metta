@@ -56,10 +56,7 @@ export const FeedPostsPage: FC<{
   // User card state
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
 
-  // Global comment expansion state - only one post can have expanded comments at a time
-  const [expandedPostId, setExpandedPostId] = useState<string | null>(null);
-
-  // Selected post for paper sidebar
+  // Selected post for paper sidebar (still used for paper overlay)
   const [selectedPostForPaper, setSelectedPostForPaper] =
     useState<FeedPostDTO | null>(null);
 
@@ -90,23 +87,14 @@ export const FeedPostsPage: FC<{
     setSelectedUser(null);
   };
 
-  // Handle comment toggle - only one post can have expanded comments
-  const handleCommentToggle = (postId: string) => {
-    setExpandedPostId((current) => (current === postId ? null : postId));
-  };
-
-  // Handle post selection for paper sidebar
+  // Handle post selection for paper sidebar (used for paper overlay only)
   const handlePostSelect = (post: FeedPostDTO) => {
     setSelectedPostForPaper(post);
-    // Also expand comments for the selected post
-    setExpandedPostId(post.id);
   };
 
   // Handle paper sidebar close
   const handlePaperSidebarClose = () => {
     setSelectedPostForPaper(null);
-    // Also close expanded comments when closing paper sidebar
-    setExpandedPostId(null);
   };
 
   // Handle toggle star
@@ -148,13 +136,27 @@ export const FeedPostsPage: FC<{
   }, [mathJaxLoaded, page.items, renderMath]); // Re-render when posts change
 
   return (
-    <div className="flex h-screen">
+    <div className="flex h-auto w-full flex-col md:flex-row">
+      {/* Mobile: Paper details on top (when selected) */}
+      {selectedPostForPaper?.paper && (
+        <div className="h-1/2 border-b border-gray-300 pt-14 md:hidden">
+          <PaperSidebar
+            paper={selectedPostForPaper.paper}
+            onClose={handlePaperSidebarClose}
+          />
+        </div>
+      )}
+
       {/* Main feed area */}
-      <div className="flex-1 overflow-y-auto">
+      <div
+        className={`h-full flex-1 overflow-y-auto ${
+          selectedPostForPaper?.paper ? "md:w-[45%] md:flex-none" : ""
+        }`}
+      >
         {/* Post Composition */}
         <NewPostForm />
         {/* Feed with Infinite Scroll */}
-        <div ref={feedRef} className="mt-6 ml-6 max-w-2xl">
+        <div ref={feedRef} className="mx-4 mt-6 max-w-2xl md:mr-4 md:ml-6">
           {page.items.length > 0 ? (
             <InfiniteScroll
               loadNext={page.loadNext!}
@@ -169,10 +171,11 @@ export const FeedPostsPage: FC<{
                     onPaperClick={handlePaperClick}
                     onUserClick={handleUserClick}
                     currentUser={currentUser}
-                    isCommentsExpanded={expandedPostId === post.id}
-                    onCommentToggle={() => handleCommentToggle(post.id)}
+                    isCommentsExpanded={false}
+                    onCommentToggle={() => {}} // No longer used - posts navigate to dedicated pages
                     onPostSelect={() => handlePostSelect(post)}
                     isSelected={selectedPostForPaper?.id === post.id}
+                    highlightedCommentId={null}
                   />
                 ))}
               </div>
@@ -215,9 +218,9 @@ export const FeedPostsPage: FC<{
         )}
       </div>
 
-      {/* Right sidebar - Paper Overview */}
+      {/* Desktop: Paper sidebar on right */}
       {selectedPostForPaper?.paper && (
-        <div className="flex-1">
+        <div className="hidden md:flex md:h-screen md:flex-shrink-0">
           <PaperSidebar
             paper={selectedPostForPaper.paper}
             onClose={handlePaperSidebarClose}

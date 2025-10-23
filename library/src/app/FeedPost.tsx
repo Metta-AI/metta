@@ -8,12 +8,13 @@ import { useAction } from "next-safe-action/hooks";
 import { FeedPostDTO } from "@/posts/data/feed";
 import { PaperCard } from "@/components/PaperCard";
 import { DeleteConfirmationModal } from "@/components/DeleteConfirmationModal";
-import { linkifyText } from "@/lib/utils/linkify";
+import { PhotoViewer } from "@/components/PhotoViewer";
+import { RichTextRenderer } from "@/components/RichTextRenderer";
 import { deletePostAction } from "@/posts/actions/deletePostAction";
 import { toggleQueueAction } from "@/posts/actions/toggleQueueAction";
 import { SilentArxivRefresh } from "@/components/SilentArxivRefresh";
 import { InPostComments } from "@/components/InPostComments";
-import { ChevronRight, MessageSquare } from "lucide-react";
+import { ChevronRight, MessageSquare, ExternalLink, Quote } from "lucide-react";
 
 /**
  * FeedPost Component
@@ -38,6 +39,7 @@ export const FeedPost: FC<{
   onCommentToggle: () => void;
   onPostSelect?: () => void;
   isSelected?: boolean;
+  highlightedCommentId?: string | null;
 }> = ({
   post,
   onPaperClick,
@@ -47,6 +49,7 @@ export const FeedPost: FC<{
   onCommentToggle,
   onPostSelect,
   isSelected,
+  highlightedCommentId,
 }) => {
   const router = useRouter();
 
@@ -64,6 +67,10 @@ export const FeedPost: FC<{
 
   // Delete modal state
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+
+  // Photo viewer state
+  const [isPhotoViewerOpen, setIsPhotoViewerOpen] = useState(false);
+  const [selectedImageIndex, setSelectedImageIndex] = useState(0);
 
   // Sync local state when post prop changes
   useEffect(() => {
@@ -86,6 +93,55 @@ export const FeedPost: FC<{
   // Handle comment count updates for immediate UI feedback
   const handleCommentCountChange = (delta: number) => {
     setCommentCount((prev) => Math.max(0, prev + delta));
+  };
+
+  // Handle quote post action
+  const handleQuotePost = (e: React.MouseEvent) => {
+    e.stopPropagation();
+
+    // Check if there's already a quote draft
+    const existingDraft = sessionStorage.getItem("quote-draft");
+    let quotedPostIds: string[] = [post.id];
+    let content = "";
+
+    if (existingDraft) {
+      try {
+        const parsed = JSON.parse(existingDraft);
+        quotedPostIds = parsed.quotedPostIds || [];
+        content = parsed.content || "";
+
+        // Add this post if not already included and under limit
+        if (!quotedPostIds.includes(post.id) && quotedPostIds.length < 2) {
+          quotedPostIds.push(post.id);
+        }
+      } catch (error) {
+        console.error("Error parsing existing quote draft:", error);
+        quotedPostIds = [post.id];
+      }
+    }
+
+    // Build content with all quoted posts
+    const postUrl = `${window.location.origin}/posts/${post.id}`;
+    if (quotedPostIds.length === 1) {
+      content = `Quoting this post:\n\n${postUrl}\n\n`;
+    } else {
+      // If adding a second post, append to existing content
+      if (!content.includes(postUrl)) {
+        content = content.trim() + `\n\n${postUrl}\n\n`;
+      }
+    }
+
+    // Store the updated quote data in sessionStorage
+    sessionStorage.setItem(
+      "quote-draft",
+      JSON.stringify({
+        quotedPostIds,
+        content: content,
+      })
+    );
+
+    // Navigate to home page where the new post form will pick up the draft
+    router.push("/?quote=" + post.id);
   };
 
   // Generate user initials for avatar
@@ -189,14 +245,20 @@ export const FeedPost: FC<{
     executeQueue(formData);
   };
 
-  const handlePostClick = () => {
-    // Always toggle comments
-    onCommentToggle();
+  const handlePostClick = (e: React.MouseEvent) => {
+    // Check if the click came from an image container
+    const target = e.target as HTMLElement;
+    const clickedImageContainer = target.closest(
+      '[data-image-container="true"]'
+    );
 
-    // If the post has a paper, also show the paper sidebar
-    if (post.paper) {
-      onPostSelect?.();
+    if (clickedImageContainer) {
+      // Don't handle post click if clicking on an image
+      return;
     }
+
+    // Navigate to post page instead of expanding in-place
+    router.push(`/posts/${post.id}`);
   };
 
   const handleOpenFullView = () => {
@@ -216,6 +278,16 @@ export const FeedPost: FC<{
 
   const handleCancelDelete = () => {
     setShowDeleteModal(false);
+  };
+
+  // Photo viewer handlers
+  const handleImageClick = (imageIndex: number) => {
+    setSelectedImageIndex(imageIndex);
+    setIsPhotoViewerOpen(true);
+  };
+
+  const handlePhotoViewerClose = () => {
+    setIsPhotoViewerOpen(false);
   };
 
   // Handle pure paper posts (papers without user commentary)
@@ -331,7 +403,7 @@ export const FeedPost: FC<{
             <button
               onClick={(e) => {
                 e.stopPropagation();
-                handlePostClick();
+                handlePostClick(e);
               }}
               className={`rounded-full p-1 text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-blue-500 ${
                 !isSelected ? "group-hover:hidden" : ""
@@ -365,6 +437,40 @@ export const FeedPost: FC<{
           <PaperCard paper={post.paper} onPaperClick={onPaperClick} />
         </div>
 
+        {/* Attached images for pure-paper posts */}
+        {post.images && post.images.length > 0 && (
+          <div className="px-4 pb-2">
+            <div
+              className={`grid gap-2 ${
+                post.images.length === 1
+                  ? "grid-cols-1"
+                  : post.images.length === 2
+                    ? "grid-cols-2"
+                    : "grid-cols-2 sm:grid-cols-3"
+              }`}
+            >
+              {post.images.map((imageUrl, index) => (
+                <div
+                  key={index}
+                  data-image-container="true"
+                  className="group relative overflow-hidden rounded-lg border border-gray-200 bg-gray-50"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleImageClick(index);
+                  }}
+                  style={{ cursor: "pointer" }}
+                >
+                  <img
+                    src={imageUrl}
+                    alt={`Attached image ${index + 1}`}
+                    className="h-32 w-full object-cover transition-transform group-hover:scale-105 sm:h-40"
+                  />
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* In-post comments */}
         <div onClick={(e) => e.stopPropagation()}>
           <InPostComments
@@ -384,6 +490,21 @@ export const FeedPost: FC<{
           message="Are you sure you want to delete this post? This action cannot be undone and will permanently remove the post and all its comments from the feed."
           isDeleting={isDeleting}
         />
+
+        {/* Photo Viewer */}
+        {post.images && post.images.length > 0 && (
+          <PhotoViewer
+            images={post.images}
+            initialIndex={selectedImageIndex}
+            isOpen={isPhotoViewerOpen}
+            onClose={handlePhotoViewerClose}
+            postAuthor={
+              post.author.name ||
+              post.author.email?.split("@")[0] ||
+              "Unknown User"
+            }
+          />
+        )}
       </div>
     );
   }
@@ -431,6 +552,24 @@ export const FeedPost: FC<{
 
         {/* Action buttons group */}
         <div className="flex items-center gap-2">
+          {/* Permalink button */}
+          <Link
+            href={`/posts/${post.id}`}
+            onClick={(e) => e.stopPropagation()}
+            className="rounded-full p-1 text-neutral-400 opacity-0 transition-all group-hover:opacity-100 hover:bg-neutral-100 hover:text-blue-500"
+            title="Open post"
+          >
+            <ExternalLink className="h-4 w-4" />
+          </Link>
+
+          {/* Quote post button */}
+          <button
+            onClick={handleQuotePost}
+            className="rounded-full p-1 text-neutral-400 opacity-0 transition-all group-hover:opacity-100 hover:bg-neutral-100 hover:text-green-500"
+            title="Quote post (up to 2 posts can be quoted)"
+          >
+            <Quote className="h-4 w-4" />
+          </button>
           {/* Queue button - only show for posts with papers */}
           {paperData && (
             <button
@@ -495,7 +634,7 @@ export const FeedPost: FC<{
           <button
             onClick={(e) => {
               e.stopPropagation();
-              handlePostClick();
+              handlePostClick(e);
             }}
             className={`rounded-full p-1 text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-blue-500 ${
               !isSelected ? "group-hover:hidden" : ""
@@ -527,7 +666,110 @@ export const FeedPost: FC<{
       {/* Post content with LaTeX support */}
       {post.content && cleanPostContent(post.content).trim() && (
         <div className="px-4 pb-2 text-[14px] leading-[1.55] whitespace-pre-wrap text-neutral-900">
-          {linkifyText(cleanPostContent(post.content))}
+          <RichTextRenderer text={cleanPostContent(post.content)} />
+        </div>
+      )}
+
+      {/* Attached images */}
+      {post.images && post.images.length > 0 && (
+        <div className="px-4 pb-2">
+          <div
+            className={`grid gap-2 ${
+              post.images.length === 1
+                ? "grid-cols-1"
+                : post.images.length === 2
+                  ? "grid-cols-2"
+                  : "grid-cols-2 sm:grid-cols-3"
+            }`}
+          >
+            {post.images.map((imageUrl, index) => (
+              <div
+                key={index}
+                data-image-container="true"
+                className="group relative overflow-hidden rounded-lg border border-gray-200 bg-gray-50"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleImageClick(index);
+                }}
+                style={{ cursor: "pointer" }}
+              >
+                <img
+                  src={imageUrl}
+                  alt={`Attached image ${index + 1}`}
+                  className="h-32 w-full object-cover transition-transform group-hover:scale-105 sm:h-40"
+                />
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Quoted posts display */}
+      {post.quotedPosts && post.quotedPosts.length > 0 && (
+        <div className="px-4 pb-4">
+          <div className="space-y-2">
+            {post.quotedPosts.map((quotedPost) => (
+              <div
+                key={quotedPost.id}
+                className="rounded-lg border border-gray-300 bg-gray-50 p-3"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="flex items-start gap-3">
+                  {/* Author avatar */}
+                  <div className="flex-shrink-0">
+                    {quotedPost.author.image ? (
+                      <img
+                        src={quotedPost.author.image}
+                        alt={quotedPost.author.name || "User"}
+                        className="h-6 w-6 rounded-full"
+                      />
+                    ) : (
+                      <div className="flex h-6 w-6 items-center justify-center rounded-full bg-blue-500 text-xs font-medium text-white">
+                        {(
+                          quotedPost.author.name ||
+                          quotedPost.author.email?.split("@")[0] ||
+                          "U"
+                        )
+                          .split(" ")
+                          .map((n) => n[0])
+                          .join("")
+                          .toUpperCase()
+                          .slice(0, 2)}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Quoted post content */}
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-medium text-gray-900">
+                        {quotedPost.author.name ||
+                          quotedPost.author.email?.split("@")[0] ||
+                          "Unknown User"}
+                      </span>
+                      <span className="text-xs text-gray-500">
+                        {formatRelativeTime(quotedPost.createdAt)}
+                      </span>
+                    </div>
+
+                    {quotedPost.content && (
+                      <p className="mt-1 line-clamp-3 text-sm text-gray-700">
+                        {quotedPost.content}
+                      </p>
+                    )}
+
+                    <Link
+                      href={`/posts/${quotedPost.id}`}
+                      className="mt-2 inline-block text-xs text-blue-600 hover:text-blue-800"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      View original post →
+                    </Link>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 
@@ -555,6 +797,7 @@ export const FeedPost: FC<{
           onToggle={onCommentToggle}
           currentUser={currentUser}
           onCommentCountChange={handleCommentCountChange}
+          highlightedCommentId={highlightedCommentId}
         />
       </div>
 
@@ -567,6 +810,21 @@ export const FeedPost: FC<{
         message="Are you sure you want to delete this post? This action cannot be undone and will permanently remove the post and all its comments from the feed."
         isDeleting={isDeleting}
       />
+
+      {/* Photo Viewer */}
+      {post.images && post.images.length > 0 && (
+        <PhotoViewer
+          images={post.images}
+          initialIndex={selectedImageIndex}
+          isOpen={isPhotoViewerOpen}
+          onClose={handlePhotoViewerClose}
+          postAuthor={
+            post.author.name ||
+            post.author.email?.split("@")[0] ||
+            "Unknown User"
+          }
+        />
+      )}
     </div>
   );
 };
