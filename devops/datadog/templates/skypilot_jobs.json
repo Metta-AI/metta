@@ -1,7 +1,9 @@
 {
+  "id": "wjp-n4n-dsf",
   "title": "Skypilot Jobs Dashboard",
   "description": "Job orchestration, resource utilization, and compute tracking from Skypilot. Monitors running jobs, clusters, GPU usage, and reliability.",
   "layout_type": "ordered",
+  "url": "/dashboard/wjp-n4n-dsf/skypilot-jobs-dashboard",
   "template_variables": [],
   "widgets": [
     {
