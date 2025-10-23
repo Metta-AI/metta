@@ -1,6 +1,6 @@
 import os
 import subprocess
-from typing import Annotated, Literal
+from typing import Annotated
 
 import typer
 
@@ -29,25 +29,23 @@ def _run_target(target: str, *, verbose: bool) -> None:
 
 @app.callback()
 def command(
-    target: Annotated[
-        Literal["test", "coverage", "benchmark"],
-        typer.Argument(help="Target to run."),
-    ] = "test",
+    benchmark: bool = typer.Option(
+        False,
+        "--benchmark",
+        help="Run benchmark tests.",
+    ),
+    coverage: bool = typer.Option(
+        False,
+        "--coverage",
+        help="Run coverage tests.",
+    ),
+    test: bool = typer.Option(
+        False,
+        "--test",
+        help="Run unit tests.",
+    ),
     verbose: Annotated[bool, typer.Option("--verbose", "-v", help="Show verbose build output.")] = False,
 ) -> None:
-    _run_target(target, verbose=verbose)
-
-
-@app.command(help="Run MettaGrid C++ unit tests")
-def test(verbose: Annotated[bool, typer.Option("--verbose", "-v")] = False) -> None:
-    _run_target("test", verbose=verbose)
-
-
-@app.command(help="Run MettaGrid C++ coverage target")
-def coverage(verbose: Annotated[bool, typer.Option("--verbose", "-v")] = False) -> None:
-    _run_target("coverage", verbose=verbose)
-
-
-@app.command(help="Run MettaGrid C++ benchmark target")
-def benchmark(verbose: Annotated[bool, typer.Option("--verbose", "-v")] = False) -> None:
-    _run_target("benchmark", verbose=verbose)
+    targets = {k: v for k, v in [("benchmark", benchmark), ("coverage", coverage), ("test", test)] if v}
+    for target in targets.keys() or ["test"]:
+        _run_target(target, verbose=verbose)

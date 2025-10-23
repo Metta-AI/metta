@@ -313,13 +313,13 @@ jobs:
           restore-keys: |
             bazel-${{ runner.os }}-
 
-      - name: Run C++ tests
+      - name: Run C++ unit tests
         id: mettagrid-cpp-tests
-        run: uv run metta cpptest --verbose
+        run: uv run metta cpptest --test --verbose
 
       - name: Run C++ benchmarks
         id: mettagrid-cpp-benchmarks
-        run: uv run metta cpptest benchmark --verbose
+        run: uv run metta cpptest --benchmark --verbose
 
   tests-summary:
     name: "Tests"
