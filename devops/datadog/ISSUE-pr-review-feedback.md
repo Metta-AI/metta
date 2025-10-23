@@ -67,11 +67,13 @@ github.ci.workflow_runs_7d
 - Consistency with Datadog ecosystem
 - Query performance
 
-### 2. Replace Makefile with Typer CLI
+### 2. Replace Makefile with Typer CLI ✅
 
 **Concern**: Prefer typer apps over Makefiles for better composability
 
-**Current Implementation**:
+**Status**: ✅ **COMPLETED** (2025-10-23, commit 900b2278b1)
+
+**Current Implementation** (was):
 ```makefile
 # devops/datadog/Makefile
 make build      # Build dashboards from Jsonnet
@@ -124,12 +126,18 @@ def pull():
 - Easier to test
 
 **Tasks**:
-- [ ] Create `devops/datadog/cli.py` with Typer app
-- [ ] Migrate all Makefile commands to Typer commands
-- [ ] Add command for running collectors: `metta datadog collect <collector_name>`
-- [ ] Add to metta CLI or create `metta datadog` subcommand
-- [ ] Update documentation to use CLI instead of Make
-- [ ] Keep Makefile as lightweight wrapper (optional) for backward compatibility
+- [x] Create `devops/datadog/cli.py` with Typer app
+- [x] Migrate all Makefile commands to Typer commands
+- [x] Add command for running collectors: `metta datadog collect <collector_name>`
+- [x] Add to metta CLI or create `metta datadog` subcommand
+- [x] Update documentation to use CLI instead of Make
+- [x] Remove Makefile entirely (decided not to keep wrapper)
+
+**Implementation**:
+- Created comprehensive Typer CLI with all dashboard and collector commands
+- Integrated as `metta datadog` subcommand in metta_cli.py
+- All commands tested and working
+- Documentation updated (README.md, STATUS.md, etc.)
 
 ### 3. Review and Improve Metric Selection
 
