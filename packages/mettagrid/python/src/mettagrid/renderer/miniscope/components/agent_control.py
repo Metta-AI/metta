@@ -62,11 +62,9 @@ class AgentControlComponent(MiniscopeComponent):
                 self._state.user_action = (action_id, 0)
                 self._state.should_step = True
                 return True
-            # Handle glyph picker
             elif ch == "E":
                 self._state.enter_glyph_picker()
                 return True
-            # Handle manual mode toggle
             elif ch == "M":
                 self._state.toggle_manual_control(self._state.selected_agent)
                 return True
