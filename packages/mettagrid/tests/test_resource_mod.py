@@ -86,7 +86,7 @@ def test_resource_mod_consumption():
                 inventory_config=CppInventoryConfig(limits=[[[0], 100], [[1], 100]]),
                 initial_inventory={0: 10, 1: 50},
             ),
-            "wall": CppWallConfig(type_id=1, type_name="wall"),
+            "wall": CppWallConfig(type_id=1, type_name="wall", swappable=False),
         },
         global_obs=CppGlobalObsConfig(),
     )
@@ -195,7 +195,7 @@ def test_resource_mod_aoe_agents():
                 inventory_config=CppInventoryConfig(limits=[[[0], 100], [[1], 100]]),
                 initial_inventory={0: 50, 1: 10},
             ),
-            "wall": CppWallConfig(type_id=1, type_name="wall"),
+            "wall": CppWallConfig(type_id=1, type_name="wall", swappable=False),
         },
         global_obs=CppGlobalObsConfig(),
     )
@@ -327,7 +327,7 @@ def test_resource_mod_converters():
                 initial_resource_count=0,
                 recipe_details_obs=False,
             ),
-            "wall": CppWallConfig(type_id=1, type_name="wall"),
+            "wall": CppWallConfig(type_id=1, type_name="wall", swappable=False),
         },
         global_obs=CppGlobalObsConfig(),
     )
@@ -430,7 +430,7 @@ def test_resource_mod_negative():
                 inventory_config=CppInventoryConfig(limits=[[[0], 100], [[1], 100]]),
                 initial_inventory={0: 50, 1: 20},
             ),
-            "wall": CppWallConfig(type_id=1, type_name="wall"),
+            "wall": CppWallConfig(type_id=1, type_name="wall", swappable=False),
         },
         global_obs=CppGlobalObsConfig(),
     )
@@ -530,7 +530,7 @@ def test_resource_mod_scaling_vs_no_scaling():
                 inventory_config=CppInventoryConfig(limits=[[[0], 100], [[1], 100]]),
                 initial_inventory={0: 50, 1: 10},
             ),
-            "wall": CppWallConfig(type_id=1, type_name="wall"),
+            "wall": CppWallConfig(type_id=1, type_name="wall", swappable=False),
         },
         global_obs=CppGlobalObsConfig(),
     )
@@ -570,7 +570,7 @@ def test_resource_mod_scaling_vs_no_scaling():
                 inventory_config=CppInventoryConfig(limits=[[[0], 100], [[1], 100]]),
                 initial_inventory={0: 50, 1: 10},
             ),
-            "wall": CppWallConfig(type_id=1, type_name="wall"),
+            "wall": CppWallConfig(type_id=1, type_name="wall", swappable=False),
         },
         global_obs=CppGlobalObsConfig(),
     )

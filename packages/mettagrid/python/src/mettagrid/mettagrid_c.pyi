@@ -57,7 +57,7 @@ class PackedCoordinate:
 class GridObjectConfig: ...
 
 class WallConfig(GridObjectConfig):
-    def __init__(self, type_id: int, type_name: str): ...
+    def __init__(self, type_id: int, type_name: str, swappable: bool = False): ...
     type_id: int
     type_name: str
     swappable: bool
@@ -79,7 +79,6 @@ class AgentConfig(GridObjectConfig):
     ) -> None: ...
     type_id: int
     type_name: str
-    tag_ids: list[int]
     group_id: int
     group_name: str
     freeze_duration: int
@@ -106,7 +105,6 @@ class ConverterConfig(GridObjectConfig):
     ) -> None: ...
     type_id: int
     type_name: str
-    tag_ids: list[int]
     input_resources: dict[int, int]
     output_resources: dict[int, int]
     max_output: int

@@ -22,8 +22,9 @@ struct ConverterConfig : public GridObjectConfig {
                   unsigned short conversion_ticks,
                   const std::vector<unsigned short>& cooldown_schedule,
                   InventoryQuantity initial_resource_count = 0,
-                  bool recipe_details_obs = false)
-      : GridObjectConfig(type_id, type_name),
+                  bool recipe_details_obs = false,
+                  const std::vector<int>& tag_ids = {})
+      : GridObjectConfig(type_id, type_name, tag_ids),
         input_resources(input_resources),
         output_resources(output_resources),
         max_output(max_output),
@@ -68,7 +69,8 @@ inline void bind_converter_config(py::module& m) {
                     unsigned short,
                     const std::vector<unsigned short>&,
                     unsigned char,
-                    bool>(),
+                    bool,
+                    const std::vector<int>&>(),
            py::arg("type_id"),
            py::arg("type_name"),
            py::arg("input_resources"),
@@ -78,10 +80,10 @@ inline void bind_converter_config(py::module& m) {
            py::arg("conversion_ticks"),
            py::arg("cooldown_time"),
            py::arg("initial_resource_count") = 0,
-           py::arg("recipe_details_obs") = false)
+           py::arg("recipe_details_obs") = false,
+           py::arg("tag_ids") = std::vector<int>())
       .def_readwrite("type_id", &ConverterConfig::type_id)
       .def_readwrite("type_name", &ConverterConfig::type_name)
-      .def_readwrite("tag_ids", &ConverterConfig::tag_ids)
       .def_readwrite("input_resources", &ConverterConfig::input_resources)
       .def_readwrite("output_resources", &ConverterConfig::output_resources)
       .def_readwrite("max_output", &ConverterConfig::max_output)
@@ -89,7 +91,8 @@ inline void bind_converter_config(py::module& m) {
       .def_readwrite("conversion_ticks", &ConverterConfig::conversion_ticks)
       .def_readwrite("cooldown_time", &ConverterConfig::cooldown_time)
       .def_readwrite("initial_resource_count", &ConverterConfig::initial_resource_count)
-      .def_readwrite("recipe_details_obs", &ConverterConfig::recipe_details_obs);
+      .def_readwrite("recipe_details_obs", &ConverterConfig::recipe_details_obs)
+      .def_readwrite("tag_ids", &ConverterConfig::tag_ids);
 }
 
 #endif  // PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_OBJECTS_CONVERTER_CONFIG_HPP_
