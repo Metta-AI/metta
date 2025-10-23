@@ -393,10 +393,12 @@ tools: "Edit,Replace,Bash(git diff HEAD~1),Bash(python -m mypy --version)"
 ### No Review Appearing
 
 1. **Check PR validation**:
+
    - Ensure PR number is valid
    - Check orchestrator logs for validation errors
 
 2. **Verify issues were found**:
+
    - Check individual review job logs
    - Look for "No issues found" responses
    - Verify artifacts were created

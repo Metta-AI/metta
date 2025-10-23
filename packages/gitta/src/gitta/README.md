@@ -332,6 +332,7 @@ uv run pytest tests/test_split.py -v
 Context manager that creates an authenticated httpx.Client for GitHub API requests.
 
 **Parameters:**
+
 - `repo` (str): Repository in format "owner/repo"
 - `token` (str, optional): GitHub token. Uses GITHUB_TOKEN env var if not provided
 - `base_url` (str, optional): Custom base URL for API
@@ -341,6 +342,7 @@ Context manager that creates an authenticated httpx.Client for GitHub API reques
 **Returns:** httpx.Client configured for GitHub API
 
 **Example:**
+
 ```python
 with gitta.github_client(repo="owner/repo", token="ghp_token") as client:
     response = client.get("/issues")
@@ -352,6 +354,7 @@ with gitta.github_client(repo="owner/repo", token="ghp_token") as client:
 Get list of commits from a repository with automatic pagination.
 
 **Parameters:**
+
 - `repo` (str): Repository in format "owner/repo"
 - `branch` (str): Branch name (default: "main")
 - `since` (str, optional): ISO 8601 timestamp to filter commits
@@ -368,6 +371,7 @@ Get list of commits from a repository with automatic pagination.
 Get workflow runs for a specific GitHub Actions workflow.
 
 **Parameters:**
+
 - `repo` (str): Repository in format "owner/repo"
 - `workflow_filename` (str): Workflow filename (e.g., "checks.yml")
 - `branch` (str, optional): Filter by branch name
@@ -385,6 +389,7 @@ Get workflow runs for a specific GitHub Actions workflow.
 Get jobs for a specific workflow run.
 
 **Parameters:**
+
 - `repo` (str): Repository in format "owner/repo"
 - `run_id` (int): Workflow run ID
 - `per_page` (int): Number of jobs per page (default: 100)
