@@ -108,7 +108,7 @@ class BasicVibesVariant(MissionVariant):
 
 class HeartChorusVariant(MissionVariant):
     name: str = "heart_chorus"
-    description: str = "Heart-centric reward shaping to guide cooperative play."
+    description: str = "Heart-centric reward shaping with gentle resource bonuses."
 
     def apply(self, mission: Mission) -> Mission:
         mission.reward_profile = "heart_focus"
