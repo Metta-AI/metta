@@ -92,10 +92,7 @@ def _format_row(
         if value is None:
             display = col.fallback
         else:
-            try:
-                display = col.formatter(value)
-            except Exception:  # pragma: no cover - defensive
-                display = str(value)
+            display = col.formatter(value)
         columns.append(display)
     return " ".join(f"{col:<{width}}" for col, width in zip(columns, widths, strict=False))
 
@@ -160,12 +157,7 @@ def run(argv: Sequence[str] | None = None) -> int:
     _prepare_table(bench, config_width)
 
     for case, config_text in zip(cases, config_texts, strict=False):
-        try:
-            results = bench.run_case(case, settings)
-        except Exception as exc:  # pragma: no cover - defensive
-            print(f"{config_text:<{config_width}} ERROR: {exc}")
-            continue
-
+        results = bench.run_case(case, settings)
         row = _format_row(bench, config_text, results, column_widths)
         print(row)
         if "error" in results:

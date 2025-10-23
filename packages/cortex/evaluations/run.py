@@ -344,19 +344,10 @@ def set_seed(seed: int) -> None:
 def _enable_determinism() -> None:
     """Force deterministic behavior where possible (CUDA/cuBLAS/torch)."""
     os.environ.setdefault("CUBLAS_WORKSPACE_CONFIG", ":4096:8")
-    try:
-        torch.use_deterministic_algorithms(True)
-    except Exception:
-        pass
-    try:
-        torch.backends.cuda.matmul.allow_tf32 = False  # type: ignore[attr-defined]
-    except Exception:
-        pass
-    try:
-        torch.backends.cudnn.deterministic = True  # type: ignore[attr-defined]
-        torch.backends.cudnn.benchmark = False  # type: ignore[attr-defined]
-    except Exception:
-        pass
+    torch.use_deterministic_algorithms(True)
+    torch.backends.cuda.matmul.allow_tf32 = False  # type: ignore[attr-defined]
+    torch.backends.cudnn.deterministic = True  # type: ignore[attr-defined]
+    torch.backends.cudnn.benchmark = False  # type: ignore[attr-defined]
 
 
 def train_one(
@@ -453,10 +444,7 @@ def train_one(
         def _recurse(td, path: str) -> None:
             if td is None or not hasattr(td, "keys"):
                 return
-            try:
-                td_keys = list(td.keys())
-            except Exception:
-                td_keys = []
+            td_keys = list(td.keys())
 
             # If this TensorDict looks like an Axon trace container, zero its traces
             has_explicit_traces = any(k in td_keys for k in trace_keys)
@@ -464,18 +452,15 @@ def train_one(
             if has_explicit_traces or looks_like_axon_state:
                 nonlocal scanned, zeroed
                 scanned += 1
-                try:
-                    pre_stats = []
-                    # Collect both explicit and generic E_* traces for logging
-                    for name in td_keys:
-                        if (name in trace_keys or name.startswith("E_")) and torch.is_tensor(td.get(name)):
-                            t = td.get(name)
-                            pre_stats.append((name, float(t.norm().item())))
-                    if pre_stats:
-                        msg = ", ".join(f"{n}:l2={v:.3e}" for n, v in pre_stats)
-                        logging.debug("[traces] before-zero path=%s %s", path, msg)
-                except Exception:
-                    pass
+                pre_stats = []
+                # Collect both explicit and generic E_* traces for logging
+                for name in td_keys:
+                    if (name in trace_keys or name.startswith("E_")) and torch.is_tensor(td.get(name)):
+                        t = td.get(name)
+                        pre_stats.append((name, float(t.norm().item())))
+                if pre_stats:
+                    msg = ", ".join(f"{n}:l2={v:.3e}" for n, v in pre_stats)
+                    logging.debug("[traces] before-zero path=%s %s", path, msg)
                 # Zero any known or generic E_* trace tensors
                 for name in list(td_keys):
                     if (name in trace_keys or name.startswith("E_")) and torch.is_tensor(td.get(name)):
@@ -483,41 +468,29 @@ def train_one(
                             t = td.get(name)
                             td[name] = torch.zeros_like(t)
                 zeroed += 1
-                try:
-                    post_nonzero = []
-                    for name in td_keys:
-                        if (name in trace_keys or name.startswith("E_")) and torch.is_tensor(td.get(name)):
-                            t = td.get(name)
-                            if float(t.abs().sum().item()) != 0.0:
-                                post_nonzero.append(name)
-                    if post_nonzero:
-                        logging.warning("[traces] non-zero after zeroing path=%s keys=%s", path, post_nonzero)
-                    else:
-                        logging.debug("[traces] after-zero path=%s all-zero", path)
-                except Exception:
-                    pass
+                post_nonzero = []
+                for name in td_keys:
+                    if (name in trace_keys or name.startswith("E_")) and torch.is_tensor(td.get(name)):
+                        t = td.get(name)
+                        if float(t.abs().sum().item()) != 0.0:
+                            post_nonzero.append(name)
+                if post_nonzero:
+                    logging.warning("[traces] non-zero after zeroing path=%s keys=%s", path, post_nonzero)
+                else:
+                    logging.debug("[traces] after-zero path=%s all-zero", path)
 
             # Recurse into children TensorDicts
             for k in td_keys:
-                try:
-                    child = td.get(k)
-                except Exception:
-                    child = None
+                child = td.get(k)
                 if hasattr(child, "keys"):
                     _recurse(child, f"{path}/{k}")
 
             # No architecture-specific fallbacks: recursion + generic E_* detection handles all cases
 
         # Start recursion from each top-level block key
-        try:
-            top_keys = list(state.keys())
-        except Exception:
-            top_keys = []
+        top_keys = list(state.keys())
         for k in top_keys:
-            try:
-                sub = state.get(k)
-            except Exception:
-                sub = None
+            sub = state.get(k)
             if hasattr(sub, "keys"):
                 _recurse(sub, k)
         logging.debug("[traces] summary: scanned=%d zeroed=%d", scanned, zeroed)
@@ -554,10 +527,7 @@ def train_one(
                         with torch.no_grad():
                             _out, state = model(seq[:, start:end], state)
                             if state is not None:
-                                try:
-                                    state = state.detach()
-                                except Exception:
-                                    state = state.apply(lambda t: t.detach() if torch.is_tensor(t) else t)
+                                state = state.detach()
 
                 # Final chunk with gradients (tail if present, else last full chunk)
                 # Optionally disable RTU traces at last chunk for sanity checks (no-op for non-RTU stacks)
@@ -639,10 +609,7 @@ def train_one(
     best_val = 0.0
     # Globals for the parity probe inside the epoch loop. CLI flag overrides env.
     global AXONS_PARITY_PROBE, EPOCH_IDX
-    try:
-        env_probe = int(os.getenv("AXONS_PARITY_PROBE", "0"))
-    except Exception:
-        env_probe = 0
+    env_probe = int(os.getenv("AXONS_PARITY_PROBE", "0"))
     AXONS_PARITY_PROBE = axons_parity_probe if axons_parity_probe > 0 else env_probe
     EPOCH_IDX = 0
 

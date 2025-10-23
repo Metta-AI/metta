@@ -11,6 +11,7 @@ from tensordict import TensorDict
 from cortex.blocks.base import BaseBlock
 from cortex.blocks.registry import register_block
 from cortex.cells.base import MemoryCell
+from cortex.cells.mlstm import mLSTMCell
 from cortex.config import PreUpBlockConfig
 from cortex.types import MaybeState, ResetMask, Tensor
 
@@ -35,8 +36,6 @@ class PreUpBlock(BaseBlock):
 
     def _should_apply_cell_act(self) -> bool:
         """Check whether the wrapped cell is an mLSTM."""
-        from cortex.cells.mlstm import mLSTMCell  # type: ignore
-
         if isinstance(self.cell, mLSTMCell) and not self.cell.use_axon_qkv:
             return True
         return False
