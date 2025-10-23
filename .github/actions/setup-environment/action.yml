@@ -34,6 +34,15 @@ runs:
           uv.lock
           **/pyproject.toml
 
+    - name: Configure uv cache directory
+      id: uv-cache-dir
+      shell: bash
+      run: |
+        cache_dir="${UV_CACHE_DIR:-$HOME/.cache/uv}"
+        mkdir -p "$cache_dir"
+        echo "UV_CACHE_DIR=$cache_dir" >> "$GITHUB_ENV"
+        echo "path=$cache_dir" >> "$GITHUB_OUTPUT"
+
     - name: Get week number for cache key
       if: inputs.install-mode != 'minimal'
       id: get-week
@@ -41,6 +50,14 @@ runs:
       run: |
         # Get year and week number for weekly cache invalidation
         echo "yearweek=$(date +%Y-%U)" >> "$GITHUB_OUTPUT"
+
+    - name: Cache uv packages
+      uses: actions/cache@v4
+      with:
+        path: ${{ steps.uv-cache-dir.outputs.path }}
+        key: uv-cache-${{ runner.os }}-${{ steps.get-week.outputs.yearweek }}-${{ inputs.install-mode }}-${{ steps.hash.outputs.hash }}
+        restore-keys: |
+          uv-cache-${{ runner.os }}-
 
     - name: Cache nimble
       id: cache-nimble
