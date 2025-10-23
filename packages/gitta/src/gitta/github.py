@@ -438,6 +438,194 @@ def get_workflow_run_jobs(
         return (resp.json() or {}).get("jobs", [])
 
 
+def get_pull_requests(
+    repo: str,
+    state: str = "open",
+    since: str | None = None,
+    per_page: int = 100,
+    token: str | None = None,
+    **headers: str,
+) -> list[dict[str, Any]]:
+    """
+    Get list of pull requests from a repository.
+
+    Args:
+        repo: Repository in format "owner/repo"
+        state: Filter by state ("open", "closed", "all")
+        since: ISO 8601 timestamp to filter PRs (only PRs updated after this date)
+        per_page: Number of PRs per page (max 100)
+        token: GitHub token for authentication
+        **headers: Additional headers (can override Authorization for custom auth)
+
+    Returns:
+        List of pull request objects from GitHub API
+
+    Raises:
+        GitError: If the API request fails
+    """
+    params: dict[str, Any] = {"state": state, "per_page": per_page, "sort": "updated", "direction": "desc"}
+
+    all_prs: list[dict[str, Any]] = []
+    page = 1
+
+    with github_client(repo, token=token, **headers) as client:
+        while True:
+            try:
+                resp = client.get("/pulls", params={**params, "page": page})
+                resp.raise_for_status()
+            except httpx.HTTPError as e:
+                error_msg = f"Failed to get pull requests: {e}"
+                if hasattr(e, "response") and e.response is not None:
+                    error_msg += f" - Status: {e.response.status_code}"
+                logger.error(error_msg)
+                raise GitError(error_msg) from e
+
+            prs = resp.json() or []
+            if not prs:
+                break
+
+            # Filter by since date if provided
+            if since:
+                from datetime import datetime
+
+                cutoff = datetime.fromisoformat(since.replace("Z", "+00:00"))
+                filtered_prs = []
+                for pr in prs:
+                    updated_at = datetime.fromisoformat(pr["updated_at"].replace("Z", "+00:00"))
+                    if updated_at >= cutoff:
+                        filtered_prs.append(pr)
+                    else:
+                        # Since we're sorting by updated desc, stop when we hit older PRs
+                        break
+                all_prs.extend(filtered_prs)
+                if len(filtered_prs) < len(prs):
+                    break
+            else:
+                all_prs.extend(prs)
+
+            if len(prs) < per_page:
+                break
+
+            page += 1
+
+    return all_prs
+
+
+def get_branches(
+    repo: str,
+    token: str | None = None,
+    **headers: str,
+) -> list[dict[str, Any]]:
+    """
+    Get list of branches from a repository.
+
+    Args:
+        repo: Repository in format "owner/repo"
+        token: GitHub token for authentication
+        **headers: Additional headers (can override Authorization for custom auth)
+
+    Returns:
+        List of branch objects from GitHub API
+
+    Raises:
+        GitError: If the API request fails
+    """
+    all_branches: list[dict[str, Any]] = []
+    page = 1
+    per_page = 100
+
+    with github_client(repo, token=token, **headers) as client:
+        while True:
+            try:
+                resp = client.get("/branches", params={"per_page": per_page, "page": page})
+                resp.raise_for_status()
+            except httpx.HTTPError as e:
+                error_msg = f"Failed to get branches: {e}"
+                if hasattr(e, "response") and e.response is not None:
+                    error_msg += f" - Status: {e.response.status_code}"
+                logger.error(error_msg)
+                raise GitError(error_msg) from e
+
+            branches = resp.json() or []
+            if not branches:
+                break
+
+            all_branches.extend(branches)
+
+            if len(branches) < per_page:
+                break
+
+            page += 1
+
+    return all_branches
+
+
+def list_all_workflow_runs(
+    repo: str,
+    branch: str | None = None,
+    status: str | None = None,
+    created: str | None = None,
+    per_page: int = 100,
+    token: str | None = None,
+    **headers: str,
+) -> list[dict[str, Any]]:
+    """
+    Get all workflow runs for a repository (not limited to specific workflow).
+
+    Args:
+        repo: Repository in format "owner/repo"
+        branch: Filter by branch name
+        status: Filter by status (e.g., "completed", "in_progress")
+        created: Filter by created date (e.g., ">=2024-01-01" or "2024-01-01..2024-12-31")
+        per_page: Number of runs per page
+        token: GitHub token for authentication
+        **headers: Additional headers (can override Authorization for custom auth)
+
+    Returns:
+        List of workflow run objects
+
+    Raises:
+        GitError: If the API request fails
+    """
+    params: dict[str, Any] = {"per_page": per_page}
+    if branch:
+        params["branch"] = branch
+    if status:
+        params["status"] = status
+    if created:
+        params["created"] = created
+
+    all_runs: list[dict[str, Any]] = []
+    page = 1
+
+    with github_client(repo, token=token, **headers) as client:
+        while True:
+            try:
+                resp = client.get("/actions/runs", params={**params, "page": page})
+                resp.raise_for_status()
+            except httpx.HTTPError as e:
+                error_msg = f"Failed to get workflow runs: {e}"
+                if hasattr(e, "response") and e.response is not None:
+                    error_msg += f" - Status: {e.response.status_code}"
+                logger.error(error_msg)
+                raise GitError(error_msg) from e
+
+            data = resp.json() or {}
+            runs = data.get("workflow_runs", [])
+
+            if not runs:
+                break
+
+            all_runs.extend(runs)
+
+            if len(runs) < per_page:
+                break
+
+            page += 1
+
+    return all_runs
+
+
 def _clear_matched_pr_cache() -> None:
     _MATCHED_PR_CACHE.clear()
 

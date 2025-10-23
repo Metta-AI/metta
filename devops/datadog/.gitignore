@@ -1,0 +1,16 @@
+# Temporary export files (full list exports)
+dashboards.json
+dashboards_detailed.json
+
+# Generated JSON files (built from .jsonnet sources)
+templates/*.json
+
+# Note: We version control .jsonnet files, not generated .json files
+# Source files are in dashboards/*.jsonnet and components/*.libsonnet
+
+# Environment variable files
+.env
+.env.local
+
+# macOS
+.DS_Store
