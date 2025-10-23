@@ -24,7 +24,6 @@ class FakeTask(Task):
     def make_job_state(self) -> JobState:
         """Create a fake JobState for testing."""
         return JobState(
-            batch_id="test_batch",
             name=self.name,
             config=self.job_config,
             status="completed" if self._exit_code == 0 else "failed",
@@ -39,20 +38,19 @@ def make_mock_job_manager(tmp_path: Path):
     """Create a mock JobManager that returns pre-configured JobStates."""
     job_states = {}
 
-    def mock_submit(batch_id: str, config: JobConfig):
+    def mock_submit(config: JobConfig):
         # Store config for later retrieval
-        job_states[(batch_id, config.name)] = config
+        job_states[config.name] = config
 
     def mock_poll():
         # Mark all submitted jobs as complete
         return list(job_states.keys())
 
-    def mock_get_job_state(batch_id: str, name: str):
-        config = job_states.get((batch_id, name))
+    def mock_get_job_state(name: str):
+        config = job_states.get(name)
         if not config:
             return None
         return JobState(
-            batch_id=batch_id,
             name=name,
             config=config,
             status="completed",
@@ -62,9 +60,9 @@ def make_mock_job_manager(tmp_path: Path):
             logs_path=str(tmp_path / f"{name}.log"),
         )
 
-    def mock_wait_for_job(batch_id: str, name: str, poll_interval_s: float = 1.0):
+    def mock_wait_for_job(name: str, poll_interval_s: float = 1.0):
         # Immediately return completed job state
-        return mock_get_job_state(batch_id, name)
+        return mock_get_job_state(name)
 
     job_manager = Mock(spec=JobManager)
     job_manager.submit.side_effect = mock_submit
@@ -227,23 +225,22 @@ def test_run_task_skips_failed_dependencies(tmp_path, monkeypatch):
     job_states = {}
     completed_jobs = set()
 
-    def mock_submit(batch_id: str, config: JobConfig):
-        job_states[(batch_id, config.name)] = config
+    def mock_submit(config: JobConfig):
+        job_states[config.name] = config
 
     def mock_poll():
         # Return jobs that haven't been polled yet
-        pending = [key for key in job_states.keys() if key not in completed_jobs]
+        pending = [name for name in job_states.keys() if name not in completed_jobs]
         completed_jobs.update(pending)
         return pending
 
-    def mock_get_job_state(batch_id: str, name: str):
-        config = job_states.get((batch_id, name))
+    def mock_get_job_state(name: str):
+        config = job_states.get(name)
         if not config:
             return None
-        # Return failed state for failed_dep
-        exit_code = 1 if name == "failed_dep" else 0
+        # Return failed state for failed_dep (check if task name contains "failed_dep")
+        exit_code = 1 if "failed_dep" in name else 0
         return JobState(
-            batch_id=batch_id,
             name=name,
             config=config,
             status="completed",
@@ -334,23 +331,22 @@ def test_run_all_skips_on_failed_dependency(tmp_path, monkeypatch):
     job_states = {}
     completed_jobs = set()
 
-    def mock_submit(batch_id: str, config: JobConfig):
-        job_states[(batch_id, config.name)] = config
+    def mock_submit(config: JobConfig):
+        job_states[config.name] = config
 
     def mock_poll():
         # Return jobs that haven't been polled yet
-        pending = [key for key in job_states.keys() if key not in completed_jobs]
+        pending = [name for name in job_states.keys() if name not in completed_jobs]
         completed_jobs.update(pending)
         return pending
 
-    def mock_get_job_state(batch_id: str, name: str):
-        config = job_states.get((batch_id, name))
+    def mock_get_job_state(name: str):
+        config = job_states.get(name)
         if not config:
             return None
-        # task1 fails, others succeed
-        exit_code = 1 if name == "task1" else 0
+        # task1 fails, others succeed (check if job name contains "task1")
+        exit_code = 1 if "task1" in name else 0
         return JobState(
-            batch_id=batch_id,
             name=name,
             config=config,
             status="completed",
@@ -428,15 +424,21 @@ def test_run_task_handles_exceptions(tmp_path, monkeypatch):
 
     # Create mock job manager that raises exception
     job_manager = Mock(spec=JobManager)
+    get_state_call_count = {"count": 0}
 
-    def mock_submit(batch_id: str, config: JobConfig):
+    def mock_submit(config: JobConfig):
         pass
 
     def mock_poll():
         # Return completed immediately
-        return [("release_release_1.0.0", "error_task")]
+        return ["release_1.0.0_error_task"]
 
-    def mock_get_job_state(batch_id: str, name: str):
+    def mock_get_job_state(name: str):
+        # First call (during _submit_task check for existing job) returns None
+        # Second call (during _complete_task) raises exception
+        get_state_call_count["count"] += 1
+        if get_state_call_count["count"] == 1:
+            return None  # No existing job, allow submission
         raise RuntimeError("Simulated error")
 
     job_manager.submit.side_effect = mock_submit
