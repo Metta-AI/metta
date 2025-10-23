@@ -2,7 +2,7 @@
 
 Collects development metrics from GitHub API for the Metta repository.
 
-**Status**: ✅ **Implemented** (currently in `softmax/dashboard/metrics.py`, to be migrated)
+**Status**: ✅ **Production** - Deployed and operational (Helm revision 16, monitoring namespace)
 
 ## Metrics Collected
 
@@ -98,17 +98,22 @@ Collects development metrics from GitHub API for the Metta repository.
 - **Current usage**: ~15 API calls per run = ~60 calls/hour
 - **Headroom**: Well within limits
 
-## Migration Notes
+## Implementation Details
 
-Currently implemented in `softmax/src/softmax/dashboard/metrics.py`. Migration plan:
+**Architecture**: Modular collector using BaseCollector pattern
+**Location**: `devops/datadog/collectors/github/collector.py`
+**Deployment**: Kubernetes CronJob via Helm (`devops/charts/dashboard-cronjob`)
+**Entry Point**: `devops/datadog/run_collector.py github --push`
 
-1. Create `collectors/github/collector.py` (BaseCollector subclass)
-2. Move metrics to `collectors/github/metrics.py`
-3. Update `devops/charts/dashboard-cronjob/values.yaml` → `devops/charts/datadog-collectors/values.yaml`
-4. Test locally
-5. Deploy new structure
-6. Verify metrics still flowing
-7. Remove old `softmax/dashboard` code
+### Migration Status
+
+✅ **Complete** - Migrated from `softmax/dashboard/metrics.py` to modular architecture:
+1. ✅ Created `GitHubCollector(BaseCollector)` class
+2. ✅ Implemented all 25 metrics in collector
+3. ✅ Updated Helm chart for new collector
+4. ✅ Deployed to production (2025-10-23)
+5. ✅ Verified metrics flowing to Datadog
+6. ⏳ **Next**: Remove old `softmax/dashboard` code after 24h stability period
 
 ## Related Documentation
 
@@ -121,4 +126,5 @@ Currently implemented in `softmax/src/softmax/dashboard/metrics.py`. Migration p
 - **Owner**: DevOps Team
 - **API Version**: GitHub REST API v3
 - **Dependencies**: `gitta`, `httpx`, `boto3`
-- **Last Updated**: 2025-10-22
+- **Last Updated**: 2025-10-23
+- **Production Deployment**: 2025-10-23 (Helm revision 16)
