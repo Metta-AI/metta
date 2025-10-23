@@ -56,33 +56,14 @@ const IMPORT_STEPS: ScriptStep[] = [
     required: true,
   },
   {
-    name: "extract-authors",
-    command: "pnpm extract-authors",
-    description: "Extract authors from imported papers",
-    required: true,
-  },
-  {
     name: "enrich-metadata",
     command: "pnpm enrich-metadata",
     description: "Enrich author metadata with additional information",
     required: false,
   },
-  {
-    name: "extract-institutions",
-    command: "pnpm extract-institutions",
-    description: "Extract institutions from papers",
-    required: true,
-  },
 ];
 
-const VERIFICATION_STEPS: ScriptStep[] = [
-  {
-    name: "show-contents",
-    command: "tsx scripts/show-database-contents.ts",
-    description: "Display final database contents summary",
-    required: false,
-  },
-];
+const VERIFICATION_STEPS: ScriptStep[] = [];
 
 async function runCommand(step: ScriptStep): Promise<boolean> {
   console.log(`\n🔄 ${step.description}...`);

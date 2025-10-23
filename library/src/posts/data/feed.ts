@@ -1,14 +1,34 @@
 import { prisma } from "@/lib/db/prisma";
 import { makePaginated, Paginated } from "@/lib/paginated";
 import { auth } from "@/lib/auth";
+import type { LLMAbstract } from "@/lib/llm-abstract-generator-clean";
+import type {
+  PrismaPost,
+  PrismaPaper,
+  PrismaUser,
+  PrismaUserPaperInteraction,
+} from "@/types/prisma-models";
 
 export type FeedPostDTO = {
   id: string;
   title: string;
   content: string | null;
-  postType: "user-post" | "paper-post" | "pure-paper";
-  queues: number;
+  images: string[];
+  postType: "user-post" | "paper-post" | "pure-paper" | "quote-post";
   replies: number;
+  quotedPostIds: string[];
+  quotedPosts?: {
+    id: string;
+    title: string;
+    content: string | null;
+    author: {
+      id: string;
+      name: string | null;
+      email: string | null;
+      image: string | null;
+    };
+    createdAt: Date;
+  }[];
   author: {
     id: string;
     name: string | null;
@@ -25,17 +45,16 @@ export type FeedPostDTO = {
       orcid?: string | null;
       institution?: string | null;
     }[];
-    institutions: string[] | null;
+    institutions: string[];
     tags: string[] | null;
     link: string | null;
     source: string | null;
     externalId: string | null;
     stars: number;
     starred: boolean;
-    queued: boolean;
     createdAt: Date;
     updatedAt: Date;
-    llmAbstract?: any; // LLM-generated enhanced abstract
+    llmAbstract?: LLMAbstract | null;
     llmAbstractGeneratedAt?: Date | null;
   };
   createdAt: Date;
@@ -44,10 +63,10 @@ export type FeedPostDTO = {
 };
 
 export function toFeedPostDTO(
-  dbModel: any,
-  usersMap: Map<string, any>,
-  papersMap: Map<string, any>,
-  userPaperInteractionsMap: Map<string, any> = new Map()
+  dbModel: PrismaPost,
+  usersMap: Map<string, PrismaUser>,
+  papersMap: Map<string, PrismaPaper>,
+  userPaperInteractionsMap: Map<string, PrismaUserPaperInteraction> = new Map()
 ): FeedPostDTO {
   const author = usersMap.get(dbModel.authorId);
   const paper = dbModel.paperId ? papersMap.get(dbModel.paperId) : null;
@@ -57,7 +76,7 @@ export function toFeedPostDTO(
   let lastActivityAt = dbModel.createdAt;
   if (dbModel.comments && dbModel.comments.length > 0) {
     const mostRecentCommentTime = dbModel.comments.reduce(
-      (latest: Date, comment: any) => {
+      (latest: Date, comment) => {
         return comment.createdAt > latest ? comment.createdAt : latest;
       },
       new Date(0)
@@ -72,9 +91,26 @@ export function toFeedPostDTO(
     id: dbModel.id,
     title: dbModel.title,
     content: dbModel.content,
-    postType: dbModel.postType as "user-post" | "paper-post" | "pure-paper",
-    queues: dbModel.queues ?? 0,
+    images: dbModel.images ?? [],
+    postType: dbModel.postType as
+      | "user-post"
+      | "paper-post"
+      | "pure-paper"
+      | "quote-post",
     replies: dbModel.replies ?? 0,
+    quotedPostIds: dbModel.quotedPostIds ?? [],
+    quotedPosts: dbModel.quotedPosts?.map((qp) => ({
+      id: qp.id,
+      title: qp.title,
+      content: qp.content,
+      author: {
+        id: qp.authorId,
+        name: qp.author?.name ?? null,
+        email: qp.author?.email ?? null,
+        image: qp.author?.image ?? null,
+      },
+      createdAt: qp.createdAt,
+    })),
     author: {
       id: dbModel.authorId,
       name: author?.name ?? null,
@@ -87,20 +123,19 @@ export function toFeedPostDTO(
           title: paper.title,
           abstract: paper.abstract,
           authors:
-            paper.paperAuthors?.map((pa: any) => ({
+            paper.paperAuthors?.map((pa) => ({
               id: pa.author.id,
               name: pa.author.name,
-              orcid: pa.author.orcid,
               institution: pa.author.institution,
             })) || [],
-          institutions: paper.institutions,
+          institutions:
+            paper.paperInstitutions?.map((pi) => pi.institution.name) || [],
           tags: paper.tags,
           link: paper.link,
           source: paper.source,
           externalId: paper.externalId,
           stars: paper.userPaperInteractions?.length ?? 0,
           starred: userPaperInteractionsMap.get(paper.id)?.starred ?? false,
-          queued: userPaperInteractionsMap.get(paper.id)?.queued ?? false,
           createdAt: paper.createdAt,
           updatedAt: paper.updatedAt,
           llmAbstract: paper.llmAbstract,
@@ -150,7 +185,6 @@ export async function loadFeedPosts({
           id: true,
           title: true,
           abstract: true,
-          institutions: true,
           tags: true,
           link: true,
           source: true,
@@ -159,13 +193,22 @@ export async function loadFeedPosts({
           updatedAt: true,
           llmAbstract: true,
           llmAbstractGeneratedAt: true,
+          paperInstitutions: {
+            select: {
+              institution: {
+                select: {
+                  id: true,
+                  name: true,
+                },
+              },
+            },
+          },
           paperAuthors: {
             include: {
               author: {
                 select: {
                   id: true,
                   name: true,
-                  orcid: true,
                   institution: true,
                 },
               },
@@ -184,8 +227,49 @@ export async function loadFeedPosts({
     },
   });
 
+  // Separate query to load quoted posts for posts that have quotedPostIds
+  const allQuotedPostIds = [
+    ...new Set(allRows.flatMap((row) => row.quotedPostIds || [])),
+  ];
+  const quotedPostsMap = new Map();
+
+  if (allQuotedPostIds.length > 0) {
+    const quotedPosts = await prisma.post.findMany({
+      where: {
+        id: {
+          in: allQuotedPostIds,
+        },
+      },
+      select: {
+        id: true,
+        title: true,
+        content: true,
+        authorId: true,
+        createdAt: true,
+        author: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            image: true,
+          },
+        },
+      },
+    });
+
+    quotedPosts.forEach((qp) => quotedPostsMap.set(qp.id, qp));
+  }
+
+  // Add quoted posts to each row
+  const rowsWithQuotedPosts = allRows.map((row) => ({
+    ...row,
+    quotedPosts: (row.quotedPostIds || [])
+      .map((id) => quotedPostsMap.get(id))
+      .filter(Boolean),
+  }));
+
   // Calculate lastActivityAt for each post and sort by it
-  const postsWithActivity = allRows
+  const postsWithActivity = rowsWithQuotedPosts
     .map((row) => ({
       ...row,
       lastActivityAt:
@@ -212,7 +296,7 @@ export async function loadFeedPosts({
   let userPaperInteractionsMap = new Map<string, any>();
 
   if (session?.user?.id) {
-    // Fetch user paper interactions (for starred/queued status)
+    // Fetch user paper interactions (for starred status)
     const paperIds = rows
       .filter((row) => row.paperId)
       .map((row) => row.paperId!)
@@ -250,7 +334,13 @@ export async function loadFeedPosts({
       papersMap.set(row.paper.id, row.paper);
     }
 
-    return toFeedPostDTO(row, usersMap, papersMap, userPaperInteractionsMap);
+    // Cast row to PrismaPost (Prisma query result has different shape)
+    return toFeedPostDTO(
+      row as unknown as PrismaPost,
+      usersMap,
+      papersMap,
+      userPaperInteractionsMap
+    );
   });
 
   // Check if there are more posts to load
