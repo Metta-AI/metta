@@ -1,7 +1,9 @@
 {
+  "id": "7gy-9ub-2sq",
   "title": "GitHub CI/CD Dashboard",
   "description": "Development velocity, code quality, and CI/CD metrics from GitHub. Monitors PRs, commits, workflows, and developer activity.",
   "layout_type": "ordered",
+  "url": "/dashboard/7gy-9ub-2sq/github-cicd-dashboard",
   "template_variables": [],
   "widgets": [
     {
