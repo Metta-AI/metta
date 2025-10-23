@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 from datadog_api_client import ApiClient, Configuration
+from datadog_api_client.v1.api.metrics_api import MetricsApi as MetricsApiV1
 from datadog_api_client.v2.api.metrics_api import MetricsApi
 from datadog_api_client.v2.model.metric_intake_type import MetricIntakeType
 from datadog_api_client.v2.model.metric_payload import MetricPayload
@@ -212,3 +213,58 @@ class DatadogClient:
                 return 0, failed_count + len(metrics_to_submit)
 
         return 0, failed_count
+
+    def query_metric(
+        self,
+        metric_name: str,
+        aggregation: str = "last",
+        lookback_seconds: int = 3600,
+    ) -> float | None:
+        """Query a metric value from Datadog.
+
+        Uses the Datadog timeseries query API (v1) to fetch the most recent
+        value for a metric.
+
+        Args:
+            metric_name: Metric name (e.g., "github.ci.tests_passing_on_main")
+            aggregation: Aggregation function ("last", "avg", "sum", "max", "min")
+            lookback_seconds: How far back to query (default: 1 hour)
+
+        Returns:
+            Most recent metric value, or None if not available
+        """
+        try:
+            with ApiClient(self.configuration) as api_client:
+                api_instance = MetricsApiV1(api_client)
+
+                # Calculate time window (now - lookback_seconds to now)
+                now = int(time.time())
+                from_time = now - lookback_seconds
+
+                # Build query string
+                # Format: "aggregation:metric_name{*}"
+                query = f"{aggregation}:{metric_name}{{*}}"
+
+                # Query metric
+                response = api_instance.query_metrics(
+                    _from=from_time,
+                    to=now,
+                    query=query,
+                )
+
+                # Extract value from response
+                if response.series and len(response.series) > 0:
+                    series = response.series[0]
+                    if series.pointlist and len(series.pointlist) > 0:
+                        # Get the last point [timestamp, value]
+                        last_point = series.pointlist[-1]
+                        value = last_point[1]  # Second element is the value
+                        logger.debug(f"Queried {metric_name}: {value}")
+                        return float(value) if value is not None else None
+
+                logger.warning(f"No data returned for metric {metric_name}")
+                return None
+
+        except Exception as e:
+            logger.error(f"Failed to query metric {metric_name}: {e}")
+            return None
