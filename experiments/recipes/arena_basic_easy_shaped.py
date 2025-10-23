@@ -324,7 +324,7 @@ def sweep_multi_gpu_params(sweep_name: str) -> SweepTool:
         objective="evaluator/eval_sweep/score",
         train_overrides= {
             "trainer.total_timesteps": 2_000_000_000,
-        }
+        },
         parameters=parameters,
         max_trials=60,
         num_parallel_trials=4,
