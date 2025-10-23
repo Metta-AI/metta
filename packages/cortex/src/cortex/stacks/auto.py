@@ -29,7 +29,7 @@ from cortex.stacks.base import CortexStack
 def build_cortex_auto_config(
     *,
     d_hidden: int,
-    num_layers: int = 3,
+    num_layers: int = 4,
     block_pattern: str | None = None,
     # Axon generally defaults to a PostUp block. However, when the FIRST
     # layer is Axon and no explicit Axon block is provided, we default that
