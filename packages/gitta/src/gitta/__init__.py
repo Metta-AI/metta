@@ -45,6 +45,7 @@ from .git import (
 from .github import (
     create_pr,
     get_branches,
+    get_commit_with_stats,
     get_commits,
     get_latest_commit,
     get_matched_pr,
@@ -96,6 +97,7 @@ __all__ = [
     "create_pr",
     "github_client",
     "get_commits",
+    "get_commit_with_stats",
     "get_workflow_runs",
     "get_workflow_run_jobs",
     "get_pull_requests",
