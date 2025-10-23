@@ -202,13 +202,20 @@ After exploring multiple approaches, we chose Jsonnet because:
 - Clean JSON output - Status messages routed to stderr when using --json flag
 - Rich table display - Formatted output with typer and rich libraries
 
-### Phase 3: EKS Deployment
+### Phase 3: EKS Deployment (In Progress)
 
-**Kubernetes Infrastructure:**
-- [ ] Create Helm chart for metrics collectors
-- [ ] Configure CronJob for 15-minute collection schedule
-- [ ] Set up AWS Secrets Manager integration
-- [ ] Deploy to EKS and verify metrics in Datadog
+**Phase 3A: Helm Chart Update - ✅ Complete**
+- ✅ Updated Helm chart to use new collector architecture
+- ✅ Changed command to `devops/datadog/run_collector.py github --push`
+- ✅ Updated service name to `github-collector`
+- ✅ Tested template rendering locally
+- ✅ Updated README with collector documentation
+
+**Phase 3B: Deployment - 🔄 Ready**
+- [ ] Deploy to staging/test environment
+- [ ] Monitor test deployment logs
+- [ ] Deploy to production
+- [ ] Verify all 25 metrics flowing to Datadog
 - [ ] Monitor collection performance and API usage
 
 ### Jsonnet Dashboard Setup (Lower Priority)

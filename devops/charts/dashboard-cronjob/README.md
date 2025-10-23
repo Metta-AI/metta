@@ -1,13 +1,17 @@
-# Dashboard CronJob
+# Datadog Metrics Collector CronJob
 
-Runs the softmax dashboard metrics collection every 15 minutes and pushes to Datadog.
+Runs the Datadog metrics collectors every 15 minutes and pushes metrics to Datadog.
 
 ## What it does
 
-Collects system health metrics:
-- GitHub CI status (tests passing/failing)
-- Hotfix and revert commit counts
-- More metrics can be added in `softmax/src/softmax/dashboard/metrics.py`
+Collects GitHub repository metrics using the modular collector architecture:
+- Pull request metrics (open, merged, closed, cycle time, stale PRs, review coverage)
+- Branch metrics (active branch count)
+- Commit & code metrics (commits, hotfixes, reverts, lines added/deleted, files changed)
+- CI/CD metrics (workflow runs, failures, duration percentiles)
+- Developer metrics (active developers, commits per developer)
+
+**Total: 25 metrics** - See `devops/datadog/docs/CI_CD_METRICS.md` for complete catalog
 
 ## Deploy
 
@@ -19,24 +23,29 @@ cd devops/charts
 helmfile apply -l name=dashboard-cronjob
 ```
 
-## Add a new script
+## Add a new collector
 
-To add another cronjob (e.g., weekly reports):
+To add another collector (e.g., AWS infrastructure metrics):
 
-1. **Add your script** to `softmax/src/softmax/` (uses the same Docker image)
+1. **Create your collector** following the modular architecture:
+   - See `devops/datadog/docs/ADDING_NEW_COLLECTOR.md` for step-by-step guide
+   - Create `devops/datadog/collectors/aws/collector.py` extending `BaseCollector`
+   - Implement `collect_metrics()` method
 
 2. **Add to `helmfile.yaml`** (reuse the SAME chart):
    ```yaml
-   - name: weekly-report
-     chart: ./dashboard-cronjob  # Same chart, different config
+   - name: aws-collector
+     chart: ./dashboard-cronjob  # Same chart, different collector
      version: 0.1.0
      namespace: monitoring
      values:
-       - schedule: "0 9 * * MON"  # Monday at 9am
-         command: ["uv", "run", "python", "-m", "softmax.reports.weekly"]
+       - schedule: "*/15 * * * *"  # Every 15 minutes
+         command: ["uv", "run", "python", "devops/datadog/run_collector.py", "aws", "--push"]
+         datadog:
+           service: "aws-collector"
    ```
 
-That's it! One chart, multiple deployments with different schedules and commands.
+That's it! One chart, multiple collectors with different schedules and commands.
 
 ## Configuration
 

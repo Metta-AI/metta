@@ -6,8 +6,9 @@ image:
   pullPolicy: Always
   tag: "latest"
 
-# Command to run - can be overridden for different scripts
-command: ["uv", "run", "python", "-m", "softmax.dashboard.report", "--push"]
+# Command to run - can be overridden for different collectors
+# Uses the new modular collector architecture
+command: ["uv", "run", "python", "devops/datadog/run_collector.py", "github", "--push"]
 
 serviceAccount:
   create: true
@@ -25,7 +26,7 @@ resources:
 # Datadog metric tagging (for organizing metrics in Datadog)
 datadog:
   env: "production"
-  service: "dashboard-cronjob"
+  service: "github-collector"
   site: "datadoghq.com"
 
 # CronJob configuration
