@@ -1,7 +1,55 @@
-# Datadog Observability - Next Steps
+# Datadog Observability System - Work Plan
 
 **Current Status**: Phase 3B Complete - GitHub collector deployed and operational
 **Branch**: `robb/1022-datadog`
+**PR**: [#3384](https://github.com/Metta-AI/metta/pull/3384)
+
+---
+
+## What We Built (Phases 1-3B Complete)
+
+### ✅ Modular Collector Architecture
+- **BaseCollector pattern** for consistent collector implementation
+- **GitHub collector** deployed to production (Helm revision 16, monitoring namespace)
+- **25 metrics** collected every 15 minutes via CronJob
+- **Metrics flowing successfully** to Datadog for 24+ hours
+- Framework ready for additional collectors (WandB, EC2, Skypilot, Asana)
+
+### ✅ Deployment Infrastructure
+- Helm chart for CronJob deployment (`devops/charts/dashboard-cronjob/`)
+- AWS Secrets Manager integration for credentials
+- IAM Roles for Service Accounts (IRSA) with proper trust policies
+- Kubernetes deployment scripts and helpers
+
+### ✅ Dashboard Management System
+- Jsonnet-based dashboard configuration
+- Modular widget library for reusable components
+- Python scripts for dashboard operations (push, fetch, export, batch)
+- Template dashboards ready to customize
+
+### ✅ Comprehensive Documentation
+- **Quick Start Guide** - Getting started in 10 minutes
+- **Collectors Architecture** - System design and patterns
+- **Adding New Collectors** - Step-by-step implementation guide
+- **CI/CD Metrics Catalog** - Complete list of 25 GitHub metrics
+- **Jsonnet Design** - Dashboard configuration patterns
+- **Widget Reference** - Datadog widget types and usage
+
+### ✅ Production Metrics (GitHub Collector)
+
+**Pull Requests**: open, merged_7d, closed_without_merge_7d, avg_time_to_merge_hours, stale_count_14d, cycle_time_hours
+
+**Commits**: total_7d, hotfix, reverts, per_developer_7d
+
+**Branches**: active
+
+**CI/CD**: tests_passing_on_main, workflow_runs_7d, failed_workflows_7d, avg_workflow_duration_minutes, duration_p50_minutes, duration_p90_minutes, duration_p99_minutes
+
+**Developers**: active_7d
+
+**Code Changes**: lines_added_7d, lines_deleted_7d, files_changed_7d
+
+**Pull Request Quality**: with_review_comments_pct, avg_comments_per_pr
 
 ---
 
@@ -23,11 +71,11 @@ softmax/src/softmax/dashboard/
 
 **Steps**:
 1. Verify new collector running 24+ hours without issues
-2. Run `metta ci` to ensure tests pass
+2. Run `metta pytest` to ensure tests pass
 3. Remove `softmax/src/softmax/dashboard/` directory
 4. Search for any imports: `grep -r "softmax.dashboard" .`
 5. Update any references in code/docs
-6. Verify `metta ci` still passes
+6. Verify `metta pytest` still passes
 7. Commit: "chore: remove legacy dashboard code"
 
 **Dependencies**: ✅ New collector verified (deployed 2025-10-23)
@@ -40,8 +88,8 @@ softmax/src/softmax/dashboard/
 
 **Tasks**:
 - [x] Documentation review (completed)
-- [ ] Run full test suite: `metta ci`
-- [ ] Update PR description with Phase 3B completion
+- [x] Run full test suite: `metta pytest` (all 1211 tests passing)
+- [x] Update PR description with Phase 3B completion
 - [ ] Request re-review from @nishu-builder
 - [ ] Address any new feedback
 - [ ] Merge to main
