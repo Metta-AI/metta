@@ -73,10 +73,6 @@ def make_curriculum(
     # to maintain action space consistency.
     arena_tasks.add_bucket("game.actions.attack.consumed_resources.laser", [1, 100])
 
-    # sometimes add initial_items to the buildings
-    for obj in ["mine_red", "generator_red", "altar", "lasery", "armory"]:
-        arena_tasks.add_bucket(f"game.objects.{obj}.initial_resource_count", [0, 1])
-
     if algorithm_config is None:
         algorithm_config = LearningProgressConfig(
             use_bidirectional=True,  # Enable bidirectional learning progress by default

@@ -1,4 +1,4 @@
-.PHONY: help build build-prod benchmark test coverage tidy tidy-verbose clean install pytest pytest-coverage
+.PHONY: help build build-prod benchmark test coverage
 
 # Default target
 help:
@@ -8,14 +8,6 @@ help:
 	@echo "  benchmark       - Build and run benchmarks"
 	@echo "  test            - Run C++ unit tests"
 	@echo "  coverage        - Run tests (C++ coverage not available on macOS)"
-	@echo "  tidy            - Run clang-tidy (fails on errors only)"
-	@echo "  tidy-verbose    - Run clang-tidy with full output"
-	@echo "  format-check   - Verify code is clang-formatted"
-	@echo "  format-fix     - Auto-format code with clang-format"
-	@echo "  pytest          - Run Python tests"
-	@echo "  pytest-coverage - Run Python tests with coverage"
-	@echo "  clean           - Clean all build artifacts"
-	@echo "  install         - Install package in editable mode"
 
 # Debug build
 build:

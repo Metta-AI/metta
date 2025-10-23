@@ -1,7 +1,7 @@
 import
   std/[json, os],
-  boxy, chroma, fidget2, jsony,
-  common, panels, replays
+  boxy, fidget2,
+  common, replays
 
 var envConfig: Node
 
@@ -17,7 +17,7 @@ find "/UI/Main/**/EnvironmentInfo/OpenConfig":
         "No replay config found."
       else:
         replay.mgConfig.pretty
-    if not existsDir("tmp"):
+    if not dirExists("tmp"):
       createDir("tmp")
     writeFile("tmp/mg_config.json", text)
     when defined(windows):

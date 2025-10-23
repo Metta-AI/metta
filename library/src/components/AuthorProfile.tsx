@@ -1,14 +1,17 @@
 "use client";
 
 import { FC, useState } from "react";
+import { Tabs } from "@/components/ui/tabs";
 
 import { AuthorDTO } from "@/posts/data/authors-client";
 import { StarWidgetQuery } from "./StarWidgetQuery";
+import { formatDate, formatRelativeDate } from "@/lib/utils/date";
 
 interface AuthorProfileProps {
   author: AuthorDTO;
   onClose?: () => void;
   onInstitutionClick?: (institutionName: string) => void;
+  onPaperClick?: (paper: any) => void;
 }
 
 /**
@@ -22,11 +25,11 @@ export const AuthorProfile: FC<AuthorProfileProps> = ({
   author,
   onClose,
   onInstitutionClick,
+  onPaperClick,
 }) => {
   const [activeTab, setActiveTab] = useState<"overview" | "papers" | "network">(
     "overview"
   );
-  const [isFollowing, setIsFollowing] = useState(false);
 
   const getInitials = (name: string) => {
     return name
@@ -37,79 +40,11 @@ export const AuthorProfile: FC<AuthorProfileProps> = ({
       .slice(0, 2);
   };
 
-  const formatDate = (date: Date | string) => {
-    // Convert string to Date if needed
-    const dateObj = typeof date === "string" ? new Date(date) : date;
-
-    // Check if the date is valid
-    if (isNaN(dateObj.getTime())) {
-      return "Invalid date";
-    }
-
-    return new Intl.DateTimeFormat("en-US", {
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-    }).format(dateObj);
-  };
-
-  const formatRelativeDate = (date: Date | string | null) => {
-    if (!date) return "Unknown";
-
-    // Convert string to Date if needed
-    const dateObj = typeof date === "string" ? new Date(date) : date;
-
-    // Check if the date is valid
-    if (isNaN(dateObj.getTime())) {
-      return "Unknown";
-    }
-
-    const now = new Date();
-    const diffInDays = Math.floor(
-      (now.getTime() - dateObj.getTime()) / (1000 * 60 * 60 * 24)
-    );
-
-    if (diffInDays === 0) return "Today";
-    if (diffInDays === 1) return "Yesterday";
-    if (diffInDays < 7) return `${diffInDays} days ago`;
-    if (diffInDays < 30) return `${Math.floor(diffInDays / 7)} weeks ago`;
-    return `${Math.floor(diffInDays / 30)} months ago`;
-  };
-
-  const toggleFollow = () => {
-    setIsFollowing(!isFollowing);
-  };
-
   return (
     <div className="bg-white">
       {/* Header */}
       <div className="border-b border-gray-200">
         <div className="px-6 py-6">
-          {/* Close Button */}
-          {onClose && (
-            <div className="mb-4 flex justify-end">
-              <button
-                onClick={onClose}
-                className="p-2 text-gray-400 transition-colors hover:text-gray-600"
-                aria-label="Close"
-              >
-                <svg
-                  className="h-6 w-6"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M6 18L18 6M6 6l12 12"
-                  />
-                </svg>
-              </button>
-            </div>
-          )}
-
           {/* Author Info */}
           <div className="flex items-start gap-6">
             <div className="bg-primary-500 flex h-24 w-24 flex-shrink-0 items-center justify-center rounded-full text-3xl font-semibold text-white">
@@ -160,16 +95,6 @@ export const AuthorProfile: FC<AuthorProfileProps> = ({
                     <span className="ml-1">papers</span>
                   </div>
                 </div>
-                <button
-                  onClick={toggleFollow}
-                  className={`rounded-full px-6 py-2 font-medium transition-colors ${
-                    isFollowing
-                      ? "bg-gray-200 text-gray-700 hover:bg-gray-300"
-                      : "bg-primary-500 hover:bg-primary-600 text-white"
-                  }`}
-                >
-                  {isFollowing ? "Following" : "Follow"}
-                </button>
                 <span
                   className={`rounded-full px-3 py-1 text-sm font-semibold ${
                     author.claimed
@@ -199,28 +124,16 @@ export const AuthorProfile: FC<AuthorProfileProps> = ({
       </div>
 
       {/* Tabs */}
-      <div className="border-b border-gray-200">
-        <div className="px-6">
-          <div className="flex space-x-8">
-            {[
-              { id: "overview", label: "Overview" },
-              { id: "papers", label: `Papers (${author.recentPapers.length})` },
-              { id: "network", label: "Network" },
-            ].map((tab) => (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id as any)}
-                className={`border-b-2 px-1 py-4 text-sm font-medium transition-colors ${
-                  activeTab === tab.id
-                    ? "border-primary-500 text-primary-600"
-                    : "border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700"
-                }`}
-              >
-                {tab.label}
-              </button>
-            ))}
-          </div>
-        </div>
+      <div className="px-6 py-4">
+        <Tabs
+          tabs={[
+            { id: "overview", label: "Overview" },
+            { id: "papers", label: `Papers (${author.recentPapers.length})` },
+            { id: "network", label: "Network" },
+          ]}
+          activeTab={activeTab}
+          onTabChange={(tab) => setActiveTab(tab as any)}
+        />
       </div>
 
       {/* Content */}
@@ -236,7 +149,12 @@ export const AuthorProfile: FC<AuthorProfileProps> = ({
                   {author.recentPapers.slice(0, 5).map((paper) => (
                     <div
                       key={paper.id}
-                      className="border-b border-gray-100 pb-4 last:border-b-0"
+                      onClick={() => onPaperClick?.(paper)}
+                      className={`border-b border-gray-100 pb-4 last:border-b-0 ${
+                        onPaperClick
+                          ? "-m-2 cursor-pointer rounded p-2 hover:bg-gray-50"
+                          : ""
+                      }`}
                     >
                       <h4 className="mb-1 font-medium text-gray-900">
                         {paper.title}
@@ -281,44 +199,6 @@ export const AuthorProfile: FC<AuthorProfileProps> = ({
                   Last active {formatRelativeDate(author.recentActivity)}
                 </p>
               </div>
-
-              {author.orcid && (
-                <div className="rounded-lg border border-gray-200 bg-white p-6">
-                  <h3 className="mb-4 text-lg font-semibold text-gray-900">
-                    External Profiles
-                  </h3>
-                  <div className="space-y-2">
-                    <a
-                      href={`https://orcid.org/${author.orcid}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-primary-500 hover:text-primary-600 block text-sm underline"
-                    >
-                      ORCID Profile
-                    </a>
-                    {author.googleScholarId && (
-                      <a
-                        href={`https://scholar.google.com/citations?user=${author.googleScholarId}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-primary-500 hover:text-primary-600 block text-sm underline"
-                      >
-                        Google Scholar
-                      </a>
-                    )}
-                    {author.arxivId && (
-                      <a
-                        href={`https://arxiv.org/a/${author.arxivId}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-primary-500 hover:text-primary-600 block text-sm underline"
-                      >
-                        arXiv Profile
-                      </a>
-                    )}
-                  </div>
-                </div>
-              )}
             </div>
           </div>
         )}
@@ -332,7 +212,13 @@ export const AuthorProfile: FC<AuthorProfileProps> = ({
             </div>
             <div className="divide-y divide-gray-200">
               {author.recentPapers.map((paper) => (
-                <div key={paper.id} className="p-6">
+                <div
+                  key={paper.id}
+                  onClick={() => onPaperClick?.(paper)}
+                  className={`p-6 ${
+                    onPaperClick ? "cursor-pointer hover:bg-gray-50" : ""
+                  }`}
+                >
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
                       <h4 className="mb-2 text-lg font-medium text-gray-900">
@@ -356,6 +242,7 @@ export const AuthorProfile: FC<AuthorProfileProps> = ({
                         target="_blank"
                         rel="noopener noreferrer"
                         className="text-primary-500 hover:text-primary-600 ml-4"
+                        onClick={(e) => e.stopPropagation()}
                       >
                         <svg
                           className="h-5 w-5"
