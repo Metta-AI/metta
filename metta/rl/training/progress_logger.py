@@ -69,7 +69,7 @@ def log_rich_progress(
     sps_display = f"{steps_per_sec:,.0f} SPS"
     heart_display = ""
     if heart_value is not None:
-        heart_display = f"heart.get {heart_value:.3f}"
+        heart_display = f"heart.g {heart_value:.3f}"
         if heart_rate is not None:
             heart_display += f" ({heart_rate:.3f}/s)"
 
@@ -114,8 +114,8 @@ def log_training_progress(
     heart_value = None
     heart_rate = None
     if metrics:
-        heart_value = metrics.get("env_agent/heart.get") or metrics.get("overview/heart.get")
-        heart_rate = metrics.get("env_agent/heart.get.rate")
+        heart_value = metrics.get("env_agent/heart.gained") or metrics.get("overview/heart.gained")
+        heart_rate = metrics.get("env_agent/heart.gained.rate")
 
     if should_use_rich_console():
         log_rich_progress(
@@ -143,7 +143,7 @@ def log_training_progress(
             f"train {train_pct:.0f}% _ rollout {rollout_pct:.0f}% _ stats {stats_pct:.0f}%"
         )
         if heart_value is not None:
-            segment = f"heart.get {heart_value:.3f}"
+            segment = f"heart.gained {heart_value:.3f}"
             if heart_rate is not None:
                 segment += f" ({heart_rate:.3f}/s)"
             message = f"{message} _ {segment}"
