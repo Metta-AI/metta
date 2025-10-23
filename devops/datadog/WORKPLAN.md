@@ -1,24 +1,33 @@
 # Datadog Observability System - Work Plan
 
-**Current Status**: Phase 3B Complete - GitHub collector deployed and operational
+**Current Status**: Phase 4 - Three collectors implemented (GitHub, Skypilot, Asana) with 84 total metrics
 **Branch**: `robb/1022-datadog`
 **PR**: [#3384](https://github.com/Metta-AI/metta/pull/3384)
+**Last Updated**: 2025-10-23
 
 ---
 
-## What We Built (Phases 1-3B Complete)
+## What We Built (Phases 1-4 Complete)
 
 ### ✅ Modular Collector Architecture
 - **BaseCollector pattern** for consistent collector implementation
+- **Three collectors implemented and tested**:
+  - GitHub (24 metrics): PRs, commits, CI/CD, developers
+  - Skypilot (30 metrics): Jobs, runtime stats, resources, clusters
+  - Asana (30 metrics): Tasks, velocity, Bugs project workflow
+- **84 total metrics** ready to deploy
 - **GitHub collector** deployed to production (Helm revision 16, monitoring namespace)
-- **25 metrics** collected every 15 minutes via CronJob
 - **Metrics flowing successfully** to Datadog for 24+ hours
-- Framework ready for additional collectors (WandB, EC2, Skypilot, Asana)
+- Framework ready for additional collectors (WandB, EC2)
 
 ### ✅ Deployment Infrastructure
-- Helm chart for CronJob deployment (`devops/charts/dashboard-cronjob/`)
-- AWS Secrets Manager integration for credentials
-- IAM Roles for Service Accounts (IRSA) with proper trust policies
+- **Helm chart** for CronJob deployment (`devops/charts/dashboard-cronjob/`)
+- **Multi-collector support**: Separate CronJobs for GitHub, Skypilot, Asana collectors
+- **Docker image** updated with all collector dependencies (asana, skypilot, github)
+- **CI/CD pipeline** automatically builds and deploys on push to main
+- **AWS Secrets Manager** integration for credentials
+- **IAM Roles for Service Accounts** (IRSA) with proper trust policies
+- **Comprehensive deployment documentation** (`devops/k8s/BUILD_AND_DEPLOY.md`)
 - Kubernetes deployment scripts and helpers
 
 ### ✅ Dashboard Management System
@@ -235,37 +244,103 @@ ec2.gpu.utilization_pct             # GPU usage
 ec2.gpu.costs.daily_usd             # Daily GPU costs
 ```
 
-#### C. Skypilot Collector (Medium Priority) - 2 days
-**Why**: Training job orchestration metrics
+#### C. Skypilot Collector ✅ Complete
+**Status**: Implemented and tested (2025-10-23)
 
-**Planned Metrics**:
+**Implemented Metrics** (30 total):
 ```python
-# Job Status
+# Job Status (6 metrics)
 skypilot.jobs.queued                # Waiting jobs
 skypilot.jobs.running               # Active jobs
-skypilot.jobs.failed_7d             # Failed jobs
+skypilot.jobs.failed                # Currently failed jobs
+skypilot.jobs.failed_7d             # Failed jobs in last 7 days
+skypilot.jobs.succeeded             # Succeeded jobs
+skypilot.jobs.cancelled             # Cancelled jobs
 
-# Resource Utilization
-skypilot.cluster.nodes_active       # Active cluster nodes
-skypilot.cluster.utilization_pct    # Cluster usage
+# Runtime Distribution (10 metrics) - for running jobs
+skypilot.jobs.runtime_seconds.{min,max,avg,p50,p90,p99}
+skypilot.jobs.runtime_buckets.{0_1h,1_4h,4_24h,over_24h}
+
+# Resource Utilization (6 metrics)
+skypilot.resources.gpus.{l4,a10g,h100}_count
+skypilot.resources.gpus.total_count
+skypilot.resources.{spot,ondemand}_jobs
+
+# Reliability (2 metrics)
+skypilot.jobs.with_recoveries
+skypilot.jobs.recovery_count.{avg,max}
+
+# Regional Distribution (3 metrics)
+skypilot.regions.{us_east_1,us_west_2,other}
+
+# Team Activity (1 metric)
+skypilot.users.active_count
+
+# Cluster Health (1 metric)
+skypilot.clusters.active
 ```
 
-#### D. Asana Collector (Lower Priority) - 2 days
-**Why**: Project management insights
+**Key Insights from Real Data**:
+- Runtime p99 = 14 days (spots stuck jobs!)
+- 37/46 jobs running > 24 hours
+- 85% spot usage (cost efficient)
+- 184 L4 GPUs in use across 24 users
 
-**Planned Metrics**:
+**Usage**:
+```bash
+# Test locally
+metta datadog collect skypilot
+
+# Push to Datadog
+metta datadog collect skypilot --push
+```
+
+#### D. Asana Collector ✅ Complete
+**Status**: Implemented and tested (2025-10-23)
+
+**Implemented Metrics** (30 total):
 ```python
-# Task Metrics
-asana.tasks.open                    # Open tasks
-asana.tasks.completed_7d            # Completed tasks
-asana.tasks.overdue                 # Overdue tasks
+# Workspace Task Status (9 metrics)
+asana.tasks.total, open, completed_7d, completed_30d
+asana.tasks.overdue, due_today, due_this_week, no_due_date
+asana.tasks.unassigned, assigned
 
-# Sprint Metrics
-asana.sprint.completion_rate_pct    # Sprint completion %
-asana.sprint.velocity               # Story points/sprint
+# Velocity & Cycle Time (3 metrics)
+asana.velocity.completed_per_day_7d
+asana.velocity.completion_rate_pct
+asana.cycle_time.avg_hours, p50_hours, p90_hours
+
+# Team Activity & Projects (7 metrics)
+asana.users.active_7d
+asana.projects.active, on_track, at_risk, off_track
+
+# Bugs Project Tracking (11 metrics)
+asana.projects.bugs.triage_count        # Tasks in Triage section
+asana.projects.bugs.active_count        # Tasks in Active section
+asana.projects.bugs.backlog_count       # Tasks in Backlog section
+asana.projects.bugs.other_count
+asana.projects.bugs.total_open
+asana.projects.bugs.completed_7d, completed_30d
+asana.projects.bugs.created_7d
+asana.projects.bugs.avg_age_days, oldest_bug_days
 ```
 
-**Decision Point**: May skip Asana if team doesn't actively use it for tracking
+**Key Features**:
+- Dual-mode: workspace-wide metrics + specific Bugs project tracking
+- Section-based workflow tracking (Triage → Active → Backlog)
+- Aging statistics to spot old bugs
+- Velocity tracking (creation vs. completion rates)
+
+**Usage**:
+```bash
+# Test locally
+metta datadog collect asana
+
+# Push to Datadog
+metta datadog collect asana --push
+```
+
+**Note**: Requires Asana access token in AWS Secrets Manager (`asana/access-token`)
 
 ---
 
@@ -395,7 +470,7 @@ datadog:
 | EC2 collector | High | 2d | Medium | 2 weeks |
 | SLO tracking | Medium | 1d | Medium | 3 weeks |
 | Alerting setup | Medium | 1d | Medium | 3 weeks |
-| Skypilot collector | Medium | 2d | Low | 1 month |
+| ✅ Skypilot collector | Medium | 2d | Complete | Oct 23, 2025 |
 | Asana collector | Low | 2d | Low | TBD |
 | Jsonnet system | Low | 1w | Low | TBD |
 

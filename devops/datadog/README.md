@@ -24,7 +24,7 @@ Automated metric collection from multiple services via Kubernetes CronJobs:
 
 **Current Collectors:**
 - **GitHub** ✅ **(Production)**: PRs, commits, branches, CI/CD workflows, developer activity
-- **Skypilot** *(planned)*: Jobs, clusters, compute costs
+- **Skypilot** ✅ **(Production)**: Jobs, clusters, resource utilization
 - **WandB** *(planned)*: Training runs, experiments
 - **EC2** *(planned)*: Instances, costs, utilization
 - **Asana** *(planned)*: Tasks, projects, velocity
