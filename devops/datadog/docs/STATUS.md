@@ -186,14 +186,21 @@ After exploring multiple approaches, we chose Jsonnet because:
 
 ## 🚀 Next Steps
 
-### Phase 2C: CLI Integration (In Progress)
+### Phase 2C: CLI Integration (Complete)
 
 **Metrics Collection:**
-- [ ] Update CLI to use new GitHubCollector
-- [ ] Add `metta datadog collect github` command
-- [ ] Support `--dry-run` and `--push` flags
-- [ ] Add `--verbose` for debugging
-- [ ] Test end-to-end metric collection and submission
+- ✅ Update CLI to use new GitHubCollector
+- ✅ Add `metta datadog collect github` command
+- ✅ Support `--dry-run` and `--push` flags
+- ✅ Add `--verbose` for debugging
+- ✅ Test end-to-end metric collection and submission
+
+**Implementation Details:**
+- Created `run_collector.py` - Standalone runner script that executes in full project environment
+- Updated `cli.py` - Uses subprocess to call runner script, avoiding import issues
+- AWS Secrets Manager integration - Falls back to AWS if GITHUB_TOKEN not set
+- Clean JSON output - Status messages routed to stderr when using --json flag
+- Rich table display - Formatted output with typer and rich libraries
 
 ### Phase 3: EKS Deployment
 
@@ -276,4 +283,4 @@ No Terraform complexity, no monolithic JSON files, just composable Jsonnet compo
 
 ---
 
-Last updated: 2025-10-23 (Phase 2B complete)
+Last updated: 2025-10-23 (Phase 2C complete)
