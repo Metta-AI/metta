@@ -1,9 +1,4 @@
-"""Transformer-XL style attention cell with rolling memory.
-
-Optionally replaces Q/K/V linear projections with AxonLayer when enabled via
-configuration. Axon-backed layers maintain substates in the parent TensorDict
-under the group ``xl_qkv``.
-"""
+"""Transformer-XL style attention cell with optional AxonLayer-backed Q/K/V projections."""
 
 from __future__ import annotations
 

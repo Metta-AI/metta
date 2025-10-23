@@ -1,8 +1,4 @@
-"""PyTorch reference implementation of Transformer-XL attention (TXL).
-
-This mirrors the math used in :class:`cortex.cells.xl.XLCell` for content and
-relative attention with segment-causal masking. Used as the baseline backend.
-"""
+"""PyTorch reference implementation of Transformer-XL attention with segment-causal masking."""
 
 from __future__ import annotations
 
@@ -11,13 +7,7 @@ import torch.nn.functional as F
 
 
 def _rel_shift(x: torch.Tensor) -> torch.Tensor:
-    """Relative shift used by TXL.
-
-    Args:
-        x: Tensor of shape [B, H, T, L]
-    Returns:
-        Tensor of shape [B, H, T, L]
-    """
+    """Relative shift operation for Transformer-XL attention."""
     B, H, T, L = x.shape
     zero_pad = x.new_zeros(B, H, T, 1)
     x_padded = torch.cat([zero_pad, x], dim=3)

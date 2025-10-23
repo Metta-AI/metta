@@ -1,10 +1,4 @@
-"""Configuration classes for Cortex cells, blocks, and stacks.
-
-This module now includes lightweight type tags (``cell_type`` / ``block_type``)
-and parsing validators so JSON round‑trips reconstruct concrete subclasses
-without central hard‑coded unions. Adding a new cell/block remains as simple as
-defining the config class with its tag and registering the implementation.
-"""
+"""Configuration classes for Cortex cells, blocks, and stacks with type tags for JSON serialization."""
 
 from __future__ import annotations
 
@@ -87,12 +81,7 @@ class sLSTMCellConfig(CellConfig):
 
 
 class XLCellConfig(CellConfig):
-    """Configuration for Transformer-XL style attention cell.
-
-    - If ``head_dim`` is None, it is inferred as ``hidden_size // n_heads``
-      and requires divisibility.
-    - ``mem_len`` controls rolling memory length (0 disables memory).
-    """
+    """Configuration for Transformer-XL style attention cell."""
 
     cell_type: str = "xl"
     hidden_size: int | None = Field(default=None)
@@ -108,12 +97,7 @@ class XLCellConfig(CellConfig):
 
 
 class AxonConfig(CellConfig):
-    """Configuration for the Axons cell (streaming RTU, diagonal input weights).
-
-    Assumes D == H (identity input map) and uses per‑channel diagonal input
-    weights (w1, w2). The kernel returns a 2H activation that the cell projects
-    to ``out_dim`` with a single linear layer.
-    """
+    """Configuration for Axon cell with streaming RTU and diagonal input weights."""
 
     cell_type: str = "axon"
     hidden_size: int | None = Field(default=None)

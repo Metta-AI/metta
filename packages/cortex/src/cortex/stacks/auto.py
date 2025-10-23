@@ -1,14 +1,4 @@
-"""Cortex auto stack: mixes Axon, XL, mLSTM, and sLSTM blocks.
-
-Each layer is one of:
-- 'A' → Axon cell with PostUp block by default; if the FIRST layer is 'A' and no
-  explicit Axon block is supplied, it defaults to a PassThrough block.
-- 'X' → XL cell in a PostUp block
-- 'M' → mLSTM cell in a PreUp block
-- 'S' → sLSTM cell in a PostUp block
-
-Default pattern repeats "AXMS" to reach ``num_layers``.
-"""
+"""Cortex auto stack builder mixing Axon, XL, mLSTM, and sLSTM blocks with configurable patterns."""
 
 from __future__ import annotations
 
@@ -42,19 +32,11 @@ def build_cortex_auto_config(
     use_axonlayers: bool = False,
     post_norm: bool = True,
 ) -> CortexStackConfig:
-    """Return a CortexStackConfig for a mixed Axon/XL/mLSTM/sLSTM stack.
-
-    - Axon and mLSTM are wrapped with PreUp blocks; XL and sLSTM with PostUp.
-    - Provide per-block configs (including their internal cell configs) via
-      ``axon_postup``, ``mlstm_preup``, ``xl_postup`` and ``slstm_postup``. Defaults are used
-      when a config is not supplied.
-    - ``block_pattern`` selects which block to use per layer using
-      characters 'A' (Axon PostUp), 'X' (XL PostUp), 'M' (mLSTM PreUp), and 'S' (sLSTM PostUp).
-    """
+    """Build CortexStackConfig for mixed Axon/XL/mLSTM/sLSTM stack with customizable block configs and patterns."""
 
     # Resolve pattern over {A, X, M, S}
     if block_pattern is None:
-        base = "AXMS"
+        base = "AMS"
         block_pattern = (base * ((num_layers + len(base) - 1) // len(base)))[:num_layers]
     else:
         if len(block_pattern) != num_layers:
