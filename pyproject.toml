@@ -16,7 +16,7 @@ dependencies = [
   "codebot",
   "cogames",
   "colorama>=0.4.6",
-  "cortex",
+  "cortexcore",
   "cpplint>=2.0.2",
   "ddtrace>=2.6.0",
   "duckdb>=1.3.0",
@@ -35,6 +35,7 @@ dependencies = [
   "metta-app-backend",
   "metta-common",
   "numpy>=2",
+  "ninja>=1.11.1",
   "nvidia-ml-py",
   "omegaconf>=2.3.0",
   "pandas>=2.3.0",
@@ -172,7 +173,7 @@ members = [
 [tool.uv.sources]
 codebot = { workspace = true }
 cogames = { workspace = true }
-cortex = { workspace = true }
+cortexcore = { workspace = true }
 gitta = { workspace = true }
 metta-agent = { workspace = true }
 metta-app-backend = { workspace = true }

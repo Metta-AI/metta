@@ -102,6 +102,7 @@ experiments/recipes/scratchpad/*.py
 packages/cogames/experiments
 
 resources
+!library/src/lib/api/resources/
 LUNARVIM_CHEATSHEET.md
 metta/sweep/experiments/README.md
 metta/sweep/experiments/README_*.md
@@ -136,3 +137,4 @@ agent/src/metta/ops/agalite_kernels/_build/
 
 .terraform*
 terraform.tfstate
+.cache/torch_ext/

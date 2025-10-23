@@ -140,18 +140,23 @@ class TestPanelLayout:
         assert layout.header is not None
         assert layout.footer is not None
         assert layout.map_view is not None
-        assert layout.sidebar is not None
 
         # Check they're registered
         assert layout.get_panel("header") == layout.header
         assert layout.get_panel("footer") == layout.footer
         assert layout.get_panel("map_view") == layout.map_view
-        assert layout.get_panel("sidebar") == layout.sidebar
+
+        # Sidebar panels are opt-in
+        assert layout.get_sidebar_panel("agent") is None
+
+        agent_sidebar = layout.register_sidebar_panel("agent")
+        assert layout.get_sidebar_panel("agent") == agent_sidebar
+        assert layout.get_panel("sidebar.agent") == agent_sidebar
 
         # Check dimensions
         assert layout.header.height == 2
         assert layout.footer.height == 2
-        assert layout.sidebar.width == 46
+        assert agent_sidebar.width == 46
 
     def test_layout_add_custom_panel(self):
         """Test adding custom panels to layout."""
@@ -160,7 +165,7 @@ class TestPanelLayout:
 
         layout.add_panel(custom_panel)
         assert layout.get_panel("custom") == custom_panel
-        assert len(layout.panels) == 5  # 4 standard + 1 custom
+        assert len(layout.panels) == 4  # 3 standard + 1 custom
 
     def test_layout_clear_all(self):
         """Test clearing all panel contents."""
@@ -170,16 +175,15 @@ class TestPanelLayout:
         layout.header.set_content(["Header line"])
         layout.footer.set_content(["Footer line"])
         layout.map_view.set_content(["Map content"])
-        layout.sidebar.set_content(["Sidebar content"])
+        sidebar = layout.register_sidebar_panel("info")
+        sidebar.set_content(["Sidebar content"])
 
-        # Clear all
         layout.clear_all()
 
-        # Check all are empty
         assert layout.header.is_empty()
         assert layout.footer.is_empty()
         assert layout.map_view.is_empty()
-        assert layout.sidebar.is_empty()
+        assert sidebar.is_empty()
 
     def test_layout_render_basic(self):
         """Test basic rendering of panels."""
@@ -190,16 +194,15 @@ class TestPanelLayout:
         layout.header.set_content(["Header Line 1", "Header Line 2"])
         layout.footer.set_content(["Footer Line 1", "Footer Line 2"])
         layout.map_view.set_content(["Map Line 1", "Map Line 2", "Map Line 3"])
-        layout.sidebar.set_content(["Sidebar Line 1", "Sidebar Line 2"])
+        sidebar = layout.register_sidebar_panel("info")
+        sidebar.set_content(["Sidebar Line 1", "Sidebar Line 2"])
 
-        # Test that rendering works without errors
         layout.render_to_console()
 
-        # Verify panels have content
         assert not layout.header.is_empty()
         assert not layout.footer.is_empty()
         assert not layout.map_view.is_empty()
-        assert not layout.sidebar.is_empty()
+        assert not sidebar.is_empty()
 
     def test_layout_render_empty_panels(self):
         """Test rendering with some empty panels."""
@@ -233,13 +236,30 @@ class TestPanelLayout:
         console = Console()
         layout = PanelLayout(console)
 
-        # Map has more lines than sidebar
         layout.map_view.set_content([f"Map Line {i}" for i in range(10)])
-        layout.sidebar.set_content(["Sidebar Line 1", "Sidebar Line 2"])
+        sidebar = layout.register_sidebar_panel("info")
+        sidebar.set_content(["Sidebar Line 1", "Sidebar Line 2"])
 
-        # Should render without errors
         layout.render_to_console()
 
-        # Verify content is present
         assert len(layout.map_view.get_content()) == 10
-        assert len(layout.sidebar.get_content()) == 2
+        assert len(sidebar.get_content()) == 2
+
+    def test_layout_reset_sidebar_panels(self):
+        """Ensure sidebar panels can be reset between episodes."""
+        layout = PanelLayout(Console())
+
+        info_panel = layout.register_sidebar_panel("info")
+        help_panel = layout.register_sidebar_panel("help")
+
+        assert layout.get_sidebar_panel("info") == info_panel
+        assert layout.get_sidebar_panel("help") == help_panel
+        assert layout.get_panel("sidebar.info") == info_panel
+        assert layout.get_panel("sidebar.help") == help_panel
+
+        layout.reset_sidebar_panels()
+
+        assert layout.get_sidebar_panel("info") is None
+        assert layout.get_sidebar_panel("help") is None
+        assert layout.get_panel("sidebar.info") is None
+        assert layout.get_panel("sidebar.help") is None

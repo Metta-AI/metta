@@ -2,6 +2,7 @@
 
 import io
 import select
+import shutil
 import sys
 import termios
 import time
@@ -26,8 +27,8 @@ from .components import (
     SimControlComponent,
     SymbolsTableComponent,
 )
-from .miniscope_panel import PanelLayout
-from .miniscope_state import MiniscopeState, PlaybackState
+from .miniscope_panel import LAYOUT_PADDING, RESERVED_VERTICAL_LINES, SIDEBAR_WIDTH, PanelLayout
+from .miniscope_state import MiniscopeState, PlaybackState, RenderMode
 from .symbol import DEFAULT_SYMBOL_MAP
 
 
@@ -46,8 +47,22 @@ class MiniscopeRenderer(Renderer):
         # Renderer state
         self._state = MiniscopeState()
 
-        # Rich console for rendering
-        self._console = Console()
+        # Rich console for rendering - reduce size by 1 to prevent wrapping
+        try:
+            term_size = shutil.get_terminal_size()
+            if term_size.columns > 0 and term_size.lines > 0:
+                self._initial_terminal_columns = term_size.columns
+                self._initial_terminal_lines = term_size.lines
+            else:
+                raise ValueError("Invalid terminal size")
+            console_width = max(80, term_size.columns - 1)
+            console_height = max(24, term_size.lines - 1)
+        except Exception:
+            console_width = 119
+            console_height = 39
+            self._initial_terminal_columns = console_width + 1
+            self._initial_terminal_lines = console_height + 1
+        self._console = Console(width=console_width, height=console_height)
 
         # Panel layout
         self._panels = PanelLayout(self._console)
@@ -61,6 +76,9 @@ class MiniscopeRenderer(Renderer):
 
         # Timing
         self._last_frame_time = 0.0
+
+        # Sidebar hotkey mapping
+        self._sidebar_hotkeys: dict[str, str] = {}
 
     def on_episode_start(self, env: MettaGridEnv) -> None:
         """Initialize the renderer for a new episode."""
@@ -80,19 +98,40 @@ class MiniscopeRenderer(Renderer):
 
         self._state.glyphs = [g.symbol for g in GLYPH_DATA] if GLYPH_DATA else None
 
-        # Update viewport size first to ensure panels have correct dimensions
-        self._update_viewport_size()
+        # Configure viewport once using the initial terminal size
+        self._apply_initial_viewport_size()
+
+        # Rebuild sidebar panel stack for this episode
+        sidebar_defs = [
+            ("1", "agent_info", AgentInfoComponent),
+            ("2", "object_info", ObjectInfoComponent),
+            ("3", "symbols", SymbolsTableComponent),
+        ]
+        self._sidebar_hotkeys = {hotkey: name for hotkey, name, _ in sidebar_defs}
+
+        self._panels.reset_sidebar_panels()
+        # Register all panels including modal ones
+        for _, name, _ in sidebar_defs:
+            self._panels.register_sidebar_panel(name)
+        self._panels.register_sidebar_panel("glyph_picker")
+        self._panels.register_sidebar_panel("help")
+
+        # Initialize sidebar visibility state
+        self._state.initialize_sidebar_visibility([name for _, name, _ in sidebar_defs] + ["glyph_picker", "help"])
 
         # Create all components with panel layout
         self._components = []
 
-        # Create components - all get the same PanelLayout
+        # Base components
         self._components.append(MapComponent(env=env, state=self._state, panels=self._panels))
         self._components.append(SimControlComponent(env=env, state=self._state, panels=self._panels))
         self._components.append(AgentControlComponent(env=env, state=self._state, panels=self._panels))
-        self._components.append(AgentInfoComponent(env=env, state=self._state, panels=self._panels))
-        self._components.append(ObjectInfoComponent(env=env, state=self._state, panels=self._panels))
-        self._components.append(SymbolsTableComponent(env=env, state=self._state, panels=self._panels))
+
+        # Sidebar components
+        for _, _, component_cls in sidebar_defs:
+            self._components.append(component_cls(env=env, state=self._state, panels=self._panels))
+
+        # Modal components (not in hotkey list)
         self._components.append(GlyphPickerComponent(env=env, state=self._state, panels=self._panels))
         self._components.append(HelpPanelComponent(env=env, state=self._state, panels=self._panels))
 
@@ -152,7 +191,7 @@ class MiniscopeRenderer(Renderer):
             # Handle user input for agent controls
             self._handle_user_input()
 
-            # Update viewport size in state
+            # Update viewport size based on sidebar visibility
             self._update_viewport_size()
 
             # Clear panels for new frame
@@ -206,8 +245,28 @@ class MiniscopeRenderer(Renderer):
 
         ch = self._state.user_input
 
-        # Handle help separately (shown in special screen)
+        # Modal input handling: if in GLYPH_PICKER mode, route directly to glyph picker
+        # This ensures the picker gets ALL input and blocks everything else
+        if self._state.mode == RenderMode.GLYPH_PICKER:
+            for component in self._components:
+                if isinstance(component, GlyphPickerComponent):
+                    component.handle_input(ch)
+                    return
+
+        # Modal input handling: if in HELP mode, any key exits
+        if self._state.mode == RenderMode.HELP:
+            self._state.exit_help()
+            return
+
+        # Handle help activation
         if ch == "?":
+            self._state.enter_help()
+            return
+
+        # Handle sidebar toggles
+        if ch.isdigit() and ch in self._sidebar_hotkeys:
+            panel_name = self._sidebar_hotkeys[ch]
+            self._state.toggle_sidebar_panel(panel_name)
             return
 
         # Let each component handle the input
@@ -275,27 +334,46 @@ class MiniscopeRenderer(Renderer):
             # Sleep a bit when paused to avoid busy waiting
             time.sleep(0.05)
 
-    def _update_viewport_size(self) -> None:
-        """Update viewport size in state based on terminal size."""
-        try:
-            import shutil
+    def _apply_initial_viewport_size(self) -> None:
+        """Configure viewport size using the initial terminal dimensions."""
+        self._update_viewport_size()
 
-            terminal_size = shutil.get_terminal_size()
-            viewport_height = max(5, terminal_size.lines - 6)
-            side_panel_width = 46
-            spacing = 2
-            available_width = max(10, terminal_size.columns - side_panel_width - spacing)
-            viewport_width = available_width // 2
-        except Exception:
-            viewport_height = 20
-            viewport_width = 40
+    def _update_viewport_size(self) -> None:
+        """Update viewport size based on current sidebar visibility."""
+        columns = max(2, self._initial_terminal_columns)
+        lines = max(2, self._initial_terminal_lines)
+
+        viewport_height = max(1, lines - RESERVED_VERTICAL_LINES)
+        if self._state.map_height:
+            viewport_height = min(viewport_height, self._state.map_height)
+
+        # Check if any sidebar panels are visible
+        sidebar_visible = self._is_sidebar_visible()
+
+        if sidebar_visible:
+            # Reserve space for sidebar
+            available_width = max(2, columns - SIDEBAR_WIDTH - LAYOUT_PADDING)
+        else:
+            # Use full width when sidebar is hidden
+            available_width = max(2, columns - LAYOUT_PADDING)
+
+        viewport_width = max(1, available_width // 2)
+        if self._state.map_width:
+            viewport_width = min(viewport_width, self._state.map_width)
 
         self._state.viewport_height = viewport_height
         self._state.viewport_width = viewport_width
 
-        # Update panel dimensions
-        self._panels.map_view.width = viewport_width * 2  # Each cell takes 2 chars
-        self._panels.map_view.height = viewport_height
+        map_panel_width = max(2, min(available_width, viewport_width * 2))
+        self._panels.map_view.width = map_panel_width
+        self._panels.map_view.height = max(1, viewport_height)
+
+    def _is_sidebar_visible(self) -> bool:
+        """Check if any sidebar panels are currently visible."""
+        for _name, visible in self._state.sidebar_visibility.items():
+            if visible:
+                return True
+        return False
 
     def get_user_actions(self) -> dict[int, tuple[int, int]]:
         """Get the current user actions for manually controlled agents.
@@ -328,8 +406,13 @@ class MiniscopeRenderer(Renderer):
 
     def _cleanup_terminal(self) -> None:
         """Restore terminal settings."""
-        if self._terminal_fd and self._old_terminal_settings:
-            termios.tcsetattr(self._terminal_fd, termios.TCSADRAIN, self._old_terminal_settings)
+        if self._terminal_fd is not None and self._old_terminal_settings is not None:
+            try:
+                termios.tcsetattr(self._terminal_fd, termios.TCSADRAIN, self._old_terminal_settings)
+            except termios.error:
+                pass
+        self._terminal_fd = None
+        self._old_terminal_settings = None
         self._console.show_cursor(True)
 
     def __del__(self):

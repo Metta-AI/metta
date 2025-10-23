@@ -5,7 +5,14 @@ from rich.text import Text
 
 from mettagrid import MettaGridEnv
 from mettagrid.renderer.miniscope.miniscope_panel import PanelLayout
-from mettagrid.renderer.miniscope.miniscope_state import MiniscopeState, PlaybackState
+from mettagrid.renderer.miniscope.miniscope_state import (
+    FOLLOW_MODE_KEY,
+    PAN_MODE_KEY,
+    SELECT_MODE_KEY,
+    MiniscopeState,
+    PlaybackState,
+    RenderMode,
+)
 
 from .base import MiniscopeComponent
 
@@ -24,14 +31,7 @@ class SimControlComponent(MiniscopeComponent):
         self._set_panel(panels.header)
 
     def handle_input(self, ch: str) -> bool:
-        """Handle simulation control inputs.
-
-        Args:
-            ch: The character input from the user
-
-        Returns:
-            True if the input was handled
-        """
+        """Handle simulation control inputs."""
         # Handle play/pause
         if ch == " ":
             self._state.toggle_pause()
@@ -45,9 +45,15 @@ class SimControlComponent(MiniscopeComponent):
             self._state.increase_speed()
             return True
 
-        # Handle mode cycling
-        elif ch in ["o", "O"]:
-            self._state.cycle_mode()
+        # Handle mode selection
+        elif ch in [FOLLOW_MODE_KEY, FOLLOW_MODE_KEY.upper()]:
+            self._state.set_mode(RenderMode.FOLLOW)
+            return True
+        elif ch in [PAN_MODE_KEY, PAN_MODE_KEY.upper()]:
+            self._state.set_mode(RenderMode.PAN)
+            return True
+        elif ch in [SELECT_MODE_KEY, SELECT_MODE_KEY.upper()]:
+            self._state.set_mode(RenderMode.SELECT)
             return True
 
         # Handle quit
@@ -101,9 +107,29 @@ class SimControlComponent(MiniscopeComponent):
         sps = f"{self.state.fps:.1f}" if self.state.fps < 10 else f"{int(self.state.fps)}"
         camera_pos = f"({self.state.camera_row},{self.state.camera_col})"
 
+        # Build sidebar status indicators (only toggleable panels)
+        sidebar_panels = ["agent_info", "object_info", "symbols"]
+        squares = " ".join(
+            [f"{i + 1}[{'x' if self.state.is_sidebar_visible(name) else ' '}]" for i, name in enumerate(sidebar_panels)]
+        )
+
+        # Build first line with controls and sidebar indicators; use cell width for alignment
+        controls = (
+            "?=Help  SPACE=Play/Pause  <>=Speed  "
+            f"{FOLLOW_MODE_KEY.upper()}=Follow {PAN_MODE_KEY.upper()}=Pan {SELECT_MODE_KEY.upper()}=Select  "
+            "IJKL=Pan  Q=Quit"
+        )
+
+        terminal_width = self._panels.console.width if self._panels and self._panels.console else 120
+        controls_text = Text(controls)
+        squares_text = Text(squares)
+        padding_available = terminal_width - controls_text.cell_len - squares_text.cell_len
+        padding_length = max(1, padding_available)
+        first_line = f"{controls_text.plain}{' ' * padding_length}{squares_text.plain}\n"
+
         # Build status text
         text = Text()
-        text.append("?=Help  SPACE=Play/Pause  <>=Speed  O=Mode  IJKL=Pan  Q=Quit\n")
+        text.append(first_line)
         text.append(
             f"Step {self.state.step_count} | "
             + f"Reward: {total_reward:.2f} | "
