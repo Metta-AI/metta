@@ -135,6 +135,7 @@ class UniformExtractorScene(Scene[UniformExtractorParams]):
             positions = [positions[i] for i in permutation]
             positions = positions[:placement_goal]
 
+            #sample assignments draws extractor types, which are numpy.random.choice with the normalized weights from each distribution type
             assignments = self._sample_assignments(len(positions), names, probabilities)
 
             placed_centers_tc: list[tuple[int, int]] = []

@@ -198,16 +198,22 @@ def _make_extractor_variant_class(
 ) -> type[ExtractorDistributionVariant]:
     class_name = "".join(part.capitalize() for part in key.split("_")) + "ExtractorVariant"
 
-    class _Variant(ExtractorDistributionVariant):  # type: ignore[misc]
-        name = f"extractors_{key}"
-        description = description
-        distribution_key = key
-        extractor_coverage = coverage
+    attrs: dict[str, Any] = {
+        "__annotations__": {
+            "name": str,
+            "description": str,
+            "distribution_key": str,
+            "extractor_coverage": float,
+        },
+        "name": f"extractors_{key}",
+        "description": description,
+        "distribution_key": key,
+        "extractor_coverage": coverage,
+    }
 
-    _Variant.__name__ = class_name
-    return _Variant
+    return type(class_name, (ExtractorDistributionVariant,), attrs)
 
-
+    #the float here is the extractor_coverage, which later becomes UniformExtractorScene.Config(target_coverage=...)
 _EXTRACTOR_VARIANT_DEFINITIONS: dict[str, tuple[str, float]] = {
     "discrete_uniform": ("Uniform extractor distribution across all station types.", 0.012),
     "bernoulli": ("Alternating high/low probability pockets inspired by Bernoulli trials.", 0.012),
