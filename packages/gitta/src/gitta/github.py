@@ -352,6 +352,44 @@ def get_commits(
     return all_commits
 
 
+def get_commit_with_stats(
+    repo: str,
+    sha: str,
+    token: str | None = None,
+    **headers: str,
+) -> dict[str, Any]:
+    """
+    Get individual commit with stats (additions, deletions, files changed).
+
+    The list commits endpoint doesn't include stats, so this function
+    fetches individual commits to get detailed change statistics.
+
+    Args:
+        repo: Repository in format "owner/repo"
+        sha: Commit SHA
+        token: GitHub token for authentication
+        **headers: Additional headers (can override Authorization for custom auth)
+
+    Returns:
+        Commit object with stats field containing additions, deletions, total changes
+
+    Raises:
+        GitError: If the API request fails
+    """
+    with github_client(repo, token=token, **headers) as client:
+        try:
+            resp = client.get(f"/commits/{sha}")
+            resp.raise_for_status()
+        except httpx.HTTPError as e:
+            error_msg = f"Failed to get commit {sha}: {e}"
+            if hasattr(e, "response") and e.response is not None:
+                error_msg += f" - Status: {e.response.status_code}"
+            logger.error(error_msg)
+            raise GitError(error_msg) from e
+
+        return resp.json() or {}
+
+
 def get_workflow_runs(
     repo: str,
     workflow_filename: str,
