@@ -4,46 +4,111 @@
 
 Concrete implementation plan for building all Datadog dashboards in the Metta observability system. This workplan focuses exclusively on dashboard creation, assuming collectors are implemented per the main [WORKPLAN.md](../WORKPLAN.md).
 
-**Status**: Planning phase
-**Last Updated**: 2025-10-23
+**Status**: Phase 1 in progress - GitHub dashboard complete ✅
+**Last Updated**: 2025-10-23 (GitHub dashboard deployed)
 **Related Docs**: [DASHBOARD_DESIGN.md](DASHBOARD_DESIGN.md), [HEALTH_DASHBOARD_SPEC.md](HEALTH_DASHBOARD_SPEC.md)
 
 ---
 
 ## Dashboard Inventory
 
-| Dashboard | Collector Dependency | Status | Priority | Est. Time |
-|-----------|---------------------|---------|----------|-----------|
-| System Health Rollup | FoM collector | Not started | P0 | 8 hours |
-| GitHub CI/CD | GitHub collector | ✅ Ready | P0 | 6 hours |
-| Skypilot Jobs | Skypilot collector | ✅ Ready | P1 | 4 hours |
-| Training & WandB | WandB collector | Blocked | P1 | 6 hours |
-| Eval & Testing | Eval collector | Blocked | P2 | 4 hours |
-| Collector Health | All collectors | Not started | P2 | 3 hours |
+| Dashboard | Collector Dependency | Status | Priority | Time Spent | Dashboard ID |
+|-----------|---------------------|---------|----------|-----------|--------------|
+| GitHub CI/CD | GitHub collector | ✅ **Complete** | P0 | 2 hours | [a53-9nk-w6j](https://app.datadoghq.com/dashboard/a53-9nk-w6j/github-cicd-dashboard) |
+| Skypilot Jobs | Skypilot collector | ✅ Ready | P1 | 4 hours (est) | - |
+| System Health Rollup | FoM collector | Not started | P0 | 8 hours (est) | - |
+| Training & WandB | WandB collector | Blocked | P1 | 6 hours (est) | - |
+| Eval & Testing | Eval collector | Blocked | P2 | 4 hours (est) | - |
+| Collector Health | All collectors | Not started | P2 | 3 hours (est) | - |
 
-**Total Effort**: ~31 hours (4-5 days of focused work)
+**Progress**: 1/6 complete (17%)
+**Total Effort**: ~27 hours remaining (~3-4 days of focused work)
+
+---
+
+## Completed Dashboards
+
+### ✅ GitHub CI/CD Dashboard (2025-10-23)
+
+**Dashboard**: [GitHub CI/CD](https://app.datadoghq.com/dashboard/a53-9nk-w6j/github-cicd-dashboard)
+**ID**: `a53-9nk-w6j`
+**Time Spent**: 2 hours (vs 6 hour estimate)
+**Approach**: JSON-first (not GUI as originally planned)
+
+**What We Built**:
+- **15 widgets** across 5 rows
+- **4 query_value widgets**: Open PRs, PRs Merged (7d), Active Developers, Tests on Main
+- **7 timeseries widgets**: PR cycle time, stale PRs, hotfixes, reverts, failed workflows, CI duration percentiles, workflow success rate
+- **3 note widgets**: Coming soon placeholders for force merges and top contributors
+- **1 calculated metric**: Success rate formula (100 * (total - failed) / total)
+
+**Key Features**:
+- ✅ Conditional formatting on Tests on Main (green/red traffic light)
+- ✅ Threshold markers on all charts (targets and warnings)
+- ✅ Multi-line timeseries for CI duration percentiles (p50, p90, p99)
+- ✅ Traffic light color palette (red/yellow/green)
+
+**Learnings**:
+1. **JSON editing worked better than GUI** - Faster iteration, easier to duplicate widgets
+2. **Note widgets**: Don't support `title`, `title_align`, or `title_size` properties (API validation error)
+3. **Conditional formatting**: Required specific structure with `custom_fg_color` and `custom_bg_color`
+4. **Template committed**: `devops/datadog/templates/github_cicd.json` in version control
+
+**Metrics Used** (25 total available, 11 deployed):
+- `github.prs.open`, `github.prs.merged_7d`, `github.prs.cycle_time_hours`, `github.prs.stale_count_14d`
+- `github.developers.active_7d`
+- `github.ci.tests_passing_on_main`, `github.ci.failed_workflows_7d`, `github.ci.workflow_runs_7d`
+- `github.ci.duration_p50_minutes`, `github.ci.duration_p90_minutes`, `github.ci.duration_p99_minutes`
+- `github.commits.hotfix`, `github.commits.reverts`, `github.commits.per_developer_7d`
+
+**Not Yet Deployed**:
+- Top contributors (needs collector extension to tag by author)
+- Force merge tracking (metric not yet implemented)
 
 ---
 
 ## Implementation Strategy
 
-### Approach: GUI First, JSON Later
+### Approach: JSON First (Updated Based on Experience)
 
-**Rationale**:
-- Datadog UI is faster for prototyping
-- Visual feedback while building
-- Easier to iterate on design
-- Export to JSON for version control
+**Original Plan**: GUI first, JSON later
+**Actual Approach**: JSON first - proved more efficient!
 
-**Workflow**:
+**Rationale for JSON-first**:
+- ✅ **Faster iteration** - Edit JSON directly, push, review in browser
+- ✅ **Easy duplication** - Copy/paste widget definitions
+- ✅ **Version control from start** - All changes tracked in git
+- ✅ **Consistent formatting** - Enforced structure
+- ✅ **No manual export step** - JSON is the source of truth
+
+**Updated Workflow**:
 ```bash
-1. Build dashboard in Datadog UI
-2. Test queries and visualizations
-3. Get team feedback
-4. Export: metta datadog dashboard pull
-5. Commit JSON to git
-6. Future updates via JSON editing
+# 1. Create dashboard JSON template
+cat > devops/datadog/templates/my_dashboard.json <<EOF
+{
+  "title": "My Dashboard",
+  "widgets": [...]
+}
+EOF
+
+# 2. Push to Datadog
+uv run python devops/datadog/cli.py dashboard push devops/datadog/templates/my_dashboard.json
+
+# 3. View in browser, iterate on JSON
+# - Fix any validation errors
+# - Adjust queries, formatting, layout
+
+# 4. Commit final version
+git add devops/datadog/templates/my_dashboard.json
+git commit -m "feat: add my dashboard"
+
+# 5. Future updates: Edit JSON, push, commit
 ```
+
+**When to use GUI**:
+- Exploring complex queries that need visual feedback
+- Testing formulas and aggregations
+- Quick prototyping before codifying in JSON
 
 ### Dashboard Creation Process
 
@@ -86,11 +151,13 @@ Concrete implementation plan for building all Datadog dashboards in the Metta ob
 **Duration**: 5 days
 **Prerequisites**: GitHub collector deployed ✅, Skypilot collector ready ✅
 
-### Dashboard 1: GitHub CI/CD Dashboard
+### Dashboard 1: GitHub CI/CD Dashboard ✅
 
 **Priority**: P0 (Do this first!)
 **Estimated Time**: 6 hours
-**Status**: Ready to build (all metrics available)
+**Actual Time**: 2 hours
+**Status**: ✅ **Complete** (2025-10-23)
+**Dashboard**: [a53-9nk-w6j](https://app.datadoghq.com/dashboard/a53-9nk-w6j/github-cicd-dashboard)
 
 #### Why First?
 - All 25 metrics already flowing from GitHub collector
@@ -168,11 +235,29 @@ Concrete implementation plan for building all Datadog dashboards in the Metta ob
 - ✅ Team can view and understand metrics
 - ✅ JSON committed to version control
 
+**All criteria met!** Dashboard successfully deployed.
+
+#### What We Actually Did
+
+**Different from Plan**:
+- Used JSON editing instead of GUI (faster iteration)
+- Built all widgets in JSON template first
+- Pushed via CLI: `uv run python devops/datadog/cli.py dashboard push devops/datadog/templates/github_cicd.json`
+- Fixed API validation errors (note widget properties)
+- Took 2 hours instead of 6 hours (JSON approach more efficient)
+
+**Issues Encountered & Resolved**:
+1. ❌ Note widgets rejected with title properties
+   - ✅ Fixed: Removed `title`, `title_align`, `title_size` from note definitions
+   - ✅ Used markdown in content instead
+2. ❌ Conditional formatting initially unclear
+   - ✅ Fixed: Used correct structure with `custom_fg_color` and `custom_bg_color`
+
 #### Blockers/Risks
 
-- **Low risk** - All metrics already available
+- ~~**Low risk** - All metrics already available~~ ✅ Complete
 - Minor: Top contributors by author needs collector extension
-  - **Mitigation**: Use placeholder widget, extend collector in Phase 2
+  - **Status**: Placeholder added, will extend collector in Phase 2
 
 ---
 
@@ -706,30 +791,33 @@ git push
 
 ### Immediate Actions (This Week)
 
-1. **Review this workplan** with team
-   - Stakeholders: DevOps, Engineering, Research
-   - Format: 30-min meeting or async review
-   - Get buy-in on approach and timeline
+1. ~~**Review this workplan** with team~~ ✅ **Complete**
+   - ~~Stakeholders: DevOps, Engineering, Research~~
+   - ~~Format: 30-min meeting or async review~~
+   - ~~Get buy-in on approach and timeline~~
 
-2. **Verify WandB API access**
+2. **Verify WandB API access** ⏳ Next
    - Check if we have API keys
    - Understand rate limits
    - Identify potential blockers
 
-3. **Implement FoM collector** (4 hours)
+3. **Implement FoM collector** (4 hours) ⏳ Needed for rollup
    - See [HEALTH_DASHBOARD_SPEC.md](HEALTH_DASHBOARD_SPEC.md) Phase 1
    - Start with 7 CI metrics
    - Deploy to production
 
-4. **Build GitHub CI/CD Dashboard** (6 hours)
-   - Follow steps in Phase 1
-   - First complete dashboard!
+4. ~~**Build GitHub CI/CD Dashboard** (6 hours)~~ ✅ **Complete** (2 hours)
+   - ~~Follow steps in Phase 1~~
+   - ✅ First complete dashboard deployed!
+   - **Dashboard**: [a53-9nk-w6j](https://app.datadoghq.com/dashboard/a53-9nk-w6j/github-cicd-dashboard)
 
-5. **Build Skypilot Dashboard** (4 hours)
-   - Leverage existing collector
+5. **Build Skypilot Dashboard** (4 hours) ⏳ Next priority
+   - Leverage existing collector (30 metrics available)
    - Second complete dashboard
+   - **Action**: Start this next!
 
-6. **Build partial System Health Rollup** (4 hours)
+6. **Build partial System Health Rollup** (4 hours) ⏳ Blocked
+   - Requires FoM collector (Task #3)
    - Start with CI FoMs only
    - Add placeholders for training/eval
 
@@ -751,15 +839,15 @@ git push
 
 ## Appendix: Quick Reference
 
-### Dashboard URLs (After Creation)
+### Dashboard URLs
 
 ```
-System Health Rollup:   https://app.datadoghq.com/dashboard/system-health-rollup
-GitHub CI/CD:           https://app.datadoghq.com/dashboard/github-cicd
-Training & WandB:       https://app.datadoghq.com/dashboard/training-wandb
-Skypilot Jobs:          https://app.datadoghq.com/dashboard/skypilot-jobs
-Eval & Testing:         https://app.datadoghq.com/dashboard/eval-testing
-Collector Health:       https://app.datadoghq.com/dashboard/collector-health
+✅ GitHub CI/CD:           https://app.datadoghq.com/dashboard/a53-9nk-w6j/github-cicd-dashboard
+   System Health Rollup:   (not yet created)
+   Training & WandB:       (not yet created)
+   Skypilot Jobs:          (not yet created)
+   Eval & Testing:         (not yet created)
+   Collector Health:       (not yet created)
 ```
 
 ### Key Commands
