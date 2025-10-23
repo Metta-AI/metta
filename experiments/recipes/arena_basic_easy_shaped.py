@@ -102,6 +102,7 @@ def train(
     enable_detailed_slice_logging: bool = False,
     policy_architecture: Optional[PolicyArchitecture] = None,
 ) -> TrainTool:
+    """Default single-GPU training entrypoint."""
     curriculum = curriculum or make_curriculum(
         enable_detailed_slice_logging=enable_detailed_slice_logging
     )
@@ -110,6 +111,49 @@ def train(
     trainer_cfg = TrainerConfig(
         losses=LossConfig(),
     )
+
+    if policy_architecture is None:
+        policy_architecture = ViTDefaultConfig()
+
+    return TrainTool(
+        trainer=trainer_cfg,
+        training_env=TrainingEnvironmentConfig(curriculum=curriculum),
+        evaluator=EvaluatorConfig(simulations=eval_simulations),
+        policy_architecture=policy_architecture,
+        torch_profiler=TorchProfilerConfig(),
+    )
+
+
+def train_multi_gpu(
+    curriculum: Optional[CurriculumConfig] = None,
+    enable_detailed_slice_logging: bool = False,
+    policy_architecture: Optional[PolicyArchitecture] = None,
+    minibatch_size_multiplier: float = 1.0,
+    lr_multiplier: float = 1.0,
+) -> TrainTool:
+    """Multi-GPU training entrypoint with tunable minibatch and LR multipliers."""
+    curriculum = curriculum or make_curriculum(
+        enable_detailed_slice_logging=enable_detailed_slice_logging
+    )
+
+    eval_simulations = simulations()
+    trainer_cfg = TrainerConfig(
+        losses=LossConfig(),
+    )
+
+    # Scale minibatch size while respecting divisibility constraints.
+    base_minibatch = trainer_cfg.minibatch_size
+    scaled_minibatch = int(base_minibatch * minibatch_size_multiplier)
+    bptt = trainer_cfg.bptt_horizon
+    if scaled_minibatch < bptt:
+        scaled_minibatch = bptt
+    if scaled_minibatch % bptt != 0:
+        scaled_minibatch = max(bptt, (scaled_minibatch // bptt) * bptt)
+    scaled_minibatch = min(scaled_minibatch, trainer_cfg.batch_size)
+    trainer_cfg.minibatch_size = scaled_minibatch
+
+    # Apply learning rate multiplier.
+    trainer_cfg.optimizer.learning_rate *= lr_multiplier
 
     if policy_architecture is None:
         policy_architecture = ViTDefaultConfig()
@@ -240,18 +284,20 @@ def sweep(sweep_name: str) -> SweepTool:
 def multiseed_sweep(sweep_name, multi_gpu = False):
     # Generate Python-int seeds (avoid numpy.int64 for JSON serialization)
     random_seeds = [740515, 252833, 397562, 512512, 906302]
-    parameters = [SP.categorical("system.seed", random_seeds)]
+    parameters = [
+        SP.categorical("system.seed", random_seeds),
+        SP.categorical("minibatch_size_multiplier", [0.5, 1.0, 2.0]),
+    ]
     print("For fair comparison, use: ", random_seeds)
     train_overrides = {}
     train_overrides["trainer.total_timesteps"] = 2_000_000_000
-    if multi_gpu:
-        train_overrides["trainer.scale_batches_by_world_size"] = True
+    train_overrides["lr_multiplier"] = 1.8
 
     # Use grid_search her
     search_tool = grid_search(
         name=sweep_name,
         recipe="experiments.recipes.arena_basic_easy_shaped",
-        train_entrypoint="train",
+        train_entrypoint="train_multi_gpu",
         eval_entrypoint="evaluate_in_sweep",
         # Typically, "evaluator/eval_{suite}/score"
         objective="evaluator/eval_sweep/score",
