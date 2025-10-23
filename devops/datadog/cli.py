@@ -442,7 +442,7 @@ def collect(
     else:
         logging.basicConfig(level=logging.INFO, format="%(message)s")
 
-    if collector == "github":
+    if collector in ("github", "skypilot", "asana"):
         # Run the collector using the standalone runner script
         # This ensures we have access to all project dependencies
         runner_script = DATADOG_DIR / "run_collector.py"
@@ -479,7 +479,8 @@ def collect(
                 console.print(json.dumps(metrics, indent=2, sort_keys=True))
             else:
                 # Summary table
-                table = Table(title="GitHub Metrics")
+                table_title = f"{collector.title()} Metrics"
+                table = Table(title=table_title)
                 table.add_column("Metric", style="cyan")
                 table.add_column("Value", style="green", justify="right")
 
@@ -527,8 +528,8 @@ def collect(
 
     else:
         console.print(f"[yellow]Warning:[/yellow] Collector '{collector}' not yet implemented")
-        console.print("Available collectors: github")
-        console.print("Planned collectors: skypilot, wandb, ec2, asana")
+        console.print("Available collectors: github, skypilot, asana")
+        console.print("Planned collectors: wandb, ec2")
         raise typer.Exit(1)
 
 
@@ -544,10 +545,10 @@ def list_collectors() -> None:
     # Check which collectors exist
     collectors = [
         ("github", "✅ Implemented", "PRs, commits, CI/CD, branches, developers"),
-        ("skypilot", "📋 Planned", "Jobs, clusters, compute costs"),
+        ("skypilot", "✅ Implemented", "Jobs, clusters, runtime stats, resources"),
+        ("asana", "✅ Implemented", "Tasks, velocity, Bugs project tracking"),
         ("wandb", "📋 Planned", "Training runs, experiments, GPU hours"),
         ("ec2", "📋 Planned", "Instances, costs, utilization"),
-        ("asana", "📋 Planned", "Tasks, projects, velocity"),
     ]
 
     for name, status, description in collectors:
