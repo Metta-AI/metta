@@ -1,18 +1,34 @@
 "use client";
 
-import { FC, useState, useEffect } from "react";
+import { FC, useEffect, useMemo, useState } from "react";
 import { useAction } from "next-safe-action/hooks";
-import {
-  X,
-  Users,
-  UserPlus,
-  Trash2,
-  Globe,
-  Lock,
-  Building,
-} from "lucide-react";
+import { useForm } from "react-hook-form";
+import { z } from "zod";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { X, Users, UserPlus, Trash2, Globe, Lock } from "lucide-react";
 
 import { manageGroupMembershipAction } from "@/groups/actions/manageGroupMembershipAction";
+import { useErrorHandling } from "@/lib/hooks/useErrorHandling";
+import { getUserDisplayName } from "@/lib/utils/user";
+import {
+  Form,
+  FormControl,
+  FormDescription,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/ui/form";
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 
 interface GroupMember {
   id: string;
@@ -42,6 +58,18 @@ interface GroupManagementModalProps {
   currentUserRole?: string | null;
 }
 
+const addGroupMemberSchema = z.object({
+  userEmail: z.string().email("Valid email is required"),
+  role: z.string().min(1),
+});
+
+type AddGroupMemberValues = z.infer<typeof addGroupMemberSchema>;
+
+const defaultAddGroupValues: AddGroupMemberValues = {
+  userEmail: "",
+  role: "member",
+};
+
 export const GroupManagementModal: FC<GroupManagementModalProps> = ({
   isOpen,
   onClose,
@@ -52,108 +80,97 @@ export const GroupManagementModal: FC<GroupManagementModalProps> = ({
   const [localMembers, setLocalMembers] = useState<GroupMember[]>(
     group.members || []
   );
-  const [newMemberData, setNewMemberData] = useState({
-    userEmail: "",
-    role: "member",
-  });
-  const [error, setError] = useState<string | null>(null);
 
-  // Update local members when group prop changes
+  const form = useForm<AddGroupMemberValues>({
+    resolver: zodResolver(addGroupMemberSchema),
+    defaultValues: defaultAddGroupValues,
+  });
+
+  const {
+    error: membershipError,
+    setError: setMembershipError,
+    clearError: clearMembershipError,
+  } = useErrorHandling({
+    fallbackMessage: "Failed to manage membership. Please try again.",
+  });
+
   useEffect(() => {
     setLocalMembers(group.members || []);
   }, [group.members]);
 
+  useEffect(() => {
+    if (!isOpen) {
+      setActiveTab("members");
+      form.reset(defaultAddGroupValues);
+      clearMembershipError();
+    }
+  }, [isOpen, form, clearMembershipError]);
+
   const { execute: manageMembership, isExecuting } = useAction(
     manageGroupMembershipAction,
     {
-      onSuccess: (result) => {
+      onSuccess: () => {
         if (activeTab === "add") {
-          // Optimistically add the new member to local state
+          const values = form.getValues();
           const newMember: GroupMember = {
-            id: `temp_${Date.now()}`, // Temporary ID until page refresh
+            id: `temp_${Date.now()}`,
             user: {
-              name: newMemberData.userEmail.split("@")[0] || null,
-              email: newMemberData.userEmail,
+              name: values.userEmail.split("@")[0] || null,
+              email: values.userEmail,
             },
-            role: newMemberData.role || "member",
+            role: values.role,
             joinedAt: new Date(),
             isActive: true,
           };
 
           setLocalMembers((prev) => [...prev, newMember]);
-
-          setNewMemberData({
-            userEmail: "",
-            role: "member",
-          });
-          setError(null);
+          form.reset(defaultAddGroupValues);
+          clearMembershipError();
           setActiveTab("members");
         }
       },
       onError: (error) => {
         console.error("Error managing membership:", error);
-
-        // Extract error message from the error object
-        const serverError = error.error?.serverError;
-        const validationErrors = error.error?.validationErrors;
-
-        const errorMessage =
-          (typeof serverError === "string" ? serverError : null) ||
-          (typeof serverError === "object" &&
-          serverError !== null &&
-          "message" in serverError
-            ? (serverError as any).message
-            : null) ||
-          (Array.isArray(validationErrors) &&
-          validationErrors.length > 0 &&
-          typeof validationErrors[0] === "object" &&
-          validationErrors[0] !== null &&
-          "message" in validationErrors[0]
-            ? (validationErrors[0] as any).message
-            : null) ||
-          "Failed to manage membership. Please try again.";
-
-        setError(errorMessage);
+        setMembershipError(error);
       },
     }
   );
 
-  const handleAddMember = (e: React.FormEvent) => {
-    e.preventDefault();
-
+  const handleAddMember = (values: AddGroupMemberValues) => {
     const formData = new FormData();
     formData.append("groupId", group.id);
-    formData.append("userEmail", newMemberData.userEmail);
-    formData.append("role", newMemberData.role);
+    formData.append("userEmail", values.userEmail);
+    formData.append("role", values.role);
     formData.append("action", "add");
-
     manageMembership(formData);
   };
 
   const handleRemoveMember = (memberEmail: string) => {
-    if (window.confirm("Are you sure you want to remove this member?")) {
-      // Optimistically remove from local state
-      setLocalMembers((prev) =>
-        prev.filter((member) => member.user.email !== memberEmail)
-      );
-
-      const formData = new FormData();
-      formData.append("groupId", group.id);
-      formData.append("userEmail", memberEmail);
-      formData.append("action", "remove");
-
-      manageMembership(formData);
+    if (!window.confirm("Are you sure you want to remove this member?")) {
+      return;
     }
+
+    setLocalMembers((prev) =>
+      prev.filter((member) => member.user.email !== memberEmail)
+    );
+
+    const formData = new FormData();
+    formData.append("groupId", group.id);
+    formData.append("userEmail", memberEmail);
+    formData.append("action", "remove");
+
+    manageMembership(formData);
   };
 
   const isAdmin = currentUserRole === "admin";
 
   if (!isOpen) return null;
 
+  const memberCount = useMemo(() => localMembers.length, [localMembers.length]);
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
       <div className="max-h-[80vh] w-full max-w-2xl overflow-hidden rounded-lg bg-white shadow-xl">
-        {/* Header */}
         <div className="border-b border-gray-200 px-6 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
@@ -166,34 +183,30 @@ export const GroupManagementModal: FC<GroupManagementModalProps> = ({
                   <div className="flex items-center gap-1">
                     {group.isPublic ? (
                       <>
-                        <Globe className="h-3 w-3" />
-                        Public Group
+                        <Globe className="h-3 w-3" /> Public Group
                       </>
                     ) : (
                       <>
-                        <Lock className="h-3 w-3" />
-                        Private Group
+                        <Lock className="h-3 w-3" /> Private Group
                       </>
                     )}
                   </div>
                   <div className="flex items-center gap-1">
-                    <Building className="h-3 w-3" />
-                    <span>{group.institution.name}</span>
+                    <Users className="h-3 w-3" /> {group.institution.name}
                   </div>
                 </div>
               </div>
             </div>
             <button
-              onClick={onClose}
+              onClick={() => {
+                form.reset(defaultAddGroupValues);
+                onClose();
+              }}
               className="rounded-lg p-1 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600"
             >
               <X className="h-5 w-5" />
             </button>
           </div>
-
-          {group.description && (
-            <p className="mt-2 text-sm text-gray-600">{group.description}</p>
-          )}
 
           {isAdmin && (
             <div className="mt-4 flex gap-2">
@@ -205,7 +218,7 @@ export const GroupManagementModal: FC<GroupManagementModalProps> = ({
                     : "text-gray-600 hover:bg-gray-100"
                 }`}
               >
-                Members ({localMembers.length})
+                Members ({memberCount})
               </button>
               <button
                 onClick={() => setActiveTab("add")}
@@ -221,7 +234,6 @@ export const GroupManagementModal: FC<GroupManagementModalProps> = ({
           )}
         </div>
 
-        {/* Content */}
         <div
           className="overflow-y-auto p-6"
           style={{ maxHeight: "calc(80vh - 140px)" }}
@@ -248,9 +260,10 @@ export const GroupManagementModal: FC<GroupManagementModalProps> = ({
                       </div>
                       <div>
                         <div className="font-medium text-gray-900">
-                          {member.user.name ||
-                            member.user.email?.split("@")[0] ||
-                            "Unknown"}
+                          {getUserDisplayName(
+                            member.user.name,
+                            member.user.email
+                          )}
                         </div>
                         <div className="text-sm text-gray-500">
                           {member.user.email}
@@ -287,73 +300,75 @@ export const GroupManagementModal: FC<GroupManagementModalProps> = ({
           )}
 
           {activeTab === "add" && isAdmin && (
-            <form onSubmit={handleAddMember} className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700">
-                  User Email *
-                </label>
-                <input
-                  type="email"
-                  value={newMemberData.userEmail}
-                  onChange={(e) => {
-                    setNewMemberData((prev) => ({
-                      ...prev,
-                      userEmail: e.target.value,
-                    }));
-                    // Clear error when user starts typing
-                    if (error) {
-                      setError(null);
-                    }
-                  }}
-                  required
-                  className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
-                  placeholder="user@example.com"
+            <Form {...form}>
+              <form
+                onSubmit={form.handleSubmit(handleAddMember)}
+                className="space-y-4"
+              >
+                <FormField
+                  control={form.control}
+                  name="userEmail"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>User Email *</FormLabel>
+                      <FormControl>
+                        <Input
+                          {...field}
+                          type="email"
+                          placeholder="user@example.com"
+                          autoComplete="email"
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
                 />
-              </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700">
-                  Role
-                </label>
-                <select
-                  value={newMemberData.role}
-                  onChange={(e) =>
-                    setNewMemberData((prev) => ({
-                      ...prev,
-                      role: e.target.value,
-                    }))
-                  }
-                  className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
-                >
-                  <option value="member">Member</option>
-                  <option value="admin">Admin</option>
-                </select>
-              </div>
+                <FormField
+                  control={form.control}
+                  name="role"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Role</FormLabel>
+                      <Select
+                        value={field.value}
+                        onValueChange={field.onChange}
+                      >
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select a role" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="member">Member</SelectItem>
+                          <SelectItem value="admin">Admin</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
 
-              {/* Error Display */}
-              {error && (
-                <div className="rounded-md bg-red-50 p-3">
-                  <div className="text-sm text-red-700">{error}</div>
+                {membershipError && (
+                  <div className="rounded-md bg-red-50 p-3 text-sm text-red-700">
+                    {membershipError}
+                  </div>
+                )}
+
+                <div className="flex justify-end gap-3 pt-4">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setActiveTab("members")}
+                  >
+                    Cancel
+                  </Button>
+                  <Button type="submit" disabled={isExecuting}>
+                    {isExecuting ? "Adding..." : "Add Member"}
+                  </Button>
                 </div>
-              )}
-
-              <div className="flex justify-end gap-3 pt-4">
-                <button
-                  type="button"
-                  onClick={() => setActiveTab("members")}
-                  className="rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={!newMemberData.userEmail || isExecuting}
-                  className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:opacity-50"
-                >
-                  {isExecuting ? "Adding..." : "Add Member"}
-                </button>
-              </div>
-            </form>
+              </form>
+            </Form>
           )}
         </div>
       </div>

@@ -1,21 +1,13 @@
 "use client";
 
-import { FC, useEffect, useState } from "react";
+import { FC } from "react";
 import Link from "next/link";
 import { X } from "lucide-react";
+import { useQueries } from "@tanstack/react-query";
 
-interface QuotedPost {
-  id: string;
-  title: string;
-  content: string | null;
-  author: {
-    id: string;
-    name: string | null;
-    email: string | null;
-    image: string | null;
-  };
-  createdAt: Date;
-}
+import { getUserDisplayName, getUserInitials } from "@/lib/utils/user";
+import * as postsApi from "@/lib/api/resources/posts";
+import type { PostDetail } from "@/lib/api/resources/posts";
 
 interface QuotedPostPreviewProps {
   quotedPostIds: string[];
@@ -26,57 +18,23 @@ export const QuotedPostPreview: FC<QuotedPostPreviewProps> = ({
   quotedPostIds,
   onRemove,
 }) => {
-  const [quotedPosts, setQuotedPosts] = useState<QuotedPost[]>([]);
-  const [loading, setLoading] = useState(false);
+  // Use React Query's useQueries to fetch multiple posts efficiently
+  const postQueries = useQueries({
+    queries: quotedPostIds.map((id) => ({
+      queryKey: ["posts", id],
+      queryFn: () => postsApi.getPost(id),
+      enabled: !!id,
+    })),
+  });
 
-  useEffect(() => {
-    const fetchQuotedPosts = async () => {
-      if (quotedPostIds.length === 0) {
-        setQuotedPosts([]);
-        return;
-      }
-
-      setLoading(true);
-      try {
-        // Fetch posts data from the API
-        const promises = quotedPostIds.map(async (id) => {
-          const response = await fetch(`/api/posts/${id}`);
-          if (response.ok) {
-            return await response.json();
-          }
-          return null;
-        });
-
-        const results = await Promise.all(promises);
-        const validPosts = results.filter(Boolean);
-        setQuotedPosts(validPosts);
-      } catch (error) {
-        console.error("Error fetching quoted posts:", error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchQuotedPosts();
-  }, [quotedPostIds]);
+  const loading = postQueries.some((query) => query.isLoading);
+  const quotedPosts = postQueries
+    .map((query) => query.data)
+    .filter(Boolean) as PostDetail[];
 
   if (quotedPostIds.length === 0) {
     return null;
   }
-
-  const getUserDisplayName = (author: QuotedPost["author"]) => {
-    return author.name || author.email?.split("@")[0] || "Unknown User";
-  };
-
-  const getUserInitials = (author: QuotedPost["author"]) => {
-    const name = getUserDisplayName(author);
-    return name
-      .split(" ")
-      .map((n) => n[0])
-      .join("")
-      .toUpperCase()
-      .slice(0, 2);
-  };
 
   return (
     <div className="space-y-3">
@@ -99,12 +57,15 @@ export const QuotedPostPreview: FC<QuotedPostPreviewProps> = ({
                 {post.author.image ? (
                   <img
                     src={post.author.image}
-                    alt={getUserDisplayName(post.author)}
+                    alt={getUserDisplayName(
+                      post.author.name,
+                      post.author.email
+                    )}
                     className="h-8 w-8 rounded-full"
                   />
                 ) : (
                   <div className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-500 text-xs font-medium text-white">
-                    {getUserInitials(post.author)}
+                    {getUserInitials(post.author.name, post.author.email)}
                   </div>
                 )}
               </div>
@@ -113,7 +74,7 @@ export const QuotedPostPreview: FC<QuotedPostPreviewProps> = ({
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
                   <span className="text-sm font-medium text-gray-900">
-                    {getUserDisplayName(post.author)}
+                    {getUserDisplayName(post.author.name, post.author.email)}
                   </span>
                   <span className="text-xs text-gray-500">
                     {new Date(post.createdAt).toLocaleDateString()}

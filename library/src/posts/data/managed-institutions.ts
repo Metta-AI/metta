@@ -1,5 +1,13 @@
 import { prisma } from "@/lib/db/prisma";
 import { auth } from "@/lib/auth";
+import type {
+  Institution,
+  InstitutionType,
+  Paper,
+  PaperAuthor,
+  PaperInstitution,
+  UserInstitution,
+} from "@prisma/client";
 
 export type UnifiedInstitutionDTO = {
   id: string;
@@ -50,6 +58,114 @@ export type UnifiedInstitutionDTO = {
     paperCount: number;
   }>;
 };
+
+type InstitutionWithRelations = Institution & {
+  userInstitutions: Array<
+    UserInstitution & {
+      user: {
+        name: string | null;
+        email: string | null;
+      };
+    }
+  >;
+  papers: Array<
+    PaperInstitution & {
+      paper: Paper & {
+        paperAuthors: Array<
+          PaperAuthor & {
+            author: { id: string; name: string };
+          }
+        >;
+      };
+    }
+  >;
+  authors: Array<{
+    id: string;
+    name: string;
+    paperAuthors: PaperAuthor[];
+  }>;
+};
+
+function mapToUnifiedInstitution(
+  institution: InstitutionWithRelations,
+  options: {
+    sessionUserId?: string;
+    includeMembers: boolean;
+    includePending?: boolean;
+  }
+): UnifiedInstitutionDTO {
+  const { sessionUserId, includeMembers, includePending = false } = options;
+
+  const papers = institution.papers.map((pi) => pi.paper);
+  const totalStars = papers.reduce((sum, paper) => sum + paper.stars, 0);
+  const avgStars = papers.length > 0 ? totalStars / papers.length : 0;
+  const recentActivity = papers.length > 0 ? papers[0].createdAt : null;
+  const topCategories = Array.from(
+    new Set(papers.flatMap((paper) => paper.tags ?? []))
+  )
+    .filter((category): category is string => typeof category === "string")
+    .slice(0, 5);
+
+  const membership = sessionUserId
+    ? institution.userInstitutions.find((ui) => ui.userId === sessionUserId)
+    : null;
+
+  const filteredUserInstitutions = institution.userInstitutions.filter((ui) =>
+    includePending ? true : ui.status === "APPROVED" && ui.isActive
+  );
+
+  return {
+    id: institution.id,
+    name: institution.name,
+    domain: institution.domain,
+    description: institution.description,
+    website: institution.website,
+    location: institution.location,
+    type: institution.type,
+    isVerified: institution.isVerified,
+    requiresApproval: institution.requiresApproval,
+    createdAt: institution.createdAt,
+    memberCount: filteredUserInstitutions.filter(
+      (ui) => ui.status === "APPROVED" && ui.isActive
+    ).length,
+    paperCount: institution.papers.length,
+    authorCount: institution.authors.length,
+    totalStars,
+    avgStars,
+    recentActivity,
+    topCategories,
+    currentUserRole:
+      membership?.status === "APPROVED" ? (membership?.role ?? null) : null,
+    currentUserStatus: membership?.status ?? null,
+    ...(includeMembers && {
+      members: filteredUserInstitutions.map((ui) => ({
+        id: ui.id,
+        user: ui.user,
+        role: ui.role,
+        department: ui.department,
+        title: ui.title,
+        joinedAt: ui.joinedAt,
+        isActive: ui.isActive,
+      })),
+    }),
+    recentPapers: papers.map((paper) => ({
+      id: paper.id,
+      title: paper.title,
+      link: paper.link,
+      createdAt: paper.createdAt,
+      stars: paper.stars,
+      authors: paper.paperAuthors.map((pa) => ({
+        id: pa.author.id,
+        name: pa.author.name,
+      })),
+    })),
+    authors: institution.authors.map((author) => ({
+      id: author.id,
+      name: author.name,
+      paperCount: author.paperAuthors.length,
+    })),
+  };
+}
 
 /**
  * Load institutions where current user is a member (with full details)
@@ -120,69 +236,12 @@ export async function loadUserInstitutions(): Promise<UnifiedInstitutionDTO[]> {
     orderBy: { createdAt: "desc" },
   });
 
-  return institutions.map((institution) => {
-    const currentUserMembership = institution.userInstitutions.find(
-      (ui) => ui.userId === session.user!.id
-    );
-
-    const papers = institution.papers.map((pi) => pi.paper);
-    const totalStars = papers.reduce((sum, paper) => sum + paper.stars, 0);
-    const avgStars = papers.length > 0 ? totalStars / papers.length : 0;
-    const recentActivity = papers.length > 0 ? papers[0].createdAt : null;
-    const topCategories = Array.from(
-      new Set(papers.flatMap((paper) => paper.tags))
-    ).slice(0, 5);
-
-    return {
-      id: institution.id,
-      name: institution.name,
-      domain: institution.domain,
-      description: institution.description,
-      website: institution.website,
-      location: institution.location,
-      type: institution.type,
-      isVerified: institution.isVerified,
-      requiresApproval: institution.requiresApproval,
-      createdAt: institution.createdAt,
-      memberCount: institution.userInstitutions.length,
-      paperCount: institution.papers.length,
-      authorCount: institution.authors.length,
-      totalStars,
-      avgStars,
-      recentActivity,
-      topCategories,
-      currentUserRole:
-        currentUserMembership?.status === "APPROVED"
-          ? currentUserMembership?.role || null
-          : null,
-      currentUserStatus: currentUserMembership?.status || null,
-      members: institution.userInstitutions.map((ui) => ({
-        id: ui.id,
-        user: ui.user,
-        role: ui.role,
-        department: ui.department,
-        title: ui.title,
-        joinedAt: ui.joinedAt,
-        isActive: ui.isActive,
-      })),
-      recentPapers: papers.map((paper) => ({
-        id: paper.id,
-        title: paper.title,
-        link: paper.link,
-        createdAt: paper.createdAt,
-        stars: paper.stars,
-        authors: paper.paperAuthors.map((pa) => ({
-          id: pa.author.id,
-          name: pa.author.name,
-        })),
-      })),
-      authors: institution.authors.map((author) => ({
-        id: author.id,
-        name: author.name,
-        paperCount: author.paperAuthors.length,
-      })),
-    };
-  });
+  return institutions.map((institution) =>
+    mapToUnifiedInstitution(institution, {
+      sessionUserId: session.user?.id,
+      includeMembers: true,
+    })
+  );
 }
 
 /**
@@ -198,7 +257,7 @@ export async function loadAllInstitutions(): Promise<UnifiedInstitutionDTO[]> {
           OR: [
             // Include all approved active memberships
             {
-              status: "APPROVED",
+              status: "APPROVED" as const,
               isActive: true,
             },
             // Include current user's pending requests so they can see their status
@@ -206,11 +265,19 @@ export async function loadAllInstitutions(): Promise<UnifiedInstitutionDTO[]> {
               ? [
                   {
                     userId: session.user.id,
-                    status: "PENDING",
+                    status: "PENDING" as const,
                   },
                 ]
               : []),
           ],
+        },
+        include: {
+          user: {
+            select: {
+              name: true,
+              email: true,
+            },
+          },
         },
       },
       papers: {
@@ -246,67 +313,13 @@ export async function loadAllInstitutions(): Promise<UnifiedInstitutionDTO[]> {
     orderBy: [{ isVerified: "desc" }, { createdAt: "desc" }],
   });
 
-  return institutions.map((institution) => {
-    const papers = institution.papers.map((pi) => pi.paper);
-    const totalStars = papers.reduce((sum, paper) => sum + paper.stars, 0);
-    const avgStars = papers.length > 0 ? totalStars / papers.length : 0;
-    const recentActivity = papers.length > 0 ? papers[0].createdAt : null;
-    const topCategories = Array.from(
-      new Set(papers.flatMap((paper) => paper.tags))
-    ).slice(0, 5);
-
-    const currentUserMembership = session?.user?.id
-      ? institution.userInstitutions.find(
-          (ui) => ui.userId === session.user!.id
-        )
-      : null;
-
-    const currentUserRole =
-      currentUserMembership?.status === "APPROVED"
-        ? currentUserMembership?.role || null
-        : null;
-    const currentUserStatus = currentUserMembership?.status || null;
-
-    return {
-      id: institution.id,
-      name: institution.name,
-      domain: institution.domain,
-      description: institution.description,
-      website: institution.website,
-      location: institution.location,
-      type: institution.type,
-      isVerified: institution.isVerified,
-      requiresApproval: institution.requiresApproval,
-      createdAt: institution.createdAt,
-      memberCount: institution.userInstitutions.filter(
-        (ui) => ui.status === "APPROVED" && ui.isActive
-      ).length,
-      paperCount: institution.papers.length,
-      authorCount: institution.authors.length,
-      totalStars,
-      avgStars,
-      recentActivity,
-      topCategories,
-      currentUserRole,
-      currentUserStatus,
-      recentPapers: papers.map((paper) => ({
-        id: paper.id,
-        title: paper.title,
-        link: paper.link,
-        createdAt: paper.createdAt,
-        stars: paper.stars,
-        authors: paper.paperAuthors.map((pa) => ({
-          id: pa.author.id,
-          name: pa.author.name,
-        })),
-      })),
-      authors: institution.authors.map((author) => ({
-        id: author.id,
-        name: author.name,
-        paperCount: author.paperAuthors.length,
-      })),
-    };
-  });
+  return institutions.map((institution) =>
+    mapToUnifiedInstitution(institution, {
+      sessionUserId: session?.user?.id,
+      includeMembers: false,
+      includePending: true,
+    })
+  );
 }
 
 // Legacy compatibility exports

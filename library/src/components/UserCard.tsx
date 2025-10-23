@@ -8,7 +8,8 @@ import {
 } from "@/posts/data/papers";
 import { useStarMutation } from "@/hooks/useStarMutation";
 import { toggleQueueAction } from "@/posts/actions/toggleQueueAction";
-import PaperOverlay from "./PaperOverlay";
+import { getUserInitials } from "@/lib/utils/user";
+import NavigablePaperOverlay from "./NavigablePaperOverlay";
 
 interface UserCardProps {
   user: User;
@@ -48,22 +49,6 @@ export default function UserCard({
     return userInteraction !== undefined;
   });
 
-  // Generate user initials for profile circle
-  const getUserInitials = (name: string | null, email: string | null) => {
-    if (name) {
-      return name
-        .split(" ")
-        .map((n) => n[0])
-        .join("")
-        .toUpperCase()
-        .slice(0, 2);
-    }
-    if (email) {
-      return email.charAt(0).toUpperCase();
-    }
-    return "?";
-  };
-
   // Handle paper overlay close
   const handlePaperOverlayClose = () => {
     setSelectedPaper(null);
@@ -71,7 +56,7 @@ export default function UserCard({
 
   // Handle toggle star
   const handleToggleStar = (paperId: string) => {
-    starMutation.mutate(paperId);
+    starMutation.mutate({ paperId });
   };
 
   // Handle toggle queue
@@ -219,7 +204,7 @@ export default function UserCard({
 
       {/* Paper Overlay */}
       {selectedPaper && (
-        <PaperOverlay
+        <NavigablePaperOverlay
           paper={selectedPaper}
           users={users}
           interactions={interactions}

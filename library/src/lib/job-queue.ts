@@ -7,21 +7,59 @@
 
 import { Queue, Worker, Job } from "bullmq";
 import { Redis } from "ioredis";
+import { config } from "./config";
+import { Logger } from "./logging/logger";
 
 // Redis connection configuration
 const redisConfig = {
-  host: process.env.REDIS_HOST || "localhost",
-  port: parseInt(process.env.REDIS_PORT || "6379"),
-  // Add auth if needed in production
-  ...(process.env.REDIS_PASSWORD && { password: process.env.REDIS_PASSWORD }),
-  // Add TLS if needed for ElastiCache encryption in transit
-  ...(process.env.REDIS_TLS === "true" && { tls: {} }),
-  // Connection timeout to prevent hanging
+  host: config.redis.host,
+  port: config.redis.port,
+  ...(config.redis.password && { password: config.redis.password }),
+  ...(config.redis.tls && { tls: {} }),
   connectTimeout: 10000,
   lazyConnect: false,
 };
 
 // Job type definitions
+import type { NotificationType } from "./notifications";
+
+export interface NotificationData {
+  id: string;
+  userId: string;
+  type: NotificationType;
+  title: string;
+  message?: string | null;
+  actionUrl?: string | null;
+  actorId?: string | null;
+  postId?: string | null;
+  commentId?: string | null;
+  mentionText?: string | null;
+  isRead: boolean;
+  createdAt: Date;
+  user?: {
+    id: string;
+    name: string | null;
+    email: string | null;
+  };
+  actor?: {
+    id: string;
+    name: string | null;
+    email: string | null;
+  } | null;
+  post?: {
+    id: string;
+    title: string;
+  } | null;
+  comment?: {
+    id: string;
+    content: string;
+    post?: {
+      id: string;
+      title: string;
+    };
+  } | null;
+}
+
 export interface BackgroundJobs {
   "extract-institutions": {
     paperId: string;
@@ -38,9 +76,12 @@ export interface BackgroundJobs {
     paperId: string;
   };
   "send-external-notification": {
-    notificationId: string;
+    notification: NotificationData;
     channels: ("email" | "discord")[];
-    userId: string;
+    preferences: {
+      emailEnabled: boolean;
+      discordEnabled: boolean;
+    };
   };
   "retry-failed-notification": {
     deliveryId: string;
@@ -124,7 +165,7 @@ export class JobQueueService {
     paperId: string,
     arxivUrl: string
   ): Promise<void> {
-    console.log(`📤 Queuing institution extraction for paper ${paperId}`);
+    Logger.info(`📤 Queuing institution extraction for paper ${paperId}`);
 
     await institutionQueue.add(
       "extract-institutions",
@@ -143,7 +184,7 @@ export class JobQueueService {
     paperId: string,
     arxivUrl: string
   ): Promise<void> {
-    console.log(`📤 Queuing author extraction for paper ${paperId}`);
+    Logger.info(`📤 Queuing author extraction for paper ${paperId}`);
 
     await authorQueue.add(
       "extract-authors",
@@ -159,7 +200,7 @@ export class JobQueueService {
    * Queue LLM abstract generation for a paper
    */
   static async queueLLMAbstractGeneration(paperId: string): Promise<void> {
-    console.log(`📤 Queuing LLM abstract generation for paper ${paperId}`);
+    Logger.info(`📤 Queuing LLM abstract generation for paper ${paperId}`);
 
     await llmQueue.add(
       "generate-llm-abstract",
@@ -175,7 +216,7 @@ export class JobQueueService {
    * Queue auto-tagging for a paper
    */
   static async queueAutoTagging(paperId: string): Promise<void> {
-    console.log(`📤 Queuing auto-tagging for paper ${paperId}`);
+    Logger.info(`📤 Queuing auto-tagging for paper ${paperId}`);
 
     await taggingQueue.add(
       "auto-tag-paper",
@@ -187,21 +228,21 @@ export class JobQueueService {
   }
 
   /**
-   * Queue external notification sending
+   * Queue external notification sending with full notification data
    */
   static async queueExternalNotification(
-    notificationId: string,
+    notification: NotificationData,
     channels: ("email" | "discord")[],
-    userId: string,
+    preferences: { emailEnabled: boolean; discordEnabled: boolean },
     priority: number = 0
   ): Promise<void> {
-    console.log(
-      `📤 Queuing external notifications for ${notificationId}: ${channels.join(", ")}`
+    Logger.info(
+      `📤 Queuing external notifications for ${notification.id}: ${channels.join(", ")}`
     );
 
     await externalNotificationQueue.add(
       "send-external-notification",
-      { notificationId, channels, userId },
+      { notification, channels, preferences },
       {
         priority, // Higher priority notifications go first
         delay: 500, // Small delay to allow database to settle
@@ -213,7 +254,7 @@ export class JobQueueService {
    * Queue retry for a failed notification delivery
    */
   static async queueNotificationRetry(deliveryId: string): Promise<void> {
-    console.log(`📤 Queuing notification retry for delivery ${deliveryId}`);
+    Logger.info(`📤 Queuing notification retry for delivery ${deliveryId}`);
 
     await externalNotificationQueue.add(
       "retry-failed-notification",
@@ -256,7 +297,7 @@ export class JobQueueService {
    * Graceful shutdown - close all queues
    */
   static async shutdown(): Promise<void> {
-    console.log("🛑 Shutting down job queues...");
+    Logger.info("🛑 Shutting down job queues...");
     await Promise.all([
       institutionQueue.close(),
       authorQueue.close(),

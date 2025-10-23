@@ -4,33 +4,15 @@ import React, { useState, useEffect, useRef } from "react";
 import { Bell, X, Check, CheckCheck } from "lucide-react";
 import Link from "next/link";
 
-interface Notification {
-  id: string;
-  type: string;
-  title: string;
-  message?: string | null;
-  actionUrl?: string | null;
-  isRead: boolean;
-  createdAt: string;
-  mentionText?: string | null;
-  actor?: {
-    id: string;
-    name?: string | null;
-    email?: string | null;
-  } | null;
-  post?: {
-    id: string;
-    title: string;
-  } | null;
-  comment?: {
-    id: string;
-    content: string;
-    post: {
-      id: string;
-      title: string;
-    };
-  } | null;
-}
+import { getUserDisplayName } from "@/lib/utils/user";
+import { markNotificationsReadAction } from "@/notifications/actions/markNotificationsReadAction";
+import {
+  listNotifications,
+  getNotificationCounts,
+  type NotificationDTO,
+} from "@/lib/api/resources/notifications";
+
+type Notification = NotificationDTO;
 
 interface NotificationCounts {
   total: number;
@@ -88,11 +70,8 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({
 
   const loadCounts = async () => {
     try {
-      const response = await fetch("/api/notifications/count");
-      if (response.ok) {
-        const newCounts = await response.json();
-        setCounts(newCounts);
-      }
+      const newCounts = await getNotificationCounts();
+      setCounts(newCounts);
     } catch (error) {
       console.error("Error loading notification counts:", error);
     }
@@ -101,15 +80,10 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({
   const loadNotifications = async () => {
     setIsLoading(true);
     try {
-      const response = await fetch(
-        "/api/notifications?limit=20&includeRead=true"
-      );
-      if (response.ok) {
-        const data = await response.json();
-        setNotifications(data.notifications);
-        setCounts(data.counts);
-        setHasLoaded(true);
-      }
+      const data = await listNotifications({ limit: 20, includeRead: true });
+      setNotifications(data.notifications);
+      setCounts(data.counts);
+      setHasLoaded(true);
     } catch (error) {
       console.error("Error loading notifications:", error);
     } finally {
@@ -119,26 +93,20 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({
 
   const markAsRead = async (notificationIds: string[]) => {
     try {
-      const response = await fetch("/api/notifications/mark-read", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ notificationIds }),
-      });
+      await markNotificationsReadAction({ notificationIds });
 
-      if (response.ok) {
-        // Update local state
-        setNotifications((prev) =>
-          prev.map((n) =>
-            notificationIds.includes(n.id) ? { ...n, isRead: true } : n
-          )
-        );
+      // Update local state
+      setNotifications((prev) =>
+        prev.map((n) =>
+          notificationIds.includes(n.id) ? { ...n, isRead: true } : n
+        )
+      );
 
-        // Update counts
-        setCounts((prev) => ({
-          ...prev,
-          unread: Math.max(0, prev.unread - notificationIds.length),
-        }));
-      }
+      // Update counts
+      setCounts((prev) => ({
+        ...prev,
+        unread: Math.max(0, prev.unread - notificationIds.length),
+      }));
     } catch (error) {
       console.error("Error marking notifications as read:", error);
     }
@@ -146,17 +114,11 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({
 
   const markAllAsRead = async () => {
     try {
-      const response = await fetch("/api/notifications/mark-read", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ markAllRead: true }),
-      });
+      await markNotificationsReadAction({ markAllRead: true });
 
-      if (response.ok) {
-        // Update local state
-        setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
-        setCounts((prev) => ({ ...prev, unread: 0 }));
-      }
+      // Update local state
+      setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
+      setCounts((prev) => ({ ...prev, unread: 0 }));
     } catch (error) {
       console.error("Error marking all notifications as read:", error);
     }
@@ -269,18 +231,6 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({
               ))
             )}
           </div>
-
-          {notifications.length > 0 && (
-            <div className="border-t border-gray-200 px-4 py-2">
-              <Link
-                href="/notifications"
-                className="block text-center text-sm text-blue-600 hover:text-blue-800"
-                onClick={() => setIsOpen(false)}
-              >
-                View all notifications
-              </Link>
-            </div>
-          )}
         </div>
       )}
     </div>
@@ -300,10 +250,9 @@ const NotificationItem: React.FC<NotificationItemProps> = ({
   formatTimeAgo,
   getNotificationIcon,
 }) => {
-  const actorName =
-    notification.actor?.name ||
-    notification.actor?.email?.split("@")[0] ||
-    "Someone";
+  const actorName = notification.actor
+    ? getUserDisplayName(notification.actor.name, notification.actor.email)
+    : "Someone";
 
   const content = (
     <div

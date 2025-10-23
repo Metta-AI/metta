@@ -4,6 +4,7 @@ import { z } from "zod/v4";
 import { getSessionOrRedirect } from "@/lib/auth";
 import { prisma } from "@/lib/db/prisma";
 import { MentionType } from "@/lib/mentions";
+import { handleApiError } from "@/lib/api/error-handler";
 
 const searchParamsSchema = z.object({
   q: z.string().min(0).max(50), // Query string
@@ -313,10 +314,6 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ suggestions });
   } catch (error) {
-    console.error("Error searching mentions:", error);
-    return NextResponse.json(
-      { error: "Failed to search mentions" },
-      { status: 500 }
-    );
+    return handleApiError(error, { endpoint: "GET /api/mentions/search" });
   }
 }
