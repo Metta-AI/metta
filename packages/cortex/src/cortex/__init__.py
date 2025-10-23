@@ -9,18 +9,30 @@ from cortex.blocks import (
     build_block,
     register_block,
 )
-from cortex.cells import LSTMCell, MemoryCell, RTUCell, build_cell, mLSTMCell, register_cell
+from cortex.cells import (
+    AxonCell,
+    AxonLayer,
+    CausalConv1d,
+    LSTMCell,
+    MemoryCell,
+    build_cell,
+    mLSTMCell,
+    register_cell,
+    sLSTMCell,
+)
 from cortex.config import (
     AdapterBlockConfig,
+    AxonConfig,
     BlockConfig,
+    CausalConv1dConfig,
     CellConfig,
     CortexStackConfig,
     LSTMCellConfig,
     PassThroughBlockConfig,
     PostUpBlockConfig,
     PreUpBlockConfig,
-    RTUCellConfig,
     mLSTMCellConfig,
+    sLSTMCellConfig,
 )
 from cortex.factory import build_cortex, build_from_dict
 from cortex.stacks import CortexStack
@@ -36,16 +48,21 @@ __all__ = [
     "PostUpBlockConfig",
     "CortexStackConfig",
     "CellConfig",
+    "AxonConfig",
+    "CausalConv1dConfig",
     "LSTMCellConfig",
     "mLSTMCellConfig",
-    "RTUCellConfig",
+    "sLSTMCellConfig",
     # Main classes
     "CortexStack",
     # Cells
     "MemoryCell",
+    "AxonCell",
+    "AxonLayer",
+    "CausalConv1d",
     "LSTMCell",
     "mLSTMCell",
-    "RTUCell",
+    "sLSTMCell",
     "register_cell",
     "build_cell",
     # Blocks

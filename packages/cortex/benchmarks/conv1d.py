@@ -7,7 +7,7 @@ import torch.nn as nn
 from cortex.kernels.pytorch.conv1d import causal_conv1d_pytorch
 from cortex.kernels.triton.conv1d import causal_conv1d_triton
 
-from packages.cortex.benchmarks.common import (
+from .common import (
     BenchmarkCase,
     BenchmarkDefinition,
     BenchmarkSettings,
@@ -106,19 +106,16 @@ def _run_case(case: BenchmarkCase, settings: BenchmarkSettings) -> Dict[str, obj
             resets=resets,
         )
 
-    try:
-        (y_tr, state_tr), triton_time = measure_callable(
-            run_triton,
-            warmup=settings.warmup,
-            iterations=settings.iterations,
-            synchronize=True,
-        )
-        results["triton_ms"] = triton_time * 1000.0
-        if triton_time > 0:
-            results["speedup"] = pytorch_time / triton_time
-        results["max_diff"] = torch.max(torch.abs(y_pt - y_tr)).item()
-    except Exception as exc:  # pragma: no cover - defensive
-        results["error"] = str(exc)
+    (y_tr, state_tr), triton_time = measure_callable(
+        run_triton,
+        warmup=settings.warmup,
+        iterations=settings.iterations,
+        synchronize=True,
+    )
+    results["triton_ms"] = triton_time * 1000.0
+    if triton_time > 0:
+        results["speedup"] = pytorch_time / triton_time
+    results["max_diff"] = torch.max(torch.abs(y_pt - y_tr)).item()
 
     return results
 

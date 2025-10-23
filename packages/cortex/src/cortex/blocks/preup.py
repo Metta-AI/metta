@@ -11,6 +11,7 @@ from tensordict import TensorDict
 from cortex.blocks.base import BaseBlock
 from cortex.blocks.registry import register_block
 from cortex.cells.base import MemoryCell
+from cortex.cells.mlstm import mLSTMCell
 from cortex.config import PreUpBlockConfig
 from cortex.types import MaybeState, ResetMask, Tensor
 
@@ -29,6 +30,15 @@ class PreUpBlock(BaseBlock):
         self.act = nn.SiLU()
         self.learnable_skip = nn.Parameter(torch.ones(self.d_inner))
         assert cell.hidden_size == self.d_inner, "PreUpBlock requires cell.hidden_size == d_inner"
+        # Control whether to feed a_act (activated) into the cell for
+        # non‑mLSTM cells. Default is False to preserve prior behavior.
+        self.activate_cell_input = bool(config.activate_cell_input)
+
+    def _should_apply_cell_act(self) -> bool:
+        """Check whether the wrapped cell is an mLSTM."""
+        if isinstance(self.cell, mLSTMCell) and not self.cell.use_axon_qkv:
+            return True
+        return False
 
     def forward(
         self,
@@ -58,7 +68,10 @@ class PreUpBlock(BaseBlock):
 
         cell_key = self.cell.__class__.__name__
         cell_state = state.get(cell_key, None) if state is not None else None
-        y_inner, new_cell_state = self.cell(a, cell_state, resets=resets)
+        # Optionally feed the activated branch to the cell, except for mLSTM
+        # where we preserve the existing semantics (cell consumes raw 'a').
+        a_for_cell = a_act if (self.activate_cell_input and not self._should_apply_cell_act()) else a
+        y_inner, new_cell_state = self.cell(a_for_cell, cell_state, resets=resets)
 
         # Gated skip and down-projection - always batch-first
         if is_step:
