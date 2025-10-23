@@ -142,6 +142,26 @@ app = typer.Typer(
 )
 
 
+def _fetch_gemini_api_key() -> str | None:
+    secret_name = "GEMINI-API-KEY"
+    region = "us-east-1"
+
+    try:
+        client = boto3.session.Session().client("secretsmanager", region_name=region)
+        raw_secret = client.get_secret_value(SecretId=secret_name)["SecretString"]
+    except (BotoCoreError, ClientError, KeyError) as error:
+        warning(
+            f"Unable to read AWS Secrets Manager secret '{secret_name}' (region {region}): {error}",
+        )
+        return None
+
+    api_key = raw_secret.strip()
+    if not api_key:
+        warning(f"Secret '{secret_name}' did not contain a usable GEMINI API key.")
+        return None
+    return api_key
+
+
 def _configure_pr_similarity_mcp_server(force: bool) -> None:
     from metta.setup.saved_settings import UserType, get_saved_settings
 
@@ -152,10 +172,12 @@ def _configure_pr_similarity_mcp_server(force: bool) -> None:
         )
         return
 
+    api_key = _fetch_gemini_api_key()
+
     _ensure_pr_similarity_cache(force=force)
     _install_pr_similarity_package(force=force)
     try:
-        _install_claude_mcp_server(force=force)
+        _install_claude_mcp_server(force=force, api_key=api_key)
     except Exception as error:  # pragma: no cover - defensive guard
         warning(f"Skipping Claude MCP registration due to unexpected error: {error}")
 
@@ -171,20 +193,8 @@ def _configure_pr_similarity_mcp_server(force: bool) -> None:
         )
         return
 
-    secret_name = "GEMINI-API-KEY"
-    region = "us-east-1"
-
-    try:
-        client = boto3.session.Session().client("secretsmanager", region_name=region)
-        api_key = client.get_secret_value(SecretId=secret_name)["SecretString"].strip()
-    except (BotoCoreError, ClientError, KeyError) as error:
-        warning(
-            "Skipping Codex MCP registration: could not read "
-            f"AWS Secrets Manager secret '{secret_name}' (region {region}): {error}",
-        )
-        return
     if not api_key:
-        warning(f"Skipping Codex MCP registration: secret '{secret_name}' did not contain a usable API key.")
+        warning("Skipping Codex MCP registration: no GEMINI API key available from Secrets Manager.")
         return
 
     for name in ("metta-pr-similarity", "metta-pr-similarity-mcp"):
@@ -293,7 +303,7 @@ def _install_pr_similarity_package(*, force: bool) -> None:
         warning(f"Failed to install metta-pr-similarity package: {stderr if stderr else error}")
 
 
-def _install_claude_mcp_server(*, force: bool) -> None:
+def _install_claude_mcp_server(*, force: bool, api_key: str | None) -> None:
     if shutil.which("claude") is None:
         debug("Claude CLI not found on PATH. Skipping Claude MCP configuration.")
         return
@@ -303,7 +313,7 @@ def _install_claude_mcp_server(*, force: bool) -> None:
         return
 
     from metta.setup.saved_settings import UserType, get_saved_settings
-    from metta.tools.pr_similarity import API_KEY_ENV, require_api_key
+    from metta.tools.pr_similarity import API_KEY_ENV
 
     saved_settings = get_saved_settings()
     if saved_settings.user_type not in {UserType.SOFTMAX, UserType.SOFTMAX_DOCKER}:
@@ -326,10 +336,8 @@ def _install_claude_mcp_server(*, force: bool) -> None:
             check=False,
         )
 
-    try:
-        api_key = require_api_key(API_KEY_ENV)
-    except EnvironmentError as error:
-        warning(f"Skipping Claude MCP registration: {error}")
+    if not api_key:
+        warning("Skipping Claude MCP registration: no GEMINI API key available from Secrets Manager.")
         return
 
     command = [
