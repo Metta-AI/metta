@@ -37,6 +37,7 @@ python replay_and_test.py <run_directory>
 ## Workflow
 
 1. **Download logs and artifacts:**
+
    - Run `download_action_logs.py` for your branch of interest.
    - Example:
      ```sh

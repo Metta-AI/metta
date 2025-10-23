@@ -297,8 +297,8 @@ The project uses OmegaConf for configuration, with config files organized in `co
 
 1. Use smaller batch sizes for debugging
 2. Check wandb logs for metrics anomalies
-3. Use `./tools/run.py arena.play` for interactive debugging (Note: Less useful in Claude Code due
-   to interactive nature)
+3. Use `./tools/run.py arena.play` for interactive debugging (Note: Less useful in Claude Code due to interactive
+   nature)
 
 #### Performance Profiling
 
@@ -340,6 +340,7 @@ Renovate groups related packages together to reduce PR noise:
 #### Handling Dependency Updates
 
 1. **Automatic Updates**
+
    - Patch updates for stable packages are auto-merged
    - Minor updates create PRs for review
    - Major updates require approval via dependency dashboard
