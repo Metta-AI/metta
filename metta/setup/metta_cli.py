@@ -154,7 +154,10 @@ def _configure_pr_similarity_mcp_server(force: bool) -> None:
 
     _ensure_pr_similarity_cache(force=force)
     _install_pr_similarity_package(force=force)
-    _install_claude_mcp_server(force=force)
+    try:
+        _install_claude_mcp_server(force=force)
+    except Exception as error:  # pragma: no cover - defensive guard
+        warning(f"Skipping Claude MCP registration due to unexpected error: {error}")
 
     codex_executable = shutil.which("codex")
     if not codex_executable:
@@ -323,6 +326,12 @@ def _install_claude_mcp_server(*, force: bool) -> None:
             check=False,
         )
 
+    try:
+        api_key = require_api_key(API_KEY_ENV)
+    except EnvironmentError as error:
+        warning(f"Skipping Claude MCP registration: {error}")
+        return
+
     command = [
         "claude",
         "mcp",
@@ -331,7 +340,7 @@ def _install_claude_mcp_server(*, force: bool) -> None:
         "stdio",
         "metta-pr-similarity",
         "--env",
-        f"{API_KEY_ENV}={require_api_key(API_KEY_ENV)}",
+        f"{API_KEY_ENV}={api_key}",
         "--",
         command_path,
     ]
@@ -348,6 +357,8 @@ def _install_claude_mcp_server(*, force: bool) -> None:
     except subprocess.CalledProcessError as error:  # pragma: no cover - external dependency
         stderr = (error.stderr or "").strip()
         warning(f"Failed to configure Claude MCP server: {stderr if stderr else error}")
+    except OSError as error:  # pragma: no cover - environment-dependent
+        warning(f"Failed to launch Claude CLI for MCP registration: {error}")
 
 
 def _run_ruff(python_targets: list[str] | None, *, fix: bool) -> None:
