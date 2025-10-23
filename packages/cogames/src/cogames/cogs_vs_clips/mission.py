@@ -8,6 +8,7 @@ from cogames.cogs_vs_clips.stations import (
     CvCChestConfig,
     CvCWallConfig,
     GermaniumExtractorConfig,
+    DepletedGermaniumExtractorConfig,
     OxygenExtractorConfig,
     SiliconExtractorConfig,
     resources,
@@ -61,6 +62,9 @@ class Mission(Config):
     carbon_extractor: CarbonExtractorConfig = Field(default_factory=CarbonExtractorConfig)
     oxygen_extractor: OxygenExtractorConfig = Field(default_factory=OxygenExtractorConfig)
     germanium_extractor: GermaniumExtractorConfig = Field(default_factory=GermaniumExtractorConfig)
+    depleted_germanium_extractor: DepletedGermaniumExtractorConfig = Field(
+        default_factory=DepletedGermaniumExtractorConfig
+    )
     silicon_extractor: SiliconExtractorConfig = Field(default_factory=SiliconExtractorConfig)
     charger: ChargerConfig = Field(default_factory=ChargerConfig)
     chest: CvCChestConfig = Field(default_factory=CvCChestConfig)
@@ -169,6 +173,7 @@ class Mission(Config):
                 "carbon_extractor": self.carbon_extractor.station_cfg(),
                 "oxygen_extractor": self.oxygen_extractor.station_cfg(),
                 "germanium_extractor": self.germanium_extractor.station_cfg(),
+                "depleted_germanium_extractor": self.depleted_germanium_extractor.station_cfg(),
                 "silicon_extractor": self.silicon_extractor.station_cfg(),
             },
         )

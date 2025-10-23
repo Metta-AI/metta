@@ -11,16 +11,14 @@ Key points:
 
 You don't get an observation for an inventory that you don't have.
 """
+
 from __future__ import annotations
 
-from dataclasses import dataclass
-from datetime import datetime
-from enum import Enum
-from typing import Optional, Dict, List, Tuple
-
 import logging
-import os
 from collections import deque
+from dataclasses import dataclass
+from enum import Enum
+from typing import Dict, List, Optional, Tuple
 
 from cogames.policy.interfaces import AgentPolicy, Policy, StatefulAgentPolicy, StatefulPolicyImpl
 from mettagrid import MettaGridAction, MettaGridEnv, MettaGridObservation, dtype_actions
@@ -99,6 +97,7 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
 
         # Vibes/glyphs
         from cogames.cogs_vs_clips.vibes import VIBES
+
         self._glyph_name_to_id: Dict[str, int] = {vibe.name: idx for idx, vibe in enumerate(VIBES)}
 
         # Stations → glyphs
@@ -123,66 +122,112 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
             GamePhase.RECHARGE: "charger",
         }
 
-        # World geometry
-        self._station_positions = self._get_station_positions()
-        self._wall_positions = self._get_wall_positions()
+        # Build type_id -> station name mapping for visual discovery
+        self._type_id_to_station: Dict[int, str] = {}
+        for type_id, name in enumerate(env.object_type_names):
+            if name and name != "wall" and not name.startswith("agent"):
+                self._type_id_to_station[type_id] = name
+
+        # Map geometry
         self._map_height = env.c_env.map_height
         self._map_width = env.c_env.map_width
 
-        # --- Border detection / movement memory ---
+        # Incremental knowledge - NO OMNISCIENCE
+        self._station_positions: Dict[str, Tuple[int, int]] = {}  # Discovered through observation
+        self._wall_positions: set[Tuple[int, int]] = set()  # Discovered through movement
+
+        # Movement tracking
         self._prev_pos: Optional[Tuple[int, int]] = None
         self._last_action_idx: Optional[int] = None
         self._last_attempt_was_use: bool = False
-        self._override_action_idx: Optional[int] = None
         self._MOVE_N = self._action_lookup.get("move_north", -1)
         self._MOVE_S = self._action_lookup.get("move_south", -1)
         self._MOVE_E = self._action_lookup.get("move_east", -1)
         self._MOVE_W = self._action_lookup.get("move_west", -1)
         self._MOVE_SET = {self._MOVE_N, self._MOVE_S, self._MOVE_E, self._MOVE_W}
 
-        # Trajectory CSV header log (stdout prints each step)
-        logger.info("Scripted agent initialized with position tracking")
+        # Exploration state
+        self._exploration_direction: int = self._MOVE_E
+        self._stuck_counter: int = 0
+        self._recent_positions: List[Tuple[int, int]] = []
+        self._max_recent_positions: int = 10
+
+        logger.info("Scripted agent initialized with visual discovery (no omniscience)")
         logger.info(f"Map size: {self._map_height}x{self._map_width}")
-        logger.info(f"Station positions: {self._station_positions}")
-        logger.info(f"Found {len(self._wall_positions)} walls")
         logger.info(
             "Inv feature IDs: "
-            + str([(k, self._feature_name_to_id.get(k)) for k in ("inv:carbon", "inv:oxygen", "inv:germanium", "inv:silicon", "inv:energy", "inv:heart")])
+            + str(
+                [
+                    (k, self._feature_name_to_id.get(k))
+                    for k in ("inv:carbon", "inv:oxygen", "inv:germanium", "inv:silicon", "inv:energy", "inv:heart")
+                ]
+            )
         )
 
-    # ---------- Environment Introspection ----------
-    def _get_station_positions(self) -> Dict[str, Tuple[int, int]]:
-        positions: Dict[str, Tuple[int, int]] = {}
-        try:
-            for _obj_id, obj in self._env.c_env.grid_objects().items():
-                if "agent_id" in obj:
-                    continue
-                tid = obj.get("type_id")
-                r, c = obj.get("r"), obj.get("c")
-                if tid is None or r is None or c is None:
-                    continue
-                name = self._object_type_names[tid] if tid < len(self._object_type_names) else None
-                if name in self._station_to_glyph:
-                    positions[name] = (r, c)
-        except Exception as e:
-            logger.warning(f"Could not get station positions: {e}")
-        return positions
+    # ---------- Visual Discovery ----------
+    def _discover_stations_from_observation(self, obs: MettaGridObservation, state: AgentState) -> None:
+        """Discover stations by observing them (type_id feature in observations)."""
+        if state.agent_row == -1:
+            return
 
-    def _get_wall_positions(self) -> set[Tuple[int, int]]:
-        walls: set[Tuple[int, int]] = set()
-        try:
-            for _obj_id, obj in self._env.c_env.grid_objects().items():
-                tid = obj.get("type_id")
-                if tid is None:
-                    continue
-                name = self._object_type_names[tid] if tid < len(self._object_type_names) else None
-                if name == "wall":
-                    r, c = obj.get("r"), obj.get("c")
-                    if r is not None and c is not None:
-                        walls.add((r, c))
-        except Exception as e:
-            logger.warning(f"Could not get wall positions: {e}")
-        return walls
+        type_id_feature = self._feature_name_to_id.get("type_id", 0)
+        obs_height = 11
+        obs_width = 11
+        obs_height_radius = obs_height // 2
+        obs_width_radius = obs_width // 2
+
+        for tok in obs:
+            if tok[0] == 255:  # Sentinel
+                break
+            if tok[0] == 0x55:  # Inventory token
+                continue
+
+            if tok[1] == type_id_feature:
+                # Relative coordinates in observation window
+                obs_r = int(tok[0] >> 4)
+                obs_c = int(tok[0] & 0x0F)
+                type_id = int(tok[2])
+
+                # Convert to absolute map coordinates
+                map_r = obs_r - obs_height_radius + state.agent_row
+                map_c = obs_c - obs_width_radius + state.agent_col
+
+                # Check if this is a station
+                if type_id in self._type_id_to_station:
+                    station_name = self._type_id_to_station[type_id]
+                    pos = (map_r, map_c)
+
+                    if station_name not in self._station_positions:
+                        self._station_positions[station_name] = pos
+                        logger.info(f"Discovered {station_name} at {pos}")
+
+    def _update_wall_knowledge(self, state: AgentState) -> None:
+        """Mark cells as walls when we try to move into them but don't move."""
+        if not self._prev_pos or self._last_action_idx not in self._MOVE_SET:
+            return
+
+        current_pos = (state.agent_row, state.agent_col)
+        if current_pos != self._prev_pos:
+            return  # We moved, so no wall
+
+        # We didn't move - mark the target cell as a wall (unless it's a known station)
+        dr, dc = self._action_to_dir(self._last_action_idx)
+        if dr is None or dc is None:
+            return
+
+        wall_r = self._prev_pos[0] + dr
+        wall_c = self._prev_pos[1] + dc
+
+        if not (0 <= wall_r < self._map_height and 0 <= wall_c < self._map_width):
+            return
+
+        # Don't mark stations as walls
+        wall_pos = (wall_r, wall_c)
+        is_station = wall_pos in self._station_positions.values()
+        if not is_station:
+            if wall_pos not in self._wall_positions:
+                logger.info(f"Marking wall at {wall_pos} (blocked move {self._last_action_idx})")
+            self._wall_positions.add(wall_pos)
 
     # ---------- Policy Interface ----------
     def agent_state(self) -> AgentState:
@@ -200,8 +245,9 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
         self._update_agent_position(state)
         self._update_rewards(obs, state)
 
-        # Border detection (based on last tick's move vs current position)
-        self._maybe_apply_border_correction(state)
+        # Discover stations visually and walls through movement
+        self._discover_stations_from_observation(obs, state)
+        self._update_wall_knowledge(state)
 
         # Deposit detection:
         #  (a) heart transitioned 1->0, or
@@ -218,8 +264,8 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
         state.current_phase = self._determine_phase(state)
         action_idx = self._execute_phase(state)
 
-        # # Log (stdout)
-        # self._print_step_log(action_idx, state)
+        # Log (stdout)
+        self._print_step_log(action_idx, state)
 
         # Bookkeeping for next-tick border detection
         self._last_action_idx = action_idx
@@ -357,11 +403,10 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
 
         self._override_action_idx = right_turn
         la = self._last_action_idx
-        logger.info(
-            f"[Border] Stuck on move; turning. last_action="
-            f"{self._action_names[la] if 0 <= la < len(self._action_names) else la}, "
-            f"new_action={self._action_names[self._override_action_idx] if 0 <= self._override_action_idx < len(self._action_names) else self._override_action_idx}"
-        )
+        la_name = self._action_names[la] if 0 <= la < len(self._action_names) else la
+        oa = self._override_action_idx
+        oa_name = self._action_names[oa] if 0 <= oa < len(self._action_names) else oa
+        logger.info(f"[Border] Stuck on move; turning. last_action={la_name}, new_action={oa_name}")
 
     # ---------- Decision helpers ----------
     def _determine_phase(self, state: AgentState) -> GamePhase:
@@ -394,11 +439,11 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
         return GamePhase.GATHER_GERMANIUM
 
     def _execute_phase(self, state: AgentState) -> int:
-        # If a border correction was scheduled, do it immediately.
-        if self._override_action_idx is not None:
-            action_idx = self._override_action_idx
-            self._override_action_idx = None
-            return action_idx
+        # Border correction disabled - BFS handles navigation
+        # if self._override_action_idx is not None:
+        #     action_idx = self._override_action_idx
+        #     self._override_action_idx = None
+        #     return action_idx
 
         station = self._phase_to_station.get(state.current_phase)
         if not station:
@@ -438,10 +483,29 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
                 self._last_attempt_was_use = True
                 return self._step_toward(dr, dc)
 
-        # Else pathfind
-        act = self._navigate_to_station(station, state)
+        # Navigate to station if discovered, otherwise explore
+        if station in self._station_positions and state.agent_row != -1:
+            tr, tc = self._station_positions[station]
+            dr, dc = tr - state.agent_row, tc - state.agent_col
+
+            # Adjacent: step into station
+            if abs(dr) + abs(dc) == 1:
+                self._last_attempt_was_use = True
+                return self._step_toward(dr, dc)
+
+            # Use BFS pathfinding
+            path = self._bfs_pathfind((state.agent_row, state.agent_col), (tr, tc))
+            if len(path) > 1:
+                next_r, next_c = path[1]
+                self._last_attempt_was_use = False
+                return self._step_toward(next_r - state.agent_row, next_c - state.agent_col)
+
+            # BFS failed, use exploration to navigate around
+            return self._explore_simple(state)
+
+        # Station not discovered yet - explore
         self._last_attempt_was_use = False
-        return act
+        return self._explore_simple(state)
 
     # ---------- Navigation ----------
     def _step_toward(self, dr: int, dc: int) -> int:
@@ -516,6 +580,109 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
         if phase in (GamePhase.GATHER_CARBON, GamePhase.GATHER_OXYGEN):
             return self._MOVE_N if self._MOVE_N != -1 else self._action_lookup.get("noop", 0)
         return self._MOVE_S if self._MOVE_S != -1 else self._action_lookup.get("noop", 0)
+
+    # ---------- Exploration ----------
+    def _explore_simple(self, state: AgentState) -> int:
+        """Boustrophedon (snake) sweep with simple wall-following and loop avoidance."""
+        if state.agent_row == -1:
+            return self._action_lookup.get("noop", 0)
+
+        # Track position
+        current_pos = (state.agent_row, state.agent_col)
+        if not self._recent_positions or self._recent_positions[-1] != current_pos:
+            self._recent_positions.append(current_pos)
+            if len(self._recent_positions) > self._max_recent_positions:
+                self._recent_positions.pop(0)
+
+        # Prefer sweeping rows: move east on even rows and west on odd rows,
+        # moving south when blocked, with wall-follow fallback.
+        row_parity = state.agent_row % 2
+        preferred_dir = self._MOVE_E if row_parity == 0 else self._MOVE_W
+
+        # If last move didn't change position, try to move south to next row
+        stuck = self._prev_pos and self._last_action_idx in self._MOVE_SET and current_pos == self._prev_pos
+        if stuck:
+            self._stuck_counter += 1
+
+            # Try to drop down a row if possible
+            down_r, down_c = state.agent_row + 1, state.agent_col
+            if 0 <= down_r < self._map_height and (down_r, down_c) not in self._wall_positions:
+                return self._MOVE_S if self._MOVE_S != -1 else self._action_lookup.get("noop", 0)
+
+            # Otherwise, try alternate horizontal direction
+            alt = self._MOVE_W if preferred_dir == self._MOVE_E else self._MOVE_E
+            return alt if alt != -1 else self._action_lookup.get("noop", 0)
+
+        # If not stuck, attempt preferred horizontal direction unless known wall
+        dr, dc = self._action_to_dir(preferred_dir)
+        next_r = state.agent_row + (dr or 0)
+        next_c = state.agent_col + (dc or 0)
+        if (
+            preferred_dir in self._MOVE_SET
+            and 0 <= next_r < self._map_height
+            and 0 <= next_c < self._map_width
+            and (next_r, next_c) not in self._wall_positions
+        ):
+            return preferred_dir
+
+        # Try moving south when blocked horizontally
+        down_r, down_c = state.agent_row + 1, state.agent_col
+        if 0 <= down_r < self._map_height and (down_r, down_c) not in self._wall_positions:
+            return self._MOVE_S if self._MOVE_S != -1 else self._action_lookup.get("noop", 0)
+
+        # Fallback: choose direction away from recent positions, avoiding known walls
+        best_action = self._find_best_exploration_direction(state)
+        if best_action is not None:
+            return best_action
+
+        return preferred_dir if preferred_dir != -1 else self._action_lookup.get("noop", 0)
+
+    def _find_best_exploration_direction(self, state: AgentState) -> Optional[int]:
+        """Find direction to cell not recently visited."""
+        directions = [
+            (self._MOVE_N, (-1, 0)),
+            (self._MOVE_S, (1, 0)),
+            (self._MOVE_E, (0, 1)),
+            (self._MOVE_W, (0, -1)),
+        ]
+
+        best_action = None
+        best_score = -1
+
+        for action, (dr, dc) in directions:
+            nr = state.agent_row + dr
+            nc = state.agent_col + dc
+
+            if not (0 <= nr < self._map_height and 0 <= nc < self._map_width):
+                continue
+
+            next_pos = (nr, nc)
+            # Avoid known walls
+            if next_pos in self._wall_positions:
+                continue
+
+            # Score: higher if not in recent positions
+            if next_pos not in self._recent_positions:
+                score = 10
+            else:
+                score = self._recent_positions.index(next_pos)
+
+            if score > best_score:
+                best_score = score
+                best_action = action
+
+        return best_action
+
+    def _action_to_dir(self, action_idx: int) -> Tuple[Optional[int], Optional[int]]:
+        if action_idx == self._MOVE_N:
+            return (-1, 0)
+        if action_idx == self._MOVE_S:
+            return (1, 0)
+        if action_idx == self._MOVE_E:
+            return (0, 1)
+        if action_idx == self._MOVE_W:
+            return (0, -1)
+        return (None, None)
 
     # ---------- Logging ----------
     def _print_step_log(self, action_idx: int, state: AgentState) -> None:
