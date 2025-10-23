@@ -7,7 +7,8 @@ from pydantic import BaseModel
 
 from metta.app_backend.auth import validate_token_via_login_service
 from metta.app_backend.metta_repo import MettaRepo
-from metta.common.util.constants import SOFTMAX_S3_BUCKET
+
+OBSERVATORY_S3_BUCKET = "observatory-private"
 
 
 class SubmitPolicyResponse(BaseModel):
@@ -57,7 +58,7 @@ def create_cogames_router(stats_repo: MettaRepo) -> APIRouter:
 
         # Construct S3 path: cogames/submissions/{user_id}/{uuid}.zip
         s3_key = f"cogames/submissions/{user_id}/{submission_uuid}.zip"
-        s3_path = f"s3://{SOFTMAX_S3_BUCKET}/{s3_key}"
+        s3_path = f"s3://{OBSERVATORY_S3_BUCKET}/{s3_key}"
 
         # Upload file to S3 using streaming to avoid loading entire file into memory
         try:
@@ -74,7 +75,7 @@ def create_cogames_router(stats_repo: MettaRepo) -> APIRouter:
                 async with session.client("s3") as s3_client:
                     await s3_client.upload_fileobj(
                         temp_file,
-                        SOFTMAX_S3_BUCKET,
+                        OBSERVATORY_S3_BUCKET,
                         s3_key,
                         ExtraArgs={"ContentType": "application/zip"},
                     )
