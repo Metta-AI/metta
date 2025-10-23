@@ -533,37 +533,45 @@ metta datadog collect github --push --verbose
 **Goal**: Complete documentation, get PR approved and merged
 
 #### 4A. Documentation Updates (1 day)
-**Tasks**:
-- [ ] Update `devops/datadog/README.md`
-  - Reflect Typer CLI (remove Makefile references)
-  - Update quickstart commands
-  - Add examples of new CLI usage
+**Status**: 🔄 Partially Complete
 
+**Completed Tasks:**
+- [x] Update `devops/datadog/README.md` (✅ commit 61d7532edc)
+  - ✅ Reflected Typer CLI (removed all Makefile references)
+  - ✅ Updated quickstart commands
+  - ✅ Added examples of new CLI usage
+
+- [x] Update `devops/datadog/docs/README.md` (✅ commit 61d7532edc)
+  - ✅ Converted all Make commands to CLI
+  - ✅ Updated workflow sections
+  - ✅ Updated command reference table
+
+- [x] Update `devops/datadog/docs/QUICK_START.md` (✅ commit 61d7532edc)
+  - ✅ Used Typer CLI commands instead of Make
+  - ✅ Updated all examples
+  - ✅ Maintained troubleshooting section
+
+**Remaining Tasks:**
 - [ ] Update `devops/datadog/collectors/github/README.md`
   - Mark as ✅ Implemented (not just "to be migrated")
   - Document final metric list with rationale
   - Add troubleshooting section
 
-- [ ] Update `devops/datadog/docs/COLLECTORS_ARCHITECTURE.md`
+- [ ] Verify `devops/datadog/docs/COLLECTORS_ARCHITECTURE.md` is current
   - GitHub collector as implemented example
   - Document BaseCollector pattern
-  - Add migration guide for future collectors
+  - Migration guide for future collectors
 
-- [ ] Create `devops/datadog/docs/METRIC_CONVENTIONS.md`
+- [ ] Verify `devops/datadog/docs/METRIC_CONVENTIONS.md` is current
   - Document naming pattern decision
   - Tag taxonomy and usage rules
   - Metric type guidelines (gauge/count/distribution)
   - Examples of good vs. bad metric design
 
-- [ ] Update `devops/datadog/docs/CI_CD_METRICS.md`
+- [ ] Verify `devops/datadog/docs/CI_CD_METRICS.md` is current
   - Final metric catalog with rationale
   - KPIs and interpretation guide
   - Link to example dashboards
-
-- [ ] Update `devops/datadog/docs/QUICK_START.md`
-  - Use Typer CLI commands instead of Make
-  - Update collector examples
-  - Add troubleshooting section
 
 #### 4B. Testing & Validation (0.5 days)
 **Tasks**:
