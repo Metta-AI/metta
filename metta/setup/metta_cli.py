@@ -17,6 +17,7 @@ from metta.setup.components.base import SetupModuleStatus
 from metta.setup.local_commands import app as local_app
 from metta.setup.symlink_setup import app as symlink_app
 from metta.setup.tools.book import app as book_app
+from metta.setup.tools.formatter import app as formatter_app
 from metta.setup.tools.test_runner.test_cpp import app as cpp_test_runner_app
 from metta.setup.tools.test_runner.test_python import app as python_test_runner_app
 from metta.setup.utils import debug, error, info, success, warning
@@ -770,6 +771,7 @@ app.add_typer(symlink_app, name="symlink-setup")
 app.add_typer(softmax_system_health_app, name="softmax-system-health")
 app.add_typer(python_test_runner_app, name="pytest")
 app.add_typer(cpp_test_runner_app, name="cpptest")
+app.add_typer(formatter_app, name="format")
 
 
 def main() -> None:

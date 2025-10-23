@@ -103,6 +103,40 @@ grep -r "agent_raw" train_dir/test_$TEST_ID/wandb || echo "✓ No agent_raw metr
 5. **Interactive tools hang**: Interactive play and replay tools may not work well in Claude Code due to browser
    requirements
 
+## Code Formatting
+
+### Format Code with `metta format`
+
+```bash
+# Format Python files only (default)
+metta format
+
+# Format all file types (Python, JSON, Markdown, Shell, TOML, YAML)
+metta format --all
+
+# Format specific file type
+metta format --type json
+metta format --type markdown
+metta format --type shell
+
+# Check formatting without modifying files
+metta format --check
+metta format --all --check
+
+# Format before committing
+metta format --all && git add -A && git commit
+```
+
+**Supported File Types:**
+- `python` - Python files (ruff format)
+- `json` - JSON files
+- `markdown` (alias: `md`) - Markdown files
+- `shell` (alias: `sh`) - Shell scripts
+- `toml` - TOML config files
+- `yaml` (alias: `yml`) - YAML config files
+
+---
+
 ## Interactive Tools
 
 ### Exploration and Debugging

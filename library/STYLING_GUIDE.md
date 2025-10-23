@@ -173,16 +173,19 @@ import { EmptyState } from "@/components/ui/empty-state";
 When updating existing components:
 
 1. **Replace hardcoded colors** with semantic tokens:
+
    - `bg-red-50` → `bg-danger-50`
    - `text-blue-600` → `text-primary-600`
    - `border-green-300` → `border-success-300`
 
 2. **Use standard spacing** instead of arbitrary values:
+
    - `p-6` → `p-lg`
    - `gap-4` → `gap-md`
    - `mt-8` → `mt-xl`
 
 3. **Replace inline alert/error UI** with standard components:
+
    - Custom error divs → `<ErrorAlert />`
    - Loading spinners → `<LoadingState />`
    - Empty states → `<EmptyState />`

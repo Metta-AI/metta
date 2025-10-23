@@ -76,4 +76,4 @@ git_describe_command = [
 pufferlib = ["*.py", "*.so", "*.pyd"]
 
 [tool.pufferlib]
-uv_rebuild_token = 0  # Bump to trigger uv editable reinstall even when source code has not changed
+uv_rebuild_token = 0 # Bump to trigger uv editable reinstall even when source code has not changed

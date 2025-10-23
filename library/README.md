@@ -7,6 +7,7 @@ A social feed and knowledge repository for AI research papers, built with Next.j
 ### Prerequisites
 
 1. **PostgreSQL Database**: You need to run [Postgres.app](https://postgresapp.com/) locally
+
    - Download and install Postgres.app
    - Start the PostgreSQL server
    - Create a database named `metta_library` (or update the DATABASE_URL in your .env.local)
@@ -32,12 +33,14 @@ A social feed and knowledge repository for AI research papers, built with Next.j
    Then update the values in `.env.local` for your local environment.
 
    **Required variables for basic development:**
+
    - `DATABASE_URL` - Your PostgreSQL connection string
    - `NEXTAUTH_SECRET` - Generate with `openssl rand -base64 32`
    - `NEXTAUTH_URL` - Usually `http://localhost:3001`
    - `DEV_MODE=true` - Enables fake email provider for magic links
 
    **Optional integrations:**
+
    - **S3 Storage**: Set `AWS_S3_BUCKET` and `AWS_S3_REGION` for image uploads
    - **Discord**: Set `DISCORD_*` variables for OAuth and notifications
    - **Google OAuth**: Set `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`
