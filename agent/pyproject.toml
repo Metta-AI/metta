@@ -8,14 +8,11 @@ version = "0.1.0"
 description = "Agent/Policy utilities for metta packages"
 authors = [{ name = "David Bloomin", email = "daveey@gmail.com" }]
 requires-python = "==3.11.7"
-license = "MIT"
+license = { text = "MIT" }
 readme = "README.md"
 urls = { Homepage = "https://daveey.github.io", Repository = "https://github.com/Metta-AI/metta" }
 
-dependencies = [
-  "pufferlib-core",
-  "einops>=0.7.0",
-]
+dependencies = ["pufferlib-core", "einops>=0.7.0"]
 
 [dependency-groups]
 dev = [

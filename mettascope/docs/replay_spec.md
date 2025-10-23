@@ -101,11 +101,10 @@ can be a number, boolean, or a list of numbers.
 ```
 
 In this example, the agent `type_name` is `"agent"`, which must appear in the `type_names` array. Legacy files might
-also include a numeric `type_id`; when present it maps into `type_names[type_id]`. The mapping between entries and
-names can change between replays. The `id` is a constant as well. All objects have IDs. The `agent_id` is a constant as
-well. Note there are two IDs, one for the object and one for the agent. Agents have two IDs. The `rotation` is a time
-series of values.
-The rotation is 1 at step 0, 2 at step 10, and 3 at step 20.
+also include a numeric `type_id`; when present it maps into `type_names[type_id]`. The mapping between entries and names
+can change between replays. The `id` is a constant as well. All objects have IDs. The `agent_id` is a constant as well.
+Note there are two IDs, one for the object and one for the agent. Agents have two IDs. The `rotation` is a time series
+of values. The rotation is 1 at step 0, 2 at step 10, and 3 at step 20.
 
 Here is the expanded version of the `rotation` key:
 

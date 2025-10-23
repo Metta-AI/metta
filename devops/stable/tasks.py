@@ -460,8 +460,18 @@ class EvaluationTask(LocalCommandTask):
 # ============================================================================
 
 
-def ci(name: str = "metta_ci", timeout_s: int = 1800) -> Task:
-    cmd = ["metta", "ci"]
+def python_ci(name: str = "python_ci", timeout_s: int = 1800) -> Task:
+    cmd = ["uv", "run", "metta", "pytest", "--ci"]
+    return LocalCommandTask(name=name, cmd=cmd, timeout_s=timeout_s)
+
+
+def cpp_ci(name: str = "cpp_ci", timeout_s: int = 1800) -> Task:
+    cmd = ["uv", "run", "metta", "cpptest", "--test"]
+    return LocalCommandTask(name=name, cmd=cmd, timeout_s=timeout_s)
+
+
+def cpp_benchmark(name: str = "cpp_benchmark", timeout_s: int = 1800) -> Task:
+    cmd = ["uv", "run", "metta", "cpptest", "--benchmark"]
     return LocalCommandTask(name=name, cmd=cmd, timeout_s=timeout_s)
 
 
@@ -511,7 +521,7 @@ def remote_train(
             module="experiments.recipes.arena.train",
             args=["trainer.total_timesteps=100000000"],
             acceptance=[("overview/sps", ge, 40000)],
-            wandb_metrics=["overview/sps", "env_agent/heart.get"],
+            wandb_metrics=["overview/sps", "env_agent/heart.gained"],
         )
     """
     base_args = [f"--gpus={gpus}", f"--nodes={nodes}"]
@@ -573,7 +583,9 @@ def get_all_tasks() -> list[Task]:
     5. Evaluation on trained policy
     """
     # CI checks
-    ci_task = ci()
+    python_ci_task = python_ci()
+    cpp_ci_task = cpp_ci()
+    cpp_benchmark_task = cpp_benchmark()
 
     # Local smoke test
     smoke_run = f"stable.smoke.{datetime.now().strftime('%Y%m%d_%H%M%S')}"
@@ -594,9 +606,9 @@ def get_all_tasks() -> list[Task]:
         nodes=1,
         acceptance=[
             ("overview/sps", ge, 40000),
-            ("env_agent/heart.get", gt, 0.5),
+            ("env_agent/heart.gained", gt, 0.5),
         ],
-        wandb_metrics=["overview/sps", "env_agent/heart.get"],
+        wandb_metrics=["overview/sps", "env_agent/heart.gained"],
     )
 
     # Multi-GPU training - 2B timesteps
@@ -609,9 +621,9 @@ def get_all_tasks() -> list[Task]:
         nodes=4,
         acceptance=[
             ("overview/sps", ge, 40000),
-            ("env_agent/heart.get", gt, 10.0),
+            ("env_agent/heart.gained", gt, 10.0),
         ],
-        wandb_metrics=["overview/sps", "env_agent/heart.get"],
+        wandb_metrics=["overview/sps", "env_agent/heart.gained"],
     )
 
     # Evaluation - depends on multi-GPU training
@@ -622,4 +634,4 @@ def get_all_tasks() -> list[Task]:
         timeout_s=1800,
     )
 
-    return [ci_task, smoke, train_100m, train_2b, eval_task]
+    return [python_ci_task, cpp_ci_task, cpp_benchmark_task, smoke, train_100m, train_2b, eval_task]

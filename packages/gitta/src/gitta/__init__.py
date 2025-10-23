@@ -54,6 +54,9 @@ from .github import (
     run_gh,
 )
 
+# PR splitting functionality
+from .split import PRSplitter, split_pr
+
 __all__ = [
     # Core
     "GitError",
@@ -97,4 +100,7 @@ __all__ = [
     "get_workflow_run_jobs",
     # Filter
     "filter_repo",
+    # Split
+    "split_pr",
+    "PRSplitter",
 ]

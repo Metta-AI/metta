@@ -7,11 +7,13 @@ The tool system is built on two core concepts:
 ### Tools
 
 **Tools** are runnable units of work defined as Pydantic config classes that inherit from `Tool`. Each tool type has:
+
 - A `tool_name` class variable (e.g., "train", "evaluate", "play")
 - Configuration fields defining its behavior and input
 - An `invoke()` method that executes the tool
 
 Common tool types:
+
 - `TrainTool` - Training an agent
 - `EvaluateTool` - Evaluating policies
 - `PlayTool` - Interactive browser-based play
@@ -22,19 +24,24 @@ Tools are defined in `metta/tools/` and provide the interface for all operations
 
 ### Recipes
 
-**Recipes** are Python modules (typically in `experiments/recipes/`) that define **tool makers** - functions that return configured tool instances for specific experiments or environments.
+**Recipes** are Python modules (typically in `experiments/recipes/`) that define **tool makers** - functions that return
+configured tool instances for specific experiments or environments.
 
-**Key benefit**: Recipes group related configurations together. For example, an `arena` recipe ensures you train, evaluate, and play on the same maps and configurations - maintaining consistency across your entire workflow.
+**Key benefit**: Recipes group related configurations together. For example, an `arena` recipe ensures you train,
+evaluate, and play on the same maps and configurations - maintaining consistency across your entire workflow.
 
 A recipe module contains:
-- **Tool makers**: Functions with return type annotations that return tool instances (e.g., `def train() -> TrainTool`)
-- **Config makers** (optional): Shared config like `mettagrid()` or `simulations()` to avoid duplication across tool makers
 
-TODO: Make Recipe subclasses or otherwise allow you to get many tool makers from a few core config makers.
-Jack previously explored this and found the code complexity to benefit ratio wasn't there, but it could be if
-we make Recipes first-class objects and/or discover specific patterns that are worth "automating".
+- **Tool makers**: Functions with return type annotations that return tool instances (e.g., `def train() -> TrainTool`)
+- **Config makers** (optional): Shared config like `mettagrid()` or `simulations()` to avoid duplication across tool
+  makers
+
+TODO: Make Recipe subclasses or otherwise allow you to get many tool makers from a few core config makers. Jack
+previously explored this and found the code complexity to benefit ratio wasn't there, but it could be if we make Recipes
+first-class objects and/or discover specific patterns that are worth "automating".
 
 Example recipe structure:
+
 ```python
 # experiments/recipes/arena.py
 from metta.tools.train import TrainTool
@@ -75,13 +82,15 @@ This ensures training, evaluation, and play all use the same arena configuration
    - Calls the tool maker to get a configured `TrainTool` instance
    - Applies CLI argument overrides to the tool instance
    - Calls `tool_instance.invoke()` to execute
-3. **Layering**: Recipes depend on tool classes (not vice versa) - tool classes are reusable "verbs", recipes are "nouns" that configure them for specific use cases
+3. **Layering**: Recipes depend on tool classes (not vice versa) - tool classes are reusable "verbs", recipes are
+   "nouns" that configure them for specific use cases
 
 ## Recipe Discovery
 
 Recipes are automatically discovered from the `experiments/recipes` directory using `pkgutil.walk_packages()`.
 
-**Important**: Python requires subdirectories to have `__init__.py` files to be importable as packages. If you create a new subdirectory for recipes, run:
+**Important**: Python requires subdirectories to have `__init__.py` files to be importable as packages. If you create a
+new subdirectory for recipes, run:
 
 ```bash
 uv run python devops/tools/ensure_recipe_packages.py
@@ -110,12 +119,15 @@ This automatically creates empty `__init__.py` files in any subdirectories that 
 The runner supports flexible syntax for invoking tools:
 
 **Two-token form**: `./tools/run.py <tool> <recipe>` is equivalent to `<recipe>.<tool>`
+
 - Example: `train arena` → `arena.train`
 
 **Short recipe names**: Omit the `experiments.recipes.` prefix
+
 - Example: `arena` → `experiments.recipes.arena`
 
 **Equivalent invocations**:
+
 ```bash
 ./tools/run.py train arena run=test
 ./tools/run.py arena.train run=test
