@@ -170,6 +170,7 @@ The repository contains command-line tools in the `tools/` directory.
 builds its configuration, and runs it.
 
 **Discover available tools**:
+
 ```bash
 # List all tools in a recipe
 ./tools/run.py arena --list
@@ -220,15 +221,16 @@ def evaluate() -> EvaluateTool:
     return EvaluateTool(simulations=[...])
 ```
 
-> Trainer state (optimizer, scheduler, curriculum, timers) now checkpoints automatically whenever a new policy
-> snapshot is written. Legacy knobs such as `context_checkpointer.epoch_interval` or `keep_last_n` no longer have any
-> effect.
+> Trainer state (optimizer, scheduler, curriculum, timers) now checkpoints automatically whenever a new policy snapshot
+> is written. Legacy knobs such as `context_checkpointer.epoch_interval` or `keep_last_n` no longer have any effect.
 
-Recipes can optionally define helper functions like `mettagrid()` or `simulations()` to avoid duplication when multiple tools need the same configuration.
+Recipes can optionally define helper functions like `mettagrid()` or `simulations()` to avoid duplication when multiple
+tools need the same configuration.
 
 Examples:
-  - `./tools/run.py train arena`
-  - `./tools/run.py evaluate arena policy_uris=mock://test`
+
+- `./tools/run.py train arena`
+- `./tools/run.py evaluate arena policy_uris=mock://test`
 
 Shorthands are supported:
 
@@ -404,13 +406,13 @@ pyright metta  # optional, some stubs are missing
 
 ### CLI cheat sheet
 
-| Task                    | Command                                                                                                        |
-| ----------------------- | -------------------------------------------------------------------------------------------------------------- |
-| Train (arena)           | `./tools/run.py train arena run=my_experiment`                                                                 |
-| Train (navigation)      | `./tools/run.py train navigation run=my_experiment`                                                            |
-| Play (browser)          | `./tools/run.py play arena`                                                                                    |
-| Replay (policy)         | `./tools/run.py replay arena policy_uri=s3://my-bucket/checkpoints/local.alice.1/local.alice.1:v10.pt`         |
-| Evaluate (arena)            | `./tools/run.py evaluate arena policy_uris=s3://my-bucket/checkpoints/local.alice.1/local.alice.1:v10.pt`           |
-| Evaluate (navigation suite) | `./tools/run.py evaluate navigation policy_uris=s3://my-bucket/checkpoints/local.alice.1/local.alice.1:v10.pt`     |
+| Task                        | Command                                                                                                        |
+| --------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| Train (arena)               | `./tools/run.py train arena run=my_experiment`                                                                 |
+| Train (navigation)          | `./tools/run.py train navigation run=my_experiment`                                                            |
+| Play (browser)              | `./tools/run.py play arena`                                                                                    |
+| Replay (policy)             | `./tools/run.py replay arena policy_uri=s3://my-bucket/checkpoints/local.alice.1/local.alice.1:v10.pt`         |
+| Evaluate (arena)            | `./tools/run.py evaluate arena policy_uris=s3://my-bucket/checkpoints/local.alice.1/local.alice.1:v10.pt`      |
+| Evaluate (navigation suite) | `./tools/run.py evaluate navigation policy_uris=s3://my-bucket/checkpoints/local.alice.1/local.alice.1:v10.pt` |
 
 Running these commands mirrors our CI configuration and helps keep the codebase consistent.

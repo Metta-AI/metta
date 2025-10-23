@@ -205,7 +205,8 @@ _action_handlers.push_back(std::make_unique<AttackNearest>(...));
 
 ### 10. Action Space Flattening
 
-**Description**: Legacy builds exposed a `MultiDiscrete([num_verbs, max_arg + 1])` action space. Current builds flatten every verb/argument combination into a `gymnasium.spaces.Discrete(num_variants)` space.
+**Description**: Legacy builds exposed a `MultiDiscrete([num_verbs, max_arg + 1])` action space. Current builds flatten
+every verb/argument combination into a `gymnasium.spaces.Discrete(num_variants)` space.
 
 **Example**:
 
@@ -218,20 +219,21 @@ action_space = gymnasium.spaces.Discrete(len(env.action_names()))
 # env.action_names() -> ["noop", "move_north", "move_south", "attack_0", ...]
 ```
 
-**Impact**: Actor heads emit a single logit vector. Use `env.action_names()` to interpret sampled indices. **Detection**: Runtime shape errors in policy
+**Impact**: Actor heads emit a single logit vector. Use `env.action_names()` to interpret sampled indices.
+**Detection**: Runtime shape errors in policy
 
 ## Compatibility Matrix
 
-| Change Type              | Requires Retraining | Backward Compatible | Forward Compatible | Migration Available |
-| ------------------------ | ------------------- | ------------------- | ------------------ | ------------------- |
-| Action reordering        | ✅ Yes              | ❌ No               | ❌ No              | ⚠️ Possible         |
-| Variant count increase   | ⚠️ Partial          | ✅ Yes              | ❌ No              | ✅ Yes              |
-| Variant count decrease   | ✅ Yes              | ❌ No               | ❌ No              | ❌ No               |
-| Action removal           | ✅ Yes              | ❌ No               | ❌ No              | ⚠️ Possible         |
-| Action addition          | ❌ No               | ✅ Yes              | ✅ Yes             | ✅ Yes              |
-| Resource changes         | ⚠️ Depends          | ⚠️ Partial          | ⚠️ Partial         | ✅ Yes              |
-| Priority changes         | ⚠️ Depends          | ✅ Yes              | ✅ Yes             | ✅ Yes              |
-| Item reordering          | ✅ Yes              | ❌ No               | ❌ No              | ⚠️ Possible         |
+| Change Type            | Requires Retraining | Backward Compatible | Forward Compatible | Migration Available |
+| ---------------------- | ------------------- | ------------------- | ------------------ | ------------------- |
+| Action reordering      | ✅ Yes              | ❌ No               | ❌ No              | ⚠️ Possible         |
+| Variant count increase | ⚠️ Partial          | ✅ Yes              | ❌ No              | ✅ Yes              |
+| Variant count decrease | ✅ Yes              | ❌ No               | ❌ No              | ❌ No               |
+| Action removal         | ✅ Yes              | ❌ No               | ❌ No              | ⚠️ Possible         |
+| Action addition        | ❌ No               | ✅ Yes              | ✅ Yes             | ✅ Yes              |
+| Resource changes       | ⚠️ Depends          | ⚠️ Partial          | ⚠️ Partial         | ✅ Yes              |
+| Priority changes       | ⚠️ Depends          | ✅ Yes              | ✅ Yes             | ✅ Yes              |
+| Item reordering        | ✅ Yes              | ❌ No               | ❌ No              | ⚠️ Possible         |
 
 ### Legend
 

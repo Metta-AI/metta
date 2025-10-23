@@ -2,13 +2,15 @@
 
 ## Core Philosophy
 
-Write **lean, pragmatic code** that trusts both your environment and your readers. Favor clarity through simplicity over defensive programming and excessive documentation.
+Write **lean, pragmatic code** that trusts both your environment and your readers. Favor clarity through simplicity over
+defensive programming and excessive documentation.
 
 ## Key Principles
 
 ### 1. Trust Your Environment
 
 **✅ DO:** Assume known invariants
+
 ```python
 # We know .ruff.toml exists in our repo
 with open(ruff_config_path, "rb") as f:
@@ -16,6 +18,7 @@ with open(ruff_config_path, "rb") as f:
 ```
 
 **❌ DON'T:** Add defensive checks for guaranteed conditions
+
 ```python
 # Unnecessary existence check
 if ruff_config_path.exists():
@@ -28,12 +31,14 @@ if ruff_config_path.exists():
 ### 2. Self-Documenting Code
 
 **✅ DO:** Let clear names speak for themselves
+
 ```python
 def get_world_size(self) -> int:
     return self.config.world_size
 ```
 
 **❌ DON'T:** Add redundant documentation
+
 ```python
 def get_world_size(self) -> int:
     """Get the number of processes.
@@ -45,6 +50,7 @@ def get_world_size(self) -> int:
 ```
 
 **When to comment:**
+
 - Ambiguous return values
 - Non-obvious behavior
 - Important warnings
@@ -54,11 +60,13 @@ def get_world_size(self) -> int:
 ### 3. Direct and Simple
 
 **✅ DO:** Access attributes directly
+
 ```python
 return self.config.rank
 ```
 
 **❌ DON'T:** Add unnecessary indirection
+
 ```python
 self._rank = config.rank  # Stored elsewhere
 return self._rank
@@ -67,6 +75,7 @@ return self._rank
 ### 4. Conventional Structure
 
 **✅ DO:** Keep all imports at the top
+
 ```python
 # At top of file
 from pathlib import Path
@@ -75,12 +84,14 @@ from .core import run_git_cmd
 ```
 
 **❌ DON'T:** Use inline imports
+
 ```python
 def some_function():
     from .core import run_git_cmd  # Avoid this
 ```
 
 **Exceptions:**
+
 - Circular dependency workarounds (consider this a code smell to fix later)
 - Heavy imports in CLI tools (e.g., `torch`, `wandb`) where startup time matters
 
@@ -95,6 +106,7 @@ def some_function():
 ## Summary
 
 Our code should be:
+
 - **Conventional** - Follow established patterns
 - **Clean** - Remove unnecessary ceremony
 - **Direct** - Don't be clever when simple will do
