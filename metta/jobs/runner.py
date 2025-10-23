@@ -1,7 +1,5 @@
 """Job runner for local and remote execution.
 
-Moved from devops/job_runner.py to be shared across systems.
-
 Provides a unified interface for running jobs locally via subprocess
 or remotely via SkyPilot, with support for both async and sync execution.
 
@@ -59,9 +57,14 @@ import sky
 import sky.exceptions
 import sky.jobs
 
-from devops.skypilot.utils.job_helpers import check_job_statuses, tail_job_log
-from devops.skypilot.utils.testing_helpers import LaunchedJob, SkyPilotTestLauncher
+from devops.skypilot.utils.job_helpers import (
+    check_job_statuses,
+    get_job_id_from_request_id,
+    get_request_id_from_launch_output,
+    tail_job_log,
+)
 from metta.common.util.fs import get_repo_root
+from metta.common.util.retry import retry_function
 
 
 @dataclass
@@ -352,7 +355,7 @@ class LocalJob(Job):
 
 
 class RemoteJob(Job):
-    """Job that runs remotely via SkyPilot using SkyPilotTestLauncher."""
+    """Job that runs remotely via SkyPilot by calling launch.py directly."""
 
     def __init__(
         self,
@@ -391,7 +394,7 @@ class RemoteJob(Job):
         self.base_args = base_args or ["--no-spot", "--gpus=4", "--nodes", "1"]
         self.skip_git_check = skip_git_check
         self._job_id: Optional[int] = job_id
-        self._launched_job: Optional["LaunchedJob"] = None
+        self._request_id: Optional[str] = None
         self._start_time: Optional[float] = None
         self._is_resumed = bool(job_id)
         self._job_status: Optional[str] = None
@@ -401,8 +404,84 @@ class RemoteJob(Job):
         # Track whether we've fetched full history yet
         self._full_logs_fetched = False
 
-    def submit(self) -> None:
-        """Submit job to SkyPilot using SkyPilotTestLauncher.
+    def _generate_run_name(self) -> str:
+        """Generate a timestamped run name matching SkyPilotTestLauncher format.
+
+        Format: job_{name}_{timestamp}
+        Example: job_test_task_20250123_143502
+        """
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        # Replace slashes with underscores for Sky compatibility
+        safe_name = self.name.replace("/", "_")
+        return f"job_{safe_name}_{timestamp}"
+
+    def _launch_via_script(self, run_name: str) -> tuple[Optional[str], Optional[int], str]:
+        """Launch job via launch.py script.
+
+        Returns:
+            Tuple of (request_id, job_id, full_output)
+
+        Raises:
+            Exception: If launch fails with detailed debug info
+        """
+        # Build command matching SkyPilotTestLauncher.launch_job()
+        cmd = [
+            "devops/skypilot/launch.py",
+            *self.base_args,
+            self.module,
+            f"run={run_name}",
+            *self.args,
+        ]
+
+        if self.skip_git_check:
+            cmd.append("--skip-git-check")
+
+        # Execute launch command
+        result = subprocess.run(cmd, capture_output=True, text=True, cwd=get_repo_root())
+        full_output = result.stdout + "\n" + result.stderr
+
+        # Extract request ID
+        request_id = get_request_id_from_launch_output(full_output)
+
+        if not request_id:
+            # Check for known error patterns
+            if "sky-jobs-controller" in full_output.lower() and "not up" in full_output.lower():
+                raise Exception("Jobs controller appears to be down")
+
+            # Include debug info in exception
+            debug_info = {
+                "stdout": result.stdout,
+                "stderr": result.stderr,
+                "return_code": result.returncode,
+            }
+            raise Exception(f"Failed to get request ID from launch output. Debug: {debug_info}")
+
+        # Try to get job ID with retries
+        try:
+
+            def get_job_id_with_wait() -> str:
+                job_id = get_job_id_from_request_id(request_id, wait_seconds=2.0)
+                if not job_id:
+                    raise Exception("Job ID not available yet")
+                return job_id
+
+            job_id_str = retry_function(
+                get_job_id_with_wait,
+                max_retries=2,
+                initial_delay=2.0,
+            )
+            job_id = int(job_id_str)
+        except Exception:
+            # Job ID not available yet, but launch was successful
+            job_id = None
+
+        return request_id, job_id, full_output
+
+    def submit(self, max_attempts: int = 3) -> None:
+        """Submit job to SkyPilot by calling launch.py directly.
+
+        Args:
+            max_attempts: Maximum number of launch attempts (default: 3)
 
         Any launch errors are written to the log file immediately.
         """
@@ -420,36 +499,34 @@ class RemoteJob(Job):
         log_path.parent.mkdir(parents=True, exist_ok=True)
 
         try:
-            # Use SkyPilotTestLauncher - handles all launch complexity
-            launcher = SkyPilotTestLauncher(base_name="job", skip_git_check=self.skip_git_check)
-            run_name = launcher.generate_run_name(self.name)
+            # Generate run name with timestamp
+            run_name = self._generate_run_name()
 
-            self._launched_job = launcher.launch_job(
-                module=self.module,
-                run_name=run_name,
-                base_args=self.base_args,
-                extra_args=self.args,
-                test_config={"name": self.name},
-                enable_ci_tests=False,
+            # Launch via script with retry logic (matches SkyPilotTestLauncher behavior)
+            # Retries the entire launch command (subprocess + ID extraction) up to max_attempts times
+            request_id, job_id, _ = retry_function(
+                lambda: self._launch_via_script(run_name),
+                max_retries=max_attempts - 1,
             )
 
-            self._job_id = int(self._launched_job.job_id) if self._launched_job.job_id else None
+            self._request_id = request_id
+            self._job_id = job_id
             self._submitted = True
             self._start_time = time.time()
 
-            # Write initial log if launch failed
-            if not self._launched_job.success:
-                log_path.write_text(f"SkyPilot launch failed\nRequest ID: {self._launched_job.request_id}\n")
-                self._exit_code = 1
+            # If job_id is None, launch succeeded but job ID not available yet
+            # This is okay - we'll poll for it later if needed
+            # No error logging needed in this case
 
         except Exception as e:
-            # Write error to log file
-            error_msg = f"Launch failed with exception: {e}\n"
+            # Write error to log file (all retries exhausted)
+            error_msg = f"Launch failed after {max_attempts} attempts: {e}\n"
             log_path.write_text(error_msg)
 
             # Mark as submitted but failed
             self._submitted = True
             self._job_id = None
+            self._request_id = None
             self._exit_code = 1
 
     def wait(

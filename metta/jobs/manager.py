@@ -24,7 +24,7 @@ class JobManager:
     Responsibilities:
     - Worker pool (max_local_jobs, max_remote_jobs)
     - Queue management (pending -> running based on worker slots)
-    - State persistence (SQLite with multi-batch support)
+    - State persistence (SQLite)
 
     NOT responsible for:
     - Dependencies (caller's job)
@@ -34,24 +34,26 @@ class JobManager:
 
     def __init__(
         self,
-        db_path: Path,
+        base_dir: Path,
         max_local_jobs: int = 1,
         max_remote_jobs: int = 10,
     ):
         """Create job manager with worker limits.
 
         Args:
-            db_path: SQLite database for state persistence
+            base_dir: Base directory for state and logs (creates jobs.sqlite and logs/ subdirectory)
             max_local_jobs: Max concurrent local jobs (default: 1)
             max_remote_jobs: Max concurrent remote jobs (default: 10)
         """
-        self.db_path = Path(db_path)
+        self.base_dir = Path(base_dir)
+        self.db_path = self.base_dir / "jobs.sqlite"
+        self.log_dir = self.base_dir / "logs"
         self.max_local_jobs = max_local_jobs
         self.max_remote_jobs = max_remote_jobs
 
-        # Worker tracking (across ALL batches)
-        # (batch_id, name) -> Job instance
-        self._active_jobs: dict[tuple[str, str], LocalJob | RemoteJob] = {}
+        # Worker tracking (across ALL groups)
+        # name -> Job instance
+        self._active_jobs: dict[str, LocalJob | RemoteJob] = {}
 
         # Initialize database
         self._init_db()
@@ -67,37 +69,29 @@ class JobManager:
 
     # ---- Submit ----
 
-    def submit(self, batch_id: str, config: JobConfig) -> None:
-        """Submit a job to the queue (idempotent).
+    def submit(self, config: JobConfig) -> None:
+        """Submit a job to the queue.
 
         Creates JobState in DB:
         - If worker slot available: spawns Job instance immediately, marks 'running'
         - If no slots available: stays in 'pending', will auto-start when slot frees
-        - If job already exists: handles based on current status
-          - pending/running: no-op (already queued)
-          - completed/failed/cancelled: delete and re-submit
 
         JobManager handles all rate limiting - caller just submits!
 
-        Args:
-            batch_id: Batch identifier (e.g., version)
-            config: Job configuration
+        Raises:
+            ValueError: If job with same name already exists
         """
         with Session(self._engine) as session:
-            # Check if job already exists
-            existing = session.get(JobState, (batch_id, config.name))
-
+            # Check if job already exists - ERROR if it does
+            existing = session.get(JobState, config.name)
             if existing:
-                # If already pending or running, no-op
-                if existing.status in ("pending", "running"):
-                    return
-                # If completed/failed/cancelled, delete and re-submit
-                session.delete(existing)
-                session.commit()
+                raise ValueError(
+                    f"Job '{config.name}' already exists with status '{existing.status}'. "
+                    f"Use get_job_state() to check status before submitting."
+                )
 
             # Create new job state
             job_state = JobState(
-                batch_id=batch_id,
                 name=config.name,
                 config=config,
                 status="pending",
@@ -106,17 +100,13 @@ class JobManager:
             session.commit()
 
         # Try to start immediately if slot available
-        self._try_start_job(batch_id, config.name)
+        self._try_start_job(config.name)
 
-    def _try_start_job(self, batch_id: str, name: str) -> bool:
-        """Try to start a pending job if worker slot available.
-
-        Returns:
-            True if job was started, False if no slots available
-        """
+    def _try_start_job(self, name: str) -> bool:
+        """Try to start a pending job if worker slot available, returning if it was started."""
         with Session(self._engine) as session:
             # Get job state
-            job_state = session.get(JobState, (batch_id, name))
+            job_state = session.get(JobState, name)
             if not job_state or job_state.status != "pending":
                 return False
 
@@ -126,7 +116,7 @@ class JobManager:
 
             # Start job
             job = self._spawn_job(job_state)
-            self._active_jobs[(batch_id, name)] = job
+            self._active_jobs[name] = job
 
             # Update state to running
             job_state.status = "running"
@@ -140,7 +130,7 @@ class JobManager:
         """Check if worker slot available for execution type."""
         active_count = sum(
             1
-            for (batch_id, name), job in self._active_jobs.items()
+            for job in self._active_jobs.values()
             if (execution == "local" and isinstance(job, LocalJob))
             or (execution == "remote" and isinstance(job, RemoteJob))
         )
@@ -154,13 +144,8 @@ class JobManager:
         """Spawn Job instance from JobState."""
         config = job_state.config
 
-        # Determine log directory (keep stable releases together)
-        from metta.common.util.fs import get_repo_root
-
-        if job_state.batch_id.startswith("release_v"):
-            log_dir = str(get_repo_root() / "devops" / "stable" / "logs" / job_state.batch_id)
-        else:
-            log_dir = f"./logs/{job_state.batch_id}"
+        # Use manager's log_dir for all jobs
+        log_dir = str(self.log_dir)
 
         if config.execution == "local":
             args = config.to_local_job_args(log_dir)
@@ -174,8 +159,8 @@ class JobManager:
 
     # ---- Polling ----
 
-    def poll(self) -> list[tuple[str, str]]:
-        """Update ALL jobs across all batches and process queue.
+    def poll(self) -> list[str]:
+        """Update ALL jobs and process queue.
 
         This is where JobManager does its work:
 
@@ -188,19 +173,19 @@ class JobManager:
            - Start pending jobs up to limits (FIFO order)
 
         Returns:
-            List of (batch_id, name) for newly completed jobs
+            List of job names for newly completed jobs
         """
         completed = []
 
         # 1. Check running jobs for completion
-        for (batch_id, name), job in list(self._active_jobs.items()):
+        for name, job in list(self._active_jobs.items()):
             if job.is_complete():
                 # Get job result
                 job_result = job.wait(stream_output=False)
 
                 # Update state
                 with Session(self._engine) as session:
-                    job_state = session.get(JobState, (batch_id, name))
+                    job_state = session.get(JobState, name)
                     if job_state:
                         job_state.status = "completed"
                         job_state.completed_at = datetime.utcnow().isoformat(timespec="seconds")
@@ -249,8 +234,8 @@ class JobManager:
                         session.commit()
 
                 # Free worker slot
-                del self._active_jobs[(batch_id, name)]
-                completed.append((batch_id, name))
+                del self._active_jobs[name]
+                completed.append(name)
 
         # 2. Try to start pending jobs
         with Session(self._engine) as session:
@@ -258,15 +243,14 @@ class JobManager:
             pending_jobs = session.exec(select(JobState).where(JobState.status == "pending")).all()
 
             for job_state in pending_jobs:
-                self._try_start_job(job_state.batch_id, job_state.name)
+                self._try_start_job(job_state.name)
 
         return completed
 
-    def wait_for_job(self, batch_id: str, name: str, poll_interval_s: float = 1.0) -> JobState:
+    def wait_for_job(self, name: str, poll_interval_s: float = 1.0) -> JobState:
         """Poll until job completes and return JobState.
 
         Args:
-            batch_id: Batch identifier
             name: Job name
             poll_interval_s: Seconds between poll attempts (default: 1.0)
 
@@ -278,69 +262,61 @@ class JobManager:
         """
         while True:
             completed = self.poll()
-            if (batch_id, name) in completed:
+            if name in completed:
                 break
             time.sleep(poll_interval_s)
 
-        job_state = self.get_job_state(batch_id, name)
+        job_state = self.get_job_state(name)
         if not job_state:
             raise RuntimeError(f"Job {name} not found after completion")
         return job_state
 
     # ---- Query ----
 
-    def get_status(self, batch_id: str, name: str) -> JobStatus | None:
-        """Get job status.
-
-        Args:
-            batch_id: Batch identifier
-            name: Job name (unique within batch)
-
-        Returns:
-            'pending' | 'running' | 'completed' | 'failed' | 'cancelled'
-            None if job doesn't exist
-        """
+    def get_status(self, name: str) -> JobStatus | None:
+        """Get job status, or None if job doesn't exist."""
         with Session(self._engine) as session:
-            job_state = session.get(JobState, (batch_id, name))
+            job_state = session.get(JobState, name)
             return job_state.status if job_state else None
 
-    def get_job_state(self, batch_id: str, name: str) -> JobState | None:
+    def get_job_state(self, name: str) -> JobState | None:
         """Get full job state (or None if doesn't exist)."""
         with Session(self._engine) as session:
-            job_state = session.get(JobState, (batch_id, name))
+            job_state = session.get(JobState, name)
             if job_state:
                 # Detach from session so it can be used outside
                 session.expunge(job_state)
             return job_state
 
-    def get_batch_jobs(self, batch_id: str) -> dict[str, JobState]:
-        """Get all jobs in batch (name -> JobState)."""
+    def get_group_jobs(self, group: str) -> dict[str, JobState]:
+        """Get all jobs in group. Returns a dictionary mapping job name to JobState for all jobs in group."""
         with Session(self._engine) as session:
-            jobs = session.exec(select(JobState).where(JobState.batch_id == batch_id)).all()
+            # Get all jobs and filter by group in config
+            all_jobs = session.exec(select(JobState)).all()
+            group_jobs = [job for job in all_jobs if job.config.group == group]
+
             # Detach from session
-            for job in jobs:
+            for job in group_jobs:
                 session.expunge(job)
-            return {job.name: job for job in jobs}
+            return {job.name: job for job in group_jobs}
 
-    # ---- Batch Operations ----
+    # ---- Group Operations ----
 
-    def cancel_batch(self, batch_id: str) -> int:
-        """Cancel all jobs in batch.
-
-        Returns:
-            Number of jobs cancelled
-        """
+    def cancel_group(self, group: str) -> int:
+        """Cancel all jobs in group."""
         count = 0
         with Session(self._engine) as session:
-            jobs = session.exec(select(JobState).where(JobState.batch_id == batch_id)).all()
+            # Get all jobs and filter by group
+            all_jobs = session.exec(select(JobState)).all()
+            group_jobs = [job for job in all_jobs if job.config.group == group]
 
-            for job_state in jobs:
+            for job_state in group_jobs:
                 if job_state.status in ("pending", "running"):
                     # Cancel running job
-                    if (batch_id, job_state.name) in self._active_jobs:
-                        job = self._active_jobs[(batch_id, job_state.name)]
+                    if job_state.name in self._active_jobs:
+                        job = self._active_jobs[job_state.name]
                         job.cancel()
-                        del self._active_jobs[(batch_id, job_state.name)]
+                        del self._active_jobs[job_state.name]
 
                     # Update state
                     job_state.status = "cancelled"
