@@ -4,8 +4,8 @@
 
 Concrete implementation plan for building all Datadog dashboards in the Metta observability system. This workplan focuses exclusively on dashboard creation, assuming collectors are implemented per the main [WORKPLAN.md](../WORKPLAN.md).
 
-**Status**: Phase 1 in progress - GitHub dashboard complete ✅
-**Last Updated**: 2025-10-23 (GitHub dashboard deployed)
+**Status**: Phase 1 in progress - 2/3 dashboards complete (GitHub ✅, Skypilot ✅)
+**Last Updated**: 2025-10-23 (Skypilot dashboard deployed)
 **Related Docs**: [DASHBOARD_DESIGN.md](DASHBOARD_DESIGN.md), [HEALTH_DASHBOARD_SPEC.md](HEALTH_DASHBOARD_SPEC.md)
 
 ---
@@ -15,18 +15,63 @@ Concrete implementation plan for building all Datadog dashboards in the Metta ob
 | Dashboard | Collector Dependency | Status | Priority | Time Spent | Dashboard ID |
 |-----------|---------------------|---------|----------|-----------|--------------|
 | GitHub CI/CD | GitHub collector | ✅ **Complete** | P0 | 2 hours | [a53-9nk-w6j](https://app.datadoghq.com/dashboard/a53-9nk-w6j/github-cicd-dashboard) |
-| Skypilot Jobs | Skypilot collector | ✅ Ready | P1 | 4 hours (est) | - |
+| Skypilot Jobs | Skypilot collector | ✅ **Complete** | P1 | 1.5 hours | [ndg-4cn-2h2](https://app.datadoghq.com/dashboard/ndg-4cn-2h2/skypilot-jobs-dashboard) |
 | System Health Rollup | FoM collector | Not started | P0 | 8 hours (est) | - |
 | Training & WandB | WandB collector | Blocked | P1 | 6 hours (est) | - |
 | Eval & Testing | Eval collector | Blocked | P2 | 4 hours (est) | - |
 | Collector Health | All collectors | Not started | P2 | 3 hours (est) | - |
 
-**Progress**: 1/6 complete (17%)
-**Total Effort**: ~27 hours remaining (~3-4 days of focused work)
+**Progress**: 2/6 complete (33%)
+**Total Effort**: ~21.5 hours remaining (~3 days of focused work)
 
 ---
 
 ## Completed Dashboards
+
+### ✅ Skypilot Jobs Dashboard (2025-10-23)
+
+**Dashboard**: [Skypilot Jobs](https://app.datadoghq.com/dashboard/ndg-4cn-2h2/skypilot-jobs-dashboard)
+**ID**: `ndg-4cn-2h2`
+**Time Spent**: 1.5 hours (vs 4 hour estimate)
+**Approach**: JSON-first (same as GitHub)
+
+**What We Built**:
+- **15 widgets** across 5 rows
+- **4 query_value widgets**: Running Jobs, Queued Jobs, Failed (7d), Active Clusters
+- **7 timeseries widgets**: Job status trends, Success rate, Runtime distribution, Runtime percentiles, GPU utilization, Spot vs On-demand, Regional distribution
+- **2 additional query_value**: Total GPUs, Active Users
+- **1 timeseries**: Jobs with Recoveries
+- **1 note widget**: Recovery statistics explanation
+
+**Key Features**:
+- ✅ Runtime percentiles converted from seconds to hours (formula: `query / 3600`)
+- ✅ Success rate calculated from formula: `100 * (succeeded / (succeeded + failed))`
+- ✅ Alert threshold: p99 > 48h to detect stuck jobs
+- ✅ Bar chart for runtime distribution buckets
+- ✅ Area charts for GPU utilization and regional distribution
+- ✅ Traffic light color palette consistent with GitHub dashboard
+
+**Metrics Used** (30 total available, 24 deployed):
+- Job status: `running`, `queued`, `failed`, `failed_7d`, `succeeded`, `cancelled`
+- Runtime: `p50`, `p90`, `p99`, `min`, `max`, `avg` (all in seconds, converted to hours)
+- Runtime buckets: `0_1h`, `1_4h`, `4_24h`, `over_24h`
+- GPU counts: `l4_count`, `a10g_count`, `h100_count`, `total_count`
+- Resources: `spot_jobs`, `ondemand_jobs`
+- Reliability: `with_recoveries`
+- Regional: `us_east_1`, `us_west_2`, `other`
+- Team: `active_count`
+- Clusters: `active`
+
+**Not Yet Deployed**:
+- Recovery count statistics (avg, max) - included in note widget for now
+
+**Learnings**:
+1. **Formula conversion** - Successfully converted seconds to hours using formula: `query / 3600`
+2. **Bar charts** - Used `display_type: "bars"` for histogram visualization
+3. **Area charts** - Used `display_type: "area"` for stacked resource views
+4. **Even faster** - 1.5 hours vs 2 hours for GitHub (getting more efficient with JSON)
+
+---
 
 ### ✅ GitHub CI/CD Dashboard (2025-10-23)
 
@@ -261,12 +306,13 @@ git commit -m "feat: add my dashboard"
 
 ---
 
-### Dashboard 2: Skypilot Jobs Dashboard
+### Dashboard 2: Skypilot Jobs Dashboard ✅
 
 **Priority**: P1
 **Estimated Time**: 4 hours
-**Status**: Ready to build (collector implemented yesterday)
-**Dependencies**: Skypilot collector deployed
+**Actual Time**: 1.5 hours
+**Status**: ✅ **Complete** (2025-10-23)
+**Dashboard**: [ndg-4cn-2h2](https://app.datadoghq.com/dashboard/ndg-4cn-2h2/skypilot-jobs-dashboard)
 
 #### Implementation Steps
 
@@ -811,10 +857,10 @@ git push
    - ✅ First complete dashboard deployed!
    - **Dashboard**: [a53-9nk-w6j](https://app.datadoghq.com/dashboard/a53-9nk-w6j/github-cicd-dashboard)
 
-5. **Build Skypilot Dashboard** (4 hours) ⏳ Next priority
-   - Leverage existing collector (30 metrics available)
-   - Second complete dashboard
-   - **Action**: Start this next!
+5. ~~**Build Skypilot Dashboard** (4 hours)~~ ✅ **Complete** (1.5 hours)
+   - ~~Leverage existing collector (30 metrics available)~~
+   - ✅ Second complete dashboard deployed!
+   - **Dashboard**: [ndg-4cn-2h2](https://app.datadoghq.com/dashboard/ndg-4cn-2h2/skypilot-jobs-dashboard)
 
 6. **Build partial System Health Rollup** (4 hours) ⏳ Blocked
    - Requires FoM collector (Task #3)
@@ -843,9 +889,9 @@ git push
 
 ```
 ✅ GitHub CI/CD:           https://app.datadoghq.com/dashboard/a53-9nk-w6j/github-cicd-dashboard
+✅ Skypilot Jobs:          https://app.datadoghq.com/dashboard/ndg-4cn-2h2/skypilot-jobs-dashboard
    System Health Rollup:   (not yet created)
    Training & WandB:       (not yet created)
-   Skypilot Jobs:          (not yet created)
    Eval & Testing:         (not yet created)
    Collector Health:       (not yet created)
 ```
