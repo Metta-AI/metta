@@ -1114,8 +1114,8 @@ def simulate_large_chain_focused(
 def train(
     num_tasks: int = 10,
     num_epochs: int = 500,
-    samples_per_epoch: int = 100,
-    num_envs: int = 4,
+    samples_per_epoch: int = 1,
+    num_envs: int = 32,
     run: Optional[str] = None,
 ) -> TaskDependencySimulationTool:
     """
