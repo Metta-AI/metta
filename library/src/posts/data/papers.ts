@@ -14,7 +14,7 @@ export interface Paper {
     orcid?: string | null;
     institution?: string | null;
   }[];
-  institutions: string[] | null;
+  institutions: string[];
   tags: string[] | null;
   link: string | null;
   source: string | null;
@@ -71,7 +71,7 @@ export async function loadPapersWithUserContext(): Promise<{
     const session = await auth();
     const currentUserId = session?.user?.id;
 
-    // Fetch all papers with their authors
+    // Fetch all papers with their authors and institutions
     const papers = await prisma.paper.findMany({
       include: {
         paperAuthors: {
@@ -82,6 +82,16 @@ export async function loadPapersWithUserContext(): Promise<{
                 name: true,
                 orcid: true,
                 institution: true,
+              },
+            },
+          },
+        },
+        paperInstitutions: {
+          select: {
+            institution: {
+              select: {
+                id: true,
+                name: true,
               },
             },
           },
@@ -120,6 +130,7 @@ export async function loadPapersWithUserContext(): Promise<{
           orcid: pa.author.orcid,
           institution: pa.author.institution,
         })),
+        institutions: paper.paperInstitutions.map((pi) => pi.institution.name),
         isStarredByCurrentUser: userInteraction?.starred || false,
         isQueuedByCurrentUser: userInteraction?.queued || false,
       };
@@ -148,7 +159,7 @@ export async function loadPapers(): Promise<{
   interactions: UserInteraction[];
 }> {
   try {
-    // Fetch all papers with their authors
+    // Fetch all papers with their authors and institutions
     const papers = await prisma.paper.findMany({
       include: {
         paperAuthors: {
@@ -163,6 +174,16 @@ export async function loadPapers(): Promise<{
             },
           },
         },
+        paperInstitutions: {
+          select: {
+            institution: {
+              select: {
+                id: true,
+                name: true,
+              },
+            },
+          },
+        },
       },
     });
 
@@ -172,7 +193,7 @@ export async function loadPapers(): Promise<{
     // Fetch all user interactions
     const interactions = await prisma.userPaperInteraction.findMany();
 
-    // Transform papers to include author data
+    // Transform papers to include author data and institutions
     const papersWithAuthors = papers.map((paper) => ({
       ...paper,
       authors: paper.paperAuthors.map((pa) => ({
@@ -181,6 +202,7 @@ export async function loadPapers(): Promise<{
         orcid: pa.author.orcid,
         institution: pa.author.institution,
       })),
+      institutions: paper.paperInstitutions.map((pi) => pi.institution.name),
     }));
 
     return {
@@ -204,7 +226,7 @@ export async function loadPapersForUser(userId: string): Promise<{
   userInteractions: UserInteraction[];
 }> {
   try {
-    // Fetch all papers with their authors
+    // Fetch all papers with their authors and institutions
     const papers = await prisma.paper.findMany({
       include: {
         paperAuthors: {
@@ -219,6 +241,16 @@ export async function loadPapersForUser(userId: string): Promise<{
             },
           },
         },
+        paperInstitutions: {
+          select: {
+            institution: {
+              select: {
+                id: true,
+                name: true,
+              },
+            },
+          },
+        },
       },
     });
 
@@ -227,7 +259,7 @@ export async function loadPapersForUser(userId: string): Promise<{
       where: { userId },
     });
 
-    // Transform papers to include author data
+    // Transform papers to include author data and institutions
     const papersWithAuthors = papers.map((paper) => ({
       ...paper,
       authors: paper.paperAuthors.map((pa) => ({
@@ -236,6 +268,7 @@ export async function loadPapersForUser(userId: string): Promise<{
         orcid: pa.author.orcid,
         institution: pa.author.institution,
       })),
+      institutions: paper.paperInstitutions.map((pi) => pi.institution.name),
     }));
 
     return {

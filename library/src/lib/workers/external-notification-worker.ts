@@ -5,40 +5,27 @@
  * Handles email and Discord notification delivery
  */
 
-import { Worker, Job } from "bullmq";
-import { redisConfig, BackgroundJobs } from "../job-queue";
+import { Job } from "bullmq";
+import { BackgroundJobs } from "../job-queue";
 import { emailService } from "../external-notifications/email";
 import { discordBot } from "../external-notifications/discord-bot";
 import { prisma } from "@/lib/db/prisma";
+import { Logger } from "../logging/logger";
+import { BaseWorker } from "./base-worker";
 
-export class ExternalNotificationWorker {
-  private worker: Worker;
-
+export class ExternalNotificationWorker extends BaseWorker<
+  | BackgroundJobs["send-external-notification"]
+  | BackgroundJobs["retry-failed-notification"]
+> {
   constructor() {
-    this.worker = new Worker(
-      "external-notifications",
-      async (
-        job: Job<
-          | BackgroundJobs["send-external-notification"]
-          | BackgroundJobs["retry-failed-notification"]
-        >
-      ) => {
-        return await this.processJob(job);
-      },
-      {
-        connection: redisConfig,
-        concurrency: 3, // Process up to 3 notifications concurrently
-        limiter: {
-          max: 20, // Max 20 notifications per
-          duration: 60000, // Per minute (rate limiting for external services)
-        },
-      }
-    );
-
-    this.setupEventHandlers();
+    super({
+      queueName: "external-notifications",
+      concurrency: 3, // Process up to 3 notifications concurrently
+      maxJobsPerMinute: 20, // Rate limiting for external services
+    });
   }
 
-  private async processJob(
+  protected async processJob(
     job: Job<
       | BackgroundJobs["send-external-notification"]
       | BackgroundJobs["retry-failed-notification"]
@@ -58,49 +45,18 @@ export class ExternalNotificationWorker {
   private async processSendNotification(
     job: Job<BackgroundJobs["send-external-notification"]>
   ): Promise<void> {
-    const { notificationId, channels, userId } = job.data;
+    const { notification, channels, preferences } = job.data;
 
-    console.log(
-      `📧 [External Notification Worker] Processing notification ${notificationId} for user ${userId}`
-    );
-    console.log(`   Channels: ${channels.join(", ")}`);
+    Logger.info("External Notification Worker: Processing notification", {
+      notificationId: notification.id,
+      userId: notification.userId,
+      channels,
+    });
 
     try {
-      // Fetch notification with all required relations
-      const notification = await prisma.notification.findUnique({
-        where: { id: notificationId },
-        include: {
-          user: {
-            select: { id: true, name: true, email: true },
-          },
-          actor: {
-            select: { id: true, name: true, email: true },
-          },
-          post: {
-            select: { id: true, title: true },
-          },
-          comment: {
-            select: {
-              id: true,
-              content: true,
-              post: { select: { id: true, title: true } },
-            },
-          },
-        },
-      });
+      // No DB queries needed - all data is in the job payload!
 
-      if (!notification) {
-        console.error(`❌ Notification ${notificationId} not found`);
-        return;
-      }
-
-      // Get user notification preferences
-      const preferences = await this.getUserPreferences(
-        userId,
-        notification.type
-      );
-
-      // Filter channels based on user preferences
+      // Filter channels based on preferences (already fetched)
       const enabledChannels = channels.filter((channel) => {
         if (channel === "email") return preferences.emailEnabled;
         if (channel === "discord") return preferences.discordEnabled;
@@ -108,9 +64,10 @@ export class ExternalNotificationWorker {
       });
 
       if (enabledChannels.length === 0) {
-        console.log(
-          `📧 No enabled channels for user ${userId}, notification ${notificationId}`
-        );
+        Logger.debug("No enabled channels for notification", {
+          userId: notification.userId,
+          notificationId: notification.id,
+        });
         return;
       }
 
@@ -130,20 +87,25 @@ export class ExternalNotificationWorker {
       results.forEach((result, index) => {
         const channel = enabledChannels[index];
         if (result.status === "fulfilled") {
-          console.log(
-            `✅ [External Notification Worker] ${channel} notification sent for ${notificationId}`
-          );
+          Logger.info("External notification sent successfully", {
+            channel,
+            notificationId: notification.id,
+          });
         } else {
-          console.error(
-            `❌ [External Notification Worker] ${channel} notification failed for ${notificationId}:`,
-            result.reason
+          Logger.error(
+            "External notification failed",
+            result.reason instanceof Error
+              ? result.reason
+              : new Error(String(result.reason)),
+            { channel, notificationId: notification.id }
           );
         }
       });
     } catch (error) {
-      console.error(
-        `❌ [External Notification Worker] Failed processing notification ${notificationId}:`,
-        error
+      Logger.error(
+        "External Notification Worker: Failed processing notification",
+        error instanceof Error ? error : new Error(String(error)),
+        { notificationId: notification.id }
       );
       throw error; // BullMQ will handle retries
     }
@@ -154,9 +116,9 @@ export class ExternalNotificationWorker {
   ): Promise<void> {
     const { deliveryId } = job.data;
 
-    console.log(
-      `🔄 [External Notification Worker] Retrying delivery ${deliveryId}`
-    );
+    Logger.info("External Notification Worker: Retrying delivery", {
+      deliveryId,
+    });
 
     try {
       // Fetch delivery record with notification
@@ -187,7 +149,9 @@ export class ExternalNotificationWorker {
       });
 
       if (!delivery) {
-        console.error(`❌ Delivery ${deliveryId} not found`);
+        Logger.error("Delivery not found for retry", new Error("Not found"), {
+          deliveryId,
+        });
         return;
       }
 
@@ -199,42 +163,50 @@ export class ExternalNotificationWorker {
           deliveryId
         );
       } else if (delivery.channel === "discord") {
-        // Get Discord user ID for this notification
-        const preferences = await this.getUserPreferences(
-          delivery.notification.userId,
-          delivery.notification.type
+        // Get Discord user ID for retry
+        const discordPreference = await prisma.notificationPreference.findFirst(
+          {
+            where: {
+              userId: delivery.notification.userId,
+              discordUserId: { not: null },
+            },
+            select: { discordUserId: true },
+          }
         );
 
-        if (preferences.discordUserId) {
+        if (discordPreference?.discordUserId) {
           success = await discordBot.sendNotification(
             delivery.notification,
-            preferences.discordUserId,
+            discordPreference.discordUserId,
             deliveryId
           );
         }
       }
 
       if (success) {
-        console.log(
-          `✅ [External Notification Worker] Retry successful for delivery ${deliveryId}`
-        );
+        Logger.info("External Notification Worker: Retry successful", {
+          deliveryId,
+        });
       } else {
-        console.error(
-          `❌ [External Notification Worker] Retry failed for delivery ${deliveryId}`
-        );
+        Logger.warn("External Notification Worker: Retry failed", {
+          deliveryId,
+        });
       }
     } catch (error) {
-      console.error(
-        `❌ [External Notification Worker] Failed retry for delivery ${deliveryId}:`,
-        error
+      Logger.error(
+        "External Notification Worker: Failed retry for delivery",
+        error instanceof Error ? error : new Error(String(error)),
+        { deliveryId }
       );
       throw error;
     }
   }
 
   private async sendEmailNotification(notification: any): Promise<boolean> {
-    if (!notification.user.email) {
-      console.warn(`📧 No email address for user ${notification.userId}`);
+    if (!notification.user?.email) {
+      Logger.warn("No email address for user", {
+        userId: notification.userId,
+      });
       return false;
     }
 
@@ -242,14 +214,17 @@ export class ExternalNotificationWorker {
   }
 
   private async sendDiscordNotification(notification: any): Promise<boolean> {
-    // Get user's Discord preferences to find their Discord user ID
-    const preferences = await this.getUserPreferences(
-      notification.userId,
-      notification.type
-    );
+    // Get user's Discord user ID from notification preferences
+    const discordPreference = await prisma.notificationPreference.findFirst({
+      where: {
+        userId: notification.userId,
+        discordUserId: { not: null },
+      },
+      select: { discordUserId: true },
+    });
 
-    if (!preferences.discordUserId) {
-      console.warn(
+    if (!discordPreference?.discordUserId) {
+      Logger.warn(
         `🤖 No Discord account linked for user ${notification.userId}`
       );
       return false;
@@ -257,64 +232,31 @@ export class ExternalNotificationWorker {
 
     return await discordBot.sendNotification(
       notification,
-      preferences.discordUserId
+      discordPreference.discordUserId
     );
   }
 
-  private async getUserPreferences(userId: string, notificationType: string) {
-    // Try to find user's specific preference for this notification type
-    let preference = await prisma.notificationPreference.findUnique({
-      where: {
-        userId_type: {
-          userId,
-          type: notificationType as any,
-        },
-      },
-    });
-
-    // If no specific preference exists, create default one
-    if (!preference) {
-      preference = await prisma.notificationPreference.create({
-        data: {
-          userId,
-          type: notificationType as any,
-          emailEnabled: true, // Default to enabled
-          discordEnabled: false, // Default to disabled
-        },
-      });
-    }
-
-    return preference;
-  }
-
-  private setupEventHandlers(): void {
+  protected setupEventHandlers(): void {
+    // Override base event handlers with custom formatting
     this.worker.on("completed", (job) => {
-      console.log(
-        `✅ External notification job ${job.id} completed successfully`
-      );
+      Logger.info("External notification job completed", { jobId: job.id });
     });
 
     this.worker.on("failed", (job, err) => {
-      console.error(
-        `❌ External notification job ${job?.id} failed:`,
-        err.message
-      );
+      Logger.error("External notification job failed", err, {
+        jobId: job?.id,
+      });
     });
 
     this.worker.on("error", (err) => {
-      console.error("🚨 External notification worker error:", err);
+      Logger.error("External notification worker error", err);
     });
-  }
-
-  async shutdown(): Promise<void> {
-    console.log("🛑 Shutting down external notification worker...");
-    await this.worker.close();
   }
 }
 
 // Export for standalone usage
 export async function startExternalNotificationWorker(): Promise<ExternalNotificationWorker> {
   const worker = new ExternalNotificationWorker();
-  console.log("🚀 External notification worker started");
+  Logger.info("🚀 External notification worker started");
   return worker;
 }

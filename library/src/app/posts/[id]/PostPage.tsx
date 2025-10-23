@@ -3,7 +3,6 @@
 import { FC, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
-import { InfiniteScroll } from "@/components/InfiniteScroll";
 import { useMathJax } from "@/components/MathJaxProvider";
 import { usePaginator } from "@/lib/hooks/usePaginator";
 import { Paginated } from "@/lib/paginated";
@@ -114,7 +113,7 @@ export const PostPage: FC<{
 
   // Handle toggle star
   const handleToggleStar = (paperId: string) => {
-    starMutation.mutate(paperId);
+    starMutation.mutate({ paperId });
   };
 
   // Handle toggle queue
@@ -200,6 +199,29 @@ export const PostPage: FC<{
     }
   }, [postId]);
 
+  const feedScrollRef = useRef<HTMLDivElement>(null);
+  const loadMoreRef = useRef<HTMLDivElement>(null);
+
+  // Infinite scroll with IntersectionObserver
+  useEffect(() => {
+    if (!page.loadNext || page.loading) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && page.loadNext) {
+          page.loadNext(10);
+        }
+      },
+      { threshold: 0.1 }
+    );
+
+    if (loadMoreRef.current) {
+      observer.observe(loadMoreRef.current);
+    }
+
+    return () => observer.disconnect();
+  }, [page.loadNext, page.loading]);
+
   return (
     <div className="flex h-[calc(97vh-53px)] w-full flex-col md:flex-row">
       {/* Mobile: Paper details on top (when selected) */}
@@ -214,6 +236,7 @@ export const PostPage: FC<{
 
       {/* Main feed area */}
       <div
+        ref={feedScrollRef}
         className={`flex-1 overflow-y-auto ${
           selectedPostForPaper?.paper ? "md:w-[45%] md:flex-none" : ""
         }`}
@@ -222,44 +245,48 @@ export const PostPage: FC<{
         <NewPostForm />
 
         {/* Feed with Infinite Scroll */}
-        <div ref={feedRef} className="mx-4 mt-6 max-w-2xl md:mr-4 md:ml-6">
+        <div className="mx-4 mt-6 max-w-2xl md:mr-4 md:ml-6">
           {page.items.length > 0 ? (
-            <InfiniteScroll
-              loadNext={page.loadNext!}
-              hasMore={!!page.loadNext}
-              loading={page.loading}
-            >
-              <div className="flex flex-col gap-4">
-                {page.items.map((post) => {
-                  const isTargetPost = post.id === postId;
-                  return (
-                    <div
-                      key={post.id}
-                      ref={isTargetPost ? targetPostRef : undefined}
-                      className={
-                        isTargetPost
-                          ? "ring-opacity-50 rounded-lg ring-2 ring-blue-500"
-                          : ""
+            <div className="space-y-3">
+              {page.items.map((post) => {
+                const isTargetPost = post.id === postId;
+
+                return (
+                  <div
+                    key={post.id}
+                    ref={(node) => {
+                      if (isTargetPost) {
+                        targetPostRef.current = node as HTMLDivElement | null;
                       }
-                    >
-                      <FeedPost
-                        post={post}
-                        onPaperClick={handlePaperClick}
-                        onUserClick={handleUserClick}
-                        currentUser={currentUser}
-                        isCommentsExpanded={expandedPostId === post.id}
-                        onCommentToggle={() => handleCommentToggle(post.id)}
-                        onPostSelect={() => handlePostSelect(post)}
-                        isSelected={selectedPostForPaper?.id === post.id}
-                        highlightedCommentId={
-                          isTargetPost ? highlightedCommentId : null
-                        }
-                      />
+                    }}
+                  >
+                    <FeedPost
+                      post={post}
+                      onPaperClick={handlePaperClick}
+                      onUserClick={handleUserClick}
+                      currentUser={currentUser}
+                      isCommentsExpanded={expandedPostId === post.id}
+                      onCommentToggle={() => handleCommentToggle(post.id)}
+                      highlightedCommentId={
+                        isTargetPost ? highlightedCommentId : null
+                      }
+                    />
+                  </div>
+                );
+              })}
+
+              {/* Load more trigger */}
+              {page.loadNext && (
+                <div ref={loadMoreRef} className="py-6">
+                  {page.loading && (
+                    <div className="flex items-center justify-center gap-2 text-gray-500">
+                      <div className="h-4 w-4 animate-spin rounded-full border-2 border-gray-300 border-t-blue-600" />
+                      <span>Loading more posts...</span>
                     </div>
-                  );
-                })}
-              </div>
-            </InfiniteScroll>
+                  )}
+                </div>
+              )}
+            </div>
           ) : (
             <div className="rounded-lg border border-gray-200 bg-white p-8 text-center">
               <div className="mb-4 text-gray-400">

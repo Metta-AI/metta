@@ -105,6 +105,9 @@ model Post {
   author         User           @relation(fields: [authorId], references: [id])
   paper          Paper?         @relation(fields: [paperId], references: [id])
 
+  @@index([createdAt, id])
+  @@index([paperId])
+  @@index([authorId, createdAt])
   @@map("post")
 }
 
@@ -124,6 +127,8 @@ model Comment {
   post          Post           @relation(fields: [postId], references: [id], onDelete: Cascade)
   notifications Notification[]
 
+  @@index([postId, createdAt])
+  @@index([authorId])
   @@map("comment")
 }
 
@@ -157,8 +162,7 @@ model Paper {
   id                     String                 @id @default(cuid())
   title                  String
   abstract               String?
-  institutions           String[]
-  tags                   String[]
+  tags                   String[]               @default([])
   link                   String?
   source                 String?
   externalId             String?
@@ -168,13 +172,18 @@ model Paper {
   updatedAt              DateTime               @default(now()) @updatedAt
   llmAbstract            Json?
   llmAbstractGeneratedAt DateTime?
-  institutionIds         String[]               @default([])
+  abstractSummary        String?
+  doi                    String?
+  arxivUrl               String?
+  citationCount          Int                    @default(0)
+  viewCount              Int                    @default(0)
   paperAuthors           PaperAuthor[]
   paperInstitutions      PaperInstitution[]
   posts                  Post[]
   userPaperInteractions  UserPaperInteraction[]
 
   @@map("paper")
+  @@index([citationCount])
 }
 
 model PaperAuthor {
@@ -198,6 +207,9 @@ model UserPaperInteraction {
   user    User      @relation(fields: [userId], references: [id])
 
   @@id([userId, paperId], map: "user_paper_interaction_userId_paperId_pk")
+  @@index([userId, starred])
+  @@index([userId, queued])
+  @@index([paperId, starred])
   @@map("user_paper_interaction")
 }
 
@@ -304,6 +316,8 @@ model Notification {
 
   @@index([userId, createdAt])
   @@index([userId, isRead])
+  @@index([userId, isRead, createdAt])
+  @@index([type, createdAt])
   @@map("notification")
 }
 

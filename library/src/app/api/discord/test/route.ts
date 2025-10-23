@@ -3,7 +3,10 @@ import { z } from "zod/v4";
 
 import { auth, isSignedIn } from "@/lib/auth";
 import { discordBot } from "@/lib/external-notifications/discord-bot";
+import type { NotificationWithDetails } from "@/lib/external-notifications/email";
 import { prisma } from "@/lib/db/prisma";
+import { AuthenticationError, BadRequestError } from "@/lib/errors";
+import { handleApiError } from "@/lib/api/error-handler";
 
 // Schema for test Discord message request
 const testDiscordSchema = z.object({
@@ -25,14 +28,7 @@ export async function GET() {
         : `❌ Discord bot configuration invalid`,
     });
   } catch (error) {
-    console.error("Error checking Discord bot configuration:", error);
-    return NextResponse.json(
-      {
-        error: "Failed to check Discord bot configuration",
-        details: error instanceof Error ? error.message : String(error),
-      },
-      { status: 500 }
-    );
+    return handleApiError(error, { endpoint: "GET /api/discord/test" });
   }
 }
 
@@ -42,10 +38,7 @@ export async function POST(request: NextRequest) {
     const session = await auth();
 
     if (!isSignedIn(session)) {
-      return NextResponse.json(
-        { error: "Authentication required" },
-        { status: 401 }
-      );
+      throw new AuthenticationError();
     }
 
     const body = await request.json();
@@ -75,14 +68,11 @@ export async function POST(request: NextRequest) {
       });
 
       if (!discordPreference || !discordPreference.discordUserId) {
-        return NextResponse.json(
-          { error: "No Discord account linked" },
-          { status: 400 }
-        );
+        throw new BadRequestError("No Discord account linked");
       }
 
       // Create a mock notification for testing
-      const mockNotification = {
+      const mockNotification: NotificationWithDetails = {
         id: "test-discord-notification",
         userId: session.user.id,
         type: "SYSTEM" as const,
@@ -101,8 +91,8 @@ export async function POST(request: NextRequest) {
         actor: null,
         user: {
           id: session.user.id,
-          name: session.user.name,
-          email: session.user.email,
+          name: session.user.name ?? null,
+          email: session.user.email ?? null,
         },
         post: null,
         comment: null,
@@ -123,23 +113,8 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    return NextResponse.json({ error: "Invalid action" }, { status: 400 });
+    throw new BadRequestError("Invalid action");
   } catch (error) {
-    console.error("Error in Discord test:", error);
-
-    if (error instanceof z.ZodError) {
-      return NextResponse.json(
-        { error: "Invalid request data", details: error.errors },
-        { status: 400 }
-      );
-    }
-
-    return NextResponse.json(
-      {
-        error: "Failed to process Discord test",
-        details: error instanceof Error ? error.message : String(error),
-      },
-      { status: 500 }
-    );
+    return handleApiError(error, { endpoint: "POST /api/discord/test" });
   }
 }

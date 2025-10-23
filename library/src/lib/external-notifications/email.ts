@@ -9,6 +9,7 @@ import { createTransport, Transporter } from "nodemailer";
 import { SESClient, SendEmailCommand } from "@aws-sdk/client-ses";
 import { prisma } from "@/lib/db/prisma";
 import type { Notification, User, Post, Comment } from "@prisma/client";
+import { Logger } from "../logging/logger";
 
 // Extended notification type with relations
 export interface NotificationWithDetails extends Notification {
@@ -34,7 +35,7 @@ export class EmailNotificationService {
   private fromAddress: string;
   private fromName: string;
   private baseUrl: string;
-  private useAWSsES: boolean;
+  private useAWSsES = false;
   private isEnabled: boolean;
 
   constructor() {
@@ -47,9 +48,7 @@ export class EmailNotificationService {
     this.isEnabled = process.env.ENABLE_EMAIL_NOTIFICATIONS !== "false";
 
     if (!this.isEnabled) {
-      console.log(
-        "📧 Email notifications are DISABLED (ENABLE_EMAIL_NOTIFICATIONS=false)"
-      );
+      Logger.info("Email notifications are DISABLED");
       return;
     }
 
@@ -69,7 +68,7 @@ export class EmailNotificationService {
           secretAccessKey: process.env.AWS_SES_SECRET_ACCESS_KEY!,
         },
       });
-      console.log("📧 Email service configured for AWS SES");
+      Logger.info("Email service configured for AWS SES");
     } else {
       // Fallback to SMTP configuration
       this.transporter = createTransport({
@@ -81,7 +80,7 @@ export class EmailNotificationService {
           pass: process.env.SMTP_PASSWORD,
         },
       });
-      console.log("📧 Email service configured for SMTP");
+      Logger.info("Email service configured for SMTP");
     }
   }
 
@@ -92,37 +91,24 @@ export class EmailNotificationService {
     notification: NotificationWithDetails,
     deliveryId?: string
   ): Promise<boolean> {
+    let success = false;
+    let errorMessage: string | null = null;
+    const startTime = Date.now();
+
     try {
       if (!this.isEnabled) {
-        console.log(
-          `📧 Email notifications are disabled, skipping notification ${notification.id}`
-        );
+        Logger.debug("Email notifications disabled, skipping", {
+          notificationId: notification.id,
+        });
         return false;
       }
 
       if (!notification.user.email) {
-        console.warn(`No email address for user ${notification.userId}`);
+        Logger.warn("No email address for user", {
+          userId: notification.userId,
+        });
         return false;
       }
-
-      // Create delivery record if not provided
-      let currentDeliveryId = deliveryId;
-      if (!currentDeliveryId) {
-        const delivery = await prisma.notificationDelivery.create({
-          data: {
-            notificationId: notification.id,
-            channel: "email",
-            status: "pending",
-          },
-        });
-        currentDeliveryId = delivery.id;
-      }
-
-      // Update delivery record to 'sending'
-      await this.updateDeliveryStatus(currentDeliveryId, "sending", {
-        attemptCount: { increment: 1 },
-        lastAttempt: new Date(),
-      });
 
       // Generate email template
       const template = await this.generateEmailTemplate(notification);
@@ -145,25 +131,52 @@ export class EmailNotificationService {
         );
       }
 
-      console.log(`📧 Email sent to ${notification.user.email}: ${messageId}`);
-
-      // Mark as delivered
-      await this.updateDeliveryStatus(currentDeliveryId, "sent", {
-        deliveredAt: new Date(),
+      Logger.info("Email sent successfully", {
+        recipient: notification.user.email,
+        messageId,
+        notificationId: notification.id,
+        durationMs: Date.now() - startTime,
       });
 
-      return true;
+      success = true;
     } catch (error) {
-      console.error("Email notification failed:", error);
-
+      errorMessage = error instanceof Error ? error.message : String(error);
+      Logger.error(
+        "Email notification failed",
+        error instanceof Error ? error : new Error(String(error)),
+        { notificationId: notification.id, userId: notification.userId }
+      );
+    } finally {
+      // Single DB write: create or update delivery record with final status
       if (deliveryId) {
-        await this.updateDeliveryStatus(deliveryId, "failed", {
-          errorMessage: error instanceof Error ? error.message : String(error),
+        // Update existing delivery record (for retries)
+        await prisma.notificationDelivery.update({
+          where: { id: deliveryId },
+          data: {
+            status: success ? "sent" : "failed",
+            deliveredAt: success ? new Date() : null,
+            errorMessage,
+            attemptCount: { increment: 1 },
+            lastAttempt: new Date(),
+          },
+        });
+      } else {
+        // Create new delivery record with final status
+        await prisma.notificationDelivery.create({
+          data: {
+            notificationId: notification.id,
+            channel: "email",
+            status: success ? "sent" : "failed",
+            deliveredAt: success ? new Date() : null,
+            errorMessage,
+            attemptCount: 1,
+            lastAttempt: new Date(),
+          },
         });
       }
-
-      return false;
     }
+
+    return success;
   }
 
   /**
@@ -624,23 +637,6 @@ Manage your preferences: ${this.baseUrl}/settings/notifications
   }
 
   /**
-   * Update delivery record status
-   */
-  private async updateDeliveryStatus(
-    deliveryId: string,
-    status: string,
-    additionalData: any = {}
-  ): Promise<void> {
-    await prisma.notificationDelivery.update({
-      where: { id: deliveryId },
-      data: {
-        status,
-        ...additionalData,
-      },
-    });
-  }
-
-  /**
    * Get actor display name
    */
   private getActorDisplayName(
@@ -693,7 +689,7 @@ Manage your preferences: ${this.baseUrl}/settings/notifications
         }
 
         // Simple test - if we can create the client and it doesn't throw, it's likely configured
-        console.log("✅ AWS SES configuration appears valid");
+        Logger.info("✅ AWS SES configuration appears valid");
         return true;
       } else {
         // For SMTP, use the existing nodemailer verify
@@ -702,11 +698,11 @@ Manage your preferences: ${this.baseUrl}/settings/notifications
         }
 
         await this.transporter.verify();
-        console.log("✅ SMTP configuration is valid");
+        Logger.info("✅ SMTP configuration is valid");
         return true;
       }
     } catch (error) {
-      console.error("❌ Email configuration error:", error);
+      Logger.error("❌ Email configuration error:", error);
       return false;
     }
   }

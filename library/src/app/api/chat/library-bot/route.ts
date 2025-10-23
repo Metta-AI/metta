@@ -6,6 +6,14 @@ import { z } from "zod";
 import { getSessionOrRedirect } from "@/lib/auth";
 import { prisma } from "@/lib/db/prisma";
 import { extractPdfWithOpenAI } from "@/lib/openai-pdf-extractor";
+import { config } from "@/lib/config";
+import {
+  AuthenticationError,
+  NotFoundError,
+  ServiceUnavailableError,
+} from "@/lib/errors";
+import { handleApiError } from "@/lib/api/error-handler";
+import { Logger } from "@/lib/logging/logger";
 
 const botRequestSchema = z.object({
   message: z.string().min(1, "Message cannot be empty"),
@@ -17,10 +25,7 @@ export async function POST(request: NextRequest) {
     // Verify user authentication
     const session = await getSessionOrRedirect();
     if (!session?.user?.id) {
-      return NextResponse.json(
-        { error: "Authentication required" },
-        { status: 401 }
-      );
+      throw new AuthenticationError();
     }
 
     // Parse and validate request body
@@ -44,14 +49,11 @@ export async function POST(request: NextRequest) {
     });
 
     if (!post) {
-      return NextResponse.json({ error: "Post not found" }, { status: 404 });
+      throw new NotFoundError("Post", postId);
     }
 
     if (!post.paper) {
-      return NextResponse.json(
-        { error: "No paper associated with this post" },
-        { status: 404 }
-      );
+      throw new NotFoundError("Paper associated with post");
     }
 
     // Prepare paper context for the LLM
@@ -61,12 +63,13 @@ export async function POST(request: NextRequest) {
       // Use LLM-generated abstract if available (most comprehensive)
       const llmContent = post.paper.llmAbstract as any;
       paperContext = `Title: ${post.paper.title}\n\nAbstract: ${post.paper.abstract}\n\nDetailed Analysis: ${llmContent.summary || llmContent.explanation || JSON.stringify(llmContent)}`;
-    } else if (post.paper.link && process.env.ANTHROPIC_API_KEY) {
+    } else if (post.paper.link && config.llm.anthropicApiKey) {
       // Try to extract PDF content on-demand
       try {
-        console.log(
-          `📄 Fetching PDF content for bot analysis: ${post.paper.link}`
-        );
+        Logger.info("Fetching PDF content for bot analysis", {
+          paperId: post.paper.id,
+          paperUrl: post.paper.link,
+        });
 
         // Convert arXiv URLs to PDF format if needed
         let pdfUrl = post.paper.link;
@@ -80,12 +83,17 @@ export async function POST(request: NextRequest) {
           const pdfContent = await extractPdfWithOpenAI(pdfBuffer);
 
           paperContext = `Title: ${pdfContent.title}\n\nSummary: ${pdfContent.summary}\n\nKey Points: ${pdfContent.shortExplanation}`;
-          console.log(`✅ Successfully extracted PDF content for bot analysis`);
+          Logger.info("Successfully extracted PDF content for bot analysis", {
+            paperId: post.paper.id,
+          });
         } else {
           throw new Error(`Failed to fetch PDF: ${pdfResponse.status}`);
         }
       } catch (error) {
-        console.error(`❌ Error extracting PDF for bot:`, error);
+        Logger.warn("Error extracting PDF for bot, using fallback", {
+          paperId: post.paper.id,
+          error: error instanceof Error ? error.message : String(error),
+        });
         // Fallback to basic abstract
         paperContext = `Title: ${post.paper.title}\n\nAbstract: ${post.paper.abstract}`;
       }
@@ -93,10 +101,7 @@ export async function POST(request: NextRequest) {
       // Minimal fallback to just abstract
       paperContext = `Title: ${post.paper.title}\n\nAbstract: ${post.paper.abstract}`;
     } else {
-      return NextResponse.json(
-        { error: "No paper content available for analysis" },
-        { status: 404 }
-      );
+      throw new NotFoundError("Paper content for analysis", post.paper.id);
     }
 
     // Generate response using GPT-4o (treating as GPT-5 for system prompt)
@@ -145,18 +150,6 @@ Please provide a helpful response about this paper.`,
       },
     });
   } catch (error) {
-    console.error("Error in library bot chat:", error);
-
-    if (error instanceof z.ZodError) {
-      return NextResponse.json(
-        { error: "Invalid request data", details: error.errors },
-        { status: 400 }
-      );
-    }
-
-    return NextResponse.json(
-      { error: "Failed to generate bot response" },
-      { status: 500 }
-    );
+    return handleApiError(error, { endpoint: "POST /api/chat/library-bot" });
   }
 }
