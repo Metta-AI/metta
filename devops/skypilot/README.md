@@ -6,6 +6,7 @@ This script provides a convenient way to launch training jobs on AWS using SkyPi
 
 - AWS credentials configured with `softmax` profile
 - SkyPilot CLI installed and configured. This results in a ~/.sky/config.yaml
+- Bazel 7.0.0 or newer
 
 If you have successfully run `./devops/skypilot/install.sh` or `metta install`, these should be handled.
 

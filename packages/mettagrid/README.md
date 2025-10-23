@@ -4,6 +4,12 @@ MettaGrid is a multi-agent gridworld environment for studying the emergence of c
 reinforcement learning agents. The environment features a variety of objects and actions that agents can interact with
 to manage resources, engage in combat, share with others, and optimize their rewards.
 
+## Requirements
+
+- Bazel 7.0.0 or newer (the project uses Bzlmod and modern Bazel features)
+- Python 3.11 or newer
+- C++ compiler with C++20 support
+
 ## Overview
 
 In MettaGrid, agents navigate a gridworld and interact with various objects to manage their energy, harvest resources,
