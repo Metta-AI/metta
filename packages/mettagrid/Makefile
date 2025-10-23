@@ -43,12 +43,3 @@ benchmark:
 test: build
 	@echo "Running unit tests..."
 	bazel test --config=dbg //tests:tests_all
-
-# Generate coverage report
-coverage:
-	@echo "Building with coverage..."
-	@echo "Note: C++ coverage on macOS is currently not supported by bazel"
-	@echo "    Running tests instead..."
-	bazel test --config=dbg //tests:tests_all
-	@echo "Tests completed successfully"
-	@echo "    For Python coverage, use: make pytest-coverage"

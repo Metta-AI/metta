@@ -24,7 +24,7 @@ def mock_debug_user_email():
         yield
 
 
-# Mark all tests that use postgres_container as flaky
+# Skip all tests that use postgres_container; it is flaky
 def pytest_collection_modifyitems(config, items):
     skip_pg = pytest.mark.skip(reason="postgres_container flaky")
     for item in items:

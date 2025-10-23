@@ -34,11 +34,6 @@ def command(
         "--benchmark",
         help="Run benchmark tests.",
     ),
-    coverage: bool = typer.Option(
-        False,
-        "--coverage",
-        help="Run coverage tests.",
-    ),
     test: bool = typer.Option(
         False,
         "--test",
@@ -46,6 +41,6 @@ def command(
     ),
     verbose: Annotated[bool, typer.Option("--verbose", "-v", help="Show verbose build output.")] = False,
 ) -> None:
-    targets = {k: v for k, v in [("benchmark", benchmark), ("coverage", coverage), ("test", test)] if v}
+    targets = {k: v for k, v in [("benchmark", benchmark), ("test", test)] if v}
     for target in targets.keys() or ["test"]:
         _run_target(target, verbose=verbose)
