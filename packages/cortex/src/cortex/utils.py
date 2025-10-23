@@ -118,4 +118,22 @@ def select_backend(
     return pytorch_fn_resolved
 
 
-__all__ = ["TRITON_AVAILABLE", "select_backend"]
+def configure_tf32_precision() -> None:
+    """Ensure TF32 fast paths are enabled using the modern API."""
+    if not torch.cuda.is_available():
+        return
+
+    if torch.are_deterministic_algorithms_enabled():
+        logger.warning(
+            "Disabling torch.use_deterministic_algorithms to enable TF32 for Cortex stacks."
+        )
+        torch.use_deterministic_algorithms(False)
+
+    torch.backends.cuda.matmul.fp32_precision = "tf32"  # type: ignore[attr-defined]
+    torch.backends.cudnn.conv.fp32_precision = "tf32"  # type: ignore[attr-defined]
+    torch.set_float32_matmul_precision("high")
+    torch.backends.cuda.matmul.allow_tf32 = True  # type: ignore[attr-defined]
+    torch.backends.cudnn.allow_tf32 = True  # type: ignore[attr-defined]
+
+
+__all__ = ["TRITON_AVAILABLE", "select_backend", "configure_tf32_precision"]
