@@ -41,13 +41,13 @@ vim components/ci.libsonnet
 vim dashboards/my_dashboard.jsonnet
 
 # Build JSON from Jsonnet
-make build
+metta datadog dashboard build
 
 # Review changes
-make diff
+metta datadog dashboard diff
 
 # Push to Datadog
-make push
+metta datadog dashboard push
 
 # Version control
 git add components/ dashboards/ lib/
@@ -165,11 +165,11 @@ After exploring multiple approaches, we chose Jsonnet because:
 source ./load_env.sh
 
 # Edit → Build → Push workflow
-vim components/ci.libsonnet        # Edit widgets
-vim dashboards/my_dashboard.jsonnet # Compose dashboard
-make build                         # Build JSON from Jsonnet
-make diff                          # Review changes
-make push                          # Upload to Datadog
+vim components/ci.libsonnet         # Edit widgets
+vim dashboards/my_dashboard.jsonnet  # Compose dashboard
+metta datadog dashboard build        # Build JSON from Jsonnet
+metta datadog dashboard diff         # Review changes
+metta datadog dashboard push         # Upload to Datadog
 
 # Commit changes
 git add lib/ components/ dashboards/
@@ -179,16 +179,21 @@ git commit -m "Update dashboard components"
 ### Commands
 
 ```bash
-make help           # Show all commands
-make list           # List dashboards in Datadog
-make list-metrics   # Discover available metrics
-make build          # Build all dashboards from Jsonnet
-make build-one      # Build single dashboard
-make pull           # Download all dashboards (for reference)
-make push           # Upload all dashboards to Datadog
-make diff           # Show git diff of changes
-make dry-run        # Preview push without making changes
-make clean          # Remove generated JSON files
+# Dashboard management
+metta datadog dashboard build        # Build all dashboards from Jsonnet
+metta datadog dashboard build -f FILE # Build single dashboard
+metta datadog dashboard list         # List dashboards in Datadog
+metta datadog dashboard metrics      # Discover available metrics
+metta datadog dashboard pull         # Download all dashboards (for reference)
+metta datadog dashboard push         # Upload all dashboards to Datadog
+metta datadog dashboard push --dry-run  # Preview push without making changes
+metta datadog dashboard diff         # Show git diff of changes
+metta datadog dashboard clean        # Remove generated JSON files
+
+# Collector management
+metta datadog collect github         # Run GitHub collector (dry-run)
+metta datadog collect github --push  # Run and push metrics to Datadog
+metta datadog list-collectors        # List available collectors
 ```
 
 ## 🎉 Summary

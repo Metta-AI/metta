@@ -222,7 +222,7 @@ make push                                    # Upload
 1. **Create `list_metrics.py`** ✅ (done!)
 2. **Extract a few components manually** (prototype)
 3. **Create `assemble_dashboard.py`** (script to build from components)
-4. **Update Makefile** with `make assemble`
+4. **Build dashboards** with `metta datadog dashboard build`
 5. **Document component structure** (README in components/)
 6. **Test workflow** with real dashboards
 
@@ -230,19 +230,19 @@ make push                                    # Upload
 
 ```bash
 # Discovery
-make list-metrics              # Show available metrics
-make list-components           # Show available widget components
+metta datadog dashboard metrics              # Show available metrics
+# (list-components not yet implemented)
 
 # Component workflow
 vim components/ci/my_widget.json
-make assemble                  # Rebuild dashboards from components
-make diff                      # Review changes
-make push                      # Upload to Datadog
+metta datadog dashboard build                # Rebuild dashboards from components
+metta datadog dashboard diff                 # Review changes
+metta datadog dashboard push                 # Upload to Datadog
 
 # Dashboard workflow
 vim dashboards/my_view.yaml    # Create new composition
-make assemble                  # Build JSON
-make push                      # Upload to Datadog
+metta datadog dashboard build                # Build JSON
+metta datadog dashboard push                 # Upload to Datadog
 ```
 
 ## Trade-offs
@@ -258,7 +258,7 @@ make push                      # Upload to Datadog
 - ❌ Additional complexity (assembler needed)
 - ❌ More files to manage
 - ❌ Learning curve for team
-- ❌ Requires build step (`make assemble`)
+- ❌ Requires build step (`metta datadog dashboard build`)
 
 ## Decision Point
 
