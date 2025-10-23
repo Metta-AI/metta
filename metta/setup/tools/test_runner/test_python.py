@@ -1,25 +1,13 @@
-from __future__ import annotations
-
 import subprocess
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Annotated, Iterable, Sequence
 
 import typer
-from pydantic import BaseModel, Field
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic import BaseModel
 
 from metta.common.util.fs import get_repo_root
 from metta.setup.utils import error, info
-
-
-class _Config(BaseSettings):
-    model_config = SettingsConfigDict(extra="ignore")
-
-    METTA_TEST_WORKERS: str | None = Field(default=None, description="Number of test workers to use.")
-
-
-test_config = _Config()
 
 
 class Package(BaseModel):
@@ -52,8 +40,10 @@ PACKAGES: tuple[Package, ...] = (
 )
 
 
-DEFAULT_FLAGS: tuple[str, ...] = ("--benchmark-disable",)
+DEFAULT_FLAGS: tuple[str, ...] = ("--benchmark-disable", "-n", "auto")
 CI_FLAGS: tuple[str, ...] = (
+    "-n",
+    "4",
     "--timeout=100",
     "--timeout-method=thread",
     "--benchmark-skip",
@@ -151,7 +141,7 @@ def run(
         raise typer.Exit(1) from exc
 
     if ci:
-        cmd.extend(["-n", test_config.METTA_TEST_WORKERS or "4", *CI_FLAGS])
+        cmd.extend(CI_FLAGS)
         cmd.extend(extra_args)
 
         exit_code = 0
@@ -160,7 +150,7 @@ def run(
                 exit_code = max(exit_code, code)
         raise typer.Exit(exit_code)
     else:
-        cmd.extend(["-n", test_config.METTA_TEST_WORKERS or "auto", *DEFAULT_FLAGS])
+        cmd.extend(DEFAULT_FLAGS)
         if changed:
             cmd.extend(TESTMON_FLAGS)
         cmd.extend(extra_args)
