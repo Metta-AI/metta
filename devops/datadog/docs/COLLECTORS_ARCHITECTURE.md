@@ -50,18 +50,8 @@ devops/datadog/
 │   ├── registry.py                # Collector registry
 │   └── decorators.py              # Metric decorators
 │
-├── charts/                        # Helm charts
-│   ├── collector-cronjobs/        # Unified CronJob chart
-│   │   ├── Chart.yaml
-│   │   ├── values.yaml            # Default values
-│   │   ├── values-production.yaml # Production overrides
-│   │   ├── values-staging.yaml    # Staging overrides
-│   │   └── templates/
-│   │       ├── cronjob.yaml       # CronJob template (one per collector)
-│   │       ├── configmap.yaml     # Configuration
-│   │       └── serviceaccount.yaml
-│   └── collector-image/           # Docker image for all collectors
-│       └── Dockerfile
+├── docker/                        # Docker configuration
+│   └── Dockerfile                 # Image for all collectors
 │
 ├── scripts/                       # Management scripts
 │   ├── run_collector.py           # CLI to run any collector
@@ -525,7 +515,7 @@ metadata:
 One Helm chart deploys all collectors as separate CronJobs.
 
 ```yaml
-# charts/collector-cronjobs/values.yaml
+# devops/charts/datadog-collectors/values.yaml
 
 # Global settings
 global:
@@ -616,7 +606,7 @@ cronJob:
 ### CronJob Template
 
 ```yaml
-# charts/collector-cronjobs/templates/cronjob.yaml
+# devops/charts/datadog-collectors/templates/cronjob.yaml
 
 {{- range $name, $config := .Values.collectors }}
 {{- if $config.enabled }}
@@ -838,16 +828,22 @@ docker push 751442549699.dkr.ecr.us-east-1.amazonaws.com/datadog-collectors:late
 ### 3. Deploy to Kubernetes
 
 ```bash
-# Deploy all collectors
+# From repository root
+cd devops/charts
+
+# Deploy all collectors via helmfile (recommended)
+helmfile apply -l name=datadog-collectors
+
+# Or deploy directly with helm
 helm upgrade --install datadog-collectors \
-  ./charts/collector-cronjobs \
+  ./datadog-collectors \
   --namespace monitoring \
   --create-namespace \
-  --values ./charts/collector-cronjobs/values-production.yaml
+  --values ./datadog-collectors/values-production.yaml
 
 # Enable specific collector
 helm upgrade --install datadog-collectors \
-  ./charts/collector-cronjobs \
+  ./datadog-collectors \
   --namespace monitoring \
   --set collectors.wandb.enabled=true
 
@@ -895,7 +891,7 @@ Quick checklist:
 2. Implement `collector.py` (subclass `BaseCollector`)
 3. Define metrics in `metrics.py` using `@metric` decorator
 4. Add secrets to AWS Secrets Manager (`{name}/*`)
-5. Add collector config to `charts/collector-cronjobs/values.yaml`
+5. Add collector config to `devops/charts/datadog-collectors/values.yaml`
 6. Write tests in `tests/collectors/test_{name}.py`
 7. Document in `collectors/{name}/README.md`
 8. Deploy with Helm

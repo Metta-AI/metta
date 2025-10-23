@@ -104,7 +104,7 @@ Currently implemented in `softmax/src/softmax/dashboard/metrics.py`. Migration p
 
 1. Create `collectors/github/collector.py` (BaseCollector subclass)
 2. Move metrics to `collectors/github/metrics.py`
-3. Update `devops/charts/dashboard-cronjob/values.yaml` → `charts/collector-cronjobs/values.yaml`
+3. Update `devops/charts/dashboard-cronjob/values.yaml` → `devops/charts/datadog-collectors/values.yaml`
 4. Test locally
 5. Deploy new structure
 6. Verify metrics still flowing
