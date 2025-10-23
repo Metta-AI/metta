@@ -313,8 +313,6 @@ void main()
   )
   glEnableVertexAttribArray(1)
 
-  glBindVertexArray(0)
-
 proc draw*(
   tileMap: TileMap,
   mvp: Mat4,
@@ -330,7 +328,6 @@ proc draw*(
   tileMap.shader.setUniform("uTileSize", 64.0f)  # Tile size in pixels.
   tileMap.shader.setUniform("uZoom", zoom)
   tileMap.shader.setUniform("uZoomThreshold", zoomThreshold)
-
   tileMap.shader.bindUniforms()
 
   # Bind textures
@@ -349,6 +346,7 @@ proc draw*(
   tileMap.shader.bindUniforms()
 
   # Draw the quad
+
   glBindVertexArray(tileMap.VAO)
   glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, nil)
   glBindVertexArray(0)

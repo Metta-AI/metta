@@ -1,14 +1,23 @@
 import
-  std/[math, os, strutils, tables],
+  std/[math, os, strutils, tables, strformat, random],
   boxy, vmath, windy, fidget2/[hybridrender, common],
-  common, panels, actions, utils, replays, objectinfo, pathfinding, tilemap
+  common, panels, actions, utils, replays, objectinfo, pathfinding, tilemap,
+  ../../tests/perlin
 
 const TS = 1.0 / 64.0 # Tile scale.
 
 
 var terrainMap: TileMap
 
-
+proc weightedRandomInt*(weights: seq[int]): int =
+  ## Return a random integer between 0 and 7, with a weighted distribution.
+  var r = rand(sum(weights))
+  var acc = 0
+  for i, w in weights:
+    acc += w
+    if r <= acc:
+      return i
+  doAssert false, "should not happen"
 
 proc generateTileMap(width: int, height: int, tileSize: int, atlasPath: string): TileMap =
   ## Generate a 1024x1024 texture where each pixel is a byte index into the 16x16 tile map.
@@ -96,8 +105,10 @@ proc buildAtlas*() =
       let name = path.replace(dataDir & "/", "").replace(".png", "")
       bxy.addImage(name, readImage(path))
 
-  let terrainMap = generateTileMap(1024, 1024, 64, "tools/blob7x8.png")
-  terrainMap.setupGPU()
+  bxy.flush()
+  let terrainMap = generateTileMap(1024, 1024, 64, dataDir & "/blob7x8.png")
+  bxy.reinitialize()
+
 
 proc useSelections*(panel: Panel) =
   ## Reads the mouse position and selects the thing under it.
@@ -750,6 +761,8 @@ proc centerAt*(panel: Panel, entity: Entity) =
   discard
 
 proc drawWorldMain*() =
+
+
   drawFloor()
   drawWalls()
   drawTrajectory()
@@ -770,6 +783,20 @@ proc drawWorldMain*() =
     drawGrid()
 
   drawThoughtBubbles()
+
+
+  if terrainMap != nil:
+    bxy.flush()
+    let m = bxy.getTransform()
+    # let mvp = mat4(
+    #   m[0, 0], m[0, 1], m[0, 2], 0,
+    #   m[1, 0], m[1, 1], m[1, 2], 0,
+    #   0, 0, 0, 1,
+    #   m[2, 0], m[2, 1], m[2, 2], 1
+    # )
+    let mvp = mat4()
+    terrainMap.draw(mvp, 1.0f)
+    bxy.reinitialize()
 
 proc fitFullMap*(panel: Panel) =
   ## Set zoom and pan so the full map fits in the panel.

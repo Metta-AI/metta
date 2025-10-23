@@ -164,7 +164,7 @@ window.onFrame = proc() =
     )
     echo "mouse tile: ", tileX, ", ", tileY, " -> ", mouseTile
 
-  terrainMap.draw(mvp, zoom, 1.25f)
+  terrainMap.draw(mat4(), 1.0f, 1.25f)
 
   # End this frame, flushing the draw commands.
   bxy.endFrame()
