@@ -630,6 +630,8 @@ class TaskDependencyEnv(PufferEnv):
         self.steps += 1
 
         # Sample reward from simulator based on task class
+        if self.task_class is None:
+            self.task_class = 0  # Default to task 0 if not set
         reward = self.simulator.sample_task(self.task_class)
         self.episode_reward = reward
 
@@ -667,6 +669,12 @@ class TaskDependencyEnv(PufferEnv):
         This is called by CurriculumEnv when switching to a new task.
         """
         self.task_config = config
+
+        # Extract task class from label
+        if config.label.startswith("taskclass"):
+            self.task_class = int(config.label.replace("taskclass", ""))
+        else:
+            self.task_class = 0
 
 
 class MockTaskGenerator(TaskGenerator):
@@ -838,6 +846,7 @@ def simulate_task_dependencies(
         base_env = TaskDependencyEnv(simulator, initial_task.get_env_cfg())
 
         # Wrap with CurriculumEnv (just like real training!)
+        # CurriculumEnv will handle all the curriculum stats logging automatically
         curriculum_env = CurriculumEnv(base_env, curriculum)
         envs.append(curriculum_env)
 
@@ -853,6 +862,10 @@ def simulate_task_dependencies(
     metrics_history = []
 
     for epoch in range(num_epochs):
+        # Reset epoch counters in all CurriculumEnv wrappers (for per-epoch tracking)
+        for env in envs:
+            env.reset_epoch_counters()
+
         # Collect stats from all environments this epoch
         rollout_stats = defaultdict(list)
 
@@ -868,9 +881,11 @@ def simulate_task_dependencies(
 
                 # Reset if episode terminated (happens every step in this simulation)
                 if terminal.any() or truncated.any():
+                    # CurriculumEnv automatically handles task switching and stat tracking
                     env.reset()
 
             # Accumulate stats from all environments (matching real training!)
+            # CurriculumEnv already added curriculum_stats/* to info dicts
             accumulate_rollout_stats(info_batch, rollout_stats)
 
         # Complete epoch and collect metrics from simulator
@@ -885,12 +900,16 @@ def simulate_task_dependencies(
         epoch_metrics.update(lp_distributions)
 
         # Add accumulated rollout stats (from info dicts)
-        # Process them the same way as real training
+        # Process them the same way as real training (matching stats.py:121-127)
         for key, values in rollout_stats.items():
-            # Per-label samples should be summed, others averaged
-            if "per_label_samples" in key or "tracked_task_completions" in key:
+            # Per-label samples and tracked task completions should be summed (exact match)
+            if (
+                "per_label_samples_this_epoch" in key
+                or "tracked_task_completions_this_epoch" in key
+            ):
                 epoch_metrics[key] = np.sum(values)
             else:
+                # All other metrics (including LP scores) should be averaged
                 epoch_metrics[key] = np.mean(values)
 
         metrics_history.append(epoch_metrics)
@@ -1114,7 +1133,7 @@ def simulate_large_chain_focused(
 def train(
     num_tasks: int = 10,
     num_epochs: int = 500,
-    samples_per_epoch: int = 1,
+    samples_per_epoch: int = 10,
     num_envs: int = 32,
     run: Optional[str] = None,
 ) -> TaskDependencySimulationTool:
