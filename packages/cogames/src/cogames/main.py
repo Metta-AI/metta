@@ -26,7 +26,7 @@ from cogames.cli.policy import get_policy_spec, get_policy_specs, policy_arg_exa
 from cogames.cli.submit import DEFAULT_SUBMIT_SERVER, submit_command
 from cogames.curricula import make_rotation
 from cogames.device import resolve_training_device
-from mettagrid import MettaGridEnv
+from mettagrid import MettaGridConfig, MettaGridEnv
 
 # Always add current directory to Python path
 sys.path.insert(0, ".")
@@ -256,6 +256,12 @@ def train_cmd(
         help="Override vectorized environment batch size",
         min=1,
     ),
+    max_episode_steps: int = typer.Option(
+        1024,
+        "--max-episode-steps",
+        help="Maximum number of steps per episode before truncation (0 disables the cap)",
+        min=0,
+    ),
 ) -> None:
     selected_missions = get_mission_names_and_configs(ctx, missions)
     if len(selected_missions) == 1:
@@ -272,6 +278,22 @@ def train_cmd(
 
     policy_spec = get_policy_spec(ctx, policy)
     torch_device = resolve_training_device(console, device)
+
+    if max_episode_steps and max_episode_steps < 0:
+        raise ValueError("--max-episode-steps must be >= 0")
+
+    if env_cfg is not None:
+        env_cfg.game.max_steps = max_episode_steps
+
+    if supplier is not None:
+        original_supplier = supplier
+
+        def supplier_with_max_steps() -> MettaGridConfig:
+            cfg = original_supplier()
+            cfg.game.max_steps = max_episode_steps
+            return cfg
+
+        supplier = supplier_with_max_steps
 
     try:
         train_module.train(
