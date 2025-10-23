@@ -1,9 +1,7 @@
 name: Tag Protection Bypasses
 on:
-  pull_request:
-    types: [closed]
-    branches:
-      - main
+  push:
+    branches: [main]
   workflow_dispatch:
     inputs:
       merge_sha:
