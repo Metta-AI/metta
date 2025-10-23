@@ -1,35 +1,46 @@
-#!/usr/bin/env -S uv run python
 from __future__ import annotations
 
 import argparse
+import importlib
+import os
 import sys
+from pathlib import Path
 from typing import List, Sequence
 
 import torch
 
-if __package__:
-    from . import (
-        BenchmarkCase,
-        BenchmarkDefinition,
-        BenchmarkSettings,
-        get_registry,
-    )
-    from .common import ensure_device
-else:  # pragma: no cover - script execution fallback
-    import pathlib
+if __package__ in (None, ""):
+    _FILE = Path(__file__).resolve()
+    _pkg_root = _FILE.parent  # packages/cortex/benchmarks
+    _parent = _pkg_root.parent  # packages/cortex
+    if str(_parent) not in sys.path:
+        sys.path.insert(0, str(_parent))
+    _src = _parent / "src"
+    if _src.exists() and str(_src) not in sys.path:
+        sys.path.insert(0, str(_src))
+    __package__ = _pkg_root.name
 
-    package_dir = pathlib.Path(__file__).resolve().parent
-    project_root = package_dir.parents[2]
-    if str(project_root) not in sys.path:
-        sys.path.insert(0, str(project_root))
+from .common import (
+    BenchmarkCase,
+    BenchmarkDefinition,
+    BenchmarkSettings,
+    ensure_device,
+    get_registry,
+)
 
-    from packages.cortex.benchmarks import (  # type: ignore[import-not-found]
-        BenchmarkCase,
-        BenchmarkDefinition,
-        BenchmarkSettings,
-        get_registry,
-    )
-    from packages.cortex.benchmarks.common import ensure_device  # type: ignore[import-not-found]
+
+def _load_benchmarks() -> None:
+    """Import all benchmark modules in this directory to populate the registry."""
+    here = os.path.dirname(__file__)
+    pkg = __package__ or ""
+    for entry in os.listdir(here):
+        if not entry.endswith(".py"):
+            continue
+        mod_name = entry[:-3]
+        if mod_name in {"__init__", "common", "run"}:
+            continue
+        fullname = f"{pkg}.{mod_name}" if pkg else mod_name
+        importlib.import_module(fullname)
 
 
 def _format_available(registry: dict[str, BenchmarkDefinition]) -> str:
@@ -92,10 +103,7 @@ def _format_row(
         if value is None:
             display = col.fallback
         else:
-            try:
-                display = col.formatter(value)
-            except Exception:  # pragma: no cover - defensive
-                display = str(value)
+            display = col.formatter(value)
         columns.append(display)
     return " ".join(f"{col:<{width}}" for col, width in zip(columns, widths, strict=False))
 
@@ -116,6 +124,8 @@ def run(argv: Sequence[str] | None = None) -> int:
 
     args = parser.parse_args(argv)
 
+    # Ensure all benchmark modules are imported so their registrations run
+    _load_benchmarks()
     registry = dict(get_registry())
     if not registry:
         print("No benchmarks registered.", file=sys.stderr)
@@ -160,12 +170,7 @@ def run(argv: Sequence[str] | None = None) -> int:
     _prepare_table(bench, config_width)
 
     for case, config_text in zip(cases, config_texts, strict=False):
-        try:
-            results = bench.run_case(case, settings)
-        except Exception as exc:  # pragma: no cover - defensive
-            print(f"{config_text:<{config_width}} ERROR: {exc}")
-            continue
-
+        results = bench.run_case(case, settings)
         row = _format_row(bench, config_text, results, column_widths)
         print(row)
         if "error" in results:
@@ -179,5 +184,9 @@ def run(argv: Sequence[str] | None = None) -> int:
     return 0
 
 
+def main() -> int:
+    return run()
+
+
 if __name__ == "__main__":
-    raise SystemExit(run())
+    raise SystemExit(main())

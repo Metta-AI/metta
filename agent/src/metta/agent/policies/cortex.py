@@ -1,9 +1,10 @@
 from typing import List
 
-from cortex.stacks.xlstm import build_xlstm_stack
+from cortex.stacks import build_cortex_auto_config
 
 from metta.agent.components.action import ActionEmbeddingConfig
 from metta.agent.components.actor import ActionProbsConfig, ActorKeyConfig, ActorQueryConfig
+from metta.agent.components.component_config import ComponentConfig
 from metta.agent.components.cortex import CortexTDConfig
 from metta.agent.components.misc import MLPConfig
 from metta.agent.components.obs_enc import ObsPerceiverLatentConfig
@@ -13,12 +14,7 @@ from metta.agent.policy import PolicyArchitecture
 
 
 class CortexBaseConfig(PolicyArchitecture):
-    """ViT-style policy that uses a Cortex stack as the core memory module.
-
-    Matches the ViTReset layout but swaps the LSTM core for a Cortex stack
-    (defaults to xLSTM). Keeps actor/critic heads and dims consistent by
-    projecting the Cortex output to the same hidden size as the original LSTM.
-    """
+    """ViT-style policy with Cortex stack (xLSTM) replacing LSTM core."""
 
     class_path: str = "metta.agent.policy_auto_builder.PolicyAutoBuilder"
 
@@ -31,7 +27,7 @@ class CortexBaseConfig(PolicyArchitecture):
     _actor_hidden = 256
     _critic_hidden = 512
 
-    components: List["PolicyArchitecture"] = [
+    components: List[ComponentConfig] = [
         ObsShimTokensConfig(in_key="env_obs", out_key="obs_shim_tokens", max_tokens=48),
         ObsAttrEmbedFourierConfig(
             in_key="obs_shim_tokens",
@@ -53,17 +49,9 @@ class CortexBaseConfig(PolicyArchitecture):
             out_key="core",
             d_hidden=_latent_dim,
             out_features=_core_out,
-            stack=build_xlstm_stack(
-                d_hidden=_latent_dim,
-                num_blocks=2,
-                mlstm_num_heads=2,
-                slstm_num_heads=2,
-                mlstm_proj_factor=2.0,
-                slstm_proj_factor=1.5,
-                mlstm_chunk_size=128,
-                conv1d_kernel_size=4,
-                dropout=0.0,
-                post_norm=True,
+            # Default to the mixed Cortex auto stack (Axon/mLSTM/sLSTM) via config.
+            stack_cfg=build_cortex_auto_config(
+                d_hidden=_latent_dim, num_layers=3, post_norm=True, use_axonlayers=False
             ),
             key_prefix="cortex_state",
         ),
