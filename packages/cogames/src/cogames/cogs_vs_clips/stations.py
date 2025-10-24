@@ -209,6 +209,7 @@ class DepletedGermaniumExtractorConfig(ExtractorConfig):
             clip_immune=self.clip_immune,
         )
 
+
 class CvCChestConfig(CvCStationConfig):
     type: Literal["communal_chest"] = Field(default="communal_chest")
     default_resource: str = Field(default="heart")

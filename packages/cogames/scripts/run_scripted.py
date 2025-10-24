@@ -8,14 +8,14 @@ uv run python -u packages/cogames/scripts/run_scripted.py --map training_facilit
 
 from __future__ import annotations
 
-import logging
-import numpy as np
 import argparse
+import logging
+
+import numpy as np
 
 from cogames.cogs_vs_clips.missions import make_game
 from cogames.policy.scripted_agent import ScriptedAgentPolicy
 from mettagrid import MettaGridEnv, dtype_actions
-
 
 logger = logging.getLogger("cogames.run_scripted")
 
