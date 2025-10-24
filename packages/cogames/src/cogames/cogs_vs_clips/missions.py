@@ -23,6 +23,39 @@ def get_map(site: str) -> MapBuilderConfig:
     return MapBuilderConfig.from_uri(str(map_path))
 
 
+def _replace_heart_recipes(
+    cfg: MettaGridConfig,
+    input_resources: dict[str, int],
+    *,
+    cooldown: int | None = None,
+    vibe: list[str] | None = None,
+) -> None:
+    assembler = cfg.game.objects.get("assembler")
+    if assembler is None:
+        return
+
+    existing_cooldown = next(
+        (recipe.cooldown for _, recipe in assembler.recipes if recipe.output_resources.get("heart", 0) > 0),
+        1,
+    )
+    desired_cooldown = max(cooldown or existing_cooldown, 1)
+    vibe_tokens = vibe[:] if vibe else ["default"]
+
+    heart_recipe = ProtocolConfig(
+        input_resources=input_resources.copy(),
+        output_resources={"heart": 1},
+        cooldown=desired_cooldown,
+    )
+
+    non_heart_recipes = [
+        (token_requirements, recipe)
+        for token_requirements, recipe in assembler.recipes
+        if recipe.output_resources.get("heart", 0) == 0
+    ]
+
+    assembler.recipes = [(vibe_tokens, heart_recipe), *non_heart_recipes]
+
+
 class MinedOutVariant(MissionVariant):
     name: str = "mined_out"
     description: str = "Some resources are depleted. You must be efficient to survive."
@@ -50,7 +83,28 @@ class LonelyHeartVariant(MissionVariant):
 
     def apply(self, mission: Mission) -> Mission:
         mission.assembler.heart_cost = 1
-        return mission
+
+        def modifier(cfg: MettaGridConfig) -> None:
+            simplified_inputs = {"carbon": 1, "oxygen": 1, "germanium": 1, "silicon": 1, "energy": 1}
+
+            _replace_heart_recipes(cfg, simplified_inputs, cooldown=1)
+
+            germanium = cfg.game.objects.get("germanium_extractor")
+            if germanium is not None:
+                germanium.max_uses = 0
+                germanium.recipes = [
+                    (
+                        token_requirements,
+                        ProtocolConfig(
+                            input_resources=recipe.input_resources.copy(),
+                            output_resources={"germanium": max(recipe.output_resources.get("germanium", 0), 1)},
+                            cooldown=max(recipe.cooldown, 1),
+                        ),
+                    )
+                    for token_requirements, recipe in germanium.recipes
+                ]
+
+        return _add_make_env_modifier(mission, modifier)
 
 
 class BrightSideVariant(MissionVariant):
@@ -78,35 +132,6 @@ class SolarFlareVariant(MissionVariant):
     def apply(self, mission: Mission) -> Mission:
         mission.charger.efficiency -= 50
         return mission
-
-
-class SimpleRecipesVariant(MissionVariant):
-    name: str = "simple_recipes"
-    description: str = "Swap in tutorial assembler protocols for easier heart crafting."
-
-    def apply(self, mission: Mission) -> Mission:
-        def modifier(cfg: MettaGridConfig) -> None:
-            assembler = cfg.game.objects.get("assembler")
-            if assembler is None:
-                return
-
-            energy_recipe = (
-                ["default"],
-                ProtocolConfig(
-                    input_resources={"energy": 1},
-                    output_resources={"heart": 1},
-                    cooldown=1,
-                ),
-            )
-
-            if not any(
-                recipe.input_resources == energy_recipe[1].input_resources
-                and recipe.output_resources == energy_recipe[1].output_resources
-                for _, recipe in assembler.recipes
-            ):
-                assembler.recipes = [energy_recipe, *assembler.recipes]
-
-        return _add_make_env_modifier(mission, modifier)
 
 
 class PackRatVariant(MissionVariant):
@@ -141,6 +166,7 @@ class HeartChorusVariant(MissionVariant):
             cfg.game.agent.rewards.stats = {
                 "heart.gained": 0.25,
                 "chest.heart.deposited": 1.0,
+                "chest.heart.withdrawn": -0.25,
                 "carbon.gained": 0.02,
                 "oxygen.gained": 0.02,
                 "germanium.gained": 0.05,
@@ -158,7 +184,6 @@ VARIANTS = [
     RoughTerrainVariant,
     SolarFlareVariant,
     LonelyHeartVariant,
-    SimpleRecipesVariant,
     PackRatVariant,
     NeutralFacedVariant,
     HeartChorusVariant,
