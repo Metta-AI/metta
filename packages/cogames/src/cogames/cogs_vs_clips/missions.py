@@ -190,11 +190,24 @@ MACHINA_1 = Site(
     max_cogs=20,
 )
 
+
+MACHINA_1_SMALL = Site(
+    name="machina_1_small",
+    description="Your first mission. Collect resources and assemble HEARTs.",
+    map_builder=get_map("machina_200_stations_small.map"),
+    min_cogs=1,
+    max_cogs=20,
+)
+
 SITES = [
     TRAINING_FACILITY,
     HELLO_WORLD,
     MACHINA_1,
+    MACHINA_1_SMALL,
 ]
+
+# Sites will be updated after exploration experiments import
+# This happens after the exploration_experiments import below
 
 
 # Training Facility Missions
@@ -257,6 +270,26 @@ class Machina1OpenWorldMission(Mission):
     site: Site = MACHINA_1
 
 
+class Machina1SmallOpenWorldMission(Mission):
+    name: str = "open_world"
+    description: str = "Collect resources and assemble HEARTs."
+    site: Site = MACHINA_1_SMALL
+
+
+# Import exploration experiments
+try:
+    from cogames.cogs_vs_clips.exploration_experiments import (
+        EXPLORATION_MISSIONS,
+        EXPLORATION_SITES,
+    )
+
+    _exploration_available = True
+except ImportError:
+    EXPLORATION_MISSIONS = []
+    EXPLORATION_SITES = []
+    _exploration_available = False
+
+
 MISSIONS = [
     HarvestMission,
     AssembleMission,
@@ -267,7 +300,13 @@ MISSIONS = [
     TreasureHuntMission,
     HelloWorldOpenWorldMission,
     Machina1OpenWorldMission,
+    Machina1SmallOpenWorldMission,
+    *EXPLORATION_MISSIONS,  # Add exploration experiments
 ]
+
+# Update SITES with exploration sites
+if _exploration_available:
+    SITES.extend(EXPLORATION_SITES)
 
 
 def _get_default_map_objects() -> dict[str, GridObjectConfig]:
