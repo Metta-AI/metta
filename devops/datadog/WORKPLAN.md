@@ -81,35 +81,6 @@ All collector dashboards have been successfully migrated to the Jsonnet framewor
 
 Ideas for future work - prioritize based on actual needs:
 
-#### High Priority: Dashboard Query Verification
-
-**Problem**: Currently can generate and deploy dashboards but cannot verify queries return data without manually checking Datadog UI.
-
-**Solution**: Simple script to verify all dashboard queries return data using Datadog Metrics Query API.
-
-**What it does**:
-- Parse dashboard JSON and extract metric queries
-- Call `/api/v1/query` for each query
-- Report which queries have data and which don't
-- Simple text output: "✓ query works" or "✗ no data"
-
-**What it doesn't do**:
-- Screenshots or visual verification (not needed - visual issues are rare)
-- Complex analysis or AI (overkill for this use case)
-
-**Benefits**:
-- Close feedback loop for Claude Code: know immediately if queries work
-- Catch 90% of issues (queries with no data)
-- Fast (<10 seconds) and simple (single script)
-
-**Status**: Research complete, ready to implement
-
-**Estimated effort**: 2-3 hours total
-
-See `ISSUES-datadog-access.md` for detailed research and implementation plan.
-
-#### Lower Priority Items
-
 - **Alerting**: Set up critical alerts (CI failures, collector failures, cost spikes)
 - **Dashboard improvements**: Add SLO markers, template variables, conditional formatting
 - **Multi-environment**: Separate staging/production metrics with environment tags
