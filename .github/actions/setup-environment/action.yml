@@ -2,7 +2,7 @@ name: "Setup Environment"
 description: "Set up the environment for CI"
 inputs:
   install-mode:
-    description: "Installation mode: 'testing', 'runtime', 'linting', 'metta-cli', or 'minimal'"
+    description: "Installation mode: 'testing', 'runtime', 'metta-cli', or 'minimal'"
     required: false
     default: "testing"
   extra-dependencies:
@@ -126,11 +126,6 @@ runs:
           "testing")
             # Install main dependencies + testing group, excluding interactive and dev
             uv sync --no-group interactive --no-group dev --group testing
-            ;;
-
-          "linting")
-            # Install only the lint group, excluding the main, interactive and dev deps
-            uv sync --only-group lint
             ;;
 
           # used in the mettascope tests where we run code to generate outputs but do not run tests
