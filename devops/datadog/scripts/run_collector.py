@@ -91,7 +91,7 @@ def get_credential(env_var: str, secret_key: str, required: bool = True) -> str 
 
     # Try AWS Secrets Manager
     try:
-        from softmax.aws.secrets_manager import get_secretsmanager_secret
+        from devops.datadog.utils.secrets import get_secretsmanager_secret
 
         return get_secretsmanager_secret(secret_key)
     except Exception as e:

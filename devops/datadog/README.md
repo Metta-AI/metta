@@ -112,6 +112,17 @@ uv run python scripts/validate_secrets.py
 
 ## Quick Start
 
+### Local Development & Testing
+
+```bash
+# Run all collectors locally (pushes metrics to Datadog)
+cd devops/datadog
+uv run python scripts/run_all_collectors.py
+
+# Run individual collector
+uv run python scripts/run_collector.py github --verbose
+```
+
 ### View Collected Metrics
 
 ```bash
