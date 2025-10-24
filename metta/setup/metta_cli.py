@@ -3,13 +3,10 @@ import re
 import shutil
 import subprocess
 import sys
-from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import TYPE_CHECKING, Annotated, Optional
 
-import boto3
 import typer
-from botocore.exceptions import BotoCoreError, ClientError
 from rich.console import Console
 from rich.progress import Progress, SpinnerColumn, TextColumn
 from rich.table import Table
@@ -142,96 +139,6 @@ app = typer.Typer(
 )
 
 
-def _fetch_gemini_api_key() -> str | None:
-    secret_name = "GEMINI-API-KEY"
-    region = "us-east-1"
-
-    try:
-        client = boto3.session.Session().client("secretsmanager", region_name=region)
-        raw_secret = client.get_secret_value(SecretId=secret_name)["SecretString"]
-    except (BotoCoreError, ClientError, KeyError) as error:
-        warning(
-            f"Unable to read AWS Secrets Manager secret '{secret_name}' (region {region}): {error}",
-        )
-        return None
-
-    api_key = raw_secret.strip()
-    if not api_key:
-        warning(f"Secret '{secret_name}' did not contain a usable GEMINI API key.")
-        return None
-    return api_key
-
-
-def _configure_pr_similarity_mcp_server(force: bool) -> None:
-    from metta.setup.saved_settings import UserType, get_saved_settings
-
-    saved_settings = get_saved_settings()
-    if saved_settings.user_type not in {UserType.SOFTMAX, UserType.SOFTMAX_DOCKER}:
-        debug(
-            f"Skipping PR similarity MCP registration for non-employee user type {saved_settings.user_type.value}",
-        )
-        return
-
-    api_key = _fetch_gemini_api_key()
-
-    _ensure_pr_similarity_cache(force=force)
-    _install_pr_similarity_package(force=force)
-    try:
-        _install_claude_mcp_server(force=force, api_key=api_key)
-    except Exception as error:  # pragma: no cover - defensive guard
-        warning(f"Skipping Claude MCP registration due to unexpected error: {error}")
-
-    codex_executable = shutil.which("codex")
-    if not codex_executable:
-        debug("Codex CLI not found on PATH. Skipping PR similarity MCP registration.")
-        return
-
-    command_path = shutil.which("metta-pr-similarity-mcp")
-    if not command_path:
-        warning(
-            "Unable to locate 'metta-pr-similarity-mcp' on PATH. Install the MCP package before configuring Codex.",
-        )
-        return
-
-    if not api_key:
-        warning("Skipping Codex MCP registration: no GEMINI API key available from Secrets Manager.")
-        return
-
-    for name in ("metta-pr-similarity", "metta-pr-similarity-mcp"):
-        subprocess.run(
-            [codex_executable, "mcp", "remove", name],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-            check=False,
-        )
-
-    try:
-        subprocess.run(
-            [
-                codex_executable,
-                "mcp",
-                "add",
-                "--env",
-                f"GEMINI_API_KEY={api_key}",
-                "metta-pr-similarity",
-                command_path,
-            ],
-            check=True,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-        )
-    except subprocess.CalledProcessError as error:
-        stderr = (error.stderr or "").strip()
-        warning(
-            f"Failed to configure Codex MCP server 'metta-pr-similarity'. {stderr if stderr else error}",
-        )
-        return
-
-    info("Configured Codex MCP server 'metta-pr-similarity'.")
-
-
 def _partition_supported_lint_files(paths: list[str]) -> tuple[list[str], list[str]]:
     python_files: list[str] = []
     cpp_files: list[str] = []
@@ -249,124 +156,6 @@ def _partition_supported_lint_files(paths: list[str]) -> tuple[list[str], list[s
             cpp_files.append(path)
 
     return python_files, cpp_files
-
-
-def _ensure_pr_similarity_cache(*, force: bool) -> None:
-    from metta.tools.pr_similarity import DEFAULT_CACHE_PATH, resolve_cache_paths
-
-    meta_path, vectors_path = resolve_cache_paths(DEFAULT_CACHE_PATH)
-    need_download = force
-
-    if not meta_path.exists() or not vectors_path.exists():
-        need_download = True
-    else:
-        threshold = datetime.now(timezone.utc) - timedelta(days=2)
-        meta_mtime = datetime.fromtimestamp(meta_path.stat().st_mtime, tz=timezone.utc)
-        vectors_mtime = datetime.fromtimestamp(vectors_path.stat().st_mtime, tz=timezone.utc)
-        if meta_mtime < threshold or vectors_mtime < threshold:
-            need_download = True
-
-    if not need_download:
-        debug(f"PR similarity cache already present at {meta_path.parent}")
-        return
-
-    bucket = "softmax-public"
-    prefix = "pr-cache/"
-
-    try:
-        session = boto3.session.Session()
-        client = session.client("s3")
-        meta_path.parent.mkdir(parents=True, exist_ok=True)
-        client.download_file(bucket, prefix + meta_path.name, str(meta_path))
-        client.download_file(bucket, prefix + vectors_path.name, str(vectors_path))
-        info(f"Downloaded PR similarity cache from s3://{bucket}/{prefix}")
-    except Exception as error:  # pragma: no cover - external dependency
-        warning(f"Unable to download PR similarity cache: {error}")
-
-
-def _install_pr_similarity_package(*, force: bool) -> None:
-    if shutil.which("metta-pr-similarity-mcp") and not force:
-        return
-
-    package_path = cli.repo_root / "mcp_servers" / "pr_similarity"
-    try:
-        subprocess.run(
-            ["uv", "pip", "install", "-e", str(package_path)],
-            check=True,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-        )
-        info("Installed metta-pr-similarity MCP package.")
-    except subprocess.CalledProcessError as error:  # pragma: no cover - external dependency
-        stderr = (error.stderr or "").strip()
-        warning(f"Failed to install metta-pr-similarity package: {stderr if stderr else error}")
-
-
-def _install_claude_mcp_server(*, force: bool, api_key: str | None) -> None:
-    if shutil.which("claude") is None:
-        debug("Claude CLI not found on PATH. Skipping Claude MCP configuration.")
-        return
-
-    if shutil.which("metta-pr-similarity-mcp") is None:
-        warning("metta-pr-similarity-mcp is not available on PATH; skipping Claude MCP registration.")
-        return
-
-    from metta.setup.saved_settings import UserType, get_saved_settings
-    from metta.tools.pr_similarity import API_KEY_ENV
-
-    saved_settings = get_saved_settings()
-    if saved_settings.user_type not in {UserType.SOFTMAX, UserType.SOFTMAX_DOCKER}:
-        debug(
-            f"Skipping Claude MCP registration for non-employee user type {saved_settings.user_type.value}",
-        )
-        return
-
-    command_path = shutil.which("metta-pr-similarity-mcp")
-    if command_path is None:
-        warning("metta-pr-similarity-mcp is not available on PATH; skipping Claude MCP registration.")
-        return
-
-    if not force:
-        subprocess.run(
-            ["claude", "mcp", "remove", "metta-pr-similarity"],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-            check=False,
-        )
-
-    if not api_key:
-        warning("Skipping Claude MCP registration: no GEMINI API key available from Secrets Manager.")
-        return
-
-    command = [
-        "claude",
-        "mcp",
-        "add",
-        "--transport",
-        "stdio",
-        "metta-pr-similarity",
-        "--env",
-        f"{API_KEY_ENV}={api_key}",
-        "--",
-        command_path,
-    ]
-
-    try:
-        subprocess.run(
-            command,
-            check=True,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-        )
-        info("Configured Claude MCP server 'metta-pr-similarity'.")
-    except subprocess.CalledProcessError as error:  # pragma: no cover - external dependency
-        stderr = (error.stderr or "").strip()
-        warning(f"Failed to configure Claude MCP server: {stderr if stderr else error}")
-    except OSError as error:  # pragma: no cover - environment-dependent
-        warning(f"Failed to launch Claude CLI for MCP registration: {error}")
 
 
 def _run_ruff(python_targets: list[str] | None, *, fix: bool) -> None:
@@ -533,8 +322,6 @@ def cmd_install(
             print()
         except Exception as e:
             error(f"  Error: {e}\n")
-
-    _configure_pr_similarity_mcp_server(force=force)
 
     if not non_interactive and check_status:
         cmd_status(components=components, non_interactive=non_interactive)
