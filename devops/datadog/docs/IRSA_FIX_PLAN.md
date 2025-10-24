@@ -8,7 +8,11 @@ Kubernetes pods can't assume IAM role to access AWS Secrets Manager.
 **Impact**: CronJob failing since ~40 minutes ago (started around 17:00 UTC 2025-10-24)
 
 ## Root Cause
-The IAM role `dashboard-cronjob` trust policy doesn't allow the Kubernetes service account to assume it via OIDC.
+The IAM role `dashboard-cronjob` trust policy uses `StringEquals` with a wildcard pattern (`dashboard-cronjob-*`), but **`StringEquals` does not support wildcards in AWS IAM**. Wildcards only work with `StringLike`.
+
+This causes the OIDC authentication to fail because the wildcard pattern in the `:sub` condition doesn't match when using `StringEquals`.
+
+**Note**: This is the same issue we've encountered before. The fix is to change `StringEquals` to `StringLike` for the service account pattern.
 
 ## Current Configuration
 
@@ -72,8 +76,10 @@ echo "OIDC Provider ID: $OIDC_ID"
 
 ### Step 2: Create the Correct Trust Policy
 
+**The fix is to use `StringLike` for the wildcard pattern instead of `StringEquals`.**
+
 ```bash
-# Create trust policy with correct OIDC provider
+# Create trust policy with StringLike for wildcard pattern
 cat > /tmp/trust-policy.json << EOF
 {
   "Version": "2012-10-17",
@@ -86,8 +92,10 @@ cat > /tmp/trust-policy.json << EOF
       "Action": "sts:AssumeRoleWithWebIdentity",
       "Condition": {
         "StringEquals": {
-          "oidc.eks.us-east-1.amazonaws.com/id/${OIDC_ID}:sub": "system:serviceaccount:monitoring:dashboard-cronjob-dashboard-cronjob",
           "oidc.eks.us-east-1.amazonaws.com/id/${OIDC_ID}:aud": "sts.amazonaws.com"
+        },
+        "StringLike": {
+          "oidc.eks.us-east-1.amazonaws.com/id/${OIDC_ID}:sub": "system:serviceaccount:monitoring:dashboard-cronjob-*"
         }
       }
     }
@@ -98,6 +106,11 @@ EOF
 # Review the policy
 cat /tmp/trust-policy.json | jq .
 ```
+
+**Key changes**:
+- Split condition into two parts: `StringEquals` and `StringLike`
+- `:aud` stays under `StringEquals` (exact match, no wildcard)
+- `:sub` moved to `StringLike` to support wildcard pattern `dashboard-cronjob-*`
 
 ### Step 3: Apply the Trust Policy
 
