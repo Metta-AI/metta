@@ -34,7 +34,7 @@ class TestGetDatadogCredentials:
 
             assert site == "datadoghq.com"
 
-    @patch("devops.datadog.utils.dashboard_client.get_secretsmanager_secret")
+    @patch("softmax.aws.secrets_manager.get_secretsmanager_secret")
     def test_api_key_from_secrets_manager(self, mock_get_secret):
         """Test that API key falls back to AWS Secrets Manager."""
         mock_get_secret.return_value = "secret_api_key"
@@ -45,7 +45,7 @@ class TestGetDatadogCredentials:
             assert api_key == "secret_api_key"
             mock_get_secret.assert_called_with("datadog/api-key")
 
-    @patch("devops.datadog.utils.dashboard_client.get_secretsmanager_secret")
+    @patch("softmax.aws.secrets_manager.get_secretsmanager_secret")
     def test_app_key_from_secrets_manager(self, mock_get_secret):
         """Test that APP key falls back to AWS Secrets Manager."""
         mock_get_secret.return_value = "secret_app_key"
@@ -56,7 +56,7 @@ class TestGetDatadogCredentials:
             assert app_key == "secret_app_key"
             mock_get_secret.assert_called_with("datadog/app-key")
 
-    @patch("devops.datadog.utils.dashboard_client.get_secretsmanager_secret")
+    @patch("softmax.aws.secrets_manager.get_secretsmanager_secret")
     def test_secrets_manager_failure_raises_error(self, mock_get_secret):
         """Test that Secrets Manager failure raises ValueError."""
         mock_get_secret.side_effect = Exception("AWS error")
