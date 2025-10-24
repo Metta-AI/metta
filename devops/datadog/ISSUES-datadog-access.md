@@ -8,21 +8,18 @@ Currently, Claude Code can:
 - Validate JSON structure and syntax
 
 But Claude Code **cannot**:
-- View the rendered dashboard in Datadog UI
-- Verify that collected metrics are actually displayed correctly
-- Detect visualization issues (wrong queries, missing data, incorrect formatting)
-- Iterate on dashboard improvements based on actual data rendering
+- Verify that metric queries actually return data
+- Detect when dashboards deploy successfully but show no data
+- Know if a deployment worked without human checking Datadog UI
 
-**This creates a critical gap**: We can deploy dashboards but have no automated way to verify they work correctly with real data.
+**This creates a critical gap**: We can deploy dashboards but have no automated way to verify the queries work with real data.
 
 ## Why This Matters
 
-Without visual verification:
-1. **Silent Failures**: Dashboards may deploy successfully but show no data or wrong data
-2. **Query Errors**: Metric queries might be syntactically valid but semantically incorrect
-3. **Layout Issues**: Widgets might overlap, be incorrectly sized, or poorly organized
-4. **Data Gaps**: Missing tags, wrong aggregations, or incorrect time ranges
-5. **Iteration Blindness**: Can't verify fixes without manual human inspection
+Without data verification:
+1. **Silent Failures**: Dashboards may deploy successfully but show no data
+2. **Query Errors**: Metric queries might be syntactically valid but semantically incorrect (wrong metric name, missing tags, etc.)
+3. **Iteration Blindness**: Can't verify fixes without manual human inspection of Datadog UI
 
 ## Current Workflow Gap
 
@@ -50,209 +47,242 @@ Without visual verification:
 PROBLEM: No automated feedback from UI back to Claude Code
 ```
 
-## Potential Solutions
+## Proposed Solution: Query Data Validation
 
-### 1. Screenshot/Snapshot API
+**Approach**: Use Datadog's Metrics Query API to verify queries return data.
 
-**Approach**: Capture rendered dashboard as image for visual inspection.
+**What it does**:
+- Extract metric queries from dashboard JSON
+- Query each metric via API to check for data
+- Report which queries work and which don't
 
-**Pros**:
-- Direct visual verification
-- Catch layout and rendering issues
-- Can use vision models (Claude) to analyze output
+**What it doesn't do**:
+- Visual verification (layout, colors, formatting)
+- Screenshot capture
+- Check widget types or advanced features
 
-**Cons**:
-- Datadog may not have public screenshot API
-- Screenshots don't show interactivity
-- May require browser automation (Playwright/Puppeteer)
+**Why this is sufficient**:
+- 90% of issues are "query returns no data"
+- Visual issues are rare and easily caught by human spot-check
+- Fast (<10 seconds) and simple to implement
+- No browser automation complexity
 
-**Research Needed**:
-- Does Datadog have a dashboard export/screenshot API?
-- Can we use their embeddable dashboard feature?
+## Implementation Plan
 
-### 2. Query Results API
+### Single Script: `verify_dashboard.py`
 
-**Approach**: Fetch the actual metric query results that would populate widgets.
+**Usage**:
+```bash
+# Verify a dashboard JSON file
+python devops/datadog/scripts/verify_dashboard.py github_cicd.json
 
-**Pros**:
-- Verify data availability without rendering
-- Can check if queries return expected number of results
-- Programmatically validate data shape
-
-**Cons**:
-- Doesn't verify visual rendering
-- May miss layout/formatting issues
-- Need to know expected query results
-
-**Implementation**:
-```python
-# Fetch query results for each widget
-for widget in dashboard['widgets']:
-    query = widget['definition']['requests'][0]['q']
-    results = dd_api.query_metrics(query, start_time, end_time)
-    assert len(results) > 0, f"No data for query: {query}"
+# Verify with custom time range
+python devops/datadog/scripts/verify_dashboard.py github_cicd.json --hours=24
 ```
 
-**Research Needed**:
-- What's the Datadog metrics query API endpoint?
-- How do we handle different widget types (timeseries, heatmap, etc.)?
+**What it does**:
+1. Parse dashboard JSON
+2. Extract all metric queries from widgets
+3. For each query, call `/api/v1/query` API to check for data
+4. Print simple report
 
-### 3. Dashboard JSON Validation API
+**Output Example**:
+```
+Verifying dashboard: GitHub CI/CD
+Found 8 widgets with queries
 
-**Approach**: Use Datadog's validation endpoint (if exists) to pre-validate before push.
+✓ avg:github.ci.duration{*} - 145 points, last: 2m ago
+✓ sum:github.ci.failures{*} - 89 points, last: 5m ago
+✗ avg:github.pr.review_time{*} - NO DATA
+✓ count:github.commits{*} - 234 points, last: 1m ago
+...
 
-**Pros**:
-- Catch errors before deployment
-- Fast feedback loop
-- No visual inspection needed for basic validation
-
-**Cons**:
-- Only catches schema errors, not data issues
-- Doesn't verify metrics exist or have data
-
-**Research Needed**:
-- Does Datadog have a validation-only API endpoint?
-- Can we get validation warnings/errors without creating dashboard?
-
-### 4. Browser Automation with Screenshot
-
-**Approach**: Use Playwright/Puppeteer to login, navigate to dashboard, capture screenshot.
-
-**Pros**:
-- Full rendering verification
-- Can interact with dashboard (hover, click, etc.)
-- Can capture multiple views/time ranges
-
-**Cons**:
-- Requires browser automation setup
-- Slower than API-only approaches
-- Need to handle Datadog authentication
-- May violate Datadog ToS if automated at scale
+Summary: 7/8 queries returning data
+Issue: github.pr.review_time metric not found or no recent data
+```
 
 **Implementation Sketch**:
 ```python
-from playwright.sync_api import sync_playwright
+#!/usr/bin/env python3
+"""Verify that dashboard queries return data."""
 
-def capture_dashboard(dashboard_id: str) -> bytes:
-    with sync_playwright() as p:
-        browser = p.chromium.launch()
-        page = browser.new_page()
+import json
+import sys
+import time
+from datadog_api_client import ApiClient, Configuration
+from datadog_api_client.v1.api.metrics_api import MetricsApi
 
-        # Authenticate (how?)
-        page.goto(f"https://app.datadoghq.com/dashboard/{dashboard_id}")
+def extract_queries(dashboard_json):
+    """Extract all metric queries from dashboard."""
+    queries = []
+    for widget in dashboard_json.get('widgets', []):
+        definition = widget.get('definition', {})
+        for request in definition.get('requests', []):
+            if 'q' in request:
+                queries.append(request['q'])
+    return queries
 
-        # Wait for widgets to load
-        page.wait_for_selector('[data-testid="dashboard-widget"]')
+def verify_query(api, query, hours_back=1):
+    """Check if query returns data."""
+    now = int(time.time())
+    start = now - (hours_back * 3600)
 
-        # Capture screenshot
-        screenshot = page.screenshot()
-        browser.close()
-        return screenshot
+    try:
+        response = api.query_metrics(_from=start, to=now, query=query)
+        if not response.series:
+            return {"status": "no_data", "points": 0}
+
+        points = sum(len(s.pointlist) for s in response.series)
+        last_ts = max(p[0] for s in response.series for p in s.pointlist) / 1000
+        age = now - last_ts
+
+        return {
+            "status": "ok",
+            "points": points,
+            "age_seconds": age
+        }
+    except Exception as e:
+        return {"status": "error", "error": str(e)}
+
+if __name__ == "__main__":
+    dashboard_file = sys.argv[1]
+    hours_back = int(sys.argv[2]) if len(sys.argv) > 2 else 1
+
+    with open(dashboard_file) as f:
+        dashboard = json.load(f)
+
+    queries = extract_queries(dashboard)
+    print(f"Found {len(queries)} queries to verify\n")
+
+    config = Configuration()
+    with ApiClient(config) as api_client:
+        api = MetricsApi(api_client)
+
+        results = []
+        for query in queries:
+            result = verify_query(api, query, hours_back)
+            results.append((query, result))
+
+            if result['status'] == 'ok':
+                age_min = int(result['age_seconds'] / 60)
+                print(f"✓ {query[:60]} - {result['points']} points, last: {age_min}m ago")
+            else:
+                print(f"✗ {query[:60]} - {result['status'].upper()}")
+
+        ok_count = sum(1 for _, r in results if r['status'] == 'ok')
+        print(f"\nSummary: {ok_count}/{len(queries)} queries returning data")
 ```
 
-**Challenges**:
-- How to authenticate? (API key? OAuth? Session cookies?)
-- How to wait for all widgets to load?
-- How long to wait for time-series data?
+## Research Findings
 
-### 5. Datadog Public Dashboard Sharing
+### Datadog Metrics Query API
 
-**Approach**: Create public-shareable dashboards, fetch via public URL.
+**Endpoint**: `GET /api/v1/query`
 
-**Pros**:
-- No authentication needed for viewing
-- Can use simple HTTP fetch + screenshot
-- Embeddable in CI/CD reports
+**Status**: ✅ AVAILABLE - This is what we'll use
 
-**Cons**:
-- Not all dashboards should be public
-- Security concerns with sensitive metrics
-- May not work for all widget types
+**Parameters**:
+- `from`: UNIX epoch timestamp for start
+- `to`: UNIX epoch timestamp for end
+- `query`: Metric query string (e.g., `avg:system.cpu.user{host:web-01}`)
 
-### 6. Synthetic Monitoring Integration
+**Authentication**:
+- Requires `DD-API-KEY` environment variable
+- Requires `DD-APPLICATION-KEY` environment variable
 
-**Approach**: Use Datadog's Synthetic Monitoring to test dashboard loading.
+**Response**: JSON with `series` field containing:
+- Metric names
+- Points (timestamp-value pairs)
+- Associated tags
 
-**Pros**:
-- Native Datadog feature
-- Can alert on dashboard load failures
-- Tracks historical dashboard health
+**Use Case**: Validate that queries return data after dashboard deployment
 
-**Cons**:
-- Doesn't help Claude Code iterate during development
-- Requires separate setup per dashboard
-- May incur additional Datadog costs
+### What We Won't Implement
 
-## Recommended Hybrid Approach
+**Screenshots/Visual Verification**:
+- Datadog has snapshot API for individual widgets, but it's complex (async, polling required)
+- No full dashboard screenshot capability
+- Not worth the effort - visual issues are rare and easily spotted by humans
+- Focus on the 90% case: does the query return data?
 
-Combine multiple techniques for comprehensive validation:
+### Questions to Answer During Implementation
 
-### Phase 1: Deployment Validation (Fast, API-only)
-1. **Pre-push validation**: Validate JSON schema locally
-2. **Query testing**: Test each metric query returns data
-3. **Push dashboard**: Deploy via API
-4. **Verify push**: Confirm dashboard ID returned
-
-### Phase 2: Visual Verification (Slower, optional)
-5. **Screenshot capture**: Use browser automation or screenshot API
-6. **AI analysis**: Use Claude vision to analyze screenshot for obvious issues
-7. **Report results**: Generate markdown report with findings
-
-### Example Workflow
-```bash
-# 1. Push dashboard
-python devops/datadog/scripts/push_dashboard.py github_cicd.json
-
-# 2. Validate deployment
-python devops/datadog/scripts/verify_dashboard.py <dashboard_id> \
-  --check-queries \
-  --check-data \
-  --screenshot \
-  --report=verification_report.md
-```
-
-## Questions to Research
-
-### Datadog API Capabilities
-- [ ] Does Datadog have a screenshot/export API for dashboards?
-- [ ] What's the best way to test metric queries programmatically?
-- [ ] Can we embed dashboards in external tools without authentication?
-- [ ] Is there a validation-only API endpoint?
-
-### Authentication & Access
-- [ ] How to authenticate browser automation to Datadog?
-- [ ] Can we create read-only API keys for verification?
-- [ ] What are the rate limits for dashboard API calls?
-
-### Data Verification
-- [ ] How to determine if a metric query "looks right"?
-- [ ] What's a reasonable data freshness expectation?
-- [ ] How to handle dashboards with historical data vs. real-time data?
-
-### Claude Code Integration
-- [ ] Can Claude Code analyze screenshots directly?
-- [ ] How to present verification results in CLI?
-- [ ] Should verification be automatic or on-demand?
+- [ ] What are the rate limits for query API?
+- [ ] How to handle queries that are slow to respond?
+- [ ] Should we verify in parallel or sequential?
+- [ ] What's a reasonable timeout per query?
 
 ## Success Criteria
 
 A successful solution should:
-1. **Fast feedback**: < 30 seconds to verify dashboard is working
-2. **Comprehensive**: Catch both data and visual issues
-3. **Automated**: Minimal manual intervention required
-4. **Informative**: Clear error messages when issues found
-5. **Integrated**: Works seamlessly in Claude Code workflow
+1. **Fast feedback**: < 10 seconds to verify all queries
+2. **Simple**: Single script, no complex dependencies
+3. **Informative**: Clear output showing which queries work/don't work
+4. **Integrated**: Easy to run from command line or Claude Code
 
-## Next Steps
+## Implementation Steps
 
-1. **Research Datadog API documentation** for screenshot/export capabilities
-2. **Prototype query validation** script to test metric data availability
-3. **Experiment with browser automation** for screenshot capture
-4. **Design verification report format** that Claude Code can interpret
-5. **Build minimal verification tool** that integrates into existing workflow
+1. **Install dependency**:
+   ```bash
+   cd devops/datadog
+   uv add datadog-api-client
+   ```
+
+2. **Create script**:
+   ```bash
+   touch devops/datadog/scripts/verify_dashboard.py
+   chmod +x devops/datadog/scripts/verify_dashboard.py
+   ```
+
+3. **Implement basic functionality**:
+   - Parse dashboard JSON
+   - Extract queries
+   - Call metrics API for each query
+   - Print results
+
+4. **Test with existing dashboards**:
+   ```bash
+   python devops/datadog/scripts/verify_dashboard.py devops/datadog/dashboards/templates/github_cicd.json
+   ```
+
+5. **Iterate based on real usage**:
+   - Adjust time range if needed
+   - Handle edge cases
+   - Improve error messages
+
+**Estimated effort**: 2-3 hours total
+
+## Workflow Integration
+
+**Current workflow**:
+```bash
+# Generate dashboard from Jsonnet
+jsonnet dashboard.jsonnet > dashboard.json
+
+# Push to Datadog
+python devops/datadog/scripts/push_dashboard.py dashboard.json
+```
+
+**Enhanced workflow**:
+```bash
+# Generate dashboard from Jsonnet
+jsonnet dashboard.jsonnet > dashboard.json
+
+# Push to Datadog
+python devops/datadog/scripts/push_dashboard.py dashboard.json
+
+# Verify queries return data
+python devops/datadog/scripts/verify_dashboard.py dashboard.json
+```
+
+**Claude Code usage**:
+When Claude Code modifies a dashboard, it can automatically run the verification script after pushing to give immediate feedback about whether the queries work.
 
 ## Related Documentation
 
 - Datadog API docs: https://docs.datadoghq.com/api/latest/
 - Datadog dashboard JSON schema: https://docs.datadoghq.com/api/latest/dashboards/
+- Datadog Snapshots API: https://docs.datadoghq.com/api/latest/snapshots/
+- Datadog Metrics Query: https://docs.datadoghq.com/api/latest/metrics/
 - Embeddable graphs: https://docs.datadoghq.com/dashboards/sharing/
+- datadog-api-client (Python): https://github.com/DataDog/datadog-api-client-python
