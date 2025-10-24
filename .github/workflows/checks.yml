@@ -173,8 +173,6 @@ jobs:
 
       - name: Setup Environment
         uses: ./.github/actions/setup-environment
-        with:
-          install-mode: "linting"
 
       - name: Run linting
         # Uses metta lint command - same command developers use locally.
