@@ -97,25 +97,18 @@ aws secretsmanager get-secret-value --secret-id github/dashboard-token --region 
 
 All secrets are stored in AWS Secrets Manager. See [SECRETS_SETUP.md](SECRETS_SETUP.md) for complete setup guide.
 
-**Production**: Uses AWS Secrets Manager via IRSA (IAM Roles for Service Accounts)
+**Both Production and Local Development** use AWS Secrets Manager:
 
-**Local Development**: Two options:
+```bash
+# Configure AWS CLI (one-time setup)
+aws configure
 
-1. **Option A - Use .env file** (simpler for local testing):
-   ```bash
-   cd devops/datadog
-   cp .env.sample .env
-   # Edit .env with your Datadog API keys
-   source ./load_env.sh  # Load credentials into shell
-   ```
+# Verify access to secrets
+uv run python scripts/validate_secrets.py
+```
 
-2. **Option B - Use AWS Secrets Manager** (same as production):
-   ```bash
-   # Configure AWS CLI (if not already done)
-   aws configure
-   # Validate secrets access
-   uv run python scripts/validate_secrets.py
-   ```
+**Production**: Uses IRSA (IAM Roles for Service Accounts) - automatic credential access
+**Local Development**: Uses your personal AWS CLI credentials
 
 ## Quick Start
 

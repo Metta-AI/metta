@@ -137,7 +137,6 @@ metta datadog dashboard build
 cat templates/test.json
 
 # Push to Datadog
-source ./load_env.sh
 metta datadog dashboard push
 ```
 
