@@ -135,6 +135,8 @@ class WandBCollector(BaseCollector):
                     continue
 
                 # Track latest SPS (steps per second) - primary training throughput metric
+                # Note: These metrics are project-specific and may not exist in all runs.
+                # None values are expected and valid when metrics don't exist.
                 try:
                     if "overview/sps" in summary_dict:
                         latest_sps = summary_dict["overview/sps"]
