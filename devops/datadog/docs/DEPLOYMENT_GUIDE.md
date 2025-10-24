@@ -288,7 +288,7 @@ The deployment is automated via GitHub Actions on push to `main`:
 1. **Workflow**: `.github/workflows/build-dashboard-image.yml`
 2. **Triggers**: Push to `main` with changes to:
    - `softmax/**`
-   - `common/**`
+   - `utils/**`
    - `devops/datadog/**`
    - `install.sh`
 

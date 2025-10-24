@@ -19,9 +19,9 @@ All collectors run as scheduled Kubernetes CronJobs, deployed via Helm charts.
 
 **Completed:**
 
-- ✅ BaseCollector abstract class (`common/base.py`)
-- ✅ @metric decorator system (`common/decorators.py`)
-- ✅ DatadogClient wrapper (`common/datadog_client.py`)
+- ✅ BaseCollector abstract class (`utils/base.py`)
+- ✅ @metric decorator system (`utils/decorators.py`)
+- ✅ DatadogClient wrapper (`utils/datadog_client.py`)
 - ✅ Four collectors fully implemented:
   - GitHubCollector with 24 metrics (`collectors/github/collector.py`)
   - SkypilotCollector with 30 metrics (`collectors/skypilot/collector.py`)
@@ -65,7 +65,7 @@ devops/datadog/
 │       ├── metrics.py
 │       └── README.md
 │
-├── common/                        # Shared utilities
+├── utils/                        # Shared utilities
 │   ├── __init__.py
 │   ├── datadog_client.py          # Datadog submission client
 │   ├── secrets.py                 # Secrets management
@@ -138,8 +138,8 @@ from datetime import datetime, timezone
 from typing import Any
 import logging
 
-from devops.datadog.common.datadog_client import DatadogClient
-from devops.datadog.common.registry import MetricRegistry
+from devops.datadog.utils.datadog_client import DatadogClient
+from devops.datadog.utils.registry import MetricRegistry
 
 logger = logging.getLogger(__name__)
 
@@ -249,7 +249,7 @@ class CollectorError(Exception):
 ### Metric Decorator
 
 ```python
-# devops/datadog/common/decorators.py
+# devops/datadog/utils/decorators.py
 
 from functools import wraps
 from typing import Any, Callable
@@ -307,7 +307,7 @@ def metric(
 
 from devops.datadog.collectors.base import BaseCollector
 from devops.datadog.collectors.github import metrics
-from devops.datadog.common.registry import auto_discover_metrics
+from devops.datadog.utils.registry import auto_discover_metrics
 
 
 class GitHubCollector(BaseCollector):
@@ -340,8 +340,8 @@ class GitHubCollector(BaseCollector):
 from datetime import datetime, timedelta, timezone
 
 from gitta import get_pull_requests, get_branches, get_commits
-from devops.datadog.common.decorators import metric
-from devops.datadog.common.secrets import get_secret
+from devops.datadog.utils.decorators import metric
+from devops.datadog.utils.secrets import get_secret
 
 REPO = "softmax-research/metta"
 
@@ -387,7 +387,7 @@ def get_merged_prs_7d() -> int:
 
 from devops.datadog.collectors.base import BaseCollector
 from devops.datadog.collectors.skypilot import metrics
-from devops.datadog.common.registry import auto_discover_metrics
+from devops.datadog.utils.registry import auto_discover_metrics
 
 
 class SkypilotCollector(BaseCollector):
@@ -416,8 +416,8 @@ class SkypilotCollector(BaseCollector):
 ```python
 # devops/datadog/collectors/skypilot/metrics.py
 
-from devops.datadog.common.decorators import metric
-from devops.datadog.common.secrets import get_secret
+from devops.datadog.utils.decorators import metric
+from devops.datadog.utils.secrets import get_secret
 import httpx
 
 
@@ -471,7 +471,7 @@ Examples:
 ### Access Pattern
 
 ```python
-# devops/datadog/common/secrets.py
+# devops/datadog/utils/secrets.py
 
 import boto3
 from functools import lru_cache
@@ -715,7 +715,7 @@ import importlib
 import sys
 import logging
 
-from devops.datadog.common.log_config import init_logging
+from devops.datadog.utils.log_config import init_logging
 
 logger = logging.getLogger(__name__)
 

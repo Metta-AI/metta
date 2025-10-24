@@ -273,7 +273,7 @@ class MyCollector(BaseCollector):
 Metrics are registered using `@metric` decorator:
 
 ```python
-from devops.datadog.common.decorators import metric
+from devops.datadog.utils.decorators import metric
 
 @metric("service.category.metric_name", unit="count")
 def get_metric() -> int:

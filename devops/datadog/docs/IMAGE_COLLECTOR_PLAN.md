@@ -87,8 +87,8 @@ Datadog image widgets
 
 ```python
 from abc import abstractmethod
-from devops.datadog.common.base import BaseCollector
-from devops.datadog.common.datadog_client import DatadogClient
+from devops.datadog.utils.base import BaseCollector
+from devops.datadog.utils.datadog_client import DatadogClient
 
 class ImageCollector(BaseCollector):
     """Base class for collectors that generate visualization images.
@@ -373,7 +373,7 @@ class HealthGridImageCollector(ImageCollector):
 
 **Tasks**:
 
-1. Extract `ImageCollector` to `common/base_image.py`
+1. Extract `ImageCollector` to `utils/base_image.py`
 2. Create additional visualizations:
    - Training metrics trend chart
    - Eval metrics comparison
@@ -573,8 +573,8 @@ def create_image_widget(image_url: str) -> dict:
 
 ### If Proceeding with POC
 
-1. Create `devops/datadog/common/base_image.py`
-2. Create `devops/datadog/common/image_uploaders.py`
+1. Create `devops/datadog/utils/base_image.py`
+2. Create `devops/datadog/utils/image_uploaders.py`
 3. Create `devops/datadog/collectors/health_grid_image/`
 4. Test locally
 5. Compare with widget grid

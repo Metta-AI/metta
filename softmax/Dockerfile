@@ -14,7 +14,7 @@ RUN bash ./devops/tools/install-system.sh
 RUN uv sync --frozen --no-dev
 
 # Verify all collector imports work
-RUN uv run python -c "from devops.datadog.collectors import GitHubCollector, SkypilotCollector, AsanaCollector, EC2Collector, WandbCollector, KubernetesCollector; print('✓ All 6 collectors imported successfully')"
+RUN uv run python -c "from devops.datadog.collectors import GitHubCollector, SkypilotCollector, AsanaCollector, EC2Collector, WandBCollector, KubernetesCollector; print('✓ All 6 collectors imported successfully')"
 
 # Default command runs all collectors sequentially
 # Helm chart can override this if needed
