@@ -244,14 +244,24 @@ metta pytest --ci
 metta pytest tests/rl/test_trainer_config.py -v
 metta pytest tests/sim/ -v
 
-# Run linting and formatting on python files with Ruff
-metta lint # optional --fix and --staged arguments
+# Run linting and formatting (formats all file types by default)
+metta lint
+
+# Format and lint with auto-fix
+metta lint --fix
+
+# Format specific file types only
+metta lint --type json,yaml
+metta lint --type python
+
+# Check formatting without modifying files
+metta lint --check
+
+# Format only staged files
+metta lint --staged --fix
 
 # Auto-fix Ruff errors with Claude (requires ANTHROPIC_API_KEY)
 uv run ./devops/tools/auto_ruff_fix.py path/to/file
-
-# Format shell scripts
-./devops/tools/format_sh.sh
 ```
 
 **IMPORTANT**: Always run `metta ci` after making changes to verify that all tests pass. This is the standard way to

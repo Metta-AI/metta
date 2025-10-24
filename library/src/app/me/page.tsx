@@ -38,7 +38,6 @@ export default async function MePage() {
           image: session.user.image ?? null,
         }}
         starredPapers={starredPapers}
-        allPapers={papers}
         users={users}
         interactions={interactions}
       />

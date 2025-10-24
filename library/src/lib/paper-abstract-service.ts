@@ -97,7 +97,7 @@ export class PaperAbstractService {
       // Find papers without LLM abstracts that have PDF links
       const papersNeedingAbstracts = await prisma.paper.findMany({
         where: {
-          llmAbstract: null,
+          llmAbstract: { equals: Prisma.DbNull },
           link: { not: null },
         },
         select: { id: true },
