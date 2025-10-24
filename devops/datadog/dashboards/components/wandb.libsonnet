@@ -17,33 +17,33 @@ local widgets = import '../lib/widgets.libsonnet';
       }
     ),
 
-  // Completed runs in last 7 days
+  // Completed runs in last 24 hours
   completedRuns7dWidget()::
     widgets.queryValue(
-      title='Completed Runs (7d)',
-      query='avg:wandb.runs.completed_7d{*}',
+      title='Completed Runs (24h)',
+      query='avg:wandb.runs.completed_24h{*}',
       options={
         precision: 0,
         aggregator: 'last',
       }
     ),
 
-  // Failed runs in last 7 days
+  // Failed runs in last 24 hours
   failedRuns7dWidget()::
     widgets.queryValue(
-      title='Failed Runs (7d)',
-      query='avg:wandb.runs.failed_7d{*}',
+      title='Failed Runs (24h)',
+      query='avg:wandb.runs.failed_24h{*}',
       options={
         precision: 0,
         aggregator: 'last',
       }
     ),
 
-  // Total runs
+  // Total recent runs (24h + active)
   totalRunsWidget()::
     widgets.queryValue(
-      title='Total Runs',
-      query='avg:wandb.runs.total{*}',
+      title='Total Recent Runs',
+      query='avg:wandb.runs.total_recent{*}',
       options={
         precision: 0,
         aggregator: 'last',
@@ -53,8 +53,8 @@ local widgets = import '../lib/widgets.libsonnet';
   // Run status trend over time
   runStatusTrendWidget()::
     widgets.timeseries(
-      title='Training Run Activity',
-      query='avg:wandb.runs.active{*}, avg:wandb.runs.completed_7d{*}, avg:wandb.runs.failed_7d{*}',
+      title='Training Run Activity (24h window)',
+      query='avg:wandb.runs.active{*}, avg:wandb.runs.completed_24h{*}, avg:wandb.runs.failed_24h{*}',
       options={
         show_legend: true,
         palette: 'cool',
@@ -64,46 +64,46 @@ local widgets = import '../lib/widgets.libsonnet';
 
   // ========== Model Performance Metrics ==========
 
-  // Best accuracy achieved
+  // Latest training throughput (steps per second)
   bestAccuracyWidget()::
     widgets.queryValue(
-      title='Best Model Accuracy',
-      query='avg:wandb.metrics.best_accuracy{*}',
+      title='Training Throughput (SPS)',
+      query='avg:wandb.metrics.latest_sps{*}',
       options={
-        precision: 3,
+        precision: 0,
         aggregator: 'last',
-        custom_unit: '%',
+        custom_unit: 'steps/s',
       }
     ),
 
-  // Latest training loss
+  // Latest SkyPilot queue latency
   latestLossWidget()::
     widgets.queryValue(
-      title='Latest Training Loss',
-      query='avg:wandb.metrics.latest_loss{*}',
+      title='Queue Latency',
+      query='avg:wandb.metrics.latest_queue_latency_s{*}',
       options={
-        precision: 4,
+        precision: 1,
         aggregator: 'last',
+        custom_unit: 's',
       }
     ),
 
-  // Average accuracy from last 7 days
+  // Average heart amount (agent survival metric)
   avgAccuracy7dWidget()::
     widgets.queryValue(
-      title='Avg Accuracy (7d)',
-      query='avg:wandb.metrics.avg_accuracy_7d{*}',
+      title='Avg Heart Amount (24h)',
+      query='avg:wandb.metrics.avg_heart_amount_24h{*}',
       options={
         precision: 3,
         aggregator: 'last',
-        custom_unit: '%',
       }
     ),
 
-  // Model performance trend over time
+  // Training throughput trend over time
   performanceTrendWidget()::
     widgets.timeseries(
-      title='Model Performance Trends',
-      query='avg:wandb.metrics.best_accuracy{*}, avg:wandb.metrics.avg_accuracy_7d{*}',
+      title='Training Throughput Trend',
+      query='avg:wandb.metrics.latest_sps{*}',
       options={
         show_legend: true,
         palette: 'green',
@@ -111,11 +111,11 @@ local widgets = import '../lib/widgets.libsonnet';
       }
     ),
 
-  // Loss trend over time
+  // Heart amount trend over time
   lossTrendWidget()::
     widgets.timeseries(
-      title='Training Loss Trend',
-      query='avg:wandb.metrics.latest_loss{*}',
+      title='Agent Survival Trend (Heart Amount)',
+      query='avg:wandb.metrics.avg_heart_amount_24h{*}',
       options={
         palette: 'warm',
         display_type: 'line',
@@ -148,11 +148,11 @@ local widgets = import '../lib/widgets.libsonnet';
       }
     ),
 
-  // Total GPU hours in last 7 days
+  // Total GPU hours in last 24 hours
   totalGpuHours7dWidget()::
     widgets.queryValue(
-      title='Total GPU Hours (7d)',
-      query='avg:wandb.training.total_gpu_hours_7d{*}',
+      title='Total GPU Hours (24h)',
+      query='avg:wandb.training.total_gpu_hours_24h{*}',
       options={
         precision: 1,
         aggregator: 'last',
@@ -163,8 +163,8 @@ local widgets = import '../lib/widgets.libsonnet';
   // Resource usage trend over time
   resourceUsageTrendWidget()::
     widgets.timeseries(
-      title='GPU Resource Usage Trends',
-      query='avg:wandb.training.gpu_utilization_avg{*}, avg:wandb.training.total_gpu_hours_7d{*}',
+      title='GPU Resource Usage Trends (24h window)',
+      query='avg:wandb.training.gpu_utilization_avg{*}, avg:wandb.training.total_gpu_hours_24h{*}',
       options={
         show_legend: true,
         palette: 'purple',
