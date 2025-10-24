@@ -302,8 +302,8 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
         state.current_phase = self._determine_phase(state)
         action_idx = self._execute_phase(state)
 
-        # Log (stdout)
-        self._print_step_log(action_idx, state)
+        # # Log (stdout)
+        # self._print_step_log(action_idx, state)
 
         # Stuck detection: if we keep trying the same action from the same position, force exploration
         key = (state.agent_row, state.agent_col, action_idx)

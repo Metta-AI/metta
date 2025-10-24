@@ -3,16 +3,14 @@
 
 Usage:
   uv run python -u packages/cogames/scripts/evaluate_scripted_agent.py \
-      --cogs 2 --episodes 3 --steps 500 --seed 42
+      --cogs 1 --episodes 3 --steps 500 --seed 42
 
-Optional GUI:
-  METTA_RENDER=gui uv run python -u packages/cogames/scripts/evaluate_scripted_agent.py
 """
 from __future__ import annotations
 
 import argparse
 import os
-from typing import List, Literal
+from typing import List
 
 import numpy as np
 
@@ -49,10 +47,6 @@ def parse_args() -> argparse.Namespace:
 def main() -> None:
     args = parse_args()
 
-    render_mode_env = os.getenv("METTA_RENDER", "none")
-    if render_mode_env not in ("gui", "unicode", "none"):
-        render_mode_env = "none"
-    render_mode = render_mode_env
 
     overall = 0.0
     per_map_results: list[tuple[str, float]] = []
@@ -60,7 +54,7 @@ def main() -> None:
     for map_name in args.maps:
         try:
             env_cfg = make_game(num_cogs=args.cogs, map_name=map_name)
-            env = MettaGridEnv(env_cfg=env_cfg, render_mode=render_mode)
+            env = MettaGridEnv(env_cfg=env_cfg)
         except Exception as e:
             print(f"SKIP {map_name}: failed to create env ({e})")
             continue
