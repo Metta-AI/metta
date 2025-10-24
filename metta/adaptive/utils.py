@@ -128,6 +128,7 @@ def build_eval_overrides(
 
     # Ensure evaluation has a stats directory to avoid Path(None) errors downstream
     eval_overrides.setdefault("stats_dir", "/tmp/eval_sweep_stats")
+    eval_overrides.setdefault("enable_replays", False)
 
     # Stats server configuration
     if stats_server_uri:
