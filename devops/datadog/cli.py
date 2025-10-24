@@ -83,12 +83,14 @@ def check_datadog_env() -> None:
 
     if not api_key or api_key == "your_api_key_here":
         console.print("[red]Error:[/red] DD_API_KEY not set or using placeholder value")
-        console.print("Run: [cyan]source ./devops/datadog/load_env.sh[/cyan]")
+        console.print("Configure AWS CLI: [cyan]aws configure[/cyan]")
+        console.print("Validate secrets: [cyan]uv run python devops/datadog/scripts/validate_secrets.py[/cyan]")
         raise typer.Exit(1)
 
     if not app_key or app_key == "your_app_key_here":
         console.print("[red]Error:[/red] DD_APP_KEY not set or using placeholder value")
-        console.print("Run: [cyan]source ./devops/datadog/load_env.sh[/cyan]")
+        console.print("Configure AWS CLI: [cyan]aws configure[/cyan]")
+        console.print("Validate secrets: [cyan]uv run python devops/datadog/scripts/validate_secrets.py[/cyan]")
         raise typer.Exit(1)
 
 
@@ -598,8 +600,9 @@ def check_env() -> None:
 
     if not api_key or not app_key:
         console.print()
-        console.print("To set environment variables, run:")
-        console.print("  [cyan]source ./devops/datadog/load_env.sh[/cyan]")
+        console.print("To configure AWS CLI and validate secrets:")
+        console.print("  [cyan]aws configure[/cyan]")
+        console.print("  [cyan]uv run python devops/datadog/scripts/validate_secrets.py[/cyan]")
 
 
 # ============================================================================

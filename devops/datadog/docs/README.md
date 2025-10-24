@@ -55,16 +55,11 @@ Datadog.
 
    All credentials are stored in AWS Secrets Manager. See [SECRETS_SETUP.md](../SECRETS_SETUP.md) for complete setup.
 
-   For local development, you can set environment variables:
-
    ```bash
-   cd devops/datadog
+   # Configure AWS CLI (one-time setup)
+   aws configure
 
-   # Set environment variables (optional, for local development)
-   export DD_API_KEY=your_api_key
-   export DD_APP_KEY=your_app_key
-
-   # Or validate AWS secrets configuration
+   # Validate AWS secrets configuration
    uv run python scripts/validate_secrets.py
    ```
 
@@ -196,11 +191,8 @@ devops/datadog/
 │   └── list_metrics.py          # Discover metrics
 │
 └── Config:
-    ├── .env                     # Local dev credentials (gitignored)
-    ├── .env.sample              # Template for local .env
     ├── .gitignore               # Git ignore rules
-    ├── Makefile                 # Build & deploy commands
-    └── load_env.sh              # Load .env for local dev only
+    └── Makefile                 # Build & deploy commands
 ```
 
 ### Key Points
@@ -527,8 +519,11 @@ To create a new dashboard from existing one:
 ### "DD_API_KEY not set"
 
 ```bash
-# Solution: Load credentials
-source ./load_env.sh
+# Solution: Ensure AWS CLI is configured
+aws configure
+
+# Verify secrets access
+uv run python scripts/validate_secrets.py
 ```
 
 ### "No JSON files found"
