@@ -67,3 +67,44 @@ def test_e2e_categorical_single_and_multi_suggestions() -> None:
         assert s["model.color"] in choices
         lr: float = s["trainer.optimizer.learning_rate"]
         assert 1e-5 <= lr <= 1e-3
+
+
+def test_categorical_sampling_reaches_all_choices() -> None:
+    """Ensure repeated suggestions cover every categorical option."""
+    # Configure optimizer to skip search-center seeding so we rely on random sampling.
+    settings = ProteinSettings(
+        num_random_samples=10,
+        random_suggestions=32,
+        seed_with_search_center=False,
+        randomize_acquisition=False,
+    )
+    config = ProteinConfig(
+        metric="score",
+        goal="maximize",
+        parameters={
+            "model": {
+                "color": CategoricalParameterConfig(choices=["red", "blue", "green"]),
+            }
+        },
+        settings=settings,
+    )
+
+    optimizer = ProteinOptimizer(config)
+
+    # Deterministic sampling for the test.
+    import numpy as np
+    import random
+
+    np.random.seed(12345)
+    random.seed(12345)
+
+    seen: set[str] = set()
+    # Pull several batches; with the wider categorical scale we should cover all choices.
+    for _ in range(5):
+        suggestions = optimizer.suggest(observations=[], n_suggestions=8)
+        for suggestion in suggestions:
+            seen.add(suggestion["model.color"])
+        if seen == {"red", "blue", "green"}:
+            break
+
+    assert seen == {"red", "blue", "green"}

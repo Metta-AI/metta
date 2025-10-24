@@ -138,7 +138,8 @@ class ProteinOptimizer:
                         max=max_idx,
                         distribution="int_uniform",
                         mean=mean_idx,
-                        scale="auto",
+                        # Use a wide scale so sampling covers full categorical range after normalization.
+                        scale=1.0,
                     )
                 elif isinstance(value, dict):
                     out[key] = convert_params(value, full_key)
