@@ -5,7 +5,6 @@ import torch
 from cortex.cells.lstm import LSTMCell
 from cortex.config import LSTMCellConfig
 from cortex.kernels.pytorch.lstm import lstm_sequence_pytorch
-from cortex.kernels.triton.lstm import lstm_sequence_triton
 from cortex.utils import TRITON_AVAILABLE
 
 
@@ -169,6 +168,7 @@ def test_lstm_state_reset():
 @pytest.mark.skipif(not torch.cuda.is_available() or not TRITON_AVAILABLE, reason="Triton backend unavailable")
 def test_lstm_reset_forward_backward_match_backends():
     """Ensure Triton reset behaviour matches PyTorch forward/backward on CUDA."""
+    from cortex.kernels.triton.lstm import lstm_sequence_triton
 
     torch.manual_seed(1234)
 

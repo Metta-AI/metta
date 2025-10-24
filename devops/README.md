@@ -30,14 +30,17 @@ Follow these steps to connect to remote machines directly through Cursor's inter
 ### Setup Steps
 
 1. **Install the Remote SSH Extension**
+
    - Open Cursor Extensions (Ctrl+Shift+X or Cmd+Shift+X)
    - Search for and install "Remote - SSH"
 
 2. **Access Remote Explorer**
+
    - Look for the "Remote Explorer" tab in Cursor's sidebar
    - This will appear after installing the Remote SSH extension
 
 3. **Connect to Your Machine**
+
    - In the Remote Explorer panel, find your machine listed under "SSH TARGETS"
    - Your SkyPilot-managed machines should appear automatically
    - Right-click on your target machine and select "Connect to Host in New Window"
