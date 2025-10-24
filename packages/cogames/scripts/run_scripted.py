@@ -3,21 +3,14 @@
 Usage: run this module with the workspace Python environment. It will create a small
 episode, run the scripted agents, and log actions and rewards to stdout.
 
-Examples:
-  # Headless
-  uv run python -u packages/cogames/scripts/run_scripted.py --map training_facility_tight_4.map --cogs 2 --steps 1000
-
-  # GUI
-  METTA_RENDER=gui uv run python -u packages/cogames/scripts/run_scripted.py --map training_facility_tight_4.map --cogs 2 --steps 1000
+uv run python -u packages/cogames/scripts/run_scripted.py --map training_facility_tight_4.map --cogs 1 --steps 1000
 """
 
 from __future__ import annotations
 
 import logging
 import numpy as np
-from pathlib import Path
 import argparse
-import os
 
 from cogames.cogs_vs_clips.missions import make_game
 from cogames.policy.scripted_agent import ScriptedAgentPolicy
@@ -31,11 +24,7 @@ def run_episode(num_cogs: int = 1, max_steps: int = 500, seed: int = 1, map_name
     """Run a single episode using the scripted policy and log progress."""
     env_cfg = make_game(num_cogs=num_cogs, map_name=(map_name or "training_facility_open_1.map"))
 
-    # Read render mode from env var
-    render_mode_env = os.getenv("METTA_RENDER", "none")
-    if render_mode_env not in ("gui", "unicode", "none"):
-        render_mode_env = "none"
-    render_mode = render_mode_env
+    render_mode = "gui"
 
     # Create env
     env = MettaGridEnv(env_cfg=env_cfg, render_mode=render_mode)
