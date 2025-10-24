@@ -5,7 +5,7 @@ import statistics
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
-from devops.datadog.common.base import BaseCollector
+from devops.datadog.utils.base import BaseCollector
 from gitta import (
     get_branches,
     get_commit_with_stats,

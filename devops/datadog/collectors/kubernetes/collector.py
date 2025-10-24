@@ -11,7 +11,7 @@ from typing import Any
 
 from kubernetes import client, config
 
-from devops.datadog.common.base import BaseCollector
+from devops.datadog.utils.base import BaseCollector
 
 
 class KubernetesCollector(BaseCollector):

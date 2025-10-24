@@ -6,7 +6,7 @@ from typing import Any
 import sky
 import sky.jobs
 
-from devops.datadog.common.base import BaseCollector
+from devops.datadog.utils.base import BaseCollector
 
 
 class SkypilotCollector(BaseCollector):

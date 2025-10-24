@@ -10,8 +10,8 @@ Future phases: Training metrics (WandB), Eval metrics
 import os
 from typing import Any
 
-from devops.datadog.common.base import BaseCollector
-from devops.datadog.common.datadog_client import DatadogClient
+from devops.datadog.utils.base import BaseCollector
+from devops.datadog.utils.datadog_client import DatadogClient
 
 
 class HealthFomCollector(BaseCollector):
