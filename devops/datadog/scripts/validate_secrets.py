@@ -80,7 +80,7 @@ def check_aws_secret(secret_name: str, verbose: bool = False) -> tuple[bool, str
         Tuple of (success, error_message)
     """
     try:
-        from softmax.aws.secrets_manager import get_secretsmanager_secret
+        from devops.datadog.utils.secrets import get_secretsmanager_secret
 
         secret_value = get_secretsmanager_secret(secret_name)
         if secret_value:
