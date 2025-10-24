@@ -9,7 +9,8 @@ image:
 # Command to run - can be overridden for different collectors
 # Uses the new modular collector architecture
 # Container working directory is /workspace/metta (repo root)
-command: ["uv", "run", "python", "devops/datadog/run_collector.py", "github", "--push"]
+# Use absolute path because uv run resolves paths relative to package directories
+command: ["uv", "run", "python", "/workspace/metta/devops/datadog/run_collector.py", "github", "--push"]
 
 serviceAccount:
   create: true

@@ -18,4 +18,4 @@ RUN uv run python -c "from devops.datadog.collectors import GitHubCollector, Sky
 
 # Default command runs GitHub collector
 # Helm chart will override this command to run specific collectors
-CMD ["uv", "run", "python", "devops/datadog/run_collector.py", "github", "--push"]
+CMD ["uv", "run", "python", "/workspace/metta/devops/datadog/run_collector.py", "github", "--push"]
