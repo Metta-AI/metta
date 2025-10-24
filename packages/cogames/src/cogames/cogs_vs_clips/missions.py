@@ -132,11 +132,6 @@ class NeutralFacedVariant(MissionVariant):
 
 
 # Backwards-compatible alias
-class BasicVibesVariant(NeutralFacedVariant):
-    name: str = "basic_vibes"
-    description: str = "Alias for neutral_faced (glyph swapping disabled)."
-
-
 class HeartChorusVariant(MissionVariant):
     name: str = "heart_chorus"
     description: str = "Heart-centric reward shaping with gentle resource bonuses."
@@ -166,7 +161,6 @@ VARIANTS = [
     LonelyHeartVariant,
     SimpleRecipesVariant,
     PackRatVariant,
-    BasicVibesVariant,
     NeutralFacedVariant,
     HeartChorusVariant,
 ]
