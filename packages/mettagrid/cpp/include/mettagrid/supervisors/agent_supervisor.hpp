@@ -1,0 +1,72 @@
+#ifndef PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_SUPERVISORS_AGENT_SUPERVISOR_HPP_
+#define PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_SUPERVISORS_AGENT_SUPERVISOR_HPP_
+
+#include <memory>
+#include <string>
+#include <utility>  // for std::pair
+#include <vector>
+
+#include "core/grid_object.hpp"  // for ObservationTokens
+#include "core/types.hpp"
+
+// Forward declarations
+class Agent;
+class Grid;
+
+// Configuration for AgentSupervisor
+struct AgentSupervisorConfig {
+  // Whether the supervisor can override the agent's action
+  bool can_override_action;
+  // Name of the supervisor for logging
+  std::string name;
+
+  AgentSupervisorConfig(bool can_override_action = false, const std::string& name = "supervisor")
+      : can_override_action(can_override_action), name(name) {}
+
+  virtual ~AgentSupervisorConfig() = default;
+};
+
+// Base class for agent supervisors
+class AgentSupervisor {
+public:
+  explicit AgentSupervisor(const AgentSupervisorConfig& config);
+
+  virtual ~AgentSupervisor() = default;
+
+  // Initialize the supervisor with grid access and agent
+  virtual void init(Grid* grid, Agent* agent);
+
+  // Called at the start of each episode
+  virtual void reset() {}
+
+  // Called before the agent's action is executed
+  // Returns the action that should be executed (may override the agent's action)
+  // The supervisor receives the same observation data as the agent
+  virtual std::pair<ActionType, ActionArg> supervise(Agent& agent,
+                                                     ActionType agent_action,
+                                                     ActionArg agent_arg,
+                                                     const ObservationTokens& observation);
+
+  // Called after the action has been executed
+  virtual void post_action(Agent& agent, bool action_success) {}
+
+protected:
+  // Subclasses must implement this to provide their recommended action
+  virtual std::pair<ActionType, ActionArg> get_recommended_action(Agent& agent,
+                                                                  const ObservationTokens& observation) = 0;
+
+  // Optional hook for additional processing during supervision
+  virtual void on_supervise(Agent& agent,
+                            ActionType agent_action,
+                            ActionArg agent_arg,
+                            ActionType supervisor_action,
+                            ActionArg supervisor_arg,
+                            bool agrees) {}
+
+  bool can_override_action_;
+  std::string name_;
+  Grid* grid_;
+  Agent* agent_;  // The agent this supervisor is attached to
+};
+
+#endif  // PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_SUPERVISORS_AGENT_SUPERVISOR_HPP_
