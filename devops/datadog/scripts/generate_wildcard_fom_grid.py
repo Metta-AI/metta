@@ -259,6 +259,7 @@ def generate_dashboard() -> dict:
     }
 
     dashboard = {
+        "id": "bew-kg3-w4f",  # Preserve existing dashboard ID
         "title": "System Health Rollup (Wildcard)",
         "description": "FoM grid using Wildcard widget with Vega-Lite visualization - no external storage required!",  # noqa: E501
         "layout_type": "ordered",
