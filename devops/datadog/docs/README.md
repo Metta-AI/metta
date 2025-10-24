@@ -70,7 +70,7 @@ Datadog.
 metta datadog dashboard pull
 
 # 2. Edit JSON files
-vim templates/softmax_system_health.json
+vim dashboards/templates/softmax_system_health.json
 
 # 3. See what changed
 metta datadog dashboard diff
@@ -79,7 +79,7 @@ metta datadog dashboard diff
 metta datadog dashboard push
 
 # 5. Commit to git
-git add templates/
+git add dashboards/templates/
 git commit -m "Update dashboard thresholds"
 ```
 
@@ -91,10 +91,10 @@ git commit -m "Update dashboard thresholds"
 
 ```bash
 # 1. Edit Jsonnet components (reusable widgets)
-vim components/ci.libsonnet
+vim dashboards/components/ci.libsonnet
 
 # 2. Edit dashboard definitions (compose widgets)
-vim dashboards/softmax_health.jsonnet
+vim dashboards/sources/softmax_health.jsonnet
 
 # 3. Build JSON from Jsonnet
 metta datadog dashboard build
@@ -109,13 +109,13 @@ git commit
 ### Visual Workflow
 
 ```
-components/*.libsonnet (reusable widgets)
+dashboards/components/*.libsonnet (reusable widgets)
         ↓
-dashboards/*.jsonnet (compose dashboards)
+dashboards/sources/*.jsonnet (compose dashboards)
         ↓
 metta datadog dashboard build (generate JSON with jsonnet)
         ↓
-templates/*.json (generated output)
+dashboards/templates/*.json (generated output)
         ↓
 metta datadog dashboard push (upload to Datadog)
         ↓
@@ -126,7 +126,7 @@ git commit (version control .jsonnet files)
 
 ### Example: From Component to Dashboard
 
-**Widget Component** (`components/ci.libsonnet`):
+**Widget Component** (`dashboards/components/ci.libsonnet`):
 
 ```jsonnet
 testsPassingWidget()::
@@ -136,7 +136,7 @@ testsPassingWidget()::
   )
 ```
 
-**Dashboard** (`dashboards/health.jsonnet`):
+**Dashboard** (`dashboards/sources/health.jsonnet`):
 
 ```jsonnet
 local ci = import '../components/ci.libsonnet';
@@ -155,25 +155,26 @@ local ci = import '../components/ci.libsonnet';
 
 ```
 devops/datadog/
-├── lib/                          # Jsonnet library (reusable helpers)
-│   ├── widgets.libsonnet        # Widget primitives
-│   ├── layout.libsonnet         # Grid layout helpers
-│   └── dashboard.libsonnet      # Dashboard builders
-│
-├── components/                   # Reusable widget definitions
-│   ├── ci.libsonnet             # CI/CD widgets
-│   ├── apm.libsonnet            # APM widgets
-│   └── custom.libsonnet         # Your custom widgets
-│
-├── dashboards/                   # Dashboard definitions (SOURCE)
-│   ├── softmax_health.jsonnet   # Dashboard composition
-│   ├── policy_eval.jsonnet      # Dashboard composition
-│   └── custom_view.jsonnet      # Mix and match!
-│
-├── templates/                    # Generated JSON (OUTPUT, gitignored)
-│   ├── softmax_health.json      # Built from .jsonnet
-│   ├── policy_eval.json         # Built from .jsonnet
-│   └── custom_view.json         # Built from .jsonnet
+├── dashboards/                   # Dashboard files (grouped)
+│   ├── lib/                     # Jsonnet library (reusable helpers)
+│   │   ├── widgets.libsonnet   # Widget primitives
+│   │   ├── layout.libsonnet    # Grid layout helpers
+│   │   └── dashboard.libsonnet # Dashboard builders
+│   │
+│   ├── components/              # Reusable widget definitions
+│   │   ├── ci.libsonnet        # CI/CD widgets
+│   │   ├── apm.libsonnet       # APM widgets
+│   │   └── custom.libsonnet    # Your custom widgets
+│   │
+│   ├── sources/                 # Dashboard definitions (SOURCE)
+│   │   ├── softmax_health.jsonnet  # Dashboard composition
+│   │   ├── policy_eval.jsonnet     # Dashboard composition
+│   │   └── custom_view.jsonnet     # Mix and match!
+│   │
+│   └── templates/               # Generated JSON (OUTPUT, gitignored)
+│       ├── softmax_health.json # Built from .jsonnet
+│       ├── policy_eval.json    # Built from .jsonnet
+│       └── custom_view.json    # Built from .jsonnet
 │
 ├── docs/                         # Documentation
 │   ├── README.md                # This file
@@ -197,21 +198,20 @@ devops/datadog/
 
 ### Key Points
 
-- **`lib/`** - Reusable Jsonnet library (like Grafonnet)
-- **`components/`** - Your widget definitions (VERSION CONTROLLED)
-- **`dashboards/`** - Dashboard compositions (VERSION CONTROLLED)
-- **`templates/`** - Generated JSON (gitignored, rebuilt from .jsonnet)
-- **`.env`** - Never commit this (contains secrets)
+- **`dashboards/lib/`** - Reusable Jsonnet library (like Grafonnet)
+- **`dashboards/components/`** - Your widget definitions (VERSION CONTROLLED)
+- **`dashboards/sources/`** - Dashboard compositions (VERSION CONTROLLED)
+- **`dashboards/templates/`** - Generated JSON (gitignored, rebuilt from .jsonnet)
 
 ---
 
 ## Creating Widgets
 
-Widgets are defined in `components/*.libsonnet` files as reusable functions.
+Widgets are defined in `dashboards/components/*.libsonnet` files as reusable functions.
 
 ### Example: CI Widget Component
 
-`components/ci.libsonnet`:
+`dashboards/components/ci.libsonnet`:
 
 ```jsonnet
 local widgets = import '../lib/widgets.libsonnet';
@@ -255,11 +255,11 @@ uv run python devops/datadog/scripts/list_metrics.py --search=commits
 
 ## Building Dashboards
 
-Dashboards are defined in `dashboards/*.jsonnet` files by composing widgets.
+Dashboards are defined in `dashboards/sources/*.jsonnet` files by composing widgets.
 
 ### Simple Dashboard
 
-`dashboards/my_dashboard.jsonnet`:
+`dashboards/sources/my_dashboard.jsonnet`:
 
 ```jsonnet
 local ci = import '../components/ci.libsonnet';
@@ -315,7 +315,7 @@ local apm = import '../components/apm.libsonnet';
 metta datadog dashboard build
 
 # Review generated JSON
-cat templates/my_dashboard.json
+cat dashboards/templates/my_dashboard.json
 
 # Push to Datadog
 metta datadog dashboard push
@@ -339,7 +339,7 @@ Shows all dashboards in your Datadog account with IDs, titles, and URLs.
 metta datadog dashboard pull
 ```
 
-Downloads all dashboards as JSON files to `templates/`.
+Downloads all dashboards as JSON files to `dashboards/templates/`.
 
 ### Export Specific Dashboard
 
@@ -347,13 +347,13 @@ Downloads all dashboards as JSON files to `templates/`.
 metta datadog dashboard export abc-123-def
 ```
 
-Downloads one dashboard by ID to `templates/dashboard_abc-123-def.json`.
+Downloads one dashboard by ID to `dashboards/templates/dashboard_abc-123-def.json`.
 
 ### Edit a Dashboard
 
 ```bash
 # Option 1: Edit JSON directly
-vim templates/softmax_system_health.json
+vim dashboards/templates/softmax_system_health.json
 
 # Option 2: Edit in Datadog UI, then pull
 # (Make changes in UI)
@@ -388,10 +388,10 @@ metta datadog dashboard push
 metta datadog dashboard pull
 
 # 3. Find the new JSON file
-ls -lt templates/  # Shows newest first
+ls -lt dashboards/templates/  # Shows newest first
 
 # 4. Commit to git
-git add templates/new_dashboard.json
+git add dashboards/templates/new_dashboard.json
 git commit -m "Add new dashboard"
 ```
 
@@ -399,13 +399,13 @@ git commit -m "Add new dashboard"
 
 ```bash
 # 1. Remove JSON file
-rm templates/old_dashboard.json
+rm dashboards/templates/old_dashboard.json
 
 # 2. Remove from Datadog UI
 # (or push will recreate it if ID still matches)
 
 # 3. Commit deletion
-git rm templates/old_dashboard.json
+git rm dashboards/templates/old_dashboard.json
 git commit -m "Remove deprecated dashboard"
 ```
 
@@ -416,10 +416,10 @@ git commit -m "Remove deprecated dashboard"
 metta datadog dashboard export abc-123-def
 
 # 2. Copy and edit
-cp templates/dashboard_abc-123-def.json templates/my_new_dashboard.json
+cp dashboards/templates/dashboard_abc-123-def.json dashboards/templates/my_new_dashboard.json
 
 # 3. Edit the copy
-vim templates/my_new_dashboard.json
+vim dashboards/templates/my_new_dashboard.json
 # Remove the "id" field (so it creates new dashboard)
 # Change the "title" field
 
@@ -437,7 +437,7 @@ Always pull latest from Datadog before making changes:
 
 ```bash
 metta datadog dashboard pull
-vim templates/my_dashboard.json
+vim dashboards/templates/my_dashboard.json
 metta datadog dashboard push
 ```
 
@@ -454,12 +454,12 @@ metta datadog dashboard push    # Only if changes look good
 
 ```bash
 # Good - one dashboard at a time
-vim templates/dashboard1.json
+vim dashboards/templates/dashboard1.json
 metta datadog dashboard diff
 metta datadog dashboard push
 
 # Less ideal - many changes at once
-vim templates/*.json
+vim dashboards/templates/*.json
 metta datadog dashboard push  # Harder to debug if something fails
 ```
 
@@ -479,7 +479,7 @@ JSON files should be properly indented (2 spaces):
 
 ```bash
 # Format JSON nicely
-jq . templates/my_dashboard.json > tmp.json && mv tmp.json templates/my_dashboard.json
+jq . dashboards/templates/my_dashboard.json > tmp.json && mv tmp.json dashboards/templates/my_dashboard.json
 ```
 
 The export scripts already format JSON with 2-space indents.
@@ -531,7 +531,7 @@ uv run python scripts/validate_secrets.py
 ```bash
 # Forgot to pull first
 metta datadog dashboard push
-# Error: No JSON files found in templates/
+# Error: No JSON files found in dashboards/templates/
 
 # Solution:
 metta datadog dashboard pull
@@ -555,7 +555,7 @@ metta datadog dashboard push
 # Error: Invalid JSON in my_dashboard.json
 
 # Solution: Validate JSON
-jq . templates/my_dashboard.json
+jq . dashboards/templates/my_dashboard.json
 # Fix the syntax error shown
 ```
 

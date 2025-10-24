@@ -7,13 +7,13 @@ This directory contains **generated JSON dashboard files** that are uploaded to 
 ### Primary Workflow: Jsonnet → JSON → Datadog
 
 1. **Source Files**: Write dashboards in Jsonnet (reusable, composable)
-   - Location: `devops/datadog/dashboards/*.jsonnet`
-   - Components: `devops/datadog/components/*.libsonnet`
+   - Location: `devops/datadog/dashboards/sources/*.jsonnet`
+   - Components: `devops/datadog/dashboards/components/*.libsonnet`
 
 2. **Build**: Compile Jsonnet to JSON
    ```bash
    # Build a specific dashboard
-   jsonnet dashboards/asana.jsonnet > templates/asana.json
+   jsonnet dashboards/sources/asana.jsonnet > dashboards/templates/asana.json
 
    # Or use the CLI
    metta datadog dashboard build asana
@@ -22,7 +22,7 @@ This directory contains **generated JSON dashboard files** that are uploaded to 
 3. **Deploy**: Push JSON to Datadog
    ```bash
    # Push to Datadog
-   python scripts/push_dashboard.py templates/asana.json
+   python scripts/push_dashboard.py dashboards/templates/asana.json
 
    # Or use the CLI
    metta datadog dashboard push asana
@@ -37,21 +37,21 @@ This directory contains **generated JSON dashboard files** that are uploaded to 
 ### ✅ Jsonnet Sources (Preferred Workflow)
 These dashboards are built from `.jsonnet` source files:
 
-- `asana.json` ← `dashboards/asana.jsonnet` + `components/asana.libsonnet`
-- `demo.json` ← `dashboards/demo.jsonnet`
-- `ec2.json` ← `dashboards/ec2.jsonnet` + `components/ec2.libsonnet`
-- `github_cicd.json` ← `dashboards/github_cicd.jsonnet` + `components/github.libsonnet`
-- `skypilot_jobs.json` ← `dashboards/skypilot_jobs.jsonnet` + `components/skypilot.libsonnet`
+- `asana.json` ← `dashboards/sources/asana.jsonnet` + `dashboards/components/asana.libsonnet`
+- `demo.json` ← `dashboards/sources/demo.jsonnet`
+- `ec2.json` ← `dashboards/sources/ec2.jsonnet` + `dashboards/components/ec2.libsonnet`
+- `github_cicd.json` ← `dashboards/sources/github_cicd.jsonnet` + `dashboards/components/github.libsonnet`
+- `skypilot_jobs.json` ← `dashboards/sources/skypilot_jobs.jsonnet` + `dashboards/components/skypilot.libsonnet`
 
 **Build these dashboards**:
 ```bash
 # Build a specific dashboard
-jsonnet dashboards/github_cicd.jsonnet > templates/github_cicd.json
+jsonnet dashboards/sources/github_cicd.jsonnet > dashboards/templates/github_cicd.json
 
 # Build all dashboards
-for f in dashboards/*.jsonnet; do
+for f in dashboards/sources/*.jsonnet; do
   name=$(basename "$f" .jsonnet)
-  jsonnet "$f" > "templates/${name}.json"
+  jsonnet "$f" > "dashboards/templates/${name}.json"
 done
 ```
 
@@ -83,9 +83,9 @@ These dashboards are currently hand-crafted JSON files tracked in git:
 
 ### Option 1: Jsonnet (Recommended)
 
-1. Create a new `.jsonnet` file in `dashboards/`:
+1. Create a new `.jsonnet` file in `dashboards/sources/`:
    ```jsonnet
-   // dashboards/my_dashboard.jsonnet
+   // dashboards/sources/my_dashboard.jsonnet
    local widgets = import '../components/infrastructure.libsonnet';
 
    {
@@ -101,12 +101,12 @@ These dashboards are currently hand-crafted JSON files tracked in git:
 
 2. Build the JSON:
    ```bash
-   jsonnet dashboards/my_dashboard.jsonnet > templates/my_dashboard.json
+   jsonnet dashboards/sources/my_dashboard.jsonnet > dashboards/templates/my_dashboard.json
    ```
 
 3. Push to Datadog:
    ```bash
-   python scripts/push_dashboard.py templates/my_dashboard.json
+   python scripts/push_dashboard.py dashboards/templates/my_dashboard.json
    ```
 
 ### Option 2: Python Generation
@@ -114,7 +114,7 @@ These dashboards are currently hand-crafted JSON files tracked in git:
 For complex visualizations (like grids, custom Vega-Lite):
 
 1. Create a script in `scripts/generate_*.py`
-2. Generate JSON to `templates/`
+2. Generate JSON to `dashboards/templates/`
 3. Push to Datadog
 
 ### Option 3: Export from Datadog UI
@@ -123,7 +123,7 @@ For quick prototyping:
 
 1. Create dashboard in Datadog UI
 2. Export using `scripts/export_dashboard.py <dashboard-id>`
-3. Save to `templates/` for reference
+3. Save to `dashboards/templates/` for reference
 4. **Then** convert to Jsonnet for version control
 
 ---
@@ -132,25 +132,28 @@ For quick prototyping:
 
 ```
 devops/datadog/
-├── dashboards/              # Source files (.jsonnet)
-│   ├── asana.jsonnet
-│   ├── demo.jsonnet
-│   └── ec2.jsonnet
+├── dashboards/                    # Dashboard files (grouped)
+│   ├── sources/                  # Source files (.jsonnet)
+│   │   ├── asana.jsonnet
+│   │   ├── demo.jsonnet
+│   │   └── ec2.jsonnet
+│   │
+│   ├── components/               # Reusable widget libraries (.libsonnet)
+│   │   ├── asana.libsonnet
+│   │   ├── ci.libsonnet
+│   │   ├── ec2.libsonnet
+│   │   └── infrastructure.libsonnet
+│   │
+│   ├── lib/                      # Base Jsonnet primitives
+│   │
+│   └── templates/                # Generated JSON (gitignored build artifacts)
+│       ├── asana.json           # ← Built from sources/asana.jsonnet
+│       ├── demo.json            # ← Built from sources/demo.jsonnet
+│       ├── ec2.json             # ← Built from sources/ec2.jsonnet
+│       ├── *.json               # ← Other generated files
+│       └── README.md            # ← This file
 │
-├── components/              # Reusable widget libraries (.libsonnet)
-│   ├── asana.libsonnet
-│   ├── ci.libsonnet
-│   ├── ec2.libsonnet
-│   └── infrastructure.libsonnet
-│
-├── templates/               # Generated JSON (gitignored build artifacts)
-│   ├── asana.json          # ← Built from dashboards/asana.jsonnet
-│   ├── demo.json           # ← Built from dashboards/demo.jsonnet
-│   ├── ec2.json            # ← Built from dashboards/ec2.jsonnet
-│   ├── *.json              # ← Other generated files
-│   └── README.md           # ← This file
-│
-└── scripts/                 # Build and deployment scripts
+└── scripts/                      # Build and deployment scripts
     ├── push_dashboard.py
     ├── fetch_dashboards.py
     ├── generate_health_grid.py
@@ -185,14 +188,14 @@ devops/datadog/
 ### Q: How do I update a dashboard?
 
 **A**:
-1. Edit the `.jsonnet` source file in `dashboards/`
-2. Rebuild: `jsonnet dashboards/my_dashboard.jsonnet > templates/my_dashboard.json`
-3. Push: `python scripts/push_dashboard.py templates/my_dashboard.json`
+1. Edit the `.jsonnet` source file in `dashboards/sources/`
+2. Rebuild: `jsonnet dashboards/sources/my_dashboard.jsonnet > dashboards/templates/my_dashboard.json`
+3. Push: `python scripts/push_dashboard.py dashboards/templates/my_dashboard.json`
 
 ### Q: I created a dashboard in Datadog UI, how do I version control it?
 
 **A**:
-1. Export: `python scripts/export_dashboard.py <dashboard-id> > templates/temp.json`
+1. Export: `python scripts/export_dashboard.py <dashboard-id> > dashboards/templates/temp.json`
 2. Convert to Jsonnet: Copy widget structures to a new `.jsonnet` file
 3. Test: Build and compare with original
 4. Push: Deploy the jsonnet-generated version
@@ -204,5 +207,5 @@ devops/datadog/
 
 - **Jsonnet Tutorial**: https://jsonnet.org/learning/tutorial.html
 - **Datadog Dashboard JSON API**: https://docs.datadoghq.com/dashboards/graphing_json/
-- **Component Libraries**: See `components/*.libsonnet` for examples
+- **Component Libraries**: See `dashboards/components/*.libsonnet` for examples
 - **WORKPLAN**: `../WORKPLAN.md` for Jsonnet system design decisions

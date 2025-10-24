@@ -526,7 +526,7 @@ Create dashboard using existing tools:
 
 ```bash
 # 1. Create dashboard JSON
-vim devops/datadog/templates/system_health.json
+vim devops/datadog/dashboards/templates/system_health.json
 
 # 2. Build (if using Jsonnet)
 metta datadog dashboard build

@@ -15,35 +15,36 @@ same approach for Datadog!
 
 ```
 devops/datadog/
-├── lib/                              # Jsonnet library (like Grafonnet)
-│   ├── datadog.libsonnet            # Main entry point
-│   ├── dashboard.libsonnet          # Dashboard helpers
-│   ├── layout.libsonnet             # Grid layout system
-│   └── widgets/                      # Widget library
-│       ├── timeseries.libsonnet
-│       ├── query_value.libsonnet
-│       ├── toplist.libsonnet
-│       └── note.libsonnet
-│
-├── components/                       # Reusable widget definitions
-│   ├── ci.libsonnet                 # CI/CD widgets
-│   ├── apm.libsonnet                # APM widgets
-│   └── custom.libsonnet             # Your custom widgets
-│
-├── dashboards/                       # Dashboard definitions
-│   ├── softmax_health.jsonnet       # Dashboard source
-│   ├── policy_eval.jsonnet          # Dashboard source
-│   └── custom_view.jsonnet          # Mix and match!
-│
-└── templates/                        # Generated JSON (output)
-    ├── softmax_health.json          # Built from .jsonnet
-    ├── policy_eval.json             # Built from .jsonnet
-    └── custom_view.json             # Built from .jsonnet
+├── dashboards/                       # Dashboard files (grouped)
+│   ├── lib/                         # Jsonnet library (like Grafonnet)
+│   │   ├── datadog.libsonnet       # Main entry point
+│   │   ├── dashboard.libsonnet     # Dashboard helpers
+│   │   ├── layout.libsonnet        # Grid layout system
+│   │   └── widgets/                 # Widget library
+│   │       ├── timeseries.libsonnet
+│   │       ├── query_value.libsonnet
+│   │       ├── toplist.libsonnet
+│   │       └── note.libsonnet
+│   │
+│   ├── components/                  # Reusable widget definitions
+│   │   ├── ci.libsonnet            # CI/CD widgets
+│   │   ├── apm.libsonnet           # APM widgets
+│   │   └── custom.libsonnet        # Your custom widgets
+│   │
+│   ├── sources/                     # Dashboard definitions
+│   │   ├── softmax_health.jsonnet  # Dashboard source
+│   │   ├── policy_eval.jsonnet     # Dashboard source
+│   │   └── custom_view.jsonnet     # Mix and match!
+│   │
+│   └── templates/                   # Generated JSON (output)
+│       ├── softmax_health.json     # Built from .jsonnet
+│       ├── policy_eval.json        # Built from .jsonnet
+│       └── custom_view.json        # Built from .jsonnet
 ```
 
 ## Example: Widget Library
 
-### lib/widgets/timeseries.libsonnet
+### dashboards/lib/widgets/timeseries.libsonnet
 
 ```jsonnet
 {
@@ -73,7 +74,7 @@ devops/datadog/
 }
 ```
 
-### components/ci.libsonnet
+### dashboards/components/ci.libsonnet
 
 ```jsonnet
 local widgets = import '../lib/widgets/timeseries.libsonnet';
@@ -123,7 +124,7 @@ local widgets = import '../lib/widgets/timeseries.libsonnet';
 
 ## Grid Layout System
 
-### lib/layout.libsonnet
+### dashboards/lib/layout.libsonnet
 
 ```jsonnet
 {
@@ -152,7 +153,7 @@ local widgets = import '../lib/widgets/timeseries.libsonnet';
 }
 ```
 
-### lib/dashboard.libsonnet
+### dashboards/lib/dashboard.libsonnet
 
 ```jsonnet
 local layout = import 'layout.libsonnet';
@@ -174,7 +175,7 @@ local layout = import 'layout.libsonnet';
 
 ## Example: Dashboard Definition
 
-### dashboards/softmax_health.jsonnet
+### dashboards/sources/softmax_health.jsonnet
 
 ```jsonnet
 local dashboard = import '../lib/dashboard.libsonnet';
@@ -194,7 +195,7 @@ dashboard.dashboard(
 )
 ```
 
-### dashboards/custom_view.jsonnet
+### dashboards/sources/custom_view.jsonnet
 
 ```jsonnet
 local dashboard = import '../lib/dashboard.libsonnet';
@@ -226,7 +227,7 @@ dashboard.dashboard(
 brew install jsonnet
 
 # Build a single dashboard
-jsonnet dashboards/softmax_health.jsonnet > templates/softmax_health.json
+jsonnet dashboards/sources/softmax_health.jsonnet > dashboards/templates/softmax_health.json
 
 # Build all dashboards
 metta datadog dashboard build
@@ -241,10 +242,10 @@ metta datadog dashboard push
 # Build dashboards from Jsonnet
 build-dashboards:
 	@echo "Building dashboards from Jsonnet..."
-	@for file in dashboards/*.jsonnet; do \
+	@for file in dashboards/sources/*.jsonnet; do \
 		base=$$(basename $$file .jsonnet); \
-		jsonnet $$file > templates/$$base.json; \
-		echo "✓ Built templates/$$base.json"; \
+		jsonnet $$file > dashboards/templates/$$base.json; \
+		echo "✓ Built dashboards/templates/$$base.json"; \
 	done
 
 # Complete workflow
@@ -348,9 +349,9 @@ Just enhanced JSON
 ### After (Jsonnet Components)
 
 ```jsonnet
-local dashboard = import 'lib/dashboard.libsonnet';
-local ci = import 'components/ci.libsonnet';
-local apm = import 'components/apm.libsonnet';
+local dashboard = import '../lib/dashboard.libsonnet';
+local ci = import '../components/ci.libsonnet';
+local apm = import '../components/apm.libsonnet';
 
 dashboard.dashboard(
   'My Dashboard',
