@@ -127,9 +127,11 @@ class BidirectionalLPScorer(LPScorer):
         # Cache for task distribution and scores
         self._task_dist: Optional[np.ndarray] = None
         self._raw_lp_scores: Optional[np.ndarray] = None  # Pre-zscore LP scores (after smoothing/reweighting)
+        self._postzscored_lp_scores: Optional[np.ndarray] = None  # Post-zscore LP scores (before sigmoid)
         self._stale_dist = True
         self._score_cache: Dict[int, float] = {}
         self._raw_lp_cache: Dict[int, float] = {}  # Cache for raw LP scores
+        self._postzscored_lp_cache: Dict[int, float] = {}  # Cache for post-zscore LP scores
         self._cache_valid_tasks: set[int] = set()
 
         # Track first 3 tasks for detailed wandb metrics
@@ -229,6 +231,53 @@ class BidirectionalLPScorer(LPScorer):
         self._raw_lp_cache[task_id] = raw_lp
         return raw_lp
 
+    def get_postzscored_lp_score(self, task_id: int, tracker: TaskTracker) -> float:
+        """Get LP score after z-score normalization but before sigmoid.
+
+        This returns the LP value after z-score normalization (or temperature scaling)
+        but before sigmoid transformation and final normalization.
+
+        Args:
+            task_id: ID of task to score
+            tracker: TaskTracker instance
+
+        Returns:
+            Post-z-score LP score before sigmoid
+        """
+        # Return cached post-zscore LP if valid
+        if task_id in self._cache_valid_tasks and task_id in self._postzscored_lp_cache:
+            return self._postzscored_lp_cache[task_id]
+
+        task_stats = tracker.get_task_stats(task_id)
+        if not task_stats or task_stats["completion_count"] < 2:
+            # New tasks get exploration bonus (not z-scored)
+            postzscored_lp = self.config.exploration_bonus
+        elif task_id not in self._outcomes or len(self._outcomes[task_id]) < 2:
+            # Tasks without sufficient data get exploration bonus
+            postzscored_lp = self.config.exploration_bonus
+        else:
+            # Calculate bidirectional learning progress
+            self._update_bidirectional_progress()
+
+            # Get post-zscore LP scores if needed
+            if self._postzscored_lp_scores is None or self._stale_dist:
+                self._calculate_task_distribution()
+
+            # Find task index in our tracking
+            task_indices = list(self._outcomes.keys())
+            if task_id in task_indices and self._postzscored_lp_scores is not None:
+                task_idx = task_indices.index(task_id)
+                if task_idx < len(self._postzscored_lp_scores):
+                    postzscored_lp = float(self._postzscored_lp_scores[task_idx])
+                else:
+                    postzscored_lp = self.config.exploration_bonus
+            else:
+                postzscored_lp = self.config.exploration_bonus
+
+        # Cache the computed post-zscore LP
+        self._postzscored_lp_cache[task_id] = postzscored_lp
+        return postzscored_lp
+
     def update_with_score(self, task_id: int, score: float) -> None:
         """Update bidirectional EMA tracking for a task with new score."""
         # Convert score to success rate (assuming score is between 0 and 1)
@@ -270,6 +319,7 @@ class BidirectionalLPScorer(LPScorer):
         self._outcomes.pop(task_id, None)
         self._score_cache.pop(task_id, None)
         self._raw_lp_cache.pop(task_id, None)
+        self._postzscored_lp_cache.pop(task_id, None)
         self._cache_valid_tasks.discard(task_id)
         self._stale_dist = True
 
@@ -368,6 +418,7 @@ class BidirectionalLPScorer(LPScorer):
         self._cache_valid_tasks.clear()
         self._score_cache.clear()
         self._raw_lp_cache.clear()
+        self._postzscored_lp_cache.clear()
 
     def _update_bidirectional_progress(self) -> None:
         """Update bidirectional learning progress tracking with current task success rates."""
@@ -575,6 +626,7 @@ class BidirectionalLPScorer(LPScorer):
         if not self._outcomes:
             self._task_dist = None
             self._raw_lp_scores = None
+            self._postzscored_lp_scores = None
             self._stale_dist = False
             return
 
@@ -582,6 +634,7 @@ class BidirectionalLPScorer(LPScorer):
         if len(learning_progress) == 0:
             self._task_dist = None
             self._raw_lp_scores = None
+            self._postzscored_lp_scores = None
             self._stale_dist = False
             return
 
@@ -615,6 +668,9 @@ class BidirectionalLPScorer(LPScorer):
             # Low temp (< 1) amplifies differences, high temp (> 1) smooths them
             subprobs = subprobs / temperature
         # else: negative temperature is invalid, leave subprobs unchanged
+
+        # Store post-z-score LP scores (after z-score/temperature, before sigmoid)
+        self._postzscored_lp_scores = subprobs.copy().astype(np.float32)
 
         subprobs = self._sigmoid(subprobs)
 

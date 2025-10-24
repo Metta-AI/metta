@@ -43,6 +43,7 @@ class CurriculumEnv(PufferEnv):
 
         # Per-label metrics tracking
         self._per_label_lp_scores = {}  # Raw LP scores (before z-score normalization)
+        self._per_label_postzscored_lp_scores = {}  # Post-z-score LP scores (after z-score, before sigmoid)
         self._per_label_lp_probs = {}  # Final sampling probabilities (after z-score + sigmoid)
 
         # Cache curriculum stats
@@ -67,7 +68,8 @@ class CurriculumEnv(PufferEnv):
         """Add curriculum statistics to info dictionary for logging.
 
         Logs:
-        - Per-label LP scores (EMA smoothed)
+        - Per-label LP scores (raw, post-z-score, and final probabilities)
+        - Per-label aggregate eviction counts
         - Pool composition fractions (fraction of task pool per label)
         - Total completions, evictions
         - Gini coefficient for sampling distribution across labels
@@ -87,6 +89,10 @@ class CurriculumEnv(PufferEnv):
             if self._per_label_lp_scores:
                 info_dict[self._CURRICULUM_STAT_PREFIX + "per_label_lp_scores"] = self._per_label_lp_scores.copy()
 
+            # Post-z-score LP scores (after z-score, before sigmoid)
+            if self._per_label_postzscored_lp_scores:
+                info_dict[self._CURRICULUM_STAT_PREFIX + "per_label_postzscored_lp_scores"] = self._per_label_postzscored_lp_scores.copy()
+
             # Final sampling probabilities (after z-score + sigmoid)
             if self._per_label_lp_probs:
                 info_dict[self._CURRICULUM_STAT_PREFIX + "per_label_lp_probs"] = self._per_label_lp_probs.copy()
@@ -102,6 +108,16 @@ class CurriculumEnv(PufferEnv):
 
             if pool_composition:
                 info_dict[self._CURRICULUM_STAT_PREFIX + "pool_composition_fraction"] = pool_composition
+
+            # Add per-label eviction counts (aggregate over all time)
+            per_label_evictions = {}
+            for key, value in stats.items():
+                if key.startswith("algorithm/eviction_counts/"):
+                    label = key.replace("algorithm/eviction_counts/", "")
+                    per_label_evictions[label] = int(value)
+
+            if per_label_evictions:
+                info_dict[self._CURRICULUM_STAT_PREFIX + "per_label_aggregate_evictions"] = per_label_evictions
 
             # Add total completions
             if "num_completed" in stats:
@@ -286,6 +302,13 @@ class CurriculumEnv(PufferEnv):
                 else:
                     self._per_label_lp_scores[label] = raw_lp_score
 
+                # Update post-z-score LP score with EMA (α = 0.01)
+                postzscored_lp_score = self._curriculum.get_task_postzscored_lp_score(self._current_task._task_id)
+                if label in self._per_label_postzscored_lp_scores:
+                    self._per_label_postzscored_lp_scores[label] = 0.99 * self._per_label_postzscored_lp_scores[label] + 0.01 * postzscored_lp_score
+                else:
+                    self._per_label_postzscored_lp_scores[label] = postzscored_lp_score
+
                 # Update sampling probability with EMA (α = 0.01)
                 lp_prob = self._curriculum.get_task_lp_score(self._current_task._task_id)
                 if label in self._per_label_lp_probs:
@@ -369,6 +392,7 @@ class CurriculumEnv(PufferEnv):
             "force_stats_update",
             "_first_reset_done",
             "_per_label_lp_scores",
+            "_per_label_postzscored_lp_scores",
             "_per_label_lp_probs",
             "_cached_curriculum_stats",
             "_curriculum_stats_cache_valid",

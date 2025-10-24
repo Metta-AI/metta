@@ -459,6 +459,19 @@ class Curriculum(StatsLogger):
             return self._algorithm.get_task_raw_lp_score(task_id)
         return 0.0
 
+    def get_task_postzscored_lp_score(self, task_id: int) -> float:
+        """Get the post-z-score learning progress score for a specific task (after z-score, before sigmoid).
+
+        Args:
+            task_id: The task ID to get the post-z-score score for
+
+        Returns:
+            The post-z-score learning progress score, or 0.0 if not available
+        """
+        if self._algorithm is not None and hasattr(self._algorithm, "get_task_postzscored_lp_score"):
+            return self._algorithm.get_task_postzscored_lp_score(task_id)
+        return 0.0
+
     def get_base_stats(self) -> Dict[str, float]:
         """Get basic curriculum statistics."""
         # Get global completion count from algorithm's task tracker if available

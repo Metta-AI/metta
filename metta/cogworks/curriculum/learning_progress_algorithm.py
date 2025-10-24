@@ -131,6 +131,7 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         # Track task labels for pool composition and sampling stats
         self._task_labels: Dict[int, str] = {}  # task_id -> label
         self._label_completion_counts: Dict[str, int] = {}  # label -> count
+        self._label_eviction_counts: Dict[str, int] = {}  # label -> eviction count
 
         # Track which labels are currently active (have tasks in pool)
         self._active_labels: set[str] = set()
@@ -232,12 +233,16 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         # Remove from label tracking and clean up inactive labels
         evicted_label = self._task_labels.pop(task_id, None)
         if evicted_label:
+            # Track eviction count for this label
+            self._label_eviction_counts[evicted_label] = self._label_eviction_counts.get(evicted_label, 0) + 1
+
             # Check if this label still has any active tasks
             if evicted_label not in self._task_labels.values():
                 # No more tasks with this label - remove from active set
                 self._active_labels.discard(evicted_label)
                 # Clean up completion counts for inactive labels to prevent unbounded growth
                 self._label_completion_counts.pop(evicted_label, None)
+                # Note: We keep eviction counts even for inactive labels to maintain historical data
 
         # Remove from slice analyzer to prevent memory leak
         self.slice_analyzer.remove_task(task_id)
@@ -303,6 +308,13 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         # Fallback to regular LP score if scorer doesn't support raw LP
         return self.get_learning_progress_score(task_id)
 
+    def get_task_postzscored_lp_score(self, task_id: int) -> float:
+        """Get post-z-score learning progress score for a specific task (after z-score, before sigmoid)."""
+        if hasattr(self.scorer, "get_postzscored_lp_score"):
+            return self.scorer.get_postzscored_lp_score(task_id, self.task_tracker)
+        # Fallback to regular LP score if scorer doesn't support post-z-score LP
+        return self.get_learning_progress_score(task_id)
+
     def get_stats(self) -> Dict[str, float]:
         """Get learning progress statistics (compatibility method for tests)."""
         return self.scorer.get_stats()
@@ -366,6 +378,10 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         # Add sampling counts (number of times each label was sampled)
         for label, count in composition_data["sampling_counts"].items():
             stats[f"sampling_counts/{label}"] = float(count)
+
+        # Add eviction counts (number of times each label was evicted)
+        for label, count in self._label_eviction_counts.items():
+            stats[f"eviction_counts/{label}"] = float(count)
 
         # Add per-task completion counts and LP scores for pool tasks
         all_task_ids = self.task_tracker.get_all_tracked_tasks()
