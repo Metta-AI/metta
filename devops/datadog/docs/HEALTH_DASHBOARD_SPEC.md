@@ -6,16 +6,51 @@ A Datadog table visualization displaying normalized health metrics across Traini
 represents a metric scaled to [0,1] as a "Figure of Merit" (FoM) and visualized with a continuous red-to-green color
 spectrum over a 7-day rolling window.
 
-**Status**: Planning phase **Dependencies**: WandB collector, training metrics collector, eval metrics collector
-**Existing**: GitHub, Skypilot, Asana, EC2 collectors (deployed)
+**Status**: Phase 2 Complete (CI/CD + Training metrics deployed)
+
+**Deployed Infrastructure**:
+- 7 Collectors: GitHub, Skypilot, Asana, EC2, WandB, Kubernetes, Health FoM
+- 130+ Total Metrics
+- 14 FoM Metrics: 7 CI/CD + 7 Training
+- 2 Dashboard Implementations: Widget Grid + Wildcard Vega-Lite
+
+## Implementation Status
+
+### ✅ Phase 1: CI/CD Metrics (Complete)
+- **Collector**: Health FoM collector (`collectors/health_fom/`)
+- **Metrics**: 7 CI/CD FoM metrics (0.0-1.0 normalized)
+- **Status**: Deployed, running every 15 minutes
+- **Dashboard**: Integrated into 14×7 grid
+
+### ✅ Phase 2: Training Metrics (Complete)
+- **Collector**: Health FoM collector (extended)
+- **Metrics**: 7 Training FoM metrics using WandB data
+- **Status**: Deployed, running every 15 minutes
+- **Dashboard**: Integrated into 14×7 grid
+
+### ⏳ Phase 3: Eval Metrics (Planned)
+- **Collector**: Eval collector (not yet implemented)
+- **Metrics**: 5 Eval FoM metrics
+- **Status**: Pending eval infrastructure
+
+### ⏳ Future Phases: Additional Metrics (Planned)
+- **Additional Training Metrics**: 2 more from spec
+- **Additional CI/CD Metrics**: 4 more from spec
+- **Total Target**: 25+ FoM metrics
 
 ## Visualization Approaches
 
-We evaluated three approaches for displaying the 7×7 FoM grid in Datadog:
+We evaluated three approaches for displaying FoM grids in Datadog. Two are currently deployed:
 
-### Approach 1: Widget Grid (65 Individual Widgets) ✅ IMPLEMENTED
+### Approach 1: Widget Grid ✅ DEPLOYED
 
-**Description**: Create a grid using individual Datadog widgets (49 data cells + 16 labels).
+**Description**: Create a grid using individual Datadog widgets for each cell.
+
+**Current Implementation**: 14×7 grid (14 metrics × 7 days)
+- 98 data cells (query_value widgets with conditional formatting)
+- 21 label widgets (14 row labels + 7 column headers)
+- 2 header widgets (title + corner label)
+- **Total**: 121 widgets
 
 **Pros**:
 - ✅ Native Datadog widgets - simple and reliable
@@ -25,34 +60,44 @@ We evaluated three approaches for displaying the 7×7 FoM grid in Datadog:
 
 **Cons**:
 - ❌ Large dashboard JSON (thousands of lines)
-- ❌ No text labels on data cells
-- ❌ Manual positioning for each widget
-- ❌ Difficult to regenerate if layout changes
+- ❌ No text labels on data cells (only color coding)
+- ❌ Requires Python script to regenerate
+- ❌ Widget count grows with metrics (N×7 widgets per metric)
 
 **Implementation**: `scripts/generate_health_grid.py`
 
-**Dashboard**: [System Health Rollup (Grid)](https://app.datadoghq.com/dashboard/2mx-kfj-8pi/system-health-rollup)
+**Dashboard**: [System Health Rollup (Grid)](https://app.datadoghq.com/dashboard/h3w-ibt-gkv/system-health-rollup)
 
-### Approach 2: Wildcard Widget with Vega-Lite ✅ IMPLEMENTED
+**Current Metrics**:
+- 7 CI/CD FoMs (tests, workflows, hotfixes, reverts, duration, stale PRs, cycle time)
+- 7 Training FoMs (run success/failures, accuracy, loss, GPU, duration)
+
+**Extensibility**: To add more metrics, update `METRICS` array in `generate_health_grid.py` and regenerate.
+
+### Approach 2: Wildcard Widget with Vega-Lite ✅ DEPLOYED
 
 **Description**: Single wildcard widget using Vega-Lite visualization language.
 
 **Pros**:
-- ✅ Single widget (easy to maintain)
+- ✅ Single widget (very compact)
 - ✅ Text labels showing exact FoM values
-- ✅ Interactive tooltips
-- ✅ Declarative visualization spec
+- ✅ Interactive tooltips with metric details
+- ✅ Declarative visualization spec (easier to customize)
+- ✅ Scales better with large metric counts
 
 **Cons**:
-- ❌ Requires 49 metric queries (7 metrics × 7 days with `.timeshift()`)
-- ❌ More complex query structure
-- ❌ Vega-Lite learning curve
+- ❌ Requires N×7 metric queries (with `.timeshift()` for each day)
+- ❌ More complex query structure in JSON
+- ❌ Vega-Lite learning curve for customization
+- ❌ Less familiar to team (not standard Datadog widgets)
 
 **Implementation**: `scripts/generate_wildcard_fom_grid.py`
 
 **Dashboard**: [System Health Rollup (Wildcard)](https://app.datadoghq.com/dashboard/bew-kg3-w4f/system-health-rollup-wildcard)
 
-**Technical Reference**: See `WILDCARD_WIDGET.md` for API details
+**Current Status**: Deployed as alternative visualization. Supports same 14 metrics as Widget Grid approach.
+
+**Technical Reference**: See `WILDCARD_WIDGET.md` for API details and Vega-Lite customization
 
 ### Approach 3: Image-Based Visualization ❌ REJECTED
 
@@ -75,13 +120,23 @@ We evaluated three approaches for displaying the 7×7 FoM grid in Datadog:
 
 **Historical Reference**: Original planning document deleted (IMAGE_COLLECTOR_PLAN.md)
 
-### Current Status
+### Deployment Status & Recommendations
 
-**Deployed**:
-- Widget Grid (Approach 1) - Production dashboard
-- Wildcard Widget (Approach 2) - Alternative visualization
+**Both Approaches Deployed**:
+- **Widget Grid** (h3w-ibt-gkv) - 121 widgets, 14 metrics × 7 days
+- **Wildcard Widget** (bew-kg3-w4f) - Single widget, same metrics
 
-**Recommendation**: Use **Widget Grid** for production monitoring (simpler, more reliable), **Wildcard Widget** for executive presentations (cleaner visual with text labels).
+**Evaluation Period**: We're running both implementations to determine the best approach.
+
+**Current Usage**:
+- **Widget Grid**: Primary monitoring dashboard (more familiar to team)
+- **Wildcard Widget**: Alternative view for presentations (cleaner visual with numeric labels)
+
+**Decision Timeline**: TBD - will evaluate based on:
+- Team preferences and usage patterns
+- Performance and reliability
+- Ease of maintenance and extension
+- Feedback from stakeholders
 
 ## Architecture Integration
 
@@ -90,24 +145,56 @@ This dashboard builds on the existing Datadog collector architecture:
 ### Existing Infrastructure
 
 - **Collector Framework**: `BaseCollector` pattern with `@metric` decorator
-- **Deployed Collectors**:
+- **Deployed Collectors** (7 total):
   - GitHub (28 metrics) - PRs, commits, CI/CD, developers
   - Skypilot (30 metrics) - Jobs, runtime stats, resources
   - Asana (14 metrics) - Tasks, velocity, bugs tracking
   - EC2 (19 metrics) - Instances, costs, EBS volumes
-- **Total**: 91 metrics across 4 collectors
+  - WandB (10 metrics) - Training runs, model performance, resource usage
+  - Kubernetes (15 metrics) - Pods, deployments, node health, resource waste
+  - Health FoM (14 metrics) - CI/CD and Training health scores (0.0-1.0 scale)
+- **Total**: 130+ metrics across 7 collectors
 - **Dashboard Tools**: CLI commands via `metta datadog dashboard`
-- **Deployment**: Kubernetes CronJobs via Helm charts
+- **Deployment**: Kubernetes CronJobs via Helm charts (every 15 minutes)
 - **Documentation**: See `COLLECTORS_ARCHITECTURE.md`, `ADDING_NEW_COLLECTOR.md`
 
-### New Components Needed
+### Components Status
 
-1. **FoM Processing Collector**: Reads raw metrics, calculates FoM values, emits normalized metrics
-2. **Training Metrics Collectors**: WandB integration, training job status collector
-3. **Eval Metrics Collector**: Local and remote evaluation metrics
-4. **Health Dashboard**: Datadog query table displaying FoM values over 7 days
+**✅ Deployed**:
+1. **Health FoM Collector** - Reads raw metrics from GitHub and WandB, calculates FoM values (0.0-1.0)
+2. **WandB Collector** - Training runs, model performance, resource usage
+3. **Health Dashboards** - Two implementations (Widget Grid + Wildcard) displaying FoM values over 7 days
+
+**⏳ Needed for Future Phases**:
+1. **Eval Metrics Collector** - Local and remote evaluation metrics
+2. **Additional Training Metrics** - Job-level checkpoint/resume tracking
+3. **Extended CI/CD Metrics** - Benchmarks, force merges, timeouts, flaky checks
 
 ## Table Structure
+
+### Current Implementation (14 Metrics)
+
+**CI/CD Metrics (7):**
+1. Tests Passing - Binary (pass=1.0, fail=0.0)
+2. Failing Workflows - Fewer is better (0→1.0, 5+→0.0)
+3. Hotfix Count - Fewer is better (0→1.0, 10+→0.0)
+4. Revert Count - Fewer is better (0→1.0, 2+→0.0)
+5. CI Duration P90 - Faster is better (3min→1.0, 10min+→0.0)
+6. Stale PRs - Fewer is better (0→1.0, 50+→0.0)
+7. PR Cycle Time - Faster is better (24h→1.0, 72h+→0.0)
+
+**Training Metrics (7):**
+1. Training Run Success - At least 7 runs/week (7→1.0)
+2. Training Run Failures - Fewer is better (0→1.0, 3+→0.0)
+3. Best Model Accuracy - Higher is better (normalized 0-1 or 0-100%)
+4. Avg Model Accuracy - Higher is better (7-day average)
+5. Training Loss - Lower is better (0.1→1.0, 2.0+→0.0)
+6. GPU Utilization - Higher is better (80%+→1.0)
+7. Training Duration - Optimal 2-8 hours (8h→1.0, 16h+→0.0)
+
+### Target Implementation (25+ Metrics)
+
+The specification below describes the full planned system with Training, CI/CD, and Eval categories. Sections marked with ✅ are deployed, ⏳ are planned.
 
 ### Visual Layout
 
@@ -149,7 +236,9 @@ Hierarchical grouping by workflow category (~35 total metrics):
 
 ## Metric Definitions & Sources
 
-### Training Metrics (9 total)
+### Training Metrics (9 total: 7 ✅ Deployed, 2 ⏳ Planned)
+
+**Note**: The deployed implementation uses 7 generic training metrics rather than the 9 specific metrics detailed below. See "Current Implementation" section above for actual deployed metrics.
 
 #### 1. Multigpu Arena - Run Success
 
@@ -254,7 +343,9 @@ Hierarchical grouping by workflow category (~35 total metrics):
   # 0→1.0, 1→0.67, 2→0.33, 3+→0.0
   ```
 
-### CI/CD Metrics (11 total)
+### CI/CD Metrics (11 total: 7 ✅ Deployed, 4 ⏳ Planned)
+
+**Note**: 7 of these metrics are currently deployed. The remaining 4 (benchmarks, force merges, timeouts, flaky checks) are planned for future implementation.
 
 #### 10. Main Branch - Tests Passing
 
@@ -387,7 +478,9 @@ Hierarchical grouping by workflow category (~35 total metrics):
   # 24h→1.0, 48h→0.5, 72h+→0.0
   ```
 
-### Eval Metrics (5 total)
+### Eval Metrics (5 total: ⏳ All Planned)
+
+**Note**: These metrics require the Eval collector to be implemented. They are fully specified but not yet deployed.
 
 #### 21. Local Eval - Run Success
 
@@ -942,44 +1035,67 @@ Alert: FoM collector experiencing errors
 
 ## Success Criteria
 
-### Initial Release (CI Metrics)
+### ✅ Phase 1: Initial Release (CI Metrics) - COMPLETE
 
-- ✅ FoM collector deployed and running hourly
+- ✅ FoM collector deployed and running every 15 minutes
 - ✅ 7 CI FoM metrics calculated correctly
 - ✅ Dashboard displaying 7-day view with color coding
-- ✅ No missing data for CI metrics
+- ✅ Two visualization approaches deployed (Widget Grid + Wildcard)
 
-### Training Metrics Addition
+### ✅ Phase 2: Training Metrics Addition - COMPLETE
 
 - ✅ WandB collector deployed
-- ✅ 9 training FoM metrics calculated
-- ✅ Dashboard showing full training + CI view
-- ✅ Team using dashboard daily
+- ✅ 7 training FoM metrics calculated and deployed
+- ✅ Dashboard expanded to 14×7 grid (CI + Training)
+- ✅ Both dashboard implementations updated
 
-### Full Rollout
+### ⏳ Phase 3: Eval Metrics - PENDING
 
-- ✅ All 25+ metrics in dashboard
-- ✅ Alerts configured and tested
-- ✅ < 5% missing data (gray cells)
-- ✅ Team trained on dashboard
-- ✅ Runbooks documented
+- ⏳ Eval collector implementation
+- ⏳ 5 eval FoM metrics calculated
+- ⏳ Dashboard expanded to include eval section
+- ⏳ End-to-end validation
+
+### ⏳ Future: Full Rollout - PLANNED
+
+- ⏳ All 25+ metrics in dashboard
+- ⏳ Alerts configured and tested
+- ⏳ < 5% missing data (gray cells)
+- ⏳ Team trained on dashboard
+- ⏳ Runbooks documented
 
 ## Open Questions
 
-1. **WandB API Access**: Do we have API keys? Rate limits?
-   - Action: Check with team about WandB access
+### ✅ Resolved
 
-2. **Training Job Metrics**: Best way to collect checkpoint/resume status?
+1. **WandB API Access** - RESOLVED
+   - ✅ WandB collector deployed with API access via secrets manager
+   - ✅ 10 metrics collected successfully from WandB
+
+2. **Dashboard Refresh Rate** - RESOLVED
+   - ✅ Collectors run every 15 minutes
+   - ✅ Historical 7-day view appropriate for trends
+
+3. **Visualization Approach** - EVALUATING
+   - ✅ Both Widget Grid and Wildcard approaches deployed
+   - ⏳ Evaluating which to keep as primary
+
+### ⏳ Outstanding
+
+1. **Training Job Metrics**: Best way to collect checkpoint/resume status?
    - Option A: Parse Skypilot logs
    - Option B: Emit from training code
    - Option C: New training status API
+   - **Decision needed** before implementing additional training metrics
 
-3. **Dashboard Refresh Rate**: Hourly FoM updates sufficient?
-   - Consider: Real-time critical metrics vs. historical trends
+2. **Alert Strategy**: When to add monitors?
+   - Current: No alerts configured yet
+   - Proposal: Start with critical alerts only (tests failing, high hotfix rate)
+   - Timeline: After Phase 3 (Eval metrics) complete
 
-4. **Alert Fatigue**: How many monitors to start with?
-   - Start conservative: Only critical alerts
-   - Expand based on incidents
+3. **Eval Collector Implementation**: Timeline and approach?
+   - Depends on eval infrastructure readiness
+   - Need to define eval success criteria and data sources
 
 ## References
 
@@ -1005,5 +1121,11 @@ Alert: FoM collector experiencing errors
 
 ---
 
-**Last Updated**: 2025-10-23 **Status**: Planning phase **Next Steps**: Implement FoM collector with existing CI metrics
-(Step 1)
+**Last Updated**: 2025-10-24
+
+**Status**: Phase 2 Complete (14 FoM metrics deployed: 7 CI/CD + 7 Training)
+
+**Next Steps**:
+- Evaluate Widget Grid vs. Wildcard visualization approach
+- Implement Eval collector for Phase 3
+- Configure alerting after Phase 3 complete
