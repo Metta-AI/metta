@@ -33,12 +33,14 @@ Once running, agents can invoke the `find_similar_prs` tool with:
   "arguments": {
     "description": "network error when saving eval runs",
     "top_k": 3,
-    "api_key": "AIza... (optional override)"
+    "api_key": "AIza... (optional override)",
+    "min_merged_at": "2025-01-01T00:00:00Z"
   }
 }
 ```
 
-The response is a JSON blob containing ranked PR metadata along with their similarity scores.
+The response is a JSON blob containing ranked PR metadata (including `merged_at` timestamps) along with their similarity scores.
+Pass `min_merged_at` (ISO 8601) to exclude PRs merged before a given moment.
 
 ## Client integration
 

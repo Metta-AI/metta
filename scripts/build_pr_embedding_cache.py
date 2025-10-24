@@ -22,7 +22,7 @@ DEFAULT_BATCH_SIZE = 16
 TASK_TYPE = "semantic_similarity"
 DEFAULT_MIN_DESCRIPTION_LINES = 0
 PR_NUMBER_RE = re.compile(r"#(\d+)\b")
-LOG_FORMAT = "%H%x1f%an%x1f%aI%x1f%s%x1f%b%x1e"
+LOG_FORMAT = "%H%x1f%an%x1f%aI%x1f%cI%x1f%s%x1f%b%x1e"
 
 
 @dataclass
@@ -36,6 +36,7 @@ class PullRequestSnapshot:
     files_changed: int
     commit_sha: str
     authored_at: str
+    merged_at: str
 
 
 @dataclass
@@ -50,6 +51,7 @@ class EmbeddingRecord:
     files_changed: int
     commit_sha: str
     authored_at: str
+    merged_at: str
 
 
 def parse_args() -> argparse.Namespace:
@@ -117,10 +119,10 @@ def _extract_snapshot(raw_entry: str) -> PullRequestSnapshot | None:
 
     lines = raw_entry.split("\n")
     header_fields = lines[0].split("\x1f")
-    if len(header_fields) < 5:
+    if len(header_fields) < 6:
         return None
 
-    commit_sha, author, authored_at, subject, body_first = header_fields[:5]
+    commit_sha, author, authored_at, merged_at, subject, body_first = header_fields[:6]
     body_lines: List[str] = []
     if body_first:
         body_lines.append(body_first)
@@ -153,6 +155,7 @@ def _extract_snapshot(raw_entry: str) -> PullRequestSnapshot | None:
         files_changed=files_changed,
         commit_sha=commit_sha,
         authored_at=authored_at,
+        merged_at=merged_at,
     )
 
 
@@ -200,6 +203,7 @@ def load_existing_cache(path: Path) -> Tuple[Dict[int, EmbeddingRecord], Dict[st
                 files_changed=int(item.get("files_changed", 0)),
                 commit_sha=item.get("commit_sha", ""),
                 authored_at=item.get("authored_at", ""),
+                merged_at=item.get("merged_at", item.get("authored_at", "")),
             )
             entries[pr_number] = record
 
@@ -227,6 +231,7 @@ def load_existing_cache(path: Path) -> Tuple[Dict[int, EmbeddingRecord], Dict[st
                 files_changed=int(item.get("files_changed", 0)),
                 commit_sha=item.get("commit_sha", ""),
                 authored_at=item.get("authored_at", ""),
+                merged_at=item.get("merged_at", item.get("authored_at", "")),
             )
             entries[record.pr_number] = record
         return entries, metadata
@@ -252,8 +257,9 @@ def build_embedding_text(snapshot: PullRequestSnapshot) -> str:
         ),
         f"Commit: {snapshot.commit_sha}",
     ]
-    if snapshot.authored_at:
-        segments.append(f"Authored at: {snapshot.authored_at}")
+    merged_at = snapshot.merged_at or snapshot.authored_at
+    if merged_at:
+        segments.append(f"Merged at: {merged_at}")
     return "\n".join(segments)
 
 
@@ -304,6 +310,7 @@ def write_cache(
                 "files_changed": record.files_changed,
                 "commit_sha": record.commit_sha,
                 "authored_at": record.authored_at,
+                "merged_at": record.merged_at,
             },
         )
         pr_numbers.append(record.pr_number)
@@ -378,6 +385,7 @@ def main() -> None:
                 files_changed=snapshot.files_changed,
                 commit_sha=snapshot.commit_sha,
                 authored_at=snapshot.authored_at,
+                merged_at=snapshot.merged_at,
             )
             existing_records[record.pr_number] = record
         print(f"Embedded {len(batch)} PRs (total cached: {len(existing_records)})")

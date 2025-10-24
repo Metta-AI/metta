@@ -4,6 +4,7 @@ import json
 import math
 import os
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Iterable, List, Sequence, Tuple, cast
 
@@ -35,6 +36,34 @@ class EmbeddingRecord:
     commit_sha: str
     authored_at: str
     vector: List[float]
+    merged_at: str | None = None
+
+
+def _parse_iso_datetime(value: str | None) -> datetime | None:
+    if not value:
+        return None
+    try:
+        timestamp = datetime.fromisoformat(value)
+    except ValueError:
+        return None
+    if timestamp.tzinfo is None:
+        timestamp = timestamp.replace(tzinfo=timezone.utc)
+    return timestamp
+
+
+def _coerce_min_authored_at(value: datetime | str | None) -> datetime | None:
+    if value is None:
+        return None
+    if isinstance(value, datetime):
+        result = value
+    else:
+        try:
+            result = datetime.fromisoformat(value)
+        except ValueError as error:
+            raise ValueError("min_authored_at must be a valid ISO 8601 timestamp.") from error
+    if result.tzinfo is None:
+        result = result.replace(tzinfo=timezone.utc)
+    return result
 
 
 def require_api_key(env_var: str = API_KEY_ENV) -> str:
@@ -80,6 +109,7 @@ def _load_legacy_cache(path: Path) -> Tuple[CacheMetadata, List[EmbeddingRecord]
                 commit_sha=item.get("commit_sha", ""),
                 authored_at=item.get("authored_at", ""),
                 vector=list(vector_data),
+                merged_at=item.get("merged_at"),
             ),
         )
 
@@ -123,6 +153,7 @@ def load_cache(path: Path) -> Tuple[CacheMetadata, List[EmbeddingRecord]]:
                     commit_sha=item.get("commit_sha", ""),
                     authored_at=item.get("authored_at", ""),
                     vector=vector,
+                    merged_at=item.get("merged_at"),
                 ),
             )
 
@@ -192,11 +223,23 @@ def find_similar_prs(
     model_override: str | None = None,
     api_key: str | None = None,
     client: genai.Client | None = None,
+    min_authored_at: datetime | str | None = None,
 ) -> Tuple[CacheMetadata, List[Tuple[float, EmbeddingRecord]]]:
     if top_k <= 0:
         raise ValueError("top_k must be greater than zero.")
 
     metadata, records = load_cache(cache_path)
+    min_date = _coerce_min_authored_at(min_authored_at)
+    if min_date is not None:
+        filtered_records: List[EmbeddingRecord] = []
+        for record in records:
+            timestamp = _parse_iso_datetime(record.merged_at) or _parse_iso_datetime(record.authored_at)
+            if timestamp is None or timestamp >= min_date:
+                filtered_records.append(record)
+        records = filtered_records
+        if not records:
+            return metadata, []
+
     model = model_override or metadata.model
     if not model:
         raise ValueError("Embedding model is not specified in the cache. Pass --model to override it.")

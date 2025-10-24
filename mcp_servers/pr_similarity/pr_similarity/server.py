@@ -8,6 +8,7 @@ import logging
 import os
 import sys
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, List, cast
 
@@ -114,6 +115,7 @@ def build_context() -> ServerContext:
 
 
 def format_record(score: float, record: EmbeddingRecord, rank: int) -> Dict[str, Any]:
+    merged_at = record.merged_at or record.authored_at
     return {
         "rank": rank,
         "score": round(score, 6),
@@ -125,6 +127,7 @@ def format_record(score: float, record: EmbeddingRecord, rank: int) -> Dict[str,
         "files_changed": record.files_changed,
         "commit_sha": record.commit_sha,
         "authored_at": record.authored_at,
+        "merged_at": merged_at,
         "summary": summarize_description(record.description),
     }
 
@@ -166,6 +169,13 @@ def build_server(context: ServerContext) -> Server:
                             "type": "string",
                             "description": f"Optional Gemini API key override if {API_KEY_ENV} is unavailable.",
                         },
+                        "min_merged_at": {
+                            "type": "string",
+                            "description": (
+                                "Optional ISO 8601 timestamp; exclude PRs merged before this moment. "
+                                "Examples: '2025-10-01' or '2025-10-01T12:30:00-07:00'."
+                            ),
+                        },
                     },
                     "required": ["description"],
                 },
@@ -206,6 +216,26 @@ def build_server(context: ServerContext) -> Server:
 
         model_override = arguments.get("model")
         api_key_override = arguments.get("api_key")
+        min_merged_at_arg = arguments.get("min_merged_at")
+        if min_merged_at_arg is None:
+            min_merged_at_arg = arguments.get("min_authored_at")  # legacy name
+        min_authored_at = None
+        min_merged_at_text: str | None = None
+        if min_merged_at_arg is not None:
+            min_merged_at_text = str(min_merged_at_arg).strip()
+            if min_merged_at_text:
+                try:
+                    parsed_min = datetime.fromisoformat(min_merged_at_text)
+                except ValueError:
+                    return [
+                        types.TextContent(
+                            type="text",
+                            text="Error: 'min_merged_at' must be a valid ISO 8601 timestamp.",
+                        ),
+                    ]
+                if parsed_min.tzinfo is None:
+                    parsed_min = parsed_min.replace(tzinfo=timezone.utc)
+                min_authored_at = parsed_min
         api_key_candidate = None
         if api_key_override is not None:
             api_key_candidate = str(api_key_override).strip()
@@ -226,6 +256,7 @@ def build_server(context: ServerContext) -> Server:
                 cache_path=context.cache_path,
                 model_override=model_override,
                 api_key=api_key,
+                min_authored_at=min_authored_at,
             )
         except Exception as error:  # pragma: no cover - surface error to caller
             logging.getLogger(__name__).exception("Failed to compute similar PRs")
@@ -236,6 +267,7 @@ def build_server(context: ServerContext) -> Server:
                 "description": description,
                 "top_k": top_k,
                 "model": model_override or metadata.model,
+                "min_merged_at": min_merged_at_text,
             },
             "cache": {
                 "path": str(context.cache_path),

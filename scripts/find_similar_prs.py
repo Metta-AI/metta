@@ -1,6 +1,7 @@
 import argparse
 import sys
 import textwrap
+from datetime import datetime, timezone
 from pathlib import Path
 
 from metta.tools.pr_similarity import API_KEY_ENV, DEFAULT_CACHE_PATH, DEFAULT_TOP_K, find_similar_prs, require_api_key
@@ -25,6 +26,13 @@ def parse_args() -> argparse.Namespace:
         type=int,
         default=DEFAULT_TOP_K,
         help=f"Number of similar PRs to return (default: {DEFAULT_TOP_K}).",
+    )
+    parser.add_argument(
+        "--min-date",
+        help=(
+            "Optional ISO 8601 timestamp; only PRs merged on or after this moment are considered. "
+            "Examples: 2025-10-01 or 2025-10-01T15:30:00-07:00."
+        ),
     )
     parser.add_argument(
         "description",
@@ -78,12 +86,22 @@ def main() -> None:
         sys.exit(f"error: {error}")
     description = args.description.strip()
 
+    min_date = None
+    if args.min_date:
+        try:
+            min_date = datetime.fromisoformat(args.min_date.strip())
+        except ValueError as error:
+            sys.exit(f"error: invalid --min-date value: {error}")
+        if min_date.tzinfo is None:
+            min_date = min_date.replace(tzinfo=timezone.utc)
+
     metadata, top_results = find_similar_prs(
         description,
         top_k=args.top_k,
         cache_path=args.cache_path,
         model_override=args.model,
         api_key=api_key,
+        min_authored_at=min_date,
     )
     model_name = args.model or metadata.model or "<unknown>"
 
@@ -118,7 +136,8 @@ def main() -> None:
             for line in summary_block.splitlines():
                 print(colorize(use_color, BLUE, f"    {line}"))
 
-        commit_line = f"    Commit: {record.commit_sha} · Authored at: {record.authored_at}"
+        merged_at = record.merged_at or record.authored_at
+        commit_line = f"    Commit: {record.commit_sha} · Merged at: {merged_at}"
         print(colorize(use_color, CYAN, commit_line))
         print(colorize(use_color, CYAN, "-" * 72))
 
