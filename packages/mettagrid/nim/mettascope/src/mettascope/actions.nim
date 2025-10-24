@@ -55,7 +55,7 @@ proc processActions*() =
     let nextAction = pathActions[0]
 
     case nextAction.kind
-    of move:
+    of Move:
       # Execute movement action.
       let dx = nextAction.pos.x - currentPos.x
       let dy = nextAction.pos.y - currentPos.y
@@ -65,7 +65,7 @@ proc processActions*() =
       agentPaths[agentId].delete(0)
       # Check if we completed an objective.
       let objective = agentObjectives[agentId][0]
-      if objective.kind == move and nextAction.pos == objective.pos:
+      if objective.kind == Move and nextAction.pos == objective.pos:
         # Completed this Move objective.
         agentObjectives[agentId].delete(0)
         if objective.repeat:
@@ -75,7 +75,7 @@ proc processActions*() =
         elif agentObjectives[agentId].len == 0:
           # No more objectives, clear the path.
           agentPaths.del(agentId)
-    of bump:
+    of Bump:
       # Execute bump action.
       let targetOrientation = getOrientationFromDelta(nextAction.bumpDir.x.int, nextAction.bumpDir.y.int)
       sendAction(agentId, replay.moveActionId, targetOrientation.int)
@@ -91,14 +91,14 @@ proc processActions*() =
       elif agentObjectives[agentId].len == 0:
         # No more objectives, clear the path.
         agentPaths.del(agentId)
-    of action:
-      # Execute action (like vibe).
-      sendAction(agentId, nextAction.actionId, nextAction.argument)
+    of Vibe:
+      # Execute vibe.
+      sendAction(agentId, nextAction.vibeActionId, -1)
       # Remove this action from the queue.
       agentPaths[agentId].delete(0)
       # Remove the corresponding objective.
       let objective = agentObjectives[agentId][0]
-      if objective.kind == action:
+      if objective.kind == Vibe:
         agentObjectives[agentId].delete(0)
         if objective.repeat:
           # Re-queue this objective at the end.

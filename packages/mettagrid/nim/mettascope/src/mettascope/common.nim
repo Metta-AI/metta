@@ -103,36 +103,29 @@ type
     actionId*: int
     argument*: int
 
-  ObjectiveType* = enum
-    move # Move to a specific position.
-    bump # Bump an object at a specific position to interact with it.
-    action # Execute a specific action (like vibe).
+  ObjectiveKind* = enum
+    Move # Move to a specific position.
+    Bump # Bump an object at a specific position to interact with it.
+    Vibe # Execute a specific vibe action.
 
   Objective* = object
-    case kind*: ObjectiveType
-    of move, bump:
+    case kind*: ObjectiveKind
+    of Move, Bump:
       pos*: IVec2
       approachDir*: IVec2 ## Direction to approach from for Bump actions (e.g., ivec2(-1, 0) means approach from the left).
-    of action:
-      actionId*: int
-      argument*: int
+    of Vibe:
+      vibeActionId*: int
     repeat*: bool ## If true, this objective will be re-queued at the end when completed.
 
-  PathActionType* = enum
-    move # Move to a position.
-    bump # Bump at current position.
-    action # Execute an action (like vibe).
-
   PathAction* = object
-    case kind*: PathActionType
-    of move:
+    case kind*: ObjectiveKind
+    of Move:
       pos*: IVec2 ## Target position for move.
-    of bump:
+    of Bump:
       bumpPos*: IVec2 ## Bump target position.
       bumpDir*: IVec2 ## Direction to bump for bump actions.
-    of action:
-      actionId*: int ## Action ID to execute.
-      argument*: int ## Argument for the action.
+    of Vibe:
+      vibeActionId*: int
 
 var
   requestActions*: seq[ActionRequest]

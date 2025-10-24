@@ -107,7 +107,7 @@ proc recomputePath*(agentId: int, currentPos: IVec2) =
 
   for objIdx, objective in agentObjectives[agentId]:
     case objective.kind
-    of move:
+    of Move:
       # For moving, path directly to the objective.
       let movePath = findPath(lastPos, objective.pos)
       if movePath.len == 0:
@@ -116,9 +116,9 @@ proc recomputePath*(agentId: int, currentPos: IVec2) =
       # Convert positions to move actions.
       for pos in movePath:
         if pos != lastPos:
-          pathActions.add(PathAction(kind: move, pos: pos))
+          pathActions.add(PathAction(kind: Move, pos: pos))
       lastPos = objective.pos
-    of bump:
+    of Bump:
       # For bumping, path to the specified approach position.
       let approachPos = ivec2(objective.pos.x + objective.approachDir.x, objective.pos.y + objective.approachDir.y)
       if not isWalkablePos(approachPos):
@@ -133,20 +133,19 @@ proc recomputePath*(agentId: int, currentPos: IVec2) =
           return
         for pos in movePath:
           if pos != lastPos:
-            pathActions.add(PathAction(kind: move, pos: pos))
+            pathActions.add(PathAction(kind: Move, pos: pos))
       # Add the bump action.
       pathActions.add(PathAction(
-        kind: bump,
+        kind: Bump,
         bumpPos: objective.pos,
         bumpDir: ivec2(objective.pos.x - approachPos.x, objective.pos.y - approachPos.y),
       ))
       lastPos = approachPos
-    of action:
-      # Add action as a path action to maintain synchronization.
+    of Vibe:
+      # Add vibe as a path action to maintain synchronization.
       pathActions.add(PathAction(
-        kind: action,
-        actionId: objective.actionId,
-        argument: objective.argument
+        kind: Vibe,
+        vibeActionId: objective.vibeActionId
       ))
 
   if pathActions.len > 0:
