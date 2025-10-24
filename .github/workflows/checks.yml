@@ -174,15 +174,10 @@ jobs:
       - name: Setup Environment
         uses: ./.github/actions/setup-environment
         with:
-          install-mode: "linting"
+          install-mode: "metta-cli"
 
-      - name: Run Python linting
-        run: |
-          uv run ruff format --check .
-          uv run ruff check --exit-non-zero-on-fix .
-
-      - name: Run C++ linting
-        run: ./packages/mettagrid/tests/cpplint.sh
+      - name: Run linting and formatting
+        run: uv run metta lint
 
   observatory-typescript-check:
     name: "Observatory TypeScript Check"

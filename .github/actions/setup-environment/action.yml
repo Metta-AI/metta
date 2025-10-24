@@ -2,7 +2,7 @@ name: "Setup Environment"
 description: "Set up the environment for CI"
 inputs:
   install-mode:
-    description: "Installation mode: 'testing', 'runtime', 'linting', or 'minimal'"
+    description: "Installation mode: 'testing', 'runtime', 'linting', 'metta-cli', or 'minimal'"
     required: false
     default: "testing"
   extra-dependencies:
@@ -137,6 +137,19 @@ runs:
           "runtime")
             # Install only main dependencies, excluding all groups
             uv sync --no-group interactive --no-group dev
+            ;;
+
+          "metta-cli")
+            # Install lint group + minimal metta package dependencies for CLI
+            # This enables using `metta lint` and other metta commands while keeping install fast
+            uv sync --only-group lint
+            # Install metta package with only the minimal dependencies needed for CLI
+            # (typer, rich, pydantic, pyyaml, colorama, omegaconf, etc.)
+            uv pip install -e . --no-deps
+            uv pip install typer rich pydantic pyyaml colorama omegaconf
+            # Install workspace packages that metta CLI imports
+            uv pip install -e common --no-deps
+            uv pip install -e packages/gitta --no-deps
             ;;
 
         esac
