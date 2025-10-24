@@ -115,12 +115,19 @@ def main():
             r = results[name]
             print(f"  - {name}: {r.get('error', 'Unknown error')}")
 
-    # Exit with error if any collectors failed
-    if failed or interrupted:
-        sys.exit(1)
+    # Exit with success if at least some collectors succeeded
+    # Partial data is better than no data
+    if successful:
+        if failed:
+            print(f"\n⚠️  Partial success: {len(successful)}/{len(COLLECTORS)} collectors succeeded")
+            print("Job will exit with success code - partial data collected")
+        else:
+            print("\n✅ All collectors completed successfully")
+        sys.exit(0)
 
-    print("\n✅ All collectors completed successfully")
-    sys.exit(0)
+    # Only fail if ALL collectors failed
+    print("\n❌ All collectors failed - no data collected")
+    sys.exit(1)
 
 
 if __name__ == "__main__":
