@@ -29,12 +29,8 @@ Usage:
 import json
 import re
 import sys
-from pathlib import Path
 
-# Add parent directory to path for local imports
-sys.path.insert(0, str(Path(__file__).parent.parent))
-
-from utils.dashboard_client import DatadogDashboardClient
+from devops.datadog.utils.dashboard_client import DatadogDashboardClient
 
 
 def extract_dashboard_id(input_str: str) -> str:

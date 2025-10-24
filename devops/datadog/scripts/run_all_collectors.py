@@ -15,7 +15,7 @@ import time
 from datetime import datetime
 
 # Import all collector functions
-from devops.datadog.run_collector import (
+from devops.datadog.scripts.run_collector import (
     run_asana_collector,
     run_ec2_collector,
     run_github_collector,
