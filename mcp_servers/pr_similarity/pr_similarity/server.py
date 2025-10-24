@@ -115,7 +115,7 @@ def build_context() -> ServerContext:
 
 
 def format_record(score: float, record: EmbeddingRecord, rank: int) -> Dict[str, Any]:
-    merged_at = record.merged_at or record.authored_at
+    merged_at = record.merged_at
     return {
         "rank": rank,
         "score": round(score, 6),

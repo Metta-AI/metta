@@ -25,6 +25,16 @@ PR_NUMBER_RE = re.compile(r"#(\d+)\b")
 LOG_FORMAT = "%H%x1f%an%x1f%aI%x1f%cI%x1f%s%x1f%b%x1e"
 
 
+def _require_merged_at(entry: Dict[str, object]) -> str:
+    merged_at = entry.get("merged_at")
+    if not merged_at:
+        raise ValueError(
+            "Embedding cache entry is missing 'merged_at'. Rebuild the cache from scratch "
+            "to populate merge timestamps.",
+        )
+    return str(merged_at)
+
+
 @dataclass
 class PullRequestSnapshot:
     pr_number: int
@@ -203,7 +213,7 @@ def load_existing_cache(path: Path) -> Tuple[Dict[int, EmbeddingRecord], Dict[st
                 files_changed=int(item.get("files_changed", 0)),
                 commit_sha=item.get("commit_sha", ""),
                 authored_at=item.get("authored_at", ""),
-                merged_at=item.get("merged_at", item.get("authored_at", "")),
+                merged_at=_require_merged_at(item),
             )
             entries[pr_number] = record
 
@@ -231,7 +241,7 @@ def load_existing_cache(path: Path) -> Tuple[Dict[int, EmbeddingRecord], Dict[st
                 files_changed=int(item.get("files_changed", 0)),
                 commit_sha=item.get("commit_sha", ""),
                 authored_at=item.get("authored_at", ""),
-                merged_at=item.get("merged_at", item.get("authored_at", "")),
+                merged_at=_require_merged_at(item),
             )
             entries[record.pr_number] = record
         return entries, metadata
@@ -257,9 +267,8 @@ def build_embedding_text(snapshot: PullRequestSnapshot) -> str:
         ),
         f"Commit: {snapshot.commit_sha}",
     ]
-    merged_at = snapshot.merged_at or snapshot.authored_at
-    if merged_at:
-        segments.append(f"Merged at: {merged_at}")
+    if snapshot.merged_at:
+        segments.append(f"Merged at: {snapshot.merged_at}")
     return "\n".join(segments)
 
 

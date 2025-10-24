@@ -18,4 +18,5 @@
    session in this directory and verify with `codex mcp list`.
 
 4. Ask Codex to call `find_similar_prs` with a short description. You should receive JSON output listing
-   the top matching PRs from the cache.
+   the top matching PRs from the cache. Pass `min_merged_at` (ISO 8601) if you want to ignore PRs merged
+   before a specific date.

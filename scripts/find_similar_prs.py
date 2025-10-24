@@ -136,8 +136,7 @@ def main() -> None:
             for line in summary_block.splitlines():
                 print(colorize(use_color, BLUE, f"    {line}"))
 
-        merged_at = record.merged_at or record.authored_at
-        commit_line = f"    Commit: {record.commit_sha} · Merged at: {merged_at}"
+        commit_line = f"    Commit: {record.commit_sha} · Merged at: {record.merged_at}"
         print(colorize(use_color, CYAN, commit_line))
         print(colorize(use_color, CYAN, "-" * 72))
 

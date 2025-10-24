@@ -6,7 +6,7 @@ import os
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Iterable, List, Sequence, Tuple, cast
+from typing import Any, Dict, Iterable, List, Sequence, Tuple, cast
 
 import numpy as np
 from google import genai
@@ -36,7 +36,17 @@ class EmbeddingRecord:
     commit_sha: str
     authored_at: str
     vector: List[float]
-    merged_at: str | None = None
+    merged_at: str
+
+
+def _require_merged_at(entry: Dict[str, Any]) -> str:
+    merged_at = entry.get("merged_at")
+    if not merged_at:
+        raise ValueError(
+            "Embedding cache entry is missing 'merged_at'. Rebuild the cache with "
+            "`python mcp_servers/pr_similarity/build_cache.py`.",
+        )
+    return str(merged_at)
 
 
 def _parse_iso_datetime(value: str | None) -> datetime | None:
@@ -109,7 +119,7 @@ def _load_legacy_cache(path: Path) -> Tuple[CacheMetadata, List[EmbeddingRecord]
                 commit_sha=item.get("commit_sha", ""),
                 authored_at=item.get("authored_at", ""),
                 vector=list(vector_data),
-                merged_at=item.get("merged_at"),
+                merged_at=_require_merged_at(item),
             ),
         )
 
@@ -153,7 +163,7 @@ def load_cache(path: Path) -> Tuple[CacheMetadata, List[EmbeddingRecord]]:
                     commit_sha=item.get("commit_sha", ""),
                     authored_at=item.get("authored_at", ""),
                     vector=vector,
-                    merged_at=item.get("merged_at"),
+                    merged_at=_require_merged_at(item),
                 ),
             )
 
@@ -233,8 +243,13 @@ def find_similar_prs(
     if min_date is not None:
         filtered_records: List[EmbeddingRecord] = []
         for record in records:
-            timestamp = _parse_iso_datetime(record.merged_at) or _parse_iso_datetime(record.authored_at)
-            if timestamp is None or timestamp >= min_date:
+            timestamp = _parse_iso_datetime(record.merged_at)
+            if timestamp is None:
+                raise ValueError(
+                    "Embedding cache entry is missing a valid 'merged_at' timestamp. "
+                    "Rebuild the cache with `python mcp_servers/pr_similarity/build_cache.py`.",
+                )
+            if timestamp >= min_date:
                 filtered_records.append(record)
         records = filtered_records
         if not records:

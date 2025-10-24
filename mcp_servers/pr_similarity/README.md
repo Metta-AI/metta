@@ -42,6 +42,17 @@ Once running, agents can invoke the `find_similar_prs` tool with:
 The response is a JSON blob containing ranked PR metadata (including `merged_at` timestamps) along with their similarity scores.
 Pass `min_merged_at` (ISO 8601) to exclude PRs merged before a given moment.
 
+## Refreshing the cache
+
+Regenerate embeddings after notable repository changes with:
+
+```bash
+python mcp_servers/pr_similarity/build_cache.py
+```
+
+Upload the resulting `pr_embeddings.json` and `pr_embeddings.npz` to the hosting bucket
+(`s3://softmax-public/pr-cache/`) so other users receive the updated merge timestamps.
+
 ## Client integration
 
 ### Claude Desktop
