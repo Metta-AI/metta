@@ -175,7 +175,7 @@ devops/datadog/
 │   ├── kubernetes/    # Kubernetes resource efficiency and pod health
 │   └── health_fom/    # Normalized health scores (0.0-1.0)
 │
-├── common/             # Shared utilities
+├── utils/             # Shared utilities
 │   ├── datadog_client.py  # Datadog metric submission
 │   ├── secrets.py         # AWS Secrets Manager access
 │   ├── registry.py        # Metric registry and auto-discovery

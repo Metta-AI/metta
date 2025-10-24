@@ -38,7 +38,7 @@ Create `collector.py`:
 
 from devops.datadog.collectors.base import BaseCollector
 from devops.datadog.collectors.{collector_name} import metrics
-from devops.datadog.common.registry import auto_discover_metrics
+from devops.datadog.utils.registry import auto_discover_metrics
 
 
 class {CollectorName}Collector(BaseCollector):
@@ -82,7 +82,7 @@ class {CollectorName}Collector(BaseCollector):
 
 from devops.datadog.collectors.base import BaseCollector
 from devops.datadog.collectors.skypilot import metrics
-from devops.datadog.common.registry import auto_discover_metrics
+from devops.datadog.utils.registry import auto_discover_metrics
 
 
 class SkypilotCollector(BaseCollector):
@@ -129,8 +129,8 @@ Create `metrics.py` with your metric functions:
 from datetime import datetime, timedelta, timezone
 import httpx
 
-from devops.datadog.common.decorators import metric
-from devops.datadog.common.secrets import get_secret
+from devops.datadog.utils.decorators import metric
+from devops.datadog.utils.secrets import get_secret
 
 
 def _get_api_client() -> httpx.Client:
@@ -191,8 +191,8 @@ def get_metric_3() -> float | None:
 from datetime import datetime, timedelta, timezone
 import httpx
 
-from devops.datadog.common.decorators import metric
-from devops.datadog.common.secrets import get_secret
+from devops.datadog.utils.decorators import metric
+from devops.datadog.utils.secrets import get_secret
 
 
 def _get_api_client() -> httpx.Client:
@@ -409,7 +409,7 @@ class Test{CollectorName}Collector:
         # Collector should not crash, just record errors
         assert len(collector._errors) > 0
 
-    @patch("devops.datadog.common.secrets.get_secret")
+    @patch("devops.datadog.utils.secrets.get_secret")
     def test_secrets_loading(self, mock_get_secret):
         """Test that secrets are loaded correctly."""
         mock_get_secret.side_effect = lambda name: {

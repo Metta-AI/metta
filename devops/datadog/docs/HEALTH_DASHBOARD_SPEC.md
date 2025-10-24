@@ -417,7 +417,7 @@ New collector to calculate normalized health metrics:
 # devops/datadog/collectors/health_fom/collector.py
 
 from devops.datadog.collectors.base import BaseCollector
-from devops.datadog.common.datadog_client import DatadogClient
+from devops.datadog.utils.datadog_client import DatadogClient
 
 
 class HealthFomCollector(BaseCollector):
