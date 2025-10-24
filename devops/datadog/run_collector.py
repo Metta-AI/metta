@@ -8,6 +8,7 @@ Usage:
     uv run python devops/datadog/run_collector.py github [--push] [--verbose]
     uv run python devops/datadog/run_collector.py skypilot [--push] [--verbose]
     uv run python devops/datadog/run_collector.py asana [--push] [--verbose]
+    uv run python devops/datadog/run_collector.py ec2 [--push] [--verbose]
 """
 
 import argparse
@@ -405,13 +406,83 @@ def run_health_fom_collector(push: bool = False, verbose: bool = False, json_out
     return metrics
 
 
+def run_ec2_collector(push: bool = False, verbose: bool = False, json_output: bool = False) -> dict:
+    """Run the EC2 metrics collector."""
+    from devops.datadog.collectors.ec2 import EC2Collector
+    from devops.datadog.common.datadog_client import DatadogClient
+
+    # Setup logging
+    if verbose:
+        logging.basicConfig(level=logging.DEBUG, format="%(levelname)s: %(message)s")
+    else:
+        logging.basicConfig(level=logging.INFO, format="%(message)s")
+
+    # Helper to print messages (stderr for json mode, stdout otherwise)
+    def print_status(msg):
+        if json_output:
+            print(msg, file=sys.stderr)
+        else:
+            print(msg)
+
+    # Get AWS region (optional, defaults to us-east-1)
+    region = os.getenv("AWS_REGION", "us-east-1")
+
+    print_status(f"Collecting metrics from EC2 in {region}...")
+
+    # Create and run collector
+    collector = EC2Collector(region=region)
+    metrics = collector.collect_safe()
+
+    if not metrics:
+        print("Warning: No metrics collected", file=sys.stderr)
+        sys.exit(1)
+
+    print_status(f"Collected {len(metrics)} metrics")
+
+    # Push to Datadog if requested
+    if push:
+        api_key, app_key, site = get_datadog_credentials()
+        print_status("Pushing metrics to Datadog...")
+
+        # Create Datadog client
+        datadog_client = DatadogClient(
+            api_key=api_key,
+            app_key=app_key,
+            site=site,
+        )
+
+        # Format metrics for submission
+        metrics_to_submit = []
+        for name, value in metrics.items():
+            if value is not None:
+                metrics_to_submit.append(
+                    {
+                        "metric": name,
+                        "value": value,
+                        "type": "gauge",
+                        "tags": ["source:ec2-collector", "env:production", f"region:{region}"],
+                    }
+                )
+
+        # Submit metrics
+        success = datadog_client.submit_metrics_batch(metrics_to_submit)
+
+        if success:
+            print_status(f"Successfully pushed {len(metrics_to_submit)} metrics to Datadog")
+        else:
+            print("Error: Failed to push metrics to Datadog", file=sys.stderr)
+            sys.exit(1)
+
+    return metrics
+
+
 def main():
     """Main entry point."""
     # Load .env file if it exists
     load_env_file()
 
     parser = argparse.ArgumentParser(description="Run a Datadog metrics collector")
-    parser.add_argument("collector", help="Collector name (e.g., 'github', 'skypilot', 'asana', 'health_fom')")
+    parser.add_argument("collector", help="Collector name (e.g., 'github', 'skypilot', 'asana', 'health_fom', 'ec2')")
     parser.add_argument("--push", action="store_true", help="Push metrics to Datadog")
     parser.add_argument("--verbose", "-v", action="store_true", help="Verbose output")
     parser.add_argument("--json", action="store_true", help="Output metrics as JSON")
@@ -526,9 +597,36 @@ def main():
                 traceback.print_exc()
             sys.exit(1)
 
+    elif args.collector == "ec2":
+        try:
+            metrics = run_ec2_collector(push=args.push, verbose=args.verbose, json_output=args.json)
+
+            if args.json:
+                print(json.dumps(metrics, indent=2, sort_keys=True))
+            else:
+                print("\nCollected metrics:")
+                for key, value in sorted(metrics.items()):
+                    if value is not None:
+                        if isinstance(value, float):
+                            print(f"  {key}: {value:.2f}")
+                        else:
+                            print(f"  {key}: {value}")
+
+        except KeyboardInterrupt:
+            print("\nInterrupted", file=sys.stderr)
+            sys.exit(130)
+
+        except Exception as e:
+            print(f"Error: Failed to run {args.collector} collector: {e}", file=sys.stderr)
+            if args.verbose:
+                import traceback
+
+                traceback.print_exc()
+            sys.exit(1)
+
     else:
         print(f"Error: Unknown collector '{args.collector}'", file=sys.stderr)
-        print("Available collectors: github, skypilot, asana, health_fom", file=sys.stderr)
+        print("Available collectors: github, skypilot, asana, health_fom, ec2", file=sys.stderr)
         sys.exit(1)
 
 
