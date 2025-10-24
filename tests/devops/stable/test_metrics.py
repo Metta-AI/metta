@@ -61,7 +61,7 @@ def test_extract_with_wandb_metrics_mocked(monkeypatch):
     def fake_fetch(entity, project, run_id, metric_key, **kwargs):
         if metric_key == "overview/sps":
             return 50000.0
-        elif metric_key == "env_agent/heart.get":
+        elif metric_key == "env_agent/heart.gained":
             return 1.23
         return None
 
@@ -69,9 +69,9 @@ def test_extract_with_wandb_metrics_mocked(monkeypatch):
 
     monkeypatch.setattr(metrics_module, "fetch_wandb_metric", fake_fetch)
 
-    metrics = extract_metrics(log_text, wandb_metrics=["overview/sps", "env_agent/heart.get"])
+    metrics = extract_metrics(log_text, wandb_metrics=["overview/sps", "env_agent/heart.gained"])
 
     assert "overview/sps" in metrics
-    assert "env_agent/heart.get" in metrics
+    assert "env_agent/heart.gained" in metrics
     assert metrics["overview/sps"] == pytest.approx(50000.0)
-    assert metrics["env_agent/heart.get"] == pytest.approx(1.23)
+    assert metrics["env_agent/heart.gained"] == pytest.approx(1.23)
