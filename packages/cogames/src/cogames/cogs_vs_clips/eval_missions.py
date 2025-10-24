@@ -5,7 +5,6 @@ from cogames.cogs_vs_clips.missions import _add_make_env_modifier, get_map
 from mettagrid.config.mettagrid_config import MettaGridConfig
 from mettagrid.map_builder.map_builder import MapBuilderConfig
 
-
 # Dedicated site for eval missions
 MACHINA_EVAL = Site(
     name="machina_eval",
