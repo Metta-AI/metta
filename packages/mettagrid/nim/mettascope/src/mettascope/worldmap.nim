@@ -27,6 +27,13 @@ proc generateTileMap(): TileMap =
   echo "Real map size: ", replay.mapSize[0], "x", replay.mapSize[1]
   echo "Tile map size: ", width, "x", height, " (multiples of 32)"
 
+  let
+    width = ceil(replay.mapSize[0].float32 / 32.0f).int * 32
+    height = ceil(replay.mapSize[1].float32 / 32.0f).int * 32
+
+  echo "Real map size: ", replay.mapSize[0], "x", replay.mapSize[1]
+  echo "Tile map size: ", width, "x", height, " (multiples of 32)"
+
   var terrainMap = newTileMap(
     width = width,
     height = height,
@@ -101,10 +108,6 @@ proc buildAtlas*() =
       let name = path.replace(dataDir & "/", "").replace(".png", "")
       bxy.addImage(name, readImage(path))
 
-  bxy.enterRawOpenGLMode()
-  echo "Generating tile map"
-  terrainMap = generateTileMap(1024, 1024, 64, dataDir & "/blob7x8.png")
-  bxy.exitRawOpenGLMode()
 
 proc useSelections*(panel: Panel) =
   ## Reads the mouse position and selects the thing under it.
@@ -676,22 +679,6 @@ proc drawWorldMain*() =
     drawGrid()
 
   drawThoughtBubbles()
-
-  #bxy.drawRect(rect(0, 0, 100, 100), color(1, 0, 0, 1))
-
-  if terrainMap != nil:
-    bxy.enterRawOpenGLMode()
-    let m = bxy.getTransform()
-    # let mvp = mat4(
-    #   m[0, 0], m[0, 1], m[0, 2], 0,
-    #   m[1, 0], m[1, 1], m[1, 2], 0,
-    #   0, 0, 0, 1,
-    #   m[2, 0], m[2, 1], m[2, 2], 1
-    # )
-    let mvp = mat4()
-    echo "Drawing terrain map"
-    terrainMap.draw(mvp, 1.0f)
-    bxy.exitRawOpenGLMode()
 
 proc fitFullMap*(panel: Panel) =
   ## Set zoom and pan so the full map fits in the panel.
