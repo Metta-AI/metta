@@ -651,6 +651,10 @@ def cmd_lint(
         # Default: format all detected types (or all types if no files specified)
         if files_by_type:
             types_to_format = list(files_by_type.keys())
+        elif target_files is not None:
+            # Files were specified but none have supported extensions
+            info("No files with supported extensions found")
+            return
         else:
             # No specific files - format all supported types
             types_to_format = ["python", "json", "markdown", "shell", "toml", "yaml"]
