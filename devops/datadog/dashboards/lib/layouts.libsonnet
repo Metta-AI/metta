@@ -4,40 +4,52 @@
 {
   // Grid layout (Dashboard) - Widgets snap to grid
   // Default 12-column grid with automatic row placement
-  grid(title, widgets, options={}):: {
-    id: if std.objectHas(options, 'id') then options.id else null,
-    title: title,
-    description: if std.objectHas(options, 'description') then options.description else '',
-    layout_type: 'ordered',  // Grid layout
-    template_variables: if std.objectHas(options, 'template_variables') then options.template_variables else [],
-    widgets: widgets,
-    notify_list: if std.objectHas(options, 'notify_list') then options.notify_list else [],
-    reflow_type: if std.objectHas(options, 'reflow_type') then options.reflow_type else 'auto',
-  },
+  grid(title, widgets, options={})::
+    local base = {
+      title: title,
+      description: if std.objectHas(options, 'description') then options.description else '',
+      layout_type: 'ordered',  // Grid layout
+      template_variables: if std.objectHas(options, 'template_variables') then options.template_variables else [],
+      widgets: widgets,
+    };
+
+    // Only include optional fields if provided
+    base +
+    (if std.objectHas(options, 'id') then { id: options.id } else {}) +
+    (if std.objectHas(options, 'notify_list') then { notify_list: options.notify_list } else {}) +
+    (if std.objectHas(options, 'reflow_type') then { reflow_type: options.reflow_type } else {}),
 
   // Automatic layout (Timeboard) - Fits browser automatically
-  auto(title, widgets, options={}):: {
-    id: if std.objectHas(options, 'id') then options.id else null,
-    title: title,
-    description: if std.objectHas(options, 'description') then options.description else '',
-    layout_type: 'ordered',  // Auto layout
-    is_read_only: if std.objectHas(options, 'is_read_only') then options.is_read_only else false,
-    template_variables: if std.objectHas(options, 'template_variables') then options.template_variables else [],
-    widgets: widgets,
-    notify_list: if std.objectHas(options, 'notify_list') then options.notify_list else [],
-  },
+  auto(title, widgets, options={})::
+    local base = {
+      title: title,
+      description: if std.objectHas(options, 'description') then options.description else '',
+      layout_type: 'ordered',  // Auto layout
+      template_variables: if std.objectHas(options, 'template_variables') then options.template_variables else [],
+      widgets: widgets,
+    };
+
+    // Only include optional fields if provided
+    base +
+    (if std.objectHas(options, 'id') then { id: options.id } else {}) +
+    (if std.objectHas(options, 'is_read_only') then { is_read_only: options.is_read_only } else {}) +
+    (if std.objectHas(options, 'notify_list') then { notify_list: options.notify_list } else {}),
 
   // Free layout (Screenboard) - Pixel-level precision
-  free(title, widgets, options={}):: {
-    id: if std.objectHas(options, 'id') then options.id else null,
-    title: title,
-    description: if std.objectHas(options, 'description') then options.description else '',
-    layout_type: 'free',  // Free positioning
-    is_read_only: if std.objectHas(options, 'is_read_only') then options.is_read_only else false,
-    template_variables: if std.objectHas(options, 'template_variables') then options.template_variables else [],
-    widgets: widgets,
-    notify_list: if std.objectHas(options, 'notify_list') then options.notify_list else [],
-  },
+  free(title, widgets, options={})::
+    local base = {
+      title: title,
+      description: if std.objectHas(options, 'description') then options.description else '',
+      layout_type: 'free',  // Free positioning
+      template_variables: if std.objectHas(options, 'template_variables') then options.template_variables else [],
+      widgets: widgets,
+    };
+
+    // Only include optional fields if provided
+    base +
+    (if std.objectHas(options, 'id') then { id: options.id } else {}) +
+    (if std.objectHas(options, 'is_read_only') then { is_read_only: options.is_read_only } else {}) +
+    (if std.objectHas(options, 'notify_list') then { notify_list: options.notify_list } else {}),
 
   // Helper: Position widget at specific grid coordinates
   // Grid is 12 columns wide by default

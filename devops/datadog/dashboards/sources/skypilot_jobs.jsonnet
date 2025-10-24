@@ -1,58 +1,79 @@
 // Skypilot Jobs Dashboard
 // Job tracking, GPU utilization, and cluster health monitoring
+//
+// Rewritten using the Jsonnet component system
 
+local layouts = import '../lib/layouts.libsonnet';
+local presets = import '../lib/presets.libsonnet';
 local skypilot = import '../components/skypilot.libsonnet';
 
-{
-  id: 'skypilot-jobs',
-  title: 'Skypilot Jobs Dashboard',
-  description: 'Track Skypilot job status, GPU utilization, runtime metrics, and cluster health across regions.',
-  layout_type: 'ordered',
-  template_variables: [],
-  widgets: [
-    // Row 1: Key metrics
-    skypilot.runningJobsWidget() + { layout: { x: 0, y: 0, width: 3, height: 2 } },
-    skypilot.queuedJobsWidget() + { layout: { x: 3, y: 0, width: 3, height: 2 } },
-    skypilot.failedJobsWidget() + { layout: { x: 6, y: 0, width: 3, height: 2 } },
-    skypilot.activeClustersWidget() + { layout: { x: 9, y: 0, width: 3, height: 2 } },
+layouts.grid(
+  'Skypilot Jobs Dashboard',
+  std.flattenArrays([
+    // Row 1: Key metrics (4 equal-width widgets)
+    layouts.row(0, [
+      skypilot.runningJobsWidget(),
+      skypilot.queuedJobsWidget(),
+      skypilot.failedJobsWidget(),
+      skypilot.activeClustersWidget(),
+    ], height=2),
 
-    // Row 2: Job status trends
-    skypilot.jobStatusTimeseriesWidget() + { layout: { x: 0, y: 2, width: 6, height: 3 } },
-    skypilot.jobSuccessRateWidget() + { layout: { x: 6, y: 2, width: 6, height: 3 } },
+    // Row 2: Job status trends (2 half-width widgets)
+    layouts.row(2, [
+      skypilot.jobStatusTimeseriesWidget(),
+      skypilot.jobSuccessRateWidget(),
+    ], height=3),
 
     // Row 3: Section header
-    skypilot.sectionNote(
+    [layouts.fullWidth(5, presets.sectionHeader(
       'Runtime Analysis',
       'Job execution times and duration distribution'
-    ) + { layout: { x: 0, y: 5, width: 12, height: 1 } },
+    ), height=1)],
 
-    // Row 4: Runtime metrics
-    skypilot.runtimePercentilesWidget() + { layout: { x: 0, y: 6, width: 6, height: 3 } },
-    skypilot.runtimeBucketsWidget() + { layout: { x: 6, y: 6, width: 6, height: 3 } },
+    // Row 4: Runtime metrics (2 half-width widgets)
+    layouts.row(6, [
+      skypilot.runtimePercentilesWidget(),
+      skypilot.runtimeBucketsWidget(),
+    ], height=3),
 
     // Row 5: Section header
-    skypilot.sectionNote(
+    [layouts.fullWidth(9, presets.sectionHeader(
       'Resource Utilization',
       'GPU allocation and instance type distribution'
-    ) + { layout: { x: 0, y: 9, width: 12, height: 1 } },
+    ), height=1)],
 
-    // Row 6: GPU metrics
-    skypilot.totalGPUsWidget() + { layout: { x: 0, y: 10, width: 3, height: 2 } },
-    skypilot.activeUsersWidget() + { layout: { x: 3, y: 10, width: 3, height: 2 } },
-    skypilot.gpuTypeDistributionWidget() + { layout: { x: 6, y: 10, width: 6, height: 3 } },
+    // Row 6: GPU metrics (custom widths: 3, 3, 6)
+    layouts.rowCustom(
+      10,
+      [
+        skypilot.totalGPUsWidget(),
+        skypilot.activeUsersWidget(),
+        skypilot.gpuTypeDistributionWidget(),
+      ],
+      [3, 3, 6],
+      height=3
+    ),
 
-    // Row 7: Resource distribution
-    skypilot.spotVsOnDemandWidget() + { layout: { x: 0, y: 13, width: 6, height: 3 } },
-    skypilot.regionalDistributionWidget() + { layout: { x: 6, y: 13, width: 6, height: 3 } },
+    // Row 7: Resource distribution (2 half-width widgets)
+    layouts.row(13, [
+      skypilot.spotVsOnDemandWidget(),
+      skypilot.regionalDistributionWidget(),
+    ], height=3),
 
     // Row 8: Section header
-    skypilot.sectionNote(
+    [layouts.fullWidth(16, presets.sectionHeader(
       'Reliability',
       'Job recovery and failure analysis'
-    ) + { layout: { x: 0, y: 16, width: 12, height: 1 } },
+    ), height=1)],
 
-    // Row 9: Reliability metrics
-    skypilot.jobsWithRecoveriesWidget() + { layout: { x: 0, y: 17, width: 6, height: 3 } },
-    skypilot.avgRecoveryCountWidget() + { layout: { x: 6, y: 17, width: 6, height: 3 } },
-  ],
-}
+    // Row 9: Reliability metrics (2 half-width widgets)
+    layouts.row(17, [
+      skypilot.jobsWithRecoveriesWidget(),
+      skypilot.avgRecoveryCountWidget(),
+    ], height=3),
+  ]),
+  {
+    id: 'mtw-y2p-4ed',  // Dashboard ID from Datadog
+    description: 'Track Skypilot job status, GPU utilization, runtime metrics, and cluster health across regions.',
+  }
+)
