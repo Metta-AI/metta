@@ -52,10 +52,10 @@ Get your API key from https://wandb.ai/settings
 
 ```bash
 # Test collection (dry run)
-uv run python devops/datadog/run_collector.py wandb --verbose
+uv run python devops/datadog/scripts/run_collector.py wandb --verbose
 
 # Test with push to Datadog
-uv run python devops/datadog/run_collector.py wandb --push --verbose
+uv run python devops/datadog/scripts/run_collector.py wandb --push --verbose
 ```
 
 ### Kubernetes Deployment
@@ -65,7 +65,7 @@ Deploy as a CronJob using Helm:
 ```bash
 helm upgrade --install wandb-collector devops/charts/dashboard-cronjob \
   --namespace monitoring \
-  --set command='["uv","run","python","/workspace/metta/devops/datadog/run_collector.py","wandb","--push"]' \
+  --set command='["uv","run","python","/workspace/metta/devops/datadog/scripts/run_collector.py","wandb","--push"]' \
   --set schedule="*/30 * * * *" \  # Every 30 minutes
   --set datadog.service="wandb-collector"
 ```

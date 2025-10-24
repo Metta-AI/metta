@@ -109,13 +109,13 @@ The collector automatically loads Kubernetes config:
 
 ```bash
 # Test collection (dry-run)
-uv run python devops/datadog/run_collector.py kubernetes --verbose
+uv run python devops/datadog/scripts/run_collector.py kubernetes --verbose
 
 # Test and push to Datadog
-uv run python devops/datadog/run_collector.py kubernetes --push
+uv run python devops/datadog/scripts/run_collector.py kubernetes --push
 
 # JSON output
-uv run python devops/datadog/run_collector.py kubernetes --json
+uv run python devops/datadog/scripts/run_collector.py kubernetes --json
 ```
 
 ### Sample Output
@@ -173,7 +173,7 @@ spec:
                 - uv
                 - run
                 - python
-                - devops/datadog/run_collector.py
+                - devops/datadog/scripts/run_collector.py
                 - kubernetes
                 - --push
               env:
@@ -396,7 +396,7 @@ To add new metrics:
 pytest devops/datadog/tests/collectors/test_kubernetes.py -v
 
 # Test against live cluster
-uv run python devops/datadog/run_collector.py kubernetes --verbose
+uv run python devops/datadog/scripts/run_collector.py kubernetes --verbose
 ```
 
 ## References

@@ -447,7 +447,7 @@ def collect(
     if collector in ("github", "skypilot", "asana", "health_fom"):
         # Run the collector using the standalone runner script
         # This ensures we have access to all project dependencies
-        runner_script = DATADOG_DIR / "run_collector.py"
+        runner_script = DATADOG_DIR / "scripts" / "run_collector.py"
 
         cmd = ["uv", "run", "python", str(runner_script), collector]
 

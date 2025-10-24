@@ -102,7 +102,7 @@ Collects development metrics from GitHub API for the Metta repository.
 
 **Architecture**: Modular collector using BaseCollector pattern **Location**:
 `devops/datadog/collectors/github/collector.py` **Deployment**: Kubernetes CronJob via Helm
-(`devops/charts/dashboard-cronjob`) **Entry Point**: `devops/datadog/run_collector.py github --push`
+(`devops/charts/dashboard-cronjob`) **Entry Point**: `devops/datadog/scripts/run_collector.py github --push`
 
 ### Migration Status
 
