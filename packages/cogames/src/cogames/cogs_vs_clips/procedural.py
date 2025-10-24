@@ -301,6 +301,14 @@ def make_machina_procedural_map_builder(
             order_by="last",
             limit=1,
         ),
+        # Final connectivity sweep to ensure all empty regions are connected end-to-end
+        ChildrenAction(
+            scene=MakeConnected.Config(),
+            where="full",
+            order_by="last",
+            lock="arena.connect.final",
+            limit=1,
+        ),
     ]
 
     return MapGen.Config(width=width, height=height, instance=base_cfg, seed=seed)

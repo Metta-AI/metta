@@ -221,7 +221,7 @@ HELLO_WORLD = Site(
 MACHINA_1 = Site(
     name="machina_1",
     description="Your first mission. Collect resources and assemble HEARTs.",
-    # Originally was get_map("machina_100_stations.map"), but that was hard to make missions from
+    # Originally was get_map("machina_00_stations.map"), but that was hard to make missions from
     map_builder=make_machina_procedural_map_builder(
         num_cogs=4,
         width=200,
