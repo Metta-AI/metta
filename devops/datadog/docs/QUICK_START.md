@@ -4,9 +4,11 @@ Get started managing Datadog dashboards with **Jsonnet** in 10 minutes.
 
 ## What is This?
 
-We use **Jsonnet** (like Grafana's Grafonnet) to build Datadog dashboards from reusable components. Think of it as composable widgets instead of monolithic JSON files.
+We use **Jsonnet** (like Grafana's Grafonnet) to build Datadog dashboards from reusable components. Think of it as
+composable widgets instead of monolithic JSON files.
 
 **Benefits:**
+
 - Define widgets once, use in multiple dashboards
 - Mix and match components
 - Grid layouts with automatic positioning
@@ -43,6 +45,7 @@ export DD_APP_KEY=your_app_key
 ```
 
 The validation script will verify:
+
 - ✓ All required secrets exist in AWS Secrets Manager
 - ✓ Secrets can be retrieved successfully
 
@@ -72,6 +75,7 @@ mkdir -p lib components dashboards
 ```
 
 `lib/widgets.libsonnet`:
+
 ```jsonnet
 {
   timeseries(title, query, options={}):: {
@@ -93,6 +97,7 @@ mkdir -p lib components dashboards
 ```
 
 `components/ci.libsonnet`:
+
 ```jsonnet
 local widgets = import '../lib/widgets.libsonnet';
 
@@ -108,6 +113,7 @@ local widgets = import '../lib/widgets.libsonnet';
 ### Step 2: Create Dashboard
 
 `dashboards/test.jsonnet`:
+
 ```jsonnet
 local ci = import '../components/ci.libsonnet';
 
@@ -174,6 +180,7 @@ uv run python devops/datadog/scripts/list_metrics.py --search=commits
 Create a 2×2 grid of widgets:
 
 `lib/layout.libsonnet`:
+
 ```jsonnet
 {
   grid(widgets, cols=2):: [
@@ -192,6 +199,7 @@ Create a 2×2 grid of widgets:
 ```
 
 `dashboards/grid_dashboard.jsonnet`:
+
 ```jsonnet
 local layout = import '../lib/layout.libsonnet';
 local ci = import '../components/ci.libsonnet';
@@ -274,6 +282,7 @@ aws configure
    - [JSONNET_PROTOTYPE.md](JSONNET_PROTOTYPE.md) - Implementation guide
 
 2. **Extract existing dashboards**:
+
    ```bash
    # Pull current dashboards
    metta datadog dashboard pull

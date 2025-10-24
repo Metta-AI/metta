@@ -12,6 +12,7 @@ Export a dashboard using the export script:
 ```
 
 These JSON files are:
+
 - **Reference only** - Use them to understand widget structure when writing Terraform
 - **Gitignored** - Won't be committed to version control (they can be large and change frequently)
 - **Temporary** - Delete after successfully migrating the dashboard to Terraform

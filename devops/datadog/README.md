@@ -1,17 +1,20 @@
 # Datadog Management System
 
 Complete Datadog integration for Metta, including:
+
 - **Data Collectors**: Automated metric collection from multiple services
 - **Dashboard Management**: Jsonnet-based dashboard configuration
 
 ## Quick Links
 
 ### Data Collectors
+
 - **[Collectors Architecture](docs/COLLECTORS_ARCHITECTURE.md)** - System design and principles
 - **[Adding New Collector](docs/ADDING_NEW_COLLECTOR.md)** - Step-by-step implementation guide
 - **[CI/CD Metrics](docs/CI_CD_METRICS.md)** - GitHub metrics catalog
 
 ### Dashboards
+
 - **[Quick Start Guide](docs/QUICK_START.md)** - Get started in 10 minutes
 - **[Jsonnet Design](docs/JSONNET_DESIGN.md)** - Architecture and patterns
 - **[Widget Reference](docs/DATADOG_WIDGET_REFERENCE.md)** - Available widgets
@@ -23,6 +26,7 @@ Complete Datadog integration for Metta, including:
 Automated metric collection from multiple services via Kubernetes CronJobs:
 
 **Current Collectors:**
+
 - **GitHub** ✅ **(Production)**: PRs, commits, branches, CI/CD workflows, developer activity
 - **Skypilot** ✅ **(Production)**: Jobs, clusters, resource utilization
 - **Asana** ✅ **(Production)**: Project health, bugs tracking, team velocity
@@ -31,6 +35,7 @@ Automated metric collection from multiple services via Kubernetes CronJobs:
 - **Kubernetes** ✅ **(Implemented)**: Resource efficiency, pod health, waste tracking
 
 All collectors:
+
 - Run together every 15 minutes via unified CronJob
 - Use AWS Secrets Manager for credentials
 - Emit health metrics about themselves
@@ -41,6 +46,7 @@ All collectors:
 **Jsonnet-based dashboard configuration** (like Grafana's Grafonnet):
 
 **Benefits:**
+
 - Define widgets once, use in multiple dashboards
 - Mix and match components
 - Grid layouts with automatic positioning
@@ -65,6 +71,7 @@ go install github.com/google/go-jsonnet/cmd/jsonnet@latest
 ### Python Dependencies
 
 Managed via `uv` (already configured in the project):
+
 ```bash
 # Install/update dependencies
 metta install
@@ -76,6 +83,7 @@ metta softmax-system-health --help
 ### AWS Credentials
 
 Collectors require AWS credentials for Secrets Manager access:
+
 ```bash
 # Configure AWS CLI (if not already done)
 aws configure
@@ -89,6 +97,7 @@ aws secretsmanager get-secret-value --secret-id github/dashboard-token --region 
 All secrets are stored in AWS Secrets Manager. See [SECRETS_SETUP.md](SECRETS_SETUP.md) for complete setup guide.
 
 For local development, you can override with environment variables:
+
 ```bash
 cd devops/datadog
 cp .env .env.local  # Create local override (gitignored)
@@ -189,12 +198,14 @@ devops/datadog/
 ## Documentation
 
 ### Data Collectors
+
 - **[Collectors Architecture](docs/COLLECTORS_ARCHITECTURE.md)** - System design, patterns, deployment
 - **[Adding New Collector](docs/ADDING_NEW_COLLECTOR.md)** - Step-by-step implementation guide
 - **[Datadog Integration Analysis](docs/DATADOG_INTEGRATION_ANALYSIS.md)** - Current integration architecture
 - **[CI/CD Metrics](docs/CI_CD_METRICS.md)** - Complete GitHub metrics catalog
 
 ### Dashboards
+
 - **[Quick Start Guide](docs/QUICK_START.md)** - Get started in 10 minutes
 - **[Complete Guide](docs/README.md)** - Comprehensive documentation
 - **[Jsonnet Design](docs/JSONNET_DESIGN.md)** - Architecture and patterns
@@ -248,6 +259,7 @@ metta datadog env                    # Check environment variables
 ---
 
 **Ready to get started?**
+
 - View metrics: `metta datadog collect github`
 - Deploy dashboards: [Quick Start Guide](docs/QUICK_START.md)
 - Add collectors: [Adding New Collector](docs/ADDING_NEW_COLLECTOR.md)

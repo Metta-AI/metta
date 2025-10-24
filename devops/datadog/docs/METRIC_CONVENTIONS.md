@@ -32,6 +32,7 @@ The first component identifies the source service or system:
 The second component groups related metrics by functional area:
 
 **GitHub Categories:**
+
 - `prs` - Pull request metrics
 - `commits` - Commit and code change metrics
 - `ci` - CI/CD pipeline metrics
@@ -46,12 +47,14 @@ The second component groups related metrics by functional area:
 The third component describes the specific metric:
 
 **Naming Guidelines:**
+
 - Use descriptive names that clearly indicate what is measured
 - Include time windows when relevant (e.g., `_7d`, `_30d`)
 - Use units in the name when helpful (e.g., `_hours`, `_minutes`, `_pct`)
 - Use snake_case for readability
 
 **Common Suffixes:**
+
 - `_7d`, `_30d` - Time window (7 days, 30 days)
 - `_count` - Count of items
 - `_pct` - Percentage value
@@ -62,19 +65,25 @@ The third component describes the specific metric:
 ## Metric Types
 
 ### Gauge
+
 Metrics that represent a point-in-time value:
+
 - `github.prs.open` - Current count
 - `github.branches.active` - Current count
 - `github.ci.tests_passing_on_main` - Binary status (0 or 1)
 
 ### Count/Rate
+
 Metrics that represent cumulative values or rates over time:
+
 - `github.prs.merged_7d` - Count over 7 days
 - `github.commits.total_7d` - Count over 7 days
 - `github.ci.workflow_runs_7d` - Count over 7 days
 
 ### Histogram/Distribution
+
 Metrics with percentile calculations:
+
 - `github.ci.duration_p50_minutes` - Median
 - `github.ci.duration_p90_minutes` - 90th percentile
 - `github.ci.duration_p99_minutes` - 99th percentile
@@ -92,9 +101,11 @@ Standardize on these time windows for consistency:
 ## Tags Strategy
 
 ### Current Approach
+
 We use hierarchical metric names without tags initially. This keeps the system simple and intuitive.
 
 ### Future Tag Strategy
+
 Tags can be added later without breaking existing metrics:
 
 ```python
@@ -109,6 +120,7 @@ tags = [
 ```
 
 **When to add tags:**
+
 - Multi-repo support needed
 - Multiple environments (dev, staging, prod)
 - Team-based filtering required
@@ -151,6 +163,7 @@ Metrics should follow these rules:
 ## Anti-Patterns
 
 **❌ Avoid:**
+
 - CamelCase or PascalCase: `github.PRs.Open`
 - Redundant prefixes: `github.github_prs.open`
 - Unclear abbreviations: `github.pr.cnt`
@@ -158,6 +171,7 @@ Metrics should follow these rules:
 - Very long names: `github.prs.merged_in_last_seven_days_count`
 
 **✅ Prefer:**
+
 - snake_case: `github.prs.open`
 - Clear structure: `github.prs.open`
 - Standard abbreviations: `prs`, `ci`, `pct`
@@ -177,6 +191,7 @@ If we need to rename or restructure metrics:
 ## Examples by Category
 
 ### Pull Requests
+
 ```
 github.prs.open                          # Currently open PRs
 github.prs.merged_7d                     # Merged in last 7 days
@@ -189,6 +204,7 @@ github.prs.avg_comments_per_pr           # Average comment count
 ```
 
 ### CI/CD
+
 ```
 github.ci.workflow_runs_7d               # Total runs in 7 days
 github.ci.failed_workflows_7d            # Failed runs in 7 days
@@ -200,6 +216,7 @@ github.ci.tests_passing_on_main          # Binary: 1 = passing, 0 = failing
 ```
 
 ### Commits & Code
+
 ```
 github.commits.total_7d                  # Total commits in 7 days
 github.commits.per_developer_7d          # Average commits per developer
@@ -211,6 +228,7 @@ github.code.files_changed_7d             # Unique files changed
 ```
 
 ### Developers & Branches
+
 ```
 github.developers.active_7d              # Unique developers with commits
 github.branches.active                   # Non-main branches
@@ -219,15 +237,18 @@ github.branches.active                   # Non-main branches
 ## Future Considerations
 
 ### Multi-Repository Support
+
 When tracking multiple repositories:
 
 **Option 1: Prefix per repo**
+
 ```
 github_metta.prs.open
 github_pufferlib.prs.open
 ```
 
 **Option 2: Tags**
+
 ```
 github.prs.open [repo:metta]
 github.prs.open [repo:pufferlib]
@@ -236,12 +257,14 @@ github.prs.open [repo:pufferlib]
 **Recommendation**: Use tags when we reach 3+ repositories.
 
 ### Service-Level Objectives (SLOs)
+
 ```
 github.slo.pr_merge_time_under_24h_pct   # % PRs merged within 24h
 github.slo.ci_duration_under_5m_pct      # % CI runs under 5 minutes
 ```
 
 ### DORA Metrics
+
 ```
 github.dora.deployment_frequency         # Deployments per day
 github.dora.lead_time_hours              # Code to production time

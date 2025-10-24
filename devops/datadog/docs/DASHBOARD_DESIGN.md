@@ -2,10 +2,10 @@
 
 ## Overview
 
-This document outlines the dashboard architecture for the Metta observability system. We design dashboards at three levels: executive rollup, per-collector deep dives, and metric-level drill-downs.
+This document outlines the dashboard architecture for the Metta observability system. We design dashboards at three
+levels: executive rollup, per-collector deep dives, and metric-level drill-downs.
 
-**Status**: Planning phase
-**Last Updated**: 2025-10-23
+**Status**: Planning phase **Last Updated**: 2025-10-23
 
 ## Design Principles
 
@@ -70,6 +70,7 @@ Metta Observability Dashboards
 ### 4. Color Coding Standards
 
 **Traffic light system:**
+
 - 🟢 **Green** (0.7-1.0): Healthy, all good
 - 🟡 **Yellow** (0.3-0.7): Warning, needs attention
 - 🔴 **Red** (0.0-0.3): Critical, action required
@@ -79,24 +80,23 @@ Metta Observability Dashboards
 
 ### 5. Widget Selection Guide
 
-| Data Type | Best Widget | Use Case |
-|-----------|------------|----------|
-| Current count/status | Query Value (big number) | "42 open PRs" |
-| Binary status | Query Value with conditional color | "Tests: PASSING" |
-| Trend over time | Timeseries | "PR velocity over 30 days" |
-| Multiple percentiles | Timeseries (multi-line) | "p50, p90, p99 CI duration" |
-| Categorical breakdown | Pie chart or Bar chart | "Jobs by status" |
-| Top-N items | Top List | "Top 10 slowest tests" |
-| Comparison table | Query Table | "Metrics by team/repo" |
-| Raw data | Table | "Recent failed workflows" |
+| Data Type             | Best Widget                        | Use Case                    |
+| --------------------- | ---------------------------------- | --------------------------- |
+| Current count/status  | Query Value (big number)           | "42 open PRs"               |
+| Binary status         | Query Value with conditional color | "Tests: PASSING"            |
+| Trend over time       | Timeseries                         | "PR velocity over 30 days"  |
+| Multiple percentiles  | Timeseries (multi-line)            | "p50, p90, p99 CI duration" |
+| Categorical breakdown | Pie chart or Bar chart             | "Jobs by status"            |
+| Top-N items           | Top List                           | "Top 10 slowest tests"      |
+| Comparison table      | Query Table                        | "Metrics by team/repo"      |
+| Raw data              | Table                              | "Recent failed workflows"   |
 
 ## Dashboard Designs
 
 ### 1. System Health Rollup Dashboard
 
-**Purpose**: Executive summary of system health across all areas
-**Audience**: Leadership, team standups, at-a-glance health checks
-**Update Frequency**: Hourly (FoM values recalculated)
+**Purpose**: Executive summary of system health across all areas **Audience**: Leadership, team standups, at-a-glance
+health checks **Update Frequency**: Hourly (FoM values recalculated)
 
 #### Layout
 
@@ -152,8 +152,8 @@ Metta Observability Dashboards
 
 #### Implementation Notes
 
-**Widget Type**: Query Table
-**Queries**: One per metric (25 total)
+**Widget Type**: Query Table **Queries**: One per metric (25 total)
+
 ```
 avg:health.training.multigpu_arena_hearts.fom{*} by {day}
 avg:health.ci.tests_passing.fom{*} by {day}
@@ -161,6 +161,7 @@ avg:health.ci.tests_passing.fom{*} by {day}
 ```
 
 **Conditional Formatting**:
+
 - Green: `>= 0.7`
 - Yellow: `>= 0.3 and < 0.7`
 - Red: `< 0.3`
@@ -168,6 +169,7 @@ avg:health.ci.tests_passing.fom{*} by {day}
 **Grouping**: Manual row organization with markdown headers
 
 **Template Variables**:
+
 - Time range selector (fixed to 7 days)
 - Optional: Filter by environment (production/staging)
 
@@ -175,9 +177,8 @@ avg:health.ci.tests_passing.fom{*} by {day}
 
 ### 2. GitHub CI/CD Dashboard
 
-**Purpose**: Deep dive into development velocity and code quality
-**Audience**: Engineering team, DevOps
-**Update Frequency**: Every 15 minutes (collector runs)
+**Purpose**: Deep dive into development velocity and code quality **Audience**: Engineering team, DevOps **Update
+Frequency**: Every 15 minutes (collector runs)
 
 #### Layout
 
@@ -252,6 +253,7 @@ avg:health.ci.tests_passing.fom{*} by {day}
 #### Metrics Used
 
 **From existing GitHub collector:**
+
 - `github.prs.open`
 - `github.prs.merged_7d`
 - `github.prs.cycle_time_hours`
@@ -269,6 +271,7 @@ avg:health.ci.tests_passing.fom{*} by {day}
 - `github.ci.duration_p99_minutes`
 
 **New metrics needed:**
+
 - `github.commits.force_merge_7d`
 - `github.ci.timeout_cancellations_7d`
 - `github.ci.flaky_checks_7d`
@@ -278,9 +281,8 @@ avg:health.ci.tests_passing.fom{*} by {day}
 
 ### 3. Training & WandB Dashboard
 
-**Purpose**: Monitor training runs, model performance, resource usage
-**Audience**: Research team, ML engineers
-**Update Frequency**: Every 15 minutes
+**Purpose**: Monitor training runs, model performance, resource usage **Audience**: Research team, ML engineers **Update
+Frequency**: Every 15 minutes
 
 #### Layout
 
@@ -344,6 +346,7 @@ avg:health.ci.tests_passing.fom{*} by {day}
 #### Metrics Used
 
 **From planned WandB collector:**
+
 - `wandb.runs.active`
 - `wandb.runs.completed_24h`
 - `wandb.runs.failed_24h`
@@ -361,9 +364,8 @@ avg:health.ci.tests_passing.fom{*} by {day}
 
 ### 4. Skypilot Jobs Dashboard
 
-**Purpose**: Monitor job orchestration, cluster health, compute costs
-**Audience**: DevOps, research team
-**Update Frequency**: Every 10 minutes
+**Purpose**: Monitor job orchestration, cluster health, compute costs **Audience**: DevOps, research team **Update
+Frequency**: Every 10 minutes
 
 #### Layout
 
@@ -420,6 +422,7 @@ avg:health.ci.tests_passing.fom{*} by {day}
 #### Metrics Used
 
 **From existing Skypilot collector:**
+
 - `skypilot.jobs.running`
 - `skypilot.jobs.queued`
 - `skypilot.jobs.failed`
@@ -432,9 +435,8 @@ avg:health.ci.tests_passing.fom{*} by {day}
 
 ### 5. Eval & Testing Dashboard
 
-**Purpose**: Monitor evaluation runs and model testing
-**Audience**: Research team, QA
-**Update Frequency**: Every 15 minutes
+**Purpose**: Monitor evaluation runs and model testing **Audience**: Research team, QA **Update Frequency**: Every 15
+minutes
 
 #### Layout
 
@@ -485,9 +487,7 @@ avg:health.ci.tests_passing.fom{*} by {day}
 
 ### 6. Collector Health Dashboard (Meta-monitoring)
 
-**Purpose**: Monitor the health of collectors themselves
-**Audience**: DevOps, on-call
-**Update Frequency**: Real-time
+**Purpose**: Monitor the health of collectors themselves **Audience**: DevOps, on-call **Update Frequency**: Real-time
 
 #### Layout
 
@@ -530,6 +530,7 @@ avg:health.ci.tests_passing.fom{*} by {day}
 #### Metrics Used
 
 **Auto-emitted by all collectors:**
+
 - `collector.{name}.duration_seconds`
 - `collector.{name}.metric_count`
 - `collector.{name}.error_count`
@@ -556,15 +557,18 @@ Naming convention:
 ### Cross-Dashboard Links
 
 **From Rollup → Per-Collector:**
+
 - Links in table rows
 - "View Details" buttons
 - Click metric name → drill down
 
 **From Per-Collector → Rollup:**
+
 - Breadcrumb navigation
 - "Back to System Health" link
 
 **From Any Dashboard → Collector Health:**
+
 - Status indicator in header
 - "View Collector Health" link
 
@@ -575,6 +579,7 @@ Naming convention:
 ### Phase 1: Week 1-2
 
 **Build these first:**
+
 1. ✅ **System Health Rollup** (main dashboard)
    - Start with 7 CI metrics we have
    - Placeholder rows for training/eval
@@ -584,20 +589,22 @@ Naming convention:
 
 ### Phase 2: Week 3-4
 
-**Add after collectors deployed:**
-3. **Training & WandB Dashboard**
-   - Deploy WandB collector first
-   - Build dashboard
+**Add after collectors deployed:** 3. **Training & WandB Dashboard**
+
+- Deploy WandB collector first
+- Build dashboard
+
 4. **Skypilot Jobs Dashboard**
    - Skypilot collector already done
    - Build dashboard
 
 ### Phase 3: Week 5-6
 
-**Complete the suite:**
-5. **Eval & Testing Dashboard**
-   - Deploy eval collector
-   - Build dashboard
+**Complete the suite:** 5. **Eval & Testing Dashboard**
+
+- Deploy eval collector
+- Build dashboard
+
 6. **Collector Health Dashboard**
    - Meta-monitoring
    - Critical for operations
@@ -681,6 +688,4 @@ Templates directory:
 
 ---
 
-**Last Updated**: 2025-10-23
-**Owner**: DevOps team
-**Reviewers**: Engineering, Research
+**Last Updated**: 2025-10-23 **Owner**: DevOps team **Reviewers**: Engineering, Research

@@ -149,12 +149,7 @@
         "title_align": "left",
         "show_legend": true,
         "legend_layout": "auto",
-        "legend_columns": [
-          "avg",
-          "min",
-          "max",
-          "value"
-        ],
+        "legend_columns": ["avg", "min", "max", "value"],
         "type": "timeseries",
         "requests": [
           {
@@ -213,12 +208,7 @@
         "title_align": "left",
         "show_legend": true,
         "legend_layout": "auto",
-        "legend_columns": [
-          "avg",
-          "min",
-          "max",
-          "value"
-        ],
+        "legend_columns": ["avg", "min", "max", "value"],
         "type": "timeseries",
         "requests": [
           {
@@ -277,12 +267,7 @@
         "title_align": "left",
         "show_legend": true,
         "legend_layout": "auto",
-        "legend_columns": [
-          "avg",
-          "min",
-          "max",
-          "value"
-        ],
+        "legend_columns": ["avg", "min", "max", "value"],
         "type": "timeseries",
         "requests": [
           {
@@ -357,12 +342,7 @@
         "title_align": "left",
         "show_legend": true,
         "legend_layout": "auto",
-        "legend_columns": [
-          "avg",
-          "min",
-          "max",
-          "value"
-        ],
+        "legend_columns": ["avg", "min", "max", "value"],
         "type": "timeseries",
         "requests": [
           {
@@ -428,12 +408,7 @@
         "title_align": "left",
         "show_legend": true,
         "legend_layout": "auto",
-        "legend_columns": [
-          "avg",
-          "min",
-          "max",
-          "value"
-        ],
+        "legend_columns": ["avg", "min", "max", "value"],
         "type": "timeseries",
         "requests": [
           {
@@ -492,12 +467,7 @@
         "title_align": "left",
         "show_legend": true,
         "legend_layout": "auto",
-        "legend_columns": [
-          "avg",
-          "min",
-          "max",
-          "value"
-        ],
+        "legend_columns": ["avg", "min", "max", "value"],
         "type": "timeseries",
         "requests": [
           {
@@ -660,12 +630,7 @@
         "title_align": "left",
         "show_legend": true,
         "legend_layout": "auto",
-        "legend_columns": [
-          "avg",
-          "min",
-          "max",
-          "value"
-        ],
+        "legend_columns": ["avg", "min", "max", "value"],
         "type": "timeseries",
         "requests": [
           {

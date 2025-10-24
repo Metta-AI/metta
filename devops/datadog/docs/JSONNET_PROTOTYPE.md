@@ -29,6 +29,7 @@ echo '{ name: "test", value: 1 + 2 }' | jsonnet -
 ### 1. Basic Widget Library
 
 `lib/widgets.libsonnet`:
+
 ```jsonnet
 {
   timeseries(title, query, options={}):: {
@@ -52,6 +53,7 @@ echo '{ name: "test", value: 1 + 2 }' | jsonnet -
 ### 2. Component Library
 
 `components/ci.libsonnet`:
+
 ```jsonnet
 local widgets = import '../lib/widgets.libsonnet';
 
@@ -73,6 +75,7 @@ local widgets = import '../lib/widgets.libsonnet';
 ### 3. Dashboard Definition
 
 `dashboards/test.jsonnet`:
+
 ```jsonnet
 local ci = import '../components/ci.libsonnet';
 
@@ -97,6 +100,7 @@ jsonnet dashboards/test.jsonnet > templates/test.json
 ## Grid Layout Example
 
 `lib/layout.libsonnet`:
+
 ```jsonnet
 {
   // Simple N×M grid
@@ -116,6 +120,7 @@ jsonnet dashboards/test.jsonnet > templates/test.json
 ```
 
 Usage:
+
 ```jsonnet
 local layout = import '../lib/layout.libsonnet';
 local ci = import '../components/ci.libsonnet';
