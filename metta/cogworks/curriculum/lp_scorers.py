@@ -119,6 +119,7 @@ class BidirectionalLPScorer(LPScorer):
         self._p_slow: Optional[np.ndarray] = None
         self._p_true: Optional[np.ndarray] = None
         self._random_baseline: Optional[np.ndarray] = None
+        self._baseline_initialized: Optional[np.ndarray] = None  # Track which baselines are set
         self._task_success_rate: np.ndarray = np.array([])
         self._update_mask: np.ndarray = np.array([])
         self._sample_levels: np.ndarray = np.array([])
@@ -280,6 +281,9 @@ class BidirectionalLPScorer(LPScorer):
             "p_slow": self._p_slow.tolist() if self._p_slow is not None else None,
             "p_true": self._p_true.tolist() if self._p_true is not None else None,
             "random_baseline": self._random_baseline.tolist() if self._random_baseline is not None else None,
+            "baseline_initialized": self._baseline_initialized.tolist()
+            if self._baseline_initialized is not None
+            else None,
             "task_success_rate": self._task_success_rate.tolist(),
             "update_mask": self._update_mask.tolist(),
             "sample_levels": self._sample_levels.tolist(),
@@ -296,6 +300,11 @@ class BidirectionalLPScorer(LPScorer):
         self._p_slow = np.array(state["p_slow"]) if state.get("p_slow") is not None else None
         self._p_true = np.array(state["p_true"]) if state.get("p_true") is not None else None
         self._random_baseline = np.array(state["random_baseline"]) if state.get("random_baseline") is not None else None
+        self._baseline_initialized = (
+            np.array(state["baseline_initialized"], dtype=bool)
+            if state.get("baseline_initialized") is not None
+            else None
+        )
         self._task_success_rate = np.array(state.get("task_success_rate", []))
         self._update_mask = np.array(state.get("update_mask", []))
         self._sample_levels = np.array(state.get("sample_levels", []))
@@ -340,20 +349,39 @@ class BidirectionalLPScorer(LPScorer):
 
         # Optionally normalize by random baseline
         if self.config.use_baseline_normalization:
-            # Initialize random baseline if needed
+            # Initialize random baseline array if needed
             if self._random_baseline is None or len(self._random_baseline) != num_tasks:
-                # Random baseline should represent baseline/random performance, typically around 0.5
-                # Ideally, we would find this value out on a task by task level.
-                self._random_baseline = np.full(num_tasks, 0.5)
+                # Initialize baseline array to zeros
+                self._random_baseline = np.zeros(num_tasks)
+                # Track which tasks have had their baseline set
+                self._baseline_initialized = np.zeros(num_tasks, dtype=bool)
 
-            # Handle division by zero in normalization
-            denominator = 1.0 - self._random_baseline[self._update_mask]
-            denominator = np.where(denominator <= 0, 1.0, denominator)
+            # Ensure _baseline_initialized is properly initialized (for resize case)
+            if self._baseline_initialized is None or len(self._baseline_initialized) != num_tasks:
+                self._baseline_initialized = np.zeros(num_tasks, dtype=bool)
 
-            # Normalize by baseline to make LP comparable across different task difficulties
-            normalized_task_success_rates = (
-                task_success_rates[self._update_mask] - self._random_baseline[self._update_mask]
-            ) / denominator
+            # Set baseline for new tasks (first observation, capped at 0.75)
+            # This captures the "floor" performance - the starting-point skill level
+            new_tasks_mask = self._update_mask & ~self._baseline_initialized
+            if np.any(new_tasks_mask):
+                # Capture first observation as baseline, capped at 0.75 to prevent division by zero
+                # and ensure there's room for improvement (1.0 - B_i > 0)
+                self._random_baseline[new_tasks_mask] = np.minimum(task_success_rates[new_tasks_mask], 0.75)
+                self._baseline_initialized[new_tasks_mask] = True
+
+            # Calculate normalized "mastery" score: p_i = (TSR_i - B_i) / (1.0 - B_i)
+            # This measures progress from the baseline to perfect performance
+            improvement_over_baseline = np.maximum(
+                task_success_rates[self._update_mask] - self._random_baseline[self._update_mask],
+                0.0,
+            )
+
+            total_possible_improvement = 1.0 - self._random_baseline[self._update_mask]
+            # Handle edge case where baseline is 1.0 (shouldn't happen with 0.75 cap, but be safe)
+            total_possible_improvement = np.where(total_possible_improvement <= 1e-10, 1.0, total_possible_improvement)
+
+            # This is the "mastery" score p_i that feeds into the EMAs
+            normalized_task_success_rates = improvement_over_baseline / total_possible_improvement
         else:
             # Use raw success rates directly (default)
             # Learning progress = rate of change in raw performance

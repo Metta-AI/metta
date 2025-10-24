@@ -21,7 +21,9 @@ class LearningProgressConfig(CurriculumAlgorithmConfig):
 
     # Bidirectional learning progress settings (now default)
     use_bidirectional: bool = True
-    use_baseline_normalization: bool = False  # Normalize by random baseline (default: use raw scores)
+    use_baseline_normalization: bool = (
+        True  # Normalize by baseline to get "mastery" score p_i = (TSR_i - B_i) / (1.0 - B_i)
+    )
     ema_timescale: float = 0.1  # EMA learning rate (0.1 = updates in ~10 samples)
     slow_timescale_factor: float = 0.2  # Multiplier for slow EMA timescale (slow = ema_timescale * this)
     exploration_bonus: float = 0.1
