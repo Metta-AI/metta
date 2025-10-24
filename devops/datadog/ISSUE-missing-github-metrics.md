@@ -1,12 +1,15 @@
-# GitHub Metrics Naming Convention
+# GitHub Metrics Missing Prefix
 
-## Resolution
+## Problem
 
-**Status**: ✅ **RESOLVED** - Accept current naming, update code/docs (2025-10-24)
+**Status**: 🔧 **IN PROGRESS** - Need to add `github.` prefix (2025-10-24)
 
-The GitHub collector metrics ARE in Datadog with semantic names (`ci.*`, `prs.*`, etc.) **instead of** `github.ci.*`, `github.prs.*`.
+The GitHub collector metrics ARE in Datadog, but they're **missing the `github.` prefix**.
 
-**Decision**: Keep the current naming. It's simpler and more semantic.
+**Current**: `ci.*`, `prs.*`, `commits.*`, `branches.*`, `code.*`, `developers.*`
+**Desired**: `github.ci.*`, `github.prs.*`, `github.commits.*`, etc.
+
+**Decision**: Add `github.` prefix for consistency with all other collectors (wandb.*, asana.*, ec2.*, etc.)
 
 ## Evidence
 
@@ -198,28 +201,63 @@ with ApiClient(config) as api_client:
 "
 ```
 
-## Resolution
+## Implementation Plan
 
-### Investigation: Where is the prefix stripped?
+### 1. Investigate Metric Naming (WHERE is prefix stripped?)
 
-Need to check how other collectors handle metric naming:
+**Compare collectors:**
+- ✅ **WandB**: Returns `wandb.runs.completed_24h` → Datadog has `wandb.runs.completed_24h` ✓
+- ❌ **GitHub**: Returns `ci.tests_passing_on_main` → Datadog has `ci.tests_passing_on_main` (missing `github.`)
 
-**WandB collector** (working, has `wandb.` prefix):
-- Metric names like `wandb.runs.completed_24h` ✓
+**Questions to answer:**
+- Does GitHub collector's `collect_metrics()` return metric names with or without `github.`?
+- Does BaseCollector modify metric names during push?
+- How does WandB collector ensure the `wandb.` prefix is preserved?
 
-**GitHub collector** (broken, missing `github.` prefix):
-- Collector returns: `ci.tests_passing_on_main`
-- Should be: `github.ci.tests_passing_on_main`
+### 2. Fix GitHub Collector
 
-**Question**: Does BaseCollector strip the collector name, or does GitHub collector not include it?
+**Option A**: Add prefix in metric definitions (if not present)
+**Option B**: Add prefix in BaseCollector.push_metrics() (if being stripped)
+**Option C**: Add prefix in collect_metrics() return dict
 
-### Next Steps
+Need to check the code to determine which option is correct.
 
-1. Check how GitHub collector defines metrics (compare to WandB)
-2. Check BaseCollector.push_metrics() to see if it modifies names
-3. Fix metric naming to include `github.` prefix
-4. Update Health FoM collector to query correct names
-5. Update dashboards to use correct metric names
+### 3. Update Health FoM Collector
+
+Change queries from:
+```python
+self._query_metric("ci.tests_passing_on_main")
+self._query_metric("ci.failed_workflows_7d")
+```
+
+To:
+```python
+self._query_metric("github.ci.tests_passing_on_main")
+self._query_metric("github.ci.failed_workflows_7d")
+```
+
+### 4. Update Dashboards
+
+Update any dashboard queries that reference:
+- `ci.*` → `github.ci.*`
+- `prs.*` → `github.prs.*`
+- `commits.*` → `github.commits.*`
+- etc.
+
+### 5. Test Locally
+
+```bash
+# 1. Run GitHub collector
+uv run python devops/datadog/scripts/run_collector.py github --push --verbose
+
+# 2. Wait 60 seconds
+sleep 60
+
+# 3. Verify metrics with github. prefix
+uv run python devops/datadog/scripts/list_datadog_metrics.py --prefix github --verbose
+```
+
+Expected: Should see 28 `github.*` metrics
 
 ### Helper Scripts Created
 
