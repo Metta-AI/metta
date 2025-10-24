@@ -38,10 +38,11 @@ This directory contains **generated JSON dashboard files** that are uploaded to 
 These dashboards are built from `.jsonnet` source files:
 
 - `asana.json` ← `dashboards/sources/asana.jsonnet` + `dashboards/components/asana.libsonnet`
-- `demo.json` ← `dashboards/sources/demo.jsonnet`
 - `ec2.json` ← `dashboards/sources/ec2.jsonnet` + `dashboards/components/ec2.libsonnet`
 - `github_cicd.json` ← `dashboards/sources/github_cicd.jsonnet` + `dashboards/components/github.libsonnet`
+- `kubernetes.json` ← `dashboards/sources/kubernetes.jsonnet` + `dashboards/components/infrastructure.libsonnet`
 - `skypilot_jobs.json` ← `dashboards/sources/skypilot_jobs.jsonnet` + `dashboards/components/skypilot.libsonnet`
+- `wandb.json` ← `dashboards/sources/wandb.jsonnet` + `dashboards/components/wandb.libsonnet`
 
 **Build these dashboards**:
 ```bash
@@ -135,21 +136,27 @@ devops/datadog/
 ├── dashboards/                    # Dashboard files (grouped)
 │   ├── sources/                  # Source files (.jsonnet)
 │   │   ├── asana.jsonnet
-│   │   ├── demo.jsonnet
-│   │   └── ec2.jsonnet
+│   │   ├── ec2.jsonnet
+│   │   ├── github_cicd.jsonnet
+│   │   ├── kubernetes.jsonnet
+│   │   ├── skypilot_jobs.jsonnet
+│   │   └── wandb.jsonnet
 │   │
 │   ├── components/               # Reusable widget libraries (.libsonnet)
 │   │   ├── asana.libsonnet
 │   │   ├── ci.libsonnet
 │   │   ├── ec2.libsonnet
-│   │   └── infrastructure.libsonnet
+│   │   ├── github.libsonnet
+│   │   ├── infrastructure.libsonnet
+│   │   ├── skypilot.libsonnet
+│   │   └── wandb.libsonnet
 │   │
 │   ├── lib/                      # Base Jsonnet primitives
 │   │
 │   └── templates/                # Generated JSON (gitignored build artifacts)
 │       ├── asana.json           # ← Built from sources/asana.jsonnet
-│       ├── demo.json            # ← Built from sources/demo.jsonnet
 │       ├── ec2.json             # ← Built from sources/ec2.jsonnet
+│       ├── github_cicd.json     # ← Built from sources/github_cicd.jsonnet
 │       ├── *.json               # ← Other generated files
 │       └── README.md            # ← This file
 │
