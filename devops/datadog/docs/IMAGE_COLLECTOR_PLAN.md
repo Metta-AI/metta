@@ -1,10 +1,19 @@
 # Image-Based Derived Data Collector - Architecture Plan
 
+> **⚠️ NOT IMPLEMENTED - REJECTED APPROACH**
+>
+> This approach was rejected because it requires external storage (S3/Imgur).
+> **Alternative used**: Wildcard widget with Vega-Lite (see `WILDCARD_WIDGET.md`)
+>
+> This document is kept for reference only.
+
+---
+
 ## Overview
 
 A new collector type that generates visualizations (images) from Datadog metrics and displays them on dashboards. This enables pixel-perfect custom visualizations while leveraging existing metric infrastructure.
 
-**Status**: Planning phase
+**Status**: ❌ Rejected (requires S3)
 **Type**: Derived/Calculated data collector
 **Output**: Images displayed via Datadog image widgets
 
