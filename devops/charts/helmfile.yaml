@@ -160,3 +160,16 @@ releases:
     chart: ./dashboard-cronjob
     version: 0.1.0
     namespace: monitoring
+
+  # Uncomment the following section if you want to test new dashboard collectors or configurations.
+  # Deploy with `helmfile apply -i -l name=dashboard-cronjob-dev`.
+  # This deploys to the same namespace with -dev suffix and reuses the prod service account.
+
+  # - name: dashboard-cronjob-dev
+  #   chart: ./dashboard-cronjob
+  #   version: 0.1.0
+  #   namespace: monitoring
+  #   values:
+  #     - ./dashboard-cronjob/values-dev.yaml
+  #     - image:
+  #         tag: "robb-1022-datadog"  # Override with your feature branch image tag

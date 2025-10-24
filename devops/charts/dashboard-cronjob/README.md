@@ -15,6 +15,8 @@ Collects GitHub repository metrics using the modular collector architecture:
 
 ## Deploy
 
+### Production Deployment
+
 Automatically deployed by GitHub Actions when you merge to `main`.
 
 Or deploy manually:
@@ -22,6 +24,32 @@ Or deploy manually:
 cd devops/charts
 helmfile apply -l name=dashboard-cronjob
 ```
+
+### Development/Testing Deployment
+
+For testing new collectors or configurations, deploy a `-dev` copy alongside production.
+
+1. **Uncomment the dev section** in `devops/charts/helmfile.yaml`:
+   ```yaml
+   - name: dashboard-cronjob-dev
+     chart: ./dashboard-cronjob
+     version: 0.1.0
+     namespace: monitoring
+     values:
+       - ./dashboard-cronjob/values-dev.yaml
+       - image:
+           tag: "your-feature-branch"
+   ```
+
+2. **Deploy**:
+   ```bash
+   cd devops/charts
+   helmfile apply -i -l name=dashboard-cronjob-dev
+   ```
+
+This deploys to the same `monitoring` namespace with `-dev` suffix, reuses the prod service account, and tags metrics with `env:development` for easy filtering in Datadog.
+
+**Note**: Services suffixed with `-dev` are safe to destroy and clean up.
 
 ## Add a new collector
 
