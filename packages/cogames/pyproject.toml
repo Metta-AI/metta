@@ -1,9 +1,5 @@
 [build-system]
-requires = [
-  "setuptools==80.9.0",
-  "wheel==0.45.1",
-  "setuptools_scm==8.1.0",
-]
+requires = ["setuptools==80.9.0", "wheel==0.45.1", "setuptools_scm==8.1.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -45,15 +41,7 @@ local_scheme = "node-and-date"
 root = "../.."
 fallback_version = "0.0.0"
 # Provide a specific git command to be used in order to find the correct versioning tags
-git_describe_command = [
-  "git",
-  "describe",
-  "--dirty",
-  "--tags",
-  "--long",
-  "--match",
-  "cogames-v*",
-]
+git_describe_command = ["git", "describe", "--dirty", "--tags", "--long", "--match", "cogames-v*"]
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]
