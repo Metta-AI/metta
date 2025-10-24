@@ -11,116 +11,52 @@ This script retrieves all dashboards from Datadog using the API and exports
 their metadata (ID, title, description, URL) to help with migration to Terraform.
 
 Requirements:
-    - DD_API_KEY environment variable
-    - DD_APP_KEY environment variable
+    - DD_API_KEY environment variable (or AWS Secrets Manager)
+    - DD_APP_KEY environment variable (or AWS Secrets Manager)
     - DD_SITE environment variable (optional, defaults to datadoghq.com)
 
 Usage:
-    export DD_API_KEY=your_api_key
-    export DD_APP_KEY=your_app_key
-    ./devops/datadog/fetch_dashboards.py
+    ./devops/datadog/scripts/fetch_dashboards.py
 
     # Save to file
-    ./devops/datadog/fetch_dashboards.py > dashboards.json
+    ./devops/datadog/scripts/fetch_dashboards.py > dashboards.json
 
     # Get summary
-    ./devops/datadog/fetch_dashboards.py --format=summary
+    ./devops/datadog/scripts/fetch_dashboards.py --format=summary
 """
 
 import json
-import os
 import sys
+from pathlib import Path
 from typing import Any
 
-import requests
+# Add parent directory to path for local imports
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
+from common.dashboard_client import DatadogDashboardClient
 
 
-class DatadogDashboardFetcher:
-    """Fetches dashboard metadata from Datadog API."""
+def export_dashboards_summary(dashboards: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Export simplified dashboard metadata suitable for migration planning."""
+    result = []
 
-    def __init__(self):
-        self.api_key = os.getenv("DD_API_KEY")
-        self.app_key = os.getenv("DD_APP_KEY")
-        self.site = os.getenv("DD_SITE", "datadoghq.com")
-
-        # Fetch from AWS Secrets Manager if not in environment
-        if not self.api_key:
-            try:
-                from softmax.aws.secrets_manager import get_secretsmanager_secret
-
-                self.api_key = get_secretsmanager_secret("datadog/api-key")
-            except Exception as e:
-                raise ValueError(f"DD_API_KEY not found in environment or AWS Secrets Manager: {e}") from e
-
-        if not self.app_key:
-            try:
-                from softmax.aws.secrets_manager import get_secretsmanager_secret
-
-                self.app_key = get_secretsmanager_secret("datadog/app-key")
-            except Exception as e:
-                raise ValueError(f"DD_APP_KEY not found in environment or AWS Secrets Manager: {e}") from e
-
-        if not self.api_key or not self.app_key:
-            raise ValueError("Missing required credentials: DD_API_KEY and DD_APP_KEY")
-
-        self.base_url = f"https://api.{self.site}/api"
-        self._session = self._create_session()
-
-    def _create_session(self) -> requests.Session:
-        """Create authenticated session for Datadog API."""
-        session = requests.Session()
-        session.headers.update(
+    for dashboard in dashboards:
+        dashboard_id = dashboard.get("id", "")
+        result.append(
             {
-                "DD-API-KEY": self.api_key,
-                "DD-APPLICATION-KEY": self.app_key,
-                "Content-Type": "application/json",
+                "id": dashboard_id,
+                "title": dashboard.get("title", ""),
+                "description": dashboard.get("description", ""),
+                "author_handle": dashboard.get("author_handle", ""),
+                "url": dashboard.get("url", ""),
+                "created_at": dashboard.get("created_at", ""),
+                "modified_at": dashboard.get("modified_at", ""),
+                "is_read_only": dashboard.get("is_read_only", False),
+                "layout_type": dashboard.get("layout_type", ""),
             }
         )
-        return session
 
-    def fetch_all_dashboards(self) -> list[dict[str, Any]]:
-        """Fetch all dashboards from Datadog.
-
-        Returns list of dashboard summaries with id, title, url, etc.
-        """
-        url = f"{self.base_url}/v1/dashboard"
-        response = self._session.get(url)
-        response.raise_for_status()
-
-        data = response.json()
-        dashboards = data.get("dashboards", [])
-
-        print(f"Found {len(dashboards)} dashboards", file=sys.stderr)
-        return dashboards
-
-    def fetch_dashboard_details(self, dashboard_id: str) -> dict[str, Any]:
-        """Fetch detailed information for a specific dashboard."""
-        url = f"{self.base_url}/v1/dashboard/{dashboard_id}"
-        response = self._session.get(url)
-        response.raise_for_status()
-        return response.json()
-
-    def export_dashboards_summary(self, dashboards: list[dict[str, Any]]) -> list[dict[str, Any]]:
-        """Export simplified dashboard metadata suitable for migration planning."""
-        result = []
-
-        for dashboard in dashboards:
-            dashboard_id = dashboard.get("id", "")
-            result.append(
-                {
-                    "id": dashboard_id,
-                    "title": dashboard.get("title", ""),
-                    "description": dashboard.get("description", ""),
-                    "author_handle": dashboard.get("author_handle", ""),
-                    "url": dashboard.get("url", ""),
-                    "created_at": dashboard.get("created_at", ""),
-                    "modified_at": dashboard.get("modified_at", ""),
-                    "is_read_only": dashboard.get("is_read_only", False),
-                    "layout_type": dashboard.get("layout_type", ""),
-                }
-            )
-
-        return result
+    return result
 
 
 def format_summary(dashboards: list[dict[str, Any]]) -> str:
@@ -165,8 +101,10 @@ def main():
     args = parser.parse_args()
 
     try:
-        fetcher = DatadogDashboardFetcher()
-        dashboards = fetcher.fetch_all_dashboards()
+        client = DatadogDashboardClient()
+        dashboards = client.list_dashboards()
+
+        print(f"Found {len(dashboards)} dashboards", file=sys.stderr)
 
         if args.details:
             print("Fetching detailed information...", file=sys.stderr)
@@ -174,11 +112,11 @@ def main():
             for dash in dashboards:
                 dashboard_id = dash.get("id")
                 if dashboard_id:
-                    details = fetcher.fetch_dashboard_details(dashboard_id)
+                    details = client.get_dashboard(dashboard_id)
                     detailed.append(details)
             dashboards = detailed
 
-        summary = fetcher.export_dashboards_summary(dashboards)
+        summary = export_dashboards_summary(dashboards)
 
         if args.format == "summary":
             print(format_summary(summary))
@@ -187,12 +125,12 @@ def main():
 
     except ValueError as e:
         print(f"Error: {e}", file=sys.stderr)
-        print("\nSet environment variables:", file=sys.stderr)
+        print("\nSet environment variables or configure AWS Secrets Manager:", file=sys.stderr)
         print("  export DD_API_KEY=your_api_key", file=sys.stderr)
         print("  export DD_APP_KEY=your_app_key", file=sys.stderr)
         sys.exit(1)
-    except requests.exceptions.RequestException as e:
-        print(f"API Error: {e}", file=sys.stderr)
+    except Exception as e:
+        print(f"Error: {e}", file=sys.stderr)
         sys.exit(1)
 
 

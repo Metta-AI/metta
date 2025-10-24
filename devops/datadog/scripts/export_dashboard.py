@@ -11,92 +11,42 @@ This script exports a single dashboard's full JSON definition, which can be used
 as a reference when migrating to Terraform.
 
 Requirements:
-    - DD_API_KEY environment variable
-    - DD_APP_KEY environment variable
+    - DD_API_KEY environment variable (or AWS Secrets Manager)
+    - DD_APP_KEY environment variable (or AWS Secrets Manager)
     - DD_SITE environment variable (optional, defaults to datadoghq.com)
 
 Usage:
-    export DD_API_KEY=your_api_key
-    export DD_APP_KEY=your_app_key
-
     # Export by dashboard ID
-    ./devops/datadog/export_dashboard.py abc-123-def
+    ./devops/datadog/scripts/export_dashboard.py abc-123-def
 
     # Save to file
-    ./devops/datadog/export_dashboard.py abc-123-def > templates/my_dashboard.json
+    ./devops/datadog/scripts/export_dashboard.py abc-123-def > dashboards/templates/my_dashboard.json
 
     # Export by URL (extracts ID automatically)
-    ./devops/datadog/export_dashboard.py "https://app.datadoghq.com/dashboard/abc-123-def"
+    ./devops/datadog/scripts/export_dashboard.py "https://app.datadoghq.com/dashboard/abc-123-def"
 """
 
 import json
-import os
 import re
 import sys
+from pathlib import Path
 
-import requests
+# Add parent directory to path for local imports
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
+from common.dashboard_client import DatadogDashboardClient
 
 
-class DashboardExporter:
-    """Exports Datadog dashboard JSON."""
+def extract_dashboard_id(input_str: str) -> str:
+    """Extract dashboard ID from URL or return as-is if already an ID."""
+    # Check if it's a URL
+    url_pattern = r"dashboard/([a-z0-9-]+)"
+    match = re.search(url_pattern, input_str)
+    if match:
+        return match.group(1)
 
-    def __init__(self):
-        self.api_key = os.getenv("DD_API_KEY")
-        self.app_key = os.getenv("DD_APP_KEY")
-        self.site = os.getenv("DD_SITE", "datadoghq.com")
-
-        # Fetch from AWS Secrets Manager if not in environment
-        if not self.api_key:
-            try:
-                from softmax.aws.secrets_manager import get_secretsmanager_secret
-
-                self.api_key = get_secretsmanager_secret("datadog/api-key")
-            except Exception as e:
-                raise ValueError(f"DD_API_KEY not found in environment or AWS Secrets Manager: {e}") from e
-
-        if not self.app_key:
-            try:
-                from softmax.aws.secrets_manager import get_secretsmanager_secret
-
-                self.app_key = get_secretsmanager_secret("datadog/app-key")
-            except Exception as e:
-                raise ValueError(f"DD_APP_KEY not found in environment or AWS Secrets Manager: {e}") from e
-
-        if not self.api_key or not self.app_key:
-            raise ValueError("Missing required credentials: DD_API_KEY and DD_APP_KEY")
-
-        self.base_url = f"https://api.{self.site}/api"
-        self._session = self._create_session()
-
-    def _create_session(self) -> requests.Session:
-        """Create authenticated session for Datadog API."""
-        session = requests.Session()
-        session.headers.update(
-            {
-                "DD-API-KEY": self.api_key,
-                "DD-APPLICATION-KEY": self.app_key,
-                "Content-Type": "application/json",
-            }
-        )
-        return session
-
-    def extract_dashboard_id(self, input_str: str) -> str:
-        """Extract dashboard ID from URL or return as-is if already an ID."""
-        # Check if it's a URL
-        url_pattern = r"dashboard/([a-z0-9-]+)"
-        match = re.search(url_pattern, input_str)
-        if match:
-            return match.group(1)
-
-        # Assume it's already a dashboard ID
-        return input_str
-
-    def export_dashboard(self, dashboard_id: str) -> dict:
-        """Export dashboard JSON from Datadog API."""
-        url = f"{self.base_url}/v1/dashboard/{dashboard_id}"
-        response = self._session.get(url)
-        response.raise_for_status()
-        return response.json()
+    # Assume it's already a dashboard ID
+    return input_str
 
 
 def main():
@@ -111,13 +61,13 @@ def main():
         sys.exit(1)
 
     try:
-        exporter = DashboardExporter()
+        client = DatadogDashboardClient()
         dashboard_input = sys.argv[1]
-        dashboard_id = exporter.extract_dashboard_id(dashboard_input)
+        dashboard_id = extract_dashboard_id(dashboard_input)
 
         print(f"Fetching dashboard: {dashboard_id}...", file=sys.stderr)
 
-        dashboard_json = exporter.export_dashboard(dashboard_id)
+        dashboard_json = client.get_dashboard(dashboard_id)
 
         # Print to stdout for easy redirection
         print(json.dumps(dashboard_json, indent=2))
@@ -129,20 +79,17 @@ def main():
 
     except ValueError as e:
         print(f"Error: {e}", file=sys.stderr)
-        print("\nSet environment variables:", file=sys.stderr)
+        print("\nSet environment variables or configure AWS Secrets Manager:", file=sys.stderr)
         print("  export DD_API_KEY=your_api_key", file=sys.stderr)
         print("  export DD_APP_KEY=your_app_key", file=sys.stderr)
         sys.exit(1)
-    except requests.exceptions.HTTPError as e:
-        print(f"API Error: {e}", file=sys.stderr)
-        if e.response.status_code == 404:
+    except Exception as e:
+        print(f"Error: {e}", file=sys.stderr)
+        if "404" in str(e):
             print(
                 f"\nDashboard '{dashboard_id}' not found. Check the ID and try again.",
                 file=sys.stderr,
             )
-        sys.exit(1)
-    except requests.exceptions.RequestException as e:
-        print(f"Request Error: {e}", file=sys.stderr)
         sys.exit(1)
 
 
