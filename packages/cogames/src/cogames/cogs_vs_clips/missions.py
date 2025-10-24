@@ -166,6 +166,7 @@ VARIANTS = [
     LonelyHeartVariant,
     SimpleRecipesVariant,
     PackRatVariant,
+    BasicVibesVariant,
     NeutralFacedVariant,
     HeartChorusVariant,
 ]

@@ -229,7 +229,7 @@ def train_cmd(
         "--checkpoints",
         help="Path to save training data",
     ),
-    steps: int = typer.Option(10_000_000_000, "--steps", "-s", help="Number of training steps", min=1),
+    steps: int = typer.Option(1_000, "--steps", "-s", help="Number of training steps", min=1),
     device: str = typer.Option(
         "auto",
         "--device",
@@ -256,14 +256,8 @@ def train_cmd(
         help="Override vectorized environment batch size",
         min=1,
     ),
-    max_episode_steps: int = typer.Option(
-        1024,
-        "--max-episode-steps",
-        help="Maximum number of steps per episode before truncation (0 disables the cap)",
-        min=0,
-    ),
 ) -> None:
-    selected_missions = get_mission_names_and_configs(ctx, missions)
+    selected_missions = get_mission_names_and_configs(ctx, missions, variants_arg=variant, cogs=cogs)
     if len(selected_missions) == 1:
         mission_name, env_cfg = selected_missions[0]
         supplier = None
@@ -279,21 +273,54 @@ def train_cmd(
     policy_spec = get_policy_spec(ctx, policy)
     torch_device = resolve_training_device(console, device)
 
-    if max_episode_steps and max_episode_steps < 0:
-        raise ValueError("--max-episode-steps must be >= 0")
+    def _auto_episode_horizon(
+        total_steps: int, num_envs: Optional[int], default_max_steps: int | None
+    ) -> Optional[int]:
+        if total_steps <= 0:
+            return default_max_steps
+        if num_envs is None or num_envs <= 0:
+            num_envs = 1
+        per_env_steps = max(total_steps // num_envs, 1)
+        if default_max_steps is None or default_max_steps == 0:
+            return max(16, per_env_steps)
+        if per_env_steps >= default_max_steps:
+            return default_max_steps
+        return max(16, per_env_steps)
+
+    approx_envs = parallel_envs or 256
+
+    def _apply_auto_max_steps(cfg: MettaGridConfig, *, mission_name: Optional[str] = None) -> None:
+        current = getattr(cfg.game, "max_steps", None)
+        auto_max = _auto_episode_horizon(steps, approx_envs, current)
+        if auto_max is not None and auto_max != current:
+            cfg.game.max_steps = auto_max
+            if mission_name:
+                console.print(
+                    (
+                        f"[cyan]Auto-adjusting max_steps for {mission_name}: "
+                        f"{current or 'unbounded'} → {auto_max} to fit within {steps} training steps.[/cyan]"
+                    )
+                )
+            else:
+                console.print(
+                    (
+                        f"[cyan]Auto-adjusting max_steps: {current or 'unbounded'} → {auto_max} "
+                        f"to fit within {steps} training steps.[/cyan]"
+                    )
+                )
 
     if env_cfg is not None:
-        env_cfg.game.max_steps = max_episode_steps
+        _apply_auto_max_steps(env_cfg, mission_name=selected_missions[0][0])
 
     if supplier is not None:
         original_supplier = supplier
 
-        def supplier_with_max_steps() -> MettaGridConfig:
+        def supplier_with_auto_max() -> MettaGridConfig:
             cfg = original_supplier()
-            cfg.game.max_steps = max_episode_steps
+            _apply_auto_max_steps(cfg)
             return cfg
 
-        supplier = supplier_with_max_steps
+        supplier = supplier_with_auto_max
 
     try:
         train_module.train(
