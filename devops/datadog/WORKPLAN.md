@@ -1,6 +1,6 @@
 # Datadog Observability System - Work Plan
 
-**Current Status**: Production deployment with 7 collectors, 11 dashboards (all using Jsonnet), and 123+ metrics
+**Current Status**: Production deployment with 7 collectors, 11 dashboards (all using Jsonnet), and 130+ metrics
 
 **Branch**: `robb/1022-datadog` **PR**: [#3384](https://github.com/Metta-AI/metta/pull/3384)
 
@@ -22,7 +22,7 @@ Running in production via unified CronJob (every 15 minutes):
 4. **EC2 Collector** (19 metrics) - Instances, EBS volumes, snapshots, cost estimates
 5. **WandB Collector** (10 metrics) - Training runs, model performance, resource usage
 6. **Kubernetes Collector** (15 metrics) - Pods, deployments, node health, resource waste
-7. **Health FoM Collector** (7 metrics) - CI/CD health scores (0.0-1.0 scale)
+7. **Health FoM Collector** (14 metrics) - CI/CD and Training health scores (0.0-1.0 scale)
 
 ---
 
@@ -44,7 +44,7 @@ Running in production via unified CronJob (every 15 minutes):
 - `preset_demo.jsonnet` → Preset widgets catalog (ID: rd5-3wh-9s2)
 
 **🔧 Python-Generated** (complex visualizations, no migration needed):
-- `system_health_rollup.json` → 7×7 FoM grid (65 widgets) via `generate_health_grid.py`
+- `system_health_rollup.json` → 14×7 FoM grid (121 widgets) via `generate_health_grid.py` (ID: h3w-ibt-gkv)
 - `system_health_rollup_wildcard.json` → Vega-Lite heatmap via `generate_wildcard_fom_grid.py`
 
 
