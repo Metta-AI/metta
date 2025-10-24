@@ -16,14 +16,17 @@ All collectors share a common base class and follow consistent patterns.
 
 ## Available Collectors
 
-| Collector                 | Status         | Priority | Metrics | Description                                         |
-| ------------------------- | -------------- | -------- | ------- | --------------------------------------------------- |
-| [github](github/)         | ✅ Implemented | High     | 28      | PRs, commits, CI/CD, branches, developers           |
-| [skypilot](skypilot/)     | ✅ Implemented | High     | 30      | Jobs, clusters, runtime stats, resource utilization |
-| [asana](asana/)           | ✅ Implemented | Medium   | 14      | Project health, bugs tracking, team velocity        |
-| [ec2](ec2/)               | ✅ Implemented | High     | 19      | Instances, costs, utilization, EBS volumes          |
-| [wandb](wandb/)           | ✅ Implemented | High     | 10      | Training runs, model performance, GPU hours         |
-| [kubernetes](kubernetes/) | ✅ Implemented | High     | 15      | Resource efficiency, pod health, waste tracking     |
+| Collector                   | Status         | Priority | Metrics | Description                                         |
+| --------------------------- | -------------- | -------- | ------- | --------------------------------------------------- |
+| [github](github/)           | ✅ Implemented | High     | 28      | PRs, commits, CI/CD, branches, developers           |
+| [skypilot](skypilot/)       | ✅ Implemented | High     | 30      | Jobs, clusters, runtime stats, resource utilization |
+| [asana](asana/)             | ✅ Implemented | Medium   | 14      | Project health, bugs tracking, team velocity        |
+| [ec2](ec2/)                 | ✅ Implemented | High     | 19      | Instances, costs, utilization, EBS volumes          |
+| [wandb](wandb/)             | ✅ Implemented | High     | 10      | Training runs, model performance, GPU hours         |
+| [kubernetes](kubernetes/)   | ✅ Implemented | High     | 15      | Resource efficiency, pod health, waste tracking     |
+| [health_fom](health_fom/)   | ✅ Implemented | High     | 7       | Normalized health scores (0.0-1.0) for CI/CD        |
+
+**Total**: 123 metrics across 7 collectors
 
 **Note**: All collectors run together on a **unified 15-minute schedule** via a single CronJob for operational
 simplicity.
@@ -208,6 +211,43 @@ uv run python devops/datadog/run_collector.py asana --push
 ```
 
 **Setup**: See [SECRETS_SETUP.md](../SECRETS_SETUP.md) for configuring Asana access token and workspace/project IDs.
+
+### Health FoM Collector ✅
+
+**Implemented** - Normalized health metrics (7 metrics)
+
+**Figure of Merit Scores** (0.0-1.0 scale):
+
+- `health.ci.tests_passing.fom` - Unit tests passing on main
+- `health.ci.benchmarks_passing.fom` - Benchmarks passing on main
+- `health.ci.workflow_success_rate.fom` - CI workflow success rate
+- `health.ci.duration.fom` - CI workflow duration (faster = higher score)
+- `health.commits.quality.fom` - Commit quality (fewer reverts/hotfixes = higher)
+- `health.prs.velocity.fom` - PR merge velocity
+- `health.prs.quality.fom` - PR review coverage
+
+**Scoring Logic**:
+
+- `1.0` = Perfect (green)
+- `0.7-1.0` = Good (green-yellow)
+- `0.3-0.7` = Warning (yellow-orange)
+- `0.0-0.3` = Critical (orange-red)
+
+**Features**:
+
+- Reads existing metrics from Datadog (no external APIs)
+- Applies normalization formulas to convert raw metrics to 0.0-1.0 scores
+- Used in System Health Rollup dashboards (7×7 grid)
+
+**Usage**:
+
+```bash
+# Collect health scores (reads from Datadog)
+uv run python devops/datadog/run_collector.py health_fom --verbose
+
+# Push to Datadog
+uv run python devops/datadog/run_collector.py health_fom --push
+```
 
 ## Architecture
 

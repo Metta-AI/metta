@@ -31,8 +31,9 @@ Automated metric collection from multiple services via Kubernetes CronJobs:
 - **Skypilot** ✅ **(Production)**: Jobs, clusters, resource utilization
 - **Asana** ✅ **(Production)**: Project health, bugs tracking, team velocity
 - **EC2** ✅ **(Production)**: Instances, costs, utilization, EBS volumes
-- **WandB** ✅ **(Implemented)**: Training runs, model performance, GPU hours
-- **Kubernetes** ✅ **(Implemented)**: Resource efficiency, pod health, waste tracking
+- **WandB** ✅ **(Production)**: Training runs, model performance, GPU hours
+- **Kubernetes** ✅ **(Production)**: Resource efficiency, pod health, waste tracking
+- **Health FoM** ✅ **(Production)**: Normalized 0.0-1.0 health scores for CI/CD metrics
 
 All collectors:
 
@@ -96,17 +97,25 @@ aws secretsmanager get-secret-value --secret-id github/dashboard-token --region 
 
 All secrets are stored in AWS Secrets Manager. See [SECRETS_SETUP.md](SECRETS_SETUP.md) for complete setup guide.
 
-For local development, you can override with environment variables:
+**Production**: Uses AWS Secrets Manager via IRSA (IAM Roles for Service Accounts)
 
-```bash
-cd devops/datadog
-cp .env .env.local  # Create local override (gitignored)
-# Edit .env.local with local development credentials
-source ./load_env.sh
+**Local Development**: Two options:
 
-# Or validate your AWS secrets configuration:
-uv run python scripts/validate_secrets.py
-```
+1. **Option A - Use .env file** (simpler for local testing):
+   ```bash
+   cd devops/datadog
+   cp .env.sample .env
+   # Edit .env with your Datadog API keys
+   source ./load_env.sh  # Load credentials into shell
+   ```
+
+2. **Option B - Use AWS Secrets Manager** (same as production):
+   ```bash
+   # Configure AWS CLI (if not already done)
+   aws configure
+   # Validate secrets access
+   uv run python scripts/validate_secrets.py
+   ```
 
 ## Quick Start
 
@@ -169,7 +178,9 @@ devops/datadog/
 │   ├── skypilot/      # Skypilot jobs and compute costs
 │   ├── wandb/         # WandB training runs and experiments
 │   ├── ec2/           # AWS EC2 instances and costs
-│   └── asana/         # Asana tasks and project velocity
+│   ├── asana/         # Asana tasks and project velocity
+│   ├── kubernetes/    # Kubernetes resource efficiency and pod health
+│   └── health_fom/    # Normalized health scores (0.0-1.0)
 │
 ├── common/             # Shared utilities
 │   ├── datadog_client.py  # Datadog metric submission

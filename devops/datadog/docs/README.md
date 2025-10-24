@@ -196,11 +196,11 @@ devops/datadog/
 │   └── list_metrics.py          # Discover metrics
 │
 └── Config:
-    ├── .env                     # API credentials (gitignored)
-    ├── .env.sample              # Template for credentials
+    ├── .env                     # Local dev credentials (gitignored)
+    ├── .env.sample              # Template for local .env
     ├── .gitignore               # Git ignore rules
     ├── Makefile                 # Build & deploy commands
-    └── load_env.sh              # Load credentials
+    └── load_env.sh              # Load .env for local dev only
 ```
 
 ### Key Points
@@ -634,4 +634,4 @@ Use in queries: `avg:my.metric{$env}`
 
 ---
 
-Last updated: 2025-10-22
+Last updated: 2025-10-24
