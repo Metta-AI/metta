@@ -319,7 +319,10 @@ proc draw*(
   zoom: float32,
   zoomThreshold = 1.25f
 ) =
-  # Use our custom shaderf
+
+  glClearColor(1, 0, 0, 1)
+  glClear(GL_COLOR_BUFFER_BIT)
+  # Use our custom shader.
   glUseProgram(tileMap.shader.programId)
 
   # Set uniforms
@@ -345,8 +348,12 @@ proc draw*(
 
   tileMap.shader.bindUniforms()
 
-  # Draw the quad
-
+  # Bind the buffers
+  glBindBuffer(GL_ARRAY_BUFFER, tileMap.VBO)
+  glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, tileMap.EBO)
   glBindVertexArray(tileMap.VAO)
+
+  # Draw the quad
   glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, nil)
-  glBindVertexArray(0)
+
+  echo "end draw tile map"
