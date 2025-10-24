@@ -147,7 +147,6 @@ class StoreBaseVariant(MissionVariant):
     description: str = "Sanctum corners hold storage chests; cross remains clear."
 
     def apply(self, mission: Mission) -> Mission:
-        mission.procedural_overrides["hub_variant"] = "store"
         mission.procedural_overrides["hub_corner_bundle"] = "chests"
         mission.procedural_overrides["hub_cross_bundle"] = "none"
         mission.procedural_overrides["hub_cross_distance"] = 7
@@ -159,7 +158,6 @@ class ExtractorBaseVariant(MissionVariant):
     description: str = "Sanctum corners host extractors; cross remains clear."
 
     def apply(self, mission: Mission) -> Mission:
-        mission.procedural_overrides["hub_variant"] = "extractor"
         mission.procedural_overrides["hub_corner_bundle"] = "extractors"
         mission.procedural_overrides["hub_cross_bundle"] = "none"
         mission.procedural_overrides["hub_cross_distance"] = 7
@@ -171,7 +169,6 @@ class BothBaseVariant(MissionVariant):
     description: str = "Sanctum corners store chests and cross arms host extractors."
 
     def apply(self, mission: Mission) -> Mission:
-        mission.procedural_overrides["hub_variant"] = "both"
         mission.procedural_overrides["hub_corner_bundle"] = "chests"
         mission.procedural_overrides["hub_cross_bundle"] = "extractors"
         mission.procedural_overrides["hub_cross_distance"] = 7
@@ -213,7 +210,11 @@ TRAINING_FACILITY = Site(
 HELLO_WORLD = Site(
     name="hello_world",
     description="Welcome to space..",
-    map_builder=get_map("machina_100_stations.map"),
+    map_builder=make_machina_procedural_map_builder(
+        num_cogs=4,
+        width=100,
+        height=100,
+    ),
     min_cogs=1,
     max_cogs=20,
 )
@@ -221,7 +222,11 @@ HELLO_WORLD = Site(
 MACHINA_1 = Site(
     name="machina_1",
     description="Your first mission. Collect resources and assemble HEARTs.",
-    map_builder=get_map("machina_200_stations.map"),
+    map_builder=make_machina_procedural_map_builder(
+        num_cogs=4,
+        width=200,
+        height=200,
+    ),
     min_cogs=1,
     max_cogs=20,
 )
@@ -279,11 +284,30 @@ class AssembleMission(Mission):
     description: str = "Make HEARTs by using the assembler. Coordinate your team to maximize efficiency."
     site: Site = TRAINING_FACILITY
 
+    # ONly extractors, no chests
+    def configure(self):
+        self.procedural_overrides = {"hub_corner_bundle": "none"}
+
+    def make_env(self) -> MettaGridConfig:
+        env = super().make_env()
+        for name in ("germanium_extractor", "carbon_extractor", "oxygen_extractor", "silicon_extractor"):
+            cfg = env.game.objects.get(name)
+            if cfg is not None:
+                cfg.max_uses = 100  # type: ignore[attr-defined]
+        return env
+
 
 class VibeCheckMission(Mission):
     name: str = "vibe_check"
     description: str = "Modulate the group vibe to assemble HEARTs and Gear."
     site: Site = TRAINING_FACILITY
+
+    # Modify the assembler recipe so that it can only make HEARTs when
+    # multiple agents are present and setting their heart emoji
+    def configure(self):
+        self.procedural_overrides = {
+            "hub_corner_bundle": "none",
+        }
 
 
 class RepairMission(Mission):
@@ -362,7 +386,6 @@ class MachinaProceduralExploreMission(ProceduralMissionBase):
             "extractor_names": ["chest"],
             "extractor_weights": {"chest": 1.0},
             "extractor_coverage": 0.004,
-            "hub_variant": "store",
             "hub_corner_bundle": "chests",
             "hub_cross_bundle": "none",
             "hub_cross_distance": 7,
