@@ -165,7 +165,10 @@ def evaluate(
             summary_table.add_row(*row)
 
         total_row = [result.mission_name, "Total"]
-        total_row.extend(f"{value:.2f}" for value in total_avg_agent_reward_per_policy)
+        total_row.extend(
+            f"{(value / result.episodes) if result.episodes > 0 else 0.0:.2f}"
+            for value in total_avg_agent_reward_per_policy
+        )
         summary_table.add_row(*total_row)
 
     console.print(summary_table)
