@@ -1,5 +1,6 @@
 """Weights & Biases (WandB) metrics collector for Datadog monitoring."""
 
+import json
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
@@ -158,8 +159,11 @@ class WandBCollector(BaseCollector):
             "wandb.push_to_main.runs_completed_24h": 0,
             "wandb.push_to_main.runs_failed_24h": 0,
             "wandb.push_to_main.success_rate_pct": None,
-            "wandb.push_to_main.avg_steps_per_second": None,
-            "wandb.push_to_main.latest_steps_per_second": None,
+            "wandb.push_to_main.overview.steps_per_second": None,
+            "wandb.push_to_main.overview.epoch_steps_per_second": None,
+            "wandb.push_to_main.overview.sps": None,
+            "wandb.push_to_main.timing_cumulative.sps": None,
+            "wandb.push_to_main.timing_per_epoch.sps": None,
             "wandb.push_to_main.avg_duration_hours": None,
         }
 
@@ -170,7 +174,12 @@ class WandBCollector(BaseCollector):
         try:
             completed = 0
             failed = 0
-            sps_values = []
+            # Track each SPS metric separately
+            overview_sps_values = []
+            overview_epoch_sps_values = []
+            overview_sps_alt_values = []
+            timing_cumulative_sps_values = []
+            timing_per_epoch_sps_values = []
             durations = []
 
             for run in runs:
@@ -180,18 +189,36 @@ class WandBCollector(BaseCollector):
                 elif run.state in ["failed", "crashed"]:
                     failed += 1
 
-                # Extract metrics from completed runs
-                if run.state == "finished":
+                # Extract metrics from finished OR crashed runs
+                # Crashed runs still have valuable summary metrics
+                if run.state in ["finished", "crashed"]:
                     try:
-                        summary_dict = dict(run.summary)
+                        # Handle WandB API quirk: crashed runs have _json_dict as JSON string
+                        if hasattr(run.summary, "_json_dict"):
+                            json_dict_value = run.summary._json_dict
+                            if isinstance(json_dict_value, str):
+                                # Parse JSON string for crashed runs
+                                summary_dict = json.loads(json_dict_value)
+                            else:
+                                # Use dict directly for finished runs
+                                summary_dict = json_dict_value
+                        else:
+                            # Fallback to dict() conversion
+                            summary_dict = dict(run.summary)
 
-                        # SPS (steps per second) - training throughput
+                        # Collect all SPS metrics
                         if "overview/steps_per_second" in summary_dict:
-                            sps_values.append(summary_dict["overview/steps_per_second"])
-                        elif "overview/sps" in summary_dict:
-                            sps_values.append(summary_dict["overview/sps"])
+                            overview_sps_values.append(summary_dict["overview/steps_per_second"])
+                        if "overview/epoch_steps_per_second" in summary_dict:
+                            overview_epoch_sps_values.append(summary_dict["overview/epoch_steps_per_second"])
+                        if "overview/sps" in summary_dict:
+                            overview_sps_alt_values.append(summary_dict["overview/sps"])
+                        if "timing_cumulative/sps" in summary_dict:
+                            timing_cumulative_sps_values.append(summary_dict["timing_cumulative/sps"])
+                        if "timing_per_epoch/sps" in summary_dict:
+                            timing_per_epoch_sps_values.append(summary_dict["timing_per_epoch/sps"])
 
-                    except (TypeError, ValueError, AttributeError):
+                    except (TypeError, ValueError, AttributeError, json.JSONDecodeError):
                         continue
 
                 # Calculate duration
@@ -212,9 +239,17 @@ class WandBCollector(BaseCollector):
             if total_runs > 0:
                 metrics["wandb.push_to_main.success_rate_pct"] = (completed / total_runs) * 100
 
-            if sps_values:
-                metrics["wandb.push_to_main.avg_steps_per_second"] = sum(sps_values) / len(sps_values)
-                metrics["wandb.push_to_main.latest_steps_per_second"] = sps_values[-1]  # Most recent
+            # Average each SPS metric (use latest value from most recent run)
+            if overview_sps_values:
+                metrics["wandb.push_to_main.overview.steps_per_second"] = overview_sps_values[-1]
+            if overview_epoch_sps_values:
+                metrics["wandb.push_to_main.overview.epoch_steps_per_second"] = overview_epoch_sps_values[-1]
+            if overview_sps_alt_values:
+                metrics["wandb.push_to_main.overview.sps"] = overview_sps_alt_values[-1]
+            if timing_cumulative_sps_values:
+                metrics["wandb.push_to_main.timing_cumulative.sps"] = timing_cumulative_sps_values[-1]
+            if timing_per_epoch_sps_values:
+                metrics["wandb.push_to_main.timing_per_epoch.sps"] = timing_per_epoch_sps_values[-1]
 
             if durations:
                 metrics["wandb.push_to_main.avg_duration_hours"] = sum(durations) / len(durations)
