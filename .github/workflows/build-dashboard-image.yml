@@ -8,12 +8,9 @@ on:
     branches:
       - main
     paths:
-      - "softmax/**"
-      - "common/**"
       - "devops/datadog/**"
+      - "packages/gitta/**"
       - "devops/charts/dashboard-cronjob/**"
-      - "devops/tools/install-system.sh"
-      - "install.sh"
       - ".github/workflows/build-dashboard-image.yml"
   workflow_dispatch: {}
 
@@ -34,7 +31,7 @@ jobs:
         uses: ./.github/actions/docker-build
         with:
           image_name: softmax-dashboard
-          dockerfile: ./softmax/Dockerfile
+          dockerfile: ./devops/datadog/Dockerfile.collectors
           aws_role: ${{ vars.AWS_ROLE }}
 
       - name: Deploy helm chart
