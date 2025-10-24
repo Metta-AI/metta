@@ -2,23 +2,25 @@
 
 Collects training run metrics from Weights & Biases (wandb.ai).
 
+Optimized to focus on recent activity (last 24 hours) with server-side filtering to avoid fetching 26k+ historical runs.
+
 ## Metrics Collected
 
 **Run Status Metrics (4 metrics)**:
 - `wandb.runs.active` - Currently running experiments
-- `wandb.runs.completed_7d` - Completed runs in last 7 days
-- `wandb.runs.failed_7d` - Failed/crashed runs in last 7 days
-- `wandb.runs.total` - Total runs in project
+- `wandb.runs.completed_24h` - Completed runs in last 24 hours
+- `wandb.runs.failed_24h` - Failed/crashed runs in last 24 hours
+- `wandb.runs.total_recent` - Total recent activity (24h + active)
 
-**Performance Metrics (3 metrics)**:
-- `wandb.metrics.best_accuracy` - Best accuracy across all runs
-- `wandb.metrics.latest_loss` - Most recent loss value
-- `wandb.metrics.avg_accuracy_7d` - Average accuracy from recent runs
+**Performance Metrics (3 metrics)** - From GitHub CI runs:
+- `wandb.metrics.latest_sps` - Latest training throughput (steps per second)
+- `wandb.metrics.avg_heart_amount_24h` - Average agent survival metric (heart amount)
+- `wandb.metrics.latest_queue_latency_s` - Latest SkyPilot queue latency
 
 **Resource Usage Metrics (3 metrics)**:
 - `wandb.training.avg_duration_hours` - Average training duration
 - `wandb.training.gpu_utilization_avg` - Average GPU utilization
-- `wandb.training.total_gpu_hours_7d` - Total GPU hours in last 7 days
+- `wandb.training.total_gpu_hours_24h` - Total GPU hours in last 24 hours
 
 **Total**: 10 metrics
 
@@ -72,26 +74,27 @@ helm upgrade --install wandb-collector devops/charts/dashboard-cronjob \
 
 ## Metrics Details
 
-### Run Status Tracking
+### Run Status Tracking (24h Window)
 
-Tracks the health of your training pipeline:
+Tracks recent training pipeline health:
 - Active runs indicate ongoing training
-- Completed runs show successful training velocity
-- Failed runs highlight training stability issues
+- Completed runs in last 24h show training velocity
+- Failed runs highlight recent stability issues
+- Total recent combines all activity for quick health check
 
-### Performance Metrics
+### Performance Metrics (GitHub CI Runs)
 
-Monitors model quality:
-- Best accuracy tracks your best model performance
-- Latest loss shows recent training progress
-- Average accuracy indicates consistent performance
+Monitors training performance from automated CI runs (pattern: `github.sky.main.*`):
+- Training throughput (SPS) tracks steps per second
+- Agent survival (heart amount) measures agent performance
+- Queue latency tracks SkyPilot infrastructure responsiveness
 
-### Resource Usage
+### Resource Usage (24h Window)
 
-Tracks compute efficiency:
+Tracks recent compute efficiency:
 - Training duration helps estimate costs
 - GPU utilization shows resource efficiency
-- Total GPU hours enables cost tracking
+- Total GPU hours enables short-term cost tracking
 
 ## Dependencies
 
@@ -99,12 +102,22 @@ Tracks compute efficiency:
 
 ## Implementation Notes
 
-- Uses WandB Public API for querying runs
+**Performance Optimizations:**
+- Uses WandB API server-side filtering to avoid fetching 26k+ historical runs
+- Focuses on 24-hour window for actionable monitoring data
+- Timeout protection (120s) prevents indefinite hangs
+
+**Data Collection:**
 - Runs are filtered by state (running, finished, failed, crashed)
-- Time-based metrics use last 7 days window
+- Uses `created_at` filters with ISO timestamps for time-based queries
 - GPU hours assumes 1 GPU per run (configurable in production)
-- Performance metrics extracted from run summary
+- Performance metrics extracted from run summary (GitHub CI runs)
 - Handles missing metrics gracefully (returns None)
+
+**Metrics Focus:**
+- Prioritizes GitHub CI runs (pattern: `github.sky.main.*`)
+- Tracks Metta-specific metrics (SPS, heart amount, queue latency)
+- Short time window provides recent, actionable insights
 
 ## Troubleshooting
 
@@ -116,9 +129,13 @@ Tracks compute efficiency:
 
 ### Missing performance metrics
 
-- Ensure training code logs `accuracy` and `loss` to WandB
+- Ensure training code logs Metta metrics to WandB:
+  - `overview/sps` (training throughput)
+  - `env_agent/heart.amount` (agent survival)
+  - `skypilot/queue_latency_s` (infrastructure latency)
 - Check run summaries contain expected metrics
 - Verify metric naming matches (case-sensitive)
+- Confirm GitHub CI runs follow pattern `github.sky.main.*`
 
 ### Authentication errors
 
