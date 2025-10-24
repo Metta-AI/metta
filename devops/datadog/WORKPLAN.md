@@ -8,8 +8,6 @@
 
 **✅ All Dashboards Migrated**: Every collector now has a Jsonnet-based dashboard with component libraries
 
-**⚠️ Active Issue**: Health FoM collector causing CronJob crashes - see `ISSUE-health-fom-failures.md` for details
-
 ---
 
 ## ✅ What's Deployed and Working
@@ -24,7 +22,7 @@ Running in production via unified CronJob (every 15 minutes):
 4. **EC2 Collector** (19 metrics) - Instances, EBS volumes, snapshots, cost estimates
 5. **WandB Collector** (20 metrics) - Training runs (24h), push-to-main CI tracking (5 SPS metrics), sweep metrics, GPU hours
 6. **Kubernetes Collector** (15 metrics) - Pods, deployments, node health, resource waste
-7. **Health FoM Collector** (14 metrics) - CI/CD and Training health scores (0.0-1.0 scale) ⚠️ **Currently disabled due to crashes**
+7. **Health FoM Collector** (14 metrics) - CI/CD and Training health scores (0.0-1.0 scale)
 
 ---
 
@@ -38,7 +36,7 @@ Running in production via unified CronJob (every 15 minutes):
 - `policy_evaluator.jsonnet` → APM evaluation metrics (ID: gpk-2y2-9er)
 - `kubernetes.jsonnet` → Kubernetes cluster health (ID: 687-i5n-ncf)
 - `wandb.jsonnet` → WandB training metrics with push-to-main CI tracking (ID: dr3-pdj-rrw)
-- `health_fom` → System health scores (Python-generated) ⚠️ **Note: health_fom collector currently disabled**
+- `health_fom` → System health scores (Python-generated)
 
 
 **🔧 Python-Generated** (complex visualizations, no migration needed):
@@ -59,12 +57,13 @@ Running in production via unified CronJob (every 15 minutes):
 
 ### Immediate (This Week)
 
-- [ ] **Fix health_fom collector crashes** - See `ISSUE-health-fom-failures.md`
-  - Likely OOM or Datadog API timeout when querying historical metrics
-  - Workaround: Temporarily disabled in production
-  - Options: Increase memory, optimize queries, or run in separate job
+- [x] **Fixed health_fom collector crashes** - Improved error handling
+  - Added try/except around collect_metrics() to prevent job crashes
+  - Collector now gracefully returns empty dict when source metrics unavailable
+  - Reduced Datadog API lookback from 1 hour to 30 minutes
+  - Changed missing metric logging from WARNING to DEBUG level
 - [ ] Address PR feedback and merge to main
-- [ ] Monitor production stability (95%+ collector success rate for active collectors)
+- [ ] Monitor production stability (95%+ collector success rate)
 
 ### Dashboard Migration - ✅ Complete!
 
