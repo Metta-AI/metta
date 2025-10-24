@@ -182,7 +182,7 @@ class BidirectionalLPScorer(LPScorer):
     def update_with_score(self, task_id: int, score: float) -> None:
         """Update bidirectional EMA tracking for a task with new score."""
         # Convert score to success rate (assuming score is between 0 and 1)
-        success_rate = max(0.0, min(1.0, score))
+        success_rate = score #max(0.0, min(1.0, score))
 
         # Track first 3 unique tasks for detailed wandb metrics
         if task_id not in self._tracked_task_ids and len(self._tracked_task_ids) < 3:
