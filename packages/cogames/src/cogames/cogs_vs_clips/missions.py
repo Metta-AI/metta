@@ -17,6 +17,7 @@ from cogames.cogs_vs_clips.stations import (
 )
 from mettagrid.config.mettagrid_config import AssemblerConfig, ChestConfig, GridObjectConfig, MettaGridConfig
 from mettagrid.map_builder.map_builder import MapBuilderConfig
+from typing import Callable, List
 
 
 def get_map(site: str) -> MapBuilderConfig:
