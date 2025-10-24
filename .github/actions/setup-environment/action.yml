@@ -129,10 +129,8 @@ runs:
             ;;
 
           "linting")
-            # Install lint tools (ruff, cpplint) plus the main package without its dependencies
-            # This allows `uv run metta lint` to work while keeping installation fast
+            # Install only the lint group, excluding the main, interactive and dev deps
             uv sync --only-group lint
-            uv pip install --no-deps -e .
             ;;
 
           # used in the mettascope tests where we run code to generate outputs but do not run tests

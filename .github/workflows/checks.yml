@@ -176,10 +176,13 @@ jobs:
         with:
           install-mode: "linting"
 
-      - name: Run linting
-        # Uses metta lint command - same command developers use locally.
-        # This ensures CI and local behavior stay perfectly in sync.
-        run: uv run metta lint
+      - name: Run Python linting
+        run: |
+          uv run ruff format --check .
+          uv run ruff check --exit-non-zero-on-fix .
+
+      - name: Run C++ linting
+        run: ./packages/mettagrid/tests/cpplint.sh
 
   observatory-typescript-check:
     name: "Observatory TypeScript Check"
