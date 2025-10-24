@@ -11,7 +11,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 import torch
-from cortex.kernels.pytorch.rtu_stream import rtu_stream_diag_pytorch
+from cortex.kernels.pytorch.rtu.rtu_stream_diag import rtu_stream_diag_pytorch
 
 try:  # Triton availability for GPU tests
     from cortex.kernels.triton import rtu_stream_diag_triton as _rtu_triton_stream
@@ -19,6 +19,14 @@ try:  # Triton availability for GPU tests
     _HAS_TRITON = True
 except Exception:  # pragma: no cover
     _HAS_TRITON = False
+
+# CUDA fused sequential (all-in) availability
+try:
+    from cortex.kernels.cuda import rtu_stream_diag_cuda as _rtu_cuda_seq_stream
+
+    _HAS_CUDA_SEQ = True
+except Exception:  # pragma: no cover
+    _HAS_CUDA_SEQ = False
 
 
 def _build_params(D: int, H: int, *, device, dtype):
@@ -536,6 +544,221 @@ def test_triton_streaming_diag_chunked_forward_and_grad_parity(with_resets: bool
                 assert torch.allclose(gp, gt, rtol=rtol, atol=atol), (
                     f"grad {nm} mismatch (chunks={chunks}): max diff={(gp - gt).abs().max().item():.3e}"
                 )
+
+
+@pytest.mark.skipif(not _HAS_CUDA_SEQ or not torch.cuda.is_available(), reason="CUDA extension required")
+@pytest.mark.parametrize("with_resets", [False, True])
+def test_cuda_seq_streaming_diag_forward_and_grad_parity(with_resets: bool) -> None:
+    """Compare CUDA all-in sequential kernel to PyTorch streaming diag.
+
+    Uses stricter tolerances than Triton parity since both paths are sequential
+    with identical arithmetic ordering and fp32 math.
+    """
+    torch.manual_seed(2026)
+    device = torch.device("cuda")
+    dtype = torch.float32
+
+    B, T, H = 2, 19, 8
+    D = H
+    x = torch.randn(B, T, D, device=device, dtype=dtype).requires_grad_(True)
+
+    resets = None
+    if with_resets:
+        # Mix random and deterministic resets, include head resets occasionally
+        resets = torch.rand(B, T, device=device) < 0.15
+        resets[:, 0] = torch.tensor([True, False], device=device)
+
+    # Base parameters
+    nu0, th0, w10, w20 = _build_params(D, H, device=device, dtype=dtype)
+
+    # PyTorch reference params
+    nu_pt = nu0.clone().detach().requires_grad_(True)
+    th_pt = th0.clone().detach().requires_grad_(True)
+    w1_pt = w10.clone().detach().requires_grad_(True)
+    w2_pt = w20.clone().detach().requires_grad_(True)
+    hc1_0 = torch.zeros(B, H, device=device, dtype=dtype)
+    hc2_0 = torch.zeros(B, H, device=device, dtype=dtype)
+
+    # CUDA params (copies)
+    nu_cu = nu0.clone().detach().requires_grad_(True)
+    th_cu = th0.clone().detach().requires_grad_(True)
+    w1_cu = w10.clone().detach().requires_grad_(True)
+    w2_cu = w20.clone().detach().requires_grad_(True)
+
+    # Forward PyTorch
+    y_pt, (h1_pt, h2_pt), _ = rtu_stream_diag_pytorch(
+        x_btd=x,
+        nu_log=nu_pt,
+        theta_log=th_pt,
+        w1=w1_pt,
+        w2=w2_pt,
+        activation_name="SiLU",
+        hc1_init_bh=hc1_0,
+        hc2_init_bh=hc2_0,
+        trace_in=None,
+        resets_bt=resets,
+    )
+    loss_pt = (y_pt**2).mean()
+    g_pt = torch.autograd.grad(loss_pt, (nu_pt, th_pt, w1_pt, w2_pt, x), retain_graph=True)
+
+    # Forward CUDA
+    y_cu, (h1_cu, h2_cu), _ = _rtu_cuda_seq_stream(
+        x_btd=x,
+        nu_log=nu_cu,
+        theta_log=th_cu,
+        w1=w1_cu,
+        w2=w2_cu,
+        activation_name="SiLU",
+        hc1_init_bh=hc1_0,
+        hc2_init_bh=hc2_0,
+        trace_in=None,
+        resets_bt=resets,
+    )
+    loss_cu = (y_cu**2).mean()
+    g_cu = torch.autograd.grad(loss_cu, (nu_cu, th_cu, w1_cu, w2_cu, x), retain_graph=True)
+
+    # Forward parity (stricter than Triton)
+    torch.testing.assert_close(y_cu, y_pt, rtol=1e-6, atol=2e-7)
+    torch.testing.assert_close(h1_cu, h1_pt, rtol=1e-6, atol=2e-7)
+    torch.testing.assert_close(h2_cu, h2_pt, rtol=1e-6, atol=2e-7)
+
+    # Grad parity (stricter)
+    names = ["nu_log", "theta_log", "w1", "w2", "x"]
+    if with_resets:
+        tolerances = {nm: (5e-6, 2e-6) for nm in names}
+        tolerances["x"] = (1e-5, 5e-6)
+    else:
+        tolerances = {nm: (1e-6, 2e-7) for nm in names}
+    for gp, gc, nm in zip(g_pt, g_cu, names, strict=True):
+        rtol, atol = tolerances[nm]
+        assert torch.allclose(gp, gc, rtol=rtol, atol=atol), (
+            f"CUDA vs PyTorch grad {nm} mismatch: max diff={(gp - gc).abs().max().item():.3e}"
+        )
+
+
+@pytest.mark.skipif(not _HAS_CUDA_SEQ or not torch.cuda.is_available(), reason="CUDA extension required")
+@pytest.mark.parametrize("with_resets", [False, True])
+def test_cuda_seq_streaming_diag_whole_vs_chunked_parity(with_resets: bool) -> None:
+    """CUDA-vs-CUDA parity: whole sequence vs chunked streaming.
+
+    Confirms our fused sequential kernel matches itself across chunking. Uses
+    stricter tolerances than the Triton version.
+    """
+    torch.manual_seed(2027)
+    device = torch.device("cuda")
+    dtype = torch.float32
+
+    B, T, H = 2, 23, 8
+    D = H
+    x = torch.randn(B, T, D, device=device, dtype=dtype).requires_grad_(True)
+
+    if with_resets:
+        resets_rand = torch.rand(B, T, device=device) < 0.2
+        resets_det = torch.zeros(B, T, dtype=torch.bool, device=device)
+        for b in range(B):
+            resets_det[b, 0] = False
+            for t_idx in (4, 9, 15, 18):
+                if t_idx < T:
+                    resets_det[b, t_idx] = True
+        resets_list = [resets_rand, resets_det]
+    else:
+        resets_list = [None]
+
+    nu0, th0, w10, w20 = _build_params(D, H, device=device, dtype=dtype)
+
+    for resets in resets_list:
+        nu_wh = nu0.clone().detach().requires_grad_(True)
+        th_wh = th0.clone().detach().requires_grad_(True)
+        w1_wh = w10.clone().detach().requires_grad_(True)
+        w2_wh = w20.clone().detach().requires_grad_(True)
+        hc1_0 = torch.zeros(B, H, device=device, dtype=dtype)
+        hc2_0 = torch.zeros(B, H, device=device, dtype=dtype)
+        y_wh, (_, _), _ = _rtu_cuda_seq_stream(
+            x_btd=x,
+            nu_log=nu_wh,
+            theta_log=th_wh,
+            w1=w1_wh,
+            w2=w2_wh,
+            activation_name="SiLU",
+            hc1_init_bh=hc1_0,
+            hc2_init_bh=hc2_0,
+            trace_in=None,
+            resets_bt=resets,
+        )
+        loss_wh = (y_wh**2).mean()
+        g_wh = torch.autograd.grad(loss_wh, (nu_wh, th_wh, w1_wh, w2_wh, x), retain_graph=True)
+
+        nu_ch = nu0.clone().detach().requires_grad_(True)
+        th_ch = th0.clone().detach().requires_grad_(True)
+        w1_ch = w10.clone().detach().requires_grad_(True)
+        w2_ch = w20.clone().detach().requires_grad_(True)
+
+        def run_cuda_chunks(
+            chunk_sizes: tuple[int, ...],
+            *,
+            resets_local=resets,
+            nu_bind=nu_ch,
+            th_bind=th_ch,
+            w1_bind=w1_ch,
+            w2_bind=w2_ch,
+        ):
+            hc1 = torch.zeros(B, H, device=device, dtype=dtype)
+            hc2 = torch.zeros(B, H, device=device, dtype=dtype)
+            trace = None
+            ys = []
+            t0 = 0
+            for sz in chunk_sizes:
+                t1 = min(T, t0 + sz)
+                if t1 <= t0:
+                    break
+                y_blk, (hc1, hc2), trace = _rtu_cuda_seq_stream(
+                    x_btd=x[:, t0:t1, :],
+                    nu_log=nu_bind,
+                    theta_log=th_bind,
+                    w1=w1_bind,
+                    w2=w2_bind,
+                    activation_name="SiLU",
+                    hc1_init_bh=hc1,
+                    hc2_init_bh=hc2,
+                    trace_in=trace,
+                    resets_bt=None if resets_local is None else resets_local[:, t0:t1],
+                )
+                ys.append(y_blk)
+                hc1, hc2 = hc1.detach(), hc2.detach()
+                trace = tuple(t.detach() for t in trace) if trace is not None else None
+                t0 = t1
+                if t0 >= T:
+                    break
+            y_s = torch.cat(ys, dim=1)
+            loss_s = (y_s**2).mean()
+            return y_s, loss_s
+
+        # Check several chunkings
+        for chunks in [(T,), (7, 16), (5, 6, 12), (9, 9, 9)]:
+            y_s, loss_s = run_cuda_chunks(chunks)
+            # Forward parity (strict)
+            torch.testing.assert_close(y_wh, y_s, rtol=1e-6, atol=2e-7)
+            # Gradient parity
+            g_s = torch.autograd.grad(loss_s, (nu_ch, th_ch, w1_ch, w2_ch, x), retain_graph=True)
+            names = ["nu_log", "theta_log", "w1", "w2", "x"]
+            if with_resets:
+                # Slight numeric drift across chunk boundaries from atomics and chunk splits
+                tolerances = {nm: (1e-6, 1e-4) for nm in names}
+                tolerances["nu_log"] = (1e-6, 2e-4)
+                tolerances["theta_log"] = (1e-6, 2e-4)
+                tolerances["w1"] = (1e-6, 4e-4)
+                tolerances["w2"] = (1e-6, 4e-4)
+                tolerances["x"] = (1e-4, 1e-3)
+            else:
+                tolerances = {nm: (1e-6, 1e-4) for nm in names}
+                tolerances["x"] = (1e-4, 6e-4)
+            for gw, gs, nm in zip(g_wh, g_s, names, strict=True):
+                rtol, atol = tolerances[nm]
+                msg = (
+                    f"CUDA whole vs chunked grad {nm} mismatch (chunks={chunks}): "
+                    f"max diff={(gw - gs).abs().max().item():.3e}"
+                )
+                assert torch.allclose(gw, gs, rtol=rtol, atol=atol), msg
 
 
 @pytest.mark.skipif(not _HAS_TRITON or not torch.cuda.is_available(), reason="Triton+CUDA required")
