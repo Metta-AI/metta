@@ -40,7 +40,7 @@ cd metta
 uv sync
 ```
 
-Note: The project requires Python 3.11.7 specifically, as specified in the .python-version file.
+Note: The project requires Python 3.12.11 specifically, as specified in the .python-version file.
 
 ## Running the Code
 
