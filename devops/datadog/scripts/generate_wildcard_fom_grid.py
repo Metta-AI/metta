@@ -116,29 +116,29 @@ def generate_vega_spec() -> dict:
     day_sort_order = [d["label"] for d in DAYS]
 
     return {
-        "$schema": "https://vega.github.io/schema/vega-lite/v6.json",
-        "data": {"name": "queryResults"},
+        "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
+        "data": {"name": "table1"},
         "transform": [
             # Unfold all 49 fields into rows
             {"fold": fold_fields, "as": ["metric_day", "value"]},
             # Extract metric name from field name
             # e.g., "tests_passing_today" -> metric_key = "tests_passing", day_key = "today"
             {
-                "calculate": "split(datum.metric_day, '_')[0] + (indexof(datum.metric_day, 'passing') > 0 ? ' passing' : (indexof(datum.metric_day, 'workflows') > 0 ? ' workflows' : (indexof(datum.metric_day, 'count') > 0 ? ' count' : (indexof(datum.metric_day, 'p90') > 0 ? ' p90' : (indexof(datum.metric_day, 'prs') > 0 ? ' prs' : ' time')))))",
+                "calculate": "split(datum.metric_day, '_')[0] + (indexof(datum.metric_day, 'passing') > 0 ? ' passing' : (indexof(datum.metric_day, 'workflows') > 0 ? ' workflows' : (indexof(datum.metric_day, 'count') > 0 ? ' count' : (indexof(datum.metric_day, 'p90') > 0 ? ' p90' : (indexof(datum.metric_day, 'prs') > 0 ? ' prs' : ' time')))))",  # noqa: E501
                 "as": "metric_raw",
             },
             # Extract day label from field name
             {
-                "calculate": "indexof(datum.metric_day, 'today') > 0 ? 'Today' : ('-' + split(datum.metric_day, '_')[length(split(datum.metric_day, '_')) - 1])",
+                "calculate": "indexof(datum.metric_day, 'today') > 0 ? 'Today' : ('-' + split(datum.metric_day, '_')[length(split(datum.metric_day, '_')) - 1])",  # noqa: E501
                 "as": "day",
             },
             # Create proper metric display names
             {
-                "calculate": "replace(replace(replace(replace(replace(replace(replace(datum.metric_day, '_today', ''), '_1d', ''), '_2d', ''), '_3d', ''), '_4d', ''), '_5d', ''), '_6d', '')",
+                "calculate": "replace(replace(replace(replace(replace(replace(replace(datum.metric_day, '_today', ''), '_1d', ''), '_2d', ''), '_3d', ''), '_4d', ''), '_5d', ''), '_6d', '')",  # noqa: E501
                 "as": "metric_key",
             },
             {
-                "calculate": "datum.metric_key == 'tests_passing' ? 'Tests Passing' : (datum.metric_key == 'failing_workflows' ? 'Failing Workflows' : (datum.metric_key == 'hotfix_count' ? 'Hotfix Count' : (datum.metric_key == 'revert_count' ? 'Revert Count' : (datum.metric_key == 'duration_p90' ? 'CI Duration P90' : (datum.metric_key == 'stale_prs' ? 'Stale PRs' : 'PR Cycle Time')))))",
+                "calculate": "datum.metric_key == 'tests_passing' ? 'Tests Passing' : (datum.metric_key == 'failing_workflows' ? 'Failing Workflows' : (datum.metric_key == 'hotfix_count' ? 'Hotfix Count' : (datum.metric_key == 'revert_count' ? 'Revert Count' : (datum.metric_key == 'duration_p90' ? 'CI Duration P90' : (datum.metric_key == 'stale_prs' ? 'Stale PRs' : 'PR Cycle Time')))))",  # noqa: E501
                 "as": "metric",
             },
         ],
@@ -229,7 +229,10 @@ def generate_dashboard() -> dict:
                     "queries": queries,
                 }
             ],
-            "custom_viz": vega_spec,
+            "specification": {
+                "type": "vega-lite",
+                "contents": vega_spec,
+            },
         },
         "layout": {"x": 0, "y": 0, "width": 12, "height": 8},
     }
@@ -257,7 +260,7 @@ def generate_dashboard() -> dict:
 
     dashboard = {
         "title": "System Health Rollup (Wildcard)",
-        "description": "Figure of Merit (FoM) grid using Wildcard widget with Vega-Lite visualization - no external storage required!",
+        "description": "FoM grid using Wildcard widget with Vega-Lite visualization - no external storage required!",  # noqa: E501
         "layout_type": "ordered",
         "template_variables": [],
         "widgets": [widget, description],
