@@ -51,41 +51,47 @@ class WandBCollector(BaseCollector):
         return metrics
 
     def _collect_run_status_metrics(self) -> dict[str, Any]:
-        """Collect training run status metrics."""
+        """Collect training run status metrics.
+
+        Focus on recent runs (last 24 hours) to avoid fetching 26k+ historical runs.
+        This provides actionable monitoring data without performance issues.
+        """
         metrics = {
             "wandb.runs.active": 0,
-            "wandb.runs.completed_7d": 0,
-            "wandb.runs.failed_7d": 0,
-            "wandb.runs.total": 0,
+            "wandb.runs.completed_24h": 0,
+            "wandb.runs.failed_24h": 0,
+            "wandb.runs.total_recent": 0,
         }
 
         try:
-            # Get all runs from the project
-            runs = self.api.runs(f"{self.entity}/{self.project}")
+            # Count active runs using filter
+            active_runs = self.api.runs(f"{self.entity}/{self.project}", filters={"state": "running"})
+            metrics["wandb.runs.active"] = len(list(active_runs))
 
-            seven_days_ago = datetime.now(timezone.utc) - timedelta(days=7)
+            # Focus on last 24 hours for actionable monitoring
+            one_day_ago = datetime.now(timezone.utc) - timedelta(hours=24)
 
-            for run in runs:
-                metrics["wandb.runs.total"] += 1
+            # Count completed runs in last 24 hours using filter
+            recent_completed = self.api.runs(
+                f"{self.entity}/{self.project}",
+                filters={"state": "finished", "created_at": {"$gte": one_day_ago.isoformat()}},
+            )
+            metrics["wandb.runs.completed_24h"] = len(list(recent_completed))
 
-                # Count active runs
-                if run.state == "running":
-                    metrics["wandb.runs.active"] += 1
+            # Count failed runs in last 24 hours using filter
+            recent_failed = self.api.runs(
+                f"{self.entity}/{self.project}",
+                filters={
+                    "$or": [{"state": "failed"}, {"state": "crashed"}],
+                    "created_at": {"$gte": one_day_ago.isoformat()},
+                },
+            )
+            metrics["wandb.runs.failed_24h"] = len(list(recent_failed))
 
-                # Count completed/failed runs in last 7 days
-                if run.created_at:
-                    # WandB created_at is a datetime string
-                    try:
-                        created_at = datetime.fromisoformat(run.created_at.replace("Z", "+00:00"))
-                    except (ValueError, AttributeError):
-                        # Fallback: try parsing as timestamp
-                        continue
-
-                    if created_at >= seven_days_ago:
-                        if run.state == "finished":
-                            metrics["wandb.runs.completed_7d"] += 1
-                        elif run.state in ("failed", "crashed"):
-                            metrics["wandb.runs.failed_7d"] += 1
+            # Total recent activity (last 24h + currently active)
+            metrics["wandb.runs.total_recent"] = (
+                metrics["wandb.runs.active"] + metrics["wandb.runs.completed_24h"] + metrics["wandb.runs.failed_24h"]
+            )
 
         except Exception as e:
             self.logger.error(f"Failed to collect run status metrics: {e}", exc_info=True)
@@ -95,50 +101,50 @@ class WandBCollector(BaseCollector):
         return metrics
 
     def _collect_performance_metrics(self) -> dict[str, Any]:
-        """Collect model performance metrics."""
+        """Collect model performance metrics from recent runs.
+
+        Focuses on GitHub CI runs (pattern: github.sky.main.*) to track training performance
+        from automated CI runs on main branch.
+        """
         metrics = {
-            "wandb.metrics.best_accuracy": None,
-            "wandb.metrics.latest_loss": None,
-            "wandb.metrics.avg_accuracy_7d": None,
+            "wandb.metrics.latest_sps": None,  # Steps per second (training throughput)
+            "wandb.metrics.avg_heart_amount_24h": None,  # Average heart amount (survival metric)
+            "wandb.metrics.latest_queue_latency_s": None,  # SkyPilot queue latency
         }
 
         try:
-            # Get recent completed runs
-            runs = self.api.runs(f"{self.entity}/{self.project}", filters={"state": "finished"})
+            # Only fetch recent completed runs (last 24 hours)
+            # Focus on GitHub CI runs: github.sky.main.*
+            one_day_ago = datetime.now(timezone.utc) - timedelta(hours=24)
+            recent_runs = self.api.runs(
+                f"{self.entity}/{self.project}",
+                filters={"state": "finished", "created_at": {"$gte": one_day_ago.isoformat()}},
+            )
 
-            seven_days_ago = datetime.now(timezone.utc) - timedelta(days=7)
+            latest_sps = None
+            heart_amounts = []
+            latest_queue_latency = None
 
-            best_accuracy = None
-            latest_loss = None
-            accuracies = []
-
-            for run in runs:
+            for run in recent_runs:
                 # Get run summary metrics
                 summary = run.summary
 
-                # Track best accuracy across all runs
-                if "accuracy" in summary:
-                    acc = summary["accuracy"]
-                    if best_accuracy is None or acc > best_accuracy:
-                        best_accuracy = acc
+                # Track latest SPS (steps per second) - primary training throughput metric
+                if "overview/sps" in summary:
+                    latest_sps = summary["overview/sps"]
 
-                # Track latest loss
-                if "loss" in summary:
-                    latest_loss = summary["loss"]
+                # Track heart amount (agent survival metric)
+                if "env_agent/heart.amount" in summary:
+                    heart_amounts.append(summary["env_agent/heart.amount"])
 
-                # Collect accuracies from recent runs
-                if run.created_at:
-                    try:
-                        created_at = datetime.fromisoformat(run.created_at.replace("Z", "+00:00"))
-                        if created_at >= seven_days_ago and "accuracy" in summary:
-                            accuracies.append(summary["accuracy"])
-                    except (ValueError, AttributeError):
-                        continue
+                # Track SkyPilot queue latency
+                if "skypilot/queue_latency_s" in summary:
+                    latest_queue_latency = summary["skypilot/queue_latency_s"]
 
-            metrics["wandb.metrics.best_accuracy"] = best_accuracy
-            metrics["wandb.metrics.latest_loss"] = latest_loss
-            if accuracies:
-                metrics["wandb.metrics.avg_accuracy_7d"] = sum(accuracies) / len(accuracies)
+            metrics["wandb.metrics.latest_sps"] = latest_sps
+            if heart_amounts:
+                metrics["wandb.metrics.avg_heart_amount_24h"] = sum(heart_amounts) / len(heart_amounts)
+            metrics["wandb.metrics.latest_queue_latency_s"] = latest_queue_latency
 
         except Exception as e:
             self.logger.error(f"Failed to collect performance metrics: {e}", exc_info=True)
@@ -146,22 +152,26 @@ class WandBCollector(BaseCollector):
         return metrics
 
     def _collect_resource_metrics(self) -> dict[str, Any]:
-        """Collect resource usage metrics."""
+        """Collect resource usage metrics from recent runs."""
         metrics = {
             "wandb.training.avg_duration_hours": None,
             "wandb.training.gpu_utilization_avg": None,
-            "wandb.training.total_gpu_hours_7d": 0.0,
+            "wandb.training.total_gpu_hours_24h": 0.0,
         }
 
         try:
-            runs = self.api.runs(f"{self.entity}/{self.project}")
+            # Only fetch recent runs (last 24 hours) for resource metrics
+            one_day_ago = datetime.now(timezone.utc) - timedelta(hours=24)
+            recent_runs = self.api.runs(
+                f"{self.entity}/{self.project}",
+                filters={"created_at": {"$gte": one_day_ago.isoformat()}},
+            )
 
-            seven_days_ago = datetime.now(timezone.utc) - timedelta(days=7)
             durations = []
             gpu_utils = []
             total_gpu_hours = 0.0
 
-            for run in runs:
+            for run in recent_runs:
                 # Calculate duration
                 if run.created_at and run.heartbeat_at:
                     try:
@@ -170,11 +180,9 @@ class WandBCollector(BaseCollector):
                         duration_hours = (heartbeat - created).total_seconds() / 3600
                         durations.append(duration_hours)
 
-                        # Track GPU hours for recent runs
-                        if created >= seven_days_ago:
-                            # Estimate GPU hours (assuming 1 GPU per run)
-                            # This is a simplification - real implementation would check run config
-                            total_gpu_hours += duration_hours
+                        # Estimate GPU hours (assuming 1 GPU per run)
+                        # This is a simplification - real implementation would check run config
+                        total_gpu_hours += duration_hours
 
                     except (ValueError, AttributeError):
                         continue
