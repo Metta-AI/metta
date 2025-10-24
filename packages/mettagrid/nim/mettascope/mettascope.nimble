@@ -1,4 +1,4 @@
-version     = "0.0.2"
+version     = "0.0.3"
 author      = "Softmax"
 description = "Visualization of the MettaGrid environment."
 license     = "MIT"
