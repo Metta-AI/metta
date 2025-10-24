@@ -47,22 +47,22 @@ METRICS = [
     },
 ]
 
-# Define days (columns)
+# Define days (columns) - oldest to newest (left to right)
 DAYS = [
-    {"offset": 0, "label": "Today"},
-    {"offset": -1, "label": "-1d"},
-    {"offset": -2, "label": "-2d"},
-    {"offset": -3, "label": "-3d"},
-    {"offset": -4, "label": "-4d"},
-    {"offset": -5, "label": "-5d"},
     {"offset": -6, "label": "-6d"},
+    {"offset": -5, "label": "-5d"},
+    {"offset": -4, "label": "-4d"},
+    {"offset": -3, "label": "-3d"},
+    {"offset": -2, "label": "-2d"},
+    {"offset": -1, "label": "-1d"},
+    {"offset": 0, "label": "Today"},
 ]
 
 # Layout configuration (must fit in Datadog's 12-column grid)
 CELL_WIDTH = 1  # 7 days × 1 = 7 columns
 CELL_HEIGHT = 2
 HEADER_HEIGHT = 1
-ROW_LABEL_WIDTH = 5  # 5 for labels + 7 for data = 12 total ✓
+ROW_LABEL_WIDTH = 3  # 3 for labels + 7 for data + 2 margin = 12 total ✓
 
 
 def create_query_value_widget(metric: str, day_offset: int, title: str, x: int, y: int) -> dict:
@@ -172,6 +172,17 @@ def generate_dashboard() -> dict:
             x=0,
             y=0,
             width=ROW_LABEL_WIDTH + (len(DAYS) * CELL_WIDTH),
+            height=HEADER_HEIGHT,
+        )
+    )
+
+    # Add corner placeholder (top-left where headers meet)
+    widgets.append(
+        create_note_widget(
+            content="**Metric**",
+            x=0,
+            y=HEADER_HEIGHT,
+            width=ROW_LABEL_WIDTH,
             height=HEADER_HEIGHT,
         )
     )
