@@ -704,7 +704,7 @@ def create_curriculum(
     slow_timescale_factor: float = 0.02,
     exploration_bonus: float = 0.1,
     progress_smoothing: float = 0.05,
-    lp_score_temperature: float = 0.1,
+    lp_score_temperature: float = 1e-3,
     use_bidirectional: bool = True,
     max_slice_axes: int = 3,
     num_active_tasks: int = 1000,
@@ -761,7 +761,7 @@ def simulate_task_dependencies(
     slow_timescale_factor: float = 0.2,
     exploration_bonus: float = 0.1,
     progress_smoothing: float = 0.05,
-    lp_score_temperature: float = 0.1,
+    lp_score_temperature: float = 1e-3,
     use_bidirectional: bool = True,
     max_slice_axes: int = 3,
     num_active_tasks: int = 1000,
@@ -1038,7 +1038,7 @@ class TaskDependencySimulationTool(Tool):
     slow_timescale_factor: float = 1 / 5
     exploration_bonus: float = 0.1
     progress_smoothing: float = 1e-4
-    lp_score_temperature: float = 0.1
+    lp_score_temperature: float = 1e-3
     use_bidirectional: bool = True
     max_slice_axes: int = 3
     num_active_tasks: int = 1000
@@ -1197,7 +1197,7 @@ def train(
         slow_timescale_factor=0.2,  # Slow EMA is 5x slower
         exploration_bonus=0.2,  # Reasonable exploration
         progress_smoothing=0.01,  # Smooth reweighting
-        lp_score_temperature=0.1,  # Low temperature to amplify small LP differences
+        lp_score_temperature=1e-3,  # Low temperature to amplify small LP differences
         use_bidirectional=True,  # Use bidirectional LP scoring (default)
         # Task pool management
         num_active_tasks=200,  # Reasonable pool size
