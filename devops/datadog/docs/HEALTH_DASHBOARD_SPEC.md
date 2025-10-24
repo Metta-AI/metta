@@ -6,7 +6,7 @@ A Datadog table visualization displaying normalized health metrics across Traini
 
 **Status**: Planning phase
 **Dependencies**: WandB collector, training metrics collector, eval metrics collector
-**Existing**: GitHub collector (deployed), Skypilot collector (implemented)
+**Existing**: GitHub, Skypilot, Asana, EC2 collectors (deployed)
 
 ## Architecture Integration
 
@@ -14,7 +14,12 @@ This dashboard builds on the existing Datadog collector architecture:
 
 ### Existing Infrastructure
 - **Collector Framework**: `BaseCollector` pattern with `@metric` decorator
-- **Deployed Collectors**: GitHub (25 metrics), Skypilot (7 metrics)
+- **Deployed Collectors**:
+  - GitHub (24 metrics) - PRs, commits, CI/CD, developers
+  - Skypilot (30 metrics) - Jobs, runtime stats, resources
+  - Asana (14 metrics) - Tasks, velocity, bugs tracking
+  - EC2 (19 metrics) - Instances, costs, EBS volumes
+- **Total**: 87 metrics across 4 collectors
 - **Dashboard Tools**: CLI commands via `metta datadog dashboard`
 - **Deployment**: Kubernetes CronJobs via Helm charts
 - **Documentation**: See `COLLECTORS_ARCHITECTURE.md`, `ADDING_NEW_COLLECTOR.md`
@@ -567,7 +572,7 @@ Datadog conditional formatting:
 
 ## Implementation Plan
 
-### Phase 1: Leverage Existing CI Metrics (Week 1)
+### Step 1: Build FoM Collector with Existing CI Metrics
 
 **Goal**: Build initial dashboard with CI/CD metrics we already have
 
@@ -604,9 +609,9 @@ vim devops/datadog/templates/system_health.json
 metta datadog dashboard push
 ```
 
-### Phase 2: Extend GitHub Collector (Week 2)
+### Step 2: Add Enhanced Code Quality Metrics
 
-**Goal**: Add missing CI metrics to GitHub collector
+**Goal**: Extend GitHub collector with additional quality signals
 
 **New Metrics Needed**:
 - `github.ci.benchmarks_passing` - Benchmark test status
@@ -635,7 +640,7 @@ vim devops/datadog/collectors/health_fom/collector.py
 metta datadog dashboard build && metta datadog dashboard push
 ```
 
-### Phase 3: Add WandB Collector (Week 3-4)
+### Step 3: Add WandB Collector for Training Metrics
 
 **Goal**: Implement WandB collector for training metrics
 
@@ -811,19 +816,19 @@ Alert: FoM collector experiencing errors
 
 ## Success Criteria
 
-### Phase 1 (CI Metrics - Week 1)
+### Initial Release (CI Metrics)
 - ✅ FoM collector deployed and running hourly
 - ✅ 7 CI FoM metrics calculated correctly
 - ✅ Dashboard displaying 7-day view with color coding
 - ✅ No missing data for CI metrics
 
-### Phase 3 (Training Metrics - Week 4)
+### Training Metrics Addition
 - ✅ WandB collector deployed
 - ✅ 9 training FoM metrics calculated
 - ✅ Dashboard showing full training + CI view
 - ✅ Team using dashboard daily
 
-### Phase 6 (Complete - Week 7)
+### Full Rollout
 - ✅ All 25+ metrics in dashboard
 - ✅ Alerts configured and tested
 - ✅ < 5% missing data (gray cells)
@@ -870,4 +875,4 @@ Alert: FoM collector experiencing errors
 
 **Last Updated**: 2025-10-23
 **Status**: Planning phase
-**Next Steps**: Phase 1 - Implement FoM collector with existing CI metrics
+**Next Steps**: Implement FoM collector with existing CI metrics (Step 1)
