@@ -98,8 +98,11 @@ def _run_cpp_tests(*, verbose: bool = False) -> CheckResult:
     _print_header("C++ Tests")
 
     # Run C++ unit tests
+    cmd = ["uv", "run", "metta", "cpptest", "--test"]
+    if verbose:
+        cmd.append("--verbose")
     tests_passed = _run_command(
-        ["uv", "run", "metta", "cpptest", "--test", "--verbose"],
+        cmd,
         "C++ unit tests",
         verbose=verbose,
     )
@@ -108,8 +111,11 @@ def _run_cpp_tests(*, verbose: bool = False) -> CheckResult:
         return CheckResult("C++ Tests", False)
 
     # Run C++ benchmarks
+    cmd = ["uv", "run", "metta", "cpptest", "--benchmark"]
+    if verbose:
+        cmd.append("--verbose")
     benchmarks_passed = _run_command(
-        ["uv", "run", "metta", "cpptest", "--benchmark", "--verbose"],
+        cmd,
         "C++ benchmarks",
         verbose=verbose,
     )
