@@ -42,6 +42,7 @@ resource "aws_iam_policy" "dashboard_secrets" {
         Action = [
           "ec2:DescribeInstances",
           "ec2:DescribeVolumes",
+          "ec2:DescribeSnapshots",
         ]
         Resource = "*"
       }
