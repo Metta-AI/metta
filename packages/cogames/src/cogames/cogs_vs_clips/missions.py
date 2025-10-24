@@ -15,6 +15,7 @@ from cogames.cogs_vs_clips.stations import (
 )
 from mettagrid.config.mettagrid_config import GridObjectConfig, MettaGridConfig, ProtocolConfig
 from mettagrid.map_builder.map_builder import MapBuilderConfig
+from cogames.cogs_vs_clips.eval_missions import EVAL_MISSIONS, MACHINA_EVAL
 
 
 def get_map(site: str) -> MapBuilderConfig:
@@ -204,6 +205,7 @@ SITES = [
     HELLO_WORLD,
     MACHINA_1,
     MACHINA_1_SMALL,
+    MACHINA_EVAL,
 ]
 
 # Sites will be updated after exploration experiments import
@@ -302,6 +304,7 @@ MISSIONS = [
     Machina1OpenWorldMission,
     Machina1SmallOpenWorldMission,
     *EXPLORATION_MISSIONS,  # Add exploration experiments
+    *EVAL_MISSIONS,
 ]
 
 # Update SITES with exploration sites
