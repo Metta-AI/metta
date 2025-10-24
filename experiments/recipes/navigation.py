@@ -130,10 +130,12 @@ def make_curriculum(
     if algorithm_config is None:
         algorithm_config = LearningProgressConfig(
             use_bidirectional=True,  # Default: bidirectional learning progress
-            ema_timescale=0.001,
+            ema_timescale=0.01,
+            num_active_tasks=100,
+            slow_timescale_factor=0.2,
+            rand_task_rate=0.01,
             exploration_bonus=0.1,
             min_samples_for_lp=10,  # Use exploration bonus for first 10 samples
-            max_slice_axes=3,
             enable_detailed_slice_logging=enable_detailed_slice_logging,
             lp_score_temperature=0.0,  # Z-score normalization for relative LP comparison
             show_curriculum_troubleshooting_logging=True,  # Enable per-task metrics for debugging

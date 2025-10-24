@@ -45,13 +45,13 @@ class SimulatorConfig(BaseModel):
 class CurriculumLPConfig(BaseModel):
     """Configuration for learning progress curriculum settings."""
 
+    use_bidirectional: bool = True
     ema_timescale: float = 0.1
     slow_timescale_factor: float = 0.2
     exploration_bonus: float = 0.1
     progress_smoothing: float = 0.0
-    lp_score_temperature: float = 0.0
-    early_progress_amplification: float = 0.5
-    use_bidirectional: bool = True
+    lp_score_temperature: float = 0.0  #0.0 is z-score normalization
+    early_progress_amplification: float = 0.5  #0.5 is no amplification
     max_slice_axes: int = 3
     num_active_tasks: int = 1000
     rand_task_rate: float = 0.01
@@ -59,7 +59,7 @@ class CurriculumLPConfig(BaseModel):
     eviction_threshold_percentile: float = 0.4
     enable_detailed_slice_logging: bool = False
     show_curriculum_troubleshooting_logging: bool = True
-    use_shared_memory: bool = False
+    use_shared_memory: bool = True
     session_id: Optional[str] = None
 
 
