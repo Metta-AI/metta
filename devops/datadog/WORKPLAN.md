@@ -1,6 +1,6 @@
 # Datadog Observability System - Work Plan
 
-**Current Status**: Production deployment with 7 collectors, 8 dashboards (all migrated to Jsonnet), and 123+ metrics
+**Current Status**: Production deployment with 7 collectors, 11 dashboards (all using Jsonnet), and 123+ metrics
 
 **Branch**: `robb/1022-datadog` **PR**: [#3384](https://github.com/Metta-AI/metta/pull/3384)
 
@@ -28,7 +28,7 @@ Running in production via unified CronJob (every 15 minutes):
 
 ### 📊 Dashboard Status
 
-**✅ Migrated to Jsonnet Framework** (using layouts + presets):
+**✅ Production Collector Dashboards** (8 dashboards):
 - `github_cicd.jsonnet` → GitHub CI/CD metrics (ID: 7gy-9ub-2sq)
 - `skypilot_jobs.jsonnet` → Skypilot job tracking (ID: mtw-y2p-4ed)
 - `ec2.jsonnet` → AWS EC2 infrastructure (ID: 4ue-n4w-b7a)
@@ -36,7 +36,12 @@ Running in production via unified CronJob (every 15 minutes):
 - `policy_evaluator.jsonnet` → APM evaluation metrics (ID: gpk-2y2-9er)
 - `kubernetes.jsonnet` → Kubernetes cluster health (ID: 687-i5n-ncf)
 - `wandb.jsonnet` → WandB training metrics (ID: dr3-pdj-rrw)
-- `demo.jsonnet` → Demo/reference dashboard
+- `health_fom` → System health scores (Python-generated)
+
+**✅ Demo/Reference Dashboards** (3 dashboards):
+- `demo.jsonnet` → Comprehensive framework showcase (ID: 2te-kvg-ja5)
+- `layout_demo.jsonnet` → Layout system examples (ID: 3sa-eku-8j3)
+- `preset_demo.jsonnet` → Preset widgets catalog (ID: rd5-3wh-9s2)
 
 **🔧 Python-Generated** (complex visualizations, no migration needed):
 - `system_health_rollup.json` → 7×7 FoM grid (65 widgets) via `generate_health_grid.py`
