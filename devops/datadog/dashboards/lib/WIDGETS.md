@@ -413,6 +413,8 @@ Example LLM prompts that work well:
 
 ## Related Documentation
 
+- [Dashboard System Overview](../README.md) - Quick start and common patterns
+- [Preset Widgets](./PRESETS.md) - Pre-configured common patterns
 - [Layout Templates](./LAYOUTS.md) - Grid, row, and positioning helpers
 - [Design Document](../DESIGN.md) - Overall architecture and vision
 - [Datadog Widget Docs](https://docs.datadoghq.com/dashboards/widgets/)

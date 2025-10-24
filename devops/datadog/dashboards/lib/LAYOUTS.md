@@ -249,6 +249,13 @@ layouts.grid(
 4. **Custom widths** must sum to 12 or less
 5. **Test locally** with jsonnet before pushing to Datadog
 
+## Related Documentation
+
+- [Dashboard System Overview](../README.md) - Quick start and common patterns
+- [Widget Primitives](./WIDGETS.md) - Low-level widget builders
+- [Preset Widgets](./PRESETS.md) - Pre-configured common patterns
+- [Design Document](../DESIGN.md) - Overall architecture and vision
+
 ## Building and Testing
 
 ```bash
