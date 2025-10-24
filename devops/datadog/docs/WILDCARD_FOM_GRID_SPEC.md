@@ -340,12 +340,52 @@ Create 49 separate queries and manually map to grid positions (verbose but expli
    - Update DASHBOARD_WORKPLAN.md
    - Create maintenance guide
 
+## Implementation Blockers (2025-10-23)
+
+**BLOCKER**: Wildcard widget API validation errors
+
+After attempting to deploy the Wildcard widget via the Datadog API, encountered persistent validation errors:
+
+```
+Status Code: 400
+Error: "Invalid widget definition at position 0 of type wildcard. Error: 'type' is a required property."
+```
+
+Even with minimal test widgets following the documented structure, the API rejects the widget with validation errors. This suggests:
+
+1. **API Limitations**: Wildcard widget may only be creatable through the Datadog UI, not via API
+2. **Plan Tier**: May require Enterprise tier or specific feature flag
+3. **Undocumented Requirements**: API structure differs from UI/documentation
+4. **Beta Feature**: Widget type may still be in beta with limited API support
+
+### What We Tried
+
+✅ Corrected structure based on API errors:
+- Changed `custom_viz` → `specification`
+- Changed data reference `queryResults` → `table1`
+- Used Vega-Lite v5 schema
+- Simplified to minimal test case
+
+❌ All attempts failed with same validation error
+
+### Recommendation
+
+**Stick with Widget Grid approach** (currently deployed and working):
+- ✅ Proven to work via API
+- ✅ Datadog-managed data (no S3)
+- ✅ Already deployed and functional
+- ⚠️ 65 widgets vs 1 (minor maintenance overhead)
+- ⚠️ No text labels (could add via note widgets if needed)
+
+**Alternative**: Create Wildcard widget manually in Datadog UI, then export JSON to understand the correct API structure.
+
 ## Open Questions
 
-1. **Wildcard widget availability**: Is it available in our Datadog plan?
+1. ~~**Wildcard widget availability**: Is it available in our Datadog plan?~~ **BLOCKED by API validation**
 2. **Query limits**: Can we make 49 metric queries in one widget?
 3. **Transform complexity**: Will the nested calculate expressions work?
 4. **Update frequency**: How often does the Wildcard widget refresh?
+5. **API vs UI**: Can Wildcard widgets be created via UI but not API?
 
 ## Comparison: Current Grid vs Wildcard
 

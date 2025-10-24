@@ -1078,12 +1078,29 @@ git push
 - ⚠️ Wildcard widget may not be available in our Datadog plan (needs verification)
 - ⚠️ More complex debugging if transforms fail
 
-**Status**: ⏳ POC ready for deployment and testing
+**Status**: ❌ Blocked by Datadog API limitations (see below)
+
+**API Blocker Discovered** (2025-10-23):
+Attempted to deploy Wildcard widget via Datadog API but encountered persistent validation errors:
+```
+Error: "Invalid widget definition at position 0 of type wildcard.
+        Error: 'type' is a required property."
+```
+
+Even minimal test cases following documented structure were rejected. Possible causes:
+1. Wildcard widgets may only be creatable via UI, not API
+2. May require specific Datadog plan tier or feature flag
+3. API structure differs from public documentation
+4. Feature may be in beta with limited API support
+
+**Alternative Approach**: Could create manually in UI and export JSON to understand correct structure, but this defeats the purpose of programmatic generation.
+
+**Recommendation**: Continue with current Widget Grid approach which is proven to work and already deployed.
 
 **Files**:
-- Specification: `devops/datadog/docs/WILDCARD_FOM_GRID_SPEC.md`
-- Generator: `devops/datadog/scripts/generate_wildcard_fom_grid.py`
-- Template: `devops/datadog/templates/system_health_rollup_wildcard.json`
+- Specification: `devops/datadog/docs/WILDCARD_FOM_GRID_SPEC.md` (includes blocker details)
+- Generator: `devops/datadog/scripts/generate_wildcard_fom_grid.py` (reference only)
+- Template: `devops/datadog/templates/system_health_rollup_wildcard.json` (not deployable)
 
 ### Technical Implementation: Wildcard Widget
 
