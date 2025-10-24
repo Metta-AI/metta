@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import shutil
+import sys
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Optional
@@ -31,7 +32,7 @@ class PrSimilaritySetup(SetupModule):
         return "Configure PR similarity MCP server (Codex & Claude)"
 
     def dependencies(self) -> list[str]:
-        return ["aws"]
+        return ["core", "aws"]
 
     def check_installed(self) -> bool:
         meta_path, vectors_path = _resolve_cache_paths(self.repo_root)
@@ -97,11 +98,18 @@ class PrSimilaritySetup(SetupModule):
             return
 
         package_path = self.repo_root / "mcp_servers" / "pr_similarity"
+        python_executable = Path(sys.executable)
         try:
-            self.run_command(
-                ["uv", "pip", "install", "-e", str(package_path)],
-                capture_output=False,
-            )
+            command = [
+                "uv",
+                "pip",
+                "install",
+                "--python",
+                str(python_executable),
+                "-e",
+                str(package_path),
+            ]
+            self.run_command(command, capture_output=False)
             info("Installed metta-pr-similarity MCP package.")
         except Exception as error:  # pragma: no cover - external dependency
             warning(f"Failed to install metta-pr-similarity package: {error}")
