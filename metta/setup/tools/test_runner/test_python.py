@@ -10,7 +10,12 @@ import typer
 from pydantic import BaseModel
 
 from metta.common.util.fs import get_repo_root
-from metta.setup.tools.test_runner.summary import log_results, report_failures, summarise, write_github_summary
+from metta.setup.tools.test_runner.summary import (
+    log_results,
+    report_failures,
+    summarize_test_results,
+    write_github_summary,
+)
 from metta.setup.utils import error, info
 
 
@@ -54,6 +59,7 @@ CI_FLAGS: tuple[str, ...] = (
     "--disable-warnings",
     "--durations=10",
     "--color=yes",
+    "-v",
 )
 
 
@@ -123,18 +129,13 @@ def _run_ci_package(
     report_file = report_dir / f"{package.key}.json"
     if report_file.exists():
         report_file.unlink()
-    args = [*base_cmd, target, "--json-report", f"--json-report-file={report_file}"]
     start = time.perf_counter()
-    completed = subprocess.run(
-        args,
-        cwd=get_repo_root(),
-        check=False,
-    )
+    returncode = _run_command([*base_cmd, target, "--json-report", f"--json-report-file={report_file}"])
     duration = time.perf_counter() - start
     return PackageResult(
         package=package,
         target=target,
-        returncode=completed.returncode,
+        returncode=returncode,
         report_file=report_file,
         duration=duration,
     )
@@ -202,7 +203,7 @@ def run(
         with tempfile.TemporaryDirectory(prefix="pytest-json-") as temp_dir:
             report_dir = Path(temp_dir)
             results = _execute_ci_packages(selected, resolved_targets, base_cmd, report_dir)
-            summaries = summarise(results)
+            summaries = summarize_test_results(results)
             log_results(summaries)
             report_failures(summaries)
             write_github_summary(summaries)

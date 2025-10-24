@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING, Any, Mapping, Sequence
 from metta.setup.utils import error, info, step, success, warning
 
 if TYPE_CHECKING:
-    from .test_python import PackageResult
+    from metta.setup.tools.test_runner.test_python import PackageResult
 
 
 @dataclass(slots=True)
@@ -72,7 +72,7 @@ def _failure_message(entry: Mapping[str, Any]) -> str:
     return "pytest reported a failure without details"
 
 
-def summarise(results: Sequence["PackageResult"]) -> list[PackageSummary]:
+def summarize_test_results(results: Sequence["PackageResult"]) -> list[PackageSummary]:
     summaries: list[PackageSummary] = []
     for result in results:
         data = _load_report(result.report_file)
@@ -148,7 +148,7 @@ def report_failures(summaries: Sequence[PackageSummary]) -> dict[str, list[TestF
             if message:
                 for line in message.splitlines()[:40]:
                     print(f"      {line}")
-        info(f"Re-run locally: uv run pytest {rerun_targets}", indent=4)
+        info(f"Re-run locally: metta pytest {rerun_targets}", indent=4)
     return failure_map
 
 
@@ -168,10 +168,10 @@ def write_github_summary(summaries: Sequence[PackageSummary]) -> None:
         if failures:
             status = f"❌ {len(failures)} failing"
             rerun_targets = " ".join(failure.nodeid for failure in failures)
-            rerun = f"`uv run pytest {rerun_targets}`"
+            rerun = f"`metta pytest {rerun_targets}`"
         elif summary.returncode != 0:
             status = f"⚠️ exit {summary.returncode}"
-            rerun = f"`uv run pytest {summary.target}`"
+            rerun = f"`metta pytest {summary.target}`"
         else:
             total = summary.total or 0
             status = f"✅ {total} passed" if total else "✅ no tests"
