@@ -31,7 +31,7 @@ Automated metric collection from multiple services via Kubernetes CronJobs:
 - **Skypilot** ✅ **(Production)**: Jobs, clusters, resource utilization
 - **Asana** ✅ **(Production)**: Project health, bugs tracking, team velocity
 - **EC2** ✅ **(Production)**: Instances, costs, utilization, EBS volumes
-- **WandB** ✅ **(Production)**: Training runs, model performance, GPU hours
+- **WandB** ✅ **(Production)**: Recent training runs (24h), Metta metrics (SPS, heart amount), GPU hours
 - **Kubernetes** ✅ **(Production)**: Resource efficiency, pod health, waste tracking
 - **Health FoM** ✅ **(Production)**: Normalized 0.0-1.0 health scores for CI/CD metrics
 
@@ -41,6 +41,7 @@ All collectors:
 - Use AWS Secrets Manager for credentials
 - Emit health metrics about themselves
 - Handle errors gracefully (continue on individual failures)
+- Timeout protection (120s per collector) prevents indefinite hangs
 
 ### Dashboard Management
 
