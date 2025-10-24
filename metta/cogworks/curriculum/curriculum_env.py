@@ -41,10 +41,21 @@ class CurriculumEnv(PufferEnv):
         # Track first reset to avoid hasattr checks
         self._first_reset_done = False
 
-        # Per-label metrics tracking
-        self._per_label_lp_scores = {}  # Raw LP scores (before z-score normalization)
-        self._per_label_postzscored_lp_scores = {}  # Post-z-score LP scores (after z-score, before sigmoid)
-        self._per_label_lp_probs = {}  # Final sampling probabilities (after z-score + sigmoid)
+        # Check if troubleshooting logging is enabled
+        self._enable_per_label_tracking = False
+        if hasattr(curriculum, '_algorithm') and curriculum._algorithm is not None:
+            if hasattr(curriculum._algorithm, 'hypers'):
+                self._enable_per_label_tracking = curriculum._algorithm.hypers.show_curriculum_troubleshooting_logging
+
+        # Per-label metrics tracking (only if troubleshooting logging enabled to prevent memory leaks)
+        if self._enable_per_label_tracking:
+            self._per_label_lp_scores = {}  # Raw LP scores (before z-score normalization)
+            self._per_label_postzscored_lp_scores = {}  # Post-z-score LP scores (after z-score, before sigmoid)
+            self._per_label_lp_probs = {}  # Final sampling probabilities (after z-score + sigmoid)
+        else:
+            self._per_label_lp_scores = None
+            self._per_label_postzscored_lp_scores = None
+            self._per_label_lp_probs = None
 
         # Cache curriculum stats
         self._cached_curriculum_stats = {}
@@ -68,12 +79,15 @@ class CurriculumEnv(PufferEnv):
         """Add curriculum statistics to info dictionary for logging.
 
         Logs:
-        - Per-label LP scores (raw, post-z-score, and final probabilities)
-        - Per-label aggregate eviction counts
+        - Per-label LP scores (raw, post-z-score, and final probabilities) - only if show_curriculum_troubleshooting_logging enabled
+        - Per-label aggregate eviction counts - only if show_curriculum_troubleshooting_logging enabled
         - Pool composition fractions (fraction of task pool per label)
         - Total completions, evictions
         - Gini coefficient for sampling distribution across labels
         - Mean LP score in task pool
+
+        Note: Per-label tracking is only enabled when show_curriculum_troubleshooting_logging=True
+        to prevent unbounded memory growth with large numbers of labels.
         """
         # Only update curriculum stats periodically to reduce overhead
         if self._stats_update_counter >= self._stats_update_frequency:
@@ -84,18 +98,19 @@ class CurriculumEnv(PufferEnv):
 
             stats = self._cached_curriculum_stats
 
-            # Add per-label learning progress metrics (EMA smoothed per environment)
-            # Raw LP scores (before z-score normalization)
-            if self._per_label_lp_scores:
-                info_dict[self._CURRICULUM_STAT_PREFIX + "per_label_lp_scores"] = self._per_label_lp_scores.copy()
+            # Add per-label learning progress metrics (only if tracking enabled)
+            if self._enable_per_label_tracking:
+                # Raw LP scores (before z-score normalization)
+                if self._per_label_lp_scores:
+                    info_dict[self._CURRICULUM_STAT_PREFIX + "per_label_lp_scores"] = self._per_label_lp_scores.copy()
 
-            # Post-z-score LP scores (after z-score, before sigmoid)
-            if self._per_label_postzscored_lp_scores:
-                info_dict[self._CURRICULUM_STAT_PREFIX + "per_label_postzscored_lp_scores"] = self._per_label_postzscored_lp_scores.copy()
+                # Post-z-score LP scores (after z-score, before sigmoid)
+                if self._per_label_postzscored_lp_scores:
+                    info_dict[self._CURRICULUM_STAT_PREFIX + "per_label_postzscored_lp_scores"] = self._per_label_postzscored_lp_scores.copy()
 
-            # Final sampling probabilities (after z-score + sigmoid)
-            if self._per_label_lp_probs:
-                info_dict[self._CURRICULUM_STAT_PREFIX + "per_label_lp_probs"] = self._per_label_lp_probs.copy()
+                # Final sampling probabilities (after z-score + sigmoid)
+                if self._per_label_lp_probs:
+                    info_dict[self._CURRICULUM_STAT_PREFIX + "per_label_lp_probs"] = self._per_label_lp_probs.copy()
 
             # Add pool composition fractions (fraction of task pool for each label)
             pool_composition = {}
@@ -291,36 +306,37 @@ class CurriculumEnv(PufferEnv):
                     self._tracked_task_completions_this_epoch.get(task_id, 0) + 1
                 )
 
-            # Update per-label metrics tracking
-            label = self._current_task.get_label()
-            # Only track if label is a valid string (not None, not a Mock)
-            if label is not None and isinstance(label, str):
-                # Update raw LP score with EMA (α = 0.01)
-                raw_lp_score = self._curriculum.get_task_raw_lp_score(self._current_task._task_id)
-                if label in self._per_label_lp_scores:
-                    self._per_label_lp_scores[label] = 0.99 * self._per_label_lp_scores[label] + 0.01 * raw_lp_score
-                else:
-                    self._per_label_lp_scores[label] = raw_lp_score
+            # Update per-label metrics tracking (only if enabled to prevent memory leaks)
+            if self._enable_per_label_tracking:
+                label = self._current_task.get_label()
+                # Only track if label is a valid string (not None, not a Mock)
+                if label is not None and isinstance(label, str):
+                    # Update raw LP score with EMA (α = 0.01)
+                    raw_lp_score = self._curriculum.get_task_raw_lp_score(self._current_task._task_id)
+                    if label in self._per_label_lp_scores:
+                        self._per_label_lp_scores[label] = 0.99 * self._per_label_lp_scores[label] + 0.01 * raw_lp_score
+                    else:
+                        self._per_label_lp_scores[label] = raw_lp_score
 
-                # Update post-z-score LP score with EMA (α = 0.01)
-                postzscored_lp_score = self._curriculum.get_task_postzscored_lp_score(self._current_task._task_id)
-                if label in self._per_label_postzscored_lp_scores:
-                    self._per_label_postzscored_lp_scores[label] = 0.99 * self._per_label_postzscored_lp_scores[label] + 0.01 * postzscored_lp_score
-                else:
-                    self._per_label_postzscored_lp_scores[label] = postzscored_lp_score
+                    # Update post-z-score LP score with EMA (α = 0.01)
+                    postzscored_lp_score = self._curriculum.get_task_postzscored_lp_score(self._current_task._task_id)
+                    if label in self._per_label_postzscored_lp_scores:
+                        self._per_label_postzscored_lp_scores[label] = 0.99 * self._per_label_postzscored_lp_scores[label] + 0.01 * postzscored_lp_score
+                    else:
+                        self._per_label_postzscored_lp_scores[label] = postzscored_lp_score
 
-                # Update sampling probability with EMA (α = 0.01)
-                lp_prob = self._curriculum.get_task_lp_score(self._current_task._task_id)
-                if label in self._per_label_lp_probs:
-                    self._per_label_lp_probs[label] = 0.99 * self._per_label_lp_probs[label] + 0.01 * lp_prob
-                else:
-                    self._per_label_lp_probs[label] = lp_prob
+                    # Update sampling probability with EMA (α = 0.01)
+                    lp_prob = self._curriculum.get_task_lp_score(self._current_task._task_id)
+                    if label in self._per_label_lp_probs:
+                        self._per_label_lp_probs[label] = 0.99 * self._per_label_lp_probs[label] + 0.01 * lp_prob
+                    else:
+                        self._per_label_lp_probs[label] = lp_prob
 
-                # Emit per-label completion count directly in infos (following episode stats pattern)
-                # This will be summed across all vectorized environments automatically
-                if "curriculum_stats/per_label_samples_this_epoch" not in infos:
-                    infos["curriculum_stats/per_label_samples_this_epoch"] = {}
-                infos["curriculum_stats/per_label_samples_this_epoch"][label] = 1
+                    # Emit per-label completion count directly in infos (following episode stats pattern)
+                    # This will be summed across all vectorized environments automatically
+                    if "curriculum_stats/per_label_samples_this_epoch" not in infos:
+                        infos["curriculum_stats/per_label_samples_this_epoch"] = {}
+                    infos["curriculum_stats/per_label_samples_this_epoch"][label] = 1
 
             # Get new task with retry logic for invalid configurations
             max_retries = 10
@@ -391,6 +407,7 @@ class CurriculumEnv(PufferEnv):
             "set_stats_update_frequency",
             "force_stats_update",
             "_first_reset_done",
+            "_enable_per_label_tracking",
             "_per_label_lp_scores",
             "_per_label_postzscored_lp_scores",
             "_per_label_lp_probs",
