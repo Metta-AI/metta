@@ -21,6 +21,7 @@ type
     AgentTraces
     EnvironmentInfo
     ObjectInfo
+    VibePanel
 
   Panel* = ref object
     panelType*: PanelType
@@ -76,6 +77,7 @@ var
   agentTracesPanel*: Panel
   objectInfoPanel*: Panel
   environmentInfoPanel*: Panel
+  vibePanel*: Panel
 
   settings* = Settings()
   selection*: Entity

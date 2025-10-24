@@ -56,6 +56,7 @@ def format_agent_properties(
     update_object["is_frozen"] = grid_object.get("is_frozen", False)
     update_object["freeze_duration"] = grid_object.get("freeze_duration", 0)
     update_object["group_id"] = grid_object["group_id"]
+    update_object["vibe_id"] = grid_object.get("glyph", 0)
 
 
 def format_converter_properties(grid_object: dict, update_object: dict) -> None:

@@ -154,29 +154,23 @@ class TestMiniscopeState:
         state.fps = 0
         assert state.get_frame_delay() == 0.25  # Default
 
-    def test_cycle_mode(self):
-        """Test cycle_mode method."""
+    def test_set_mode(self):
+        """Set render mode directly without cycling."""
         state = MiniscopeState()
 
-        # Start in FOLLOW
-        assert state.mode == RenderMode.FOLLOW
-
-        # Cycle to PAN
-        state.cycle_mode()
+        # Follow is default; switching to PAN and SELECT works directly
+        state.set_mode(RenderMode.PAN)
         assert state.mode == RenderMode.PAN
 
-        # Cycle to SELECT
-        state.cycle_mode()
+        state.set_mode(RenderMode.SELECT)
         assert state.mode == RenderMode.SELECT
 
-        # Cycle back to FOLLOW
-        state.cycle_mode()
-        assert state.mode == RenderMode.FOLLOW
+        # Trying to set helper modes should be ignored
+        state.set_mode(RenderMode.GLYPH_PICKER)
+        assert state.mode == RenderMode.SELECT
 
-        # GLYPH_PICKER is not in the cycle
-        state.mode = RenderMode.GLYPH_PICKER
-        state.cycle_mode()
-        assert state.mode == RenderMode.GLYPH_PICKER  # No change from GLYPH_PICKER
+        state.set_mode(RenderMode.HELP)
+        assert state.mode == RenderMode.SELECT
 
     def test_enter_glyph_picker(self):
         """Test enter_glyph_picker method."""

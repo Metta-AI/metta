@@ -14,6 +14,7 @@ clear, actionable recommendations that developers can easily implement.
 ## Security Audit Process
 
 1. Examine the entire codebase systematically, focusing on:
+
    - Authentication and authorization mechanisms
    - Input validation and sanitization
    - Data handling and storage practices

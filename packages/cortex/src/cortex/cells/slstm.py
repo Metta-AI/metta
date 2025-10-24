@@ -11,19 +11,22 @@ from tensordict import TensorDict
 
 from cortex.cells.base import MemoryCell
 from cortex.cells.conv import CausalConv1d
+from cortex.cells.core import AxonLayer, update_parent_state
 
 # Reuse utilities from mLSTM for normalization and init
 from cortex.cells.mlstm import MultiHeadLayerNorm, bias_linspace_init_
 from cortex.cells.registry import register_cell
 from cortex.config import CausalConv1dConfig, sLSTMCellConfig
 from cortex.kernels.pytorch.slstm import slstm_sequence_pytorch
-from cortex.kernels.triton.slstm import slstm_sequence_triton
 from cortex.types import MaybeState, ResetMask, Tensor
 from cortex.utils import select_backend
 
 
 class _HeadwiseLinearExpand(nn.Module):
-    """Per-head linear layer with block-diagonal weight structure."""
+    """Per-head linear layer with block-diagonal weight structure.
+
+    This is the legacy behavior used when AxonLayer integration is disabled.
+    """
 
     def __init__(self, in_features: int, num_heads: int, bias: bool = False) -> None:
         super().__init__()
@@ -87,12 +90,21 @@ class sLSTMCell(MemoryCell):
             self.conv1d_cell = None
             self.conv_act = None
 
-        # Gate projections (per-head structured like reference)
+        # Gate projections (choose Axons or legacy Linear based on flag)
         H = cfg.hidden_size
-        self.fgate = _HeadwiseLinearExpand(H, cfg.num_heads, bias=False)
-        self.igate = _HeadwiseLinearExpand(H, cfg.num_heads, bias=False)
-        self.zgate = _HeadwiseLinearExpand(H, cfg.num_heads, bias=False)
-        self.ogate = _HeadwiseLinearExpand(H, cfg.num_heads, bias=False)
+        NH = cfg.num_heads
+        if cfg.use_axon_layer:
+            # Fused Axon gates: compute [i,f] from x_conv and [z,o] from x_seq
+            # with two AxonLayer calls H -> 2H to reduce per-chunk overhead.
+            # Allow override from parent config; if None, AxonLayer chooses defaults.
+            ax_cfg = cfg.axon_layer_config
+            self.if_fused = AxonLayer(H, 2 * H, cfg=ax_cfg, name="if_fused", group="slstm")
+            self.zo_fused = AxonLayer(H, 2 * H, cfg=ax_cfg, name="zo_fused", group="slstm")
+        else:
+            self.fgate = _HeadwiseLinearExpand(H, NH, bias=False)
+            self.igate = _HeadwiseLinearExpand(H, NH, bias=False)
+            self.zgate = _HeadwiseLinearExpand(H, NH, bias=False)
+            self.ogate = _HeadwiseLinearExpand(H, NH, bias=False)
 
         # Recurrent kernel (per-head, per-gate). Shape: [NH, 4*DH, DH]
         self.recurrent_kernel = nn.Parameter(torch.zeros(self.num_heads, 4 * self.head_dim, self.head_dim))
@@ -226,10 +238,17 @@ class sLSTMCell(MemoryCell):
         x_conv, conv_state_new = self._apply_conv(x_seq, conv_state_in, resets=resets)
 
         # Compute gate preactivations
-        i_pre = self.igate(x_conv)
-        f_pre = self.fgate(x_conv)
-        z_pre = self.zgate(x_seq)
-        o_pre = self.ogate(x_seq)
+        if self.cfg.use_axon_layer:
+            # Two fused Axon calls: [i,f] from x_conv, [z,o] from x_seq
+            if_f = self.if_fused(x_conv, state=st, resets=resets)  # [B, T, 2H] or [B, 2H]
+            z_o = self.zo_fused(x_seq, state=st, resets=resets)  # [B, T, 2H] or [B, 2H]
+            i_pre, f_pre = torch.chunk(if_f, 2, dim=-1)
+            z_pre, o_pre = torch.chunk(z_o, 2, dim=-1)
+        else:
+            i_pre = self.igate(x_conv)
+            f_pre = self.fgate(x_conv)
+            z_pre = self.zgate(x_seq)
+            o_pre = self.ogate(x_seq)
 
         # Prepare inputs in unified format for kernel dispatch
         # Wx as (B, T, 4, NH, DH) with order (i, f, z, o)
@@ -258,7 +277,7 @@ class sLSTMCell(MemoryCell):
         allow_triton = (self.head_dim & (self.head_dim - 1)) == 0
         logging.debug(f"head_dim: {self.head_dim}, allow_triton: {allow_triton}, is_step: {is_step}")
         backend_fn = select_backend(
-            triton_fn=slstm_sequence_triton,
+            triton_fn="cortex.kernels.triton.slstm:slstm_sequence_triton",
             pytorch_fn=slstm_sequence_pytorch,
             tensor=x_seq,
             allow_triton=allow_triton,
@@ -280,10 +299,14 @@ class sLSTMCell(MemoryCell):
         n_t = last_state[2].reshape(B, H)
         m_t = last_state[3].reshape(B, H)
 
-        # Create new state
+        # Create new state and preserve AxonLayer-managed substates
         new_state = TensorDict({"y": y_t, "c": c_t, "n": n_t, "m": m_t}, batch_size=[B])
         if conv_state_new is not None:
             new_state.update(conv_state_new)
+        # If AxonLayer was used, it may have attached a nested state group (e.g., "slstm")
+        # inside the parent state ``st``. Carry that substate forward explicitly.
+        if self.cfg.use_axon_layer:
+            update_parent_state(new_state, st)
 
         # Apply normalization and dropout
         y_out = self._normalize_output(y_seq)
@@ -308,6 +331,11 @@ class sLSTMCell(MemoryCell):
             conv_td = self.conv1d_cell.reset_state(conv_td, mask)
             if "conv" in conv_td:
                 state["conv"] = conv_td["conv"]
+
+        # Reset Axon gate substates (per-head) when enabled
+        if self.cfg.use_axon_layer:
+            self.if_fused.reset_state(mask, state)
+            self.zo_fused.reset_state(mask, state)
         return state
 
 

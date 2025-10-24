@@ -2,13 +2,14 @@
 
 from typing import Dict
 
-from rich import box
-from rich.table import Table
-
 from mettagrid import MettaGridEnv
 from mettagrid.core import BoundingBox
-from mettagrid.renderer.miniscope.miniscope_panel import PanelLayout
-from mettagrid.renderer.miniscope.miniscope_state import MiniscopeState, RenderMode
+from mettagrid.renderer.miniscope.miniscope_panel import SIDEBAR_WIDTH, PanelLayout
+from mettagrid.renderer.miniscope.miniscope_state import (
+    SELECT_MODE_KEY,
+    MiniscopeState,
+    RenderMode,
+)
 
 from .base import MiniscopeComponent
 
@@ -22,15 +23,9 @@ class ObjectInfoComponent(MiniscopeComponent):
         state: MiniscopeState,
         panels: PanelLayout,
     ):
-        """Initialize the object info component.
-
-        Args:
-            env: MettaGrid environment reference
-            state: Miniscope state reference
-            panels: Panel layout containing all panels
-        """
+        """Initialize the object info component."""
         super().__init__(env=env, state=state, panels=panels)
-        self._set_panel(panels.sidebar)
+        self._set_panel(panels.get_sidebar_panel("object_info"))
 
     def _get_object_type_names(self) -> list[str]:
         """Get object type names from state."""
@@ -42,14 +37,27 @@ class ObjectInfoComponent(MiniscopeComponent):
 
     def update(self) -> None:
         """Render the object info panel using current environment and state."""
+        if not self.state.is_sidebar_visible("object_info"):
+            self._panel.clear()
+            return
+
         if not self.env or not self.state:
+            width = self._width if self._width else SIDEBAR_WIDTH
+            lines = ["Object Info", "-" * min(width, 40), "Object info unavailable"]
+            self._panel.set_content(lines)
             return
 
-        # Only display in SELECT mode
         if self.state.mode != RenderMode.SELECT:
+            width = self._width if self._width else SIDEBAR_WIDTH
+            select_hint = f"Switch to Select mode (press {SELECT_MODE_KEY})"
+            lines = [
+                "Object Info",
+                "-" * min(width, 40),
+                select_hint,
+            ]
+            self._panel.set_content(lines)
             return
 
-        # Get grid objects from environment
         bbox = BoundingBox(
             min_row=0,
             max_row=self.env.map_height,
@@ -58,40 +66,30 @@ class ObjectInfoComponent(MiniscopeComponent):
         )
         grid_objects = self.env.grid_objects(bbox)
 
-        # Use viewport height for panel height
         panel_height = self.state.viewport_height // 2 if self.state.viewport_height else 20
 
-        table = self._build_table(
+        lines = self._build_lines(
             grid_objects,
             self.state.cursor_row,
             self.state.cursor_col,
             panel_height,
         )
-        self._panel.set_content(table)
+        self._panel.set_content(lines)
 
-    def _build_table(
+    def _build_lines(
         self,
         grid_objects: Dict[int, dict],
         cursor_row: int,
         cursor_col: int,
         panel_height: int,
-    ) -> Table:
-        """Build the object info table.
+    ) -> list[str]:
+        """Build object information lines without color formatting."""
+        width = self._width if self._width else SIDEBAR_WIDTH
+        width = max(24, width)
 
-        Returns:
-            Rich Table object
-        """
-        table = Table(
-            title="Object Info",
-            show_header=False,
-            box=box.ROUNDED,
-            padding=(0, 1),
-            width=self._width,
-        )
-        table.add_column("Key", style="cyan", no_wrap=True, width=12)
-        table.add_column("Value", style="white")
+        header = "Object Info"
+        lines: list[str] = [header[:width].ljust(width), "-" * min(width, 40)]
 
-        # Find object at cursor position
         selected_obj = None
         for obj in grid_objects.values():
             if obj["r"] == cursor_row and obj["c"] == cursor_col:
@@ -99,81 +97,67 @@ class ObjectInfoComponent(MiniscopeComponent):
                 break
 
         if selected_obj is None:
-            table.add_row("Status", "(empty space)")
-        else:
+            lines.append("Status: (empty space)".ljust(width))
+            return lines
+
+        # Get type name - prefer type_name field if available, otherwise look up
+        if "type_name" in selected_obj:
             type_name = selected_obj["type_name"]
-            table.add_row("Type", type_name)
-            actual_r = selected_obj.get("r", "?")
-            actual_c = selected_obj.get("c", "?")
-            table.add_row("Cursor pos", f"({cursor_row}, {cursor_col})")
-            table.add_row("Object pos", f"({actual_r}, {actual_c})")
+        else:
+            object_type_names = self._get_object_type_names()
+            type_name = object_type_names[selected_obj["type"]] if object_type_names else str(selected_obj["type"])
+        lines.append(f"Type: {type_name}"[:width].ljust(width))
+        lines.append(f"Cursor pos: ({cursor_row}, {cursor_col})"[:width].ljust(width))
+        actual_r = selected_obj.get("r", "?")
+        actual_c = selected_obj.get("c", "?")
+        lines.append(f"Object pos: ({actual_r}, {actual_c})"[:width].ljust(width))
 
-            # Check if this object has recipes (e.g., assembler)
-            has_recipes = "recipes" in selected_obj
-            current_recipe_inputs = selected_obj.get("current_recipe_inputs")
+        max_property_rows = max(1, panel_height - 6)
+        properties_added = 0
 
-            # Show relevant properties based on object type, limited by panel_height
-            # Account for table border (3 lines) and the 2 rows we already added
-            max_property_rows = max(1, panel_height - 5)
-            props_shown = 0
+        current_recipe_inputs = selected_obj.get("current_recipe_inputs")
+        has_recipes = "recipes" in selected_obj
 
-            # Special handling for current recipe - only show the active one
-            if current_recipe_inputs:
-                # Find the current recipe in the recipes list
-                if has_recipes and isinstance(selected_obj["recipes"], list):
-                    for recipe in selected_obj["recipes"]:
-                        if isinstance(recipe, dict):
-                            inputs = recipe.get("inputs", {})
-                            if inputs == current_recipe_inputs:
-                                # Found the current recipe
-                                outputs = recipe.get("outputs", {})
+        if current_recipe_inputs and has_recipes and isinstance(selected_obj["recipes"], list):
+            for recipe in selected_obj["recipes"]:
+                if isinstance(recipe, dict):
+                    inputs = recipe.get("inputs", {})
+                    if inputs == current_recipe_inputs:
+                        outputs = recipe.get("outputs", {})
+                        resource_names = self._get_resource_names()
+                        if resource_names:
+                            inputs_str = ", ".join(f"{resource_names[k]}:{v}" for k, v in inputs.items())
+                            outputs_str = ", ".join(f"{resource_names[k]}:{v}" for k, v in outputs.items())
+                        else:
+                            inputs_str = ", ".join(f"{k}:{v}" for k, v in inputs.items())
+                            outputs_str = ", ".join(f"{k}:{v}" for k, v in outputs.items())
 
-                                # Format resource strings with names if available
-                                resource_names = self._get_resource_names()
-                                if resource_names:
-                                    inputs_str = ", ".join(f"{resource_names[k]}:{v}" for k, v in inputs.items())
-                                    outputs_str = ", ".join(f"{resource_names[k]}:{v}" for k, v in outputs.items())
-                                else:
-                                    inputs_str = ", ".join(f"{k}:{v}" for k, v in inputs.items())
-                                    outputs_str = ", ".join(f"{k}:{v}" for k, v in outputs.items())
+                        lines.append("Recipe:"[:width].ljust(width))
+                        lines.append(f"  {inputs_str} -> {outputs_str}"[:width].ljust(width))
+                        properties_added += 2
+                        break
 
-                                # Show current recipe
-                                table.add_row("", "")  # Spacer
-                                table.add_row("Recipe", f"{inputs_str} → {outputs_str}")
-                                props_shown += 2
-                                break
+        for key, value in sorted(selected_obj.items()):
+            if properties_added >= max_property_rows:
+                remaining = len(selected_obj) - properties_added - 4
+                if has_recipes:
+                    remaining -= 1
+                if remaining > 0:
+                    lines.append(f"... ({remaining} more)"[:width].ljust(width))
+                break
 
-            # Show other properties
-            for key, value in sorted(selected_obj.items()):
-                if props_shown >= max_property_rows:
-                    # Add indicator that there are more properties
-                    remaining = len(selected_obj) - props_shown - 3
-                    if has_recipes:
-                        remaining -= 1  # Account for recipes key
-                    if remaining > 0:
-                        table.add_row("...", f"({remaining} more)")
-                    break
+            if key in ["r", "c", "type", "recipes", "current_recipe_inputs", "current_recipe_outputs"]:
+                continue
 
-                # Skip keys we've already handled or don't want to show
-                if key in ["r", "c", "type", "recipes", "current_recipe_inputs", "current_recipe_outputs"]:
-                    continue
+            if isinstance(value, dict):
+                if value:
+                    lines.append(f"{key}: dict"[:width].ljust(width))
+                    properties_added += 1
+            elif isinstance(value, (int, float, bool, str)):
+                lines.append(f"{key}: {value}"[:width].ljust(width))
+                properties_added += 1
 
-                # Format the value
-                if isinstance(value, dict):
-                    if value:
-                        table.add_row(key, "dict")
-                        props_shown += 1
-                elif isinstance(value, (int, float)):
-                    table.add_row(key, str(value))
-                    props_shown += 1
-                elif isinstance(value, str):
-                    table.add_row(key, value)
-                    props_shown += 1
-                elif isinstance(value, bool):
-                    table.add_row(key, str(value))
-                    props_shown += 1
+        if properties_added == 0:
+            lines.append("Properties: (none)"[:width].ljust(width))
 
-            if props_shown == 0:
-                table.add_row("Properties", "(none)")
-
-        return table
+        return lines
