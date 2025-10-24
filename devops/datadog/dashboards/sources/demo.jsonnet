@@ -193,6 +193,7 @@ layouts.grid(
     ), height=3)],
   ]),
   {
+    id: '2te-kvg-ja5',  // Dashboard ID from Datadog
     description: 'Comprehensive demonstration of the Jsonnet component system with primitives, presets, domain components, and layout helpers',
   }
 )

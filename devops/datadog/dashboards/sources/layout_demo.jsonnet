@@ -85,6 +85,7 @@ layouts.grid(
     [layouts.at(demoQueryValue('Another Custom'), x=9, y=18, width=3, height=2)],
   ]),
   {
+    id: '3sa-eku-8j3',  // Dashboard ID from Datadog
     description: 'Demonstrates all layout helpers: rows, columns, grids, and custom positioning',
   }
 )
