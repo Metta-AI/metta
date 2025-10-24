@@ -165,11 +165,11 @@ releases:
   # Deploy with `helmfile apply -l name=dashboard-cronjob-dev`.
   # This deploys to the same namespace with -dev suffix and reuses the prod service account.
 
-  # - name: dashboard-cronjob-dev
-  #   chart: ./dashboard-cronjob
-  #   version: 0.1.0
-  #   namespace: monitoring
-  #   values:
-  #     - ./dashboard-cronjob/values-dev.yaml
-  #     - image:
-  #         tag: "your-feature-branch"  # Override with your branch's image tag
+  - name: dashboard-cronjob-dev
+    chart: ./dashboard-cronjob
+    version: 0.1.0
+    namespace: monitoring
+    values:
+      - ./dashboard-cronjob/values-dev.yaml
+      - image:
+          tag: "sha-f2c2e44"  # WandB collector improvements
