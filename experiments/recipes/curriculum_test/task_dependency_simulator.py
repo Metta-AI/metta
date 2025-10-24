@@ -14,6 +14,7 @@ from typing import Any, Dict, Optional
 
 import numpy as np
 import torch
+from pydantic import BaseModel
 
 from metta.cogworks.curriculum import Curriculum, CurriculumConfig, CurriculumEnv
 from metta.cogworks.curriculum.task_generator import TaskGenerator, TaskGeneratorConfig
@@ -24,6 +25,56 @@ from mettagrid.config.mettagrid_config import MettaGridConfig
 from pufferlib import PufferEnv
 
 logger = logging.getLogger(__name__)
+
+
+class SimulatorConfig(BaseModel):
+    """Configuration for task dependency simulator dynamics."""
+
+    num_tasks: int = 10
+    gamma: float = 0.1  # Parent contribution factor
+    lambda_forget: float = 0.1  # Forgetting rate
+    performance_threshold: float = 0.9
+    task_seed: Optional[int] = None
+    dt: float = 0.1  # Time step scaling for dynamics updates
+    task_noise_std: float = (
+        0.1  # Standard deviation of task-specific bias (fixed per task)
+    )
+    sample_noise_std: float = 1e-2  # Standard deviation of per-sample noise
+
+
+class CurriculumLPConfig(BaseModel):
+    """Configuration for learning progress curriculum settings."""
+
+    ema_timescale: float = 0.1
+    slow_timescale_factor: float = 0.2
+    exploration_bonus: float = 0.1
+    progress_smoothing: float = 0.0
+    lp_score_temperature: float = 0.0
+    early_progress_amplification: float = 0.5
+    use_bidirectional: bool = True
+    max_slice_axes: int = 3
+    num_active_tasks: int = 1000
+    rand_task_rate: float = 0.01
+    min_presentations_for_eviction: int = 5
+    eviction_threshold_percentile: float = 0.4
+    enable_detailed_slice_logging: bool = False
+    show_curriculum_troubleshooting_logging: bool = True
+    use_shared_memory: bool = False
+    session_id: Optional[str] = None
+
+
+class SimulationConfig(BaseModel):
+    """Complete configuration for task dependency simulation."""
+
+    num_epochs: int = 100
+    samples_per_epoch: int = 50
+    num_envs: int = 32
+    wandb_project: str = "metta"
+    wandb_run_name: Optional[str] = None
+
+    # Nested configs
+    simulator: SimulatorConfig = SimulatorConfig()
+    curriculum: CurriculumLPConfig = CurriculumLPConfig()
 
 
 def _format_metrics_for_logging(
@@ -103,36 +154,30 @@ class TaskDependencySimulator:
 
     def __init__(
         self,
-        num_tasks: int = 10,
+        config: SimulatorConfig,
         num_epochs: int = 100,
         samples_per_epoch: int = 50,
-        gamma: float = 0.1,  # Parent contribution factor
-        lambda_forget: float = 0.1,  # Forgetting rate
-        performance_threshold: float = 0.9,
-        task_seed: Optional[int] = None,
-        dt: float = 0.01,  # Time step scaling for dynamics updates
-        task_noise_std: float = 0.1,  # Standard deviation of task-specific bias (fixed per task)
-        sample_noise_std: float = 1e-2,  # Standard deviation of per-sample noise (varies each sample)
     ):
-        self.num_tasks = num_tasks
+        self.config = config
+        self.num_tasks = config.num_tasks
         self.num_epochs = num_epochs
         self.samples_per_epoch = samples_per_epoch
-        self.gamma = gamma
-        self.lambda_forget = lambda_forget
-        self.performance_threshold = performance_threshold
-        self.task_seed = task_seed or random.randint(0, 2**31 - 1)
-        self.dt = dt
-        self.task_noise_std = task_noise_std
-        self.sample_noise_std = sample_noise_std
+        self.gamma = config.gamma
+        self.lambda_forget = config.lambda_forget
+        self.performance_threshold = config.performance_threshold
+        self.task_seed = config.task_seed or random.randint(0, 2**31 - 1)
+        self.dt = config.dt
+        self.task_noise_std = config.task_noise_std
+        self.sample_noise_std = config.sample_noise_std
 
         # Initialize task dependency chain (0 -> 1 -> 2 -> ...)
         self._build_task_chain()
 
         # Initialize performance tracking
-        self.P = torch.full((num_tasks,), 0.01)  # Current performance
+        self.P = torch.full((self.num_tasks,), 0.01)  # Current performance
         self.current_epoch = 0
-        self.epoch_sample_counts = torch.zeros(num_tasks)
-        self.total_sample_counts = torch.zeros(num_tasks)
+        self.epoch_sample_counts = torch.zeros(self.num_tasks)
+        self.total_sample_counts = torch.zeros(self.num_tasks)
 
         # Task-specific noise (generated from seed) - acts as fixed bias per task
         self._task_noise = self._generate_task_noise()
@@ -145,8 +190,8 @@ class TaskDependencySimulator:
         self.sample_history = []
 
         # Track individual task rewards for plotting (focus on first task)
-        self.task_reward_history = {i: [] for i in range(num_tasks)}
-        self.task_sample_numbers = {i: [] for i in range(num_tasks)}
+        self.task_reward_history = {i: [] for i in range(self.num_tasks)}
+        self.task_sample_numbers = {i: [] for i in range(self.num_tasks)}
 
         # Track task 0 sampling and learning progress percentile over time
         self.task_0_cumulative_samples = []
@@ -712,88 +757,47 @@ class MockTaskGenerator(TaskGenerator):
 
 
 def create_curriculum(
-    num_tasks: int = 10,
-    enable_detailed_slice_logging: bool = False,
-    show_curriculum_troubleshooting_logging: bool = True,
-    ema_timescale: float = 0.1,
-    slow_timescale_factor: float = 0.02,
-    exploration_bonus: float = 0.1,
-    progress_smoothing: float = 0.0,
-    lp_score_temperature: float = 0.0,
-    early_progress_amplification: float = 0.5,
-    use_bidirectional: bool = True,
-    max_slice_axes: int = 3,
-    num_active_tasks: int = 1000,
-    rand_task_rate: float = 0.01,
-    min_presentations_for_eviction: int = 5,
-    eviction_threshold_percentile: float = 0.4,
-    use_shared_memory: bool = False,
-    session_id: Optional[str] = None,
+    num_tasks: int,
+    config: CurriculumLPConfig,
 ) -> CurriculumConfig:
     """Create curriculum configuration for task dependency simulation.
 
-    Note: max_memory_tasks is automatically set to num_active_tasks in the refactored curriculum.
-    Note: sampling_temperature has been removed in the refactored curriculum.
+    Args:
+        num_tasks: Number of tasks in the dependency chain
+        config: Curriculum learning progress configuration
+
+    Returns:
+        Configured CurriculumConfig instance
     """
     task_gen_config = MockTaskGenerator.Config(num_tasks=num_tasks)
 
     algorithm_config = LearningProgressConfig(
-        use_bidirectional=use_bidirectional,
-        ema_timescale=ema_timescale,
-        slow_timescale_factor=slow_timescale_factor,
-        exploration_bonus=exploration_bonus,
-        progress_smoothing=progress_smoothing,
-        lp_score_temperature=lp_score_temperature,
-        early_progress_amplification=early_progress_amplification,
-        max_slice_axes=max_slice_axes,
-        enable_detailed_slice_logging=enable_detailed_slice_logging,
-        show_curriculum_troubleshooting_logging=show_curriculum_troubleshooting_logging,
-        num_active_tasks=num_active_tasks,
-        rand_task_rate=rand_task_rate,
-        eviction_threshold_percentile=eviction_threshold_percentile,
-        use_shared_memory=use_shared_memory,
-        session_id=session_id,
+        use_bidirectional=config.use_bidirectional,
+        ema_timescale=config.ema_timescale,
+        slow_timescale_factor=config.slow_timescale_factor,
+        exploration_bonus=config.exploration_bonus,
+        progress_smoothing=config.progress_smoothing,
+        lp_score_temperature=config.lp_score_temperature,
+        early_progress_amplification=config.early_progress_amplification,
+        max_slice_axes=config.max_slice_axes,
+        enable_detailed_slice_logging=config.enable_detailed_slice_logging,
+        show_curriculum_troubleshooting_logging=config.show_curriculum_troubleshooting_logging,
+        num_active_tasks=config.num_active_tasks,
+        rand_task_rate=config.rand_task_rate,
+        eviction_threshold_percentile=config.eviction_threshold_percentile,
+        use_shared_memory=config.use_shared_memory,
+        session_id=config.session_id,
     )
 
     return CurriculumConfig(
         task_generator=task_gen_config,
         algorithm_config=algorithm_config,
-        num_active_tasks=num_active_tasks,
-        min_presentations_for_eviction=min_presentations_for_eviction,
+        num_active_tasks=config.num_active_tasks,
+        min_presentations_for_eviction=config.min_presentations_for_eviction,
     )
 
 
-def simulate_task_dependencies(
-    num_tasks: int = 10,
-    num_epochs: int = 100,
-    samples_per_epoch: int = 50,
-    num_envs: int = 32,
-    gamma: float = 0.1,
-    lambda_forget: float = 0.1,
-    performance_threshold: float = 0.9,
-    task_seed: Optional[int] = None,
-    dt: float = 0.1,
-    task_noise_std: float = 0.1,
-    sample_noise_std: float = 1e-2,
-    enable_detailed_slice_logging: bool = False,
-    show_curriculum_troubleshooting_logging: bool = True,
-    ema_timescale: float = 0.001,
-    slow_timescale_factor: float = 0.2,
-    exploration_bonus: float = 0.1,
-    progress_smoothing: float = 0.0,
-    lp_score_temperature: float = 0.0,
-    early_progress_amplification: float = 0.5,
-    use_bidirectional: bool = True,
-    max_slice_axes: int = 3,
-    num_active_tasks: int = 1000,
-    rand_task_rate: float = 0.01,
-    min_presentations_for_eviction: int = 5,
-    eviction_threshold_percentile: float = 0.4,
-    use_shared_memory: bool = False,
-    session_id: Optional[str] = None,
-    wandb_project: str = "metta",
-    wandb_run_name: Optional[str] = None,
-) -> Dict[str, Any]:
+def simulate_task_dependencies(config: SimulationConfig) -> Dict[str, Any]:
     """
     Run a complete task dependency simulation using vectorized environments.
 
@@ -804,71 +808,37 @@ def simulate_task_dependencies(
     - Processing stats the same way as real training
 
     Args:
-        num_tasks: Number of tasks in the chain
-        num_epochs: Number of training epochs
-        samples_per_epoch: Samples per epoch (per environment)
-        num_envs: Number of parallel environments (like vectorized training)
-        gamma: Parent contribution factor
-        lambda_forget: Forgetting rate
-        performance_threshold: Success threshold
-        task_seed: Seed for task-specific noise
-        dt: Time step scaling for dynamics updates
-        enable_detailed_slice_logging: Enable curriculum slice logging
-        use_shared_memory: Whether to use shared memory backend (default: False for simulation)
-        session_id: Optional session ID for shared memory
-        wandb_project: Wandb project name
-        wandb_run_name: Wandb run name
+        config: Complete simulation configuration (includes simulator, curriculum, and run settings)
 
     Returns:
         Simulation results dictionary
 
     Note:
-        - Now uses vectorized environments with CurriculumEnv wrapper (Option C)
+        - Uses vectorized environments with CurriculumEnv wrapper
         - Stats flow through accumulate_rollout_stats() like real training
         - Multiple parallel environments simulate real training behavior
     """
     # Create simulator
     simulator = TaskDependencySimulator(
-        num_tasks=num_tasks,
-        num_epochs=num_epochs,
-        samples_per_epoch=samples_per_epoch * num_envs,  # Total samples across all envs
-        gamma=gamma,
-        lambda_forget=lambda_forget,
-        performance_threshold=performance_threshold,
-        task_seed=task_seed,
-        dt=dt,
-        task_noise_std=task_noise_std,
-        sample_noise_std=sample_noise_std,
+        config=config.simulator,
+        num_epochs=config.num_epochs,
+        samples_per_epoch=config.samples_per_epoch
+        * config.num_envs,  # Total samples across all envs
     )
 
     # Create curriculum (shared across all environments)
     curriculum_config = create_curriculum(
-        num_tasks=num_tasks,
-        enable_detailed_slice_logging=enable_detailed_slice_logging,
-        show_curriculum_troubleshooting_logging=show_curriculum_troubleshooting_logging,
-        ema_timescale=ema_timescale,
-        slow_timescale_factor=slow_timescale_factor,
-        exploration_bonus=exploration_bonus,
-        progress_smoothing=progress_smoothing,
-        lp_score_temperature=lp_score_temperature,
-        early_progress_amplification=early_progress_amplification,
-        use_bidirectional=use_bidirectional,
-        max_slice_axes=max_slice_axes,
-        num_active_tasks=num_active_tasks,
-        rand_task_rate=rand_task_rate,
-        min_presentations_for_eviction=min_presentations_for_eviction,
-        eviction_threshold_percentile=eviction_threshold_percentile,
-        use_shared_memory=use_shared_memory,
-        session_id=session_id,
+        num_tasks=config.simulator.num_tasks,
+        config=config.curriculum,
     )
     curriculum = Curriculum(curriculum_config)
 
     # Create vectorized environments wrapped with CurriculumEnv (matches real training!)
     logger.info(
-        f"Creating {num_envs} vectorized environments with CurriculumEnv wrapper"
+        f"Creating {config.num_envs} vectorized environments with CurriculumEnv wrapper"
     )
     envs = []
-    for i in range(num_envs):
+    for i in range(config.num_envs):
         # Create base environment
         initial_task = curriculum.get_task()
         base_env = TaskDependencyEnv(simulator, initial_task.get_env_cfg())
@@ -884,12 +854,12 @@ def simulate_task_dependencies(
 
     # Run simulation with vectorized environments
     logger.info(
-        f"Starting vectorized task dependency simulation for {num_epochs} epochs"
+        f"Starting vectorized task dependency simulation for {config.num_epochs} epochs"
     )
     simulator.reset()
     metrics_history = []
 
-    for epoch in range(num_epochs):
+    for epoch in range(config.num_epochs):
         # Reset epoch counters in all CurriculumEnv wrappers (for per-epoch tracking)
         for env in envs:
             env.reset_epoch_counters()
@@ -898,7 +868,7 @@ def simulate_task_dependencies(
         rollout_stats = defaultdict(list)
 
         # Each environment does samples_per_epoch steps
-        for _ in range(samples_per_epoch):
+        for _ in range(config.samples_per_epoch):
             # Step all environments (matching vectorized training)
             info_batch = []
 
@@ -959,31 +929,15 @@ def simulate_task_dependencies(
     try:
         import wandb
 
-        if wandb_run_name is None:
+        run_name = config.wandb_run_name
+        if run_name is None:
             timestamp = str(int(time.time()))
-            wandb_run_name = f"task_dependency.{timestamp}"
+            run_name = f"task_dependency.{timestamp}"
 
-        wandb.init(project=wandb_project, name=wandb_run_name)
+        wandb.init(project=config.wandb_project, name=run_name)
 
-        # Log configuration
-        wandb.config.update(
-            {
-                "num_tasks": num_tasks,
-                "num_epochs": num_epochs,
-                "samples_per_epoch": samples_per_epoch,
-                "gamma": gamma,
-                "lambda_forget": lambda_forget,
-                "performance_threshold": performance_threshold,
-                "task_seed": task_seed,
-                "task_noise_std": task_noise_std,
-                "sample_noise_std": sample_noise_std,
-                "ema_timescale": ema_timescale,
-                "slow_timescale_factor": slow_timescale_factor,
-                "exploration_bonus": exploration_bonus,
-                "min_presentations_for_eviction": min_presentations_for_eviction,
-                "eviction_threshold_percentile": eviction_threshold_percentile,
-            }
-        )
+        # Log configuration (convert config to dict)
+        wandb.config.update(config.model_dump())
 
         # Log metrics for each epoch with proper formatting matching real training
         for epoch, metrics in enumerate(metrics_history):
@@ -1003,10 +957,10 @@ def simulate_task_dependencies(
 
             # Reformat metrics to match real training infrastructure
             formatted_metrics = _format_metrics_for_logging(
-                epoch_metrics, epoch, samples_per_epoch
+                epoch_metrics, epoch, config.samples_per_epoch
             )
 
-            wandb.log(formatted_metrics, step=epoch * samples_per_epoch)
+            wandb.log(formatted_metrics, step=epoch * config.samples_per_epoch)
 
         # Log final summary statistics (without slow histogram plots)
         final_metrics = metrics_history[-1] if metrics_history else {}
@@ -1025,7 +979,7 @@ def simulate_task_dependencies(
         wandb.log({"simulation_summary": results})
         wandb.finish()
 
-        logger.info(f"✅ Results logged to wandb project: {wandb_project}")
+        logger.info(f"✅ Results logged to wandb project: {config.wandb_project}")
 
     except ImportError:
         logger.warning("⚠️ wandb not available, skipping logging")
@@ -1046,85 +1000,14 @@ class TaskDependencySimulationTool(Tool):
     focusing on task dependency dynamics and learning progress analysis.
     """
 
-    # Simulation parameters
-    num_tasks: int = 10
-    num_epochs: int = 100
-    samples_per_epoch: int = 50
-    num_envs: int = 1  # Number of parallel environments (vectorization)
-    gamma: float = 0.5
-    lambda_forget: float = 0.01
-    performance_threshold: float = 0.9
-    task_seed: Optional[int] = None
-    dt: float = 0.1
-    task_noise_std: float = 1e-8  # Fixed bias per task
-    sample_noise_std: float = 1e-2  # Per-sample variability
-    enable_detailed_slice_logging: bool = False
-    show_curriculum_troubleshooting_logging: bool = (
-        True  # Enable per-task metrics for debugging
-    )
-
-    # Learning progress parameters
-    ema_timescale: float = 0.05
-    slow_timescale_factor: float = 1 / 5
-    exploration_bonus: float = 0.1
-    progress_smoothing: float = 0.0
-    lp_score_temperature: float = 0.0
-    early_progress_amplification: float = (
-        0.5  # 0.5 = OFF, low values (0.05) amplify unsolved tasks
-    )
-    use_bidirectional: bool = True
-    max_slice_axes: int = 3
-    num_active_tasks: int = 1000
-    rand_task_rate: float = 0.01
-
-    # Eviction parameters
-    min_presentations_for_eviction: int = 30
-    eviction_threshold_percentile: float = 0.2
-
-    # Memory backend configuration
-    use_shared_memory: bool = False  # Use local memory for simulations
-    session_id: Optional[str] = None
-
-    # Wandb parameters
-    wandb_project: str = "task_dependency_simulator"
-    wandb_run_name: Optional[str] = None
+    config: SimulationConfig = SimulationConfig()
 
     def invoke(self, args: dict[str, str]) -> int | None:
         """Run the task dependency simulation."""
         logger.info("Starting task dependency simulation...")
 
         try:
-            results = simulate_task_dependencies(
-                num_tasks=self.num_tasks,
-                num_epochs=self.num_epochs,
-                samples_per_epoch=self.samples_per_epoch,
-                num_envs=self.num_envs,
-                gamma=self.gamma,
-                lambda_forget=self.lambda_forget,
-                performance_threshold=self.performance_threshold,
-                task_seed=self.task_seed,
-                dt=self.dt,
-                task_noise_std=self.task_noise_std,
-                sample_noise_std=self.sample_noise_std,
-                enable_detailed_slice_logging=self.enable_detailed_slice_logging,
-                show_curriculum_troubleshooting_logging=self.show_curriculum_troubleshooting_logging,
-                ema_timescale=self.ema_timescale,
-                slow_timescale_factor=self.slow_timescale_factor,
-                exploration_bonus=self.exploration_bonus,
-                progress_smoothing=self.progress_smoothing,
-                lp_score_temperature=self.lp_score_temperature,
-                early_progress_amplification=self.early_progress_amplification,
-                use_bidirectional=self.use_bidirectional,
-                max_slice_axes=self.max_slice_axes,
-                num_active_tasks=self.num_active_tasks,
-                rand_task_rate=self.rand_task_rate,
-                min_presentations_for_eviction=self.min_presentations_for_eviction,
-                eviction_threshold_percentile=self.eviction_threshold_percentile,
-                use_shared_memory=self.use_shared_memory,
-                session_id=self.session_id,
-                wandb_project=self.wandb_project,
-                wandb_run_name=self.wandb_run_name,
-            )
+            results = simulate_task_dependencies(self.config)
 
             logger.info("✅ Simulation completed successfully!")
             logger.info(
@@ -1143,33 +1026,39 @@ def simulate_large_chain(
     wandb_run_name: Optional[str] = None,
 ) -> TaskDependencySimulationTool:
     """Simulate a large task chain (25 tasks)."""
-    return TaskDependencySimulationTool(
-        num_tasks=25,
+    config = SimulationConfig(
         num_epochs=2000,
         samples_per_epoch=100,
-        num_active_tasks=1000,  # Much smaller pool to reduce eviction overhead
-        min_presentations_for_eviction=30,
         wandb_run_name=wandb_run_name,
+        simulator=SimulatorConfig(num_tasks=25),
+        curriculum=CurriculumLPConfig(
+            num_active_tasks=1000,  # Much smaller pool to reduce eviction overhead
+            min_presentations_for_eviction=30,
+        ),
     )
+    return TaskDependencySimulationTool(config=config)
 
 
 def simulate_large_chain_focused(
     wandb_run_name: Optional[str] = None,
 ) -> TaskDependencySimulationTool:
     """Simulate a large task chain with focused sampling (low entropy ~0.5)."""
-    return TaskDependencySimulationTool(
-        num_tasks=25,
+    config = SimulationConfig(
         num_epochs=2000,
         samples_per_epoch=100,
-        num_active_tasks=500,  # Smaller pool for more focus
-        exploration_bonus=1e-8,  # Much lower exploration
-        ema_timescale=0.1,  # Slower adaptation
-        rand_task_rate=0.001,  # Minimal randomness
-        progress_smoothing=100,  # Sharper preferences
-        use_bidirectional=False,  # Simpler scoring
-        min_presentations_for_eviction=300,
         wandb_run_name=wandb_run_name,
+        simulator=SimulatorConfig(num_tasks=25),
+        curriculum=CurriculumLPConfig(
+            num_active_tasks=500,  # Smaller pool for more focus
+            exploration_bonus=1e-8,  # Much lower exploration
+            ema_timescale=0.1,  # Slower adaptation
+            rand_task_rate=0.001,  # Minimal randomness
+            progress_smoothing=100,  # Sharper preferences
+            use_bidirectional=False,  # Simpler scoring
+            min_presentations_for_eviction=300,
+        ),
     )
+    return TaskDependencySimulationTool(config=config)
 
 
 def train(
@@ -1186,7 +1075,7 @@ def train(
     curriculum learning system handles task dependencies. It simulates a chain
     of 10 tasks where each task depends on the previous one (0 -> 1 -> 2 -> ... -> 9).
 
-    Now uses vectorized environments with CurriculumEnv wrapper (Option C):
+    Uses vectorized environments with CurriculumEnv wrapper:
     - Matches real training infrastructure exactly
     - Stats flow through accumulate_rollout_stats()
     - Multiple parallel environments simulate real training
@@ -1202,8 +1091,8 @@ def train(
     Args:
         num_tasks: Number of tasks in dependency chain (default: 10)
         num_epochs: Number of training epochs (default: 500)
-        samples_per_epoch: Number of task samples per epoch per environment (default: 100)
-        num_envs: Number of parallel environments for vectorization (default: 4)
+        samples_per_epoch: Number of task samples per epoch per environment (default: 10)
+        num_envs: Number of parallel environments for vectorization (default: 32)
         run: Optional name for wandb run
 
     Returns:
@@ -1217,37 +1106,36 @@ def train(
         uv run ./tools/run.py experiments.recipes.curriculum_test.task_dependency_simulator.train \\
             num_tasks=15 num_epochs=1000 num_envs=8 run=my_experiment
     """
-    return TaskDependencySimulationTool(
-        # Simulation parameters - moderate task dynamics
-        num_tasks=num_tasks,
+    config = SimulationConfig(
         num_epochs=num_epochs,
         samples_per_epoch=samples_per_epoch,
-        num_envs=num_envs,  # Vectorized environments (matches real training)
-        gamma=0.3,  # Moderate parent contribution
-        lambda_forget=0.05,  # Slow forgetting
-        performance_threshold=0.85,
-        task_noise_std=0.05,  # Task-specific bias (fixed per task)
-        sample_noise_std=1e-2,  # Per-sample variability
-        dt=0.1,
-        # Learning progress parameters - balanced exploration/exploitation
-        ema_timescale=0.1,  # Medium adaptation speed
-        slow_timescale_factor=0.2,  # Slow EMA is 5x slower
-        exploration_bonus=0.2,  # Reasonable exploration
-        progress_smoothing=0.0,  # No artificial floor
-        lp_score_temperature=0.0,  # Z-score normalization for relative LP comparison
-        early_progress_amplification=0.5,  # 0.5 = OFF, low values (0.05) amplify unsolved tasks
-        use_bidirectional=True,  # Use bidirectional LP scoring (default)
-        # Task pool management
-        num_active_tasks=200,  # Reasonable pool size
-        rand_task_rate=0.05,  # 5% random sampling for exploration
-        min_presentations_for_eviction=20,  # Require some evidence
-        eviction_threshold_percentile=0.3,  # Evict bottom 30%
-        # Memory configuration
-        use_shared_memory=False,  # Local memory for single-process simulation
-        session_id=None,
-        # Logging
-        enable_detailed_slice_logging=False,
-        max_slice_axes=3,
+        num_envs=num_envs,
         wandb_project="curriculum_test",
         wandb_run_name=run,
+        simulator=SimulatorConfig(
+            num_tasks=num_tasks,
+            gamma=0.3,  # Moderate parent contribution
+            lambda_forget=0.05,  # Slow forgetting
+            performance_threshold=0.85,
+            task_noise_std=0.05,  # Task-specific bias (fixed per task)
+            sample_noise_std=1e-2,  # Per-sample variability
+            dt=0.1,
+        ),
+        curriculum=CurriculumLPConfig(
+            ema_timescale=0.1,  # Medium adaptation speed
+            slow_timescale_factor=0.2,  # Slow EMA is 5x slower
+            exploration_bonus=0.2,  # Reasonable exploration
+            progress_smoothing=0.0,  # No artificial floor
+            lp_score_temperature=0.0,  # Z-score normalization for relative LP comparison
+            early_progress_amplification=0.5,  # 0.5 = OFF, low values (0.05) amplify unsolved tasks
+            use_bidirectional=True,  # Use bidirectional LP scoring (default)
+            num_active_tasks=200,  # Reasonable pool size
+            rand_task_rate=0.05,  # 5% random sampling for exploration
+            min_presentations_for_eviction=20,  # Require some evidence
+            eviction_threshold_percentile=0.3,  # Evict bottom 30%
+            enable_detailed_slice_logging=False,
+            max_slice_axes=3,
+            use_shared_memory=False,  # Local memory for single-process simulation
+        ),
     )
+    return TaskDependencySimulationTool(config=config)
