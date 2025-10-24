@@ -101,10 +101,10 @@ proc buildAtlas*() =
       let name = path.replace(dataDir & "/", "").replace(".png", "")
       bxy.addImage(name, readImage(path))
 
-  bxy.flush()
-  let terrainMap = generateTileMap(1024, 1024, 64, dataDir & "/blob7x8.png")
-  bxy.reinitialize()
-
+  bxy.enterRawOpenGLMode()
+  echo "Generating tile map"
+  terrainMap = generateTileMap(1024, 1024, 64, dataDir & "/blob7x8.png")
+  bxy.exitRawOpenGLMode()
 
 proc useSelections*(panel: Panel) =
   ## Reads the mouse position and selects the thing under it.
@@ -677,9 +677,10 @@ proc drawWorldMain*() =
 
   drawThoughtBubbles()
 
+  #bxy.drawRect(rect(0, 0, 100, 100), color(1, 0, 0, 1))
 
   if terrainMap != nil:
-    bxy.flush()
+    bxy.enterRawOpenGLMode()
     let m = bxy.getTransform()
     # let mvp = mat4(
     #   m[0, 0], m[0, 1], m[0, 2], 0,
@@ -688,8 +689,9 @@ proc drawWorldMain*() =
     #   m[2, 0], m[2, 1], m[2, 2], 1
     # )
     let mvp = mat4()
+    echo "Drawing terrain map"
     terrainMap.draw(mvp, 1.0f)
-    bxy.reinitialize()
+    bxy.exitRawOpenGLMode()
 
 proc fitFullMap*(panel: Panel) =
   ## Set zoom and pan so the full map fits in the panel.
