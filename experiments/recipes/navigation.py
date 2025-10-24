@@ -29,8 +29,8 @@ def mettagrid(num_agents: int = 1, num_instances: int = 4) -> MettaGridConfig:
 
     nav.game.map_builder = MapGen.Config(
         instances=num_instances,
-        border_width=6,
-        instance_border_width=3,
+        border_width=3,
+        instance_border_width=1,
         instance=NavigationFromNumpy.Config(
             agents=num_agents,
             objects={"altar": 10},
