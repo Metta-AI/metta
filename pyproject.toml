@@ -146,6 +146,7 @@ pythonpath = [".", "packages/mettagrid/python/src"]
 norecursedirs = ["bazel-*", ".bazel_output"]
 
 [tool.uv]
+required-version = ">=0.9.0"
 cache-keys = [
   { file = "pyproject.toml" },
   { file = "packages/mettagrid/BUILD" },
