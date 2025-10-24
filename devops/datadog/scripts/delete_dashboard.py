@@ -23,7 +23,7 @@ from pathlib import Path
 # Add parent directory to path for local imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from common.dashboard_client import DatadogDashboardClient
+from utils.dashboard_client import DatadogDashboardClient
 
 
 def delete_dashboard(client: DatadogDashboardClient, dashboard_id: str, dry_run: bool = False) -> bool:

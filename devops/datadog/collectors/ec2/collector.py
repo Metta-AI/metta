@@ -5,7 +5,7 @@ from typing import Any
 
 import boto3
 
-from devops.datadog.common.base import BaseCollector
+from devops.datadog.utils.base import BaseCollector
 
 
 class EC2Collector(BaseCollector):

@@ -26,7 +26,7 @@ from devops.datadog.collectors import (
     SkypilotCollector,
     WandBCollector,
 )
-from devops.datadog.common.datadog_client import DatadogClient
+from devops.datadog.utils.datadog_client import DatadogClient
 
 # Collector registry with configuration
 COLLECTORS = {

@@ -262,7 +262,7 @@ class TestDatadogClientQueryMethod:
     @patch("devops.datadog.common.datadog_client.ApiClient")
     def test_query_metric_returns_value(self, mock_api_client):
         """Test that query_metric extracts value from API response."""
-        from devops.datadog.common.datadog_client import DatadogClient
+        from devops.datadog.utils.datadog_client import DatadogClient
 
         # Mock API response
         mock_response = MagicMock()
@@ -286,7 +286,7 @@ class TestDatadogClientQueryMethod:
     @patch("devops.datadog.common.datadog_client.ApiClient")
     def test_query_metric_returns_none_when_no_data(self, mock_api_client):
         """Test that query_metric returns None when no data available."""
-        from devops.datadog.common.datadog_client import DatadogClient
+        from devops.datadog.utils.datadog_client import DatadogClient
 
         # Mock empty response
         mock_response = MagicMock()
@@ -308,7 +308,7 @@ class TestDatadogClientQueryMethod:
     @patch("devops.datadog.common.datadog_client.ApiClient")
     def test_query_metric_handles_api_error(self, mock_api_client):
         """Test that query_metric returns None on API error."""
-        from devops.datadog.common.datadog_client import DatadogClient
+        from devops.datadog.utils.datadog_client import DatadogClient
 
         mock_api_client.return_value.__enter__.side_effect = Exception("API Error")
 

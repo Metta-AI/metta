@@ -33,7 +33,7 @@ from typing import Any
 # Add parent directory to path for local imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from common.dashboard_client import DatadogDashboardClient
+from utils.dashboard_client import DatadogDashboardClient
 
 
 def export_dashboards_summary(dashboards: list[dict[str, Any]]) -> list[dict[str, Any]]:
