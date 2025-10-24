@@ -37,7 +37,7 @@ COLLECTORS = [
 ]
 
 # Per-collector timeout in seconds (2 minutes default)
-# Some collectors (like wandb) may need to fetch large datasets
+# Protects against indefinite hangs from slow API responses or network issues
 COLLECTOR_TIMEOUT = 120
 
 
