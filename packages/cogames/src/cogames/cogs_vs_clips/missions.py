@@ -139,14 +139,13 @@ class HeartChorusVariant(MissionVariant):
     def apply(self, mission: Mission) -> Mission:
         def modifier(cfg: MettaGridConfig) -> None:
             cfg.game.agent.rewards.stats = {
-                "heart.gained": 2.0,
-                "chest.heart.deposited": 5.0,
-                "carbon.gained": 0.2,
-                "oxygen.gained": 0.2,
-                "germanium.gained": 0.3,
-                "silicon.gained": 0.2,
-                "energy.gained": 0.1,
-                "gear.gained": 0.5,
+                "heart.gained": 0.25,
+                "chest.heart.deposited": 1.0,
+                "carbon.gained": 0.02,
+                "oxygen.gained": 0.02,
+                "germanium.gained": 0.05,
+                "silicon.gained": 0.02,
+                "energy.gained": 0.005,
             }
 
         return _add_make_env_modifier(mission, modifier)
