@@ -8,9 +8,9 @@ image:
 
 # Command to run all collectors
 # Uses the new modular collector architecture
-# Container working directory is /workspace/metta (repo root)
+# Container working directory is /app (lean collector image)
 # Use absolute path because uv run resolves paths relative to package directories
-command: ["uv", "run", "python", "/workspace/metta/devops/datadog/run_all_collectors.py"]
+command: ["python", "/app/devops/datadog/scripts/run_all_collectors.py"]
 
 serviceAccount:
   create: true
