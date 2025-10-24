@@ -191,7 +191,9 @@ class KindLocal(Kind):
             error("No WANDB API key found. Please run 'wandb login' and try again.")
             sys.exit(1)
 
-        from metta.app_backend.clients.base_client import get_machine_token
+        # Lazy import to avoid loading app_backend dependencies when using metta CLI for linting.
+        # This keeps the metta-cli install mode lightweight and fast.
+        from metta.app_backend.clients.base_client import get_machine_token  # pylint: disable=import-outside-toplevel
 
         machine_token = get_machine_token(DEV_STATS_SERVER_URI)
 
