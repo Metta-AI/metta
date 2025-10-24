@@ -27,7 +27,7 @@ Automated metric collection from multiple services via Kubernetes CronJobs:
 - **Skypilot** ✅ **(Production)**: Jobs, clusters, resource utilization
 - **Asana** ✅ **(Production)**: Project health, bugs tracking, team velocity
 - **EC2** ✅ **(Production)**: Instances, costs, utilization, EBS volumes
-- **WandB** *(planned)*: Training runs, experiments
+- **WandB** ✅ **(Implemented)**: Training runs, model performance, GPU hours
 
 Each collector:
 - Runs on schedule (5-30 minute intervals)

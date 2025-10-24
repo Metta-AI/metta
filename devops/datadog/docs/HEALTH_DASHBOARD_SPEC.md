@@ -15,11 +15,11 @@ This dashboard builds on the existing Datadog collector architecture:
 ### Existing Infrastructure
 - **Collector Framework**: `BaseCollector` pattern with `@metric` decorator
 - **Deployed Collectors**:
-  - GitHub (24 metrics) - PRs, commits, CI/CD, developers
+  - GitHub (28 metrics) - PRs, commits, CI/CD, developers
   - Skypilot (30 metrics) - Jobs, runtime stats, resources
   - Asana (14 metrics) - Tasks, velocity, bugs tracking
   - EC2 (19 metrics) - Instances, costs, EBS volumes
-- **Total**: 87 metrics across 4 collectors
+- **Total**: 91 metrics across 4 collectors
 - **Dashboard Tools**: CLI commands via `metta datadog dashboard`
 - **Deployment**: Kubernetes CronJobs via Helm charts
 - **Documentation**: See `COLLECTORS_ARCHITECTURE.md`, `ADDING_NEW_COLLECTOR.md`
