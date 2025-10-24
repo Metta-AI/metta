@@ -336,6 +336,12 @@ jobs:
         uses: actions/github-script@v7
         with:
           script: |
+            const allowedCancelReasonFragment = 'Canceling since a higher priority';
+            const jobNameById = {
+              'python-tests': 'Tests - Python',
+              'cpp-tests': 'Tests - C++',
+            };
+
             const needs = ${{ toJSON(needs) }};
             const results = Object.values(needs).map(j => j.result || '').join(',');
             core.info(`Test job results: ${results}`);
@@ -344,8 +350,73 @@ jobs:
               core.setFailed('One or more test jobs failed');     // red
               return;
             }
-            if (results.includes('cancelled')) {
-              core.notice('One or more test jobs were cancelled');
-            } else {
-              core.info('All test jobs completed successfully');
+
+            const cancelledJobIds = Object.entries(needs)
+              .filter(([, job]) => (job.result || '') === 'cancelled')
+              .map(([jobId]) => jobId);
+
+            if (cancelledJobIds.length > 0) {
+              const { owner, repo } = context.repo;
+              const runId = context.runId;
+
+              const jobs = [];
+              let page = 1;
+              let totalCount = 0;
+
+              while (true) {
+                const response = await github.rest.actions.listJobsForWorkflowRun({
+                  owner,
+                  repo,
+                  run_id: runId,
+                  per_page: 100,
+                  page,
+                });
+
+                jobs.push(...response.data.jobs);
+                totalCount = response.data.total_count ?? jobs.length;
+
+                if (jobs.length >= totalCount || response.data.jobs.length === 0) {
+                  break;
+                }
+
+                page += 1;
+              }
+
+              for (const jobId of cancelledJobIds) {
+                const jobName = jobNameById[jobId] ?? jobId;
+                const jobDetails = jobs.find(job => job.name === jobName);
+
+                if (!jobDetails) {
+                  core.setFailed(`Could not determine details for cancelled job "${jobName}".`);
+                  return;
+                }
+
+                if (jobDetails.conclusion !== 'cancelled') {
+                  core.setFailed(`Job "${jobName}" expected to be cancelled but reported "${jobDetails.conclusion}".`);
+                  return;
+                }
+
+                if (!jobDetails.check_run_url) {
+                  core.setFailed(`Job "${jobName}" was cancelled without a reported reason.`);
+                  return;
+                }
+
+                const checkRunResponse = await github.request(jobDetails.check_run_url);
+                const output = checkRunResponse.data?.output || {};
+                const reasonSegments = [output.title, output.summary, output.text]
+                  .filter(Boolean)
+                  .join('\n')
+                  .trim();
+
+                if (!reasonSegments || !reasonSegments.includes(allowedCancelReasonFragment)) {
+                  const displayReason = reasonSegments || 'No cancellation reason reported.';
+                  core.setFailed(`Job "${jobName}" was cancelled with reason: ${displayReason}`);
+                  return;
+                }
+              }
+
+              core.notice('One or more test jobs were cancelled for an allowed reason');
+              return;
             }
+
+            core.info('All test jobs completed successfully');
