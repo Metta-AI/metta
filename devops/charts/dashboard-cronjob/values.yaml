@@ -6,11 +6,11 @@ image:
   pullPolicy: Always
   tag: "latest"
 
-# Command to run - can be overridden for different collectors
+# Command to run all collectors
 # Uses the new modular collector architecture
 # Container working directory is /workspace/metta (repo root)
 # Use absolute path because uv run resolves paths relative to package directories
-command: ["uv", "run", "python", "/workspace/metta/devops/datadog/run_collector.py", "github", "--push"]
+command: ["uv", "run", "python", "/workspace/metta/devops/datadog/run_all_collectors.py"]
 
 serviceAccount:
   create: true
@@ -28,7 +28,7 @@ resources:
 # Datadog metric tagging (for organizing metrics in Datadog)
 datadog:
   env: "production"
-  service: "github-collector"
+  service: "datadog-collectors"  # Changed from github-collector to reflect all collectors
   site: "datadoghq.com"
 
 # GitHub configuration
@@ -40,6 +40,10 @@ github:
 asana:
   workspaceGid: "1209016784099267"  # Company workspace
   bugsProjectGid: "1210062854657778"  # Bugs project
+
+# Kubernetes configuration
+kubernetes:
+  clusterName: "main"  # Cluster name for metric tagging
 
 # CronJob configuration
 successfulJobsHistoryLimit: 3
