@@ -36,25 +36,28 @@ class MiniscopeComponent(ABC):
 
     @property
     def env(self) -> MettaGridEnv:
-        """Get the environment."""
+        """Return the current environment reference."""
         return self._env
 
     @property
     def state(self) -> MiniscopeState:
-        """Get the state."""
+        """Return the shared renderer state."""
         return self._state
 
     @property
     def panels(self) -> PanelLayout:
-        """Get the panel layout."""
+        """Return the panel layout registry."""
         return self._panels
 
-    def _set_panel(self, panel: MiniscopePanel) -> None:
+    def _set_panel(self, panel: Optional[MiniscopePanel]) -> None:
         """Set the panel for this component and update dimensions.
 
         Args:
             panel: The panel to use for this component
         """
+        if panel is None:
+            raise ValueError(f"{self.__class__.__name__} requires a configured panel")
+
         self._panel = panel
         self._width = panel.width
         self._height = panel.height
@@ -74,14 +77,7 @@ class MiniscopeComponent(ABC):
         return [line[:width].ljust(width) for line in lines]
 
     def handle_input(self, ch: str) -> bool:
-        """Handle user input for this component.
-
-        Args:
-            ch: The character input from the user
-
-        Returns:
-            True if the input was handled by this component, False otherwise
-        """
+        """Handle user input for this component."""
         return False
 
     @abstractmethod

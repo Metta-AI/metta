@@ -11,15 +11,31 @@ import {
   processArxivAutoImport,
   detectArxivUrl,
 } from "@/lib/arxiv-auto-import";
-import { queueArxivInstitutionProcessing } from "@/lib/background-jobs";
+import { JobQueueService } from "@/lib/job-queue";
+import { parseMentions } from "@/lib/mentions";
+import {
+  resolveMentions,
+  extractUserIdsFromResolution,
+} from "@/lib/mention-resolution";
+import { createMentionNotifications } from "@/lib/notifications";
+import { Logger } from "@/lib/logging/logger";
+import {
+  extractPostIdsFromContent,
+  validatePostIds,
+  shouldBeQuotePost,
+} from "@/lib/post-link-parser";
+import { toFeedPostDTO, type FeedPostDTO } from "@/posts/data/feed";
 
 const inputSchema = zfd.formData({
   title: zfd.text(z.string().min(1).max(255)),
   content: zfd.text(z.string().optional()),
   postType: zfd.text(
-    z.enum(["user-post", "paper-post", "pure-paper"]).optional()
+    z.enum(["user-post", "paper-post", "pure-paper", "quote-post"]).optional()
   ),
   paperId: zfd.text(z.string().optional()), // Added support for paperId
+  images: zfd.text(z.string().optional()), // JSON string of image URLs
+  mentions: zfd.text(z.string().optional()), // JSON string of mention strings
+  quotedPostIds: zfd.text(z.string().optional()), // JSON string of quoted post IDs
 });
 
 export const createPostAction = actionClient
@@ -32,6 +48,77 @@ export const createPostAction = actionClient
     let postType = input.postType || "user-post";
     let arxivUrl: string | null = null;
 
+    // Parse images if provided
+    let images: string[] = [];
+    if (input.images) {
+      try {
+        images = JSON.parse(input.images);
+      } catch (error) {
+        Logger.warn("Error parsing images", {
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
+    }
+
+    // Parse and resolve mentions if provided
+    let mentionedUserIds: string[] = [];
+    let resolvedMentions: any[] = [];
+    if (input.mentions) {
+      try {
+        const mentionStrings: string[] = JSON.parse(input.mentions);
+        resolvedMentions = await resolveMentions(
+          mentionStrings,
+          session.user.id
+        );
+        mentionedUserIds = extractUserIdsFromResolution(
+          resolvedMentions,
+          session.user.id
+        );
+
+        Logger.info("Resolved mentions", {
+          mentionCount: mentionStrings.length,
+          userCount: mentionedUserIds.length,
+        });
+      } catch (error) {
+        Logger.warn("Error parsing or resolving mentions", {
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
+    }
+
+    // Parse quoted post IDs from input and/or content
+    let quotedPostIds: string[] = [];
+
+    // First, get explicitly provided quoted post IDs
+    if (input.quotedPostIds) {
+      try {
+        quotedPostIds = JSON.parse(input.quotedPostIds);
+      } catch (error) {
+        Logger.warn("Error parsing quotedPostIds", {
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
+    }
+
+    // Also auto-detect from content and merge with explicit IDs (up to 2 total)
+    if (input.content && quotedPostIds.length < 2) {
+      const extractedPostIds = extractPostIdsFromContent(input.content);
+      const validatedPostIds = await validatePostIds(extractedPostIds);
+
+      // Add new post IDs that aren't already included, up to limit of 2
+      for (const postId of validatedPostIds) {
+        if (!quotedPostIds.includes(postId) && quotedPostIds.length < 2) {
+          quotedPostIds.push(postId);
+        }
+      }
+    }
+
+    // Determine if this should be a quote post
+    const isQuotePost = shouldBeQuotePost(input.content || "", quotedPostIds);
+    if (isQuotePost && input.postType !== "quote-post") {
+      postType = "quote-post";
+    }
+
     if (input.content && !paperId) {
       // Check for arXiv URL and import paper immediately (fast - no institutions)
       arxivUrl = detectArxivUrl(input.content);
@@ -40,13 +127,15 @@ export const createPostAction = actionClient
         if (importedPaperId) {
           paperId = importedPaperId;
           postType = "paper-post"; // Set as paper post immediately
-          console.log(`✅ arXiv paper imported synchronously: ${paperId}`);
+          Logger.info("arXiv paper imported synchronously", {
+            paperId: importedPaperId,
+          });
         }
       }
     }
 
-    // Require posts to have associated papers
-    if (!paperId) {
+    // Require posts to have associated papers, except for quote posts
+    if (!paperId && !isQuotePost) {
       throw new Error(
         "Posts must include an arXiv paper link. Please include a valid arXiv URL in your post content (e.g., https://arxiv.org/abs/2301.12345)."
       );
@@ -58,6 +147,8 @@ export const createPostAction = actionClient
         content: input.content || null,
         postType,
         paperId,
+        images,
+        quotedPostIds,
         authorId: session.user.id,
       },
       select: {
@@ -67,14 +158,176 @@ export const createPostAction = actionClient
 
     // If we imported a paper, queue institution enhancement in background
     if (paperId && arxivUrl) {
-      console.log("🏛️ Queuing institution processing for paper:", paperId);
+      Logger.info("Queuing institution processing for paper", { paperId });
       // Fire and forget - enhance paper with institutions
-      queueArxivInstitutionProcessing(paperId, arxivUrl).catch((error) => {
-        console.error("Failed to queue institution processing:", error);
-      });
+      JobQueueService.queueInstitutionExtraction(paperId, arxivUrl).catch(
+        (error) => {
+          Logger.error(
+            "Failed to queue institution processing",
+            error instanceof Error ? error : new Error(String(error))
+          );
+        }
+      );
+    }
+
+    // Create notifications for mentioned users
+    if (resolvedMentions.length > 0) {
+      try {
+        const actorName =
+          session.user.name || session.user.email?.split("@")[0] || "Someone";
+        const actionUrl = `/posts/${post.id}`;
+
+        await createMentionNotifications(
+          resolvedMentions,
+          session.user.id,
+          actorName,
+          "post",
+          post.id,
+          actionUrl
+        );
+      } catch (error) {
+        Logger.error(
+          "Error creating mention notifications",
+          error instanceof Error ? error : new Error(String(error))
+        );
+        // Don't fail the post creation if notifications fail
+      }
     }
 
     revalidatePath("/");
 
-    return { id: post.id };
+    // Fetch the complete post data to return to the client
+    const fullPost = await prisma.post.findUnique({
+      where: { id: post.id },
+      include: {
+        author: true,
+        comments: {
+          select: {
+            createdAt: true,
+          },
+          orderBy: {
+            createdAt: "desc",
+          },
+          take: 1,
+        },
+        paper: {
+          select: {
+            id: true,
+            title: true,
+            abstract: true,
+            tags: true,
+            link: true,
+            source: true,
+            externalId: true,
+            createdAt: true,
+            updatedAt: true,
+            llmAbstract: true,
+            llmAbstractGeneratedAt: true,
+            paperInstitutions: {
+              select: {
+                institution: {
+                  select: {
+                    id: true,
+                    name: true,
+                  },
+                },
+              },
+            },
+            paperAuthors: {
+              include: {
+                author: {
+                  select: {
+                    id: true,
+                    name: true,
+                    institution: true,
+                  },
+                },
+              },
+            },
+            userPaperInteractions: {
+              where: {
+                starred: true,
+              },
+              select: {
+                userId: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!fullPost) {
+      throw new Error("Failed to fetch created post");
+    }
+
+    // Fetch quoted posts if any
+    const quotedPosts =
+      fullPost.quotedPostIds && fullPost.quotedPostIds.length > 0
+        ? await prisma.post.findMany({
+            where: {
+              id: {
+                in: fullPost.quotedPostIds,
+              },
+            },
+            select: {
+              id: true,
+              title: true,
+              content: true,
+              authorId: true,
+              createdAt: true,
+              author: {
+                select: {
+                  id: true,
+                  name: true,
+                  email: true,
+                  image: true,
+                },
+              },
+            },
+          })
+        : [];
+
+    // Convert to maps for toFeedPostDTO
+    const usersMap = new Map([[fullPost.author.id, fullPost.author]]);
+    const papersMap = new Map();
+    if (fullPost.paper) {
+      papersMap.set(fullPost.paper.id, fullPost.paper);
+    }
+
+    // Get user paper interaction for starred status
+    const userPaperInteractionsMap = new Map();
+    if (fullPost.paperId && session.user.id) {
+      const interaction = await prisma.userPaperInteraction.findUnique({
+        where: {
+          userId_paperId: {
+            userId: session.user.id,
+            paperId: fullPost.paperId,
+          },
+        },
+      });
+      if (interaction) {
+        userPaperInteractionsMap.set(
+          `${session.user.id}_${fullPost.paperId}`,
+          interaction
+        );
+      }
+    }
+
+    const feedPostDTO = toFeedPostDTO(
+      {
+        ...fullPost,
+        quotedPosts,
+        postType: fullPost.postType as
+          | "user-post"
+          | "paper-post"
+          | "pure-paper"
+          | "quote-post",
+      } as any, // Type assertion: toFeedPostDTO only needs comments[].createdAt which we have
+      usersMap,
+      papersMap,
+      userPaperInteractionsMap
+    );
+
+    return { post: feedPostDTO };
   });

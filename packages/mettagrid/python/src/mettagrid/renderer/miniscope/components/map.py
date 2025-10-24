@@ -118,6 +118,12 @@ class MapComponent(MiniscopeComponent):
         else:
             self._map_buffer.set_cursor(None, None)
 
+        # Highlight selected agent if in glyph picker mode
+        if self.state.mode == RenderMode.GLYPH_PICKER:
+            self._map_buffer.set_highlighted_agent(self.state.selected_agent)
+        else:
+            self._map_buffer.set_highlighted_agent(None)
+
         # Render with viewport and set panel content
         buffer = self._map_buffer.render(grid_objects, use_viewport=True)
         self._panel.set_content(buffer.split("\n"))

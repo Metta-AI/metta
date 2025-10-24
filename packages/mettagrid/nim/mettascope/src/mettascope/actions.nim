@@ -33,10 +33,9 @@ proc getOrientationFromDelta(dx, dy: int): Orientation =
     return N
 
 proc processActions*() =
-  ## Process pathfinding and send actions for the current step while in play mode.
+  ## Process path actions and send actions for the current step while in play mode.
   if not (play or requestPython):
     return
-
   var agentIds: seq[int] = @[]
   for agentId in agentPaths.keys:
     agentIds.add(agentId)
@@ -55,8 +54,8 @@ proc processActions*() =
 
     let nextAction = pathActions[0]
 
-    case nextAction.actionType
-    of PathMove:
+    case nextAction.kind
+    of Move:
       # Execute movement action.
       let dx = nextAction.pos.x - currentPos.x
       let dy = nextAction.pos.y - currentPos.y
@@ -64,30 +63,50 @@ proc processActions*() =
       sendAction(agentId, replay.moveActionId, orientation.int)
       # Remove this action from the queue.
       agentPaths[agentId].delete(0)
-      # Check if we completed a destination.
-      if agentDestinations.hasKey(agentId) and agentDestinations[agentId].len > 0:
-        let dest = agentDestinations[agentId][0]
-        if dest.destinationType == Move and nextAction.pos == dest.pos:
-          # Completed this Move destination.
-          agentDestinations[agentId].delete(0)
-          if dest.repeat:
-            # Re-queue this destination at the end.
-            agentDestinations[agentId].add(dest)
-            recomputePath(agentId, nextAction.pos)
-    of PathBump:
+      # Check if we completed an objective.
+      let objective = agentObjectives[agentId][0]
+      if objective.kind == Move and nextAction.pos == objective.pos:
+        # Completed this Move objective.
+        agentObjectives[agentId].delete(0)
+        if objective.repeat:
+          # Re-queue this objective at the end.
+          agentObjectives[agentId].add(objective)
+          recomputePath(agentId, nextAction.pos)
+        elif agentObjectives[agentId].len == 0:
+          # No more objectives, clear the path.
+          agentPaths.del(agentId)
+    of Bump:
       # Execute bump action.
       let targetOrientation = getOrientationFromDelta(nextAction.bumpDir.x.int, nextAction.bumpDir.y.int)
       sendAction(agentId, replay.moveActionId, targetOrientation.int)
       # Remove this action from the queue.
       agentPaths[agentId].delete(0)
-      # Remove the corresponding destination.
-      if agentDestinations.hasKey(agentId) and agentDestinations[agentId].len > 0:
-        let dest = agentDestinations[agentId][0]
-        agentDestinations[agentId].delete(0)
-        if dest.repeat:
-          # Re-queue this destination at the end.
-          agentDestinations[agentId].add(dest)
+      # Remove the corresponding objective.
+      let objective = agentObjectives[agentId][0]
+      agentObjectives[agentId].delete(0)
+      if objective.repeat:
+        # Re-queue this objective at the end.
+        agentObjectives[agentId].add(objective)
+        recomputePath(agentId, currentPos)
+      elif agentObjectives[agentId].len == 0:
+        # No more objectives, clear the path.
+        agentPaths.del(agentId)
+    of Vibe:
+      # Execute vibe.
+      sendAction(agentId, nextAction.vibeActionId, -1)
+      # Remove this action from the queue.
+      agentPaths[agentId].delete(0)
+      # Remove the corresponding objective.
+      let objective = agentObjectives[agentId][0]
+      if objective.kind == Vibe:
+        agentObjectives[agentId].delete(0)
+        if objective.repeat:
+          # Re-queue this objective at the end.
+          agentObjectives[agentId].add(objective)
           recomputePath(agentId, currentPos)
+        elif agentObjectives[agentId].len == 0:
+          # No more objectives, clear the path.
+          agentPaths.del(agentId)
 
 proc agentControls*() =
   ## Manual controls with WASD for selected agent.

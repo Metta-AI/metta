@@ -223,7 +223,7 @@ def train_cmd(
         "-v",
         help="Mission variant (can be used multiple times, e.g., --variant solar_flare --variant dark_side)",
     ),
-    policy: str = typer.Option("simple", "--policy", "-p", help=f"Policy ({policy_arg_example})"),
+    policy: str = typer.Option("lstm", "--policy", "-p", help=f"Policy ({policy_arg_example})"),
     checkpoints_path: str = typer.Option(
         "./train_dir",
         "--checkpoints",
@@ -257,7 +257,7 @@ def train_cmd(
         min=1,
     ),
 ) -> None:
-    selected_missions = get_mission_names_and_configs(ctx, missions)
+    selected_missions = get_mission_names_and_configs(ctx, missions, variants_arg=variant, cogs=cogs)
     if len(selected_missions) == 1:
         mission_name, env_cfg = selected_missions[0]
         supplier = None
