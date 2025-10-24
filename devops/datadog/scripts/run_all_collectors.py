@@ -14,24 +14,17 @@ import sys
 import time
 from datetime import datetime
 
-# Import all collector functions
-from devops.datadog.scripts.run_collector import (
-    run_asana_collector,
-    run_ec2_collector,
-    run_github_collector,
-    run_kubernetes_collector,
-    run_skypilot_collector,
-    run_wandb_collector,
-)
+# Import the generic run_collector function
+from devops.datadog.scripts.run_collector import run_collector
 
 # Define collectors to run (in priority order)
 COLLECTORS = [
-    ("github", run_github_collector),
-    ("kubernetes", run_kubernetes_collector),
-    ("ec2", run_ec2_collector),
-    ("skypilot", run_skypilot_collector),
-    ("wandb", run_wandb_collector),
-    ("asana", run_asana_collector),
+    "github",
+    "kubernetes",
+    "ec2",
+    "skypilot",
+    "wandb",
+    "asana",
 ]
 
 
@@ -44,14 +37,14 @@ def main():
     results = {}
     start_time = time.time()
 
-    for name, collector_func in COLLECTORS:
+    for name in COLLECTORS:
         print(f"\n{'=' * 80}")
         print(f"Running {name} collector...")
         print(f"{'=' * 80}")
 
         collector_start = time.time()
         try:
-            metrics = collector_func(push=True, verbose=False, json_output=False)
+            metrics = run_collector(name, push=True, verbose=False, json_output=False)
             collector_duration = time.time() - collector_start
 
             results[name] = {
