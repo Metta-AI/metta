@@ -3,14 +3,18 @@
 This tool provides a local development experience that mirrors the GitHub Actions CI workflow.
 Both this file and .github/workflows/checks.yml should run the same metta CLI commands.
 
-To verify synchronization, run: uv run python scripts/validate_ci_sync.py
+Validation is performed automatically (and silently) when running `metta ci`.
 """
 
+import ast
+import re
 import subprocess
 import sys
+from pathlib import Path
 from typing import Annotated
 
 import typer
+import yaml
 from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
@@ -33,6 +37,112 @@ class CheckResult:
     def __init__(self, name: str, passed: bool):
         self.name = name
         self.passed = passed
+
+
+# ==============================================================================
+# CI Synchronization Validation
+# ==============================================================================
+
+
+def _extract_commands_from_python(file_path: Path) -> dict[str, list[str]]:
+    """Extract metta commands from this ci_runner.py file.
+
+    Returns dict mapping check name to list of command strings.
+    """
+    content = file_path.read_text()
+    tree = ast.parse(content)
+    commands = {}
+
+    for node in ast.walk(tree):
+        if isinstance(node, ast.FunctionDef) and node.name.startswith("_run_"):
+            check_name = node.name.replace("_run_", "")
+            check_commands = []
+
+            for child in ast.walk(node):
+                if isinstance(child, ast.List):
+                    cmd_parts = [str(elt.value) for elt in child.elts if isinstance(elt, ast.Constant)]
+                    if cmd_parts and (cmd_parts[0] in ("uv", "metta") or cmd_parts[0:2] == ["uv", "run"]):
+                        normalized = [p for p in cmd_parts if p not in ("--verbose", "-v")]
+                        check_commands.append(" ".join(normalized))
+
+            if check_commands:
+                commands[check_name] = check_commands
+
+    return commands
+
+
+def _extract_commands_from_yaml(file_path: Path) -> dict[str, list[str]]:
+    """Extract metta commands from checks.yml workflow.
+
+    Returns dict mapping job name to list of command strings.
+    """
+    content = file_path.read_text()
+    data = yaml.safe_load(content)
+    commands = {}
+
+    if "jobs" not in data:
+        return commands
+
+    for job_name, job_data in data["jobs"].items():
+        if not isinstance(job_data, dict) or "steps" not in job_data:
+            continue
+
+        job_commands = []
+        for step in job_data["steps"]:
+            if not isinstance(step, dict):
+                continue
+
+            run_cmd = step.get("run", "")
+            if not run_cmd:
+                continue
+
+            for line in run_cmd.split("\n"):
+                line = line.strip()
+                if not line or line.startswith("#"):
+                    continue
+
+                if "metta" in line and ("uv run" in line or line.startswith("metta")):
+                    normalized = line
+                    normalized = re.sub(r"\$\{.*?\}|\$\(.*?\)", "", normalized)
+                    normalized = normalized.replace('"', "").replace("'", "")
+                    normalized = re.sub(r"\s+--verbose\b", "", normalized)
+                    normalized = re.sub(r"\s+\|\|.*$", "", normalized)
+                    normalized = re.sub(r"\s+&&.*$", "", normalized)
+                    normalized = " ".join(normalized.split())
+
+                    if normalized:
+                        job_commands.append(normalized)
+
+        if job_commands:
+            commands[job_name] = job_commands
+
+    return commands
+
+
+def _check_ci_sync_silent() -> bool:
+    """Silently check if CI runner and workflow are synchronized.
+
+    Returns True if synchronized, False otherwise.
+    """
+    try:
+        repo_root = get_repo_root()
+        python_file = repo_root / "metta/setup/tools/ci_runner.py"
+        yaml_file = repo_root / ".github/workflows/checks.yml"
+
+        if not python_file.exists() or not yaml_file.exists():
+            return True
+
+        python_cmds = _extract_commands_from_python(python_file)
+        yaml_cmds = _extract_commands_from_yaml(yaml_file)
+
+        # Build command sets
+        python_cmd_set = {" ".join(cmd.split()) for cmds in python_cmds.values() for cmd in cmds}
+        yaml_cmd_set = {" ".join(cmd.split()) for cmds in yaml_cmds.values() for cmd in cmds}
+
+        return python_cmd_set == yaml_cmd_set
+
+    except Exception:
+        return True  # Silently pass on errors
 
 
 def _print_header(title: str) -> None:
@@ -154,31 +264,16 @@ def _validate_ci_sync(*, verbose: bool = False) -> bool:
     Prints warning if not synchronized.
     """
     try:
-        repo_root = get_repo_root()
-        validator_script = repo_root / "scripts" / "validate_ci_sync.py"
+        is_synced = _check_ci_sync_silent()
 
-        if not validator_script.exists():
-            # Silently skip if validator script doesn't exist
-            return True
-
-        result = subprocess.run(
-            ["uv", "run", "python", str(validator_script)],
-            cwd=repo_root,
-            capture_output=True,
-            text=True,
-        )
-
-        if result.returncode == 0:
+        if is_synced:
             # Commands match - silently continue
             return True
         else:
             # Commands don't match - show warning
             console.print()
             console.print("[yellow]⚠ Warning: Local CI runner may be out of sync with GitHub Actions workflow[/yellow]")
-            console.print("[yellow]Run 'uv run python scripts/validate_ci_sync.py' for details[/yellow]")
-            if verbose:
-                console.print()
-                console.print(result.stdout)
+            console.print("[yellow]This may indicate drift between local and remote CI checks.[/yellow]")
             console.print()
             return False
 
