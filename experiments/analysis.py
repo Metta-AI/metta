@@ -9,9 +9,11 @@ from typing import Any, Iterable, Literal, Optional
 import numpy as np
 import pandas as pd
 import scipy.stats as st  # type: ignore
+import wandb
 from metta.common.tool import Tool
-from metta.common.wandb.runs import get_run
+from metta.common.util.constants import METTA_WANDB_ENTITY, METTA_WANDB_PROJECT
 from pydantic import BaseModel, Field, model_validator
+from wandb.apis.public.runs import Run
 
 
 class RunPair(BaseModel):
@@ -81,6 +83,25 @@ class _RunSeries:
     run_id: str
     steps: np.ndarray
     values: np.ndarray
+
+
+def get_run(
+    run_name: str,
+    entity: str = METTA_WANDB_ENTITY,
+    project: str = METTA_WANDB_PROJECT,
+) -> Run | None:
+    try:
+        api = wandb.Api(timeout=60)
+    except Exception as e:  # noqa: BLE001
+        print(f"Error connecting to W&B: {str(e)}")
+        print("Make sure you are connected to W&B: `metta status`")
+        return None
+
+    try:
+        return api.run(f"{entity}/{project}/{run_name}")
+    except Exception as e:  # noqa: BLE001
+        print(f"Error getting run {run_name}: {str(e)}")
+        return None
 
 
 def _resolve_step_column(df: pd.DataFrame) -> np.ndarray:
