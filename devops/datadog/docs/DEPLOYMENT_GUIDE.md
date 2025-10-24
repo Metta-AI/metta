@@ -1,21 +1,21 @@
 # Datadog Collector Deployment Guide
 
-This guide covers deploying the GitHub metrics collector to Kubernetes/EKS.
+This guide covers deploying the dashboard metrics collectors to Kubernetes/EKS.
 
 ## Overview
 
-The GitHub collector runs as a Kubernetes CronJob that:
+The dashboard collectors run as Kubernetes CronJobs that:
 
-- Executes every 15 minutes
-- Collects 25 GitHub repository metrics
-- Pushes metrics to Datadog
-- Uses AWS Secrets Manager for authentication (GitHub token, Datadog API keys)
+- Execute every 15 minutes
+- Collect metrics from GitHub, Asana, Kubernetes, SkyPilot, etc.
+- Push metrics to Datadog
+- Use AWS Secrets Manager for authentication (GitHub token, Datadog API keys)
 
 ## Prerequisites
 
 - AWS CLI configured with appropriate credentials
 - kubectl installed
-- helm installed
+- helmfile installed
 - Access to EKS cluster (IAM permissions)
 
 ## Quick Start
@@ -23,23 +23,22 @@ The GitHub collector runs as a Kubernetes CronJob that:
 ### 1. Setup kubectl access
 
 ```bash
-./devops/k8s/setup-k8s.sh main
+# Configure kubectl for main cluster
+aws eks update-kubeconfig --name main --region us-east-1
+
+# Verify access
+kubectl get namespaces
 ```
-
-This will:
-
-- Configure kubectl for the EKS cluster
-- Verify access
-- Show available namespaces
 
 ### 2. Deploy to production
 
+Production is automatically deployed by GitHub Actions on merge to main.
+
+For manual deployment:
+
 ```bash
-./devops/k8s/deploy-helm-chart.sh \
-  --chart devops/charts/dashboard-cronjob \
-  --release dashboard-cronjob \
-  --namespace monitoring \
-  --cluster main
+cd devops/charts
+helmfile apply -l name=dashboard-cronjob
 ```
 
 ### 3. Verify deployment
@@ -55,43 +54,64 @@ kubectl get jobs -n monitoring --sort-by=.metadata.creationTimestamp | tail -5
 kubectl logs -n monitoring -l app.kubernetes.io/name=dashboard-cronjob --tail=100
 ```
 
-## Staging Environment
+## Development/Testing Environment
 
-For testing changes before production deployment:
+For testing changes before merging to main:
 
-### 1. Create staging namespace
+### 1. Uncomment dev section in helmfile.yaml
 
-```bash
-kubectl create namespace monitoring-staging
+Edit `devops/charts/helmfile.yaml` and uncomment:
+
+```yaml
+- name: dashboard-cronjob-dev
+  chart: ./dashboard-cronjob
+  version: 0.1.0
+  namespace: monitoring
+  values:
+    - ./dashboard-cronjob/values-dev.yaml
+    - image:
+        tag: "your-feature-branch"  # Update this
 ```
 
-Note: The cronjob uses IAM roles for AWS Secrets Manager access, so no additional secrets need to be copied to the
-staging namespace.
-
-### 2. Deploy to staging
+### 2. Deploy development copy
 
 ```bash
-./devops/k8s/deploy-helm-chart.sh \
-  --chart devops/charts/dashboard-cronjob \
-  --release dashboard-cronjob-staging \
-  --namespace monitoring-staging \
-  --cluster main \
-  --set schedule="*/30 * * * *" \
-  --set datadog.env="staging" \
-  --create-namespace
+cd devops/charts
+helmfile apply -i -l name=dashboard-cronjob-dev
 ```
 
-### 3. Monitor staging deployment
+This deploys a `-dev` copy to the same `monitoring` namespace that:
+- Reuses the production service account (no separate IRSA needed)
+- Tags metrics with `env:development` for filtering
+- Runs alongside production without interference
+
+### 3. Monitor development deployment
 
 ```bash
-# Watch for jobs to be created
-kubectl get jobs -n monitoring-staging --watch
+# Check dev cronjob
+kubectl get cronjobs -n monitoring | grep dev
+
+# Manually trigger a test job
+kubectl create job --from=cronjob/dashboard-cronjob-dev-dashboard-cronjob \
+  test-$(date +%s) -n monitoring
 
 # View logs
-kubectl logs -n monitoring-staging -l app.kubernetes.io/name=dashboard-cronjob --tail=100
+kubectl logs -n monitoring -l job-name=test-* --tail=100
+```
 
-# Manually trigger a job for immediate testing
-kubectl create job --from=cronjob/dashboard-cronjob-staging test-run-$(date +%s) -n monitoring-staging
+### 4. Cleanup
+
+When done testing:
+
+```bash
+cd devops/charts
+helmfile delete -l name=dashboard-cronjob-dev
+```
+
+Or comment out the dev section in helmfile.yaml and run:
+
+```bash
+helmfile apply
 ```
 
 ## Deployment Options
@@ -101,21 +121,21 @@ kubectl create job --from=cronjob/dashboard-cronjob-staging test-run-$(date +%s)
 Deploy a specific image version (useful for testing branches):
 
 ```bash
-./devops/k8s/deploy-helm-chart.sh \
-  --chart devops/charts/dashboard-cronjob \
-  --release dashboard-cronjob \
-  --namespace monitoring \
+cd devops/charts
+helmfile apply -i -l name=dashboard-cronjob-dev \
   --set image.tag=my-feature-branch
 ```
 
 ### Changing collection schedule
 
-```bash
-./devops/k8s/deploy-helm-chart.sh \
-  --chart devops/charts/dashboard-cronjob \
-  --release dashboard-cronjob \
-  --namespace monitoring \
-  --set schedule="*/5 * * * *"  # Every 5 minutes
+Edit `values-dev.yaml` or override in helmfile:
+
+```yaml
+- name: dashboard-cronjob-dev
+  # ... other config ...
+  values:
+    - ./dashboard-cronjob/values-dev.yaml
+    - schedule: "*/5 * * * *"  # Every 5 minutes
 ```
 
 ### Dry run (template only)
@@ -123,11 +143,8 @@ Deploy a specific image version (useful for testing branches):
 Preview changes without deploying:
 
 ```bash
-./devops/k8s/deploy-helm-chart.sh \
-  --chart devops/charts/dashboard-cronjob \
-  --release dashboard-cronjob \
-  --namespace monitoring \
-  --dry-run
+cd devops/charts
+helmfile diff -l name=dashboard-cronjob-dev
 ```
 
 ## Monitoring
@@ -242,12 +259,15 @@ If you see rate limit errors:
 
 1. **Reduce collection frequency:**
 
+   Edit `values.yaml` and change the schedule:
+   ```yaml
+   schedule: "*/30 * * * *"  # Change from 15 to 30 minutes
+   ```
+
+   Then deploy:
    ```bash
-   ./devops/k8s/deploy-helm-chart.sh \
-     --chart devops/charts/dashboard-cronjob \
-     --release dashboard-cronjob \
-     --namespace monitoring \
-     --set schedule="*/30 * * * *"  # Change from 15 to 30 minutes
+   cd devops/charts
+   helmfile apply -l name=dashboard-cronjob
    ```
 
 2. **Check current API usage:**
@@ -274,7 +294,11 @@ helm rollback dashboard-cronjob <revision> -n monitoring
 ### Delete deployment
 
 ```bash
-# Delete the helm release
+# Delete via helmfile
+cd devops/charts
+helmfile delete -l name=dashboard-cronjob
+
+# Or use helm directly
 helm uninstall dashboard-cronjob -n monitoring
 
 # Clean up manual jobs (optional)
@@ -302,7 +326,7 @@ To deploy without merging to main, use the manual deployment process above.
 ## Related Documentation
 
 - **Helm Chart**: `devops/charts/dashboard-cronjob/README.md`
+- **Helmfile**: `devops/charts/helmfile.yaml`
 - **Collector Architecture**: `devops/datadog/docs/COLLECTORS_ARCHITECTURE.md`
 - **Metrics Catalog**: `devops/datadog/docs/CI_CD_METRICS.md`
-- **K8s Helpers**: `devops/k8s/README.md`
 - **Adding New Collectors**: `devops/datadog/docs/ADDING_NEW_COLLECTOR.md`
