@@ -137,8 +137,10 @@ def build_server(context: ServerContext) -> Server:
         return [
             types.Tool(
                 name="find_similar_prs",
-                description="Return pull requests similar to a given query using text embedding similarity search."
-                + "Helpful for finding relevant historical PRs when debugging new issues.",
+                description=(
+                    "Embedding search across PR titles and summaries. "
+                    "Paste issue text (not just keywords) to surface past fixes and related discussions."
+                ),
                 inputSchema={
                     "type": "object",
                     "properties": {
