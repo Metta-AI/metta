@@ -130,7 +130,7 @@ def make_curriculum(
     if algorithm_config is None:
         algorithm_config = LearningProgressConfig(
             use_bidirectional=True,  # Default: bidirectional learning progress
-            ema_timescale=0.01,
+            ema_timescale=0.0001,
             num_active_tasks=100,
             slow_timescale_factor=0.2,
             rand_task_rate=0.01,
