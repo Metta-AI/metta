@@ -174,9 +174,7 @@ jobs:
       - name: Setup Environment
         uses: ./.github/actions/setup-environment
         with:
-          extra-dependencies: |
-            ruff>=0.11.13
-            cpplint>=2.0.2
+          install-mode: "linting"
 
       - name: Run linting
         # Uses metta lint command - same command developers use locally.
