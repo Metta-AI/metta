@@ -307,7 +307,7 @@ except Exception as e:
 
 **Fix**: Would require fetching `/pulls/{pr_number}/reviews` for each PR (~60+ additional API calls per collection).
 
-**Workaround**: These metrics still provide value when teams use issue comments, or we can enhance in Phase 2.
+**Workaround**: These metrics still provide value when teams use issue comments, or we can enhance in the future.
 
 ### 2. Time to First Review
 **Issue**: `prs.time_to_first_review_hours` returns None
@@ -320,6 +320,14 @@ except Exception as e:
 **Note**: GitHub Actions billing minutes are not exposed via the standard API. To track compute costs, you would need to use the `/repos/{owner}/{repo}/actions/runs/{run_id}/timing` endpoint and calculate billable minutes based on runner types.
 
 ## Future Enhancements
+
+### Code Quality Metrics
+```
+github.commits.force_merge_7d            # Force pushes/merges in last 7 days
+github.ci.timeout_cancellations_7d       # Workflow runs cancelled by timeout
+github.ci.flaky_checks_7d                # Flaky test/check count
+github.ci.benchmarks_passing             # Benchmark tests status
+```
 
 ### DORA Metrics
 ```
