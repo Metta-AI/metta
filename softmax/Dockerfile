@@ -19,4 +19,4 @@ RUN uv run python -c "from devops.datadog.collectors import GitHubCollector, Sky
 # Default command runs all collectors sequentially
 # Helm chart can override this if needed
 # Use absolute path because uv run resolves paths relative to package directories
-CMD ["uv", "run", "python", "/workspace/metta/devops/datadog/run_collector.py", "github", "--push"]
+CMD ["uv", "run", "python", "/workspace/metta/devops/datadog/run_all_collectors.py"]
