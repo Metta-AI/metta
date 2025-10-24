@@ -127,19 +127,33 @@ class WandBCollector(BaseCollector):
 
             for run in recent_runs:
                 # Get run summary metrics
-                summary = run.summary
+                # WandB summary objects can be complex and may not convert to dict properly
+                try:
+                    summary_dict = dict(run.summary)
+                except (TypeError, ValueError, AttributeError):
+                    # If summary cannot be converted to dict, skip this run
+                    continue
 
                 # Track latest SPS (steps per second) - primary training throughput metric
-                if "overview/sps" in summary:
-                    latest_sps = summary["overview/sps"]
+                try:
+                    if "overview/sps" in summary_dict:
+                        latest_sps = summary_dict["overview/sps"]
+                except (TypeError, KeyError):
+                    pass
 
                 # Track heart amount (agent survival metric)
-                if "env_agent/heart.amount" in summary:
-                    heart_amounts.append(summary["env_agent/heart.amount"])
+                try:
+                    if "env_agent/heart.amount" in summary_dict:
+                        heart_amounts.append(summary_dict["env_agent/heart.amount"])
+                except (TypeError, KeyError):
+                    pass
 
                 # Track SkyPilot queue latency
-                if "skypilot/queue_latency_s" in summary:
-                    latest_queue_latency = summary["skypilot/queue_latency_s"]
+                try:
+                    if "skypilot/queue_latency_s" in summary_dict:
+                        latest_queue_latency = summary_dict["skypilot/queue_latency_s"]
+                except (TypeError, KeyError):
+                    pass
 
             metrics["wandb.metrics.latest_sps"] = latest_sps
             if heart_amounts:
@@ -188,11 +202,17 @@ class WandBCollector(BaseCollector):
                         continue
 
                 # Get GPU utilization from summary metrics
-                summary = run.summary
-                if "system.gpu.0.gpu" in summary:
-                    gpu_utils.append(summary["system.gpu.0.gpu"])
-                elif "gpu_util" in summary:
-                    gpu_utils.append(summary["gpu_util"])
+                # Use dict() to safely access summary data
+                try:
+                    summary_dict = dict(run.summary)
+
+                    if "system.gpu.0.gpu" in summary_dict:
+                        gpu_utils.append(summary_dict["system.gpu.0.gpu"])
+                    elif "gpu_util" in summary_dict:
+                        gpu_utils.append(summary_dict["gpu_util"])
+                except (TypeError, ValueError, AttributeError, KeyError):
+                    # Skip runs with invalid summary data
+                    continue
 
             if durations:
                 metrics["wandb.training.avg_duration_hours"] = sum(durations) / len(durations)
@@ -200,7 +220,7 @@ class WandBCollector(BaseCollector):
             if gpu_utils:
                 metrics["wandb.training.gpu_utilization_avg"] = sum(gpu_utils) / len(gpu_utils)
 
-            metrics["wandb.training.total_gpu_hours_7d"] = total_gpu_hours
+            metrics["wandb.training.total_gpu_hours_24h"] = total_gpu_hours
 
         except Exception as e:
             self.logger.error(f"Failed to collect resource metrics: {e}", exc_info=True)
