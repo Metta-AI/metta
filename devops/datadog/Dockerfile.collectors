@@ -55,4 +55,4 @@ RUN uv pip install --system \
 RUN python -c "from devops.datadog.collectors import GitHubCollector, SkypilotCollector, AsanaCollector, EC2Collector, WandBCollector, KubernetesCollector; print('✓ All 6 collectors imported successfully')"
 
 # Default command runs all collectors
-CMD ["python", "/app/devops/datadog/run_all_collectors.py"]
+CMD ["python", "/app/devops/datadog/scripts/run_all_collectors.py"]
