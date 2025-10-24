@@ -260,15 +260,29 @@ def run_asana_collector(push: bool = False, verbose: bool = False, json_output: 
             print(f"Error: Asana token not found. {e}", file=sys.stderr)
             sys.exit(1)
 
-    # Get workspace and bugs project IDs from environment variables
-    # These are set in the Helm chart (devops/charts/dashboard-cronjob/values.yaml)
+    # Get workspace and bugs project IDs
+    # Priority: environment variables > AWS Secrets Manager
     workspace_gid = os.getenv("ASANA_WORKSPACE_GID")
-    bugs_project_gid = os.getenv("ASANA_BUGS_PROJECT_GID")
-
     if not workspace_gid:
-        print("Error: ASANA_WORKSPACE_GID environment variable not set", file=sys.stderr)
-        print("  Set it in Helm chart or export ASANA_WORKSPACE_GID=<your-workspace-id>", file=sys.stderr)
-        sys.exit(1)
+        # Try AWS Secrets Manager
+        try:
+            from softmax.aws.secrets_manager import get_secretsmanager_secret
+
+            workspace_gid = get_secretsmanager_secret("asana/workspace-gid")
+        except Exception as e:
+            print(f"Error: ASANA_WORKSPACE_GID not found in environment or AWS Secrets Manager. {e}", file=sys.stderr)
+            sys.exit(1)
+
+    bugs_project_gid = os.getenv("ASANA_BUGS_PROJECT_GID")
+    if not bugs_project_gid:
+        # Try AWS Secrets Manager (optional - not required)
+        try:
+            from softmax.aws.secrets_manager import get_secretsmanager_secret
+
+            bugs_project_gid = get_secretsmanager_secret("asana/bugs-project-gid")
+        except Exception:
+            # Bugs project is optional, so don't fail if not found
+            pass
 
     print_status(f"Collecting metrics from Asana workspace {workspace_gid}...")
 

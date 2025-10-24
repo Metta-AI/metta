@@ -137,6 +137,8 @@ def validate_secrets(verbose: bool = False) -> bool:
         ),
         ("github/dashboard-token", "GitHub Personal Access Token", "https://github.com/settings/tokens"),
         ("asana/access-token", "Asana Personal Access Token", "Asana → My Settings → Apps → Personal access tokens"),
+        ("asana/workspace-gid", "Asana Workspace GID", "From Asana workspace URL"),
+        ("asana/bugs-project-gid", "Asana Bugs Project GID (optional)", "From Asana project URL"),
     ]
 
     secrets_status = {}
@@ -158,8 +160,8 @@ def validate_secrets(verbose: bool = False) -> bool:
         ("DD_SITE", False, "Datadog site (defaults to datadoghq.com)"),
         ("GITHUB_ORG", True, "GitHub organization"),
         ("GITHUB_REPO", True, "GitHub repository"),
-        ("ASANA_WORKSPACE_GID", True, "Asana workspace ID"),
-        ("ASANA_BUGS_PROJECT_GID", False, "Asana bugs project ID (optional)"),
+        ("ASANA_WORKSPACE_GID", False, "Asana workspace ID (or from AWS: asana/workspace-gid)"),
+        ("ASANA_BUGS_PROJECT_GID", False, "Asana bugs project ID (or from AWS: asana/bugs-project-gid)"),
     ]
 
     env_status = {}
