@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import os
 import shutil
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -14,6 +13,11 @@ from metta.setup.registry import register_module
 from metta.setup.saved_settings import get_saved_settings
 from metta.setup.utils import debug, info, warning
 from metta.tools.pr_similarity import DEFAULT_CACHE_PATH, resolve_cache_paths
+
+
+def _resolve_cache_paths(repo_root: Path) -> tuple[Path, Path]:
+    cache_base = repo_root / DEFAULT_CACHE_PATH
+    return resolve_cache_paths(cache_base)
 
 
 @register_module
@@ -30,29 +34,16 @@ class PrSimilaritySetup(SetupModule):
         return ["aws"]
 
     def check_installed(self) -> bool:
-        meta_path, vectors_path = self._resolve_cache_paths()
+        meta_path, vectors_path = _resolve_cache_paths(self.repo_root)
         return meta_path.exists() and vectors_path.exists() and shutil.which("metta-pr-similarity-mcp") is not None
 
     def install(self, non_interactive: bool = False, force: bool = False) -> None:
-        env = {"PATH": self._build_path_env()}
         api_key = self._fetch_gemini_api_key()
 
         self._ensure_cache(force)
-        self._install_mcp_package(force, env=env)
-        self._configure_claude(api_key=api_key, force=force, env=env)
-        self._configure_codex(api_key=api_key, env=env)
-
-    def _build_path_env(self) -> str:
-        existing = os.environ.get("PATH", "")
-        venv_bin = str(self.repo_root / ".venv" / "bin")
-        parts = [venv_bin]
-        if existing:
-            parts.append(existing)
-        return os.pathsep.join(parts)
-
-    def _resolve_cache_paths(self) -> tuple[Path, Path]:
-        cache_base = self.repo_root / DEFAULT_CACHE_PATH
-        return resolve_cache_paths(cache_base)
+        self._install_mcp_package(force)
+        self._configure_claude(api_key=api_key, force=force)
+        self._configure_codex(api_key=api_key)
 
     def _fetch_gemini_api_key(self) -> Optional[str]:
         secret_name = "GEMINI-API-KEY"
@@ -74,7 +65,7 @@ class PrSimilaritySetup(SetupModule):
         return api_key
 
     def _ensure_cache(self, force: bool) -> None:
-        meta_path, vectors_path = self._resolve_cache_paths()
+        meta_path, vectors_path = _resolve_cache_paths(self.repo_root)
         need_download = force or not meta_path.exists() or not vectors_path.exists()
 
         if not need_download:
@@ -101,8 +92,8 @@ class PrSimilaritySetup(SetupModule):
         except Exception as error:  # pragma: no cover - external dependency
             warning(f"Unable to download PR similarity cache: {error}")
 
-    def _install_mcp_package(self, force: bool, *, env: dict[str, str]) -> None:
-        if shutil.which("metta-pr-similarity-mcp", path=env["PATH"]) and not force:
+    def _install_mcp_package(self, force: bool) -> None:
+        if shutil.which("metta-pr-similarity-mcp") and not force:
             return
 
         package_path = self.repo_root / "mcp_servers" / "pr_similarity"
@@ -110,19 +101,17 @@ class PrSimilaritySetup(SetupModule):
             self.run_command(
                 ["uv", "pip", "install", "-e", str(package_path)],
                 capture_output=False,
-                env=env,
             )
             info("Installed metta-pr-similarity MCP package.")
         except Exception as error:  # pragma: no cover - external dependency
             warning(f"Failed to install metta-pr-similarity package: {error}")
 
-    def _configure_claude(self, *, api_key: Optional[str], force: bool, env: dict[str, str]) -> None:
+    def _configure_claude(self, *, api_key: Optional[str], force: bool) -> None:
         if shutil.which("claude") is None:
             debug("Claude CLI not found on PATH. Skipping Claude MCP configuration.")
             return
 
-        command_path = shutil.which("metta-pr-similarity-mcp", path=env["PATH"])
-        if command_path is None:
+        if shutil.which("metta-pr-similarity-mcp") is None:
             warning("metta-pr-similarity-mcp is not available on PATH; skipping Claude MCP registration.")
             return
 
@@ -136,12 +125,16 @@ class PrSimilaritySetup(SetupModule):
             )
             return
 
+        command_path = shutil.which("metta-pr-similarity-mcp")
+        if command_path is None:
+            warning("metta-pr-similarity-mcp is not available on PATH; skipping Claude MCP registration.")
+            return
+
         if not force:
             self.run_command(
                 ["claude", "mcp", "remove", "metta-pr-similarity"],
                 check=False,
                 capture_output=False,
-                env=env,
             )
 
         if not api_key:
@@ -162,18 +155,18 @@ class PrSimilaritySetup(SetupModule):
         ]
 
         try:
-            self.run_command(command, capture_output=False, env=env)
+            self.run_command(command, capture_output=False)
             info("Configured Claude MCP server 'metta-pr-similarity'.")
         except Exception as error:  # pragma: no cover - external dependency
             warning(f"Failed to configure Claude MCP server: {error}")
 
-    def _configure_codex(self, *, api_key: Optional[str], env: dict[str, str]) -> None:
+    def _configure_codex(self, *, api_key: Optional[str]) -> None:
         codex_executable = shutil.which("codex")
         if not codex_executable:
             debug("Codex CLI not found on PATH. Skipping PR similarity MCP registration.")
             return
 
-        command_path = shutil.which("metta-pr-similarity-mcp", path=env["PATH"])
+        command_path = shutil.which("metta-pr-similarity-mcp")
         if not command_path:
             warning(
                 "Unable to locate 'metta-pr-similarity-mcp' on PATH. Install the MCP package before configuring Codex.",
@@ -189,7 +182,6 @@ class PrSimilaritySetup(SetupModule):
                 [codex_executable, "mcp", "remove", name],
                 check=False,
                 capture_output=False,
-                env=env,
             )
 
         try:
@@ -204,7 +196,6 @@ class PrSimilaritySetup(SetupModule):
                     command_path,
                 ],
                 capture_output=False,
-                env=env,
             )
             info("Configured Codex MCP server 'metta-pr-similarity'.")
         except Exception as error:
