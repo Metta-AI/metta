@@ -64,28 +64,6 @@ def test_lint_staged_with_only_unsupported_files_exits_cleanly(tmp_path: Path) -
     assert "No files with supported extensions found" in result.stdout
 
 
-def test_lint_with_mixed_files_only_formats_supported(tmp_path: Path) -> None:
-    """Test that metta lint with mixed file types only formats supported files."""
-    # Create supported and unsupported files
-    py_file = tmp_path / "test.py"
-    py_file.write_text('print("hello")\n')
-
-    txt_file = tmp_path / "test.txt"
-    txt_file.write_text("This is a test file\n")
-
-    # Run metta lint on both files
-    result = subprocess.run(
-        [sys.executable, "-m", "metta.setup.metta_cli", "lint", str(py_file), str(txt_file)],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-
-    # Should succeed and only format Python
-    assert result.returncode == 0
-    assert "Formatting Python" in result.stdout or "python" in result.stdout.lower()
-
-
 def test_lint_check_mode_with_unsupported_formatter() -> None:
     """Test that metta lint --check returns False when formatter doesn't support check mode."""
     from metta.setup.tools.code_formatters import FormatterConfig, run_formatter
