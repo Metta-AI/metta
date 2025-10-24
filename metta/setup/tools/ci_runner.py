@@ -10,7 +10,7 @@ from rich.panel import Panel
 from rich.table import Table
 
 from metta.common.util.fs import get_repo_root
-from metta.setup.utils import error, info, success, warning
+from metta.setup.utils import error, info, success
 
 app = typer.Typer(
     help="Run CI checks locally",
@@ -60,48 +60,24 @@ def _run_command(cmd: list[str], description: str, *, verbose: bool = False) -> 
 
 
 def _run_lint(*, verbose: bool = False) -> CheckResult:
-    """Run linting checks (Python and C++)."""
+    """Run linting checks (Python and C++).
+
+    Uses metta lint command - same command used by CI.
+    This ensures local and CI behavior stay perfectly in sync.
+    """
     _print_header("Linting")
 
-    # Run Python linting
-    info("Running Python linting...")
-    ruff_format_passed = _run_command(
-        ["uv", "run", "ruff", "format", "--check", "."],
-        "Ruff format check",
-        verbose=verbose,
-    )
-
-    if not ruff_format_passed:
-        return CheckResult("Lint", False)
-
-    ruff_check_passed = _run_command(
-        ["uv", "run", "ruff", "check", "--exit-non-zero-on-fix", "."],
-        "Ruff check",
-        verbose=verbose,
-    )
-
-    if not ruff_check_passed:
-        return CheckResult("Lint", False)
-
-    # Run C++ linting
-    info("Running C++ linting...")
-    cpplint_script = get_repo_root() / "packages" / "mettagrid" / "tests" / "cpplint.sh"
-    if cpplint_script.exists():
-        cpplint_passed = _run_command(
-            ["bash", str(cpplint_script)],
-            "C++ lint",
-            verbose=verbose,
-        )
-        if not cpplint_passed:
-            return CheckResult("Lint", False)
-    else:
-        warning("C++ linting script not found, skipping")
-
-    return CheckResult("Lint", True)
+    cmd = ["uv", "run", "metta", "lint"]
+    passed = _run_command(cmd, "Linting", verbose=verbose)
+    return CheckResult("Lint", passed)
 
 
 def _run_python_tests(*, verbose: bool = False) -> CheckResult:
-    """Run Python tests."""
+    """Run Python tests.
+
+    Uses metta pytest command - same command used by CI.
+    This ensures local and CI behavior stay perfectly in sync.
+    """
     _print_header("Python Tests")
 
     passed = _run_command(
@@ -114,7 +90,11 @@ def _run_python_tests(*, verbose: bool = False) -> CheckResult:
 
 
 def _run_cpp_tests(*, verbose: bool = False) -> CheckResult:
-    """Run C++ tests and benchmarks."""
+    """Run C++ tests and benchmarks.
+
+    Uses metta cpptest command - same command used by CI.
+    This ensures local and CI behavior stay perfectly in sync.
+    """
     _print_header("C++ Tests")
 
     # Run C++ unit tests
