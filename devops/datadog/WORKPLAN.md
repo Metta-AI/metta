@@ -1,8 +1,10 @@
 # Datadog Observability System - Work Plan
 
-**Current Status**: Production deployment with 7 collectors, 8 dashboards, and 123+ metrics
+**Current Status**: Production deployment with 7 collectors, 5 migrated dashboards (Jsonnet framework), and 123+ metrics
 
 **Branch**: `robb/1022-datadog` **PR**: [#3384](https://github.com/Metta-AI/metta/pull/3384)
+
+**Dashboard Framework**: Comprehensive Jsonnet library with layouts, presets, and component libraries (2,550+ lines of documentation)
 
 ---
 
@@ -22,16 +24,25 @@ Running in production via unified CronJob (every 15 minutes):
 
 ---
 
-### 📊 Eight Dashboards Deployed
+### 📊 Dashboard Status
 
-- `github_cicd.json` - CI/CD metrics and workflow health
-- `skypilot_jobs.json` - Job tracking and GPU utilization
-- `asana.json` - Project tracking and bug workflow
-- `ec2.json` - Infrastructure monitoring and costs
-- `system_health_rollup.json` - 7×7 FoM grid (65 widgets)
-- `system_health_rollup_wildcard.json` - 7×7 FoM grid (Vega-Lite)
-- `policy_evaluator.json` - Policy evaluation metrics
-- `demo.json` - Demo/reference dashboard
+**✅ Migrated to Jsonnet Framework** (using layouts + presets):
+- `github_cicd.jsonnet` → GitHub CI/CD metrics (ID: 7gy-9ub-2sq)
+- `skypilot_jobs.jsonnet` → Skypilot job tracking (ID: mtw-y2p-4ed)
+- `ec2.jsonnet` → AWS EC2 infrastructure (ID: 4ue-n4w-b7a)
+- `asana.jsonnet` → Project management (ID: srz-bhk-zr2)
+- `demo.jsonnet` → Demo/reference dashboard
+
+**🔧 Python-Generated** (complex visualizations, no migration needed):
+- `system_health_rollup.json` → 7×7 FoM grid (65 widgets) via `generate_health_grid.py`
+- `system_health_rollup_wildcard.json` → Vega-Lite heatmap via `generate_wildcard_fom_grid.py`
+
+**⚠️ Legacy JSON** (needs migration to Jsonnet):
+- `policy_evaluator.json` → APM dashboard (eval-orchestrator/worker latency)
+
+**❌ Missing Dashboards** (collectors without dashboards):
+- Kubernetes collector (15 metrics) - no dashboard yet
+- WandB collector (10 metrics) - no dashboard yet
 
 ### 🏗️ Infrastructure
 
@@ -48,6 +59,21 @@ Running in production via unified CronJob (every 15 minutes):
 
 - [ ] Address PR feedback and merge to main
 - [ ] Monitor production stability (95%+ collector success rate)
+
+### Dashboard Migration Tasks
+
+**High Priority** (migrate existing dashboard):
+- [ ] Migrate `policy_evaluator.json` to Jsonnet framework
+  - Simple 3-widget APM dashboard (eval-orchestrator/worker latency)
+  - Should take ~15 minutes using new framework
+
+**Medium Priority** (create missing dashboards):
+- [ ] Create Kubernetes dashboard (`kubernetes.jsonnet`)
+  - 15 metrics available: pods, deployments, node health, resource waste
+  - Use new framework with layouts + presets
+- [ ] Create WandB dashboard (`wandb.jsonnet`)
+  - 10 metrics available: training runs, model performance, resource usage
+  - Use new framework with layouts + presets
 
 ### Near-term (When Needed)
 
