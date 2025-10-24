@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING, Any, Callable, Optional
 import psutil
 from rich.console import Console
 
-from cogames.cli.mission import MAP_MISSION_DELIMITER
+from cogames.cli.policy import POLICY_ARG_DELIMITER
 from cogames.policy.interfaces import TrainablePolicy
 from cogames.policy.signal_handler import DeferSigintContextManager
 from cogames.policy.utils import (
@@ -380,7 +380,7 @@ def train(
 
             # Build the command with game name if provided
             policy_class_arg = policy_shorthand if policy_shorthand else policy_class_path
-            policy_arg = f"{policy_class_arg}{MAP_MISSION_DELIMITER}{final_checkpoint}"
+            policy_arg = f"{policy_class_arg}{POLICY_ARG_DELIMITER}{final_checkpoint}"
 
             first_mission = missions_arg[0] if missions_arg else "training_facility_1"
             all_missions = " ".join(f"-m {m}" for m in (missions_arg or ["training_facility_1"]))
