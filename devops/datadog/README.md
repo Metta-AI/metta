@@ -30,11 +30,11 @@ Automated metric collection from multiple services via Kubernetes CronJobs:
 - **WandB** ✅ **(Implemented)**: Training runs, model performance, GPU hours
 - **Kubernetes** ✅ **(Implemented)**: Resource efficiency, pod health, waste tracking
 
-Each collector:
-- Runs on schedule (5-30 minute intervals)
-- Uses AWS Secrets Manager for credentials
-- Emits health metrics about itself
-- Handles errors gracefully
+All collectors:
+- Run together every 15 minutes via unified CronJob
+- Use AWS Secrets Manager for credentials
+- Emit health metrics about themselves
+- Handle errors gracefully (continue on individual failures)
 
 ### Dashboard Management
 

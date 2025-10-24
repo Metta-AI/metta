@@ -15,14 +15,16 @@ All collectors share a common base class and follow consistent patterns.
 
 ## Available Collectors
 
-| Collector | Status | Priority | Metrics | Schedule | Description |
-|-----------|--------|----------|---------|----------|-------------|
-| [github](github/) | ✅ Implemented | High | 28 | 15 min | PRs, commits, CI/CD, branches, developers |
-| [skypilot](skypilot/) | ✅ Implemented | High | 30 | 10 min | Jobs, clusters, runtime stats, resource utilization |
-| [asana](asana/) | ✅ Implemented | Medium | 14 | 6 hours | Project health, bugs tracking, team velocity |
-| [ec2](ec2/) | ✅ Implemented | High | 19 | 5 min | Instances, costs, utilization, EBS volumes |
-| [wandb](wandb/) | ✅ Implemented | High | 10 | 30 min | Training runs, model performance, GPU hours |
-| [kubernetes](kubernetes/) | ✅ Implemented | High | 15 | 5 min | Resource efficiency, pod health, waste tracking |
+| Collector | Status | Priority | Metrics | Description |
+|-----------|--------|----------|---------|-------------|
+| [github](github/) | ✅ Implemented | High | 28 | PRs, commits, CI/CD, branches, developers |
+| [skypilot](skypilot/) | ✅ Implemented | High | 30 | Jobs, clusters, runtime stats, resource utilization |
+| [asana](asana/) | ✅ Implemented | Medium | 14 | Project health, bugs tracking, team velocity |
+| [ec2](ec2/) | ✅ Implemented | High | 19 | Instances, costs, utilization, EBS volumes |
+| [wandb](wandb/) | ✅ Implemented | High | 10 | Training runs, model performance, GPU hours |
+| [kubernetes](kubernetes/) | ✅ Implemented | High | 15 | Resource efficiency, pod health, waste tracking |
+
+**Note**: All collectors run together on a **unified 15-minute schedule** via a single CronJob for operational simplicity.
 
 ## Quick Reference
 
