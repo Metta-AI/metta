@@ -167,7 +167,7 @@ def run_formatter(
     if check_only:
         if formatter.check_cmd is None:
             warning(f"--check not supported for {formatter.name}, skipping")
-            return False
+            return True  # Skipping is not a failure
         cmd = formatter.check_cmd.copy()
     else:
         cmd = formatter.format_cmd.copy()
