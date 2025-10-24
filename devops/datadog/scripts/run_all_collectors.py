@@ -19,6 +19,7 @@ Exit codes:
 
 import sys
 import time
+from concurrent.futures import ThreadPoolExecutor, TimeoutError
 from datetime import datetime
 
 # Import the generic run_collector function
@@ -34,6 +35,10 @@ COLLECTORS = [
     "asana",
     "health_fom",  # Normalized health scores (runs after raw metrics collected)
 ]
+
+# Per-collector timeout in seconds (2 minutes default)
+# Some collectors (like wandb) may need to fetch large datasets
+COLLECTOR_TIMEOUT = 120
 
 
 def main():
@@ -52,16 +57,32 @@ def main():
 
         collector_start = time.time()
         try:
-            metrics = run_collector(name, push=True, verbose=False, json_output=False)
-            collector_duration = time.time() - collector_start
+            # Run collector with timeout protection
+            with ThreadPoolExecutor(max_workers=1) as executor:
+                future = executor.submit(run_collector, name, True, False, False)
+                try:
+                    metrics = future.result(timeout=COLLECTOR_TIMEOUT)
+                    collector_duration = time.time() - collector_start
 
-            results[name] = {
-                "status": "success",
-                "metrics_count": len(metrics),
-                "duration": collector_duration,
-            }
+                    results[name] = {
+                        "status": "success",
+                        "metrics_count": len(metrics),
+                        "duration": collector_duration,
+                    }
 
-            print(f"✅ {name}: {len(metrics)} metrics collected in {collector_duration:.2f}s")
+                    print(f"✅ {name}: {len(metrics)} metrics collected in {collector_duration:.2f}s")
+
+                except TimeoutError:
+                    collector_duration = time.time() - collector_start
+                    results[name] = {
+                        "status": "failed",
+                        "error": f"Timeout after {COLLECTOR_TIMEOUT}s",
+                        "metrics_count": 0,
+                        "duration": collector_duration,
+                    }
+                    print(f"❌ {name}: Timeout after {COLLECTOR_TIMEOUT}s")
+                    print("   Skipping to next collector...")
+                    # Continue to next collector
 
         except KeyboardInterrupt:
             print(f"\n⚠️  Interrupted while running {name} collector")
