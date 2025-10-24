@@ -2,12 +2,43 @@
 
 This guide covers deploying the dashboard metrics collectors to Kubernetes/EKS.
 
+## Quick Reference: Common Workflow
+
+**Testing changes before merging to main:**
+
+```bash
+# 1. Build Docker image from your branch
+gh workflow run build-dashboard-image.yml
+gh run watch  # Wait for completion (~1-2 min)
+
+# 2. Get the image tag
+git rev-parse --short=7 HEAD  # Output: abc1234
+
+# 3. Update helmfile with your image tag
+vim devops/charts/helmfile.yaml
+# Uncomment dashboard-cronjob-dev section
+# Set: image.tag: "sha-abc1234"
+
+# 4. Deploy using helmfile (NOT helm directly)
+cd devops/charts
+helmfile apply -l name=dashboard-cronjob-dev
+
+# 5. Test manually
+kubectl create job --from=cronjob/dashboard-cronjob-dev-dashboard-cronjob \
+  test-$(date +%s) -n monitoring
+
+# 6. Watch it run
+kubectl logs -n monitoring -l job-name=test-* --tail=100 -f
+```
+
+**Why helmfile for dev?** Using `helm upgrade` directly will create a separate service account without IRSA permissions. Helmfile applies `values-dev.yaml` which reuses production's service account.
+
 ## Overview
 
 The dashboard collectors run as Kubernetes CronJobs that:
 
 - Execute every 15 minutes
-- Collect metrics from GitHub, Asana, Kubernetes, SkyPilot, etc.
+- Collect metrics from GitHub, Asana, Kubernetes, SkyPilot, WandB, etc.
 - Push metrics to Datadog
 - Use AWS Secrets Manager for authentication (GitHub token, Datadog API keys)
 
@@ -63,7 +94,10 @@ For testing changes before merging to main:
 Trigger the GitHub Action to build an image from your branch:
 
 ```bash
-# Trigger build for your branch
+# Trigger build from your current branch
+gh workflow run build-dashboard-image.yml
+
+# OR trigger build from a specific branch
 gh workflow run build-dashboard-image.yml --ref your-branch-name
 
 # Wait for build to complete (~1-2 minutes)
@@ -76,9 +110,11 @@ git rev-parse --short=7 HEAD
 
 The image will be pushed to ECR as: `751442549699.dkr.ecr.us-east-1.amazonaws.com/softmax-dashboard:sha-<commit-sha>`
 
+**Note:** The workflow must be manually triggered via `gh workflow run` or the GitHub Actions UI. It does NOT automatically build on every push to your branch.
+
 ### 2. Uncomment dev section in helmfile.yaml
 
-Edit `devops/charts/helmfile.yaml` and uncomment:
+Edit `devops/charts/helmfile.yaml` and uncomment the dev section, updating the image tag:
 
 ```yaml
 - name: dashboard-cronjob-dev
@@ -88,8 +124,13 @@ Edit `devops/charts/helmfile.yaml` and uncomment:
   values:
     - ./dashboard-cronjob/values-dev.yaml
     - image:
-        tag: "your-feature-branch"  # Update this
+        tag: "sha-abc1234"  # Update with your image tag from step 1
 ```
+
+**Why helmfile?** The dev deployment MUST use helmfile (not `helm upgrade` directly) because:
+- Helmfile automatically applies `values-dev.yaml` which sets `serviceAccount.create: false`
+- This makes dev reuse production's service account (which has IRSA permissions)
+- Using `helm upgrade` directly will create a separate service account that lacks AWS permissions
 
 ### 3. Deploy development copy
 
@@ -99,9 +140,10 @@ helmfile apply -l name=dashboard-cronjob-dev
 ```
 
 This deploys a `-dev` copy to the same `monitoring` namespace that:
-- Reuses the production service account (no separate IRSA needed)
-- Tags metrics with `env:development` for filtering
+- **Reuses the production service account** (no separate IRSA setup needed)
+- Tags metrics with `env:development` for filtering in Datadog
 - Runs alongside production without interference
+- Uses the same 15-minute schedule as production
 
 ### 4. Monitor development deployment
 
@@ -327,21 +369,48 @@ kubectl delete jobs -n monitoring -l app.kubernetes.io/name=dashboard-cronjob
 
 ## CI/CD Integration
 
-The deployment is automated via GitHub Actions on push to `main`:
+### Automated Production Deployment
 
-1. **Workflow**: `.github/workflows/build-dashboard-image.yml`
-2. **Triggers**: Push to `main` with changes to:
-   - `softmax/**`
-   - `utils/**`
-   - `devops/datadog/**`
-   - `install.sh`
+The production deployment is fully automated via GitHub Actions:
 
-3. **Process**:
-   - Builds Docker image
-   - Pushes to ECR
-   - Deploys to production using `helm upgrade`
+**Workflow:** `.github/workflows/build-dashboard-image.yml`
 
-To deploy without merging to main, use the manual deployment process above.
+**Triggers:**
+- **Automatic:** Push to `main` branch with changes to:
+  - `devops/datadog/**` (collector code)
+  - `packages/gitta/**` (Git utilities)
+  - `devops/charts/dashboard-cronjob/**` (Helm chart)
+  - `.github/workflows/build-dashboard-image.yml` (workflow itself)
+
+- **Manual:** Via `workflow_dispatch` for any branch:
+  ```bash
+  gh workflow run build-dashboard-image.yml --ref your-branch-name
+  ```
+
+**Automated Process:**
+1. Builds Docker image with tag `sha-<7-digit-git-sha>`
+2. Pushes image to ECR: `751442549699.dkr.ecr.us-east-1.amazonaws.com/softmax-dashboard:sha-<sha>`
+3. **Production only:** Deploys to production using `helm upgrade` with new image tag
+4. Production deployment uses the chart's default values (no `-dev` suffix)
+
+**Key Difference: Production vs Dev Deployment**
+
+| Aspect | Production (CI/CD) | Dev (Manual) |
+|--------|-------------------|--------------|
+| Deployment method | `helm upgrade` (GitHub Actions) | `helmfile apply` (manual) |
+| Configuration | Default `values.yaml` | `values-dev.yaml` (via helmfile) |
+| Service account | Creates `dashboard-cronjob-dashboard-cronjob` | Reuses production SA |
+| Metric tags | `env:production` | `env:development` |
+| When | Automatic on merge to main | Manual for testing |
+
+**Why the difference?**
+- Production uses `helm upgrade` because it only manages one release
+- Dev uses `helmfile` to properly merge `values-dev.yaml` which sets `serviceAccount.create: false`
+- This is why you can't just run `helm upgrade` for dev - it won't apply the values-dev configuration
+
+### Manual Deployment (Without CI/CD)
+
+To deploy without merging to main, use the development deployment process above (Build → Update helmfile → Deploy with helmfile).
 
 ## Related Documentation
 
