@@ -15,7 +15,7 @@ from cogames.cogs_vs_clips.stations import (
     OxygenExtractorConfig,
     SiliconExtractorConfig,
 )
-from mettagrid.config.mettagrid_config import ChestConfig, GridObjectConfig, MettaGridConfig
+from mettagrid.config.mettagrid_config import AssemblerConfig, ChestConfig, GridObjectConfig, MettaGridConfig
 from mettagrid.map_builder.map_builder import MapBuilderConfig
 
 
@@ -201,7 +201,6 @@ TRAINING_FACILITY = Site(
         height=21,
         corner_bundle="chests",
         cross_bundle="extractors",
-        cross_distance=7,
     ),
     min_cogs=1,
     max_cogs=4,
@@ -222,6 +221,7 @@ HELLO_WORLD = Site(
 MACHINA_1 = Site(
     name="machina_1",
     description="Your first mission. Collect resources and assemble HEARTs.",
+    # Originally was get_map("machina_100_stations.map"), but that was hard to make missions from
     map_builder=make_machina_procedural_map_builder(
         num_cogs=4,
         width=200,
@@ -303,17 +303,71 @@ class VibeCheckMission(Mission):
     site: Site = TRAINING_FACILITY
 
     # Modify the assembler recipe so that it can only make HEARTs when
-    # multiple agents are present and setting their heart emoji
-    def configure(self):
-        self.procedural_overrides = {
-            "hub_corner_bundle": "none",
-        }
+    # Set the number of cogs to 4
+
+    def make_env(self) -> MettaGridConfig:
+        env = super().make_env()
+        # Require exactly 4 heart vibes for HEART crafting; keep gear recipes intact
+        assembler_cfg = env.game.objects.get("assembler")
+        if isinstance(assembler_cfg, AssemblerConfig):
+            filtered: list[tuple[list[str], Any]] = []
+            for vibes_list, recipe in assembler_cfg.recipes:
+                if any(v == "heart" for v in vibes_list):
+                    # Keep only the 4-heart recipe for heart crafting
+                    if len(vibes_list) == 4 and all(v == "heart" for v in vibes_list):
+                        filtered.append((vibes_list, recipe))
+                else:
+                    # Preserve non-heart (e.g., gear) recipes
+                    filtered.append((vibes_list, recipe))
+            assembler_cfg.recipes = filtered
+        return env
+
+    def instantiate(
+        self,
+        map_builder: MapBuilderConfig,
+        num_cogs: int,
+        variant: MissionVariant | None = None,
+    ) -> "Mission":
+        # Respect CLI --cogs if provided (differs from site.min_cogs); otherwise default to 4
+        desired = 4 if (self.site and num_cogs == self.site.min_cogs) else num_cogs
+        return super().instantiate(map_builder, desired, variant)
 
 
 class RepairMission(Mission):
     name: str = "repair"
     description: str = "Repair disabled stations to restore their functionality."
     site: Site = TRAINING_FACILITY
+
+    def configure(self):
+        # Place chests in corners, extractors on cross; start extractors clipped
+        self.procedural_overrides = {
+            "hub_corner_bundle": "chests",
+            "hub_cross_bundle": "extractors",
+            "hub_cross_distance": 7,
+        }
+        self.carbon_extractor.start_clipped = True
+        self.oxygen_extractor.start_clipped = True
+        self.germanium_extractor.start_clipped = True
+        self.silicon_extractor.start_clipped = True
+
+    def make_env(self) -> MettaGridConfig:
+        env = super().make_env()
+        # Seed resource chests with one unit each to craft gear items
+        for chest_name in ("chest_carbon", "chest_oxygen", "chest_germanium", "chest_silicon"):
+            chest_cfg = env.game.objects.get(chest_name)
+            if isinstance(chest_cfg, ChestConfig):
+                chest_cfg.initial_inventory = 1
+        return env
+
+    def instantiate(
+        self,
+        map_builder: MapBuilderConfig,
+        num_cogs: int,
+        variant: MissionVariant | None = None,
+    ) -> "Mission":
+        # Respect CLI --cogs if provided (differs from site.min_cogs); otherwise default to 2
+        desired = 2 if (self.site and num_cogs == self.site.min_cogs) else num_cogs
+        return super().instantiate(map_builder, desired, variant)
 
 
 class SignsAndPortentsMission(Mission):
