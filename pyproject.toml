@@ -79,7 +79,7 @@ version = "0.1"
 description = "Metta AI framework"
 readme = "README.md"
 requires-python = "==3.11.7"
-license = "MIT"
+license = { text = "MIT" }
 
 [dependency-groups]
 testing = [

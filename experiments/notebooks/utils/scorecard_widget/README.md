@@ -134,16 +134,19 @@ widget.on_replay_opened(on_replay_opened)
 ## Development Workflow
 
 1. **Start Development**:
+
    - Set `_DEV = True` in `ScorecardWidget.py`
    - Run `pnpm run dev`
    - Start Jupyter and create/modify widgets
 
 2. **Test Changes**:
+
    - Edit React/TypeScript files in `src/`
    - Changes will hot-reload in Jupyter
    - Check browser console for debugging
 
 3. **Build for Production**:
+
    - Set `_DEV = False` in `ScorecardWidget.py`
    - Run `pnpm run build`
    - Test the built version

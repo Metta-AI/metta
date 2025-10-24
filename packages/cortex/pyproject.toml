@@ -8,7 +8,7 @@ version = "0.1.0"
 description = "Memory module library for Metta policies"
 readme = "README.md"
 requires-python = ">=3.11"
-license = "MIT"
+license = { text = "MIT" }
 authors = [{ name = "Subhojeet Pramanik", email = "email@subho.in" }]
 dependencies = [
   "torch",
@@ -31,9 +31,7 @@ cortex = ["py.typed"]
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]
-markers = [
-  "slow: marks tests as slow (deselect with '-m \"not slow\"')",
-]
+markers = ["slow: marks tests as slow (deselect with '-m \"not slow\"')"]
 
 [tool.coverage.run]
 source = ["cortex"]
