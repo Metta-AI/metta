@@ -353,8 +353,9 @@ devops/datadog/dashboards/
 │   ├── github_cicd.jsonnet    # Level 4: Complete dashboards
 │   ├── skypilot_jobs.jsonnet
 │   ├── ec2.jsonnet
-│   ├── system_health.jsonnet
-│   └── demo.jsonnet
+│   ├── asana.jsonnet
+│   ├── kubernetes.jsonnet
+│   └── wandb.jsonnet
 │
 ├── templates/                  # Compiled JSON outputs
 │   ├── github_cicd.json
@@ -620,10 +621,6 @@ metta datadog watch sources/
 - `ec2.jsonnet` - AWS EC2 infrastructure
 - `asana.jsonnet` - Project management
 
-**Demo Dashboards**:
-- `demo.jsonnet` - 40 widgets showcasing full hierarchy
-- `preset_demo.jsonnet` - 19 widgets demonstrating presets
-- `layout_demo.jsonnet` - 20 widgets for layout patterns
 
 **Future Enhancements** (Nice to Have):
 1. CLI tool for generating widget boilerplate

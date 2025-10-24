@@ -1,6 +1,6 @@
 # Datadog Observability System - Work Plan
 
-**Current Status**: Production deployment with 7 collectors, 11 dashboards (all using Jsonnet), and 130+ metrics
+**Current Status**: Production deployment with 7 collectors, 8 dashboards (all using Jsonnet), and 130+ metrics
 
 **Branch**: `robb/1022-datadog` **PR**: [#3384](https://github.com/Metta-AI/metta/pull/3384)
 
@@ -38,10 +38,6 @@ Running in production via unified CronJob (every 15 minutes):
 - `wandb.jsonnet` → WandB training metrics (ID: dr3-pdj-rrw)
 - `health_fom` → System health scores (Python-generated)
 
-**✅ Demo/Reference Dashboards** (3 dashboards):
-- `demo.jsonnet` → Comprehensive framework showcase (ID: 2te-kvg-ja5)
-- `layout_demo.jsonnet` → Layout system examples (ID: 3sa-eku-8j3)
-- `preset_demo.jsonnet` → Preset widgets catalog (ID: rd5-3wh-9s2)
 
 **🔧 Python-Generated** (complex visualizations, no migration needed):
 - `system_health_rollup.json` → 14×7 FoM grid (121 widgets) via `generate_health_grid.py` (ID: h3w-ibt-gkv)

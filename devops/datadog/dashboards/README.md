@@ -90,9 +90,8 @@ devops/datadog/dashboards/
 │   ├── skypilot_jobs.jsonnet    # Skypilot jobs dashboard
 │   ├── ec2.jsonnet              # EC2 infrastructure dashboard
 │   ├── asana.jsonnet            # Asana project management
-│   ├── demo.jsonnet             # Component system demo
-│   ├── preset_demo.jsonnet      # Presets showcase
-│   └── layout_demo.jsonnet      # Layout system demo
+│   ├── kubernetes.jsonnet       # Kubernetes metrics dashboard
+│   └── wandb.jsonnet            # Weights & Biases metrics
 │
 └── templates/                   # Generated JSON (not committed)
     ├── README.md                # Build workflow documentation
@@ -427,14 +426,13 @@ jq '[.widgets[].layout.y] | unique | sort' /tmp/my_dashboard.json
 
 ## Examples
 
-See working examples in `sources/`:
-- **demo.jsonnet** - Comprehensive showcase (40 widgets)
-- **preset_demo.jsonnet** - Preset patterns (19 widgets)
-- **layout_demo.jsonnet** - Layout helpers (20 widgets)
-- **github_cicd.jsonnet** - Production dashboard
-- **skypilot_jobs.jsonnet** - Production dashboard
-- **ec2.jsonnet** - Production dashboard with groups
-- **asana.jsonnet** - Production dashboard with groups
+See working production dashboards in `sources/`:
+- **github_cicd.jsonnet** - GitHub CI/CD metrics
+- **skypilot_jobs.jsonnet** - Skypilot job monitoring
+- **ec2.jsonnet** - AWS EC2 infrastructure with groups
+- **asana.jsonnet** - Asana project management with groups
+- **kubernetes.jsonnet** - Kubernetes cluster metrics
+- **wandb.jsonnet** - Weights & Biases training metrics
 
 ## Contributing
 
