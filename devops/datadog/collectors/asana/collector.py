@@ -64,26 +64,24 @@ class AsanaCollector(BaseCollector):
         }
 
         try:
-            opts = {
-                "workspace": self.workspace_gid,
-                "archived": False,
-                "opt_fields": ["current_status_update.status_type"],
-            }
+            # Use direct API call - the SDK's get_projects() has issues returning data
+            # See: https://github.com/Asana/python-asana/issues
+            url = (
+                f"/projects?workspace={self.workspace_gid}&archived=false&opt_fields=current_status_update.status_type"
+            )
+            response_data, status_code, headers = self.api_client.call_api(
+                url, "GET", response_type="object", auth_settings=["token"]
+            )
 
-            response = self.projects_api.get_projects(opts)
-            projects = response.data if hasattr(response, "data") else []
+            projects = response_data.get("data", []) if isinstance(response_data, dict) else []
 
             for project in projects:
                 metrics["asana.projects.active"] += 1
 
                 # Get status from project object
-                if hasattr(project, "current_status_update") and project.current_status_update:
-                    status_update = project.current_status_update
-                    status_type = (
-                        status_update.get("status_type")
-                        if isinstance(status_update, dict)
-                        else getattr(status_update, "status_type", None)
-                    )
+                if "current_status_update" in project and project["current_status_update"]:
+                    status_update = project["current_status_update"]
+                    status_type = status_update.get("status_type")
 
                     if status_type == "on_track":
                         metrics["asana.projects.on_track"] += 1
@@ -93,7 +91,7 @@ class AsanaCollector(BaseCollector):
                         metrics["asana.projects.off_track"] += 1
 
         except Exception as e:
-            self.logger.error(f"Failed to collect workspace project metrics: {e}")
+            self.logger.error(f"Failed to collect workspace project metrics: {e}", exc_info=True)
             for key in metrics:
                 metrics[key] = None
 
