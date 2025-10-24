@@ -51,6 +51,7 @@ class EC2Collector(BaseCollector):
             "ec2.instances.spot": 0,
             "ec2.instances.ondemand": 0,
             # Instance types
+            "ec2.instances.gpu_instances": 0,
             "ec2.instances.gpu_count": 0,
             "ec2.instances.cpu_count": 0,
             # Utilization
@@ -58,6 +59,51 @@ class EC2Collector(BaseCollector):
             # Age
             "ec2.instances.avg_age_days": None,
             "ec2.instances.oldest_age_days": None,
+        }
+
+        # GPU counts per instance type
+        # Based on AWS documentation for common GPU instance types
+        gpu_counts = {
+            # P2 instances (NVIDIA K80)
+            "p2.xlarge": 1,
+            "p2.8xlarge": 8,
+            "p2.16xlarge": 16,
+            # P3 instances (NVIDIA V100)
+            "p3.2xlarge": 1,
+            "p3.8xlarge": 4,
+            "p3.16xlarge": 8,
+            "p3dn.24xlarge": 8,
+            # P4 instances (NVIDIA A100)
+            "p4d.24xlarge": 8,
+            "p4de.24xlarge": 8,
+            # P5 instances (NVIDIA H100)
+            "p5.48xlarge": 8,
+            # G4 instances (NVIDIA T4)
+            "g4dn.xlarge": 1,
+            "g4dn.2xlarge": 1,
+            "g4dn.4xlarge": 1,
+            "g4dn.8xlarge": 1,
+            "g4dn.12xlarge": 4,
+            "g4dn.16xlarge": 1,
+            "g4ad.xlarge": 1,
+            "g4ad.2xlarge": 1,
+            "g4ad.4xlarge": 1,
+            "g4ad.8xlarge": 2,
+            "g4ad.16xlarge": 4,
+            # G5 instances (NVIDIA A10G)
+            "g5.xlarge": 1,
+            "g5.2xlarge": 1,
+            "g5.4xlarge": 1,
+            "g5.8xlarge": 1,
+            "g5.12xlarge": 4,
+            "g5.16xlarge": 1,
+            "g5.24xlarge": 4,
+            "g5.48xlarge": 8,
+            "g5g.xlarge": 1,
+            "g5g.2xlarge": 1,
+            "g5g.4xlarge": 1,
+            "g5g.8xlarge": 1,
+            "g5g.16xlarge": 2,
         }
 
         try:
@@ -87,8 +133,11 @@ class EC2Collector(BaseCollector):
 
                     # Instance type analysis
                     instance_type = instance.get("InstanceType", "")
-                    if any(gpu_type in instance_type for gpu_type in ["p2", "p3", "p4", "g4", "g5"]):
-                        metrics["ec2.instances.gpu_count"] += 1
+
+                    # Count GPU instances and total GPUs
+                    if instance_type in gpu_counts:
+                        metrics["ec2.instances.gpu_instances"] += 1
+                        metrics["ec2.instances.gpu_count"] += gpu_counts[instance_type]
 
                     # CPU count (approximate based on instance type)
                     # This is a simplified mapping - could be enhanced
