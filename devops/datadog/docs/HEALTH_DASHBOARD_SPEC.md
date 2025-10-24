@@ -9,6 +9,80 @@ spectrum over a 7-day rolling window.
 **Status**: Planning phase **Dependencies**: WandB collector, training metrics collector, eval metrics collector
 **Existing**: GitHub, Skypilot, Asana, EC2 collectors (deployed)
 
+## Visualization Approaches
+
+We evaluated three approaches for displaying the 7×7 FoM grid in Datadog:
+
+### Approach 1: Widget Grid (65 Individual Widgets) ✅ IMPLEMENTED
+
+**Description**: Create a grid using individual Datadog widgets (49 data cells + 16 labels).
+
+**Pros**:
+- ✅ Native Datadog widgets - simple and reliable
+- ✅ Standard widget interactions (hover, click)
+- ✅ No custom code or external dependencies
+- ✅ Easy to debug and maintain
+
+**Cons**:
+- ❌ Large dashboard JSON (thousands of lines)
+- ❌ No text labels on data cells
+- ❌ Manual positioning for each widget
+- ❌ Difficult to regenerate if layout changes
+
+**Implementation**: `scripts/generate_health_grid.py`
+
+**Dashboard**: [System Health Rollup (Grid)](https://app.datadoghq.com/dashboard/2mx-kfj-8pi/system-health-rollup)
+
+### Approach 2: Wildcard Widget with Vega-Lite ✅ IMPLEMENTED
+
+**Description**: Single wildcard widget using Vega-Lite visualization language.
+
+**Pros**:
+- ✅ Single widget (easy to maintain)
+- ✅ Text labels showing exact FoM values
+- ✅ Interactive tooltips
+- ✅ Declarative visualization spec
+
+**Cons**:
+- ❌ Requires 49 metric queries (7 metrics × 7 days with `.timeshift()`)
+- ❌ More complex query structure
+- ❌ Vega-Lite learning curve
+
+**Implementation**: `scripts/generate_wildcard_fom_grid.py`
+
+**Dashboard**: [System Health Rollup (Wildcard)](https://app.datadoghq.com/dashboard/bew-kg3-w4f/system-health-rollup-wildcard)
+
+**Technical Reference**: See `WILDCARD_WIDGET.md` for API details
+
+### Approach 3: Image-Based Visualization ❌ REJECTED
+
+**Description**: Generate heatmap images using matplotlib, upload to S3, display via image widget.
+
+**Pros**:
+- ✅ Pixel-perfect control with matplotlib
+- ✅ Compact (single image widget)
+- ✅ Familiar Python visualization tools
+- ✅ Easy to add custom annotations
+
+**Cons**:
+- ❌ **Requires external storage** (S3 or CDN)
+- ❌ Static snapshots (not real-time)
+- ❌ No interactivity (can't hover or drill down)
+- ❌ Image refresh/caching complexity
+- ❌ Data outside Datadog ecosystem
+
+**Decision**: Rejected because it requires S3 infrastructure and moves data outside Datadog. The wildcard widget approach provides similar benefits (custom visualization, compact display) while keeping all data within Datadog.
+
+**Historical Reference**: Original planning document deleted (IMAGE_COLLECTOR_PLAN.md)
+
+### Current Status
+
+**Deployed**:
+- Widget Grid (Approach 1) - Production dashboard
+- Wildcard Widget (Approach 2) - Alternative visualization
+
+**Recommendation**: Use **Widget Grid** for production monitoring (simpler, more reliable), **Wildcard Widget** for executive presentations (cleaner visual with text labels).
+
 ## Architecture Integration
 
 This dashboard builds on the existing Datadog collector architecture:
