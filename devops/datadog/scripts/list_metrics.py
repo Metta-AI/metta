@@ -11,14 +11,11 @@ This script helps discover what metrics are available in your Datadog account,
 making it easier to build modular dashboard components.
 
 Requirements:
-    - DD_API_KEY environment variable
-    - DD_APP_KEY environment variable
+    - DD_API_KEY environment variable (or AWS Secrets Manager)
+    - DD_APP_KEY environment variable (or AWS Secrets Manager)
     - DD_SITE environment variable (optional, defaults to datadoghq.com)
 
 Usage:
-    export DD_API_KEY=your_api_key
-    export DD_APP_KEY=your_app_key
-
     # List all metrics
     ./list_metrics.py
 
@@ -33,108 +30,29 @@ Usage:
 """
 
 import json
-import os
 import sys
-from typing import Any
+from pathlib import Path
 
-import requests
+# Add parent directory to path for local imports
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
+from common.dashboard_client import DatadogDashboardClient
 
 
-class MetricsDiscovery:
-    """Discovers available Datadog metrics and data sources."""
+def categorize_metrics(metrics: list[str]) -> dict[str, list[str]]:
+    """Categorize metrics by prefix/namespace."""
+    categories = {}
 
-    def __init__(self):
-        self.api_key = os.getenv("DD_API_KEY")
-        self.app_key = os.getenv("DD_APP_KEY")
-        self.site = os.getenv("DD_SITE", "datadoghq.com")
+    for metric in metrics:
+        # Get prefix (first part before .)
+        parts = metric.split(".")
+        prefix = parts[0] if parts else "other"
 
-        # Fetch from AWS Secrets Manager if not in environment
-        if not self.api_key:
-            try:
-                from softmax.aws.secrets_manager import get_secretsmanager_secret
+        if prefix not in categories:
+            categories[prefix] = []
+        categories[prefix].append(metric)
 
-                self.api_key = get_secretsmanager_secret("datadog/api-key")
-            except Exception as e:
-                raise ValueError(f"DD_API_KEY not found in environment or AWS Secrets Manager: {e}") from e
-
-        if not self.app_key:
-            try:
-                from softmax.aws.secrets_manager import get_secretsmanager_secret
-
-                self.app_key = get_secretsmanager_secret("datadog/app-key")
-            except Exception as e:
-                raise ValueError(f"DD_APP_KEY not found in environment or AWS Secrets Manager: {e}") from e
-
-        if not self.api_key or not self.app_key:
-            raise ValueError("Missing required credentials: DD_API_KEY and DD_APP_KEY")
-
-        self.base_url = f"https://api.{self.site}/api"
-        self._session = self._create_session()
-
-    def _create_session(self) -> requests.Session:
-        """Create authenticated session for Datadog API."""
-        session = requests.Session()
-        session.headers.update(
-            {
-                "DD-API-KEY": self.api_key,
-                "DD-APPLICATION-KEY": self.app_key,
-                "Content-Type": "application/json",
-            }
-        )
-        return session
-
-    def list_metrics(self, search: str | None = None) -> list[str]:
-        """List all active metrics in the account.
-
-        Args:
-            search: Optional search filter
-
-        Returns list of metric names
-        """
-        # Get active metrics from last 24 hours
-        url = f"{self.base_url}/v1/metrics"
-        params = {"from": "-86400"}  # Last 24 hours
-
-        response = self._session.get(url, params=params)
-        response.raise_for_status()
-
-        data = response.json()
-        metrics = data.get("metrics", [])
-
-        if search:
-            search_lower = search.lower()
-            metrics = [m for m in metrics if search_lower in m.lower()]
-
-        return sorted(metrics)
-
-    def get_metric_metadata(self, metric_name: str) -> dict[str, Any]:
-        """Get metadata for a specific metric."""
-        url = f"{self.base_url}/v1/metrics/{metric_name}"
-        response = self._session.get(url)
-        response.raise_for_status()
-        return response.json()
-
-    def list_tags(self) -> dict[str, list[str]]:
-        """List all available tags."""
-        url = f"{self.base_url}/v1/tags/hosts"
-        response = self._session.get(url)
-        response.raise_for_status()
-        return response.json()
-
-    def categorize_metrics(self, metrics: list[str]) -> dict[str, list[str]]:
-        """Categorize metrics by prefix/namespace."""
-        categories = {}
-
-        for metric in metrics:
-            # Get prefix (first part before .)
-            parts = metric.split(".")
-            prefix = parts[0] if parts else "other"
-
-            if prefix not in categories:
-                categories[prefix] = []
-            categories[prefix].append(metric)
-
-        return categories
+    return categories
 
 
 def format_metrics_summary(metrics: list[str], show_categories: bool = True) -> str:
@@ -147,8 +65,7 @@ def format_metrics_summary(metrics: list[str], show_categories: bool = True) -> 
     ]
 
     if show_categories:
-        discovery = MetricsDiscovery()
-        categories = discovery.categorize_metrics(metrics)
+        categories = categorize_metrics(metrics)
 
         lines.append("Metrics by Category:")
         lines.append("-" * 80)
@@ -198,16 +115,16 @@ def main():
     args = parser.parse_args()
 
     try:
-        discovery = MetricsDiscovery()
+        client = DatadogDashboardClient()
 
         if args.tags:
             print("Fetching available tags...", file=sys.stderr)
-            tags = discovery.list_tags()
+            tags = client.list_tags()
             print(json.dumps(tags, indent=2))
             return
 
         print("Fetching metrics (last 24 hours)...", file=sys.stderr)
-        metrics = discovery.list_metrics(search=args.search)
+        metrics = client.list_metrics(search=args.search)
 
         if args.limit:
             metrics = metrics[: args.limit]
@@ -225,12 +142,12 @@ def main():
 
     except ValueError as e:
         print(f"Error: {e}", file=sys.stderr)
-        print("\nSet environment variables:", file=sys.stderr)
+        print("\nSet environment variables or configure AWS Secrets Manager:", file=sys.stderr)
         print("  export DD_API_KEY=your_api_key", file=sys.stderr)
         print("  export DD_APP_KEY=your_app_key", file=sys.stderr)
         sys.exit(1)
-    except requests.exceptions.RequestException as e:
-        print(f"API Error: {e}", file=sys.stderr)
+    except Exception as e:
+        print(f"Error: {e}", file=sys.stderr)
         sys.exit(1)
 
 

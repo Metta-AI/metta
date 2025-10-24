@@ -11,163 +11,83 @@ This script uploads dashboard JSON files directly to Datadog, creating new
 dashboards or updating existing ones.
 
 Requirements:
-    - DD_API_KEY environment variable
-    - DD_APP_KEY environment variable
+    - DD_API_KEY environment variable (or AWS Secrets Manager)
+    - DD_APP_KEY environment variable (or AWS Secrets Manager)
     - DD_SITE environment variable (optional, defaults to datadoghq.com)
 
 Usage:
-    export DD_API_KEY=your_api_key
-    export DD_APP_KEY=your_app_key
-
     # Push a specific dashboard
-    ./push_dashboard.py templates/my_dashboard.json
+    ./push_dashboard.py dashboards/templates/my_dashboard.json
 
     # Push all dashboards
-    ./push_dashboard.py templates/*.json
+    ./push_dashboard.py dashboards/templates/*.json
 
     # Dry run (validate without pushing)
-    ./push_dashboard.py templates/*.json --dry-run
+    ./push_dashboard.py dashboards/templates/*.json --dry-run
 """
 
 import json
-import os
 import sys
 from pathlib import Path
 
-import requests
+# Add parent directory to path for local imports
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
+from common.dashboard_client import DatadogDashboardClient
 
 
-class DashboardPusher:
-    """Pushes dashboard JSON to Datadog API."""
+def push_dashboard(client: DatadogDashboardClient, json_file: Path, dry_run: bool = False) -> tuple[bool, str]:
+    """Push a dashboard JSON file to Datadog.
 
-    def __init__(self):
-        self.api_key = os.getenv("DD_API_KEY")
-        self.app_key = os.getenv("DD_APP_KEY")
-        self.site = os.getenv("DD_SITE", "datadoghq.com")
+    Returns tuple of (success, message)
+    """
+    try:
+        with open(json_file) as f:
+            dashboard_json = json.load(f)
 
-        # Fetch from AWS Secrets Manager if not in environment
-        if not self.api_key:
-            try:
-                from softmax.aws.secrets_manager import get_secretsmanager_secret
+        dashboard_id = dashboard_json.get("id")
+        title = dashboard_json.get("title", "Unknown")
 
-                self.api_key = get_secretsmanager_secret("datadog/api-key")
-            except Exception as e:
-                raise ValueError(f"DD_API_KEY not found in environment or AWS Secrets Manager: {e}") from e
-
-        if not self.app_key:
-            try:
-                from softmax.aws.secrets_manager import get_secretsmanager_secret
-
-                self.app_key = get_secretsmanager_secret("datadog/app-key")
-            except Exception as e:
-                raise ValueError(f"DD_APP_KEY not found in environment or AWS Secrets Manager: {e}") from e
-
-        if not self.api_key or not self.app_key:
-            raise ValueError("Missing required credentials: DD_API_KEY and DD_APP_KEY")
-
-        self.base_url = f"https://api.{self.site}/api"
-        self._session = self._create_session()
-
-    def _create_session(self) -> requests.Session:
-        """Create authenticated session for Datadog API."""
-        session = requests.Session()
-        session.headers.update(
-            {
-                "DD-API-KEY": self.api_key,
-                "DD-APPLICATION-KEY": self.app_key,
-                "Content-Type": "application/json",
-            }
-        )
-        return session
-
-    def dashboard_exists(self, dashboard_id: str) -> bool:
-        """Check if a dashboard exists in Datadog."""
-        url = f"{self.base_url}/v1/dashboard/{dashboard_id}"
-        try:
-            response = self._session.get(url)
-            return response.status_code == 200
-        except requests.exceptions.RequestException:
-            return False
-
-    def create_dashboard(self, dashboard_json: dict) -> dict:
-        """Create a new dashboard in Datadog."""
-        url = f"{self.base_url}/v1/dashboard"
-
-        # Remove fields that shouldn't be in create request
-        payload = dashboard_json.copy()
-        for field in ["id", "url", "created_at", "modified_at", "author_handle", "author_name"]:
-            payload.pop(field, None)
-
-        response = self._session.post(url, json=payload)
-        response.raise_for_status()
-        return response.json()
-
-    def update_dashboard(self, dashboard_id: str, dashboard_json: dict) -> dict:
-        """Update an existing dashboard in Datadog."""
-        url = f"{self.base_url}/v1/dashboard/{dashboard_id}"
-
-        # Remove fields that shouldn't be in update request
-        payload = dashboard_json.copy()
-        for field in ["id", "url", "created_at", "modified_at", "author_handle", "author_name"]:
-            payload.pop(field, None)
-
-        response = self._session.put(url, json=payload)
-        response.raise_for_status()
-        return response.json()
-
-    def push_dashboard(self, json_file: Path, dry_run: bool = False) -> tuple[bool, str]:
-        """Push a dashboard JSON file to Datadog.
-
-        Returns tuple of (success, message)
-        """
-        try:
-            with open(json_file) as f:
-                dashboard_json = json.load(f)
-
-            dashboard_id = dashboard_json.get("id")
-            title = dashboard_json.get("title", "Unknown")
-
-            if dry_run:
-                if dashboard_id and self.dashboard_exists(dashboard_id):
-                    return True, f"[DRY RUN] Would UPDATE: {title} (ID: {dashboard_id})"
-                else:
-                    return True, f"[DRY RUN] Would CREATE: {title}"
-
-            # Check if dashboard exists
-            if dashboard_id and self.dashboard_exists(dashboard_id):
-                # Update existing dashboard
-                result = self.update_dashboard(dashboard_id, dashboard_json)
-                return True, f"✓ Updated: {title} (ID: {dashboard_id})"
+        if dry_run:
+            if dashboard_id and client.dashboard_exists(dashboard_id):
+                return True, f"[DRY RUN] Would UPDATE: {title} (ID: {dashboard_id})"
             else:
-                # Create new dashboard
-                result = self.create_dashboard(dashboard_json)
-                new_id = result.get("id", "unknown")
-                return True, f"✓ Created: {title} (ID: {new_id})"
+                return True, f"[DRY RUN] Would CREATE: {title}"
 
-        except json.JSONDecodeError as e:
-            return False, f"✗ Invalid JSON in {json_file.name}: {e}"
-        except requests.exceptions.HTTPError as e:
-            return False, f"✗ API Error for {json_file.name}: {e}"
-        except Exception as e:
-            return False, f"✗ Failed to push {json_file.name}: {e}"
+        # Check if dashboard exists
+        if dashboard_id and client.dashboard_exists(dashboard_id):
+            # Update existing dashboard
+            result = client.update_dashboard(dashboard_id, dashboard_json)
+            return True, f"✓ Updated: {title} (ID: {dashboard_id})"
+        else:
+            # Create new dashboard
+            result = client.create_dashboard(dashboard_json)
+            new_id = result.get("id", "unknown")
+            return True, f"✓ Created: {title} (ID: {new_id})"
 
-    def push_all(self, json_files: list[Path], dry_run: bool = False) -> tuple[int, int]:
-        """Push multiple dashboard JSON files.
+    except json.JSONDecodeError as e:
+        return False, f"✗ Invalid JSON in {json_file.name}: {e}"
+    except Exception as e:
+        return False, f"✗ Failed to push {json_file.name}: {e}"
 
-        Returns tuple of (success_count, total_count)
-        """
-        success_count = 0
-        total = len(json_files)
 
-        for i, json_file in enumerate(json_files, 1):
-            print(f"[{i}/{total}] ", end="")
-            success, message = self.push_dashboard(json_file, dry_run=dry_run)
-            print(message)
+def push_all(client: DatadogDashboardClient, json_files: list[Path], dry_run: bool = False) -> tuple[int, int]:
+    """Push multiple dashboard JSON files.
 
-            if success:
-                success_count += 1
+    Returns tuple of (success_count, total_count)
+    """
+    success_count = 0
+    total = len(json_files)
 
-        return success_count, total
+    for i, json_file in enumerate(json_files, 1):
+        print(f"[{i}/{total}] ", end="")
+        success, message = push_dashboard(client, json_file, dry_run=dry_run)
+        print(message)
+
+        if success:
+            success_count += 1
+
+    return success_count, total
 
 
 def main():
@@ -207,14 +127,14 @@ def main():
         sys.exit(1)
 
     try:
-        pusher = DashboardPusher()
+        client = DatadogDashboardClient()
 
         print(f"Pushing {len(json_files)} dashboard(s) to Datadog...")
         if args.dry_run:
             print("[DRY RUN MODE - No changes will be made]")
         print()
 
-        success_count, total = pusher.push_all(json_files, dry_run=args.dry_run)
+        success_count, total = push_all(client, json_files, dry_run=args.dry_run)
 
         print()
         if args.dry_run:
@@ -227,7 +147,7 @@ def main():
 
     except ValueError as e:
         print(f"Error: {e}", file=sys.stderr)
-        print("\nSet environment variables:", file=sys.stderr)
+        print("\nSet environment variables or configure AWS Secrets Manager:", file=sys.stderr)
         print("  export DD_API_KEY=your_api_key", file=sys.stderr)
         print("  export DD_APP_KEY=your_app_key", file=sys.stderr)
         sys.exit(1)
