@@ -31,7 +31,7 @@ Automated metric collection from multiple services via Kubernetes CronJobs:
 - **Skypilot** ✅ **(Production)**: Jobs, clusters, resource utilization
 - **Asana** ✅ **(Production)**: Project health, bugs tracking, team velocity
 - **EC2** ✅ **(Production)**: Instances, costs, utilization, EBS volumes
-- **WandB** ✅ **(Production)**: Recent training runs (24h), Metta metrics (SPS, heart amount), GPU hours
+- **WandB** ✅ **(Production)**: Training runs (24h), push-to-main CI tracking (5 SPS metrics), sweep metrics, GPU hours
 - **Kubernetes** ✅ **(Production)**: Resource efficiency, pod health, waste tracking
 - **Health FoM** ✅ **(Production)**: Normalized 0.0-1.0 health scores for CI/CD metrics
 
