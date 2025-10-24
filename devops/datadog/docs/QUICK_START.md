@@ -29,25 +29,22 @@ We use **Jsonnet** (like Grafana's Grafonnet) to build Datadog dashboards from r
 
 ### 2. Configure Environment
 
+All credentials are stored in AWS Secrets Manager. See [SECRETS_SETUP.md](../SECRETS_SETUP.md) for complete setup.
+
 ```bash
 cd devops/datadog
 
-# Copy sample file
-cp .env.sample .env
+# Validate AWS secrets configuration
+uv run python scripts/validate_secrets.py
 
-# Edit with your credentials
-vim .env
-# DD_API_KEY=your_actual_key_here
-# DD_APP_KEY=your_actual_app_key_here
-
-# Load credentials
-source ./load_env.sh
+# For local development, you can set environment variables:
+export DD_API_KEY=your_api_key
+export DD_APP_KEY=your_app_key
 ```
 
-You should see:
-```
-✓ Datadog credentials loaded successfully
-```
+The validation script will verify:
+- ✓ All required secrets exist in AWS Secrets Manager
+- ✓ Secrets can be retrieved successfully
 
 ## Quick Test
 
@@ -261,8 +258,12 @@ brew install jsonnet
 ### "DD_API_KEY not set"
 
 ```bash
-# Load credentials
-source ./load_env.sh
+# Set environment variables for local development
+export DD_API_KEY=your_api_key
+export DD_APP_KEY=your_app_key
+
+# Or ensure AWS credentials are configured
+aws configure
 ```
 
 ## Next Steps
