@@ -138,8 +138,11 @@ def build_server(context: ServerContext) -> Server:
             types.Tool(
                 name="find_similar_prs",
                 description=(
-                    "Embedding search across PR titles and summaries. "
-                    "Paste issue text (not just keywords) to surface past fixes and related discussions."
+                    "Embedding search over PR summaries. "
+                    "Use this when asked to provide a list of PRs on a certain topic or if looking for "
+                    "past fixes of a new problem "
+                    "The query can be written in natural language instead of just using keywords and "
+                    "the search is embedding based"
                 ),
                 inputSchema={
                     "type": "object",
