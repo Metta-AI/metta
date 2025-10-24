@@ -182,7 +182,7 @@ class BidirectionalLPScorer(LPScorer):
     def update_with_score(self, task_id: int, score: float) -> None:
         """Update bidirectional EMA tracking for a task with new score."""
         # Convert score to success rate (assuming score is between 0 and 1)
-        success_rate = score #max(0.0, min(1.0, score))
+        success_rate = score  # max(0.0, min(1.0, score))
 
         # Track first 3 unique tasks for detailed wandb metrics
         if task_id not in self._tracked_task_ids and len(self._tracked_task_ids) < 3:
@@ -262,12 +262,13 @@ class BidirectionalLPScorer(LPScorer):
                 }
             )
 
-        # Add detailed metrics for tracked tasks (first 3 tasks)
-        for task_id, position in self._tracked_task_ids.items():
-            if task_id in self._tracked_task_metrics:
-                metrics = self._tracked_task_metrics[task_id]
-                for metric_name, value in metrics.items():
-                    stats[f"tracked_task_{position}/{metric_name}"] = float(value)
+        # Add detailed metrics for tracked tasks (first 3 tasks) if troubleshooting logging is enabled
+        if self.config.show_curriculum_troubleshooting_logging:
+            for task_id, position in self._tracked_task_ids.items():
+                if task_id in self._tracked_task_metrics:
+                    metrics = self._tracked_task_metrics[task_id]
+                    for metric_name, value in metrics.items():
+                        stats[f"tracked_task_{position}/{metric_name}"] = float(value)
 
         return stats
 
@@ -458,11 +459,24 @@ class BidirectionalLPScorer(LPScorer):
             performance_bonus = self._p_true * self.config.performance_bonus_weight
             subprobs = subprobs + performance_bonus
 
-        # Apply temperature scaling before sigmoid
-        # Low temperature (< 1.0) amplifies differences, high temperature (> 1.0) smooths them
+        # Apply temperature scaling or z-score normalization before sigmoid
+        # Temperature controls how LP scores are transformed before sigmoid:
+        # - temp > 0: Divide by temperature (low temp amplifies differences)
+        # - temp = 0: Z-score normalize (standardize to mean=0, std=1)
         temperature = self.config.lp_score_temperature
-        if temperature > 0:
+        if temperature == 0:
+            # Z-score normalization: center at mean and normalize by std
+            # This makes sigmoid operate on standardized scores, preventing saturation
+            mean = np.mean(subprobs)
+            std = np.std(subprobs)
+            if std > 1e-10:  # Avoid division by zero
+                subprobs = (subprobs - mean) / std
+            # else: if std is zero, all tasks have identical LP, leave as-is
+        elif temperature > 0:
+            # Temperature scaling: divide by temperature
+            # Low temp (< 1) amplifies differences, high temp (> 1) smooths them
             subprobs = subprobs / temperature
+        # else: negative temperature is invalid, leave subprobs unchanged
 
         subprobs = self._sigmoid(subprobs)
 

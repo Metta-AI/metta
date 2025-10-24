@@ -25,9 +25,13 @@ class LearningProgressConfig(CurriculumAlgorithmConfig):
     ema_timescale: float = 0.1  # EMA learning rate (0.1 = updates in ~10 samples)
     slow_timescale_factor: float = 0.2  # Multiplier for slow EMA timescale (slow = ema_timescale * this)
     exploration_bonus: float = 0.1
-    progress_smoothing: float = 0.01  # For bidirectional reweighting
+    progress_smoothing: float = 0.0  # For bidirectional reweighting (set to 0 to avoid artificial floor)
     performance_bonus_weight: float = 0.0  # Weight for performance bonus in LP calculation
-    lp_score_temperature: float = 1e-3  # Temperature for rescaling LP scores (low = amplify differences)
+    lp_score_temperature: float = 0.0  # Temperature for rescaling LP scores before sigmoid
+    # Special values for lp_score_temperature:
+    # - > 0: Divide LP by temperature (low temp amplifies differences)
+    # - = 0: Apply z-score normalization (standardize to mean=0, std=1) before sigmoid (DEFAULT)
+    #        This centers LP scores and makes sigmoid more sensitive to relative differences
 
     # Task distribution and sampling
     num_active_tasks: int = 1000
@@ -56,6 +60,9 @@ class LearningProgressConfig(CurriculumAlgorithmConfig):
     enable_detailed_slice_logging: bool = False  # Updated terminology
     use_shared_memory: bool = True  # Enabled by default for production use
     session_id: Optional[str] = None  # Session ID for shared memory, None = auto-generate unique
+
+    # Logging configuration
+    show_curriculum_troubleshooting_logging: bool = False  # Show high-cardinality per-task metrics for debugging
 
     def algorithm_type(self) -> str:
         return "learning_progress"
@@ -356,8 +363,10 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
             if task_stats:
                 completion_count = float(task_stats["completion_count"])
                 lp_score = float(task_stats.get("lp_score", 0.0))
-                stats[f"completion_counts/{task_id}"] = completion_count
-                stats[f"lp_scores/{task_id}"] = lp_score
+                # Only log per-task metrics if troubleshooting logging is enabled
+                if self.hypers.show_curriculum_troubleshooting_logging:
+                    stats[f"completion_counts/{task_id}"] = completion_count
+                    stats[f"lp_scores/{task_id}"] = lp_score
                 completion_counts.append(completion_count)
                 lp_scores.append(lp_score)
 

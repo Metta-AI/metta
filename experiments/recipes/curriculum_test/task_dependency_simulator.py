@@ -111,7 +111,8 @@ class TaskDependencySimulator:
         performance_threshold: float = 0.9,
         task_seed: Optional[int] = None,
         dt: float = 0.01,  # Time step scaling for dynamics updates
-        task_noise_std: float = 0.1,  # Standard deviation of task-specific noise
+        task_noise_std: float = 0.1,  # Standard deviation of task-specific bias (fixed per task)
+        sample_noise_std: float = 1e-2,  # Standard deviation of per-sample noise (varies each sample)
     ):
         self.num_tasks = num_tasks
         self.num_epochs = num_epochs
@@ -122,6 +123,7 @@ class TaskDependencySimulator:
         self.task_seed = task_seed or random.randint(0, 2**31 - 1)
         self.dt = dt
         self.task_noise_std = task_noise_std
+        self.sample_noise_std = sample_noise_std
 
         # Initialize task dependency chain (0 -> 1 -> 2 -> ...)
         self._build_task_chain()
@@ -132,8 +134,11 @@ class TaskDependencySimulator:
         self.epoch_sample_counts = torch.zeros(num_tasks)
         self.total_sample_counts = torch.zeros(num_tasks)
 
-        # Task-specific noise (generated from seed)
+        # Task-specific noise (generated from seed) - acts as fixed bias per task
         self._task_noise = self._generate_task_noise()
+
+        # Random number generator for per-sample noise
+        self._sample_rng = np.random.RandomState(self.task_seed)
 
         # History for analysis
         self.performance_history = [self.P.clone()]
@@ -160,7 +165,7 @@ class TaskDependencySimulator:
             self.parents[i + 1].append(i)  # i+1 has parent i
 
     def _generate_task_noise(self) -> torch.Tensor:
-        """Generate task-specific noise from seed."""
+        """Generate task-specific bias (fixed per task) from seed."""
         np.random.seed(self.task_seed)
         task_noise = np.random.normal(0.0, self.task_noise_std, size=self.num_tasks)
         return torch.tensor(task_noise, dtype=torch.float32)
@@ -180,6 +185,9 @@ class TaskDependencySimulator:
         self.task_0_lp_scores = []
         self.epoch_numbers = []
 
+        # Reset random number generator for per-sample noise
+        self._sample_rng = np.random.RandomState(self.task_seed)
+
     def sample_task(self, task_id: int) -> float:
         """
         Sample a task and return reward based on current performance + noise.
@@ -194,10 +202,16 @@ class TaskDependencySimulator:
         self.epoch_sample_counts[task_id] += 1
         self.total_sample_counts[task_id] += 1
 
-        # Calculate reward: base + current performance + task-specific noise
+        # Generate per-sample noise (varies each time)
+        sample_noise = self._sample_rng.normal(0.0, self.sample_noise_std)
+
+        # Calculate reward: base + current performance + task-specific bias + per-sample noise
         base_reward = 0.5
         task_reward = (
-            base_reward + self.P[task_id].item() + self._task_noise[task_id].item()
+            base_reward
+            + self.P[task_id].item()
+            + self._task_noise[task_id].item()  # Fixed bias per task
+            + sample_noise  # Varies each sample
         )
         reward = float(np.clip(task_reward, 0.0, 1.0))
 
@@ -700,11 +714,12 @@ class MockTaskGenerator(TaskGenerator):
 def create_curriculum(
     num_tasks: int = 10,
     enable_detailed_slice_logging: bool = False,
+    show_curriculum_troubleshooting_logging: bool = True,
     ema_timescale: float = 0.1,
     slow_timescale_factor: float = 0.02,
     exploration_bonus: float = 0.1,
-    progress_smoothing: float = 0.05,
-    lp_score_temperature: float = 1e-3,
+    progress_smoothing: float = 0.0,
+    lp_score_temperature: float = 0.0,
     use_bidirectional: bool = True,
     max_slice_axes: int = 3,
     num_active_tasks: int = 1000,
@@ -730,6 +745,7 @@ def create_curriculum(
         lp_score_temperature=lp_score_temperature,
         max_slice_axes=max_slice_axes,
         enable_detailed_slice_logging=enable_detailed_slice_logging,
+        show_curriculum_troubleshooting_logging=show_curriculum_troubleshooting_logging,
         num_active_tasks=num_active_tasks,
         rand_task_rate=rand_task_rate,
         eviction_threshold_percentile=eviction_threshold_percentile,
@@ -756,12 +772,14 @@ def simulate_task_dependencies(
     task_seed: Optional[int] = None,
     dt: float = 0.1,
     task_noise_std: float = 0.1,
+    sample_noise_std: float = 1e-2,
     enable_detailed_slice_logging: bool = False,
+    show_curriculum_troubleshooting_logging: bool = True,
     ema_timescale: float = 0.001,
     slow_timescale_factor: float = 0.2,
     exploration_bonus: float = 0.1,
-    progress_smoothing: float = 0.05,
-    lp_score_temperature: float = 1e-3,
+    progress_smoothing: float = 0.0,
+    lp_score_temperature: float = 0.0,
     use_bidirectional: bool = True,
     max_slice_axes: int = 3,
     num_active_tasks: int = 1000,
@@ -817,12 +835,14 @@ def simulate_task_dependencies(
         task_seed=task_seed,
         dt=dt,
         task_noise_std=task_noise_std,
+        sample_noise_std=sample_noise_std,
     )
 
     # Create curriculum (shared across all environments)
     curriculum_config = create_curriculum(
         num_tasks=num_tasks,
         enable_detailed_slice_logging=enable_detailed_slice_logging,
+        show_curriculum_troubleshooting_logging=show_curriculum_troubleshooting_logging,
         ema_timescale=ema_timescale,
         slow_timescale_factor=slow_timescale_factor,
         exploration_bonus=exploration_bonus,
@@ -951,6 +971,8 @@ def simulate_task_dependencies(
                 "lambda_forget": lambda_forget,
                 "performance_threshold": performance_threshold,
                 "task_seed": task_seed,
+                "task_noise_std": task_noise_std,
+                "sample_noise_std": sample_noise_std,
                 "ema_timescale": ema_timescale,
                 "slow_timescale_factor": slow_timescale_factor,
                 "exploration_bonus": exploration_bonus,
@@ -1030,15 +1052,19 @@ class TaskDependencySimulationTool(Tool):
     performance_threshold: float = 0.9
     task_seed: Optional[int] = None
     dt: float = 0.1
-    task_noise_std: float = 1e-8
+    task_noise_std: float = 1e-8  # Fixed bias per task
+    sample_noise_std: float = 1e-2  # Per-sample variability
     enable_detailed_slice_logging: bool = False
+    show_curriculum_troubleshooting_logging: bool = (
+        True  # Enable per-task metrics for debugging
+    )
 
     # Learning progress parameters
     ema_timescale: float = 0.05
     slow_timescale_factor: float = 1 / 5
     exploration_bonus: float = 0.1
-    progress_smoothing: float = 1e-4
-    lp_score_temperature: float = 1e-3
+    progress_smoothing: float = 0.0
+    lp_score_temperature: float = 0.0
     use_bidirectional: bool = True
     max_slice_axes: int = 3
     num_active_tasks: int = 1000
@@ -1072,7 +1098,9 @@ class TaskDependencySimulationTool(Tool):
                 task_seed=self.task_seed,
                 dt=self.dt,
                 task_noise_std=self.task_noise_std,
+                sample_noise_std=self.sample_noise_std,
                 enable_detailed_slice_logging=self.enable_detailed_slice_logging,
+                show_curriculum_troubleshooting_logging=self.show_curriculum_troubleshooting_logging,
                 ema_timescale=self.ema_timescale,
                 slow_timescale_factor=self.slow_timescale_factor,
                 exploration_bonus=self.exploration_bonus,
@@ -1190,14 +1218,15 @@ def train(
         gamma=0.3,  # Moderate parent contribution
         lambda_forget=0.05,  # Slow forgetting
         performance_threshold=0.85,
-        task_noise_std=0.05,  # Low noise for clearer dynamics
+        task_noise_std=0.05,  # Task-specific bias (fixed per task)
+        sample_noise_std=1e-2,  # Per-sample variability
         dt=0.1,
         # Learning progress parameters - balanced exploration/exploitation
         ema_timescale=0.1,  # Medium adaptation speed
         slow_timescale_factor=0.2,  # Slow EMA is 5x slower
         exploration_bonus=0.2,  # Reasonable exploration
-        progress_smoothing=0.01,  # Smooth reweighting
-        lp_score_temperature=1e-3,  # Low temperature to amplify small LP differences
+        progress_smoothing=0.0,  # No artificial floor
+        lp_score_temperature=0.0,  # Z-score normalization for relative LP comparison
         use_bidirectional=True,  # Use bidirectional LP scoring (default)
         # Task pool management
         num_active_tasks=200,  # Reasonable pool size
