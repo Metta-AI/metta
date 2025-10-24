@@ -28,6 +28,7 @@ Automated metric collection from multiple services via Kubernetes CronJobs:
 - **Asana** ✅ **(Production)**: Project health, bugs tracking, team velocity
 - **EC2** ✅ **(Production)**: Instances, costs, utilization, EBS volumes
 - **WandB** ✅ **(Implemented)**: Training runs, model performance, GPU hours
+- **Kubernetes** ✅ **(Implemented)**: Resource efficiency, pod health, waste tracking
 
 Each collector:
 - Runs on schedule (5-30 minute intervals)
