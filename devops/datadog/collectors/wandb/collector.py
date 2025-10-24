@@ -67,8 +67,8 @@ class WandBCollector(BaseCollector):
                 # GitHub CI push-to-main runs: github.sky.pr* or github.sky.main.*
                 if run.name.startswith("github.sky."):
                     push_to_main_runs.append(run)
-                # Sweep runs (if you have a naming pattern for sweeps)
-                elif run.sweep:
+                # Sweep runs: either WandB sweep attribute or ".sweep" in name
+                elif run.sweep or ".sweep" in run.name.lower():
                     sweep_runs.append(run)
                 # Everything else
                 else:
@@ -82,7 +82,7 @@ class WandBCollector(BaseCollector):
             # Collect metrics from categorized runs
             metrics.update(self._collect_overall_metrics(recent_runs))
             metrics.update(self._collect_push_to_main_metrics(push_to_main_runs))
-            # Could add: metrics.update(self._collect_sweep_metrics(sweep_runs))
+            metrics.update(self._collect_sweep_metrics(sweep_runs))
 
         except Exception as e:
             self.logger.error(f"Failed to collect WandB metrics: {e}", exc_info=True)
@@ -258,5 +258,59 @@ class WandBCollector(BaseCollector):
 
         except Exception as e:
             self.logger.error(f"Failed to collect push-to-main metrics: {e}", exc_info=True)
+
+        return metrics
+
+    def _collect_sweep_metrics(self, runs: list) -> dict[str, Any]:
+        """Collect metrics specifically for sweep/hyperparameter tuning runs.
+
+        Sweep runs have ".sweep" in the name or WandB sweep attribute set.
+
+        Args:
+            runs: List of sweep runs (filtered by name pattern or sweep attribute)
+
+        Returns:
+            Dictionary of sweep-specific metrics
+        """
+        metrics = {
+            "wandb.sweep.runs_total_24h": 0,
+            "wandb.sweep.runs_completed_24h": 0,
+            "wandb.sweep.runs_failed_24h": 0,
+            "wandb.sweep.runs_active": 0,
+            "wandb.sweep.success_rate_pct": None,
+        }
+
+        if not runs:
+            self.logger.info("No sweep runs found in last 24h")
+            return metrics
+
+        try:
+            completed = 0
+            failed = 0
+            active = 0
+
+            for run in runs:
+                # Count by state
+                if run.state == "finished":
+                    completed += 1
+                elif run.state in ["failed", "crashed"]:
+                    failed += 1
+                elif run.state == "running":
+                    active += 1
+
+            # Calculate metrics
+            metrics["wandb.sweep.runs_total_24h"] = len(runs)
+            metrics["wandb.sweep.runs_completed_24h"] = completed
+            metrics["wandb.sweep.runs_failed_24h"] = failed
+            metrics["wandb.sweep.runs_active"] = active
+
+            total_finished = completed + failed
+            if total_finished > 0:
+                metrics["wandb.sweep.success_rate_pct"] = (completed / total_finished) * 100
+
+            self.logger.info(f"Sweep: {len(runs)} runs ({completed} completed, {failed} failed, {active} active)")
+
+        except Exception as e:
+            self.logger.error(f"Failed to collect sweep metrics: {e}", exc_info=True)
 
         return metrics
