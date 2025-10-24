@@ -1,7 +1,7 @@
 {
   "id": "2mx-kfj-8pi",
   "title": "System Health Rollup",
-  "description": "Figure of Merit (FoM) metrics showing system health across CI/CD. All metrics normalized to 0.0-1.0 scale. Green (0.7-1.0) = Healthy, Yellow (0.3-0.7) = Warning, Red (0.0-0.3) = Critical.",
+  "description": "Figure of Merit (FoM) grid showing CI/CD health metrics over 7 days with color-coded status.",
   "layout_type": "ordered",
   "url": "/dashboard/2mx-kfj-8pi/system-health-rollup",
   "template_variables": [],
@@ -9,10 +9,10 @@
     {
       "definition": {
         "type": "note",
-        "content": "## System Health Rollup Dashboard\n\nAll metrics are **Figure of Merit (FoM)** values normalized to [0.0, 1.0] scale:\n\n- 🟢 **Green (0.7-1.0)**: Healthy - All systems normal\n- 🟡 **Yellow (0.3-0.7)**: Warning - Needs attention\n- 🔴 **Red (0.0-0.3)**: Critical - Action required\n\n### CI/CD Metrics (7 total)\nPhase 1: CI metrics from GitHub collector",
-        "background_color": "white",
+        "content": "## System Health Rollup\n\n**Figure of Merit (FoM)** values for CI/CD metrics over 7 days.\n\n\ud83d\udfe2 Green (0.7-1.0) = Healthy | \ud83d\udfe1 Yellow (0.3-0.7) = Warning | \ud83d\udd34 Red (0.0-0.3) = Critical",
+        "background_color": "gray",
         "font_size": "14",
-        "text_align": "left",
+        "text_align": "center",
         "show_tick": false,
         "tick_pos": "50%",
         "tick_edge": "left",
@@ -22,382 +22,2405 @@
         "x": 0,
         "y": 0,
         "width": 12,
-        "height": 2
-      }
-    },
-    {
-      "definition": {
-        "title": "Tests Passing on Main (FoM)",
-        "title_size": "16",
-        "title_align": "left",
-        "show_legend": false,
-        "type": "timeseries",
-        "requests": [
-          {
-            "formulas": [
-              {
-                "formula": "query1",
-                "style": {
-                  "palette": "green"
-                }
-              }
-            ],
-            "queries": [
-              {
-                "data_source": "metrics",
-                "name": "query1",
-                "query": "avg:health.ci.tests_passing.fom{*}"
-              }
-            ],
-            "response_format": "timeseries",
-            "display_type": "area"
-          }
-        ],
-        "markers": [
-          {
-            "label": "Target (1.0) - All tests passing",
-            "value": "y = 1",
-            "display_type": "ok solid"
-          },
-          {
-            "label": "Critical (<0.3) - Tests failing",
-            "value": "y = 0.3",
-            "display_type": "error dashed"
-          }
-        ]
-      },
-      "layout": {
-        "x": 0,
-        "y": 2,
-        "width": 6,
-        "height": 3
-      }
-    },
-    {
-      "definition": {
-        "title": "Failing Workflows (7d) (FoM)",
-        "title_size": "16",
-        "title_align": "left",
-        "show_legend": false,
-        "type": "timeseries",
-        "requests": [
-          {
-            "formulas": [
-              {
-                "formula": "query1",
-                "style": {
-                  "palette": "purple"
-                }
-              }
-            ],
-            "queries": [
-              {
-                "data_source": "metrics",
-                "name": "query1",
-                "query": "avg:health.ci.failing_workflows.fom{*}"
-              }
-            ],
-            "response_format": "timeseries",
-            "display_type": "area"
-          }
-        ],
-        "markers": [
-          {
-            "label": "Target (1.0) - No failures",
-            "value": "y = 1",
-            "display_type": "ok solid"
-          },
-          {
-            "label": "Warning (0.7) - 1-2 failures",
-            "value": "y = 0.7",
-            "display_type": "warning dashed"
-          },
-          {
-            "label": "Critical (0.3) - 3+ failures",
-            "value": "y = 0.3",
-            "display_type": "error dashed"
-          }
-        ]
-      },
-      "layout": {
-        "x": 6,
-        "y": 2,
-        "width": 6,
-        "height": 3
-      }
-    },
-    {
-      "definition": {
-        "title": "Hotfix Count (7d) (FoM)",
-        "title_size": "16",
-        "title_align": "left",
-        "show_legend": false,
-        "type": "timeseries",
-        "requests": [
-          {
-            "formulas": [
-              {
-                "formula": "query1",
-                "style": {
-                  "palette": "orange"
-                }
-              }
-            ],
-            "queries": [
-              {
-                "data_source": "metrics",
-                "name": "query1",
-                "query": "avg:health.ci.hotfix_count.fom{*}"
-              }
-            ],
-            "response_format": "timeseries",
-            "display_type": "area"
-          }
-        ],
-        "markers": [
-          {
-            "label": "Target (1.0) - No hotfixes",
-            "value": "y = 1",
-            "display_type": "ok solid"
-          },
-          {
-            "label": "Warning (0.7) - 3 hotfixes",
-            "value": "y = 0.7",
-            "display_type": "warning dashed"
-          },
-          {
-            "label": "Critical (0.3) - 7+ hotfixes",
-            "value": "y = 0.3",
-            "display_type": "error dashed"
-          }
-        ]
-      },
-      "layout": {
-        "x": 0,
-        "y": 5,
-        "width": 6,
-        "height": 3
-      }
-    },
-    {
-      "definition": {
-        "title": "Revert Count (7d) (FoM)",
-        "title_size": "16",
-        "title_align": "left",
-        "show_legend": false,
-        "type": "timeseries",
-        "requests": [
-          {
-            "formulas": [
-              {
-                "formula": "query1",
-                "style": {
-                  "palette": "red"
-                }
-              }
-            ],
-            "queries": [
-              {
-                "data_source": "metrics",
-                "name": "query1",
-                "query": "avg:health.ci.revert_count.fom{*}"
-              }
-            ],
-            "response_format": "timeseries",
-            "display_type": "area"
-          }
-        ],
-        "markers": [
-          {
-            "label": "Target (1.0) - No reverts",
-            "value": "y = 1",
-            "display_type": "ok solid"
-          },
-          {
-            "label": "Warning (0.7) - 0-1 reverts",
-            "value": "y = 0.7",
-            "display_type": "warning dashed"
-          },
-          {
-            "label": "Critical (0.3) - 1.5+ reverts",
-            "value": "y = 0.3",
-            "display_type": "error dashed"
-          }
-        ]
-      },
-      "layout": {
-        "x": 6,
-        "y": 5,
-        "width": 6,
-        "height": 3
-      }
-    },
-    {
-      "definition": {
-        "title": "CI Duration P90 (FoM)",
-        "title_size": "16",
-        "title_align": "left",
-        "show_legend": false,
-        "type": "timeseries",
-        "requests": [
-          {
-            "formulas": [
-              {
-                "formula": "query1",
-                "style": {
-                  "palette": "blue"
-                }
-              }
-            ],
-            "queries": [
-              {
-                "data_source": "metrics",
-                "name": "query1",
-                "query": "avg:health.ci.duration_p90.fom{*}"
-              }
-            ],
-            "response_format": "timeseries",
-            "display_type": "area"
-          }
-        ],
-        "markers": [
-          {
-            "label": "Target (1.0) - 3 min CI",
-            "value": "y = 1",
-            "display_type": "ok solid"
-          },
-          {
-            "label": "Warning (0.7) - 5 min CI",
-            "value": "y = 0.7",
-            "display_type": "warning dashed"
-          },
-          {
-            "label": "Critical (0.3) - 7+ min CI",
-            "value": "y = 0.3",
-            "display_type": "error dashed"
-          }
-        ]
-      },
-      "layout": {
-        "x": 0,
-        "y": 8,
-        "width": 6,
-        "height": 3
-      }
-    },
-    {
-      "definition": {
-        "title": "Stale PRs (14d) (FoM)",
-        "title_size": "16",
-        "title_align": "left",
-        "show_legend": false,
-        "type": "timeseries",
-        "requests": [
-          {
-            "formulas": [
-              {
-                "formula": "query1",
-                "style": {
-                  "palette": "cool"
-                }
-              }
-            ],
-            "queries": [
-              {
-                "data_source": "metrics",
-                "name": "query1",
-                "query": "avg:health.ci.stale_prs.fom{*}"
-              }
-            ],
-            "response_format": "timeseries",
-            "display_type": "area"
-          }
-        ],
-        "markers": [
-          {
-            "label": "Target (1.0) - No stale PRs",
-            "value": "y = 1",
-            "display_type": "ok solid"
-          },
-          {
-            "label": "Warning (0.7) - 15 stale PRs",
-            "value": "y = 0.7",
-            "display_type": "warning dashed"
-          },
-          {
-            "label": "Critical (0.3) - 35+ stale PRs",
-            "value": "y = 0.3",
-            "display_type": "error dashed"
-          }
-        ]
-      },
-      "layout": {
-        "x": 6,
-        "y": 8,
-        "width": 6,
-        "height": 3
-      }
-    },
-    {
-      "definition": {
-        "title": "PR Cycle Time (FoM)",
-        "title_size": "16",
-        "title_align": "left",
-        "show_legend": false,
-        "type": "timeseries",
-        "requests": [
-          {
-            "formulas": [
-              {
-                "formula": "query1",
-                "style": {
-                  "palette": "warm"
-                }
-              }
-            ],
-            "queries": [
-              {
-                "data_source": "metrics",
-                "name": "query1",
-                "query": "avg:health.ci.pr_cycle_time.fom{*}"
-              }
-            ],
-            "response_format": "timeseries",
-            "display_type": "area"
-          }
-        ],
-        "markers": [
-          {
-            "label": "Target (1.0) - 24h cycle time",
-            "value": "y = 1",
-            "display_type": "ok solid"
-          },
-          {
-            "label": "Warning (0.7) - 34h cycle time",
-            "value": "y = 0.7",
-            "display_type": "warning dashed"
-          },
-          {
-            "label": "Critical (0.3) - 58+ hour cycle time",
-            "value": "y = 0.3",
-            "display_type": "error dashed"
-          }
-        ]
-      },
-      "layout": {
-        "x": 0,
-        "y": 11,
-        "width": 12,
-        "height": 3
+        "height": 1
       }
     },
     {
       "definition": {
         "type": "note",
-        "content": "## Coming Soon: Training & Eval Health\n\n### Phase 2: Training Metrics (9 FoMs)\n- Multigpu Arena - Run Success, Hearts, SPS\n- Multinode - Run Success, Hearts, Shaped SPS\n- Local - Checkpoint Success, Resume Success\n- Bug Count\n\n### Phase 3: Eval Metrics (5 FoMs)\n- Local Eval - Run Success, Hearts Accuracy\n- Remote Eval - Run Success, Hearts Accuracy, Duration\n\n**Status**: Awaiting WandB and Eval collectors",
+        "content": "**Today**",
         "background_color": "gray",
         "font_size": "14",
-        "text_align": "left",
+        "text_align": "center",
+        "show_tick": false,
+        "tick_pos": "50%",
+        "tick_edge": "left",
+        "has_padding": true
+      },
+      "layout": {
+        "x": 5,
+        "y": 1,
+        "width": 1,
+        "height": 1
+      }
+    },
+    {
+      "definition": {
+        "type": "note",
+        "content": "**-1d**",
+        "background_color": "gray",
+        "font_size": "14",
+        "text_align": "center",
+        "show_tick": false,
+        "tick_pos": "50%",
+        "tick_edge": "left",
+        "has_padding": true
+      },
+      "layout": {
+        "x": 6,
+        "y": 1,
+        "width": 1,
+        "height": 1
+      }
+    },
+    {
+      "definition": {
+        "type": "note",
+        "content": "**-2d**",
+        "background_color": "gray",
+        "font_size": "14",
+        "text_align": "center",
+        "show_tick": false,
+        "tick_pos": "50%",
+        "tick_edge": "left",
+        "has_padding": true
+      },
+      "layout": {
+        "x": 7,
+        "y": 1,
+        "width": 1,
+        "height": 1
+      }
+    },
+    {
+      "definition": {
+        "type": "note",
+        "content": "**-3d**",
+        "background_color": "gray",
+        "font_size": "14",
+        "text_align": "center",
+        "show_tick": false,
+        "tick_pos": "50%",
+        "tick_edge": "left",
+        "has_padding": true
+      },
+      "layout": {
+        "x": 8,
+        "y": 1,
+        "width": 1,
+        "height": 1
+      }
+    },
+    {
+      "definition": {
+        "type": "note",
+        "content": "**-4d**",
+        "background_color": "gray",
+        "font_size": "14",
+        "text_align": "center",
+        "show_tick": false,
+        "tick_pos": "50%",
+        "tick_edge": "left",
+        "has_padding": true
+      },
+      "layout": {
+        "x": 9,
+        "y": 1,
+        "width": 1,
+        "height": 1
+      }
+    },
+    {
+      "definition": {
+        "type": "note",
+        "content": "**-5d**",
+        "background_color": "gray",
+        "font_size": "14",
+        "text_align": "center",
+        "show_tick": false,
+        "tick_pos": "50%",
+        "tick_edge": "left",
+        "has_padding": true
+      },
+      "layout": {
+        "x": 10,
+        "y": 1,
+        "width": 1,
+        "height": 1
+      }
+    },
+    {
+      "definition": {
+        "type": "note",
+        "content": "**-6d**",
+        "background_color": "gray",
+        "font_size": "14",
+        "text_align": "center",
+        "show_tick": false,
+        "tick_pos": "50%",
+        "tick_edge": "left",
+        "has_padding": true
+      },
+      "layout": {
+        "x": 11,
+        "y": 1,
+        "width": 1,
+        "height": 1
+      }
+    },
+    {
+      "definition": {
+        "type": "note",
+        "content": "**Tests Passing**\n_All tests passing on main_",
+        "background_color": "gray",
+        "font_size": "14",
+        "text_align": "center",
+        "show_tick": false,
+        "tick_pos": "50%",
+        "tick_edge": "left",
+        "has_padding": true
+      },
+      "layout": {
+        "x": 0,
+        "y": 2,
+        "width": 5,
+        "height": 2
+      }
+    },
+    {
+      "definition": {
+        "title": "",
+        "title_size": "13",
+        "title_align": "center",
+        "type": "query_value",
+        "requests": [
+          {
+            "formulas": [
+              {
+                "formula": "query1"
+              }
+            ],
+            "queries": [
+              {
+                "data_source": "metrics",
+                "name": "query1",
+                "query": "avg:health.ci.tests_passing.fom{*}",
+                "aggregator": "last"
+              }
+            ],
+            "response_format": "scalar",
+            "conditional_formats": [
+              {
+                "comparator": ">=",
+                "value": 0.7,
+                "palette": "white_on_green"
+              },
+              {
+                "comparator": ">=",
+                "value": 0.3,
+                "palette": "white_on_yellow"
+              },
+              {
+                "comparator": "<",
+                "value": 0.3,
+                "palette": "white_on_red"
+              }
+            ]
+          }
+        ],
+        "autoscale": false,
+        "precision": 2
+      },
+      "layout": {
+        "x": 5,
+        "y": 2,
+        "width": 1,
+        "height": 2
+      }
+    },
+    {
+      "definition": {
+        "title": "",
+        "title_size": "13",
+        "title_align": "center",
+        "type": "query_value",
+        "requests": [
+          {
+            "formulas": [
+              {
+                "formula": "query1"
+              }
+            ],
+            "queries": [
+              {
+                "data_source": "metrics",
+                "name": "query1",
+                "query": "avg:health.ci.tests_passing.fom{*}.timeshift(-1d)",
+                "aggregator": "last"
+              }
+            ],
+            "response_format": "scalar",
+            "conditional_formats": [
+              {
+                "comparator": ">=",
+                "value": 0.7,
+                "palette": "white_on_green"
+              },
+              {
+                "comparator": ">=",
+                "value": 0.3,
+                "palette": "white_on_yellow"
+              },
+              {
+                "comparator": "<",
+                "value": 0.3,
+                "palette": "white_on_red"
+              }
+            ]
+          }
+        ],
+        "autoscale": false,
+        "precision": 2
+      },
+      "layout": {
+        "x": 6,
+        "y": 2,
+        "width": 1,
+        "height": 2
+      }
+    },
+    {
+      "definition": {
+        "title": "",
+        "title_size": "13",
+        "title_align": "center",
+        "type": "query_value",
+        "requests": [
+          {
+            "formulas": [
+              {
+                "formula": "query1"
+              }
+            ],
+            "queries": [
+              {
+                "data_source": "metrics",
+                "name": "query1",
+                "query": "avg:health.ci.tests_passing.fom{*}.timeshift(-2d)",
+                "aggregator": "last"
+              }
+            ],
+            "response_format": "scalar",
+            "conditional_formats": [
+              {
+                "comparator": ">=",
+                "value": 0.7,
+                "palette": "white_on_green"
+              },
+              {
+                "comparator": ">=",
+                "value": 0.3,
+                "palette": "white_on_yellow"
+              },
+              {
+                "comparator": "<",
+                "value": 0.3,
+                "palette": "white_on_red"
+              }
+            ]
+          }
+        ],
+        "autoscale": false,
+        "precision": 2
+      },
+      "layout": {
+        "x": 7,
+        "y": 2,
+        "width": 1,
+        "height": 2
+      }
+    },
+    {
+      "definition": {
+        "title": "",
+        "title_size": "13",
+        "title_align": "center",
+        "type": "query_value",
+        "requests": [
+          {
+            "formulas": [
+              {
+                "formula": "query1"
+              }
+            ],
+            "queries": [
+              {
+                "data_source": "metrics",
+                "name": "query1",
+                "query": "avg:health.ci.tests_passing.fom{*}.timeshift(-3d)",
+                "aggregator": "last"
+              }
+            ],
+            "response_format": "scalar",
+            "conditional_formats": [
+              {
+                "comparator": ">=",
+                "value": 0.7,
+                "palette": "white_on_green"
+              },
+              {
+                "comparator": ">=",
+                "value": 0.3,
+                "palette": "white_on_yellow"
+              },
+              {
+                "comparator": "<",
+                "value": 0.3,
+                "palette": "white_on_red"
+              }
+            ]
+          }
+        ],
+        "autoscale": false,
+        "precision": 2
+      },
+      "layout": {
+        "x": 8,
+        "y": 2,
+        "width": 1,
+        "height": 2
+      }
+    },
+    {
+      "definition": {
+        "title": "",
+        "title_size": "13",
+        "title_align": "center",
+        "type": "query_value",
+        "requests": [
+          {
+            "formulas": [
+              {
+                "formula": "query1"
+              }
+            ],
+            "queries": [
+              {
+                "data_source": "metrics",
+                "name": "query1",
+                "query": "avg:health.ci.tests_passing.fom{*}.timeshift(-4d)",
+                "aggregator": "last"
+              }
+            ],
+            "response_format": "scalar",
+            "conditional_formats": [
+              {
+                "comparator": ">=",
+                "value": 0.7,
+                "palette": "white_on_green"
+              },
+              {
+                "comparator": ">=",
+                "value": 0.3,
+                "palette": "white_on_yellow"
+              },
+              {
+                "comparator": "<",
+                "value": 0.3,
+                "palette": "white_on_red"
+              }
+            ]
+          }
+        ],
+        "autoscale": false,
+        "precision": 2
+      },
+      "layout": {
+        "x": 9,
+        "y": 2,
+        "width": 1,
+        "height": 2
+      }
+    },
+    {
+      "definition": {
+        "title": "",
+        "title_size": "13",
+        "title_align": "center",
+        "type": "query_value",
+        "requests": [
+          {
+            "formulas": [
+              {
+                "formula": "query1"
+              }
+            ],
+            "queries": [
+              {
+                "data_source": "metrics",
+                "name": "query1",
+                "query": "avg:health.ci.tests_passing.fom{*}.timeshift(-5d)",
+                "aggregator": "last"
+              }
+            ],
+            "response_format": "scalar",
+            "conditional_formats": [
+              {
+                "comparator": ">=",
+                "value": 0.7,
+                "palette": "white_on_green"
+              },
+              {
+                "comparator": ">=",
+                "value": 0.3,
+                "palette": "white_on_yellow"
+              },
+              {
+                "comparator": "<",
+                "value": 0.3,
+                "palette": "white_on_red"
+              }
+            ]
+          }
+        ],
+        "autoscale": false,
+        "precision": 2
+      },
+      "layout": {
+        "x": 10,
+        "y": 2,
+        "width": 1,
+        "height": 2
+      }
+    },
+    {
+      "definition": {
+        "title": "",
+        "title_size": "13",
+        "title_align": "center",
+        "type": "query_value",
+        "requests": [
+          {
+            "formulas": [
+              {
+                "formula": "query1"
+              }
+            ],
+            "queries": [
+              {
+                "data_source": "metrics",
+                "name": "query1",
+                "query": "avg:health.ci.tests_passing.fom{*}.timeshift(-6d)",
+                "aggregator": "last"
+              }
+            ],
+            "response_format": "scalar",
+            "conditional_formats": [
+              {
+                "comparator": ">=",
+                "value": 0.7,
+                "palette": "white_on_green"
+              },
+              {
+                "comparator": ">=",
+                "value": 0.3,
+                "palette": "white_on_yellow"
+              },
+              {
+                "comparator": "<",
+                "value": 0.3,
+                "palette": "white_on_red"
+              }
+            ]
+          }
+        ],
+        "autoscale": false,
+        "precision": 2
+      },
+      "layout": {
+        "x": 11,
+        "y": 2,
+        "width": 1,
+        "height": 2
+      }
+    },
+    {
+      "definition": {
+        "type": "note",
+        "content": "**Failing Workflows**\n_Failed workflows (7d)_",
+        "background_color": "gray",
+        "font_size": "14",
+        "text_align": "center",
+        "show_tick": false,
+        "tick_pos": "50%",
+        "tick_edge": "left",
+        "has_padding": true
+      },
+      "layout": {
+        "x": 0,
+        "y": 4,
+        "width": 5,
+        "height": 2
+      }
+    },
+    {
+      "definition": {
+        "title": "",
+        "title_size": "13",
+        "title_align": "center",
+        "type": "query_value",
+        "requests": [
+          {
+            "formulas": [
+              {
+                "formula": "query1"
+              }
+            ],
+            "queries": [
+              {
+                "data_source": "metrics",
+                "name": "query1",
+                "query": "avg:health.ci.failing_workflows.fom{*}",
+                "aggregator": "last"
+              }
+            ],
+            "response_format": "scalar",
+            "conditional_formats": [
+              {
+                "comparator": ">=",
+                "value": 0.7,
+                "palette": "white_on_green"
+              },
+              {
+                "comparator": ">=",
+                "value": 0.3,
+                "palette": "white_on_yellow"
+              },
+              {
+                "comparator": "<",
+                "value": 0.3,
+                "palette": "white_on_red"
+              }
+            ]
+          }
+        ],
+        "autoscale": false,
+        "precision": 2
+      },
+      "layout": {
+        "x": 5,
+        "y": 4,
+        "width": 1,
+        "height": 2
+      }
+    },
+    {
+      "definition": {
+        "title": "",
+        "title_size": "13",
+        "title_align": "center",
+        "type": "query_value",
+        "requests": [
+          {
+            "formulas": [
+              {
+                "formula": "query1"
+              }
+            ],
+            "queries": [
+              {
+                "data_source": "metrics",
+                "name": "query1",
+                "query": "avg:health.ci.failing_workflows.fom{*}.timeshift(-1d)",
+                "aggregator": "last"
+              }
+            ],
+            "response_format": "scalar",
+            "conditional_formats": [
+              {
+                "comparator": ">=",
+                "value": 0.7,
+                "palette": "white_on_green"
+              },
+              {
+                "comparator": ">=",
+                "value": 0.3,
+                "palette": "white_on_yellow"
+              },
+              {
+                "comparator": "<",
+                "value": 0.3,
+                "palette": "white_on_red"
+              }
+            ]
+          }
+        ],
+        "autoscale": false,
+        "precision": 2
+      },
+      "layout": {
+        "x": 6,
+        "y": 4,
+        "width": 1,
+        "height": 2
+      }
+    },
+    {
+      "definition": {
+        "title": "",
+        "title_size": "13",
+        "title_align": "center",
+        "type": "query_value",
+        "requests": [
+          {
+            "formulas": [
+              {
+                "formula": "query1"
+              }
+            ],
+            "queries": [
+              {
+                "data_source": "metrics",
+                "name": "query1",
+                "query": "avg:health.ci.failing_workflows.fom{*}.timeshift(-2d)",
+                "aggregator": "last"
+              }
+            ],
+            "response_format": "scalar",
+            "conditional_formats": [
+              {
+                "comparator": ">=",
+                "value": 0.7,
+                "palette": "white_on_green"
+              },
+              {
+                "comparator": ">=",
+                "value": 0.3,
+                "palette": "white_on_yellow"
+              },
+              {
+                "comparator": "<",
+                "value": 0.3,
+                "palette": "white_on_red"
+              }
+            ]
+          }
+        ],
+        "autoscale": false,
+        "precision": 2
+      },
+      "layout": {
+        "x": 7,
+        "y": 4,
+        "width": 1,
+        "height": 2
+      }
+    },
+    {
+      "definition": {
+        "title": "",
+        "title_size": "13",
+        "title_align": "center",
+        "type": "query_value",
+        "requests": [
+          {
+            "formulas": [
+              {
+                "formula": "query1"
+              }
+            ],
+            "queries": [
+              {
+                "data_source": "metrics",
+                "name": "query1",
+                "query": "avg:health.ci.failing_workflows.fom{*}.timeshift(-3d)",
+                "aggregator": "last"
+              }
+            ],
+            "response_format": "scalar",
+            "conditional_formats": [
+              {
+                "comparator": ">=",
+                "value": 0.7,
+                "palette": "white_on_green"
+              },
+              {
+                "comparator": ">=",
+                "value": 0.3,
+                "palette": "white_on_yellow"
+              },
+              {
+                "comparator": "<",
+                "value": 0.3,
+                "palette": "white_on_red"
+              }
+            ]
+          }
+        ],
+        "autoscale": false,
+        "precision": 2
+      },
+      "layout": {
+        "x": 8,
+        "y": 4,
+        "width": 1,
+        "height": 2
+      }
+    },
+    {
+      "definition": {
+        "title": "",
+        "title_size": "13",
+        "title_align": "center",
+        "type": "query_value",
+        "requests": [
+          {
+            "formulas": [
+              {
+                "formula": "query1"
+              }
+            ],
+            "queries": [
+              {
+                "data_source": "metrics",
+                "name": "query1",
+                "query": "avg:health.ci.failing_workflows.fom{*}.timeshift(-4d)",
+                "aggregator": "last"
+              }
+            ],
+            "response_format": "scalar",
+            "conditional_formats": [
+              {
+                "comparator": ">=",
+                "value": 0.7,
+                "palette": "white_on_green"
+              },
+              {
+                "comparator": ">=",
+                "value": 0.3,
+                "palette": "white_on_yellow"
+              },
+              {
+                "comparator": "<",
+                "value": 0.3,
+                "palette": "white_on_red"
+              }
+            ]
+          }
+        ],
+        "autoscale": false,
+        "precision": 2
+      },
+      "layout": {
+        "x": 9,
+        "y": 4,
+        "width": 1,
+        "height": 2
+      }
+    },
+    {
+      "definition": {
+        "title": "",
+        "title_size": "13",
+        "title_align": "center",
+        "type": "query_value",
+        "requests": [
+          {
+            "formulas": [
+              {
+                "formula": "query1"
+              }
+            ],
+            "queries": [
+              {
+                "data_source": "metrics",
+                "name": "query1",
+                "query": "avg:health.ci.failing_workflows.fom{*}.timeshift(-5d)",
+                "aggregator": "last"
+              }
+            ],
+            "response_format": "scalar",
+            "conditional_formats": [
+              {
+                "comparator": ">=",
+                "value": 0.7,
+                "palette": "white_on_green"
+              },
+              {
+                "comparator": ">=",
+                "value": 0.3,
+                "palette": "white_on_yellow"
+              },
+              {
+                "comparator": "<",
+                "value": 0.3,
+                "palette": "white_on_red"
+              }
+            ]
+          }
+        ],
+        "autoscale": false,
+        "precision": 2
+      },
+      "layout": {
+        "x": 10,
+        "y": 4,
+        "width": 1,
+        "height": 2
+      }
+    },
+    {
+      "definition": {
+        "title": "",
+        "title_size": "13",
+        "title_align": "center",
+        "type": "query_value",
+        "requests": [
+          {
+            "formulas": [
+              {
+                "formula": "query1"
+              }
+            ],
+            "queries": [
+              {
+                "data_source": "metrics",
+                "name": "query1",
+                "query": "avg:health.ci.failing_workflows.fom{*}.timeshift(-6d)",
+                "aggregator": "last"
+              }
+            ],
+            "response_format": "scalar",
+            "conditional_formats": [
+              {
+                "comparator": ">=",
+                "value": 0.7,
+                "palette": "white_on_green"
+              },
+              {
+                "comparator": ">=",
+                "value": 0.3,
+                "palette": "white_on_yellow"
+              },
+              {
+                "comparator": "<",
+                "value": 0.3,
+                "palette": "white_on_red"
+              }
+            ]
+          }
+        ],
+        "autoscale": false,
+        "precision": 2
+      },
+      "layout": {
+        "x": 11,
+        "y": 4,
+        "width": 1,
+        "height": 2
+      }
+    },
+    {
+      "definition": {
+        "type": "note",
+        "content": "**Hotfix Count**\n_Hotfixes (7d)_",
+        "background_color": "gray",
+        "font_size": "14",
+        "text_align": "center",
+        "show_tick": false,
+        "tick_pos": "50%",
+        "tick_edge": "left",
+        "has_padding": true
+      },
+      "layout": {
+        "x": 0,
+        "y": 6,
+        "width": 5,
+        "height": 2
+      }
+    },
+    {
+      "definition": {
+        "title": "",
+        "title_size": "13",
+        "title_align": "center",
+        "type": "query_value",
+        "requests": [
+          {
+            "formulas": [
+              {
+                "formula": "query1"
+              }
+            ],
+            "queries": [
+              {
+                "data_source": "metrics",
+                "name": "query1",
+                "query": "avg:health.ci.hotfix_count.fom{*}",
+                "aggregator": "last"
+              }
+            ],
+            "response_format": "scalar",
+            "conditional_formats": [
+              {
+                "comparator": ">=",
+                "value": 0.7,
+                "palette": "white_on_green"
+              },
+              {
+                "comparator": ">=",
+                "value": 0.3,
+                "palette": "white_on_yellow"
+              },
+              {
+                "comparator": "<",
+                "value": 0.3,
+                "palette": "white_on_red"
+              }
+            ]
+          }
+        ],
+        "autoscale": false,
+        "precision": 2
+      },
+      "layout": {
+        "x": 5,
+        "y": 6,
+        "width": 1,
+        "height": 2
+      }
+    },
+    {
+      "definition": {
+        "title": "",
+        "title_size": "13",
+        "title_align": "center",
+        "type": "query_value",
+        "requests": [
+          {
+            "formulas": [
+              {
+                "formula": "query1"
+              }
+            ],
+            "queries": [
+              {
+                "data_source": "metrics",
+                "name": "query1",
+                "query": "avg:health.ci.hotfix_count.fom{*}.timeshift(-1d)",
+                "aggregator": "last"
+              }
+            ],
+            "response_format": "scalar",
+            "conditional_formats": [
+              {
+                "comparator": ">=",
+                "value": 0.7,
+                "palette": "white_on_green"
+              },
+              {
+                "comparator": ">=",
+                "value": 0.3,
+                "palette": "white_on_yellow"
+              },
+              {
+                "comparator": "<",
+                "value": 0.3,
+                "palette": "white_on_red"
+              }
+            ]
+          }
+        ],
+        "autoscale": false,
+        "precision": 2
+      },
+      "layout": {
+        "x": 6,
+        "y": 6,
+        "width": 1,
+        "height": 2
+      }
+    },
+    {
+      "definition": {
+        "title": "",
+        "title_size": "13",
+        "title_align": "center",
+        "type": "query_value",
+        "requests": [
+          {
+            "formulas": [
+              {
+                "formula": "query1"
+              }
+            ],
+            "queries": [
+              {
+                "data_source": "metrics",
+                "name": "query1",
+                "query": "avg:health.ci.hotfix_count.fom{*}.timeshift(-2d)",
+                "aggregator": "last"
+              }
+            ],
+            "response_format": "scalar",
+            "conditional_formats": [
+              {
+                "comparator": ">=",
+                "value": 0.7,
+                "palette": "white_on_green"
+              },
+              {
+                "comparator": ">=",
+                "value": 0.3,
+                "palette": "white_on_yellow"
+              },
+              {
+                "comparator": "<",
+                "value": 0.3,
+                "palette": "white_on_red"
+              }
+            ]
+          }
+        ],
+        "autoscale": false,
+        "precision": 2
+      },
+      "layout": {
+        "x": 7,
+        "y": 6,
+        "width": 1,
+        "height": 2
+      }
+    },
+    {
+      "definition": {
+        "title": "",
+        "title_size": "13",
+        "title_align": "center",
+        "type": "query_value",
+        "requests": [
+          {
+            "formulas": [
+              {
+                "formula": "query1"
+              }
+            ],
+            "queries": [
+              {
+                "data_source": "metrics",
+                "name": "query1",
+                "query": "avg:health.ci.hotfix_count.fom{*}.timeshift(-3d)",
+                "aggregator": "last"
+              }
+            ],
+            "response_format": "scalar",
+            "conditional_formats": [
+              {
+                "comparator": ">=",
+                "value": 0.7,
+                "palette": "white_on_green"
+              },
+              {
+                "comparator": ">=",
+                "value": 0.3,
+                "palette": "white_on_yellow"
+              },
+              {
+                "comparator": "<",
+                "value": 0.3,
+                "palette": "white_on_red"
+              }
+            ]
+          }
+        ],
+        "autoscale": false,
+        "precision": 2
+      },
+      "layout": {
+        "x": 8,
+        "y": 6,
+        "width": 1,
+        "height": 2
+      }
+    },
+    {
+      "definition": {
+        "title": "",
+        "title_size": "13",
+        "title_align": "center",
+        "type": "query_value",
+        "requests": [
+          {
+            "formulas": [
+              {
+                "formula": "query1"
+              }
+            ],
+            "queries": [
+              {
+                "data_source": "metrics",
+                "name": "query1",
+                "query": "avg:health.ci.hotfix_count.fom{*}.timeshift(-4d)",
+                "aggregator": "last"
+              }
+            ],
+            "response_format": "scalar",
+            "conditional_formats": [
+              {
+                "comparator": ">=",
+                "value": 0.7,
+                "palette": "white_on_green"
+              },
+              {
+                "comparator": ">=",
+                "value": 0.3,
+                "palette": "white_on_yellow"
+              },
+              {
+                "comparator": "<",
+                "value": 0.3,
+                "palette": "white_on_red"
+              }
+            ]
+          }
+        ],
+        "autoscale": false,
+        "precision": 2
+      },
+      "layout": {
+        "x": 9,
+        "y": 6,
+        "width": 1,
+        "height": 2
+      }
+    },
+    {
+      "definition": {
+        "title": "",
+        "title_size": "13",
+        "title_align": "center",
+        "type": "query_value",
+        "requests": [
+          {
+            "formulas": [
+              {
+                "formula": "query1"
+              }
+            ],
+            "queries": [
+              {
+                "data_source": "metrics",
+                "name": "query1",
+                "query": "avg:health.ci.hotfix_count.fom{*}.timeshift(-5d)",
+                "aggregator": "last"
+              }
+            ],
+            "response_format": "scalar",
+            "conditional_formats": [
+              {
+                "comparator": ">=",
+                "value": 0.7,
+                "palette": "white_on_green"
+              },
+              {
+                "comparator": ">=",
+                "value": 0.3,
+                "palette": "white_on_yellow"
+              },
+              {
+                "comparator": "<",
+                "value": 0.3,
+                "palette": "white_on_red"
+              }
+            ]
+          }
+        ],
+        "autoscale": false,
+        "precision": 2
+      },
+      "layout": {
+        "x": 10,
+        "y": 6,
+        "width": 1,
+        "height": 2
+      }
+    },
+    {
+      "definition": {
+        "title": "",
+        "title_size": "13",
+        "title_align": "center",
+        "type": "query_value",
+        "requests": [
+          {
+            "formulas": [
+              {
+                "formula": "query1"
+              }
+            ],
+            "queries": [
+              {
+                "data_source": "metrics",
+                "name": "query1",
+                "query": "avg:health.ci.hotfix_count.fom{*}.timeshift(-6d)",
+                "aggregator": "last"
+              }
+            ],
+            "response_format": "scalar",
+            "conditional_formats": [
+              {
+                "comparator": ">=",
+                "value": 0.7,
+                "palette": "white_on_green"
+              },
+              {
+                "comparator": ">=",
+                "value": 0.3,
+                "palette": "white_on_yellow"
+              },
+              {
+                "comparator": "<",
+                "value": 0.3,
+                "palette": "white_on_red"
+              }
+            ]
+          }
+        ],
+        "autoscale": false,
+        "precision": 2
+      },
+      "layout": {
+        "x": 11,
+        "y": 6,
+        "width": 1,
+        "height": 2
+      }
+    },
+    {
+      "definition": {
+        "type": "note",
+        "content": "**Revert Count**\n_Reverts (7d)_",
+        "background_color": "gray",
+        "font_size": "14",
+        "text_align": "center",
+        "show_tick": false,
+        "tick_pos": "50%",
+        "tick_edge": "left",
+        "has_padding": true
+      },
+      "layout": {
+        "x": 0,
+        "y": 8,
+        "width": 5,
+        "height": 2
+      }
+    },
+    {
+      "definition": {
+        "title": "",
+        "title_size": "13",
+        "title_align": "center",
+        "type": "query_value",
+        "requests": [
+          {
+            "formulas": [
+              {
+                "formula": "query1"
+              }
+            ],
+            "queries": [
+              {
+                "data_source": "metrics",
+                "name": "query1",
+                "query": "avg:health.ci.revert_count.fom{*}",
+                "aggregator": "last"
+              }
+            ],
+            "response_format": "scalar",
+            "conditional_formats": [
+              {
+                "comparator": ">=",
+                "value": 0.7,
+                "palette": "white_on_green"
+              },
+              {
+                "comparator": ">=",
+                "value": 0.3,
+                "palette": "white_on_yellow"
+              },
+              {
+                "comparator": "<",
+                "value": 0.3,
+                "palette": "white_on_red"
+              }
+            ]
+          }
+        ],
+        "autoscale": false,
+        "precision": 2
+      },
+      "layout": {
+        "x": 5,
+        "y": 8,
+        "width": 1,
+        "height": 2
+      }
+    },
+    {
+      "definition": {
+        "title": "",
+        "title_size": "13",
+        "title_align": "center",
+        "type": "query_value",
+        "requests": [
+          {
+            "formulas": [
+              {
+                "formula": "query1"
+              }
+            ],
+            "queries": [
+              {
+                "data_source": "metrics",
+                "name": "query1",
+                "query": "avg:health.ci.revert_count.fom{*}.timeshift(-1d)",
+                "aggregator": "last"
+              }
+            ],
+            "response_format": "scalar",
+            "conditional_formats": [
+              {
+                "comparator": ">=",
+                "value": 0.7,
+                "palette": "white_on_green"
+              },
+              {
+                "comparator": ">=",
+                "value": 0.3,
+                "palette": "white_on_yellow"
+              },
+              {
+                "comparator": "<",
+                "value": 0.3,
+                "palette": "white_on_red"
+              }
+            ]
+          }
+        ],
+        "autoscale": false,
+        "precision": 2
+      },
+      "layout": {
+        "x": 6,
+        "y": 8,
+        "width": 1,
+        "height": 2
+      }
+    },
+    {
+      "definition": {
+        "title": "",
+        "title_size": "13",
+        "title_align": "center",
+        "type": "query_value",
+        "requests": [
+          {
+            "formulas": [
+              {
+                "formula": "query1"
+              }
+            ],
+            "queries": [
+              {
+                "data_source": "metrics",
+                "name": "query1",
+                "query": "avg:health.ci.revert_count.fom{*}.timeshift(-2d)",
+                "aggregator": "last"
+              }
+            ],
+            "response_format": "scalar",
+            "conditional_formats": [
+              {
+                "comparator": ">=",
+                "value": 0.7,
+                "palette": "white_on_green"
+              },
+              {
+                "comparator": ">=",
+                "value": 0.3,
+                "palette": "white_on_yellow"
+              },
+              {
+                "comparator": "<",
+                "value": 0.3,
+                "palette": "white_on_red"
+              }
+            ]
+          }
+        ],
+        "autoscale": false,
+        "precision": 2
+      },
+      "layout": {
+        "x": 7,
+        "y": 8,
+        "width": 1,
+        "height": 2
+      }
+    },
+    {
+      "definition": {
+        "title": "",
+        "title_size": "13",
+        "title_align": "center",
+        "type": "query_value",
+        "requests": [
+          {
+            "formulas": [
+              {
+                "formula": "query1"
+              }
+            ],
+            "queries": [
+              {
+                "data_source": "metrics",
+                "name": "query1",
+                "query": "avg:health.ci.revert_count.fom{*}.timeshift(-3d)",
+                "aggregator": "last"
+              }
+            ],
+            "response_format": "scalar",
+            "conditional_formats": [
+              {
+                "comparator": ">=",
+                "value": 0.7,
+                "palette": "white_on_green"
+              },
+              {
+                "comparator": ">=",
+                "value": 0.3,
+                "palette": "white_on_yellow"
+              },
+              {
+                "comparator": "<",
+                "value": 0.3,
+                "palette": "white_on_red"
+              }
+            ]
+          }
+        ],
+        "autoscale": false,
+        "precision": 2
+      },
+      "layout": {
+        "x": 8,
+        "y": 8,
+        "width": 1,
+        "height": 2
+      }
+    },
+    {
+      "definition": {
+        "title": "",
+        "title_size": "13",
+        "title_align": "center",
+        "type": "query_value",
+        "requests": [
+          {
+            "formulas": [
+              {
+                "formula": "query1"
+              }
+            ],
+            "queries": [
+              {
+                "data_source": "metrics",
+                "name": "query1",
+                "query": "avg:health.ci.revert_count.fom{*}.timeshift(-4d)",
+                "aggregator": "last"
+              }
+            ],
+            "response_format": "scalar",
+            "conditional_formats": [
+              {
+                "comparator": ">=",
+                "value": 0.7,
+                "palette": "white_on_green"
+              },
+              {
+                "comparator": ">=",
+                "value": 0.3,
+                "palette": "white_on_yellow"
+              },
+              {
+                "comparator": "<",
+                "value": 0.3,
+                "palette": "white_on_red"
+              }
+            ]
+          }
+        ],
+        "autoscale": false,
+        "precision": 2
+      },
+      "layout": {
+        "x": 9,
+        "y": 8,
+        "width": 1,
+        "height": 2
+      }
+    },
+    {
+      "definition": {
+        "title": "",
+        "title_size": "13",
+        "title_align": "center",
+        "type": "query_value",
+        "requests": [
+          {
+            "formulas": [
+              {
+                "formula": "query1"
+              }
+            ],
+            "queries": [
+              {
+                "data_source": "metrics",
+                "name": "query1",
+                "query": "avg:health.ci.revert_count.fom{*}.timeshift(-5d)",
+                "aggregator": "last"
+              }
+            ],
+            "response_format": "scalar",
+            "conditional_formats": [
+              {
+                "comparator": ">=",
+                "value": 0.7,
+                "palette": "white_on_green"
+              },
+              {
+                "comparator": ">=",
+                "value": 0.3,
+                "palette": "white_on_yellow"
+              },
+              {
+                "comparator": "<",
+                "value": 0.3,
+                "palette": "white_on_red"
+              }
+            ]
+          }
+        ],
+        "autoscale": false,
+        "precision": 2
+      },
+      "layout": {
+        "x": 10,
+        "y": 8,
+        "width": 1,
+        "height": 2
+      }
+    },
+    {
+      "definition": {
+        "title": "",
+        "title_size": "13",
+        "title_align": "center",
+        "type": "query_value",
+        "requests": [
+          {
+            "formulas": [
+              {
+                "formula": "query1"
+              }
+            ],
+            "queries": [
+              {
+                "data_source": "metrics",
+                "name": "query1",
+                "query": "avg:health.ci.revert_count.fom{*}.timeshift(-6d)",
+                "aggregator": "last"
+              }
+            ],
+            "response_format": "scalar",
+            "conditional_formats": [
+              {
+                "comparator": ">=",
+                "value": 0.7,
+                "palette": "white_on_green"
+              },
+              {
+                "comparator": ">=",
+                "value": 0.3,
+                "palette": "white_on_yellow"
+              },
+              {
+                "comparator": "<",
+                "value": 0.3,
+                "palette": "white_on_red"
+              }
+            ]
+          }
+        ],
+        "autoscale": false,
+        "precision": 2
+      },
+      "layout": {
+        "x": 11,
+        "y": 8,
+        "width": 1,
+        "height": 2
+      }
+    },
+    {
+      "definition": {
+        "type": "note",
+        "content": "**CI Duration P90**\n_CI pipeline duration_",
+        "background_color": "gray",
+        "font_size": "14",
+        "text_align": "center",
+        "show_tick": false,
+        "tick_pos": "50%",
+        "tick_edge": "left",
+        "has_padding": true
+      },
+      "layout": {
+        "x": 0,
+        "y": 10,
+        "width": 5,
+        "height": 2
+      }
+    },
+    {
+      "definition": {
+        "title": "",
+        "title_size": "13",
+        "title_align": "center",
+        "type": "query_value",
+        "requests": [
+          {
+            "formulas": [
+              {
+                "formula": "query1"
+              }
+            ],
+            "queries": [
+              {
+                "data_source": "metrics",
+                "name": "query1",
+                "query": "avg:health.ci.duration_p90.fom{*}",
+                "aggregator": "last"
+              }
+            ],
+            "response_format": "scalar",
+            "conditional_formats": [
+              {
+                "comparator": ">=",
+                "value": 0.7,
+                "palette": "white_on_green"
+              },
+              {
+                "comparator": ">=",
+                "value": 0.3,
+                "palette": "white_on_yellow"
+              },
+              {
+                "comparator": "<",
+                "value": 0.3,
+                "palette": "white_on_red"
+              }
+            ]
+          }
+        ],
+        "autoscale": false,
+        "precision": 2
+      },
+      "layout": {
+        "x": 5,
+        "y": 10,
+        "width": 1,
+        "height": 2
+      }
+    },
+    {
+      "definition": {
+        "title": "",
+        "title_size": "13",
+        "title_align": "center",
+        "type": "query_value",
+        "requests": [
+          {
+            "formulas": [
+              {
+                "formula": "query1"
+              }
+            ],
+            "queries": [
+              {
+                "data_source": "metrics",
+                "name": "query1",
+                "query": "avg:health.ci.duration_p90.fom{*}.timeshift(-1d)",
+                "aggregator": "last"
+              }
+            ],
+            "response_format": "scalar",
+            "conditional_formats": [
+              {
+                "comparator": ">=",
+                "value": 0.7,
+                "palette": "white_on_green"
+              },
+              {
+                "comparator": ">=",
+                "value": 0.3,
+                "palette": "white_on_yellow"
+              },
+              {
+                "comparator": "<",
+                "value": 0.3,
+                "palette": "white_on_red"
+              }
+            ]
+          }
+        ],
+        "autoscale": false,
+        "precision": 2
+      },
+      "layout": {
+        "x": 6,
+        "y": 10,
+        "width": 1,
+        "height": 2
+      }
+    },
+    {
+      "definition": {
+        "title": "",
+        "title_size": "13",
+        "title_align": "center",
+        "type": "query_value",
+        "requests": [
+          {
+            "formulas": [
+              {
+                "formula": "query1"
+              }
+            ],
+            "queries": [
+              {
+                "data_source": "metrics",
+                "name": "query1",
+                "query": "avg:health.ci.duration_p90.fom{*}.timeshift(-2d)",
+                "aggregator": "last"
+              }
+            ],
+            "response_format": "scalar",
+            "conditional_formats": [
+              {
+                "comparator": ">=",
+                "value": 0.7,
+                "palette": "white_on_green"
+              },
+              {
+                "comparator": ">=",
+                "value": 0.3,
+                "palette": "white_on_yellow"
+              },
+              {
+                "comparator": "<",
+                "value": 0.3,
+                "palette": "white_on_red"
+              }
+            ]
+          }
+        ],
+        "autoscale": false,
+        "precision": 2
+      },
+      "layout": {
+        "x": 7,
+        "y": 10,
+        "width": 1,
+        "height": 2
+      }
+    },
+    {
+      "definition": {
+        "title": "",
+        "title_size": "13",
+        "title_align": "center",
+        "type": "query_value",
+        "requests": [
+          {
+            "formulas": [
+              {
+                "formula": "query1"
+              }
+            ],
+            "queries": [
+              {
+                "data_source": "metrics",
+                "name": "query1",
+                "query": "avg:health.ci.duration_p90.fom{*}.timeshift(-3d)",
+                "aggregator": "last"
+              }
+            ],
+            "response_format": "scalar",
+            "conditional_formats": [
+              {
+                "comparator": ">=",
+                "value": 0.7,
+                "palette": "white_on_green"
+              },
+              {
+                "comparator": ">=",
+                "value": 0.3,
+                "palette": "white_on_yellow"
+              },
+              {
+                "comparator": "<",
+                "value": 0.3,
+                "palette": "white_on_red"
+              }
+            ]
+          }
+        ],
+        "autoscale": false,
+        "precision": 2
+      },
+      "layout": {
+        "x": 8,
+        "y": 10,
+        "width": 1,
+        "height": 2
+      }
+    },
+    {
+      "definition": {
+        "title": "",
+        "title_size": "13",
+        "title_align": "center",
+        "type": "query_value",
+        "requests": [
+          {
+            "formulas": [
+              {
+                "formula": "query1"
+              }
+            ],
+            "queries": [
+              {
+                "data_source": "metrics",
+                "name": "query1",
+                "query": "avg:health.ci.duration_p90.fom{*}.timeshift(-4d)",
+                "aggregator": "last"
+              }
+            ],
+            "response_format": "scalar",
+            "conditional_formats": [
+              {
+                "comparator": ">=",
+                "value": 0.7,
+                "palette": "white_on_green"
+              },
+              {
+                "comparator": ">=",
+                "value": 0.3,
+                "palette": "white_on_yellow"
+              },
+              {
+                "comparator": "<",
+                "value": 0.3,
+                "palette": "white_on_red"
+              }
+            ]
+          }
+        ],
+        "autoscale": false,
+        "precision": 2
+      },
+      "layout": {
+        "x": 9,
+        "y": 10,
+        "width": 1,
+        "height": 2
+      }
+    },
+    {
+      "definition": {
+        "title": "",
+        "title_size": "13",
+        "title_align": "center",
+        "type": "query_value",
+        "requests": [
+          {
+            "formulas": [
+              {
+                "formula": "query1"
+              }
+            ],
+            "queries": [
+              {
+                "data_source": "metrics",
+                "name": "query1",
+                "query": "avg:health.ci.duration_p90.fom{*}.timeshift(-5d)",
+                "aggregator": "last"
+              }
+            ],
+            "response_format": "scalar",
+            "conditional_formats": [
+              {
+                "comparator": ">=",
+                "value": 0.7,
+                "palette": "white_on_green"
+              },
+              {
+                "comparator": ">=",
+                "value": 0.3,
+                "palette": "white_on_yellow"
+              },
+              {
+                "comparator": "<",
+                "value": 0.3,
+                "palette": "white_on_red"
+              }
+            ]
+          }
+        ],
+        "autoscale": false,
+        "precision": 2
+      },
+      "layout": {
+        "x": 10,
+        "y": 10,
+        "width": 1,
+        "height": 2
+      }
+    },
+    {
+      "definition": {
+        "title": "",
+        "title_size": "13",
+        "title_align": "center",
+        "type": "query_value",
+        "requests": [
+          {
+            "formulas": [
+              {
+                "formula": "query1"
+              }
+            ],
+            "queries": [
+              {
+                "data_source": "metrics",
+                "name": "query1",
+                "query": "avg:health.ci.duration_p90.fom{*}.timeshift(-6d)",
+                "aggregator": "last"
+              }
+            ],
+            "response_format": "scalar",
+            "conditional_formats": [
+              {
+                "comparator": ">=",
+                "value": 0.7,
+                "palette": "white_on_green"
+              },
+              {
+                "comparator": ">=",
+                "value": 0.3,
+                "palette": "white_on_yellow"
+              },
+              {
+                "comparator": "<",
+                "value": 0.3,
+                "palette": "white_on_red"
+              }
+            ]
+          }
+        ],
+        "autoscale": false,
+        "precision": 2
+      },
+      "layout": {
+        "x": 11,
+        "y": 10,
+        "width": 1,
+        "height": 2
+      }
+    },
+    {
+      "definition": {
+        "type": "note",
+        "content": "**Stale PRs**\n_Stale PRs (14d)_",
+        "background_color": "gray",
+        "font_size": "14",
+        "text_align": "center",
+        "show_tick": false,
+        "tick_pos": "50%",
+        "tick_edge": "left",
+        "has_padding": true
+      },
+      "layout": {
+        "x": 0,
+        "y": 12,
+        "width": 5,
+        "height": 2
+      }
+    },
+    {
+      "definition": {
+        "title": "",
+        "title_size": "13",
+        "title_align": "center",
+        "type": "query_value",
+        "requests": [
+          {
+            "formulas": [
+              {
+                "formula": "query1"
+              }
+            ],
+            "queries": [
+              {
+                "data_source": "metrics",
+                "name": "query1",
+                "query": "avg:health.ci.stale_prs.fom{*}",
+                "aggregator": "last"
+              }
+            ],
+            "response_format": "scalar",
+            "conditional_formats": [
+              {
+                "comparator": ">=",
+                "value": 0.7,
+                "palette": "white_on_green"
+              },
+              {
+                "comparator": ">=",
+                "value": 0.3,
+                "palette": "white_on_yellow"
+              },
+              {
+                "comparator": "<",
+                "value": 0.3,
+                "palette": "white_on_red"
+              }
+            ]
+          }
+        ],
+        "autoscale": false,
+        "precision": 2
+      },
+      "layout": {
+        "x": 5,
+        "y": 12,
+        "width": 1,
+        "height": 2
+      }
+    },
+    {
+      "definition": {
+        "title": "",
+        "title_size": "13",
+        "title_align": "center",
+        "type": "query_value",
+        "requests": [
+          {
+            "formulas": [
+              {
+                "formula": "query1"
+              }
+            ],
+            "queries": [
+              {
+                "data_source": "metrics",
+                "name": "query1",
+                "query": "avg:health.ci.stale_prs.fom{*}.timeshift(-1d)",
+                "aggregator": "last"
+              }
+            ],
+            "response_format": "scalar",
+            "conditional_formats": [
+              {
+                "comparator": ">=",
+                "value": 0.7,
+                "palette": "white_on_green"
+              },
+              {
+                "comparator": ">=",
+                "value": 0.3,
+                "palette": "white_on_yellow"
+              },
+              {
+                "comparator": "<",
+                "value": 0.3,
+                "palette": "white_on_red"
+              }
+            ]
+          }
+        ],
+        "autoscale": false,
+        "precision": 2
+      },
+      "layout": {
+        "x": 6,
+        "y": 12,
+        "width": 1,
+        "height": 2
+      }
+    },
+    {
+      "definition": {
+        "title": "",
+        "title_size": "13",
+        "title_align": "center",
+        "type": "query_value",
+        "requests": [
+          {
+            "formulas": [
+              {
+                "formula": "query1"
+              }
+            ],
+            "queries": [
+              {
+                "data_source": "metrics",
+                "name": "query1",
+                "query": "avg:health.ci.stale_prs.fom{*}.timeshift(-2d)",
+                "aggregator": "last"
+              }
+            ],
+            "response_format": "scalar",
+            "conditional_formats": [
+              {
+                "comparator": ">=",
+                "value": 0.7,
+                "palette": "white_on_green"
+              },
+              {
+                "comparator": ">=",
+                "value": 0.3,
+                "palette": "white_on_yellow"
+              },
+              {
+                "comparator": "<",
+                "value": 0.3,
+                "palette": "white_on_red"
+              }
+            ]
+          }
+        ],
+        "autoscale": false,
+        "precision": 2
+      },
+      "layout": {
+        "x": 7,
+        "y": 12,
+        "width": 1,
+        "height": 2
+      }
+    },
+    {
+      "definition": {
+        "title": "",
+        "title_size": "13",
+        "title_align": "center",
+        "type": "query_value",
+        "requests": [
+          {
+            "formulas": [
+              {
+                "formula": "query1"
+              }
+            ],
+            "queries": [
+              {
+                "data_source": "metrics",
+                "name": "query1",
+                "query": "avg:health.ci.stale_prs.fom{*}.timeshift(-3d)",
+                "aggregator": "last"
+              }
+            ],
+            "response_format": "scalar",
+            "conditional_formats": [
+              {
+                "comparator": ">=",
+                "value": 0.7,
+                "palette": "white_on_green"
+              },
+              {
+                "comparator": ">=",
+                "value": 0.3,
+                "palette": "white_on_yellow"
+              },
+              {
+                "comparator": "<",
+                "value": 0.3,
+                "palette": "white_on_red"
+              }
+            ]
+          }
+        ],
+        "autoscale": false,
+        "precision": 2
+      },
+      "layout": {
+        "x": 8,
+        "y": 12,
+        "width": 1,
+        "height": 2
+      }
+    },
+    {
+      "definition": {
+        "title": "",
+        "title_size": "13",
+        "title_align": "center",
+        "type": "query_value",
+        "requests": [
+          {
+            "formulas": [
+              {
+                "formula": "query1"
+              }
+            ],
+            "queries": [
+              {
+                "data_source": "metrics",
+                "name": "query1",
+                "query": "avg:health.ci.stale_prs.fom{*}.timeshift(-4d)",
+                "aggregator": "last"
+              }
+            ],
+            "response_format": "scalar",
+            "conditional_formats": [
+              {
+                "comparator": ">=",
+                "value": 0.7,
+                "palette": "white_on_green"
+              },
+              {
+                "comparator": ">=",
+                "value": 0.3,
+                "palette": "white_on_yellow"
+              },
+              {
+                "comparator": "<",
+                "value": 0.3,
+                "palette": "white_on_red"
+              }
+            ]
+          }
+        ],
+        "autoscale": false,
+        "precision": 2
+      },
+      "layout": {
+        "x": 9,
+        "y": 12,
+        "width": 1,
+        "height": 2
+      }
+    },
+    {
+      "definition": {
+        "title": "",
+        "title_size": "13",
+        "title_align": "center",
+        "type": "query_value",
+        "requests": [
+          {
+            "formulas": [
+              {
+                "formula": "query1"
+              }
+            ],
+            "queries": [
+              {
+                "data_source": "metrics",
+                "name": "query1",
+                "query": "avg:health.ci.stale_prs.fom{*}.timeshift(-5d)",
+                "aggregator": "last"
+              }
+            ],
+            "response_format": "scalar",
+            "conditional_formats": [
+              {
+                "comparator": ">=",
+                "value": 0.7,
+                "palette": "white_on_green"
+              },
+              {
+                "comparator": ">=",
+                "value": 0.3,
+                "palette": "white_on_yellow"
+              },
+              {
+                "comparator": "<",
+                "value": 0.3,
+                "palette": "white_on_red"
+              }
+            ]
+          }
+        ],
+        "autoscale": false,
+        "precision": 2
+      },
+      "layout": {
+        "x": 10,
+        "y": 12,
+        "width": 1,
+        "height": 2
+      }
+    },
+    {
+      "definition": {
+        "title": "",
+        "title_size": "13",
+        "title_align": "center",
+        "type": "query_value",
+        "requests": [
+          {
+            "formulas": [
+              {
+                "formula": "query1"
+              }
+            ],
+            "queries": [
+              {
+                "data_source": "metrics",
+                "name": "query1",
+                "query": "avg:health.ci.stale_prs.fom{*}.timeshift(-6d)",
+                "aggregator": "last"
+              }
+            ],
+            "response_format": "scalar",
+            "conditional_formats": [
+              {
+                "comparator": ">=",
+                "value": 0.7,
+                "palette": "white_on_green"
+              },
+              {
+                "comparator": ">=",
+                "value": 0.3,
+                "palette": "white_on_yellow"
+              },
+              {
+                "comparator": "<",
+                "value": 0.3,
+                "palette": "white_on_red"
+              }
+            ]
+          }
+        ],
+        "autoscale": false,
+        "precision": 2
+      },
+      "layout": {
+        "x": 11,
+        "y": 12,
+        "width": 1,
+        "height": 2
+      }
+    },
+    {
+      "definition": {
+        "type": "note",
+        "content": "**PR Cycle Time**\n_PR cycle time_",
+        "background_color": "gray",
+        "font_size": "14",
+        "text_align": "center",
         "show_tick": false,
         "tick_pos": "50%",
         "tick_edge": "left",
@@ -406,7 +2429,364 @@
       "layout": {
         "x": 0,
         "y": 14,
-        "width": 12,
+        "width": 5,
+        "height": 2
+      }
+    },
+    {
+      "definition": {
+        "title": "",
+        "title_size": "13",
+        "title_align": "center",
+        "type": "query_value",
+        "requests": [
+          {
+            "formulas": [
+              {
+                "formula": "query1"
+              }
+            ],
+            "queries": [
+              {
+                "data_source": "metrics",
+                "name": "query1",
+                "query": "avg:health.ci.pr_cycle_time.fom{*}",
+                "aggregator": "last"
+              }
+            ],
+            "response_format": "scalar",
+            "conditional_formats": [
+              {
+                "comparator": ">=",
+                "value": 0.7,
+                "palette": "white_on_green"
+              },
+              {
+                "comparator": ">=",
+                "value": 0.3,
+                "palette": "white_on_yellow"
+              },
+              {
+                "comparator": "<",
+                "value": 0.3,
+                "palette": "white_on_red"
+              }
+            ]
+          }
+        ],
+        "autoscale": false,
+        "precision": 2
+      },
+      "layout": {
+        "x": 5,
+        "y": 14,
+        "width": 1,
+        "height": 2
+      }
+    },
+    {
+      "definition": {
+        "title": "",
+        "title_size": "13",
+        "title_align": "center",
+        "type": "query_value",
+        "requests": [
+          {
+            "formulas": [
+              {
+                "formula": "query1"
+              }
+            ],
+            "queries": [
+              {
+                "data_source": "metrics",
+                "name": "query1",
+                "query": "avg:health.ci.pr_cycle_time.fom{*}.timeshift(-1d)",
+                "aggregator": "last"
+              }
+            ],
+            "response_format": "scalar",
+            "conditional_formats": [
+              {
+                "comparator": ">=",
+                "value": 0.7,
+                "palette": "white_on_green"
+              },
+              {
+                "comparator": ">=",
+                "value": 0.3,
+                "palette": "white_on_yellow"
+              },
+              {
+                "comparator": "<",
+                "value": 0.3,
+                "palette": "white_on_red"
+              }
+            ]
+          }
+        ],
+        "autoscale": false,
+        "precision": 2
+      },
+      "layout": {
+        "x": 6,
+        "y": 14,
+        "width": 1,
+        "height": 2
+      }
+    },
+    {
+      "definition": {
+        "title": "",
+        "title_size": "13",
+        "title_align": "center",
+        "type": "query_value",
+        "requests": [
+          {
+            "formulas": [
+              {
+                "formula": "query1"
+              }
+            ],
+            "queries": [
+              {
+                "data_source": "metrics",
+                "name": "query1",
+                "query": "avg:health.ci.pr_cycle_time.fom{*}.timeshift(-2d)",
+                "aggregator": "last"
+              }
+            ],
+            "response_format": "scalar",
+            "conditional_formats": [
+              {
+                "comparator": ">=",
+                "value": 0.7,
+                "palette": "white_on_green"
+              },
+              {
+                "comparator": ">=",
+                "value": 0.3,
+                "palette": "white_on_yellow"
+              },
+              {
+                "comparator": "<",
+                "value": 0.3,
+                "palette": "white_on_red"
+              }
+            ]
+          }
+        ],
+        "autoscale": false,
+        "precision": 2
+      },
+      "layout": {
+        "x": 7,
+        "y": 14,
+        "width": 1,
+        "height": 2
+      }
+    },
+    {
+      "definition": {
+        "title": "",
+        "title_size": "13",
+        "title_align": "center",
+        "type": "query_value",
+        "requests": [
+          {
+            "formulas": [
+              {
+                "formula": "query1"
+              }
+            ],
+            "queries": [
+              {
+                "data_source": "metrics",
+                "name": "query1",
+                "query": "avg:health.ci.pr_cycle_time.fom{*}.timeshift(-3d)",
+                "aggregator": "last"
+              }
+            ],
+            "response_format": "scalar",
+            "conditional_formats": [
+              {
+                "comparator": ">=",
+                "value": 0.7,
+                "palette": "white_on_green"
+              },
+              {
+                "comparator": ">=",
+                "value": 0.3,
+                "palette": "white_on_yellow"
+              },
+              {
+                "comparator": "<",
+                "value": 0.3,
+                "palette": "white_on_red"
+              }
+            ]
+          }
+        ],
+        "autoscale": false,
+        "precision": 2
+      },
+      "layout": {
+        "x": 8,
+        "y": 14,
+        "width": 1,
+        "height": 2
+      }
+    },
+    {
+      "definition": {
+        "title": "",
+        "title_size": "13",
+        "title_align": "center",
+        "type": "query_value",
+        "requests": [
+          {
+            "formulas": [
+              {
+                "formula": "query1"
+              }
+            ],
+            "queries": [
+              {
+                "data_source": "metrics",
+                "name": "query1",
+                "query": "avg:health.ci.pr_cycle_time.fom{*}.timeshift(-4d)",
+                "aggregator": "last"
+              }
+            ],
+            "response_format": "scalar",
+            "conditional_formats": [
+              {
+                "comparator": ">=",
+                "value": 0.7,
+                "palette": "white_on_green"
+              },
+              {
+                "comparator": ">=",
+                "value": 0.3,
+                "palette": "white_on_yellow"
+              },
+              {
+                "comparator": "<",
+                "value": 0.3,
+                "palette": "white_on_red"
+              }
+            ]
+          }
+        ],
+        "autoscale": false,
+        "precision": 2
+      },
+      "layout": {
+        "x": 9,
+        "y": 14,
+        "width": 1,
+        "height": 2
+      }
+    },
+    {
+      "definition": {
+        "title": "",
+        "title_size": "13",
+        "title_align": "center",
+        "type": "query_value",
+        "requests": [
+          {
+            "formulas": [
+              {
+                "formula": "query1"
+              }
+            ],
+            "queries": [
+              {
+                "data_source": "metrics",
+                "name": "query1",
+                "query": "avg:health.ci.pr_cycle_time.fom{*}.timeshift(-5d)",
+                "aggregator": "last"
+              }
+            ],
+            "response_format": "scalar",
+            "conditional_formats": [
+              {
+                "comparator": ">=",
+                "value": 0.7,
+                "palette": "white_on_green"
+              },
+              {
+                "comparator": ">=",
+                "value": 0.3,
+                "palette": "white_on_yellow"
+              },
+              {
+                "comparator": "<",
+                "value": 0.3,
+                "palette": "white_on_red"
+              }
+            ]
+          }
+        ],
+        "autoscale": false,
+        "precision": 2
+      },
+      "layout": {
+        "x": 10,
+        "y": 14,
+        "width": 1,
+        "height": 2
+      }
+    },
+    {
+      "definition": {
+        "title": "",
+        "title_size": "13",
+        "title_align": "center",
+        "type": "query_value",
+        "requests": [
+          {
+            "formulas": [
+              {
+                "formula": "query1"
+              }
+            ],
+            "queries": [
+              {
+                "data_source": "metrics",
+                "name": "query1",
+                "query": "avg:health.ci.pr_cycle_time.fom{*}.timeshift(-6d)",
+                "aggregator": "last"
+              }
+            ],
+            "response_format": "scalar",
+            "conditional_formats": [
+              {
+                "comparator": ">=",
+                "value": 0.7,
+                "palette": "white_on_green"
+              },
+              {
+                "comparator": ">=",
+                "value": 0.3,
+                "palette": "white_on_yellow"
+              },
+              {
+                "comparator": "<",
+                "value": 0.3,
+                "palette": "white_on_red"
+              }
+            ]
+          }
+        ],
+        "autoscale": false,
+        "precision": 2
+      },
+      "layout": {
+        "x": 11,
+        "y": 14,
+        "width": 1,
         "height": 2
       }
     }
