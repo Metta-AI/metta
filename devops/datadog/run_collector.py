@@ -476,13 +476,106 @@ def run_ec2_collector(push: bool = False, verbose: bool = False, json_output: bo
     return metrics
 
 
+def run_wandb_collector(push: bool = False, verbose: bool = False, json_output: bool = False) -> dict:
+    """Run the WandB metrics collector."""
+    from devops.datadog.collectors.wandb import WandBCollector
+    from devops.datadog.common.datadog_client import DatadogClient
+
+    # Setup logging
+    if verbose:
+        logging.basicConfig(level=logging.DEBUG, format="%(levelname)s: %(message)s")
+    else:
+        logging.basicConfig(level=logging.INFO, format="%(message)s")
+
+    # Helper to print messages (stderr for json mode, stdout otherwise)
+    def print_status(msg):
+        if json_output:
+            print(msg, file=sys.stderr)
+        else:
+            print(msg)
+
+    # Get WandB credentials
+    wandb_api_key = os.getenv("WANDB_API_KEY")
+    if not wandb_api_key:
+        # Try AWS Secrets Manager
+        try:
+            from softmax.aws.secrets_manager import get_secretsmanager_secret
+
+            wandb_api_key = get_secretsmanager_secret("wandb/api-key")
+        except Exception as e:
+            print(f"Error: WANDB_API_KEY not found in environment or AWS Secrets Manager. {e}", file=sys.stderr)
+            sys.exit(1)
+
+    # Get WandB entity and project
+    entity = os.getenv("WANDB_ENTITY", "pufferai")
+    project = os.getenv("WANDB_PROJECT", "metta")
+
+    print_status(f"Collecting metrics from WandB ({entity}/{project})...")
+
+    # Create and run collector
+    collector = WandBCollector(api_key=wandb_api_key, entity=entity, project=project)
+    metrics = collector.collect_safe()
+
+    if not metrics:
+        print("Warning: No metrics collected", file=sys.stderr)
+        sys.exit(1)
+
+    print_status(f"Collected {len(metrics)} metrics\n")
+
+    # Display metrics
+    if not json_output:
+        print_status("Collected metrics:")
+        for key, value in sorted(metrics.items()):
+            print_status(f"  {key}: {value}")
+    else:
+        # JSON output
+        print(json.dumps(metrics, indent=2, default=str))
+
+    # Push to Datadog if requested
+    if push:
+        print_status("\nPushing metrics to Datadog...")
+        api_key, app_key, site = get_datadog_credentials()
+
+        datadog_client = DatadogClient(
+            api_key=api_key,
+            app_key=app_key,
+            site=site,
+        )
+
+        # Format metrics for submission
+        metrics_to_submit = []
+        for name, value in metrics.items():
+            if value is not None:
+                metrics_to_submit.append(
+                    {
+                        "metric": name,
+                        "value": value,
+                        "type": "gauge",
+                        "tags": ["source:wandb-collector", "env:production"],
+                    }
+                )
+
+        # Submit metrics
+        success = datadog_client.submit_metrics_batch(metrics_to_submit)
+
+        if success:
+            print_status(f"Successfully pushed {len(metrics_to_submit)} metrics to Datadog")
+        else:
+            print("Error: Failed to push metrics to Datadog", file=sys.stderr)
+            sys.exit(1)
+
+    return metrics
+
+
 def main():
     """Main entry point."""
     # Load .env file if it exists
     load_env_file()
 
     parser = argparse.ArgumentParser(description="Run a Datadog metrics collector")
-    parser.add_argument("collector", help="Collector name (e.g., 'github', 'skypilot', 'asana', 'health_fom', 'ec2')")
+    parser.add_argument(
+        "collector", help="Collector name (e.g., 'github', 'skypilot', 'asana', 'health_fom', 'ec2', 'wandb')"
+    )
     parser.add_argument("--push", action="store_true", help="Push metrics to Datadog")
     parser.add_argument("--verbose", "-v", action="store_true", help="Verbose output")
     parser.add_argument("--json", action="store_true", help="Output metrics as JSON")
@@ -624,9 +717,36 @@ def main():
                 traceback.print_exc()
             sys.exit(1)
 
+    elif args.collector == "wandb":
+        try:
+            metrics = run_wandb_collector(push=args.push, verbose=args.verbose, json_output=args.json)
+
+            if args.json:
+                print(json.dumps(metrics, indent=2, sort_keys=True))
+            else:
+                print("\nCollected metrics:")
+                for key, value in sorted(metrics.items()):
+                    if value is not None:
+                        if isinstance(value, float):
+                            print(f"  {key}: {value:.2f}")
+                        else:
+                            print(f"  {key}: {value}")
+
+        except KeyboardInterrupt:
+            print("\nInterrupted", file=sys.stderr)
+            sys.exit(130)
+
+        except Exception as e:
+            print(f"Error: Failed to run {args.collector} collector: {e}", file=sys.stderr)
+            if args.verbose:
+                import traceback
+
+                traceback.print_exc()
+            sys.exit(1)
+
     else:
         print(f"Error: Unknown collector '{args.collector}'", file=sys.stderr)
-        print("Available collectors: github, skypilot, asana, health_fom, ec2", file=sys.stderr)
+        print("Available collectors: github, skypilot, asana, health_fom, ec2, wandb", file=sys.stderr)
         sys.exit(1)
 
 

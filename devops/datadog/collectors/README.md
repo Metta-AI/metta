@@ -17,11 +17,11 @@ All collectors share a common base class and follow consistent patterns.
 
 | Collector | Status | Priority | Metrics | Schedule | Description |
 |-----------|--------|----------|---------|----------|-------------|
-| [github](github/) | ✅ Implemented | High | 24 | 15 min | PRs, commits, CI/CD, branches, developers |
+| [github](github/) | ✅ Implemented | High | 28 | 15 min | PRs, commits, CI/CD, branches, developers |
 | [skypilot](skypilot/) | ✅ Implemented | High | 30 | 10 min | Jobs, clusters, runtime stats, resource utilization |
 | [asana](asana/) | ✅ Implemented | Medium | 14 | 6 hours | Project health, bugs tracking, team velocity |
 | [ec2](ec2/) | ✅ Implemented | High | 19 | 5 min | Instances, costs, utilization, EBS volumes |
-| [wandb](wandb/) | 📋 Planned | Medium | 15+ | 30 min | Training runs, experiments, GPU hours |
+| [wandb](wandb/) | ✅ Implemented | High | 10 | 30 min | Training runs, model performance, GPU hours |
 
 ## Quick Reference
 
@@ -296,17 +296,17 @@ Alert: GitHub collector hasn't reported metrics in 30 minutes
 ## Roadmap
 
 ### Phase 1: Core Collectors ✅
-- ✅ GitHub collector (24 metrics)
+- ✅ GitHub collector (28 metrics)
 - ✅ Skypilot collector (30 metrics)
 - ✅ Asana collector (14 metrics)
 - ✅ EC2 collector (19 metrics)
+- ✅ WandB collector (10 metrics)
 - ✅ AWS Secrets Manager integration
 - ✅ Deployed as Kubernetes CronJobs
 
 ### Phase 2: Additional Collectors 📋
 Priority order:
-1. **WandB** (training visibility) - Planned
-2. **Custom metrics** (as needed)
+1. **Custom metrics** (as needed)
 
 ### Phase 3: Enhancements 📋
 - Dashboard auto-generation from metadata

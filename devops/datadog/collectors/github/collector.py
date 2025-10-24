@@ -204,6 +204,18 @@ class GitHubCollector(BaseCollector):
             metrics["commits.hotfix"] = hotfix_count
             metrics["commits.reverts"] = revert_count
 
+            # Count force pushes/merges
+            # Look for commits with "force" in message or commits that indicate history rewrite
+            force_merge_count = sum(
+                1
+                for commit in commits
+                if any(
+                    keyword in commit.get("commit", {}).get("message", "").lower()
+                    for keyword in ["force push", "force merge", "force-push", "force-merge"]
+                )
+            )
+            metrics["commits.force_merge_7d"] = force_merge_count
+
             # Collect code statistics
             total_additions = 0
             total_deletions = 0
@@ -243,6 +255,7 @@ class GitHubCollector(BaseCollector):
                 "commits.total_7d",
                 "commits.hotfix",
                 "commits.reverts",
+                "commits.force_merge_7d",
                 "code.lines_added_7d",
                 "code.lines_deleted_7d",
                 "code.files_changed_7d",
@@ -270,6 +283,34 @@ class GitHubCollector(BaseCollector):
             # Count failed workflows
             failed_runs = [run for run in workflow_runs if run.get("conclusion") == "failure"]
             metrics["ci.failed_workflows_7d"] = len(failed_runs)
+
+            # Count timeout cancellations
+            # Workflows cancelled due to timeout
+            cancelled_runs = [run for run in workflow_runs if run.get("conclusion") == "cancelled"]
+            metrics["ci.timeout_cancellations_7d"] = len(cancelled_runs)
+
+            # Count flaky checks (re-run workflows)
+            # A workflow is considered flaky if it has run_attempt > 1
+            flaky_runs = [run for run in workflow_runs if run.get("run_attempt", 1) > 1]
+            metrics["ci.flaky_checks_7d"] = len(flaky_runs)
+
+            # Check benchmark status
+            # Look for workflows with "benchmark" in the name
+            benchmark_runs = [
+                run
+                for run in workflow_runs
+                if "benchmark" in run.get("name", "").lower() and run.get("status") == "completed"
+            ]
+            if benchmark_runs:
+                # Get most recent benchmark run on main
+                main_benchmark_runs = [run for run in benchmark_runs if run.get("head_branch") == "main"]
+                if main_benchmark_runs:
+                    latest_benchmark = max(main_benchmark_runs, key=lambda r: r.get("created_at", ""))
+                    metrics["ci.benchmarks_passing"] = 1 if latest_benchmark.get("conclusion") == "success" else 0
+                else:
+                    metrics["ci.benchmarks_passing"] = None
+            else:
+                metrics["ci.benchmarks_passing"] = None
 
             # Check if main branch tests are passing
             # Get most recent workflow run on main branch
@@ -320,13 +361,16 @@ class GitHubCollector(BaseCollector):
             for key in [
                 "ci.workflow_runs_7d",
                 "ci.failed_workflows_7d",
+                "ci.timeout_cancellations_7d",
+                "ci.flaky_checks_7d",
                 "ci.tests_passing_on_main",
+                "ci.benchmarks_passing",
                 "ci.avg_workflow_duration_minutes",
                 "ci.duration_p50_minutes",
                 "ci.duration_p90_minutes",
                 "ci.duration_p99_minutes",
             ]:
-                if "count" in key or "runs" in key:
+                if "count" in key or "runs" in key or "cancellations" in key or "checks" in key:
                     metrics.setdefault(key, 0)
                 else:
                     metrics.setdefault(key, None)

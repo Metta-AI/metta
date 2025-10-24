@@ -4,7 +4,7 @@
 
 Comprehensive metrics tracking development velocity, code quality, and CI/CD efficiency for the Metta project.
 
-**Total Metrics**: 25 (17 original + 8 new quality/velocity metrics)
+**Total Metrics**: 28 (24 original + 4 new quality metrics)
 **Collection Frequency**: Every 15 minutes via Kubernetes CronJob
 **Submission Format**: All metrics submitted to Datadog as GAUGE values
 
@@ -86,7 +86,7 @@ Monitor branch proliferation and cleanup patterns.
 
 **Current Value**: 1,158 branches
 
-### Commit & Code Change Metrics (7 metrics)
+### Commit & Code Change Metrics (8 metrics)
 
 Track development activity and code churn.
 
@@ -96,15 +96,17 @@ Track development activity and code churn.
 | `commits.per_developer_7d` | Average commits per developer | count | GAUGE | Original |
 | `commits.hotfix` | Hotfix commits in last 7 days | count | GAUGE | Original |
 | `commits.reverts` | Revert commits in last 7 days | count | GAUGE | Original |
+| **`commits.force_merge_7d`** | Force pushes/merges in last 7 days | count | GAUGE | **2025-10-23** |
 | `code.lines_added_7d` | Lines of code added in last 7 days | lines | GAUGE | Original |
 | `code.lines_deleted_7d` | Lines of code deleted in last 7 days | lines | GAUGE | Original |
 | `code.files_changed_7d` | Unique files modified in last 7 days | count | GAUGE | Original |
 
 **Use Cases**:
 - Measure development velocity (`commits.total_7d`)
-- Track code quality issues (`commits.hotfix`, `commits.reverts`)
+- Track code quality issues (`commits.hotfix`, `commits.reverts`, `commits.force_merge_7d`)
 - Monitor code churn (`code.lines_added_7d` + `code.lines_deleted_7d`)
 - Identify refactoring efforts (high deletions, low additions)
+- Alert on force pushes to protected branches (potential history rewrite)
 
 **Example Queries**:
 ```
@@ -129,7 +131,7 @@ avg:code.lines_added_7d{source:softmax-system-health} + avg:code.lines_deleted_7
 
 **Fix Applied (Phase 1C)**: Code statistics metrics were returning 0 because the GitHub list commits endpoint doesn't include stats. We now fetch individual commits with `get_commit_with_stats()` to retrieve accurate statistics.
 
-### CI/CD Runtime Metrics (7 metrics)
+### CI/CD Runtime Metrics (11 metrics)
 
 Monitor GitHub Actions usage, cost, efficiency, and performance SLAs.
 
@@ -138,16 +140,21 @@ Monitor GitHub Actions usage, cost, efficiency, and performance SLAs.
 | `ci.tests_passing_on_main` | Main branch CI test status (1=passing, 0=failing) | boolean | GAUGE | Original |
 | `ci.workflow_runs_7d` | Total workflow runs in last 7 days | count | GAUGE | Original |
 | `ci.failed_workflows_7d` | Failed workflow runs in last 7 days | count | GAUGE | Original |
+| **`ci.timeout_cancellations_7d`** | Workflow runs cancelled (including timeouts) | count | GAUGE | **2025-10-23** |
+| **`ci.flaky_checks_7d`** | Workflow runs that required retry (run_attempt > 1) | count | GAUGE | **2025-10-23** |
+| **`ci.benchmarks_passing`** | Benchmark test status on main (1=passing, 0=failing) | boolean | GAUGE | **2025-10-23** |
 | `ci.avg_workflow_duration_minutes` | Average workflow run duration | minutes | GAUGE | Original |
 | **`ci.duration_p50_minutes`** | Median (50th percentile) workflow duration | minutes | GAUGE | **Phase 1D** |
 | **`ci.duration_p90_minutes`** | 90th percentile workflow duration | minutes | GAUGE | **Phase 1D** |
 | **`ci.duration_p99_minutes`** | 99th percentile workflow duration | minutes | GAUGE | **Phase 1D** |
 
 **Use Cases**:
-- Track CI health (`ci.tests_passing_on_main`)
+- Track CI health (`ci.tests_passing_on_main`, `ci.benchmarks_passing`)
 - Monitor CI usage (`ci.workflow_runs_7d`)
-- Identify flaky tests (`ci.failed_workflows_7d`)
+- Identify flaky tests (`ci.failed_workflows_7d`, `ci.flaky_checks_7d`)
 - Optimize workflow performance (`ci.avg_workflow_duration_minutes`)
+- Detect timeout issues (`ci.timeout_cancellations_7d`)
+- Monitor benchmark regression (`ci.benchmarks_passing`)
 - **Track SLA compliance** (`ci.duration_p90_minutes` < target)
 - **Identify outliers** (`ci.duration_p99_minutes` >> `ci.duration_p50_minutes`)
 
