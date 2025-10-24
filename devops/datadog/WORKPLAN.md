@@ -1,10 +1,12 @@
 # Datadog Observability System - Work Plan
 
-**Current Status**: Production deployment with 7 collectors, 5 migrated dashboards (Jsonnet framework), and 123+ metrics
+**Current Status**: Production deployment with 7 collectors, 8 dashboards (all migrated to Jsonnet), and 123+ metrics
 
 **Branch**: `robb/1022-datadog` **PR**: [#3384](https://github.com/Metta-AI/metta/pull/3384)
 
-**Dashboard Framework**: Comprehensive Jsonnet library with layouts, presets, and component libraries (2,550+ lines of documentation)
+**Dashboard Framework**: Comprehensive Jsonnet library with layouts, presets, and 7 component libraries (2,550+ lines of documentation)
+
+**✅ All Dashboards Migrated**: Every collector now has a Jsonnet-based dashboard with component libraries
 
 ---
 
@@ -31,18 +33,15 @@ Running in production via unified CronJob (every 15 minutes):
 - `skypilot_jobs.jsonnet` → Skypilot job tracking (ID: mtw-y2p-4ed)
 - `ec2.jsonnet` → AWS EC2 infrastructure (ID: 4ue-n4w-b7a)
 - `asana.jsonnet` → Project management (ID: srz-bhk-zr2)
+- `policy_evaluator.jsonnet` → APM evaluation metrics (ID: gpk-2y2-9er)
+- `kubernetes.jsonnet` → Kubernetes cluster health (ID: 687-i5n-ncf)
+- `wandb.jsonnet` → WandB training metrics (ID: dr3-pdj-rrw)
 - `demo.jsonnet` → Demo/reference dashboard
 
 **🔧 Python-Generated** (complex visualizations, no migration needed):
 - `system_health_rollup.json` → 7×7 FoM grid (65 widgets) via `generate_health_grid.py`
 - `system_health_rollup_wildcard.json` → Vega-Lite heatmap via `generate_wildcard_fom_grid.py`
 
-**⚠️ Legacy JSON** (needs migration to Jsonnet):
-- `policy_evaluator.json` → APM dashboard (eval-orchestrator/worker latency)
-
-**❌ Missing Dashboards** (collectors without dashboards):
-- Kubernetes collector (15 metrics) - no dashboard yet
-- WandB collector (10 metrics) - no dashboard yet
 
 ### 🏗️ Infrastructure
 
@@ -60,20 +59,16 @@ Running in production via unified CronJob (every 15 minutes):
 - [ ] Address PR feedback and merge to main
 - [ ] Monitor production stability (95%+ collector success rate)
 
-### Dashboard Migration Tasks
+### Dashboard Migration - ✅ Complete!
 
-**High Priority** (migrate existing dashboard):
-- [ ] Migrate `policy_evaluator.json` to Jsonnet framework
-  - Simple 3-widget APM dashboard (eval-orchestrator/worker latency)
-  - Should take ~15 minutes using new framework
+All collector dashboards have been successfully migrated to the Jsonnet framework:
+- ✅ Migrated `policy_evaluator` from legacy JSON to Jsonnet
+- ✅ Created `kubernetes` dashboard with 15 metrics across 3 sections
+- ✅ Created `wandb` dashboard with 10 metrics for ML training tracking
 
-**Medium Priority** (create missing dashboards):
-- [ ] Create Kubernetes dashboard (`kubernetes.jsonnet`)
-  - 15 metrics available: pods, deployments, node health, resource waste
-  - Use new framework with layouts + presets
-- [ ] Create WandB dashboard (`wandb.jsonnet`)
-  - 10 metrics available: training runs, model performance, resource usage
-  - Use new framework with layouts + presets
+**Component Libraries Created**:
+- `components/kubernetes.libsonnet` - 18 widget functions for cluster health
+- `components/wandb.libsonnet` - 14 widget functions for ML training
 
 ### Near-term (When Needed)
 
