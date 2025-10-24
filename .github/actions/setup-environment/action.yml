@@ -147,9 +147,9 @@ runs:
             # (typer, rich, pydantic, pyyaml, colorama, omegaconf, etc.)
             uv pip install -e . --no-deps
             uv pip install typer rich pydantic pyyaml colorama omegaconf
-            # Install workspace packages that metta CLI imports
-            uv pip install -e common --no-deps
-            uv pip install -e packages/gitta --no-deps
+            # Install workspace packages that metta CLI imports (with their dependencies)
+            uv pip install -e common
+            uv pip install -e packages/gitta
             ;;
 
         esac
