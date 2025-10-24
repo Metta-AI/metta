@@ -7,12 +7,15 @@ Provides strategy pattern for different LP scoring algorithms:
 
 from __future__ import annotations
 
+import logging
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 import numpy as np
 
 from .task_tracker import TaskTracker
+
+logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from .learning_progress_algorithm import LearningProgressConfig
@@ -129,6 +132,9 @@ class BidirectionalLPScorer(LPScorer):
         self._score_cache: Dict[int, float] = {}
         self._cache_valid_tasks: set[int] = set()
 
+        # Track tasks for detailed logging (tasks 0, 1, 2 by modulo for task dependency sim)
+        self._tracked_task_ids: Dict[int, int] = {}  # Maps task_id -> position (0, 1, 2)
+
     def score_task(self, task_id: int, tracker: TaskTracker) -> float:
         """Calculate bidirectional learning progress score for a task."""
         # Return cached score if valid
@@ -157,6 +163,16 @@ class BidirectionalLPScorer(LPScorer):
                 if task_idx < len(self._task_dist):
                     # Use the bidirectional learning progress as score
                     score = float(self._task_dist[task_idx])
+
+                    # Log final LP score for tracked tasks
+                    if task_id in self._tracked_task_ids:
+                        position = self._tracked_task_ids[task_id]
+                        raw_lp = self._learning_progress()[task_idx] if len(self._learning_progress()) > 0 else 0.0
+                        logger.info(
+                            f"LP Task {position} (ID={task_id}) FINAL SCORE: "
+                            f"raw_lp={raw_lp:.4f}, task_dist_score={score:.6f}, "
+                            f"temperature={self.config.lp_score_temperature:.4f}"
+                        )
                 else:
                     score = self.config.exploration_bonus
             else:
@@ -172,6 +188,13 @@ class BidirectionalLPScorer(LPScorer):
         # Convert score to success rate (assuming score is between 0 and 1)
         success_rate = max(0.0, min(1.0, score))
 
+        # Track first 3 unique tasks for detailed logging
+        task_positions = list(self._tracked_task_ids.values())
+        if task_id not in self._tracked_task_ids and len(task_positions) < 3:
+            next_position = len(self._tracked_task_ids)
+            self._tracked_task_ids[task_id] = next_position
+            logger.info(f"LP Tracking: Task {task_id} assigned to position {next_position} for detailed logging")
+
         # Initialize outcomes for new tasks
         if task_id not in self._outcomes:
             self._outcomes[task_id] = []
@@ -179,6 +202,15 @@ class BidirectionalLPScorer(LPScorer):
         # Add outcome and maintain memory limit
         self._outcomes[task_id].append(success_rate)
         self._outcomes[task_id] = self._outcomes[task_id][-self.config.memory :]
+
+        # Log raw reward for tracked tasks (before EMA updates)
+        if task_id in self._tracked_task_ids:
+            position = self._tracked_task_ids[task_id]
+            num_samples = len(self._outcomes[task_id])
+            logger.info(
+                f"LP Task {position} (ID={task_id}): "
+                f"Raw reward={score:.4f}, clamped={success_rate:.4f}, sample_count={num_samples}"
+            )
 
         # Update bidirectional progress to ensure EMAs are updated
         self._update_bidirectional_progress()
@@ -302,6 +334,22 @@ class BidirectionalLPScorer(LPScorer):
         if not np.any(self._update_mask):
             return
 
+        # Log pre-update EMA values for tracked tasks
+        for task_id in self._tracked_task_ids:
+            if task_id in task_ids:
+                position = self._tracked_task_ids[task_id]
+                task_idx = task_ids.index(task_id)
+                mean_reward = task_success_rates[task_idx]
+                if self._p_fast is not None and task_idx < len(self._p_fast):
+                    fast_ema_before = self._p_fast[task_idx]
+                    slow_ema_before = self._p_slow[task_idx] if self._p_slow is not None else 0.0
+                    lp_before = fast_ema_before - slow_ema_before
+                    logger.info(
+                        f"LP Task {position} (ID={task_id}) PRE-UPDATE: "
+                        f"mean_reward={mean_reward:.4f}, fast_ema={fast_ema_before:.4f}, "
+                        f"slow_ema={slow_ema_before:.4f}, lp={lp_before:.4f}"
+                    )
+
         # Optionally normalize by random baseline
         if self.config.use_baseline_normalization:
             # Initialize random baseline if needed
@@ -368,6 +416,22 @@ class BidirectionalLPScorer(LPScorer):
                 self._p_true[self._update_mask] = task_success_rates[
                     self._update_mask
                 ] * self.config.ema_timescale + self._p_true[self._update_mask] * (1.0 - self.config.ema_timescale)
+
+                # Log post-update EMA values for tracked tasks
+                for task_id in self._tracked_task_ids:
+                    if task_id in task_ids:
+                        position = self._tracked_task_ids[task_id]
+                        task_idx = task_ids.index(task_id)
+                        if task_idx < len(self._p_fast):
+                            fast_ema_after = self._p_fast[task_idx]
+                            slow_ema_after = self._p_slow[task_idx]
+                            lp_after = fast_ema_after - slow_ema_after
+                            logger.info(
+                                f"LP Task {position} (ID={task_id}) POST-UPDATE: "
+                                f"fast_ema={fast_ema_after:.4f}, slow_ema={slow_ema_after:.4f}, "
+                                f"lp={lp_after:.4f}, timescales=(fast={self.config.ema_timescale:.4f}, "
+                                f"slow={slow_timescale:.4f})"
+                            )
 
         self._task_success_rate = task_success_rates
         self._stale_dist = True
