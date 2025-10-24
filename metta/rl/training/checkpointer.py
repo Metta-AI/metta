@@ -8,7 +8,7 @@ from pydantic import Field
 
 from metta.agent.policy import Policy, PolicyArchitecture
 from metta.rl.checkpoint_manager import CheckpointManager
-from metta.rl.training import DistributedHelper, EnvironmentMetaData, TrainerComponent
+from metta.rl.training import DistributedHelper, GameRules, TrainerComponent
 from mettagrid.base_config import Config
 
 logger = logging.getLogger(__name__)
@@ -52,7 +52,7 @@ class Checkpointer(TrainerComponent):
     # ------------------------------------------------------------------
     def load_or_create_policy(
         self,
-        env_metadata: EnvironmentMetaData,
+        game_rules: GameRules,
         *,
         policy_uri: Optional[str] = None,
     ) -> Policy:
@@ -68,7 +68,7 @@ class Checkpointer(TrainerComponent):
             normalized_uri = CheckpointManager.normalize_uri(candidate_uri)
             try:
                 load_device = torch.device(self._distributed.config.device)
-                policy = self._checkpoint_manager.load_from_uri(normalized_uri, env_metadata, load_device)
+                policy = self._checkpoint_manager.load_from_uri(normalized_uri, game_rules, load_device)
                 self._latest_policy_uri = normalized_uri
                 logger.info("Loaded policy from %s", normalized_uri)
             except FileNotFoundError:
@@ -81,7 +81,7 @@ class Checkpointer(TrainerComponent):
             return policy
 
         logger.info("Creating new policy for training run")
-        return self._policy_architecture.make_policy(env_metadata)
+        return self._policy_architecture.make_policy(game_rules)
 
     def get_latest_policy_uri(self) -> Optional[str]:
         """Return the most recent checkpoint URI tracked by this component."""

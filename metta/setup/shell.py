@@ -23,7 +23,7 @@ def help_configs() -> None:
     success("# Load checkpoints:")
     info('artifact = CheckpointManager.load_artifact_from_uri("file://./train_dir/my_run/checkpoints/my_run:v12.mpt")')
     info('artifact = CheckpointManager.load_artifact_from_uri("s3://bucket/path/my_run/checkpoints/my_run:v12.mpt")')
-    info('policy = artifact.policy  # or artifact.instantiate(env_metadata, torch.device("cpu"))')
+    info('policy = artifact.policy  # or artifact.instantiate(game_rules, torch.device("cpu"))')
     success("# Create checkpoint manager:")
     info('cm = CheckpointManager(run="my_run", run_dir="./train_dir")')
 

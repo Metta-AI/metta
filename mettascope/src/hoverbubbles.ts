@@ -100,7 +100,7 @@ export function updateHoverBubble(object: Entity) {
       }
     }
 
-    const typeName = state.replay.typeNames[object.typeId]
+    const typeName = object.typeName
     if (typeName === 'wall') {
       // Don't show hover bubble for walls.
       hoverBubble.classList.add('hidden')
@@ -151,7 +151,7 @@ function updateDom(htmlBubble: HTMLElement, object: Entity) {
 
   // Add various parameters.
   addParam('ID', object.id.toString())
-  const typeName = state.replay.typeNames[object.typeId]
+  const typeName = object.typeName
   addParam('Type', typeName)
   if (object.isAgent) {
     addParam('Agent ID', object.agentId.toString())
@@ -230,8 +230,7 @@ export function updateReadout() {
 
   const objectTypeCounts = new Map<string, number>()
   for (const gridObject of state.replay.objects) {
-    const typeId = gridObject.typeId
-    const typeName = state.replay.typeNames[typeId]
+    const typeName = gridObject.typeName
     objectTypeCounts.set(typeName, (objectTypeCounts.get(typeName) || 0) + 1)
   }
   for (const [key, value] of objectTypeCounts.entries()) {

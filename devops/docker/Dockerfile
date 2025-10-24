@@ -46,6 +46,9 @@ ENV VIRTUAL_ENV="/workspace/metta/.venv"
 # Make sure the remote is configured for anonymous access
 RUN git config --remove-section http."https://github.com/" || true
 RUN git remote remove origin && git remote add origin https://github.com/Metta-AI/metta.git
+RUN git config --global checkout.defaultRemote origin \
+    && git config --global branch.autoSetupMerge simple
+
 # Doesn't do anything but guarantees that the remote is configured for anonymous access
 RUN git fetch
 

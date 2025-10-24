@@ -33,20 +33,20 @@ Cogs should refer to their [MISSION.md](MISSION.md) for a thorough description o
 # Install
 uv pip install cogames
 
-# List missions
+# List available missions
 cogames missions
 
-# Play an episode of the machina_1 game.
+# Play an episode of the training_facility_1 mission
 cogames play -m training_facility_1 -p random
 
-# Train a policy in a simple, single-agent game
+# Train a policy in that environment using an out-of-the-box, simple network architecture
 cogames train -m training_facility_1 -p simple
 
 # Watch or play along side your trained policy
 cogames play -m training_facility_1 -p simple:train_dir/policy.pt
 
-# Evaluate your policy
-cogames eval -m training_facility_1 -p simple:./train_dir/policy.pt
+# Evaluate how your policy performs on a different mission
+cogames eval -m machina_1 -p simple:./train_dir/policy.pt
 ```
 
 ## Commands
@@ -54,11 +54,14 @@ cogames eval -m training_facility_1 -p simple:./train_dir/policy.pt
 Most commands are of the form `cogames <command> -p [MISSION] -p [POLICY] [OPTIONS]`
 
 To specify a `MISSION`, you can:
+
 - Use a mission name from the default registry emitted by `cogames missions`, e.g. `training_facility_1`
 - Use a path to a mission configuration file, e.g. path/to/mission.yaml"
 
 To specify a `POLICY`, provide an argument with up to three parts `CLASS[:DATA][:PROPORTION]`:
-- `CLASS`: Policy shorthand (`noop`, `random`, `lstm`, `simple`) or fully qualified class path like `cogames.policy.random.RandomPolicy`.
+
+- `CLASS`: Policy shorthand (`noop`, `random`, `lstm`, `simple`) or fully qualified class path like
+  `cogames.policy.random.RandomPolicy`.
 - `DATA`: Optional path to a weights file or directory. When omitted, defaults to the policy's built-in weights.
 - `PROPORTION`: Optional positive float specifying the relative share of agents that use this policy (default: 1.0).
 
@@ -72,10 +75,10 @@ If a mission is provided, it describe a specific mission in detail.
 
 Play an episode of the specified mission.
 
-**Policy**
-Cogs' actions are determined by the provided policy, except if you take over their actions manually.
+**Policy** Cogs' actions are determined by the provided policy, except if you take over their actions manually.
 
-If not specified, this command will use the `noop`-policy agent -- do not be surprised if when you play you don't see other agents moving around! Just provide a different policy, like `random`.
+If not specified, this command will use the `noop`-policy agent -- do not be surprised if when you play you don't see
+other agents moving around! Just provide a different policy, like `random`.
 
 **Options:**
 
@@ -90,10 +93,11 @@ and manually play alongside them.
 
 Train a policy on a mission.
 
-**Policy**
-By default, our `simple` policy architecture will be used. But as is explained above, you can select a different policy architecture we support out of the box (like `lstm`), or can define your own and supply a path to it.
+**Policy** By default, our `simple` policy architecture will be used. But as is explained above, you can select a
+different policy architecture we support out of the box (like `lstm`), or can define your own and supply a path to it.
 
-Any policy provided must implement the `TrainablePolicy` interface, which you can find in `cogames/policy/interfaces.py`.
+Any policy provided must implement the `TrainablePolicy` interface, which you can find in
+`cogames/policy/interfaces.py`.
 
 You can continue training an already-initialized policy by also supplying a path to its weights checkpoint file:
 
@@ -101,25 +105,25 @@ You can continue training an already-initialized policy by also supplying a path
 cogames train -m [MISSION] -p path/to/policy.py:train_dir/my_checkpoint.pt
 ```
 
-**Mission**
-Note that you can supply repeated `-m` missions. This yields a training curriculum that rotates through those environments:
+**Mission** Note that you can supply repeated `-m` missions. This yields a training curriculum that rotates through
+those environments:
 
 ```
 cogames train -m training_facility_1 -m training_facility_2 -p simple
 ```
 
 You can also specify multiple missions with `*` wildcards:
+
 - `cogames train -m 'machina_2_bigger:*'` will specify all missions on the machina_2_bigger map
 - `cogames train -m '*:shaped'` will specify all "shaped" missions across all maps
 - `cogames train -m 'machina*:shaped'` will specify all "shaped" missions on all machina maps
 
-
 **Options:**
+
 - `--steps N`: Training steps (default: 10000)
 - `--device STR`: 'auto', 'cpu', or 'cuda' (default: auto)
 - `--batch-size N`: Batch size (default: 4096)
 - `--num-workers N`: Worker processes (default: CPU count)
-
 
 ### Custom Policy Architectures
 
@@ -185,8 +189,8 @@ for step in range(1000):
 
 Evaluate one or more policies
 
-**Policy**
- Note that here, you can provide multiple `-p POLICY` arguments if you want to run evaluations on mixed-policy populations.
+**Policy** Note that here, you can provide multiple `-p POLICY` arguments if you want to run evaluations on mixed-policy
+populations.
 
 **Examples:**
 
@@ -203,12 +207,13 @@ cogames eval -m machina_1 -p simple:train_dir/model.pt:3 -p random::5
 - `--episodes N`: Number of episodes (default: 10)
 - `--action-timeout-ms N`: Timeout per action (default: 250ms)
 
-When multiple policies are provided, `cogames eval` fixes the number of agents each policy will control, but
-randomizes their assignments each episode.
+When multiple policies are provided, `cogames eval` fixes the number of agents each policy will control, but randomizes
+their assignments each episode.
 
 ### `cogames make-mission -m [BASE_MISSION]`
 
-Create custom mission configuration. In this case, the mission provided is the template mission to which you'll apply modifications.
+Create custom mission configuration. In this case, the mission provided is the template mission to which you'll apply
+modifications.
 
 **Options:**
 

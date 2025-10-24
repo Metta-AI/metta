@@ -98,11 +98,12 @@ experiments/notebooks/.ipynb_checkpoints
 experiments/notebooks/utils/scorecard_widget/scorecard_widget/static/index.js
 experiments/recipes/scratchpad/*.py
 !experiments/recipes/scratchpad/README.md
-!experiments/recipes/scratchpad/example.py
-!experiments/recipes/scratchpad/ci.py
+!experiments/recipes/scratchpad/template.py
+!experiments/recipes/scratchpad/__init__.py
 packages/cogames/experiments
 
 resources
+!library/src/lib/api/resources/
 LUNARVIM_CHEATSHEET.md
 metta/sweep/experiments/README.md
 metta/sweep/experiments/README_*.md
@@ -137,3 +138,4 @@ agent/src/metta/ops/agalite_kernels/_build/
 
 .terraform*
 terraform.tfstate
+.cache/torch_ext/

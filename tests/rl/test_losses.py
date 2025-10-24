@@ -25,7 +25,7 @@ class DummyPolicy(Policy):
     def get_agent_experience_spec(self) -> Composite:  # noqa: D401
         return Composite(values=UnboundedDiscrete(shape=torch.Size([]), dtype=torch.float32))
 
-    def initialize_to_environment(self, env_metadata, device: torch.device) -> None:  # noqa: D401
+    def initialize_to_environment(self, game_rules, device: torch.device) -> None:  # noqa: D401
         return None
 
     @property

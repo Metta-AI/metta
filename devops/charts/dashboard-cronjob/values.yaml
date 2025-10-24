@@ -1,0 +1,36 @@
+schedule: "*/15 * * * *"  # Run every 15 minutes
+
+image:
+  registry: 751442549699.dkr.ecr.us-east-1.amazonaws.com
+  name: softmax-dashboard
+  pullPolicy: Always
+  tag: "latest"
+
+# Command to run - can be overridden for different scripts
+command: ["uv", "run", "python", "-m", "softmax.dashboard.report", "--push"]
+
+serviceAccount:
+  create: true
+  annotations:
+    eks.amazonaws.com/role-arn: arn:aws:iam::751442549699:role/dashboard-cronjob
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 2Gi
+  limits:
+    cpu: 500m
+    memory: 2Gi
+
+# Datadog metric tagging (for organizing metrics in Datadog)
+datadog:
+  env: "production"
+  service: "dashboard-cronjob"
+  site: "datadoghq.com"
+
+# CronJob configuration
+successfulJobsHistoryLimit: 3
+failedJobsHistoryLimit: 3
+concurrencyPolicy: Forbid  # Don't allow concurrent executions
+restartPolicy: OnFailure
+backoffLimit: 3

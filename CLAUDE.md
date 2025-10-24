@@ -237,12 +237,12 @@ See @.cursor/commands.md for quick test commands and examples.
 # Run full CI (tests + linting) - ALWAYS run this to verify changes
 metta ci
 
-# Run all tests with coverage
-metta test --cov=mettagrid --cov-report=term-missing
+# Run full Python test sweep (CI-style)
+metta pytest --ci
 
 # Run specific test modules
-metta test tests/rl/test_trainer_config.py -v
-metta test tests/sim/ -v
+metta pytest tests/rl/test_trainer_config.py -v
+metta pytest tests/sim/ -v
 
 # Run linting and formatting on python files with Ruff
 metta lint # optional --fix and --staged arguments
@@ -297,8 +297,8 @@ The project uses OmegaConf for configuration, with config files organized in `co
 
 1. Use smaller batch sizes for debugging
 2. Check wandb logs for metrics anomalies
-3. Use `./tools/run.py arena.play` for interactive debugging (Note: Less useful in Claude Code due
-   to interactive nature)
+3. Use `./tools/run.py arena.play` for interactive debugging (Note: Less useful in Claude Code due to interactive
+   nature)
 
 #### Performance Profiling
 
@@ -340,6 +340,7 @@ Renovate groups related packages together to reduce PR noise:
 #### Handling Dependency Updates
 
 1. **Automatic Updates**
+
    - Patch updates for stable packages are auto-merged
    - Minor updates create PRs for review
    - Major updates require approval via dependency dashboard

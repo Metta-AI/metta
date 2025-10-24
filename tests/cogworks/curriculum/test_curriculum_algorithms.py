@@ -342,59 +342,6 @@ class TestLearningProgressProductionPatterns:
         assert len(unique_samples) > 1, "Should sample from multiple tasks"
 
 
-class TestLearningProgressIntegration:
-    """Integration tests for learning progress with full curriculum system."""
-
-    def test_learning_progress_curriculum_integration(self, curriculum_with_algorithm):
-        """Test learning progress algorithm integration with curriculum."""
-        curriculum = curriculum_with_algorithm.make()
-
-        # Simulate more training episodes for realistic EMA development
-        for episode in range(20):
-            task = curriculum.get_task()
-            assert task is not None
-
-            # Simulate task completion
-            performance = 0.1 + (episode * 0.1)  # Gradually improving
-            task.complete(performance)
-            curriculum.update_task_performance(task._task_id, performance)
-
-        # Check that algorithm has been updated
-        assert curriculum._algorithm is not None
-        stats = curriculum.stats()
-        assert "algorithm/tracker/total_tracked_tasks" in stats
-
-    def test_learning_progress_with_task_eviction(self, curriculum_with_algorithm):
-        """Test learning progress behavior during task eviction scenarios."""
-        config = curriculum_with_algorithm
-        config.num_active_tasks = 3  # Small pool to trigger eviction quickly
-        curriculum = config.make()
-
-        tasks_seen = set()
-
-        # Generate more episodes to build up EMA differences and trigger eviction
-        for episode in range(25):
-            task = curriculum.get_task()
-            tasks_seen.add(task._task_id)
-
-            # Create more varied performance patterns to trigger learning progress differences
-            if episode < 10:
-                # Early episodes: some tasks improve, others stay constant
-                if task._task_id % 2 == 0:
-                    performance = 0.3 + 0.4 * (episode / 9)  # Improving performance
-                else:
-                    performance = 0.5  # Constant performance
-            else:
-                # Later episodes: more varied patterns
-                performance = 0.4 + 0.3 * ((episode + task._task_id) % 4) / 3
-
-            task.complete(performance)
-            curriculum.update_task_performance(task._task_id, performance)
-
-        # Should have seen some tasks (due to eviction in small pool)
-        assert len(tasks_seen) >= 3
-
-
 class TestBidirectionalLearningProgressBehavior:
     """Test specific bidirectional learning progress behavior."""
 

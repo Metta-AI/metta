@@ -1,6 +1,6 @@
 import numpy as np
 
-from mettagrid.config.mettagrid_config import AssemblerConfig, MettaGridConfig, RecipeConfig
+from mettagrid.config.mettagrid_config import AssemblerConfig, MettaGridConfig, ProtocolConfig
 from mettagrid.core import MettaGridCore
 from mettagrid.mettagrid_c import dtype_actions
 from mettagrid.test_support.actions import action_index
@@ -19,10 +19,9 @@ class TestAssemblerPartialUsage:
 
         # Configure assembler with partial usage disabled
         cfg.game.objects["assembler"] = AssemblerConfig(
-            type_id=20,
             name="assembler",
             map_char="Z",
-            recipes=[(["W"], RecipeConfig(input_resources={"iron": 10}, output_resources={"steel": 5}, cooldown=10))],
+            recipes=[([], ProtocolConfig(input_resources={"iron": 10}, output_resources={"steel": 5}, cooldown=10))],
             allow_partial_usage=False,  # Disable partial usage
         )
 
@@ -83,10 +82,9 @@ class TestAssemblerPartialUsage:
 
         # Recipe: 20 iron -> 10 steel, 100 tick cooldown
         cfg.game.objects["assembler"] = AssemblerConfig(
-            type_id=20,
             name="assembler",
             map_char="Z",
-            recipes=[(["W"], RecipeConfig(input_resources={"iron": 20}, output_resources={"steel": 10}, cooldown=100))],
+            recipes=[([], ProtocolConfig(input_resources={"iron": 20}, output_resources={"steel": 10}, cooldown=100))],
             allow_partial_usage=True,
         )
 

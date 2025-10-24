@@ -1,7 +1,9 @@
 import
-  std/[strformat, math, os, strutils, tables],
+  std/[math, os, strutils, tables],
   boxy, vmath, windy, fidget2/[hybridrender, common],
   common, panels, actions, utils, replays, objectinfo, pathfinding
+
+const TS = 1.0 / 64.0 # Tile scale.
 
 proc buildAtlas*() =
   ## Build the atlas.
@@ -9,16 +11,6 @@ proc buildAtlas*() =
     if path.endsWith(".png") and "fidget" notin path:
       let name = path.replace(dataDir & "/", "").replace(".png", "")
       bxy.addImage(name, readImage(path))
-
-proc agentColor*(id: int): Color =
-  ## Get the color for an agent.
-  let n = id.float32 + Pi + E + sqrt(2.0)
-  color(
-    n * Pi mod 1.0,
-    n * E mod 1.0,
-    n * sqrt(2.0) mod 1.0,
-    1.0
-  )
 
 proc useSelections*(panel: Panel) =
   ## Reads the mouse position and selects the thing under it.
@@ -63,7 +55,7 @@ proc useSelections*(panel: Panel) =
         var destType = Move
         var approachDir = ivec2(0, 0)
         if targetObj != nil:
-          let typeName = replay.typeNames[targetObj.typeId]
+          let typeName = targetObj.typeName
           if typeName != "agent" and typeName != "wall":
             destType = Bump
             # Calculate which quadrant of the tile was clicked.
@@ -109,12 +101,13 @@ proc useSelections*(panel: Panel) =
 
 proc drawFloor*() =
   # Draw the floor tiles.
-  for x in 0 ..< replay.mapSize[0]:
-    for y in 0 ..< replay.mapSize[1]:
-      bxy.drawImage("objects/floor", ivec2(x.int32, y.int32).vec2, angle = 0, scale = 1/200)
+  discard
+  # for x in 0 ..< replay.mapSize[0]:
+  #   for y in 0 ..< replay.mapSize[1]:
+  #     bxy.drawImage("objects/floor1", ivec2(x.int32, y.int32).vec2, angle = 0, scale = TS)
 
 const wallSprites = @[
-  "objects/wall",
+  "objects/wall.0",
   "objects/wall.e",
   "objects/wall.s",
   "objects/wall.se",
@@ -144,16 +137,17 @@ type WallTile = enum
 proc drawWalls*() =
   ## Draw the walls on the map.
   var grid = newSeq2D[bool](replay.mapSize[0], replay.mapSize[1])
-  let wallTypeId = replay.typeNames.find("wall")
   for obj in replay.objects:
-    if obj.typeId == wallTypeId:
+    if obj.typeName == "wall":
       let pos = obj.location.at
       grid[pos.x][pos.y] = true
 
   template hasWall(x: int, y: int): bool =
-    x >= 0 and x < replay.mapSize[0] and
-    y >= 0 and y < replay.mapSize[1] and
-    grid[x][y]
+    if x >= 0 and x < replay.mapSize[0] and
+      y >= 0 and y < replay.mapSize[1]:
+        grid[x][y]
+    else:
+      true
 
   var wallFills: seq[IVec2]
   for x in 0 ..< replay.mapSize[0]:
@@ -173,20 +167,23 @@ proc drawWalls*() =
               hasWall(x - 1, y + 1) and
               hasWall(x + 1, y - 1):
             continue
-        bxy.drawImage(wallSprites[tile], vec2(x.float32, y.float32), angle = 0, scale = 1/200)
+        bxy.drawImage(wallSprites[tile], vec2(x.float32, y.float32), angle = 0, scale = TS)
+      else:
+        # Draw floor tile.
+        bxy.drawImage("objects/floor1", vec2(x.float32, y.float32), angle = 0, scale = TS)
 
   for fillPos in wallFills:
-    bxy.drawImage("objects/wall.fill", fillPos.vec2 + vec2(0.5, 0.3), angle = 0, scale = 1/200)
+    bxy.drawImage("objects/void.fill", fillPos.vec2 + vec2(0.5, 0.8), angle = 0, scale = TS)
 
 proc drawObjects*() =
   ## Draw the objects on the map.
   for thing in replay.objects:
-    let typeName = replay.typeNames[thing.typeId]
+    let typeName = thing.typeName
     let pos = thing.location.at().xy
     case typeName
     of "wall":
       discard
-      # bxy.drawImage("objects/wall",  pos.vec2, angle = 0, scale = 1/200)
+      # bxy.drawImage("objects/wall",  pos.vec2, angle = 0, scale = TS)
     of "agent":
       let agent = thing
       var agentImage = case agent.orientation.at:
@@ -201,25 +198,24 @@ proc drawObjects*() =
         agentImage,
         pos.vec2,
         angle = 0,
-        scale = 1/200,
-        tint = agentColor(agent.agentId)
+        scale = TS
       )
     else:
       bxy.drawImage(
-        replay.typeImages[thing.typeId],
+        replay.typeImages.getOrDefault(thing.typeName, "objects/unknown"),
         pos.vec2,
         angle = 0,
-        scale = 1/200
+        scale = TS
       )
 
 proc drawVisualRanges*(alpha = 0.2) =
   ## Draw the visual ranges of the selected agent.
   var visibility = newSeq2D[bool](replay.mapSize[0], replay.mapSize[1])
-  let agentTypeId = replay.typeNames.find("agent")
+  let agentTypeName = "agent"
   for obj in replay.objects:
-    if obj.typeId == agentTypeId:
+    if obj.typeName == agentTypeName:
       if selection != nil and
-        selection.typeId == agentTypeId and
+        selection.typeName == agentTypeName and
         selection.agentId != obj.agentId:
         continue
       let agent = obj
@@ -267,7 +263,7 @@ proc drawTrajectory*() =
             tint = color(0, 0, 0, a)
             image = ""
 
-          let isAgent = replay.typeNames[selection.typeId] == "agent"
+          let isAgent = selection.typeName == "agent"
           if step >= i:
             # Past trajectory is black.
             tint = color(0, 0, 0, a)
@@ -362,7 +358,7 @@ proc drawAgentDecorations*() =
         "agents/frozen",
         agent.location.at.xy.vec2,
         angle = 0,
-        scale = 1/200
+        scale = TS
       )
 
 proc drawClippedStatus*() =
@@ -373,7 +369,7 @@ proc drawClippedStatus*() =
         "agents/frozen",
         obj.location.at.xy.vec2,
         angle = 0,
-        scale = 1/200
+        scale = TS
       )
 
 proc drawGrid*() =
@@ -384,28 +380,29 @@ proc drawGrid*() =
         "view/grid",
         ivec2(x.int32, y.int32).vec2,
         angle = 0,
-        scale = 1/200
+        scale = TS
       )
 
 proc drawInventory*() =
   # Draw the inventory.
-  for obj in replay.objects:
-    let inventory = obj.inventory.at
-    var numItems = 0
-    for itemAmount in inventory:
-      numItems += itemAmount.count
-    let widthItems = (numItems.float32 * 0.1).clamp(0.0, 1.0)
-    var x = -widthItems / 2
-    var xAdvance = widthItems / numItems.float32
-    for itemAmount in inventory:
-      for i in 0 ..< itemAmount.count:
-        bxy.drawImage(
-          replay.itemImages[itemAmount.itemId],
-          obj.location.at.xy.vec2 + vec2(x.float32, -0.5),
-          angle = 0,
-          scale = 1/200 / 4
-        )
-        x += xAdvance
+  discard
+  # for obj in replay.objects:
+  #   let inventory = obj.inventory.at
+  #   var numItems = 0
+  #   for itemAmount in inventory:
+  #     numItems += itemAmount.count
+  #   let widthItems = (numItems.float32 * 0.1).clamp(0.0, 1.0)
+  #   var x = -widthItems / 2
+  #   var xAdvance = widthItems / numItems.float32
+  #   for itemAmount in inventory:
+  #     for i in 0 ..< itemAmount.count:
+  #       bxy.drawImage(
+  #         replay.itemImages[itemAmount.itemId],
+  #         obj.location.at.xy.vec2 + vec2(x.float32, -0.5),
+  #         angle = 0,
+  #         scale = 1/200 / 4
+  #       )
+  #       x += xAdvance
 
 proc drawPlannedPath*() =
   ## Draw the planned paths for all agents.
@@ -497,19 +494,20 @@ proc drawSelection*() =
 
 proc drawRewards*() =
   # Draw the rewards on the bottom of the object.
-  for obj in replay.objects:
-    if obj.isAgent:
-      let totalReward = obj.totalReward.at
-      let advanceX = min(32/200, 1.0 / totalReward)
-      var rewardX = -0.5
-      for i in 0 ..< totalReward.int:
-        bxy.drawImage(
-          "resources/reward",
-          obj.location.at.xy.vec2 + vec2(rewardX, 0.5 - 16/200),
-          angle = 0,
-          scale = 1/200/8
-        )
-        rewardX += advanceX
+  discard
+  # for obj in replay.objects:
+  #   if obj.isAgent:
+  #     let totalReward = obj.totalReward.at
+  #     let advanceX = min(32/200, 1.0 / totalReward)
+  #     var rewardX = -0.5
+  #     for i in 0 ..< totalReward.int:
+  #       bxy.drawImage(
+  #         "resources/reward",
+  #         obj.location.at.xy.vec2 + vec2(rewardX, 0.5 - 16/200),
+  #         angle = 0,
+  #         scale = 1/200/8
+  #       )
+  #       rewardX += advanceX
 
 proc applyOrientationOffset*(x: int, y: int, orientation: int): (int, int) =
   case orientation
@@ -619,8 +617,8 @@ proc drawThoughtBubbles*() =
       )
 
 proc drawWorldMini*() =
-  let wallTypeId = replay.typeNames.find("wall")
-  let agentTypeId = replay.typeNames.find("agent")
+  const wallTypeName = "wall"
+  const agentTypeName = "agent"
 
   # Floor
   bxy.drawRect(rect(0, 0, replay.mapSize[0].float32 - 0.5,
@@ -629,10 +627,10 @@ proc drawWorldMini*() =
 
   # Walls
   for obj in replay.objects:
-    if obj.typeId == agentTypeId:
+    if obj.typeName == agentTypeName:
       continue
     let color =
-      if obj.typeId == wallTypeId:
+      if obj.typeName == wallTypeName:
         color(0.380, 0.341, 0.294, 1)
       else:
         color(1, 1, 1, 1)
@@ -646,12 +644,12 @@ proc drawWorldMini*() =
   bxy.scale(vec2(scale, scale))
 
   for obj in replay.objects:
-    if obj.typeId != agentTypeId:
+    if obj.typeName != agentTypeName:
       continue
 
     let loc = obj.location.at(step).xy
     bxy.drawImage("minimapPip", rect((loc.x.float32) / scale - 0.5, (
-        loc.y.float32) / scale - 0.5, 1, 1), agentColor(obj.agentId))
+        loc.y.float32) / scale - 0.5, 1, 1), color(1, 1, 1, 1))
 
   bxy.restoreTransform()
 
@@ -714,7 +712,9 @@ proc drawWorldMap*(panel: Panel) =
   ## Draw the world map.
   panel.beginPanAndZoom()
 
-  useSelections(panel)
+  if panel.hasMouse:
+    useSelections(panel)
+
   agentControls()
 
   if followSelection:

@@ -61,7 +61,7 @@ def consolidate_reviews(token: str, repo: str, run_id: int) -> Tuple[dict[str, A
     }
 
     # Review types to check
-    review_types = ["readme", "comments", "types", "einops"]
+    review_types = ["readme", "comments", "types", "einops", "style"]
 
     total_suggestions = 0
     has_any_issues = False
@@ -197,6 +197,8 @@ def build_future_suggestions_comment(suggestions_for_future: list[dict[str, Any]
             review_type = "einops"
         elif "readme" in reason.lower():
             review_type = "readme"
+        elif "style" in reason.lower():
+            review_type = "style"
 
         if review_type not in by_type_and_file:
             by_type_and_file[review_type] = {}
@@ -208,7 +210,7 @@ def build_future_suggestions_comment(suggestions_for_future: list[dict[str, Any]
         by_type_and_file[review_type][file].append(suggestion)
 
     # Create sections for each review type
-    emoji_map = {"readme": "📝", "comments": "💬", "types": "🏷️", "einops": "🔄", "general": "📋"}
+    emoji_map = {"readme": "📝", "comments": "💬", "types": "🏷️", "einops": "🔄", "style": "✨", "general": "📋"}
 
     for review_type, files in by_type_and_file.items():
         emoji = emoji_map.get(review_type, "📋")
@@ -282,7 +284,7 @@ def build_review_body(analysis: dict[str, Any], skipped_suggestions: list[str]) 
     sections.append("")
 
     # Review type sections
-    emoji_map = {"readme": "📝", "comments": "💬", "types": "🏷️", "einops": "🔄"}
+    emoji_map = {"readme": "📝", "comments": "💬", "types": "🏷️", "einops": "🔄", "style": "✨"}
 
     for review_type, data in analysis["review_types"].items():
         if data["suggestion_count"] > 0:

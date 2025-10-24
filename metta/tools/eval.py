@@ -16,10 +16,12 @@ from metta.eval.eval_request_config import EvalResults
 from metta.eval.eval_service import evaluate_policy
 from metta.rl import stats as rl_stats
 from metta.rl.checkpoint_manager import CheckpointManager
+from metta.rl.training.training_environment import GameRules
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.remote_job import JobResult, RemoteJobTool
 from metta.tools.utils.auto_config import auto_wandb_config
 from metta.utils.uri import ParsedURI
+from mettagrid import MettaGridEnv
 
 logger = logging.getLogger(__name__)
 
@@ -96,6 +98,26 @@ class EvaluateTool(Tool):
     eval_task_id: str | None = None
     push_metrics_to_wandb: bool = False
 
+    def _build_game_rules(self) -> GameRules:
+        if not self.simulations:
+            raise ValueError("At least one simulation configuration is required to evaluate a policy")
+
+        primary_simulation = self.simulations[0]
+        env = MettaGridEnv(env_cfg=primary_simulation.env, render_mode="none")
+        try:
+            return GameRules(
+                obs_width=env.obs_width,
+                obs_height=env.obs_height,
+                obs_features=env.observation_features,
+                action_names=env.action_names,
+                num_agents=env.num_agents,
+                observation_space=env.observation_space,
+                action_space=env.single_action_space,
+                feature_normalizations=env.feature_normalizations,
+            )
+        finally:
+            env.close()
+
     def _log_to_wandb(self, policy_uri: str, eval_results: EvalResults, stats_client: StatsClient | None):
         if stats_client is None:
             logger.info("Stats client is not set, skipping wandb logging")
@@ -158,9 +180,11 @@ class EvaluateTool(Tool):
                     logger.error("Fallback WandB logging failed: %s", e2)
 
     def eval_policy(self, normalized_uri: str, device: torch.device, stats_client: StatsClient | None) -> EvalResults:
+        game_rules = self._build_game_rules()
+
         # Verify the checkpoint exists
         try:
-            agent = CheckpointManager.load_from_uri(normalized_uri, device="cpu")
+            agent = CheckpointManager.load_from_uri(normalized_uri, game_rules, device)
             metadata = CheckpointManager.get_policy_metadata(normalized_uri)
             del agent
         except Exception as e:

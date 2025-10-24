@@ -6,9 +6,11 @@ import { z } from "zod/v4";
 
 import { actionClient } from "@/lib/actionClient";
 import { prisma } from "@/lib/db/prisma";
+import { config } from "@/lib/config";
 import { generateText } from "ai";
 import { anthropic } from "@ai-sdk/anthropic";
-import { extractPdfWithOpenAI } from "@/lib/openai-pdf-extractor";
+import { extractPdfContent } from "@/lib/pdf-extractor";
+import { Logger } from "@/lib/logging/logger";
 
 const inputSchema = zfd.formData({
   postId: zfd.text(z.string().min(1)),
@@ -19,6 +21,21 @@ const inputSchema = zfd.formData({
 export const createBotResponseAction = actionClient
   .inputSchema(inputSchema)
   .action(async ({ parsedInput: input }) => {
+    // Get or create the bot user first (needed for both success and error paths)
+    let botUser = await prisma.user.findFirst({
+      where: { email: "library_bot@system" },
+    });
+
+    if (!botUser) {
+      botUser = await prisma.user.create({
+        data: {
+          name: "Library Bot",
+          email: "library_bot@system",
+          image: null,
+        },
+      });
+    }
+
     try {
       // Get the paper data for context
       const post = await prisma.post.findUnique({
@@ -47,12 +64,12 @@ export const createBotResponseAction = actionClient
         // Use LLM-generated abstract if available (most comprehensive)
         const llmContent = post.paper.llmAbstract as any;
         paperContext = `Title: ${post.paper.title}\n\nAbstract: ${post.paper.abstract}\n\nDetailed Analysis: ${llmContent.summary || llmContent.explanation || JSON.stringify(llmContent)}`;
-      } else if (post.paper.link && process.env.ANTHROPIC_API_KEY) {
+      } else if (post.paper.link && config.llm.anthropicApiKey) {
         // Try to extract PDF content on-demand
         try {
-          console.log(
-            `📄 Fetching PDF content for bot analysis: ${post.paper.link}`
-          );
+          Logger.info("Fetching PDF content for bot analysis", {
+            paperLink: post.paper.link,
+          });
 
           // Convert arXiv URLs to PDF format if needed
           let pdfUrl = post.paper.link;
@@ -63,17 +80,18 @@ export const createBotResponseAction = actionClient
           const pdfResponse = await fetch(pdfUrl);
           if (pdfResponse.ok) {
             const pdfBuffer = Buffer.from(await pdfResponse.arrayBuffer());
-            const pdfContent = await extractPdfWithOpenAI(pdfBuffer);
+            const pdfContent = await extractPdfContent(pdfBuffer);
 
             paperContext = `Title: ${pdfContent.title}\n\nSummary: ${pdfContent.summary}\n\nKey Points: ${pdfContent.shortExplanation}`;
-            console.log(
-              `✅ Successfully extracted PDF content for bot analysis`
-            );
+            Logger.info("Successfully extracted PDF content for bot analysis");
           } else {
             throw new Error(`Failed to fetch PDF: ${pdfResponse.status}`);
           }
         } catch (pdfError) {
-          console.error(`❌ Error extracting PDF for bot:`, pdfError);
+          Logger.warn("Error extracting PDF for bot, using fallback", {
+            error:
+              pdfError instanceof Error ? pdfError.message : String(pdfError),
+          });
           // Fallback to basic abstract
           paperContext = `Title: ${post.paper.title}\n\nAbstract: ${post.paper.abstract}`;
         }
@@ -120,21 +138,6 @@ Please provide a helpful response about this paper.`,
 
         temperature: 0.7, // Balanced creativity
       });
-
-      // Create a system user for the bot if it doesn't exist
-      let botUser = await prisma.user.findFirst({
-        where: { email: "library_bot@system" },
-      });
-
-      if (!botUser) {
-        botUser = await prisma.user.create({
-          data: {
-            name: "Library Bot",
-            email: "library_bot@system",
-            image: null,
-          },
-        });
-      }
 
       // Create the bot response comment
       const botComment = await prisma.comment.create({
@@ -184,23 +187,12 @@ Please provide a helpful response about this paper.`,
         },
       };
     } catch (error) {
-      console.error("Error generating bot response:", error);
+      Logger.error(
+        "Error generating bot response",
+        error instanceof Error ? error : new Error(String(error))
+      );
 
-      // Create a fallback bot response
-      let botUser = await prisma.user.findFirst({
-        where: { email: "library_bot@system" },
-      });
-
-      if (!botUser) {
-        botUser = await prisma.user.create({
-          data: {
-            name: "Library Bot",
-            email: "library_bot@system",
-            image: null,
-          },
-        });
-      }
-
+      // Create a fallback bot response (bot user already retrieved above)
       const fallbackComment = await prisma.comment.create({
         data: {
           content:

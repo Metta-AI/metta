@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { Repo, Leaderboard, ScorecardData, LeaderboardScorecardRequest } from './repo'
 import { Scorecard } from './Scorecard'
 import { MapViewer } from './MapViewer'
-import { METTASCOPE_REPLAY_URL } from './constants'
+import { METTASCOPE_REPLAY_URL_PREFIX } from './constants'
 
 // CSS for leaderboard view
 const LEADERBOARD_VIEW_CSS = `
@@ -218,8 +218,7 @@ export function LeaderboardView({ repo }: LeaderboardViewProps) {
     const cell = scorecardData?.cells[policyName]?.[evalName]
     if (!cell?.replayUrl) return
 
-    const replay_url_prefix = `${METTASCOPE_REPLAY_URL}/?replayUrl=`
-    window.open(replay_url_prefix + cell.replayUrl, '_blank')
+    window.open(METTASCOPE_REPLAY_URL_PREFIX + cell.replayUrl, '_blank')
   }
 
   const toggleLock = () => {
