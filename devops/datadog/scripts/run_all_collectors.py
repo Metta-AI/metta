@@ -2,8 +2,15 @@
 """Run all Datadog collectors sequentially.
 
 This script runs all configured collectors in order, continuing even if
-individual collectors fail. Used by the dashboard-cronjob CronJob to
-collect all metrics on a single schedule.
+individual collectors fail. Pushes all metrics to Datadog.
+
+Usage:
+    # Run all collectors and push to Datadog
+    uv run python devops/datadog/scripts/run_all_collectors.py
+
+This works as both a production cronjob script and a local integration test.
+Real data is collected from all services (GitHub, AWS, Kubernetes, etc.) and
+pushed to Datadog.
 
 Exit codes:
     0: All collectors succeeded
@@ -25,6 +32,7 @@ COLLECTORS = [
     "skypilot",
     "wandb",
     "asana",
+    "health_fom",  # Normalized health scores (runs after raw metrics collected)
 ]
 
 
