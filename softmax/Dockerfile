@@ -13,9 +13,9 @@ RUN bash ./devops/tools/install-system.sh
 # Install all dependencies (includes asana, skypilot, github libraries)
 RUN uv sync --frozen --no-dev
 
-# Verify collector imports work
-RUN uv run python -c "from devops.datadog.collectors import GitHubCollector, SkypilotCollector, AsanaCollector; print('✓ All collectors imported successfully')"
+# Verify all collector imports work
+RUN uv run python -c "from devops.datadog.collectors import GitHubCollector, SkypilotCollector, AsanaCollector, EC2Collector, WandbCollector, KubernetesCollector; print('✓ All 6 collectors imported successfully')"
 
-# Default command runs GitHub collector
-# Helm chart will override this command to run specific collectors
-CMD ["uv", "run", "python", "/workspace/metta/devops/datadog/run_collector.py", "github", "--push"]
+# Default command runs all collectors sequentially
+# Helm chart can override this if needed
+CMD ["uv", "run", "python", "/workspace/metta/devops/datadog/run_all_collectors.py"]
