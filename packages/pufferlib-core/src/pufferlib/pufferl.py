@@ -670,74 +670,13 @@ class PuffeRL:
         right.add_column(f"{c1}Value", justify="right", width=10)
         i = 0
 
-        raw_stats = self.stats if len(self.stats) > 0 else (self.last_stats or {})
+        if self.stats:
+            self.last_stats = self.stats
 
-        stats_source: dict[str, float] = {}
-        for metric, value in raw_stats.items():
-            if isinstance(value, (list, tuple)):
-                if len(value) == 0:
-                    continue
-                stats_source[metric] = float(np.mean(value))
-            else:
-                try:
-                    stats_source[metric] = float(value)
-                except (TypeError, ValueError):
-                    continue
+        # do some reordering of self.stats so that important stats are always shown
+        prioritized_stats = self._reorder_stats_for_dashboard()
 
-        if not stats_source:
-            return
-
-        if stats_source.get("agent/avg_reward_per_agent", 0.0) == 0.0:
-            env_rewards: list[float] = []
-            label_rewards: list[float] = []
-            envs = getattr(self.vecenv, "envs", [])
-            for env in envs:
-                avg = getattr(env, "last_episode_avg_reward", None)
-                if avg is not None and avg != 0.0:
-                    env_rewards.append(float(avg))
-
-                label_reward = getattr(env, "last_episode_per_label_reward", None)
-                if label_reward is not None and label_reward != 0.0:
-                    label_rewards.append(float(label_reward))
-
-            if env_rewards:
-                stats_source["agent/avg_reward_per_agent"] = float(np.mean(env_rewards))
-            if label_rewards:
-                stats_source["per_label_rewards/mettagrid"] = float(np.mean(label_rewards))
-
-        if stats_source:
-            self.last_stats = dict(stats_source)
-
-        priority_metrics = [
-            "agent/avg_reward_per_agent",
-            "per_label_rewards/mettagrid",
-            "agent/energy.amount",
-            "agent/status.max_steps_without_motion",
-        ]
-
-        ordered_stats: list[tuple[str, float]] = []
-        for name in priority_metrics:
-            if name in stats_source:
-                ordered_stats.append((name, stats_source[name]))
-
-        agent_stats = sorted(
-            (name, value)
-            for name, value in stats_source.items()
-            if name.startswith("agent/") and name not in priority_metrics
-        )
-        other_stats = sorted(
-            (name, value)
-            for name, value in stats_source.items()
-            if not name.startswith("agent/") and name not in priority_metrics
-        )
-
-        agent_stats = [item for item in agent_stats if item[0] not in priority_metrics]
-        other_stats = [item for item in other_stats if item[0] not in priority_metrics]
-
-        ordered_stats.extend(agent_stats)
-        ordered_stats.extend(other_stats)
-
-        for metric, value in ordered_stats:
+        for metric, value in prioritized_stats:
             try:  # Discard non-numeric values
                 int(value)
             except:
@@ -756,6 +695,22 @@ class PuffeRL:
             console.print(dashboard)
 
         print("\033[0;0H" + capture.get())
+
+    def _reorder_stats_for_dashboard(self) -> list[tuple[str, float]]:
+        priority_metrics = ["agent/avg_reward_per_agent", "agent/energy.amount", "agent/status.max_steps_without_motion"]
+        new_stats = []
+
+        stats = self.stats if len(self.stats) > 0 else self.last_stats
+
+        for name in priority_metrics:
+            if name in stats:
+                new_stats.append((name, stats[name]))
+
+        for name in stats.keys():
+            if name not in priority_metrics:
+                new_stats.append((name, stats[name]))
+
+        return new_stats
 
 
 def compute_puff_advantage(
