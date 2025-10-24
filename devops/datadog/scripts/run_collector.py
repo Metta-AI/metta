@@ -96,8 +96,7 @@ def get_credential(env_var: str, secret_key: str, required: bool = True) -> str 
         return get_secretsmanager_secret(secret_key)
     except Exception as e:
         if required:
-            print(f"Error: {env_var} not found in environment or AWS Secrets Manager. {e}", file=sys.stderr)
-            sys.exit(1)
+            raise RuntimeError(f"{env_var} not found in environment or AWS Secrets Manager. {e}") from e
         return None
 
 
