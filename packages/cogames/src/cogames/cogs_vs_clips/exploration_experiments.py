@@ -240,7 +240,7 @@ class Experiment6Mission(Mission):
     """
 
     name: str = "energy_scarcity"
-    description: str = "Low energy regeneration (0.5/turn) requires frequent charging"
+    description: str = "Minimal energy regeneration (1/turn) requires frequent charging"
     site: Site = EXP6_SITE
 
     carbon_extractor: CarbonExtractorConfig = CarbonExtractorConfig(efficiency=100, max_uses=1000)
@@ -249,7 +249,7 @@ class Experiment6Mission(Mission):
     silicon_extractor: SiliconExtractorConfig = SiliconExtractorConfig(efficiency=100, max_uses=1000)
     charger: ChargerConfig = ChargerConfig(efficiency=100)
 
-    energy_regen_amount: float = 0.5  # Half regeneration!
+    energy_regen_amount: int = 1  # Minimal regeneration (was 0.5, but must be int)
 
 
 class Experiment7Mission(Mission):

@@ -15,7 +15,6 @@ from cogames.cogs_vs_clips.stations import (
 )
 from mettagrid.config.mettagrid_config import GridObjectConfig, MettaGridConfig, ProtocolConfig
 from mettagrid.map_builder.map_builder import MapBuilderConfig
-from cogames.cogs_vs_clips.eval_missions import EVAL_MISSIONS, MACHINA_EVAL
 
 
 def get_map(site: str) -> MapBuilderConfig:
@@ -205,11 +204,10 @@ SITES = [
     HELLO_WORLD,
     MACHINA_1,
     MACHINA_1_SMALL,
-    MACHINA_EVAL,
 ]
 
-# Sites will be updated after exploration experiments import
-# This happens after the exploration_experiments import below
+# Sites will be updated after exploration/eval experiments imports
+# This happens after the imports below
 
 
 # Training Facility Missions
@@ -291,6 +289,16 @@ except ImportError:
     EXPLORATION_SITES = []
     _exploration_available = False
 
+# Import eval missions
+try:
+    from cogames.cogs_vs_clips.eval_missions import EVAL_MISSIONS, MACHINA_EVAL
+
+    _eval_available = True
+except ImportError:
+    EVAL_MISSIONS = []
+    MACHINA_EVAL = None
+    _eval_available = False
+
 
 MISSIONS = [
     HarvestMission,
@@ -304,12 +312,16 @@ MISSIONS = [
     Machina1OpenWorldMission,
     Machina1SmallOpenWorldMission,
     *EXPLORATION_MISSIONS,  # Add exploration experiments
-    *EVAL_MISSIONS,
+    *EVAL_MISSIONS,  # Add eval missions
 ]
 
 # Update SITES with exploration sites
 if _exploration_available:
     SITES.extend(EXPLORATION_SITES)
+
+# Update SITES with eval site
+if _eval_available and MACHINA_EVAL is not None:
+    SITES.append(MACHINA_EVAL)
 
 
 def _get_default_map_objects() -> dict[str, GridObjectConfig]:

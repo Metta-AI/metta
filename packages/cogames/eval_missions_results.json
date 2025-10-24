@@ -1,0 +1,112 @@
+[
+  {
+    "experiment_name": "machina_eval.energy_starved",
+    "config_name": "baseline",
+    "reward": 0.0,
+    "hearts_assembled": 0,
+    "steps_taken": 0,
+    "max_steps": 1000,
+    "final_energy": 0,
+    "extractors_used": {},
+    "success": false,
+    "error": "1 validation error for MapBuilderConfig\nmap_data\n  Assertion failed, Line 2 has length 39, expected 40. All lines in ASCII map must have the same length. [type=assertion_error, input_value='########################...#######################', input_type=str]\n    For further information visit https://errors.pydantic.dev/2.12/v/assertion_error"
+  },
+  {
+    "experiment_name": "machina_eval.energy_starved",
+    "config_name": "conservative",
+    "reward": 0.0,
+    "hearts_assembled": 0,
+    "steps_taken": 0,
+    "max_steps": 1000,
+    "final_energy": 0,
+    "extractors_used": {},
+    "success": false,
+    "error": "1 validation error for MapBuilderConfig\nmap_data\n  Assertion failed, Line 2 has length 39, expected 40. All lines in ASCII map must have the same length. [type=assertion_error, input_value='########################...#######################', input_type=str]\n    For further information visit https://errors.pydantic.dev/2.12/v/assertion_error"
+  },
+  {
+    "experiment_name": "machina_eval.energy_starved",
+    "config_name": "aggressive",
+    "reward": 0.0,
+    "hearts_assembled": 0,
+    "steps_taken": 0,
+    "max_steps": 1000,
+    "final_energy": 0,
+    "extractors_used": {},
+    "success": false,
+    "error": "1 validation error for MapBuilderConfig\nmap_data\n  Assertion failed, Line 2 has length 39, expected 40. All lines in ASCII map must have the same length. [type=assertion_error, input_value='########################...#######################', input_type=str]\n    For further information visit https://errors.pydantic.dev/2.12/v/assertion_error"
+  },
+  {
+    "experiment_name": "machina_eval.energy_starved",
+    "config_name": "silicon_focused",
+    "reward": 0.0,
+    "hearts_assembled": 0,
+    "steps_taken": 0,
+    "max_steps": 1000,
+    "final_energy": 0,
+    "extractors_used": {},
+    "success": false,
+    "error": "1 validation error for MapBuilderConfig\nmap_data\n  Assertion failed, Line 2 has length 39, expected 40. All lines in ASCII map must have the same length. [type=assertion_error, input_value='########################...#######################', input_type=str]\n    For further information visit https://errors.pydantic.dev/2.12/v/assertion_error"
+  },
+  {
+    "experiment_name": "machina_eval.oxygen_bottleneck",
+    "config_name": "baseline",
+    "reward": 0.0,
+    "hearts_assembled": 0,
+    "steps_taken": 0,
+    "max_steps": 1000,
+    "final_energy": 0,
+    "extractors_used": {},
+    "success": false,
+    "error": "1 validation error for MapBuilderConfig\nmap_data\n  Assertion failed, Line 2 has length 41, expected 40. All lines in ASCII map must have the same length. [type=assertion_error, input_value='########################...#######################', input_type=str]\n    For further information visit https://errors.pydantic.dev/2.12/v/assertion_error"
+  },
+  {
+    "experiment_name": "machina_eval.oxygen_bottleneck",
+    "config_name": "conservative",
+    "reward": 0.0,
+    "hearts_assembled": 0,
+    "steps_taken": 0,
+    "max_steps": 1000,
+    "final_energy": 0,
+    "extractors_used": {},
+    "success": false,
+    "error": "1 validation error for MapBuilderConfig\nmap_data\n  Assertion failed, Line 2 has length 41, expected 40. All lines in ASCII map must have the same length. [type=assertion_error, input_value='########################...#######################', input_type=str]\n    For further information visit https://errors.pydantic.dev/2.12/v/assertion_error"
+  },
+  {
+    "experiment_name": "machina_eval.oxygen_bottleneck",
+    "config_name": "aggressive",
+    "reward": 0.0,
+    "hearts_assembled": 0,
+    "steps_taken": 0,
+    "max_steps": 1000,
+    "final_energy": 0,
+    "extractors_used": {},
+    "success": false,
+    "error": "1 validation error for MapBuilderConfig\nmap_data\n  Assertion failed, Line 2 has length 41, expected 40. All lines in ASCII map must have the same length. [type=assertion_error, input_value='########################...#######################', input_type=str]\n    For further information visit https://errors.pydantic.dev/2.12/v/assertion_error"
+  },
+  {
+    "experiment_name": "machina_eval.oxygen_bottleneck",
+    "config_name": "silicon_focused",
+    "reward": 0.0,
+    "hearts_assembled": 0,
+    "steps_taken": 0,
+    "max_steps": 1000,
+    "final_energy": 0,
+    "extractors_used": {},
+    "success": false,
+    "error": "1 validation error for MapBuilderConfig\nmap_data\n  Assertion failed, Line 2 has length 41, expected 40. All lines in ASCII map must have the same length. [type=assertion_error, input_value='########################...#######################', input_type=str]\n    For further information visit https://errors.pydantic.dev/2.12/v/assertion_error"
+  },
+  {
+    "experiment_name": "machina_eval.germanium_rush",
+    "config_name": "baseline",
+    "reward": 0.0,
+    "hearts_assembled": 0,
+    "steps_taken": 1000,
+    "max_steps": 1000,
+    "final_energy": 100,
+    "extractors_used": {
+      "carbon": 5,
+      "oxygen": 1,
+      "germanium": 3,
+      "silicon": 2
+    },
+    "success": 
