@@ -128,7 +128,7 @@ def get_collector_instance(collector_name: str):
 
     elif collector_name == "wandb":
         api_key = get_credential("WANDB_API_KEY", "wandb/api-key")
-        entity = os.getenv("WANDB_ENTITY", "pufferai")
+        entity = os.getenv("WANDB_ENTITY", "metta-research")
         project = os.getenv("WANDB_PROJECT", "metta")
         return WandBCollector(api_key=api_key, entity=entity, project=project)
 
