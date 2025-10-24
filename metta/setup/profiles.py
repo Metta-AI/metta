@@ -85,7 +85,7 @@ PROFILE_DEFINITIONS: dict[UserType, ProfileConfig] = {
             "tailscale": {"enabled": False},
             "notebookwidgets": {"enabled": False},
             "scratchpad": {"enabled": False},
-            "pr-similarity": {"enabled": True},
+            "pr-similarity": {"enabled": False},
         }
     },
     UserType.SOFTMAX: {
