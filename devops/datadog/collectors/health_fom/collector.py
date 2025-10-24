@@ -35,6 +35,23 @@ class HealthFomCollector(BaseCollector):
         app_key = os.getenv("DD_APP_KEY")
         site = os.getenv("DD_SITE", "datadoghq.com")
 
+        # Fetch from AWS Secrets Manager if not in environment
+        if not api_key:
+            try:
+                from softmax.aws.secrets_manager import get_secretsmanager_secret
+
+                api_key = get_secretsmanager_secret("datadog/api-key")
+            except Exception as e:
+                raise ValueError(f"DD_API_KEY not found in environment or AWS Secrets Manager: {e}") from e
+
+        if not app_key:
+            try:
+                from softmax.aws.secrets_manager import get_secretsmanager_secret
+
+                app_key = get_secretsmanager_secret("datadog/app-key")
+            except Exception as e:
+                raise ValueError(f"DD_APP_KEY not found in environment or AWS Secrets Manager: {e}") from e
+
         if not api_key or not app_key:
             raise ValueError("DD_API_KEY and DD_APP_KEY must be set for FoM collector")
 

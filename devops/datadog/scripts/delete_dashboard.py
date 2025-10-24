@@ -37,9 +37,25 @@ def delete_dashboard(dashboard_id: str, dry_run: bool = False) -> bool:
     app_key = os.environ.get("DD_APP_KEY")
     site = os.environ.get("DD_SITE", "datadoghq.com")
 
+    # Fetch from AWS Secrets Manager if not in environment
+    if not api_key:
+        try:
+            from softmax.aws.secrets_manager import get_secretsmanager_secret
+
+            api_key = get_secretsmanager_secret("datadog/api-key")
+        except Exception:
+            pass
+
+    if not app_key:
+        try:
+            from softmax.aws.secrets_manager import get_secretsmanager_secret
+
+            app_key = get_secretsmanager_secret("datadog/app-key")
+        except Exception:
+            pass
+
     if not api_key or not app_key:
-        print("Error: DD_API_KEY and DD_APP_KEY environment variables must be set")
-        print("Run: source ./load_env.sh")
+        print("Error: DD_API_KEY and DD_APP_KEY not found in environment or AWS Secrets Manager")
         return False
 
     url = f"https://api.{site}/api/v1/dashboard/{dashboard_id}"
