@@ -1,4 +1,10 @@
-"""CI runner for local testing that matches remote CI behavior."""
+"""CI runner for local testing that matches remote CI behavior.
+
+This tool provides a local development experience that mirrors the GitHub Actions CI workflow.
+Both this file and .github/workflows/checks.yml should run the same metta CLI commands.
+
+To verify synchronization, run: uv run python scripts/validate_ci_sync.py
+"""
 
 import subprocess
 import sys

@@ -1,5 +1,9 @@
 name: "Test and Benchmark"
 
+# This workflow mirrors the local CI runner at metta/setup/tools/ci_runner.py
+# Both should run the same metta CLI commands: metta lint, metta pytest --ci, metta cpptest
+# To verify synchronization, run: uv run python scripts/validate_ci_sync.py
+
 on:
   pull_request:
     types: [opened, synchronize, ready_for_review]
