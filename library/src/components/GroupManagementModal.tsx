@@ -121,7 +121,7 @@ export const GroupManagementModal: FC<GroupManagementModalProps> = ({
   const { execute: manageMembership, isExecuting } = useAction(
     manageGroupMembershipAction,
     {
-      onSuccess: (data, input) => {
+      onSuccess: ({ data, input }) => {
         // Check if current user just left the group
         const formData = input as FormData;
         const action = formData.get("action") as string;

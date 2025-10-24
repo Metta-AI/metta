@@ -3,9 +3,13 @@ import { prisma } from "@/lib/db/prisma";
 import { withErrorHandler } from "@/lib/api/error-handler";
 
 export const GET = withErrorHandler(
-  async (request: NextRequest, { params }: { params: { id: string } }) => {
+  async (
+    request: NextRequest,
+    { params }: { params: Promise<{ id: string }> }
+  ): Promise<NextResponse> => {
+    const { id } = await params;
     const paper = await prisma.paper.findUnique({
-      where: { id: params.id },
+      where: { id },
       include: {
         paperAuthors: {
           include: {
