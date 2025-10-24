@@ -1,8 +1,7 @@
 import
   std/[math, os, strutils, tables, strformat, random],
   boxy, vmath, windy, fidget2/[hybridrender, common],
-  common, panels, actions, utils, replays, objectinfo, pathfinding, tilemap,
-  ../../tests/perlin
+  common, panels, actions, utils, replays, objectinfo, pathfinding, tilemap
 
 const TS = 1.0 / 64.0 # Tile scale.
 
@@ -20,7 +19,6 @@ proc weightedRandomInt*(weights: seq[int]): int =
 
 proc generateTileMap(): TileMap =
   ## Generate a 1024x1024 texture where each pixel is a byte index into the 16x16 tile map.
-
   let
     width = ceil(replay.mapSize[0].float32 / 32.0f).int * 32
     height = ceil(replay.mapSize[1].float32 / 32.0f).int * 32
@@ -64,7 +62,6 @@ proc generateTileMap(): TileMap =
     1, 34, 34, 0, 0, 34, 34, 0, 0
   ]
   for i in 0 ..< terrainMap.indexData.len:
-    # Create some patterns for more interesting visuals
     let x = i mod width
     let y = i div width
 
@@ -75,7 +72,6 @@ proc generateTileMap(): TileMap =
         return 1
       return 0
 
-    # On off
     var tile: uint8 = 0
     if asteroidMap[y * width + x]:
       tile = (49 + weightedRandomInt(@[100, 50, 25, 10, 5, 2, 1])).uint8
@@ -95,8 +91,6 @@ proc generateTileMap(): TileMap =
     terrainMap.indexData[i] = tile
 
   terrainMap.setupGPU()
-  echo "Done generating tile map"
-
   return terrainMap
 
 proc buildAtlas*() =
@@ -105,7 +99,6 @@ proc buildAtlas*() =
     if path.endsWith(".png") and "fidget" notin path:
       let name = path.replace(dataDir & "/", "").replace(".png", "")
       bxy.addImage(name, readImage(path))
-
 
 proc useSelections*(panel: Panel) =
   ## Reads the mouse position and selects the thing under it.
@@ -195,7 +188,6 @@ proc useSelections*(panel: Panel) =
           # Replace the entire objective queue.
           agentObjectives[selection.agentId] = @[objective]
           recomputePath(selection.agentId, startPos)
-
 
 proc drawObjects*() =
   ## Draw the objects on the map.
@@ -405,27 +397,6 @@ proc drawGrid*() =
         scale = TS
       )
 
-proc drawInventory*() =
-  # Draw the inventory.
-  discard
-  # for obj in replay.objects:
-  #   let inventory = obj.inventory.at
-  #   var numItems = 0
-  #   for itemAmount in inventory:
-  #     numItems += itemAmount.count
-  #   let widthItems = (numItems.float32 * 0.1).clamp(0.0, 1.0)
-  #   var x = -widthItems / 2
-  #   var xAdvance = widthItems / numItems.float32
-  #   for itemAmount in inventory:
-  #     for i in 0 ..< itemAmount.count:
-  #       bxy.drawImage(
-  #         replay.itemImages[itemAmount.itemId],
-  #         obj.location.at.xy.vec2 + vec2(x.float32, -0.5),
-  #         angle = 0,
-  #         scale = 1/200 / 4
-  #       )
-  #       x += xAdvance
-
 proc drawPlannedPath*() =
   ## Draw the planned paths for all agents.
   ## Only show paths when in realtime mode and viewing the latest step.
@@ -514,23 +485,6 @@ proc drawSelection*() =
       angle = 0,
       scale = 1/200
     )
-
-proc drawRewards*() =
-  # Draw the rewards on the bottom of the object.
-  discard
-  # for obj in replay.objects:
-  #   if obj.isAgent:
-  #     let totalReward = obj.totalReward.at
-  #     let advanceX = min(32/200, 1.0 / totalReward)
-  #     var rewardX = -0.5
-  #     for i in 0 ..< totalReward.int:
-  #       bxy.drawImage(
-  #         "resources/reward",
-  #         obj.location.at.xy.vec2 + vec2(rewardX, 0.5 - 16/200),
-  #         angle = 0,
-  #         scale = 1/200/8
-  #       )
-  #       rewardX += advanceX
 
 proc applyOrientationOffset*(x: int, y: int, orientation: int): (int, int) =
   case orientation
@@ -693,6 +647,8 @@ proc drawWorldMini*() =
     drawFogOfWar()
 
 proc centerAt*(panel: Panel, entity: Entity) =
+  ## Center the map on the given entity.
+  ## TODO: Implement this.
   discard
 
 proc drawWorldMain*() =
@@ -705,8 +661,6 @@ proc drawWorldMain*() =
   drawClippedStatus()
   drawSelection()
   drawPlannedPath()
-  drawInventory()
-  drawRewards()
 
   if settings.showVisualRange:
     drawVisualRanges()
