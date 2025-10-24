@@ -6,10 +6,10 @@ Usage:
       --cogs 1 --episodes 3 --steps 500 --seed 42
 
 """
+
 from __future__ import annotations
 
 import argparse
-import os
 from typing import List
 
 import numpy as np
@@ -17,7 +17,6 @@ import numpy as np
 from cogames.cogs_vs_clips.missions import make_game
 from cogames.policy.scripted_agent import ScriptedAgentPolicy
 from mettagrid import MettaGridEnv, dtype_actions
-
 
 # Known-good TF maps (object names match mission objects)
 TF_MAPS: List[str] = [
@@ -47,7 +46,6 @@ def parse_args() -> argparse.Namespace:
 def main() -> None:
     args = parse_args()
 
-
     overall = 0.0
     per_map_results: list[tuple[str, float]] = []
 
@@ -66,7 +64,7 @@ def main() -> None:
             agents = [policy.agent_policy(i) for i in range(env.num_agents)]
 
             totals = np.zeros(env.num_agents, dtype=float)
-            for t in range(args.steps):
+            for _ in range(args.steps):
                 actions = np.zeros(env.num_agents, dtype=dtype_actions)
                 for i in range(env.num_agents):
                     actions[i] = int(agents[i].step(obs[i]))

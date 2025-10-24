@@ -11,13 +11,13 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Set, Tuple
 
+from cogames.policy.interfaces import AgentPolicy, Policy, StatefulAgentPolicy
 from cogames.policy.scripted_agent import (
     AgentState,
     GamePhase,
     ScriptedAgentPolicyImpl,
 )
-from cogames.policy.interfaces import AgentPolicy, Policy, StatefulAgentPolicy
-from mettagrid import MettaGridAction, MettaGridEnv, MettaGridObservation, dtype_actions
+from mettagrid import MettaGridAction, MettaGridEnv, MettaGridObservation
 
 
 @dataclass
@@ -171,5 +171,3 @@ class ExplorationAgentPolicy(Policy):
 
     def agent_policy(self, agent_id: int) -> AgentPolicy:
         return StatefulAgentPolicy(self._impl, agent_id)
-
-
