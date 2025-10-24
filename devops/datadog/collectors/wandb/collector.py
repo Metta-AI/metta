@@ -12,7 +12,8 @@ class WandBCollector(BaseCollector):
     """Collector for WandB training run metrics.
 
     Collects metrics about training runs, model performance, and resource usage
-    from Weights & Biases.
+    from Weights & Biases. Fetches recent runs once and categorizes them for
+    efficient metric collection.
     """
 
     def __init__(self, api_key: str, entity: str, project: str):
@@ -34,160 +35,90 @@ class WandBCollector(BaseCollector):
     def collect_metrics(self) -> dict[str, Any]:
         """Collect all WandB metrics.
 
+        Fetches recent runs once and categorizes them for efficient processing.
+
         Returns:
             Dictionary mapping metric keys to values
         """
         metrics = {}
 
-        # Collect run status metrics
-        metrics.update(self._collect_run_status_metrics())
+        try:
+            # Fetch all recent runs once (last 24 hours)
+            one_day_ago = datetime.now(timezone.utc) - timedelta(hours=24)
+            recent_runs = list(
+                self.api.runs(
+                    f"{self.entity}/{self.project}",
+                    filters={"created_at": {"$gte": one_day_ago.isoformat()}},
+                )
+            )
 
-        # Collect performance metrics
-        metrics.update(self._collect_performance_metrics())
+            self.logger.info(f"Fetched {len(recent_runs)} runs from last 24h")
 
-        # Collect resource usage metrics
-        metrics.update(self._collect_resource_metrics())
+            # Categorize runs by type
+            push_to_main_runs = []
+            sweep_runs = []
+            regular_runs = []
+
+            for run in recent_runs:
+                if not run.name:
+                    continue
+
+                # GitHub CI push-to-main runs: github.sky.pr* or github.sky.main.*
+                if run.name.startswith("github.sky."):
+                    push_to_main_runs.append(run)
+                # Sweep runs (if you have a naming pattern for sweeps)
+                elif run.sweep:
+                    sweep_runs.append(run)
+                # Everything else
+                else:
+                    regular_runs.append(run)
+
+            self.logger.info(
+                f"Categorized: {len(push_to_main_runs)} push-to-main, "
+                f"{len(sweep_runs)} sweep, {len(regular_runs)} regular"
+            )
+
+            # Collect metrics from categorized runs
+            metrics.update(self._collect_overall_metrics(recent_runs))
+            metrics.update(self._collect_push_to_main_metrics(push_to_main_runs))
+            # Could add: metrics.update(self._collect_sweep_metrics(sweep_runs))
+
+        except Exception as e:
+            self.logger.error(f"Failed to collect WandB metrics: {e}", exc_info=True)
 
         return metrics
 
-    def _collect_run_status_metrics(self) -> dict[str, Any]:
-        """Collect training run status metrics.
+    def _collect_overall_metrics(self, runs: list) -> dict[str, Any]:
+        """Collect overall metrics from all recent runs.
 
-        Focus on recent runs (last 24 hours) to avoid fetching 26k+ historical runs.
-        This provides actionable monitoring data without performance issues.
+        Args:
+            runs: List of all recent WandB runs
+
+        Returns:
+            Dictionary of overall metrics
         """
         metrics = {
             "wandb.runs.active": 0,
             "wandb.runs.completed_24h": 0,
             "wandb.runs.failed_24h": 0,
-            "wandb.runs.total_recent": 0,
-        }
-
-        try:
-            # Count active runs using filter
-            active_runs = self.api.runs(f"{self.entity}/{self.project}", filters={"state": "running"})
-            metrics["wandb.runs.active"] = len(list(active_runs))
-
-            # Focus on last 24 hours for actionable monitoring
-            one_day_ago = datetime.now(timezone.utc) - timedelta(hours=24)
-
-            # Count completed runs in last 24 hours using filter
-            recent_completed = self.api.runs(
-                f"{self.entity}/{self.project}",
-                filters={"state": "finished", "created_at": {"$gte": one_day_ago.isoformat()}},
-            )
-            metrics["wandb.runs.completed_24h"] = len(list(recent_completed))
-
-            # Count failed runs in last 24 hours using filter
-            recent_failed = self.api.runs(
-                f"{self.entity}/{self.project}",
-                filters={
-                    "$or": [{"state": "failed"}, {"state": "crashed"}],
-                    "created_at": {"$gte": one_day_ago.isoformat()},
-                },
-            )
-            metrics["wandb.runs.failed_24h"] = len(list(recent_failed))
-
-            # Total recent activity (last 24h + currently active)
-            metrics["wandb.runs.total_recent"] = (
-                metrics["wandb.runs.active"] + metrics["wandb.runs.completed_24h"] + metrics["wandb.runs.failed_24h"]
-            )
-
-        except Exception as e:
-            self.logger.error(f"Failed to collect run status metrics: {e}", exc_info=True)
-            for key in metrics:
-                metrics[key] = 0
-
-        return metrics
-
-    def _collect_performance_metrics(self) -> dict[str, Any]:
-        """Collect model performance metrics from recent runs.
-
-        Focuses on GitHub CI runs (pattern: github.sky.main.*) to track training performance
-        from automated CI runs on main branch.
-        """
-        metrics = {
-            "wandb.metrics.latest_sps": None,  # Steps per second (training throughput)
-            "wandb.metrics.avg_heart_amount_24h": None,  # Average heart amount (survival metric)
-            "wandb.metrics.latest_queue_latency_s": None,  # SkyPilot queue latency
-        }
-
-        try:
-            # Only fetch recent completed runs (last 24 hours)
-            # Focus on GitHub CI runs: github.sky.main.*
-            one_day_ago = datetime.now(timezone.utc) - timedelta(hours=24)
-            recent_runs = self.api.runs(
-                f"{self.entity}/{self.project}",
-                filters={"state": "finished", "created_at": {"$gte": one_day_ago.isoformat()}},
-            )
-
-            latest_sps = None
-            heart_amounts = []
-            latest_queue_latency = None
-
-            for run in recent_runs:
-                # Get run summary metrics
-                # WandB summary objects can be complex and may not convert to dict properly
-                try:
-                    summary_dict = dict(run.summary)
-                except (TypeError, ValueError, AttributeError):
-                    # If summary cannot be converted to dict, skip this run
-                    continue
-
-                # Track latest SPS (steps per second) - primary training throughput metric
-                # Note: These metrics are project-specific and may not exist in all runs.
-                # None values are expected and valid when metrics don't exist.
-                try:
-                    if "overview/sps" in summary_dict:
-                        latest_sps = summary_dict["overview/sps"]
-                except (TypeError, KeyError):
-                    pass
-
-                # Track heart amount (agent survival metric)
-                try:
-                    if "env_agent/heart.amount" in summary_dict:
-                        heart_amounts.append(summary_dict["env_agent/heart.amount"])
-                except (TypeError, KeyError):
-                    pass
-
-                # Track SkyPilot queue latency
-                try:
-                    if "skypilot/queue_latency_s" in summary_dict:
-                        latest_queue_latency = summary_dict["skypilot/queue_latency_s"]
-                except (TypeError, KeyError):
-                    pass
-
-            metrics["wandb.metrics.latest_sps"] = latest_sps
-            if heart_amounts:
-                metrics["wandb.metrics.avg_heart_amount_24h"] = sum(heart_amounts) / len(heart_amounts)
-            metrics["wandb.metrics.latest_queue_latency_s"] = latest_queue_latency
-
-        except Exception as e:
-            self.logger.error(f"Failed to collect performance metrics: {e}", exc_info=True)
-
-        return metrics
-
-    def _collect_resource_metrics(self) -> dict[str, Any]:
-        """Collect resource usage metrics from recent runs."""
-        metrics = {
+            "wandb.runs.total_recent": len(runs),
             "wandb.training.avg_duration_hours": None,
-            "wandb.training.gpu_utilization_avg": None,
             "wandb.training.total_gpu_hours_24h": 0.0,
         }
 
         try:
-            # Only fetch recent runs (last 24 hours) for resource metrics
-            one_day_ago = datetime.now(timezone.utc) - timedelta(hours=24)
-            recent_runs = self.api.runs(
-                f"{self.entity}/{self.project}",
-                filters={"created_at": {"$gte": one_day_ago.isoformat()}},
-            )
-
             durations = []
-            gpu_utils = []
             total_gpu_hours = 0.0
 
-            for run in recent_runs:
+            for run in runs:
+                # Count by state
+                if run.state == "running":
+                    metrics["wandb.runs.active"] += 1
+                elif run.state == "finished":
+                    metrics["wandb.runs.completed_24h"] += 1
+                elif run.state in ["failed", "crashed"]:
+                    metrics["wandb.runs.failed_24h"] += 1
+
                 # Calculate duration
                 if run.created_at and run.heartbeat_at:
                     try:
@@ -195,36 +126,102 @@ class WandBCollector(BaseCollector):
                         heartbeat = datetime.fromisoformat(run.heartbeat_at.replace("Z", "+00:00"))
                         duration_hours = (heartbeat - created).total_seconds() / 3600
                         durations.append(duration_hours)
-
-                        # Estimate GPU hours (assuming 1 GPU per run)
-                        # This is a simplification - real implementation would check run config
+                        # Estimate GPU hours (assuming 1 GPU per run - could be enhanced)
                         total_gpu_hours += duration_hours
-
                     except (ValueError, AttributeError):
                         continue
-
-                # Get GPU utilization from summary metrics
-                # Use dict() to safely access summary data
-                try:
-                    summary_dict = dict(run.summary)
-
-                    if "system.gpu.0.gpu" in summary_dict:
-                        gpu_utils.append(summary_dict["system.gpu.0.gpu"])
-                    elif "gpu_util" in summary_dict:
-                        gpu_utils.append(summary_dict["gpu_util"])
-                except (TypeError, ValueError, AttributeError, KeyError):
-                    # Skip runs with invalid summary data
-                    continue
 
             if durations:
                 metrics["wandb.training.avg_duration_hours"] = sum(durations) / len(durations)
 
-            if gpu_utils:
-                metrics["wandb.training.gpu_utilization_avg"] = sum(gpu_utils) / len(gpu_utils)
-
             metrics["wandb.training.total_gpu_hours_24h"] = total_gpu_hours
 
         except Exception as e:
-            self.logger.error(f"Failed to collect resource metrics: {e}", exc_info=True)
+            self.logger.error(f"Failed to collect overall metrics: {e}", exc_info=True)
+
+        return metrics
+
+    def _collect_push_to_main_metrics(self, runs: list) -> dict[str, Any]:
+        """Collect metrics specifically for GitHub CI push-to-main runs.
+
+        These runs follow the naming pattern: github.sky.pr{NUMBER}.{COMMIT}.{ENV}.{TIMESTAMP}
+        They are the most important to track as they represent the baseline performance
+        of the main branch over time.
+
+        Args:
+            runs: List of push-to-main runs (filtered by name pattern)
+
+        Returns:
+            Dictionary of push-to-main specific metrics
+        """
+        metrics = {
+            "wandb.push_to_main.runs_completed_24h": 0,
+            "wandb.push_to_main.runs_failed_24h": 0,
+            "wandb.push_to_main.success_rate_pct": None,
+            "wandb.push_to_main.avg_steps_per_second": None,
+            "wandb.push_to_main.latest_steps_per_second": None,
+            "wandb.push_to_main.avg_duration_hours": None,
+        }
+
+        if not runs:
+            self.logger.info("No github.sky push-to-main runs found in last 24h")
+            return metrics
+
+        try:
+            completed = 0
+            failed = 0
+            sps_values = []
+            durations = []
+
+            for run in runs:
+                # Count by state
+                if run.state == "finished":
+                    completed += 1
+                elif run.state in ["failed", "crashed"]:
+                    failed += 1
+
+                # Extract metrics from completed runs
+                if run.state == "finished":
+                    try:
+                        summary_dict = dict(run.summary)
+
+                        # SPS (steps per second) - training throughput
+                        if "overview/steps_per_second" in summary_dict:
+                            sps_values.append(summary_dict["overview/steps_per_second"])
+                        elif "overview/sps" in summary_dict:
+                            sps_values.append(summary_dict["overview/sps"])
+
+                    except (TypeError, ValueError, AttributeError):
+                        continue
+
+                # Calculate duration
+                if run.created_at and run.heartbeat_at:
+                    try:
+                        created = datetime.fromisoformat(run.created_at.replace("Z", "+00:00"))
+                        heartbeat = datetime.fromisoformat(run.heartbeat_at.replace("Z", "+00:00"))
+                        duration_hours = (heartbeat - created).total_seconds() / 3600
+                        durations.append(duration_hours)
+                    except (ValueError, AttributeError):
+                        continue
+
+            # Calculate metrics
+            metrics["wandb.push_to_main.runs_completed_24h"] = completed
+            metrics["wandb.push_to_main.runs_failed_24h"] = failed
+
+            total_runs = completed + failed
+            if total_runs > 0:
+                metrics["wandb.push_to_main.success_rate_pct"] = (completed / total_runs) * 100
+
+            if sps_values:
+                metrics["wandb.push_to_main.avg_steps_per_second"] = sum(sps_values) / len(sps_values)
+                metrics["wandb.push_to_main.latest_steps_per_second"] = sps_values[-1]  # Most recent
+
+            if durations:
+                metrics["wandb.push_to_main.avg_duration_hours"] = sum(durations) / len(durations)
+
+            self.logger.info(f"Push-to-main: {len(runs)} runs ({completed} completed, {failed} failed)")
+
+        except Exception as e:
+            self.logger.error(f"Failed to collect push-to-main metrics: {e}", exc_info=True)
 
         return metrics
