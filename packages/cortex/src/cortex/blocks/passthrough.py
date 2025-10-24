@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from typing import Optional, Tuple
 
+from tensordict import TensorDict
+
 from cortex.blocks.base import BaseBlock
 from cortex.blocks.registry import register_block
 from cortex.cells.base import MemoryCell
@@ -27,8 +29,6 @@ class PassThroughBlock(BaseBlock):
         *,
         resets: Optional[ResetMask] = None,
     ) -> Tuple[Tensor, MaybeState]:
-        from tensordict import TensorDict
-
         # Extract cell state from block state
         cell_key = self.cell.__class__.__name__
         cell_state = state.get(cell_key, None) if state is not None else None

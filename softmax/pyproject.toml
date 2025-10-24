@@ -14,6 +14,7 @@ dependencies = [
   "mcp[cli]>=1.13.1",
   "boto3>=1.38.32",
   "metta-common",
+  "gitta",
   "typer>=0.16.1",
   "datadog-api-client>=2.43.0",
 ]
@@ -23,3 +24,4 @@ where = ["src"]
 
 [tool.uv.sources]
 metta-common = { workspace = true }
+gitta = { workspace = true }

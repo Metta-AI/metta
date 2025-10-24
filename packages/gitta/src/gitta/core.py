@@ -121,11 +121,7 @@ def run_git_cmd(
         if "dubious ownership" in stderr:
             repo_path = cwd or Path.cwd()
             raise DubiousOwnershipError(
-                f"{stderr}\n\n"
-                f"To fix this, run:\n"
-                f"  git config --global --add safe.directory {repo_path}\n"
-                f"Or set environment variable:\n"
-                f"  GITTA_AUTO_ADD_SAFE_DIRECTORY=1"
+                f"{stderr}\n\nTo fix this, run:\n  git config --global --add safe.directory {repo_path}"
             )
 
         # Handle non-critical errors if check=False
