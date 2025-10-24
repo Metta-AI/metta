@@ -274,19 +274,17 @@ def main():
     dashboard = generate_dashboard()
 
     # Save to templates directory
-    output_path = (
-        Path(__file__).parent.parent / "templates" / "system_health_rollup_wildcard.json"
-    )
+    output_path = Path(__file__).parent.parent / "templates" / "system_health_rollup_wildcard.json"
 
     with open(output_path, "w") as f:
         json.dump(dashboard, f, indent=2)
 
     queries = generate_queries()
-    print(f"✓ Generated Wildcard widget dashboard")
+    print("✓ Generated Wildcard widget dashboard")
     print(f"  - 1 Wildcard widget with {len(queries)} metric queries")
     print(f"  - {len(METRICS)} metrics × {len(DAYS)} days = {len(METRICS) * len(DAYS)} data cells")
-    print(f"  - Vega-Lite heatmap with text overlays")
-    print(f"  - No external storage required (S3-free!)")
+    print("  - Vega-Lite heatmap with text overlays")
+    print("  - No external storage required (S3-free!)")
     print(f"\nSaved to: {output_path}")
     print("\nNext steps:")
     print("  1. Review: cat templates/system_health_rollup_wildcard.json")
