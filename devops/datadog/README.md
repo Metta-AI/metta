@@ -19,6 +19,14 @@ Complete Datadog integration for Metta, including:
 - **[Jsonnet Design](docs/JSONNET_DESIGN.md)** - Architecture and patterns
 - **[Widget Reference](docs/DATADOG_WIDGET_REFERENCE.md)** - Available widgets
 
+### Deployment
+
+- **[Deployment Guide](docs/DEPLOYMENT_GUIDE.md)** - Production and dev deployment
+
+### Active Issues
+
+- **[Health FoM Collector Failures](ISSUE-health-fom-failures.md)** ⚠️ - CronJob crashes when running health_fom collector
+
 ## System Overview
 
 ### Data Collectors
@@ -27,13 +35,13 @@ Automated metric collection from multiple services via Kubernetes CronJobs:
 
 **Current Collectors:**
 
-- **GitHub** ✅ **(Production)**: PRs, commits, branches, CI/CD workflows, developer activity
-- **Skypilot** ✅ **(Production)**: Jobs, clusters, resource utilization
-- **Asana** ✅ **(Production)**: Project health, bugs tracking, team velocity
-- **EC2** ✅ **(Production)**: Instances, costs, utilization, EBS volumes
-- **WandB** ✅ **(Production)**: Training runs (24h), push-to-main CI tracking (5 SPS metrics), sweep metrics, GPU hours
-- **Kubernetes** ✅ **(Production)**: Resource efficiency, pod health, waste tracking
-- **Health FoM** ✅ **(Production)**: Normalized 0.0-1.0 health scores for CI/CD metrics
+- **GitHub** ✅ **(Production)**: 28 metrics - PRs, commits, branches, CI/CD workflows, developer activity
+- **Skypilot** ✅ **(Production)**: 30 metrics - Jobs, clusters, resource utilization
+- **Asana** ✅ **(Production)**: 14 metrics - Project health, bugs tracking, team velocity
+- **EC2** ✅ **(Production)**: 19 metrics - Instances, costs, utilization, EBS volumes
+- **WandB** ✅ **(Production)**: 20 metrics - Training runs (24h), push-to-main CI tracking (5 SPS metrics), sweep metrics, GPU hours
+- **Kubernetes** ✅ **(Production)**: 15 metrics - Resource efficiency, pod health, waste tracking
+- **Health FoM** ⚠️ **(Disabled)**: 14 metrics - Normalized 0.0-1.0 health scores (currently disabled due to crashes)
 
 All collectors:
 
