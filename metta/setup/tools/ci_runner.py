@@ -147,6 +147,46 @@ def _print_summary(results: list[CheckResult]) -> None:
     console.print()
 
 
+def _validate_ci_sync(*, verbose: bool = False) -> bool:
+    """Validate that CI runner and workflow are synchronized.
+
+    Returns True if synchronized, False otherwise.
+    Prints warning if not synchronized.
+    """
+    try:
+        repo_root = get_repo_root()
+        validator_script = repo_root / "scripts" / "validate_ci_sync.py"
+
+        if not validator_script.exists():
+            # Silently skip if validator script doesn't exist
+            return True
+
+        result = subprocess.run(
+            ["uv", "run", "python", str(validator_script)],
+            cwd=repo_root,
+            capture_output=True,
+            text=True,
+        )
+
+        if result.returncode == 0:
+            # Commands match - silently continue
+            return True
+        else:
+            # Commands don't match - show warning
+            console.print()
+            console.print("[yellow]⚠ Warning: Local CI runner may be out of sync with GitHub Actions workflow[/yellow]")
+            console.print("[yellow]Run 'uv run python scripts/validate_ci_sync.py' for details[/yellow]")
+            if verbose:
+                console.print()
+                console.print(result.stdout)
+            console.print()
+            return False
+
+    except Exception:
+        # Silently skip validation if it fails
+        return True
+
+
 @app.command(name="ci", help="Run CI checks locally")
 def cmd_ci(
     continue_on_error: Annotated[bool, typer.Option("--continue-on-error", help="Don't stop on first failure")] = False,
@@ -163,6 +203,9 @@ def cmd_ci(
     Use 'metta pytest' to run only Python tests.
     Use 'metta cpptest' to run only C++ tests.
     """
+    # Validate synchronization with GitHub Actions workflow (silently passes if OK)
+    _validate_ci_sync(verbose=verbose)
+
     console.print(Panel.fit("[bold]Running CI Checks[/bold]", border_style="cyan"))
 
     results: list[CheckResult] = []
