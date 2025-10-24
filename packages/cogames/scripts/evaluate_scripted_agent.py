@@ -3,7 +3,7 @@
 
 Usage:
   uv run python -u packages/cogames/scripts/evaluate_scripted_agent.py \
-      --cogs 1 --episodes 3 --steps 500 --seed 42
+      --cogs 1 --episodes 5 --steps 1000 --seed 42
 
 """
 

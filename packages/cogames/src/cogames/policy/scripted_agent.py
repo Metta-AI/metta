@@ -85,6 +85,12 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
     HEART_FEATURE_NAME = "inv:heart"
     HEART_SENTINEL_FIRST_FIELD = 85  # 0x55
 
+    # Observation window size
+    OBS_HEIGHT = 11
+    OBS_WIDTH = 11
+    OBS_HEIGHT_RADIUS = OBS_HEIGHT // 2
+    OBS_WIDTH_RADIUS = OBS_WIDTH // 2
+
     def __init__(self, env: MettaGridEnv):
         self._env = env
         self._action_names: List[str] = env.action_names
@@ -175,6 +181,16 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
             )
         )
 
+    # ---------- Helper Methods ----------
+    def _is_valid_position(self, r: int, c: int) -> bool:
+        """Check if a position is within map bounds."""
+        return 0 <= r < self._map_height and 0 <= c < self._map_width
+
+    def _mark_cell(self, r: int, c: int, cell_type: int) -> None:
+        """Mark a cell in the occupancy grid if within bounds."""
+        if self._is_valid_position(r, c):
+            self._occ[r][c] = cell_type
+
     # ---------- Visual Discovery ----------
     def _discover_stations_from_observation(self, obs: MettaGridObservation, state: AgentState) -> None:
         """Discover stations and walls by observing them. Mark occupancy grid properly.
@@ -189,10 +205,6 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
             return
 
         type_id_feature = self._feature_name_to_id.get("type_id", 0)
-        obs_height = 11
-        obs_width = 11
-        obs_height_radius = obs_height // 2
-        obs_width_radius = obs_width // 2
 
         # Process all observed cells with type_id
         for tok in obs:
@@ -202,32 +214,31 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
                 obs_c = int(self._to_int(tok[0]) & 0x0F)
                 type_id = int(self._to_int(tok[2]))
 
-                # Absolute
-                map_r = obs_r - obs_height_radius + state.agent_row
-                map_c = obs_c - obs_width_radius + state.agent_col
-                if not (0 <= map_r < self._map_height and 0 <= map_c < self._map_width):
+                # Convert to absolute coordinates
+                map_r = obs_r - self.OBS_HEIGHT_RADIUS + state.agent_row
+                map_c = obs_c - self.OBS_WIDTH_RADIUS + state.agent_col
+                if not self._is_valid_position(map_r, map_c):
                     continue
 
                 # Determine what this cell is
                 if type_id == self._wall_type_id:
                     # It's a wall - mark as unwalkable
-                    self._occ[map_r][map_c] = self._occ_wall
+                    self._mark_cell(map_r, map_c, self._occ_wall)
                     self._wall_positions.add((map_r, map_c))
                 elif type_id in self._type_id_to_station:
                     # It's a station - mark as unwalkable (you can't walk onto stations)
                     station_name = self._type_id_to_station[type_id]
-                    self._occ[map_r][map_c] = self._occ_wall
+                    self._mark_cell(map_r, map_c, self._occ_wall)
                     pos = (map_r, map_c)
                     if station_name not in self._station_positions:
                         self._station_positions[station_name] = pos
                         logger.info(f"Discovered {station_name} at {pos}")
                 elif not self._object_type_names[type_id].startswith("agent"):
                     # It's some other object (not agent, not wall, not station) - mark as free
-                    self._occ[map_r][map_c] = self._occ_free
+                    self._mark_cell(map_r, map_c, self._occ_free)
 
         # Mark current agent position as free (we're standing here)
-        if 0 <= state.agent_row < self._map_height and 0 <= state.agent_col < self._map_width:
-            self._occ[state.agent_row][state.agent_col] = self._occ_free
+        self._mark_cell(state.agent_row, state.agent_col, self._occ_free)
 
     def _update_wall_knowledge(self, state: AgentState) -> None:
         """Update occupancy based on movement results.
@@ -241,8 +252,8 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
         current_pos = (state.agent_row, state.agent_col)
 
         if current_pos != self._prev_pos:
-            # We moved! Mark new position as free and path between as free
-            self._occ[current_pos[0]][current_pos[1]] = self._occ_free
+            # We moved! Mark new position as free
+            self._mark_cell(current_pos[0], current_pos[1], self._occ_free)
             return
 
         # We tried to move but didn't - target must be blocked
@@ -252,7 +263,7 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
 
         wall_r = self._prev_pos[0] + dr
         wall_c = self._prev_pos[1] + dc
-        if not (0 <= wall_r < self._map_height and 0 <= wall_c < self._map_width):
+        if not self._is_valid_position(wall_r, wall_c):
             return
 
         # Mark as wall (could be actual wall or station)
@@ -278,8 +289,7 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
         self._update_rewards(obs, state)
 
         # Mark current as free
-        if 0 <= state.agent_row < self._map_height and 0 <= state.agent_col < self._map_width:
-            self._occ[state.agent_row][state.agent_col] = self._occ_free
+        self._mark_cell(state.agent_row, state.agent_col, self._occ_free)
 
         # Discover stations + learn walls
         self._discover_stations_from_observation(obs, state)
@@ -334,13 +344,12 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
     # ---------- Update helpers ----------
     @staticmethod
     def _to_int(x) -> int:
-        try:
-            return int(x)
-        except Exception:
-            try:
-                return int(x.item())
-            except Exception:
-                return int(x)
+        """Convert various numeric types to int."""
+        if isinstance(x, int):
+            return x
+        if hasattr(x, "item"):
+            return int(x.item())
+        return int(x)
 
     def _update_agent_position(self, state: AgentState) -> None:
         try:
@@ -398,11 +407,14 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
         state.heart = 1 if self._has_heart_from_obs(obs) else 0
 
     # ---------- Occupancy / Frontier ----------
-    def _neighbors4(self, r: int, c: int):
+    def _neighbors4(self, r: int, c: int) -> list[Tuple[int, int]]:
+        """Get all valid 4-connected neighbors of a cell."""
+        neighbors = []
         for dr, dc in ((-1, 0), (1, 0), (0, -1), (0, 1)):
             nr, nc = r + dr, c + dc
-            if 0 <= nr < self._map_height and 0 <= nc < self._map_width:
-                yield nr, nc
+            if self._is_valid_position(nr, nc):
+                neighbors.append((nr, nc))
+        return neighbors
 
     def _compute_frontiers(self) -> List[Tuple[int, int]]:
         """Unknown cells that are 4-adjacent to a known free cell."""
@@ -417,27 +429,64 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
                         break
         return fronts
 
-    def _bfs_next_step_occ(self, start: Tuple[int, int], goal: Tuple[int, int]) -> Optional[Tuple[int, int]]:
-        """BFS through known-free cells only; returns next cell on path or None."""
+    def _is_cell_passable(self, r: int, c: int, optimistic: bool) -> bool:
+        """Check if a cell is passable for pathfinding.
+
+        Args:
+            r: row coordinate
+            c: column coordinate
+            optimistic: if True, treat unknown cells as passable; if False, only known-free cells are passable
+        """
+        cell_state = self._occ[r][c]
+        if optimistic:
+            return cell_state != self._occ_wall
+        return cell_state == self._occ_free
+
+    def _reconstruct_first_step(
+        self, parent: dict[Tuple[int, int], Optional[Tuple[int, int]]], start: Tuple[int, int], goal: Tuple[int, int]
+    ) -> Tuple[int, int]:
+        """Reconstruct the first step from start towards goal using parent pointers."""
+        step = goal
+        while parent[step] != start:
+            prev = parent[step]
+            assert prev is not None  # Can't be None since we're not at start
+            step = prev
+        return step
+
+    def _bfs_next_step(
+        self, start: Tuple[int, int], goal: Tuple[int, int], optimistic: bool = False
+    ) -> Optional[Tuple[int, int]]:
+        """BFS pathfinding that returns the next step towards goal or None.
+
+        Args:
+            start: starting position
+            goal: goal position
+            optimistic: if True, treat unknown cells as walkable; if False, only use known-free cells
+        """
         if start == goal:
             return start
+
         q = deque([start])
-        parent = {start: None}
+        parent: dict[Tuple[int, int], Optional[Tuple[int, int]]] = {start: None}
+
         while q:
             r, c = q.popleft()
             for nr, nc in self._neighbors4(r, c):
                 if (nr, nc) in parent:
                     continue
-                if self._occ[nr][nc] != self._occ_free:
+                if not self._is_cell_passable(nr, nc, optimistic):
                     continue
+
                 parent[(nr, nc)] = (r, c)
                 if (nr, nc) == goal:
-                    step = (nr, nc)
-                    while parent[step] != start:
-                        step = parent[step]
-                    return step
+                    return self._reconstruct_first_step(parent, start, goal)
                 q.append((nr, nc))
+
         return None
+
+    def _bfs_next_step_occ(self, start: Tuple[int, int], goal: Tuple[int, int]) -> Optional[Tuple[int, int]]:
+        """BFS through known-free cells only; returns next cell on path or None."""
+        return self._bfs_next_step(start, goal, optimistic=False)
 
     def _bfs_next_step_optimistic(self, start: Tuple[int, int], goal: Tuple[int, int]) -> Optional[Tuple[int, int]]:
         """BFS with optimistic assumption: unknown cells are walkable.
@@ -445,26 +494,7 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
         Only avoids cells known to be walls. This allows pathfinding through
         unexplored areas, and we'll learn about walls when we bump into them.
         """
-        if start == goal:
-            return start
-        q = deque([start])
-        parent = {start: None}
-        while q:
-            r, c = q.popleft()
-            for nr, nc in self._neighbors4(r, c):
-                if (nr, nc) in parent:
-                    continue
-                # Skip only if definitely blocked (wall)
-                if self._occ[nr][nc] == self._occ_wall:
-                    continue
-                parent[(nr, nc)] = (r, c)
-                if (nr, nc) == goal:
-                    step = (nr, nc)
-                    while parent[step] != start:
-                        step = parent[step]
-                    return step
-                q.append((nr, nc))
-        return None
+        return self._bfs_next_step(start, goal, optimistic=True)
 
     def _choose_frontier(self, state: AgentState) -> Optional[Tuple[int, int]]:
         """Pick the nearest frontier by BFS distance over known-free cells."""
@@ -653,29 +683,28 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
         if state.agent_row == -1:
             return self._action_lookup.get("noop", 0)
 
+        # Track recent positions for loop avoidance
         cur = (state.agent_row, state.agent_col)
         if not self._recent_positions or self._recent_positions[-1] != cur:
             self._recent_positions.append(cur)
             if len(self._recent_positions) > self._max_recent_positions:
                 self._recent_positions.pop(0)
 
+        # Try horizontal sweep based on row parity
         row_parity = state.agent_row % 2
         preferred_dir = self._MOVE_E if row_parity == 0 else self._MOVE_W
 
         dr, dc = self._action_to_dir(preferred_dir)
         nr, nc = state.agent_row + (dr or 0), state.agent_col + (dc or 0)
-        if (
-            preferred_dir in self._MOVE_SET
-            and 0 <= nr < self._map_height
-            and 0 <= nc < self._map_width
-            and (nr, nc) not in self._wall_positions
-        ):
+        if preferred_dir in self._MOVE_SET and self._is_valid_position(nr, nc) and (nr, nc) not in self._wall_positions:
             return preferred_dir
 
+        # Try moving down
         down_r, down_c = state.agent_row + 1, state.agent_col
-        if 0 <= down_r < self._map_height and (down_r, down_c) not in self._wall_positions:
+        if self._is_valid_position(down_r, down_c) and (down_r, down_c) not in self._wall_positions:
             return self._MOVE_S if self._MOVE_S != -1 else self._action_lookup.get("noop", 0)
 
+        # Try other directions
         alt = self._find_best_exploration_direction(state)
         if alt is not None:
             return alt
@@ -683,6 +712,7 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
         return preferred_dir if preferred_dir != -1 else self._action_lookup.get("noop", 0)
 
     def _find_best_exploration_direction(self, state: AgentState) -> Optional[int]:
+        """Find the best direction for exploration, preferring unvisited cells."""
         directions = [
             (self._MOVE_N, (-1, 0)),
             (self._MOVE_S, (1, 0)),
@@ -690,16 +720,18 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
             (self._MOVE_W, (0, -1)),
         ]
         best_action, best_score = None, -1
-        recent = self._recent_positions
 
         for action, (dr, dc) in directions:
             nr, nc = state.agent_row + dr, state.agent_col + dc
-            if not (0 <= nr < self._map_height and 0 <= nc < self._map_width):
+            if not self._is_valid_position(nr, nc):
                 continue
-            np = (nr, nc)
-            if np in self._wall_positions:
+
+            pos = (nr, nc)
+            if pos in self._wall_positions:
                 continue
-            score = 10 if np not in recent else recent.index(np)
+
+            # Prefer cells not in recent history (score 10), otherwise use recency
+            score = 10 if pos not in self._recent_positions else self._recent_positions.index(pos)
             if score > best_score:
                 best_score = score
                 best_action = action
