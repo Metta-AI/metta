@@ -5,7 +5,16 @@
 This document outlines the dashboard architecture for the Metta observability system. We design dashboards at three
 levels: executive rollup, per-collector deep dives, and metric-level drill-downs.
 
-**Status**: Planning phase **Last Updated**: 2025-10-23
+**Status**: Production - Dashboards Deployed
+
+**Last Updated**: 2025-10-24
+
+**Note**: The dashboard layouts described in this document are now implemented in code:
+- **Jsonnet dashboards**: `devops/datadog/dashboards/sources/*.jsonnet` (github_cicd, skypilot_jobs, ec2, asana, kubernetes, wandb, policy_evaluator)
+- **Python-generated**: `devops/datadog/scripts/generate_health_grid.py` (system health rollup)
+- **Component libraries**: `devops/datadog/dashboards/components/*.libsonnet`
+
+This document serves as the design rationale and reference for dashboard architecture.
 
 ## Design Principles
 
