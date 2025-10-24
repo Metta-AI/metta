@@ -2,106 +2,97 @@
 
 from unittest.mock import MagicMock, patch
 
-import pytest
-
 from devops.datadog.collectors.github import GitHubCollector
 
 
 class TestGitHubCollector:
     """Test GitHubCollector functionality."""
 
-    @patch("devops.datadog.collectors.github.collector.Github")
-    @patch("devops.datadog.collectors.github.collector.get_secretsmanager_secret")
-    def test_initialization_success(self, mock_get_secret, mock_github):
-        """Test that collector initializes with GitHub token."""
-        mock_get_secret.return_value = "test_github_token"
-        mock_github_instance = MagicMock()
-        mock_github.return_value = mock_github_instance
-
-        collector = GitHubCollector()
+    def test_initialization_success(self):
+        """Test that collector initializes with required parameters."""
+        collector = GitHubCollector(
+            organization="test-org",
+            repository="test-repo",
+            github_token="test_token_123",
+        )
 
         assert collector.name == "github"
-        mock_get_secret.assert_called_once_with("github/dashboard-token")
-        mock_github.assert_called_once_with("test_github_token")
+        assert collector.organization == "test-org"
+        assert collector.repository == "test-repo"
+        assert collector.github_token == "test_token_123"
+        assert collector.repo == "test-org/test-repo"
 
-    @patch("devops.datadog.collectors.github.collector.Github")
-    @patch("devops.datadog.collectors.github.collector.get_secretsmanager_secret")
-    def test_initialization_with_explicit_token(self, mock_get_secret, mock_github):
-        """Test that explicit token overrides secrets manager."""
-        mock_github_instance = MagicMock()
-        mock_github.return_value = mock_github_instance
+    def test_get_auth_header(self):
+        """Test that auth header is formatted correctly."""
+        collector = GitHubCollector(
+            organization="org",
+            repository="repo",
+            github_token="my_secret_token",
+        )
 
-        GitHubCollector(github_token="explicit_token")
+        auth_header = collector._get_auth_header()
 
-        # Should not call secrets manager
-        mock_get_secret.assert_not_called()
-        mock_github.assert_called_once_with("explicit_token")
+        assert auth_header == "token my_secret_token"
 
-    @patch("devops.datadog.collectors.github.collector.Github")
-    @patch("devops.datadog.collectors.github.collector.get_secretsmanager_secret")
-    def test_secrets_manager_failure_raises_error(self, mock_get_secret, mock_github):
-        """Test that Secrets Manager failure raises ValueError."""
-        mock_get_secret.side_effect = Exception("AWS Error")
-
-        with pytest.raises(ValueError, match="Failed to get GitHub token"):
-            GitHubCollector()
-
-    @patch("devops.datadog.collectors.github.collector.Github")
-    @patch("devops.datadog.collectors.github.collector.get_secretsmanager_secret")
-    def test_collect_metrics_returns_dict(self, mock_get_secret, mock_github):
+    @patch("devops.datadog.collectors.github.collector.get_pull_requests")
+    @patch("devops.datadog.collectors.github.collector.get_commits")
+    @patch("devops.datadog.collectors.github.collector.get_branches")
+    @patch("devops.datadog.collectors.github.collector.list_all_workflow_runs")
+    def test_collect_metrics_returns_dict(self, mock_workflows, mock_branches, mock_commits, mock_prs):
         """Test that collect_metrics returns a dictionary."""
-        mock_get_secret.return_value = "token"
-        mock_github_instance = MagicMock()
-        mock_repo = MagicMock()
+        # Mock the gitta API responses
+        mock_prs.return_value = [MagicMock(state="open", number=1)]
+        mock_commits.return_value = [MagicMock()]
+        mock_branches.return_value = [MagicMock()]
+        mock_workflows.return_value = []
 
-        # Mock repo methods
-        mock_repo.get_pulls.return_value.totalCount = 5
-        mock_repo.get_commits.return_value.totalCount = 100
+        collector = GitHubCollector(
+            organization="test-org",
+            repository="test-repo",
+            github_token="token",
+        )
 
-        mock_github_instance.get_repo.return_value = mock_repo
-        mock_github.return_value = mock_github_instance
-
-        collector = GitHubCollector()
         metrics = collector.collect_metrics()
 
         assert isinstance(metrics, dict)
         # Should have some metrics
         assert len(metrics) > 0
 
-    @patch("devops.datadog.collectors.github.collector.Github")
-    @patch("devops.datadog.collectors.github.collector.get_secretsmanager_secret")
-    def test_collect_safe_handles_api_errors(self, mock_get_secret, mock_github):
+    @patch("devops.datadog.collectors.github.collector.get_pull_requests")
+    def test_collect_safe_handles_api_errors(self, mock_prs):
         """Test that collect_safe handles GitHub API errors gracefully."""
-        mock_get_secret.return_value = "token"
-        mock_github_instance = MagicMock()
-
         # Mock API error
-        mock_github_instance.get_repo.side_effect = Exception("API Rate Limit")
-        mock_github.return_value = mock_github_instance
+        mock_prs.side_effect = Exception("API Rate Limit")
 
-        collector = GitHubCollector()
+        collector = GitHubCollector(
+            organization="test-org",
+            repository="test-repo",
+            github_token="token",
+        )
+
         metrics = collector.collect_safe()
 
-        # Should return error metrics instead of raising
-        assert "github.collection_success" in metrics
-        assert metrics["github.collection_success"] == 0.0
-        assert "github.error_count" in metrics
-        assert metrics["github.error_count"] == 1.0
+        # Should return empty dict on error (BaseCollector behavior)
+        assert metrics == {}
 
-    @patch("devops.datadog.collectors.github.collector.Github")
-    @patch("devops.datadog.collectors.github.collector.get_secretsmanager_secret")
-    def test_metric_names_have_correct_prefix(self, mock_get_secret, mock_github):
+    @patch("devops.datadog.collectors.github.collector.get_pull_requests")
+    @patch("devops.datadog.collectors.github.collector.get_commits")
+    @patch("devops.datadog.collectors.github.collector.get_branches")
+    @patch("devops.datadog.collectors.github.collector.list_all_workflow_runs")
+    def test_metric_names_have_correct_prefix(self, mock_workflows, mock_branches, mock_commits, mock_prs):
         """Test that all metrics start with 'github.' prefix."""
-        mock_get_secret.return_value = "token"
-        mock_github_instance = MagicMock()
-        mock_repo = MagicMock()
+        # Mock minimal responses to avoid errors
+        mock_prs.return_value = []
+        mock_commits.return_value = []
+        mock_branches.return_value = []
+        mock_workflows.return_value = []
 
-        # Setup minimal mocks to avoid errors
-        mock_repo.get_pulls.return_value.totalCount = 1
-        mock_github_instance.get_repo.return_value = mock_repo
-        mock_github.return_value = mock_github_instance
+        collector = GitHubCollector(
+            organization="test-org",
+            repository="test-repo",
+            github_token="token",
+        )
 
-        collector = GitHubCollector()
         metrics = collector.collect_safe()
 
         # All metric names should start with 'github.'
