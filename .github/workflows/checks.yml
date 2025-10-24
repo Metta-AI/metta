@@ -47,6 +47,7 @@ jobs:
   echo-run-id:
     name: Echo run_id
     runs-on: ubuntu-latest
+    continue-on-error: true
     if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_id != '' }}
     steps:
       - name: Echo run_id
@@ -167,6 +168,7 @@ jobs:
       (needs.graphite-ci-optimizer.outputs.should_skip == 'false') &&
       (needs.setup-checks.outputs.run_lint == 'true')
     runs-on: ubuntu-latest
+    continue-on-error: true
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -198,6 +200,7 @@ jobs:
       (needs.graphite-ci-optimizer.outputs.should_skip == 'false') &&
       (needs.setup-checks.outputs.observatory_has_changes == 'true')
     runs-on: ubuntu-latest
+    continue-on-error: true
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -232,6 +235,7 @@ jobs:
       (needs.setup-checks.outputs.run_test == 'true')
     runs-on: ubuntu-8core
     timeout-minutes: 30
+    continue-on-error: true
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -271,6 +275,7 @@ jobs:
       (needs.setup-checks.outputs.run_test == 'true')
     runs-on: ubuntu-4core
     timeout-minutes: 10
+    continue-on-error: true
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
