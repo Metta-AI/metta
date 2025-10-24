@@ -21,28 +21,11 @@ on:
         default: ""
 
 jobs:
-  build-and-push-image:
-    runs-on: ubuntu-4core
-    timeout-minutes: 20 # up from default of 10 minutes
-    permissions:
-      id-token: write
-      contents: read
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Build Docker image
-        id: build-image
-        uses: ./.github/actions/docker-build
-        with:
-          image_name: softmax-dashboard
-          dockerfile: ./devops/datadog/Dockerfile.collectors
-          aws_role: ${{ vars.AWS_ROLE }}
-
-      - name: Deploy helm chart
-        if: github.ref == 'refs/heads/main'
-        run: |
-          aws eks update-kubeconfig --name main --region us-east-1
-          helm upgrade -n monitoring dashboard-cronjob ./devops/charts/dashboard-cronjob \
-            --set image.tag=${{ steps.build-image.outputs.tag }}
+  build-and-deploy:
+    uses: ./.github/workflows/build-and-deploy-docker-image.yml
+    with:
+      image_name: softmax-dashboard
+      dockerfile: ./devops/datadog/Dockerfile.collectors
+      helm_release: dashboard-cronjob
+      helm_namespace: monitoring
+      helm_chart: ./devops/charts/dashboard-cronjob
