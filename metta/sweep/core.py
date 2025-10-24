@@ -207,6 +207,26 @@ class SweepParameters:
         )
     }
 
+    OPTIMIZER_BETA1 = {
+        "trainer.optimizer.beta1": ParameterConfig(
+            min=0.85,
+            max=0.98,
+            distribution="logit_normal",
+            mean=0.93,
+            scale="auto",
+        )
+    }
+
+    OPTIMIZER_BETA2 = {
+        "trainer.optimizer.beta2": ParameterConfig(
+            min=0.95,
+            max=0.9999,
+            distribution="logit_normal",
+            mean=0.995,
+            scale="auto",
+        )
+    }
+
 
 # Type alias for any supported parameter specification
 ParameterSpec = ParameterConfig | CategoricalParameterConfig

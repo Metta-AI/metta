@@ -235,3 +235,41 @@ def sweep(sweep_name: str) -> SweepTool:
         # The faster each individual trial, the lower you should set this number.
         num_parallel_trials=4,
     )
+
+
+def sweep_muon(sweep_name: str) -> SweepTool:
+    """Sweep variant that trains with the ForeachMuon optimizer."""
+
+    parameters = [
+        SP.LEARNING_RATE,
+        SP.PPO_CLIP_COEF,
+        SP.PPO_GAE_LAMBDA,
+        SP.PPO_VF_COEF,
+        SP.ADAM_EPS,
+        SP.OPTIMIZER_BETA1,
+        SP.OPTIMIZER_BETA2,
+        SP.param(
+            "trainer.total_timesteps",
+            D.INT_UNIFORM,
+            min=5e8,
+            max=2e9,
+            search_center=7.5e8,
+        ),
+    ]
+
+    train_overrides = {
+        "trainer.optimizer.type": "muon",
+        "trainer.optimizer.weight_decay": 0,
+    }
+
+    return make_sweep(
+        name=sweep_name,
+        recipe="experiments.recipes.arena_basic_easy_shaped",
+        train_entrypoint="train",
+        eval_entrypoint="evaluate_in_sweep",
+        objective="evaluator/eval_sweep/score",
+        parameters=parameters,
+        train_overrides=train_overrides,
+        max_trials=80,
+        num_parallel_trials=4,
+    )
