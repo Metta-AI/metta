@@ -1,0 +1,29 @@
+#ifndef PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_SUPERVISORS_SUPERVISOR_FACTORY_HPP_
+#define PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_SUPERVISORS_SUPERVISOR_FACTORY_HPP_
+
+#include <memory>
+#include <string>
+
+#include "supervisors/agent_supervisor.hpp"
+#include "supervisors/resource_transport_supervisor.hpp"
+
+// Factory class to create supervisors from configurations
+class SupervisorFactory {
+public:
+  static std::unique_ptr<AgentSupervisor> create(const AgentSupervisorConfig* config) {
+    if (!config) {
+      return nullptr;
+    }
+
+    // Check if it's a ResourceTransportSupervisorConfig
+    if (auto* transport_config = dynamic_cast<const ResourceTransportSupervisorConfig*>(config)) {
+      return std::make_unique<ResourceTransportSupervisor>(*transport_config);
+    }
+
+    // Default: create base supervisor (which would be abstract, so this shouldn't happen)
+    // In practice, you'd have a concrete default supervisor or throw an error
+    return nullptr;
+  }
+};
+
+#endif  // PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_SUPERVISORS_SUPERVISOR_FACTORY_HPP_
