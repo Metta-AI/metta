@@ -75,6 +75,7 @@ layouts.grid(
     ), height=1)],
   ]),
   {
+    id: 'rd5-3wh-9s2',  // Dashboard ID from Datadog
     description: 'Demonstrates preset widgets with common patterns and smart defaults',
   }
 )
