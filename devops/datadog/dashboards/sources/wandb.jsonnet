@@ -11,13 +11,14 @@ layouts.grid(
     // Header
     [layouts.fullWidth(0, widgets.note(
       '# WandB Training Metrics\n\n' +
-      'Track ML training runs, model performance, and GPU resource usage. ' +
-      'Metrics collected every 15 minutes from Weights & Biases.'
+      'Track GitHub CI training runs (github.sky.main.*) from the last 24 hours. ' +
+      'Metrics include training throughput (SPS), agent survival (heart amount), and infrastructure latency. ' +
+      'Data collected every 15 minutes from Weights & Biases.'
     ), height=1)],
 
-    // Section 1: Training Run Status
+    // Section 1: Training Run Status (24h window)
     [layouts.fullWidth(1, widgets.note(
-      '## Training Run Status',
+      '## Training Run Status (Last 24 Hours)',
       {
         background_color: 'gray',
         font_size: '16',
@@ -34,9 +35,9 @@ layouts.grid(
     ], height=2),
     [layouts.fullWidth(4, wandb.runStatusTrendWidget(), height=3)],
 
-    // Section 2: Model Performance
+    // Section 2: Training Performance
     [layouts.fullWidth(7, widgets.note(
-      '## Model Performance',
+      '## Training Performance & Agent Metrics',
       {
         background_color: 'gray',
         font_size: '16',
