@@ -5,10 +5,14 @@ module "dashboard_irsa" {
 
   role_name = "dashboard-cronjob"
 
+  # Use StringLike instead of StringEquals to support wildcard pattern
+  # This enables multiple cronjob instances (e.g., from feature branches) to assume the role
+  assume_role_condition_test = "StringLike"
+
   oidc_providers = {
     main = {
       provider_arn               = module.eks.oidc_provider_arn
-      namespace_service_accounts = ["monitoring:dashboard-cronjob-dashboard-cronjob"]
+      namespace_service_accounts = ["monitoring:dashboard-cronjob-*"]
     }
   }
 
