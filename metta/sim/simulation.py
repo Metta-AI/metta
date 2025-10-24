@@ -505,19 +505,8 @@ class Simulation:
     def get_replay(self) -> dict:
         """Makes sure this sim has a single replay, and return it."""
         if self._replay_writer is None:
-            env = self.get_env()
-            # Return a replay-shaped stub so consumers keep working when logging is disabled.
-            return {
-                "version": 2,
-                "action_names": env.action_names,
-                "item_names": env.resource_names if hasattr(env, "resource_names") else [],
-                "type_names": env.object_type_names if hasattr(env, "object_type_names") else [],
-                "num_agents": env.num_agents,
-                "max_steps": env.max_steps,
-                "map_size": [env.height, env.width],
-                "file_name": "live_play",
-                "steps": [],
-            }
+            raise ValueError("Attempting to get single replay, but simulation has no replay writer (enable_replays=False).")
+
         # If no episodes yet, create initial replay data from the environment
         if len(self._replay_writer.episodes) == 0:
             env = self.get_env()
