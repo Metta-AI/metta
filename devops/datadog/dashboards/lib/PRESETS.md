@@ -506,6 +506,7 @@ presets.latencyTimeseries('API Latency', 'p99:api.latency{endpoint:/users}')
 
 ## Related Documentation
 
+- [Dashboard System Overview](../README.md) - Quick start and common patterns
 - [Widget Primitives](./WIDGETS.md) - Low-level widget builders
 - [Layout Templates](./LAYOUTS.md) - Positioning and organization
 - [Design Document](../DESIGN.md) - Overall architecture
