@@ -62,6 +62,13 @@ Running in production via unified CronJob (every 15 minutes):
   - Collector now gracefully returns empty dict when source metrics unavailable
   - Reduced Datadog API lookback from 1 hour to 30 minutes
   - Changed missing metric logging from WARNING to DEBUG level
+- [ ] **Add github. prefix to GitHub metrics** - See `ISSUE-missing-github-metrics.md`
+  - GitHub metrics ARE in Datadog but missing `github.` prefix
+  - Current: `ci.*`, `prs.*`, `commits.*` (28 metrics total)
+  - Desired: `github.ci.*`, `github.prs.*`, `github.commits.*`
+  - Need to investigate where prefix is being stripped
+  - Update health_fom collector queries after fix
+  - Test with helper scripts: `list_datadog_metrics.py`, `test_metric_push.py`
 - [ ] Address PR feedback and merge to main
 - [ ] Monitor production stability (95%+ collector success rate)
 
