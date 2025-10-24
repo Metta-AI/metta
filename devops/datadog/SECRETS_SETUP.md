@@ -48,36 +48,47 @@ aws secretsmanager create-secret \
   --secret-string "YOUR_GITHUB_TOKEN" \
   --region us-east-1
 
-# Asana Personal Access Token
-# Get from: https://app.asana.com (Profile > My Settings > Apps > Personal access tokens)
+# Asana Credentials
+# Get access token from: https://app.asana.com (Profile > My Settings > Apps > Personal access tokens)
 aws secretsmanager create-secret \
   --name asana/access-token \
   --secret-string "YOUR_ASANA_TOKEN" \
   --region us-east-1
+
+# Get workspace GID from your Asana workspace URL: https://app.asana.com/0/WORKSPACE_GID/...
+aws secretsmanager create-secret \
+  --name asana/workspace-gid \
+  --secret-string "YOUR_WORKSPACE_GID" \
+  --region us-east-1
+
+# Optional: Get bugs project GID from project URL: .../project/PROJECT_GID/...
+aws secretsmanager create-secret \
+  --name asana/bugs-project-gid \
+  --secret-string "YOUR_BUGS_PROJECT_GID" \
+  --region us-east-1
 ```
 
-### 3. Configure Environment Variables
+### 3. Configure Environment Variables (Optional)
 
-Create a `.env` file in `devops/datadog/` with non-sensitive configuration:
+All configuration values can now be fetched from AWS Secrets Manager.
+
+For local development with custom values, create a `.env` file in `devops/datadog/`:
 
 ```bash
-# Datadog Site
+# Datadog Site (optional, defaults to datadoghq.com)
 DD_SITE=datadoghq.com
 
-# GitHub Configuration
+# GitHub Configuration (required)
 GITHUB_ORG=PufferAI
 GITHUB_REPO=metta
 
-# Asana Configuration
-ASANA_WORKSPACE_GID=your_workspace_gid
-ASANA_BUGS_PROJECT_GID=your_bugs_project_gid
+# Asana Configuration (optional if stored in AWS Secrets Manager)
+# Only needed if you want to override the AWS values
+#ASANA_WORKSPACE_GID=your_workspace_gid
+#ASANA_BUGS_PROJECT_GID=your_bugs_project_gid
 ```
 
-**Finding Asana GIDs:**
-- **Workspace GID**: Visit your Asana workspace, copy the number from the URL
-  - Example: `https://app.asana.com/0/1209016784099267/...` → GID is `1209016784099267`
-- **Bugs Project GID**: Visit your Bugs project, copy the project number from the URL
-  - Example: `https://app.asana.com/.../project/1210062854657778/...` → GID is `1210062854657778`
+**Note:** Since workspace and project GIDs are now in AWS Secrets Manager, you don't need to set them locally unless you want to override the AWS values.
 
 ### 4. Validate Setup
 
@@ -170,16 +181,18 @@ aws secretsmanager delete-secret \
 | `datadog/app-key` | Datadog Application Key | https://app.datadoghq.com/organization-settings/application-keys |
 | `github/dashboard-token` | GitHub Personal Access Token | https://github.com/settings/tokens |
 | `asana/access-token` | Asana Personal Access Token | Asana → My Settings → Apps → Personal access tokens |
+| `asana/workspace-gid` | Asana Workspace ID | From Asana workspace URL |
+| `asana/bugs-project-gid` | Asana Bugs Project ID (optional) | From Asana project URL |
 
 ## Required Environment Variables
 
-| Variable | Description | Example |
-|----------|-------------|---------|
-| `DD_SITE` | Datadog site (optional) | `datadoghq.com` |
-| `GITHUB_ORG` | GitHub organization | `PufferAI` |
-| `GITHUB_REPO` | GitHub repository | `metta` |
-| `ASANA_WORKSPACE_GID` | Asana workspace ID | `1234567890123456` |
-| `ASANA_BUGS_PROJECT_GID` | Asana bugs project ID | `1234567890123457` |
+| Variable | Description | Example | Required |
+|----------|-------------|---------|----------|
+| `DD_SITE` | Datadog site | `datadoghq.com` | No (defaults to datadoghq.com) |
+| `GITHUB_ORG` | GitHub organization | `PufferAI` | Yes |
+| `GITHUB_REPO` | GitHub repository | `metta` | Yes |
+| `ASANA_WORKSPACE_GID` | Asana workspace ID | `1234567890123456` | No (from AWS if not set) |
+| `ASANA_BUGS_PROJECT_GID` | Asana bugs project ID | `1234567890123457` | No (from AWS if not set) |
 
 ## Fallback Behavior
 
