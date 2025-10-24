@@ -2,11 +2,13 @@
 
 This directory contains helper scripts for deploying applications to Kubernetes/EKS.
 
-> **📘 For complete build and deployment workflow**, see [BUILD_AND_DEPLOY.md](./BUILD_AND_DEPLOY.md) which covers Docker image building, ECR push, Helm deployment, and troubleshooting.
+> **📘 For complete build and deployment workflow**, see [BUILD_AND_DEPLOY.md](./BUILD_AND_DEPLOY.md) which covers
+> Docker image building, ECR push, Helm deployment, and troubleshooting.
 
 ## Overview
 
 The Metta project uses:
+
 - **AWS EKS** for Kubernetes hosting
 - **Helm** for package management
 - **Helmfile** for declarative deployment management
@@ -15,6 +17,7 @@ The Metta project uses:
 ## Scripts
 
 ### `deploy-helm-chart.sh`
+
 Deploy a Helm chart to a specific namespace with customizable values.
 
 ```bash
@@ -43,6 +46,7 @@ Deploy a Helm chart to a specific namespace with customizable values.
 ```
 
 ### `setup-k8s.sh`
+
 Set up kubectl and helm configuration for EKS access.
 
 ```bash
@@ -56,7 +60,9 @@ Set up kubectl and helm configuration for EKS access.
 ## Deployment Workflow
 
 ### Automated (CI/CD)
+
 When you push to `main`, GitHub Actions automatically:
+
 1. Builds the Docker image
 2. Pushes to ECR
 3. Deploys to production using `helm upgrade`
@@ -68,11 +74,13 @@ See `.github/workflows/build-dashboard-image.yml` for details.
 For testing or manual deployment:
 
 1. **Setup kubectl access:**
+
    ```bash
    ./devops/k8s/setup-k8s.sh main
    ```
 
 2. **Deploy the chart:**
+
    ```bash
    ./devops/k8s/deploy-helm-chart.sh \
      --chart devops/charts/dashboard-cronjob \
@@ -82,6 +90,7 @@ For testing or manual deployment:
    ```
 
 3. **Monitor the deployment:**
+
    ```bash
    # Check cronjob status
    kubectl get cronjobs -n monitoring
@@ -98,11 +107,13 @@ For testing or manual deployment:
 To deploy to a staging environment:
 
 1. **Create staging namespace:**
+
    ```bash
    kubectl create namespace monitoring-staging
    ```
 
 2. **Copy secrets to staging:**
+
    ```bash
    # The cronjob needs the same IAM role for AWS Secrets Manager access
    # No additional secrets needed as authentication happens via IAM
@@ -121,16 +132,19 @@ To deploy to a staging environment:
 ## Troubleshooting
 
 ### Check cronjob configuration
+
 ```bash
 kubectl get cronjob dashboard-cronjob -n monitoring -o yaml
 ```
 
 ### View recent job history
+
 ```bash
 kubectl get jobs -n monitoring --sort-by=.metadata.creationTimestamp
 ```
 
 ### Debug failed jobs
+
 ```bash
 # Get the failed job name
 kubectl get jobs -n monitoring
@@ -140,11 +154,13 @@ kubectl logs -n monitoring job/<job-name>
 ```
 
 ### Force trigger a job manually
+
 ```bash
 kubectl create job --from=cronjob/dashboard-cronjob manual-run-$(date +%s) -n monitoring
 ```
 
 ### Rollback a deployment
+
 ```bash
 helm rollback dashboard-cronjob -n monitoring
 ```

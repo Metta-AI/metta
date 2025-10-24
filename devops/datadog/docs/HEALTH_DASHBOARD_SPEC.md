@@ -2,10 +2,11 @@
 
 ## Overview
 
-A Datadog table visualization displaying normalized health metrics across Training, CI, and Eval workflows. Each row represents a metric scaled to [0,1] as a "Figure of Merit" (FoM) and visualized with a continuous red-to-green color spectrum over a 7-day rolling window.
+A Datadog table visualization displaying normalized health metrics across Training, CI, and Eval workflows. Each row
+represents a metric scaled to [0,1] as a "Figure of Merit" (FoM) and visualized with a continuous red-to-green color
+spectrum over a 7-day rolling window.
 
-**Status**: Planning phase
-**Dependencies**: WandB collector, training metrics collector, eval metrics collector
+**Status**: Planning phase **Dependencies**: WandB collector, training metrics collector, eval metrics collector
 **Existing**: GitHub, Skypilot, Asana, EC2 collectors (deployed)
 
 ## Architecture Integration
@@ -13,6 +14,7 @@ A Datadog table visualization displaying normalized health metrics across Traini
 This dashboard builds on the existing Datadog collector architecture:
 
 ### Existing Infrastructure
+
 - **Collector Framework**: `BaseCollector` pattern with `@metric` decorator
 - **Deployed Collectors**:
   - GitHub (28 metrics) - PRs, commits, CI/CD, developers
@@ -25,6 +27,7 @@ This dashboard builds on the existing Datadog collector architecture:
 - **Documentation**: See `COLLECTORS_ARCHITECTURE.md`, `ADDING_NEW_COLLECTOR.md`
 
 ### New Components Needed
+
 1. **FoM Processing Collector**: Reads raw metrics, calculates FoM values, emits normalized metrics
 2. **Training Metrics Collectors**: WandB integration, training job status collector
 3. **Eval Metrics Collector**: Local and remote evaluation metrics
@@ -56,12 +59,15 @@ Color Scale: 🔴 Red (0.0-0.3) → 🟡 Yellow (0.3-0.7) → 🟢 Green (0.7-1.
 ```
 
 ### Columns
+
 - **Metric Name** (fixed, left column)
 - **Day -6** through **Day 0** (7 daily columns, rightmost = today)
 - Each cell shows FoM value in [0,1] with color coding
 
 ### Rows
+
 Hierarchical grouping by workflow category (~35 total metrics):
+
 1. **Training** (9 metrics)
 2. **CI/CD** (11 metrics)
 3. **Eval** (5 metrics)
@@ -72,6 +78,7 @@ Hierarchical grouping by workflow category (~35 total metrics):
 ### Training Metrics (9 total)
 
 #### 1. Multigpu Arena - Run Success
+
 - **Metric Name**: `health.training.multigpu_arena_run_success.fom`
 - **Raw Source**: `wandb.training.arena.runs_completed_24h`
 - **Collector**: WandB collector (`devops/datadog/collectors/wandb/`)
@@ -83,6 +90,7 @@ Hierarchical grouping by workflow category (~35 total metrics):
   ```
 
 #### 2. Multigpu Arena - Hearts Score
+
 - **Metric Name**: `health.training.multigpu_arena_hearts.fom`
 - **Raw Source**: `wandb.training.arena.avg_hearts`
 - **Collector**: WandB collector
@@ -94,6 +102,7 @@ Hierarchical grouping by workflow category (~35 total metrics):
   ```
 
 #### 3. Multigpu Arena - SPS (Steps Per Second)
+
 - **Metric Name**: `health.training.multigpu_arena_sps.fom`
 - **Raw Source**: `wandb.training.arena.avg_sps`
 - **Collector**: WandB collector
@@ -105,6 +114,7 @@ Hierarchical grouping by workflow category (~35 total metrics):
   ```
 
 #### 4. Multinode - Run Success
+
 - **Metric Name**: `health.training.multinode_run_success.fom`
 - **Raw Source**: `wandb.training.multinode.runs_completed_24h`
 - **Collector**: WandB collector
@@ -115,6 +125,7 @@ Hierarchical grouping by workflow category (~35 total metrics):
   ```
 
 #### 5. Multinode - Hearts Score
+
 - **Metric Name**: `health.training.multinode_hearts.fom`
 - **Raw Source**: `wandb.training.multinode.avg_hearts`
 - **Collector**: WandB collector
@@ -125,6 +136,7 @@ Hierarchical grouping by workflow category (~35 total metrics):
   ```
 
 #### 6. Multinode - Shaped Metric
+
 - **Metric Name**: `health.training.multinode_shaped_sps.fom`
 - **Raw Source**: `wandb.training.multinode.shaped_reward_sps`
 - **Collector**: WandB collector
@@ -135,6 +147,7 @@ Hierarchical grouping by workflow category (~35 total metrics):
   ```
 
 #### 7. Local Arena - Checkpoint at 10k Steps
+
 - **Metric Name**: `health.training.local_checkpoint_success.fom`
 - **Raw Source**: `training.local.checkpoint_success_24h`
 - **Collector**: Training jobs collector (new)
@@ -145,6 +158,7 @@ Hierarchical grouping by workflow category (~35 total metrics):
   ```
 
 #### 8. Local Arena - Resume from Checkpoint
+
 - **Metric Name**: `health.training.local_resume_success.fom`
 - **Raw Source**: `training.local.resume_success_24h`
 - **Collector**: Training jobs collector (new)
@@ -155,6 +169,7 @@ Hierarchical grouping by workflow category (~35 total metrics):
   ```
 
 #### 9. Training - Bug Count
+
 - **Metric Name**: `health.training.bug_count.fom`
 - **Raw Source**: `github.issues.training_bugs`
 - **Collector**: GitHub collector (extend existing)
@@ -168,6 +183,7 @@ Hierarchical grouping by workflow category (~35 total metrics):
 ### CI/CD Metrics (11 total)
 
 #### 10. Main Branch - Tests Passing
+
 - **Metric Name**: `health.ci.tests_passing.fom`
 - **Raw Source**: `github.ci.tests_passing_on_main` (✅ already exists!)
 - **Collector**: GitHub collector (deployed)
@@ -179,6 +195,7 @@ Hierarchical grouping by workflow category (~35 total metrics):
   ```
 
 #### 11. Main Branch - Benchmarks Passing
+
 - **Metric Name**: `health.ci.benchmarks_passing.fom`
 - **Raw Source**: `github.ci.benchmarks_passing` (new metric)
 - **Collector**: GitHub collector (extend)
@@ -189,6 +206,7 @@ Hierarchical grouping by workflow category (~35 total metrics):
   ```
 
 #### 12. Main Branch - Failing Workflows
+
 - **Metric Name**: `health.ci.failing_workflows.fom`
 - **Raw Source**: `github.ci.failed_workflows_7d` (✅ already exists!)
 - **Collector**: GitHub collector (deployed)
@@ -200,6 +218,7 @@ Hierarchical grouping by workflow category (~35 total metrics):
   ```
 
 #### 13. Commit History - Weekly Hotfixes
+
 - **Metric Name**: `health.ci.hotfix_count.fom`
 - **Raw Source**: `github.commits.hotfix` (✅ already exists!)
 - **Collector**: GitHub collector (deployed)
@@ -211,6 +230,7 @@ Hierarchical grouping by workflow category (~35 total metrics):
   ```
 
 #### 14. Commit History - Weekly Force Merges
+
 - **Metric Name**: `health.ci.force_merge_count.fom`
 - **Raw Source**: `github.commits.force_merge_7d` (new metric)
 - **Collector**: GitHub collector (extend)
@@ -222,6 +242,7 @@ Hierarchical grouping by workflow category (~35 total metrics):
   ```
 
 #### 15. Commit History - Weekly Reverts
+
 - **Metric Name**: `health.ci.revert_count.fom`
 - **Raw Source**: `github.commits.reverts` (✅ already exists!)
 - **Collector**: GitHub collector (deployed)
@@ -233,6 +254,7 @@ Hierarchical grouping by workflow category (~35 total metrics):
   ```
 
 #### 16. CI Smoothness - P90 Duration
+
 - **Metric Name**: `health.ci.duration_p90.fom`
 - **Raw Source**: `github.ci.duration_p90_minutes` (✅ already exists!)
 - **Collector**: GitHub collector (deployed)
@@ -244,6 +266,7 @@ Hierarchical grouping by workflow category (~35 total metrics):
   ```
 
 #### 17. CI Smoothness - Weekly Timeout Cancellations
+
 - **Metric Name**: `health.ci.timeout_cancellations.fom`
 - **Raw Source**: `github.ci.timeout_cancellations_7d` (new metric)
 - **Collector**: GitHub collector (extend)
@@ -255,6 +278,7 @@ Hierarchical grouping by workflow category (~35 total metrics):
   ```
 
 #### 18. CI Smoothness - Weekly Flaky Checks
+
 - **Metric Name**: `health.ci.flaky_checks.fom`
 - **Raw Source**: `github.ci.flaky_checks_7d` (new metric)
 - **Collector**: GitHub collector (extend)
@@ -266,6 +290,7 @@ Hierarchical grouping by workflow category (~35 total metrics):
   ```
 
 #### 19. PR Velocity - Stale PRs
+
 - **Metric Name**: `health.ci.stale_prs.fom`
 - **Raw Source**: `github.prs.stale_count_14d` (✅ already exists!)
 - **Collector**: GitHub collector (deployed)
@@ -277,6 +302,7 @@ Hierarchical grouping by workflow category (~35 total metrics):
   ```
 
 #### 20. PR Velocity - Cycle Time
+
 - **Metric Name**: `health.ci.pr_cycle_time.fom`
 - **Raw Source**: `github.prs.cycle_time_hours` (✅ already exists!)
 - **Collector**: GitHub collector (deployed)
@@ -290,6 +316,7 @@ Hierarchical grouping by workflow category (~35 total metrics):
 ### Eval Metrics (5 total)
 
 #### 21. Local Eval - Run Success
+
 - **Metric Name**: `health.eval.local_run_success.fom`
 - **Raw Source**: `eval.local.success_24h`
 - **Collector**: Eval collector (new)
@@ -300,6 +327,7 @@ Hierarchical grouping by workflow category (~35 total metrics):
   ```
 
 #### 22. Local Eval - Hearts Accuracy
+
 - **Metric Name**: `health.eval.local_hearts_accuracy.fom`
 - **Raw Source**: `eval.local.hearts_accuracy_pct`
 - **Collector**: Eval collector (new)
@@ -311,6 +339,7 @@ Hierarchical grouping by workflow category (~35 total metrics):
   ```
 
 #### 23. Remote Eval - Run Success & Fetchable
+
 - **Metric Name**: `health.eval.remote_run_success.fom`
 - **Raw Source**: `eval.remote.success_24h`
 - **Collector**: Eval collector (new)
@@ -321,6 +350,7 @@ Hierarchical grouping by workflow category (~35 total metrics):
   ```
 
 #### 24. Remote Eval - Hearts Accuracy
+
 - **Metric Name**: `health.eval.remote_hearts_accuracy.fom`
 - **Raw Source**: `eval.remote.hearts_accuracy_pct`
 - **Collector**: Eval collector (new)
@@ -331,6 +361,7 @@ Hierarchical grouping by workflow category (~35 total metrics):
   ```
 
 #### 25. Remote Eval - Duration
+
 - **Metric Name**: `health.eval.remote_duration.fom`
 - **Raw Source**: `eval.remote.duration_minutes`
 - **Collector**: Eval collector (new)
@@ -475,7 +506,7 @@ collectors:
 
   health_fom:
     enabled: true
-    schedule: "0 * * * *"  # Every hour
+    schedule: '0 * * * *' # Every hour
     resources:
       requests:
         cpu: 100m
@@ -484,7 +515,7 @@ collectors:
         cpu: 500m
         memory: 512Mi
     env:
-      DATADOG_QUERY_API_KEY: "from-secrets"
+      DATADOG_QUERY_API_KEY: 'from-secrets'
 ```
 
 ## Dashboard Implementation
@@ -510,42 +541,46 @@ metta datadog dashboard push
 {
   "title": "System Health - 7 Day Rolling",
   "type": "query_table",
-  "requests": [{
-    "queries": [
-      {
-        "name": "training_multigpu_hearts",
-        "data_source": "metrics",
-        "query": "avg:health.training.multigpu_arena_hearts.fom{*} by {day}"
-      },
-      {
-        "name": "ci_tests_passing",
-        "data_source": "metrics",
-        "query": "avg:health.ci.tests_passing.fom{*} by {day}"
-      }
-      // ... more queries for each metric
-    ],
-    "formulas": [{
-      "formula": "query1",
-      "cell_display_mode": "bar",
-      "conditional_formats": [
+  "requests": [
+    {
+      "queries": [
         {
-          "comparator": ">=",
-          "value": 0.7,
-          "palette": "white_on_green"
+          "name": "training_multigpu_hearts",
+          "data_source": "metrics",
+          "query": "avg:health.training.multigpu_arena_hearts.fom{*} by {day}"
         },
         {
-          "comparator": ">=",
-          "value": 0.3,
-          "palette": "white_on_yellow"
-        },
+          "name": "ci_tests_passing",
+          "data_source": "metrics",
+          "query": "avg:health.ci.tests_passing.fom{*} by {day}"
+        }
+        // ... more queries for each metric
+      ],
+      "formulas": [
         {
-          "comparator": "<",
-          "value": 0.3,
-          "palette": "white_on_red"
+          "formula": "query1",
+          "cell_display_mode": "bar",
+          "conditional_formats": [
+            {
+              "comparator": ">=",
+              "value": 0.7,
+              "palette": "white_on_green"
+            },
+            {
+              "comparator": ">=",
+              "value": 0.3,
+              "palette": "white_on_yellow"
+            },
+            {
+              "comparator": "<",
+              "value": 0.3,
+              "palette": "white_on_red"
+            }
+          ]
         }
       ]
-    }]
-  }]
+    }
+  ]
 }
 ```
 
@@ -553,19 +588,20 @@ metta datadog dashboard push
 
 Standard color scale across all FoM metrics:
 
-| FoM Range | Color | Meaning | Status |
-|-----------|-------|---------|--------|
-| 0.0 - 0.3 | 🔴 Red | Critical | Action required |
-| 0.3 - 0.7 | 🟡 Yellow | Warning | Needs attention |
-| 0.7 - 1.0 | 🟢 Green | Healthy | All good |
+| FoM Range | Color     | Meaning  | Status          |
+| --------- | --------- | -------- | --------------- |
+| 0.0 - 0.3 | 🔴 Red    | Critical | Action required |
+| 0.3 - 0.7 | 🟡 Yellow | Warning  | Needs attention |
+| 0.7 - 1.0 | 🟢 Green  | Healthy  | All good        |
 
 Datadog conditional formatting:
+
 ```json
 {
   "conditional_formats": [
-    {"comparator": ">=", "value": 0.7, "palette": "custom_bg", "custom_bg_color": "#28A745"},
-    {"comparator": ">=", "value": 0.3, "palette": "custom_bg", "custom_bg_color": "#FFC107"},
-    {"comparator": "<",  "value": 0.3, "palette": "custom_bg", "custom_bg_color": "#DC3545"}
+    { "comparator": ">=", "value": 0.7, "palette": "custom_bg", "custom_bg_color": "#28A745" },
+    { "comparator": ">=", "value": 0.3, "palette": "custom_bg", "custom_bg_color": "#FFC107" },
+    { "comparator": "<", "value": 0.3, "palette": "custom_bg", "custom_bg_color": "#DC3545" }
   ]
 }
 ```
@@ -577,6 +613,7 @@ Datadog conditional formatting:
 **Goal**: Build initial dashboard with CI/CD metrics we already have
 
 **Tasks**:
+
 1. Create FoM processing collector skeleton
 2. Implement CI FoM calculations using existing GitHub metrics:
    - `health.ci.tests_passing.fom` ← `github.ci.tests_passing_on_main`
@@ -591,6 +628,7 @@ Datadog conditional formatting:
 5. Validate FoM calculations
 
 **Commands**:
+
 ```bash
 # Create collector
 mkdir -p devops/datadog/collectors/health_fom
@@ -614,12 +652,14 @@ metta datadog dashboard push
 **Goal**: Extend GitHub collector with additional quality signals
 
 **New Metrics Needed**:
+
 - `github.ci.benchmarks_passing` - Benchmark test status
 - `github.commits.force_merge_7d` - Force merge count
 - `github.ci.timeout_cancellations_7d` - Timeout cancellations
 - `github.ci.flaky_checks_7d` - Flaky check retries
 
 **Implementation**:
+
 ```bash
 # See: devops/datadog/docs/ADDING_NEW_COLLECTOR.md
 # (but extending existing collector)
@@ -647,11 +687,13 @@ metta datadog dashboard build && metta datadog dashboard push
 **See**: `devops/datadog/docs/ADDING_NEW_COLLECTOR.md`
 
 **New Collector**:
+
 - Location: `devops/datadog/collectors/wandb/`
 - Metrics: 15+ training metrics
 - Schedule: Every 15 minutes
 
 **Key Metrics**:
+
 - `wandb.training.arena.runs_completed_24h`
 - `wandb.training.arena.avg_hearts`
 - `wandb.training.arena.avg_sps`
@@ -660,6 +702,7 @@ metta datadog dashboard build && metta datadog dashboard push
 - `wandb.training.multinode.shaped_reward_sps`
 
 **Implementation**:
+
 ```bash
 # Follow standard collector pattern
 # See: WORKPLAN.md "WandB Collector (Highest Priority)"
@@ -689,15 +732,18 @@ helm upgrade --install datadog-collectors ./datadog-collectors \
 **Goal**: Collect metrics from local training jobs
 
 **New Collector**:
+
 - Location: `devops/datadog/collectors/training_jobs/`
 - Metrics: Checkpoint success, resume success
 - Schedule: Every 30 minutes
 
 **Metrics**:
+
 - `training.local.checkpoint_success_24h`
 - `training.local.resume_success_24h`
 
 **Implementation Options**:
+
 1. Parse training logs from Skypilot jobs
 2. Emit metrics directly from training code
 3. Query training status API
@@ -707,11 +753,13 @@ helm upgrade --install datadog-collectors ./datadog-collectors \
 **Goal**: Collect evaluation metrics
 
 **New Collector**:
+
 - Location: `devops/datadog/collectors/eval/`
 - Metrics: Local eval, remote eval status
 - Schedule: Every 15 minutes
 
 **Metrics**:
+
 - `eval.local.success_24h`
 - `eval.local.hearts_accuracy_pct`
 - `eval.remote.success_24h`
@@ -723,6 +771,7 @@ helm upgrade --install datadog-collectors ./datadog-collectors \
 **Goal**: Production-ready dashboard with alerts
 
 **Tasks**:
+
 1. Add all remaining metrics to dashboard
 2. Configure Datadog monitors for critical FoMs
 3. Set up alert channels (Slack, PagerDuty)
@@ -730,6 +779,7 @@ helm upgrade --install datadog-collectors ./datadog-collectors \
 5. Team training on dashboard usage
 
 **Monitors**:
+
 ```yaml
 # Critical: Tests failing on main
 Alert when: health.ci.tests_passing.fom < 0.5
@@ -795,11 +845,13 @@ metta datadog collect health_fom --push
 ### Regular Reviews
 
 **Weekly**:
+
 - Review FoM values for anomalies
 - Check for missing data (gray cells)
 - Verify collector health metrics
 
 **Monthly**:
+
 - Adjust FoM formulas based on team feedback
 - Add/remove metrics as needed
 - Update alert thresholds
@@ -817,18 +869,21 @@ Alert: FoM collector experiencing errors
 ## Success Criteria
 
 ### Initial Release (CI Metrics)
+
 - ✅ FoM collector deployed and running hourly
 - ✅ 7 CI FoM metrics calculated correctly
 - ✅ Dashboard displaying 7-day view with color coding
 - ✅ No missing data for CI metrics
 
 ### Training Metrics Addition
+
 - ✅ WandB collector deployed
 - ✅ 9 training FoM metrics calculated
 - ✅ Dashboard showing full training + CI view
 - ✅ Team using dashboard daily
 
 ### Full Rollout
+
 - ✅ All 25+ metrics in dashboard
 - ✅ Alerts configured and tested
 - ✅ < 5% missing data (gray cells)
@@ -855,6 +910,7 @@ Alert: FoM collector experiencing errors
 ## References
 
 ### Existing Documentation
+
 - [Collectors Architecture](COLLECTORS_ARCHITECTURE.md) - System design
 - [Adding New Collector](ADDING_NEW_COLLECTOR.md) - Implementation guide
 - [Metric Conventions](METRIC_CONVENTIONS.md) - Naming standards
@@ -862,17 +918,18 @@ Alert: FoM collector experiencing errors
 - [Work Plan](../WORKPLAN.md) - Project roadmap
 
 ### Datadog Resources
+
 - [Query Table Widget Docs](https://docs.datadoghq.com/dashboards/widgets/table/)
 - [Conditional Formatting](https://docs.datadoghq.com/dashboards/guide/custom_time_frames/)
 - [Dashboard JSON API](https://docs.datadoghq.com/api/latest/dashboards/)
 
 ### Team Resources
+
 - CLI: `metta datadog --help`
 - Slack: #datadog-monitoring
 - Owner: DevOps team
 
 ---
 
-**Last Updated**: 2025-10-23
-**Status**: Planning phase
-**Next Steps**: Implement FoM collector with existing CI metrics (Step 1)
+**Last Updated**: 2025-10-23 **Status**: Planning phase **Next Steps**: Implement FoM collector with existing CI metrics
+(Step 1)

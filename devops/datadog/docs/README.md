@@ -2,7 +2,8 @@
 
 ## Overview
 
-This guide covers managing Datadog dashboards as code using **Jsonnet** for composable, reusable components. By treating dashboards as modular components, we gain:
+This guide covers managing Datadog dashboards as code using **Jsonnet** for composable, reusable components. By treating
+dashboards as modular components, we gain:
 
 - **Reusability** - Define widgets once, use everywhere
 - **Mix-and-match** - Combine widgets from different sources
@@ -10,7 +11,8 @@ This guide covers managing Datadog dashboards as code using **Jsonnet** for comp
 - **Version control** - Track individual components
 - **Type safety** - Jsonnet catches errors at build time
 
-**Approach:** We use **Jsonnet** (like Grafana's Grafonnet) to build dashboards from reusable widget components, then generate JSON for Datadog's API.
+**Approach:** We use **Jsonnet** (like Grafana's Grafonnet) to build dashboards from reusable widget components, then
+generate JSON for Datadog's API.
 
 ## Table of Contents
 
@@ -30,14 +32,13 @@ This guide covers managing Datadog dashboards as code using **Jsonnet** for comp
 
 We use **Jsonnet** (instead of raw JSON or Terraform) because:
 
-✅ **Composable** - Build dashboards from reusable widget components
-✅ **DRY** - Define widgets once, use in multiple dashboards
-✅ **Grid Layouts** - Easy N×M tiling with automatic positioning
-✅ **Industry Standard** - Same approach as Grafana (Grafonnet)
-✅ **Type Safe** - Catch errors before pushing to Datadog
-✅ **Readable** - 10 lines of Jsonnet vs 200 lines of JSON
+✅ **Composable** - Build dashboards from reusable widget components ✅ **DRY** - Define widgets once, use in multiple
+dashboards ✅ **Grid Layouts** - Easy N×M tiling with automatic positioning ✅ **Industry Standard** - Same approach as
+Grafana (Grafonnet) ✅ **Type Safe** - Catch errors before pushing to Datadog ✅ **Readable** - 10 lines of Jsonnet vs
+200 lines of JSON
 
-**Inspiration:** Grafana's **Grafonnet** library uses Jsonnet for composable dashboards. We apply the same pattern to Datadog.
+**Inspiration:** Grafana's **Grafonnet** library uses Jsonnet for composable dashboards. We apply the same pattern to
+Datadog.
 
 ---
 
@@ -55,6 +56,7 @@ We use **Jsonnet** (instead of raw JSON or Terraform) because:
    All credentials are stored in AWS Secrets Manager. See [SECRETS_SETUP.md](../SECRETS_SETUP.md) for complete setup.
 
    For local development, you can set environment variables:
+
    ```bash
    cd devops/datadog
 
@@ -130,6 +132,7 @@ git commit (version control .jsonnet files)
 ### Example: From Component to Dashboard
 
 **Widget Component** (`components/ci.libsonnet`):
+
 ```jsonnet
 testsPassingWidget()::
   widgets.timeseries(
@@ -139,6 +142,7 @@ testsPassingWidget()::
 ```
 
 **Dashboard** (`dashboards/health.jsonnet`):
+
 ```jsonnet
 local ci = import '../components/ci.libsonnet';
 
@@ -216,6 +220,7 @@ Widgets are defined in `components/*.libsonnet` files as reusable functions.
 ### Example: CI Widget Component
 
 `components/ci.libsonnet`:
+
 ```jsonnet
 local widgets = import '../lib/widgets.libsonnet';
 
@@ -263,6 +268,7 @@ Dashboards are defined in `dashboards/*.jsonnet` files by composing widgets.
 ### Simple Dashboard
 
 `dashboards/my_dashboard.jsonnet`:
+
 ```jsonnet
 local ci = import '../components/ci.libsonnet';
 
@@ -491,6 +497,7 @@ The export scripts already format JSON with 2-space indents.
 The `"id"` field in JSON should not be changed - it identifies the dashboard in Datadog.
 
 To create a new dashboard from existing one:
+
 1. Copy the JSON
 2. **Remove** the `"id"` field
 3. Change the title
@@ -500,18 +507,18 @@ To create a new dashboard from existing one:
 
 ## CLI Commands Reference
 
-| Command | Description |
-|---------|-------------|
-| `metta datadog dashboard --help` | Show all available commands |
-| `metta datadog dashboard list` | List all dashboards in Datadog |
-| `metta datadog dashboard pull` | Download all dashboards as JSON |
-| `metta datadog dashboard push` | Upload all JSON dashboards to Datadog |
-| `metta datadog dashboard export <id>` | Download specific dashboard |
-| `metta datadog dashboard diff` | Show git diff of changes |
-| `metta datadog dashboard push --dry-run` | Preview push without making changes |
-| `metta datadog dashboard clean` | Remove generated JSON files |
-| `metta datadog dashboard build` | Build dashboards from Jsonnet |
-| `metta datadog dashboard metrics` | List available metrics |
+| Command                                  | Description                           |
+| ---------------------------------------- | ------------------------------------- |
+| `metta datadog dashboard --help`         | Show all available commands           |
+| `metta datadog dashboard list`           | List all dashboards in Datadog        |
+| `metta datadog dashboard pull`           | Download all dashboards as JSON       |
+| `metta datadog dashboard push`           | Upload all JSON dashboards to Datadog |
+| `metta datadog dashboard export <id>`    | Download specific dashboard           |
+| `metta datadog dashboard diff`           | Show git diff of changes              |
+| `metta datadog dashboard push --dry-run` | Preview push without making changes   |
+| `metta datadog dashboard clean`          | Remove generated JSON files           |
+| `metta datadog dashboard build`          | Build dashboards from Jsonnet         |
+| `metta datadog dashboard metrics`        | List available metrics                |
 
 ---
 

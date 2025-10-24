@@ -5,6 +5,7 @@ Modular metric collectors for various services, all submitting to Datadog.
 ## Overview
 
 Each collector is a self-contained module that:
+
 1. Authenticates with its service (GitHub, Skypilot, WandB, etc.)
 2. Fetches relevant data via API
 3. Transforms data into Datadog metrics
@@ -15,16 +16,17 @@ All collectors share a common base class and follow consistent patterns.
 
 ## Available Collectors
 
-| Collector | Status | Priority | Metrics | Description |
-|-----------|--------|----------|---------|-------------|
-| [github](github/) | ✅ Implemented | High | 28 | PRs, commits, CI/CD, branches, developers |
-| [skypilot](skypilot/) | ✅ Implemented | High | 30 | Jobs, clusters, runtime stats, resource utilization |
-| [asana](asana/) | ✅ Implemented | Medium | 14 | Project health, bugs tracking, team velocity |
-| [ec2](ec2/) | ✅ Implemented | High | 19 | Instances, costs, utilization, EBS volumes |
-| [wandb](wandb/) | ✅ Implemented | High | 10 | Training runs, model performance, GPU hours |
-| [kubernetes](kubernetes/) | ✅ Implemented | High | 15 | Resource efficiency, pod health, waste tracking |
+| Collector                 | Status         | Priority | Metrics | Description                                         |
+| ------------------------- | -------------- | -------- | ------- | --------------------------------------------------- |
+| [github](github/)         | ✅ Implemented | High     | 28      | PRs, commits, CI/CD, branches, developers           |
+| [skypilot](skypilot/)     | ✅ Implemented | High     | 30      | Jobs, clusters, runtime stats, resource utilization |
+| [asana](asana/)           | ✅ Implemented | Medium   | 14      | Project health, bugs tracking, team velocity        |
+| [ec2](ec2/)               | ✅ Implemented | High     | 19      | Instances, costs, utilization, EBS volumes          |
+| [wandb](wandb/)           | ✅ Implemented | High     | 10      | Training runs, model performance, GPU hours         |
+| [kubernetes](kubernetes/) | ✅ Implemented | High     | 15      | Resource efficiency, pod health, waste tracking     |
 
-**Note**: All collectors run together on a **unified 15-minute schedule** via a single CronJob for operational simplicity.
+**Note**: All collectors run together on a **unified 15-minute schedule** via a single CronJob for operational
+simplicity.
 
 ## Quick Reference
 
@@ -33,6 +35,7 @@ All collectors share a common base class and follow consistent patterns.
 **Implemented** - Currently in `softmax/dashboard/metrics.py`, needs migration
 
 **Key Metrics**:
+
 - `github.prs.open`, `github.prs.merged_7d` - PR tracking
 - `github.commits.total_7d`, `github.commits.per_developer_7d` - Commit activity
 - `github.ci.workflow_runs_7d`, `github.ci.failed_workflows_7d` - CI/CD health
@@ -46,31 +49,38 @@ All collectors share a common base class and follow consistent patterns.
 **Implemented** - Job orchestration and compute tracking (30 metrics)
 
 **Job Status Metrics**:
+
 - `skypilot.jobs.running`, `skypilot.jobs.queued` - Job status
 - `skypilot.jobs.failed`, `skypilot.jobs.failed_7d` - Failure tracking
 - `skypilot.jobs.succeeded`, `skypilot.jobs.cancelled` - Completion status
 - `skypilot.clusters.active` - Active clusters
 
 **Runtime Distribution** (for running jobs):
+
 - `skypilot.jobs.runtime_seconds.{min,max,avg,p50,p90,p99}` - Statistical distribution
 - `skypilot.jobs.runtime_buckets.{0_1h,1_4h,4_24h,over_24h}` - Histogram buckets
 
 **Resource Utilization**:
+
 - `skypilot.resources.gpus.{l4,a10g,h100}_count` - GPU types in use
 - `skypilot.resources.gpus.total_count` - Total GPUs
 - `skypilot.resources.{spot,ondemand}_jobs` - Spot vs on-demand split
 
 **Reliability Metrics**:
+
 - `skypilot.jobs.with_recoveries` - Jobs that recovered from failures
 - `skypilot.jobs.recovery_count.{avg,max}` - Recovery statistics
 
 **Regional Distribution**:
+
 - `skypilot.regions.{us_east_1,us_west_2,other}` - Geographic distribution
 
 **Team Activity**:
+
 - `skypilot.users.active_count` - Number of active users
 
 **Usage**:
+
 ```bash
 # Collect metrics (dry-run)
 metta datadog collect skypilot
@@ -80,6 +90,7 @@ metta datadog collect skypilot --push
 ```
 
 **Dashboard Ideas**:
+
 - **Runtime heatmap**: Visualize job duration distribution to spot stuck jobs
 - **Resource efficiency**: Track spot vs on-demand ratio over time
 - **Alert on p99 > 48h**: Catch long-running jobs that might be stuck
@@ -89,6 +100,7 @@ metta datadog collect skypilot --push
 **Implemented** - Training experiment tracking (10 metrics)
 
 **Key Metrics**:
+
 - `wandb.runs.active`, `wandb.runs.completed_7d` - Run status
 - `wandb.metrics.best_accuracy`, `wandb.metrics.latest_loss` - Model performance
 - `wandb.training.total_gpu_hours_7d`, `wandb.training.gpu_utilization_avg` - Resource usage
@@ -100,19 +112,23 @@ metta datadog collect skypilot --push
 **Implemented** - Resource efficiency and pod health (15 metrics)
 
 **Resource Efficiency**:
+
 - `k8s.resources.cpu_waste_cores`, `k8s.resources.memory_waste_gb` - Wasted resources
 - `k8s.resources.cpu_efficiency_pct`, `k8s.resources.memory_efficiency_pct` - Utilization
 - `k8s.resources.overallocated_pods` - Pods using <20% of requested resources
 
 **Pod Health**:
+
 - `k8s.pods.crash_looping`, `k8s.pods.failed`, `k8s.pods.pending` - Pod status
 - `k8s.pods.oomkilled_24h`, `k8s.pods.high_restarts` - Stability issues
 
 **Underutilization**:
+
 - `k8s.pods.idle_count`, `k8s.pods.low_cpu_usage`, `k8s.pods.low_memory_usage` - Idle resources
 - `k8s.deployments.zero_replicas` - Unused deployments
 
 **Usage**:
+
 ```bash
 # Collect metrics (dry-run)
 uv run python devops/datadog/run_collector.py kubernetes --verbose
@@ -128,6 +144,7 @@ uv run python devops/datadog/run_collector.py kubernetes --push
 **Implemented** - AWS infrastructure monitoring (19 metrics)
 
 **Instance Metrics**:
+
 - `ec2.instances.total`, `ec2.instances.running`, `ec2.instances.stopped` - Instance counts
 - `ec2.instances.spot`, `ec2.instances.ondemand` - Instance lifecycle
 - `ec2.instances.gpu_count`, `ec2.instances.cpu_count` - Resource counts
@@ -135,15 +152,18 @@ uv run python devops/datadog/run_collector.py kubernetes --push
 - `ec2.instances.avg_age_days`, `ec2.instances.oldest_age_days` - Instance age
 
 **EBS Metrics**:
+
 - `ec2.ebs.volumes.total`, `ec2.ebs.volumes.attached`, `ec2.ebs.volumes.unattached` - Volume counts
 - `ec2.ebs.volumes.size_gb` - Total storage size
 - `ec2.ebs.snapshots.total`, `ec2.ebs.snapshots.size_gb` - Snapshot tracking
 
 **Cost Metrics**:
+
 - `ec2.cost.running_hourly_estimate`, `ec2.cost.monthly_estimate` - Cost tracking
 - `ec2.cost.spot_savings_pct` - Spot instance savings percentage
 
 **Usage**:
+
 ```bash
 # Collect metrics (dry-run)
 uv run python devops/datadog/run_collector.py ec2 --verbose
@@ -159,12 +179,14 @@ uv run python devops/datadog/run_collector.py ec2 --push
 **Implemented** - Project management and bugs tracking (14 metrics)
 
 **Project Health Metrics**:
+
 - `asana.projects.active` - Active projects count
 - `asana.projects.on_track` - Projects on track
 - `asana.projects.at_risk` - Projects at risk
 - `asana.projects.off_track` - Projects off track
 
 **Bugs Project Metrics** (if configured):
+
 - `asana.projects.bugs.total_open` - Total open bugs
 - `asana.projects.bugs.triage_count` - Bugs in triage
 - `asana.projects.bugs.active_count` - Bugs being worked on
@@ -176,6 +198,7 @@ uv run python devops/datadog/run_collector.py ec2 --push
 - `asana.projects.bugs.oldest_bug_days` - Oldest bug age
 
 **Usage**:
+
 ```bash
 # Collect metrics (dry-run)
 uv run python devops/datadog/run_collector.py asana --verbose
@@ -221,6 +244,7 @@ def get_metric() -> int:
 ### Automatic Features
 
 Every collector automatically gets:
+
 - **Health metrics**: `collector.{name}.duration_seconds`, `collector.{name}.error_count`
 - **Error handling**: Individual metric failures don't crash collector
 - **Logging**: Structured logging with context
@@ -235,14 +259,15 @@ All collectors deploy as Kubernetes CronJobs via single Helm chart:
 collectors:
   github:
     enabled: true
-    schedule: "*/15 * * * *"
+    schedule: '*/15 * * * *'
 
   skypilot:
     enabled: true
-    schedule: "*/10 * * * *"
+    schedule: '*/10 * * * *'
 ```
 
 Deploy:
+
 ```bash
 cd devops/charts
 helm upgrade --install datadog-collectors \
@@ -255,6 +280,7 @@ helm upgrade --install datadog-collectors \
 See [ADDING_NEW_COLLECTOR.md](../docs/ADDING_NEW_COLLECTOR.md) for step-by-step guide.
 
 Quick steps:
+
 1. Create `collectors/{service}/` directory
 2. Implement `collector.py` (inherit `BaseCollector`)
 3. Add secrets to AWS Secrets Manager (see [SECRETS_SETUP.md](../SECRETS_SETUP.md))
@@ -273,6 +299,7 @@ All credentials stored in AWS Secrets Manager:
 ```
 
 Examples:
+
 - `github/dashboard-token`
 - `skypilot/api-key`
 - `wandb/api-key`
@@ -326,6 +353,7 @@ Alert: GitHub collector hasn't reported metrics in 30 minutes
 ## Roadmap
 
 ### Phase 1: Core Collectors ✅
+
 - ✅ GitHub collector (28 metrics)
 - ✅ Skypilot collector (30 metrics)
 - ✅ Asana collector (14 metrics)
@@ -335,10 +363,13 @@ Alert: GitHub collector hasn't reported metrics in 30 minutes
 - ✅ Deployed as Kubernetes CronJobs
 
 ### Phase 2: Additional Collectors 📋
+
 Priority order:
+
 1. **Custom metrics** (as needed)
 
 ### Phase 3: Enhancements 📋
+
 - Dashboard auto-generation from metadata
 - Historical data backfill
 - Metric validation and schemas
@@ -348,6 +379,7 @@ Priority order:
 ## Contributing
 
 When adding a new collector:
+
 1. Create comprehensive README in collector directory
 2. List all planned metrics with priorities
 3. Document API endpoints and authentication
@@ -357,5 +389,6 @@ When adding a new collector:
 ## Questions?
 
 See documentation or ask in:
+
 - Slack: #datadog-collectors
 - Issues: Tag with `datadog-collector`

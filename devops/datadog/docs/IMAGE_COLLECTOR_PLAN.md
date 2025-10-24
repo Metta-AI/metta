@@ -2,8 +2,8 @@
 
 > **⚠️ NOT IMPLEMENTED - REJECTED APPROACH**
 >
-> This approach was rejected because it requires external storage (S3/Imgur).
-> **Alternative used**: Wildcard widget with Vega-Lite (see `WILDCARD_WIDGET.md`)
+> This approach was rejected because it requires external storage (S3/Imgur). **Alternative used**: Wildcard widget with
+> Vega-Lite (see `WILDCARD_WIDGET.md`)
 >
 > This document is kept for reference only.
 
@@ -11,22 +11,24 @@
 
 ## Overview
 
-A new collector type that generates visualizations (images) from Datadog metrics and displays them on dashboards. This enables pixel-perfect custom visualizations while leveraging existing metric infrastructure.
+A new collector type that generates visualizations (images) from Datadog metrics and displays them on dashboards. This
+enables pixel-perfect custom visualizations while leveraging existing metric infrastructure.
 
-**Status**: ❌ Rejected (requires S3)
-**Type**: Derived/Calculated data collector
-**Output**: Images displayed via Datadog image widgets
+**Status**: ❌ Rejected (requires S3) **Type**: Derived/Calculated data collector **Output**: Images displayed via
+Datadog image widgets
 
 ---
 
 ## Motivation
 
 ### Current Limitations
+
 - **Widget constraints**: Datadog's native widgets have layout limitations (12-column grid, limited customization)
 - **Complex visualizations**: Hard to create custom heatmaps, annotated charts, or multi-dimensional views
 - **Exact specifications**: Difficult to match exact visual requirements (like the ASCII grid spec)
 
 ### Image Collector Benefits
+
 - ✅ **Pixel-perfect control**: Complete freedom with matplotlib/seaborn
 - ✅ **Custom annotations**: Add trends, thresholds, sparklines, anything
 - ✅ **Compact display**: Single image widget vs 50+ query_value widgets
@@ -34,6 +36,7 @@ A new collector type that generates visualizations (images) from Datadog metrics
 - ✅ **Exactly matches specs**: Can replicate the original ASCII table perfectly
 
 ### Tradeoffs
+
 - ❌ **Static snapshots**: Updates only when collector runs (not real-time)
 - ❌ **No interactivity**: Can't hover for details or drill down
 - ❌ **External hosting**: Need S3/Imgur/CDN for image storage
@@ -156,6 +159,7 @@ class ImageCollector(BaseCollector):
 #### 2. Image Uploaders
 
 **Interface:**
+
 ```python
 class ImageUploader(ABC):
     """Interface for image upload backends."""
@@ -167,6 +171,7 @@ class ImageUploader(ABC):
 ```
 
 **S3 Implementation (Production):**
+
 ```python
 class S3ImageUploader(ImageUploader):
     """Upload images to AWS S3 with public access."""
@@ -193,6 +198,7 @@ class S3ImageUploader(ImageUploader):
 ```
 
 **Imgur Implementation (POC/Testing):**
+
 ```python
 class ImgurUploader(ImageUploader):
     """Upload images to Imgur (simpler, no AWS setup)."""
@@ -314,6 +320,7 @@ class HealthGridImageCollector(ImageCollector):
 **Goal**: Validate the approach with a working prototype
 
 **Tasks**:
+
 1. Create `ImageCollector` base class
 2. Implement `ImgurUploader` (simplest)
 3. Implement `HealthGridImageCollector`
@@ -326,6 +333,7 @@ class HealthGridImageCollector(ImageCollector):
 6. Verify image displays correctly
 
 **Success Criteria**:
+
 - ✅ Image generates successfully
 - ✅ Image uploads to Imgur
 - ✅ Image displays on Datadog dashboard
@@ -336,6 +344,7 @@ class HealthGridImageCollector(ImageCollector):
 **Goal**: Make it production-ready with S3 and automation
 
 **Tasks**:
+
 1. Implement `S3ImageUploader`
 2. Add AWS credentials to secrets manager
 3. Create Helm chart for CronJob:
@@ -343,7 +352,7 @@ class HealthGridImageCollector(ImageCollector):
    collectors:
      health_grid_image:
        enabled: true
-       schedule: "0 * * * *"  # Hourly
+       schedule: '0 * * * *' # Hourly
        image_uploader: s3
        s3_bucket: softmax-datadog-images
    ```
@@ -352,6 +361,7 @@ class HealthGridImageCollector(ImageCollector):
 6. Update documentation
 
 **Success Criteria**:
+
 - ✅ Runs automatically every hour
 - ✅ Images stored in S3 with proper permissions
 - ✅ Dashboard updates automatically (fixed URL)
@@ -362,6 +372,7 @@ class HealthGridImageCollector(ImageCollector):
 **Goal**: Support multiple image-based visualizations
 
 **Tasks**:
+
 1. Extract `ImageCollector` to `common/base_image.py`
 2. Create additional visualizations:
    - Training metrics trend chart
@@ -390,16 +401,17 @@ class HealthGridImageCollector(ImageCollector):
 
 **Recommendation: S3 for production, Imgur for POC**
 
-| Factor | S3 | Imgur |
-|--------|----|----|
-| Setup complexity | Medium (AWS config) | Low (API key) |
-| Cost | ~$0.02/GB/month | Free (public) |
-| Control | Full | Limited |
-| Privacy | Private bucket option | Public only |
-| Reliability | 99.99% SLA | Best effort |
-| Integration | Native AWS | External API |
+| Factor           | S3                    | Imgur         |
+| ---------------- | --------------------- | ------------- |
+| Setup complexity | Medium (AWS config)   | Low (API key) |
+| Cost             | ~$0.02/GB/month       | Free (public) |
+| Control          | Full                  | Limited       |
+| Privacy          | Private bucket option | Public only   |
+| Reliability      | 99.99% SLA            | Best effort   |
+| Integration      | Native AWS            | External API  |
 
 **Decision**:
+
 - POC: Imgur (faster to test)
 - Production: S3 (better control, already using AWS)
 
@@ -408,16 +420,18 @@ class HealthGridImageCollector(ImageCollector):
 **Recommendation: Fixed URL (overwrite S3 key)**
 
 **Option A: Fixed URL (Overwrite)**
+
 ```python
 # Always upload to same key
 s3.upload_file(local_path, bucket, "datadog/health_grid.png")
 # URL never changes: https://bucket.s3.../health_grid.png
 # Dashboard references same URL forever
 ```
-✅ Pro: No dashboard updates needed
-❌ Con: CDN caching issues
+
+✅ Pro: No dashboard updates needed ❌ Con: CDN caching issues
 
 **Option B: Dynamic URL (Timestamp)**
+
 ```python
 # Upload with timestamp
 key = f"datadog/health_grid_{int(time.time())}.png"
@@ -425,8 +439,8 @@ s3.upload_file(local_path, bucket, key)
 # URL changes each time
 # Must update dashboard JSON with new URL
 ```
-✅ Pro: No caching issues
-❌ Con: Must update dashboard after each upload
+
+✅ Pro: No caching issues ❌ Con: Must update dashboard after each upload
 
 **Decision**: Option A (Fixed URL) with cache-busting via query params if needed
 
@@ -435,11 +449,13 @@ s3.upload_file(local_path, bucket, key)
 **Recommendation: Hourly (aligned with FoM collector)**
 
 Options:
+
 - **Every 15 min**: More real-time, but FoM data doesn't change that often
 - **Hourly**: Matches FoM collector schedule
 - **Every 6 hours**: Less resource usage, still fresh enough
 
 **Decision**: Hourly
+
 - Matches FoM collector (source data updates hourly)
 - Good balance of freshness vs resource usage
 - Can increase frequency later if needed
@@ -447,6 +463,7 @@ Options:
 ### 4. Dependencies
 
 New Python packages needed:
+
 ```toml
 [project.dependencies]
 matplotlib = ">=3.8.0"
@@ -471,7 +488,7 @@ boto3 = ">=1.34.0"   # S3 upload (already have this)
   "has_border": false,
   "vertical_align": "top",
   "horizontal_align": "center",
-  "url_dark_theme": "https://...health_grid_dark.png"  // Optional: dark mode variant
+  "url_dark_theme": "https://...health_grid_dark.png" // Optional: dark mode variant
 }
 ```
 
@@ -500,18 +517,18 @@ def create_image_widget(image_url: str) -> dict:
 
 ## Comparison: Widget Grid vs Image
 
-| Aspect | Widget Grid (Current) | Image Collector (Proposed) |
-|--------|-----------------------|----------------------------|
-| **Visual Control** | Limited (Datadog widgets) | Complete (matplotlib) |
-| **Interactivity** | ✅ Hover, click, drill-down | ❌ Static image |
-| **Real-time** | ✅ Live queries (~1 min) | ❌ Updates on schedule (hourly) |
-| **Customization** | ❌ 12-col grid, fixed layouts | ✅ Pixel-perfect, any layout |
-| **Maintenance** | Medium (64 widget JSON) | Low (Python code) |
-| **Dashboard size** | Large (64 widgets) | Small (1 widget) |
-| **Time selector** | ✅ Works | ❌ Fixed time range |
-| **Annotations** | Limited | ✅ Any matplotlib feature |
-| **Dependencies** | None | matplotlib, seaborn, S3 |
-| **Complexity** | Low | Medium |
+| Aspect             | Widget Grid (Current)         | Image Collector (Proposed)      |
+| ------------------ | ----------------------------- | ------------------------------- |
+| **Visual Control** | Limited (Datadog widgets)     | Complete (matplotlib)           |
+| **Interactivity**  | ✅ Hover, click, drill-down   | ❌ Static image                 |
+| **Real-time**      | ✅ Live queries (~1 min)      | ❌ Updates on schedule (hourly) |
+| **Customization**  | ❌ 12-col grid, fixed layouts | ✅ Pixel-perfect, any layout    |
+| **Maintenance**    | Medium (64 widget JSON)       | Low (Python code)               |
+| **Dashboard size** | Large (64 widgets)            | Small (1 widget)                |
+| **Time selector**  | ✅ Works                      | ❌ Fixed time range             |
+| **Annotations**    | Limited                       | ✅ Any matplotlib feature       |
+| **Dependencies**   | None                          | matplotlib, seaborn, S3         |
+| **Complexity**     | Low                           | Medium                          |
 
 ---
 
@@ -549,11 +566,13 @@ def create_image_widget(image_url: str) -> dict:
 ## Next Steps
 
 ### Immediate (Now)
+
 1. ✅ Get user feedback on this plan
 2. Decide: POC now or later?
 3. Choose: S3 or Imgur for POC?
 
 ### If Proceeding with POC
+
 1. Create `devops/datadog/common/base_image.py`
 2. Create `devops/datadog/common/image_uploaders.py`
 3. Create `devops/datadog/collectors/health_grid_image/`
@@ -562,6 +581,7 @@ def create_image_widget(image_url: str) -> dict:
 6. Decide which approach to use long-term
 
 ### Future Enhancements
+
 - Multiple visualization types (trends, comparisons, distributions)
 - Interactive elements (via plotly → static image)
 - Automated A/B testing (show both approaches, track which users prefer)
@@ -572,14 +592,17 @@ def create_image_widget(image_url: str) -> dict:
 ## Recommendation
 
 **Try the POC** (2 hours investment):
+
 1. Use Imgur for quick validation
 2. Generate one heatmap image
 3. Compare side-by-side with widget grid
 4. Decide based on actual results
 
 **Decision criteria**:
+
 - If image looks significantly better → proceed to Phase 2
 - If widget grid is good enough → stick with it
 - Can always keep both (widget for interactivity, image for presentations)
 
-**My prediction**: The image will look cleaner and more professional, but you'll miss the interactivity. Consider hybrid: widget grid for daily use, image for executive dashboards/reports.
+**My prediction**: The image will look cleaner and more professional, but you'll miss the interactivity. Consider
+hybrid: widget grid for daily use, image for executive dashboards/reports.

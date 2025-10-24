@@ -5,6 +5,7 @@ This guide covers deploying the GitHub metrics collector to Kubernetes/EKS.
 ## Overview
 
 The GitHub collector runs as a Kubernetes CronJob that:
+
 - Executes every 15 minutes
 - Collects 25 GitHub repository metrics
 - Pushes metrics to Datadog
@@ -26,6 +27,7 @@ The GitHub collector runs as a Kubernetes CronJob that:
 ```
 
 This will:
+
 - Configure kubectl for the EKS cluster
 - Verify access
 - Show available namespaces
@@ -63,7 +65,8 @@ For testing changes before production deployment:
 kubectl create namespace monitoring-staging
 ```
 
-Note: The cronjob uses IAM roles for AWS Secrets Manager access, so no additional secrets need to be copied to the staging namespace.
+Note: The cronjob uses IAM roles for AWS Secrets Manager access, so no additional secrets need to be copied to the
+staging namespace.
 
 ### 2. Deploy to staging
 
@@ -173,11 +176,13 @@ kubectl logs -n monitoring job/manual-run-<timestamp>
 ### Job fails to start
 
 Check the cronjob configuration:
+
 ```bash
 kubectl describe cronjob dashboard-cronjob -n monitoring
 ```
 
 Check pod events:
+
 ```bash
 kubectl get events -n monitoring --sort-by='.lastTimestamp'
 ```
@@ -187,6 +192,7 @@ kubectl get events -n monitoring --sort-by='.lastTimestamp'
 The collector uses AWS Secrets Manager via IAM roles. Verify:
 
 1. **ServiceAccount has correct IAM role annotation:**
+
    ```bash
    kubectl get serviceaccount -n monitoring -o yaml | grep role-arn
    # Should show: eks.amazonaws.com/role-arn: arn:aws:iam::751442549699:role/dashboard-cronjob
@@ -211,18 +217,19 @@ The collector uses AWS Secrets Manager via IAM roles. Verify:
 ### Metrics not appearing in Datadog
 
 1. **Check job completed successfully:**
+
    ```bash
    kubectl get jobs -n monitoring
    # Look for "1/1" in COMPLETIONS column
    ```
 
 2. **Check logs for errors:**
+
    ```bash
    kubectl logs -n monitoring -l app.kubernetes.io/name=dashboard-cronjob --tail=100
    ```
 
-3. **Verify metrics were submitted:**
-   Look for "Successfully pushed N metrics to Datadog" in logs
+3. **Verify metrics were submitted:** Look for "Successfully pushed N metrics to Datadog" in logs
 
 4. **Check Datadog for metrics:**
    - Go to Datadog Metrics Explorer
@@ -234,6 +241,7 @@ The collector uses AWS Secrets Manager via IAM roles. Verify:
 If you see rate limit errors:
 
 1. **Reduce collection frequency:**
+
    ```bash
    ./devops/k8s/deploy-helm-chart.sh \
      --chart devops/charts/dashboard-cronjob \

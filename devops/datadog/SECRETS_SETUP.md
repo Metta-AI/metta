@@ -4,7 +4,8 @@ This guide explains how to configure secrets for the Datadog collectors using AW
 
 ## Overview
 
-All sensitive credentials (API keys, tokens) are stored in AWS Secrets Manager for security. The collectors automatically fetch these secrets at runtime.
+All sensitive credentials (API keys, tokens) are stored in AWS Secrets Manager for security. The collectors
+automatically fetch these secrets at runtime.
 
 ## Prerequisites
 
@@ -88,7 +89,8 @@ GITHUB_REPO=metta
 #ASANA_BUGS_PROJECT_GID=your_bugs_project_gid
 ```
 
-**Note:** Since workspace and project GIDs are now in AWS Secrets Manager, you don't need to set them locally unless you want to override the AWS values.
+**Note:** Since workspace and project GIDs are now in AWS Secrets Manager, you don't need to set them locally unless you
+want to override the AWS values.
 
 ### 4. Validate Setup
 
@@ -99,6 +101,7 @@ uv run python devops/datadog/scripts/validate_secrets.py
 ```
 
 This will check:
+
 - ✓ All required secrets exist in AWS Secrets Manager
 - ✓ All required environment variables are set
 - ✓ Secrets can be retrieved successfully
@@ -175,24 +178,24 @@ aws secretsmanager delete-secret \
 
 ## Required Secrets Summary
 
-| Secret Name | Description | How to Get |
-|-------------|-------------|------------|
-| `datadog/api-key` | Datadog API Key | https://app.datadoghq.com/organization-settings/api-keys |
-| `datadog/app-key` | Datadog Application Key | https://app.datadoghq.com/organization-settings/application-keys |
-| `github/dashboard-token` | GitHub Personal Access Token | https://github.com/settings/tokens |
-| `asana/access-token` | Asana Personal Access Token | Asana → My Settings → Apps → Personal access tokens |
-| `asana/workspace-gid` | Asana Workspace ID | From Asana workspace URL |
-| `asana/bugs-project-gid` | Asana Bugs Project ID (optional) | From Asana project URL |
+| Secret Name              | Description                      | How to Get                                                       |
+| ------------------------ | -------------------------------- | ---------------------------------------------------------------- |
+| `datadog/api-key`        | Datadog API Key                  | https://app.datadoghq.com/organization-settings/api-keys         |
+| `datadog/app-key`        | Datadog Application Key          | https://app.datadoghq.com/organization-settings/application-keys |
+| `github/dashboard-token` | GitHub Personal Access Token     | https://github.com/settings/tokens                               |
+| `asana/access-token`     | Asana Personal Access Token      | Asana → My Settings → Apps → Personal access tokens              |
+| `asana/workspace-gid`    | Asana Workspace ID               | From Asana workspace URL                                         |
+| `asana/bugs-project-gid` | Asana Bugs Project ID (optional) | From Asana project URL                                           |
 
 ## Required Environment Variables
 
-| Variable | Description | Example | Required |
-|----------|-------------|---------|----------|
-| `DD_SITE` | Datadog site | `datadoghq.com` | No (defaults to datadoghq.com) |
-| `GITHUB_ORG` | GitHub organization | `PufferAI` | Yes |
-| `GITHUB_REPO` | GitHub repository | `metta` | Yes |
-| `ASANA_WORKSPACE_GID` | Asana workspace ID | `1234567890123456` | No (from AWS if not set) |
-| `ASANA_BUGS_PROJECT_GID` | Asana bugs project ID | `1234567890123457` | No (from AWS if not set) |
+| Variable                 | Description           | Example            | Required                       |
+| ------------------------ | --------------------- | ------------------ | ------------------------------ |
+| `DD_SITE`                | Datadog site          | `datadoghq.com`    | No (defaults to datadoghq.com) |
+| `GITHUB_ORG`             | GitHub organization   | `PufferAI`         | Yes                            |
+| `GITHUB_REPO`            | GitHub repository     | `metta`            | Yes                            |
+| `ASANA_WORKSPACE_GID`    | Asana workspace ID    | `1234567890123456` | No (from AWS if not set)       |
+| `ASANA_BUGS_PROJECT_GID` | Asana bugs project ID | `1234567890123457` | No (from AWS if not set)       |
 
 ## Fallback Behavior
 
@@ -203,6 +206,7 @@ The collectors use this priority order:
 3. **Error** (if neither found)
 
 This allows:
+
 - **Local development**: Override with `.env` file (faster, no AWS calls)
 - **Production/K8s**: Use AWS Secrets Manager (secure, centralized)
 
@@ -229,6 +233,7 @@ Error: DD_API_KEY not found in environment or AWS Secrets Manager
 ```
 
 **Solutions:**
+
 1. Check AWS profile is correct: `echo $AWS_PROFILE`
 2. Verify secret exists: `aws secretsmanager describe-secret --secret-id datadog/api-key --region us-east-1`
 3. Check AWS permissions: Ensure your role has `secretsmanager:GetSecretValue`
@@ -241,6 +246,7 @@ Unable to locate credentials
 ```
 
 **Solutions:**
+
 1. Run `aws configure` to set up credentials
 2. Set AWS_PROFILE: `export AWS_PROFILE=softmax-admin`
 3. Check `~/.aws/credentials` file exists
@@ -251,8 +257,8 @@ Unable to locate credentials
 Error: ASANA_WORKSPACE_GID environment variable not set
 ```
 
-**Solution:**
-Add to `.env` file:
+**Solution:** Add to `.env` file:
+
 ```bash
 ASANA_WORKSPACE_GID=your_workspace_gid_here
 ASANA_BUGS_PROJECT_GID=your_bugs_project_gid_here
@@ -274,9 +280,9 @@ For Kubernetes deployments, secrets are injected via environment variables:
 # In Helm chart values
 env:
   - name: ASANA_WORKSPACE_GID
-    value: "1209016784099267"
+    value: '1209016784099267'
   - name: ASANA_BUGS_PROJECT_GID
-    value: "1210062854657778"
+    value: '1210062854657778'
 ```
 
 The collectors automatically fetch credentials from AWS Secrets Manager when running in the cluster.
@@ -284,6 +290,7 @@ The collectors automatically fetch credentials from AWS Secrets Manager when run
 ## Support
 
 For issues or questions:
+
 - Check the validation script: `uv run python devops/datadog/scripts/validate_secrets.py`
 - Review collector logs with `--verbose` flag
 - Verify AWS access with `aws sts get-caller-identity`

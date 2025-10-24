@@ -5,6 +5,7 @@ This guide walks through adding a new data collector to the Datadog metrics syst
 ## Overview
 
 Adding a new collector involves:
+
 1. Creating the collector module
 2. Defining metrics
 3. Adding secrets
@@ -275,6 +276,7 @@ def get_avg_job_duration() -> float | None:
 Follow this pattern: `{service}.{category}.{metric_name}`
 
 **Examples**:
+
 - `github.prs.open` - Current open PRs
 - `github.prs.merged_7d` - PRs merged in 7 days
 - `skypilot.jobs.running` - Running jobs
@@ -283,6 +285,7 @@ Follow this pattern: `{service}.{category}.{metric_name}`
 - `asana.tasks.completed_7d` - Tasks completed
 
 **Units** (for documentation):
+
 - `count` - Discrete count
 - `percent` - Percentage (0-100)
 - `seconds`, `minutes`, `hours` - Time duration
@@ -310,12 +313,12 @@ aws secretsmanager create-secret \
 
 **Common secret patterns**:
 
-| Service | Secrets Needed |
-|---------|----------------|
-| REST API | `{service}/api-key`, `{service}/api-url` |
-| OAuth | `{service}/client-id`, `{service}/client-secret`, `{service}/access-token` |
-| AWS Service | `{service}/access-key-id`, `{service}/secret-access-key` |
-| Token Auth | `{service}/token` or `{service}/personal-access-token` |
+| Service     | Secrets Needed                                                             |
+| ----------- | -------------------------------------------------------------------------- |
+| REST API    | `{service}/api-key`, `{service}/api-url`                                   |
+| OAuth       | `{service}/client-id`, `{service}/client-secret`, `{service}/access-token` |
+| AWS Service | `{service}/access-key-id`, `{service}/secret-access-key`                   |
+| Token Auth  | `{service}/token` or `{service}/personal-access-token`                     |
 
 ### Step 5: Configure Helm Deployment
 
@@ -325,9 +328,9 @@ Add your collector to `devops/charts/datadog-collectors/values.yaml`:
 collectors:
   # ... existing collectors ...
 
-  {collector_name}:
+  { collector_name }:
     enabled: true
-    schedule: "*/15 * * * *"  # Adjust frequency as needed
+    schedule: '*/15 * * * *' # Adjust frequency as needed
     resources:
       requests:
         cpu: 100m
@@ -337,11 +340,12 @@ collectors:
         memory: 512Mi
     env:
       # Service-specific environment variables
-      SERVICE_REGION: "us-east-1"
+      SERVICE_REGION: 'us-east-1'
       # Add any non-secret config here
 ```
 
 **Schedule recommendations**:
+
 - High-frequency metrics (instance counts, job status): `*/5 * * * *` (every 5 min)
 - Medium-frequency (costs, usage stats): `*/15 * * * *` (every 15 min)
 - Low-frequency (historical aggregates): `0 * * * *` (hourly)
@@ -506,7 +510,7 @@ pytest devops/datadog/tests/collectors/test_{collector_name}.py -v
 
 Create `README.md` in your collector directory:
 
-```markdown
+````markdown
 # {Service Name} Collector
 
 Collects metrics from {Service Name} API for monitoring in Datadog.
@@ -515,15 +519,15 @@ Collects metrics from {Service Name} API for monitoring in Datadog.
 
 ### {Category 1}
 
-| Metric | Description | Unit | Type |
-|--------|-------------|------|------|
-| `{service}.{category}.{metric1}` | Description of metric | count | GAUGE |
+| Metric                           | Description           | Unit    | Type  |
+| -------------------------------- | --------------------- | ------- | ----- |
+| `{service}.{category}.{metric1}` | Description of metric | count   | GAUGE |
 | `{service}.{category}.{metric2}` | Description of metric | seconds | GAUGE |
 
 ### {Category 2}
 
-| Metric | Description | Unit | Type |
-|--------|-------------|------|------|
+| Metric                           | Description           | Unit  | Type  |
+| -------------------------------- | --------------------- | ----- | ----- |
 | `{service}.{category}.{metric3}` | Description of metric | count | GAUGE |
 
 ## Configuration
@@ -550,6 +554,7 @@ helm upgrade --install datadog-collectors \
   ./datadog-collectors \
   --set collectors.{collector_name}.enabled=true
 ```
+````
 
 Default schedule: Every 15 minutes
 
@@ -573,6 +578,7 @@ python -m devops.datadog.scripts.run_collector {collector_name} --push
 ### Metric returns None
 
 Check that:
+
 1. API credentials are valid
 2. API endpoint is accessible
 3. Response format matches expected schema
@@ -580,6 +586,7 @@ Check that:
 ### API rate limiting
 
 If hitting rate limits:
+
 1. Reduce collection frequency in `values.yaml`
 2. Implement caching for expensive calls
 3. Request higher rate limits from service
@@ -590,7 +597,8 @@ If hitting rate limits:
 - **API Version**: v1.2.3
 - **Dependencies**: httpx, boto3
 - **Last Updated**: 2025-01-15
-```
+
+````
 
 ### Step 9: Deploy
 
@@ -619,7 +627,7 @@ kubectl describe cronjob {collector_name}-collector -n monitoring
 # 5. Check first run
 kubectl get jobs -n monitoring | grep {collector_name}
 kubectl logs -n monitoring -l collector={collector_name} --tail=100
-```
+````
 
 ### Step 10: Monitor
 

@@ -1,10 +1,12 @@
 # Datadog Collector - Build and Deployment Guide
 
-This guide covers the complete workflow for building the Docker image and deploying the Datadog collectors to Kubernetes using Helm.
+This guide covers the complete workflow for building the Docker image and deploying the Datadog collectors to Kubernetes
+using Helm.
 
 ## Overview
 
 The Datadog collector system uses:
+
 - **Docker**: Multi-stage build for lightweight production images
 - **ECR**: AWS Elastic Container Registry for image storage
 - **EKS**: AWS Elastic Kubernetes Service for orchestration
@@ -12,6 +14,7 @@ The Datadog collector system uses:
 - **CronJob**: Scheduled metric collection every 15 minutes
 
 **Current Collectors**:
+
 - **GitHub**: PRs, commits, CI/CD, branches, developers (24 metrics)
 - **Skypilot**: Jobs, clusters, runtime stats, resources (30 metrics)
 - **Asana**: Tasks, velocity, Bugs project tracking (30 metrics)
@@ -55,6 +58,7 @@ The Datadog collector system uses:
 ## Prerequisites
 
 ### Required Tools
+
 ```bash
 # Docker
 docker --version  # Docker version 24.0+
@@ -70,11 +74,13 @@ helm version  # v3.12+
 ```
 
 ### Required Permissions
+
 - **AWS**: IAM permissions to push to ECR and update EKS cluster
 - **EKS**: Access to main cluster in us-east-1
 - **Secrets Manager**: Read access to secrets (handled via service account in k8s)
 
 ### Setup AWS and EKS Access
+
 ```bash
 # Login to AWS (if using SSO)
 aws sso login --profile softmax-admin
@@ -88,7 +94,8 @@ kubectl get nodes
 
 ## Local Build and Deploy Workflow
 
-This section provides a complete end-to-end workflow for building and deploying locally, **instead of using the GitHub Actions CI/CD pipeline**.
+This section provides a complete end-to-end workflow for building and deploying locally, **instead of using the GitHub
+Actions CI/CD pipeline**.
 
 ### When to Use Local Deployment
 
@@ -129,6 +136,7 @@ docker buildx build \
 ```
 
 **Expected output:**
+
 - Building workspace packages
 - Installing dependencies via uv
 - Verifying all three collectors import successfully
@@ -293,6 +301,7 @@ echo "✓ Deployed with tag: ${TAG}"
 ### Troubleshooting Local Deployment
 
 **Build Fails:**
+
 ```bash
 # Clean Docker build cache
 docker builder prune -af
@@ -306,6 +315,7 @@ docker buildx build --platform linux/amd64 --progress=plain -f softmax/Dockerfil
 ```
 
 **Push to ECR Fails:**
+
 ```bash
 # Re-authenticate
 aws ecr get-login-password --region us-east-1 --profile softmax-admin | \
@@ -319,6 +329,7 @@ aws ecr describe-repositories --repository-names softmax-dashboard --region us-e
 ```
 
 **Deployment Fails:**
+
 ```bash
 # Check Helm release status
 helm status -n monitoring dashboard-cronjob
@@ -335,6 +346,7 @@ helm rollback -n monitoring dashboard-cronjob
 ```
 
 **Collectors Not Running:**
+
 ```bash
 # Check CronJob is active
 kubectl get cronjob -n monitoring dashboard-cronjob -o yaml | grep suspend
@@ -351,7 +363,8 @@ kubectl logs -n monitoring -l app.kubernetes.io/instance=dashboard-cronjob --tai
 
 ### Platform Compatibility
 
-**Important**: The production environment runs on **Linux AMD64** (x86_64). If you're building on macOS ARM64 (Apple Silicon), you must build for the correct platform:
+**Important**: The production environment runs on **Linux AMD64** (x86_64). If you're building on macOS ARM64 (Apple
+Silicon), you must build for the correct platform:
 
 ```bash
 # ✅ Correct - Build for linux/amd64 (production platform)
@@ -389,7 +402,8 @@ GIT_SHA=$(git rev-parse --short HEAD)
 docker buildx build --platform linux/amd64 -f softmax/Dockerfile -t softmax-dashboard:sha-${GIT_SHA} --load .
 ```
 
-**Note**: The `--load` flag loads the image into your local Docker daemon. Without it, the image is only built but not available locally.
+**Note**: The `--load` flag loads the image into your local Docker daemon. Without it, the image is only built but not
+available locally.
 
 ## Pushing to ECR
 
@@ -663,6 +677,7 @@ gh run view <run-id> --log
 ### Workflow Triggers
 
 The workflow runs automatically when:
+
 - Pushing to `main` branch
 - Changes to `softmax/**`
 - Changes to `common/**`

@@ -6,7 +6,8 @@ Is it standard Helm practice to keep CronJob specifications in `devops/charts/`?
 
 ## TL;DR
 
-**Yes, this is absolutely standard Helm practice.** The current location `devops/charts/dashboard-cronjob/` follows established Helm conventions and best practices.
+**Yes, this is absolutely standard Helm practice.** The current location `devops/charts/dashboard-cronjob/` follows
+established Helm conventions and best practices.
 
 ## Analysis
 
@@ -29,7 +30,8 @@ devops/charts/dashboard-cronjob/
 
 #### 1. Helm Chart Convention
 
-A Helm chart is a **collection of Kubernetes resource templates** organized in a specific directory structure. The standard Helm chart structure is:
+A Helm chart is a **collection of Kubernetes resource templates** organized in a specific directory structure. The
+standard Helm chart structure is:
 
 ```
 <chart-name>/
@@ -54,7 +56,8 @@ Keeping Helm charts in version control (like `devops/charts/`) is standard pract
 
 #### 3. Comparison with Public Helm Charts
 
-Public Helm repositories (like [Artifact Hub](https://artifacthub.io/)) contain charts for CronJobs following the same structure:
+Public Helm repositories (like [Artifact Hub](https://artifacthub.io/)) contain charts for CronJobs following the same
+structure:
 
 - [kubernetes-cronhpa](https://artifacthub.io/packages/helm/tosone/kubernetes-cronhpa)
 - [cronjobs](https://artifacthub.io/packages/helm/pnnl-miscscripts/cronjobs)
@@ -104,13 +107,14 @@ The README shows an important design pattern:
   chart: ./dashboard-cronjob
 
 - name: weekly-report
-  chart: ./dashboard-cronjob  # Reuse same chart!
+  chart: ./dashboard-cronjob # Reuse same chart!
   values:
-    - schedule: "0 9 * * MON"
-      command: ["uv", "run", "python", "-m", "softmax.reports.weekly"]
+    - schedule: '0 9 * * MON'
+      command: ['uv', 'run', 'python', '-m', 'softmax.reports.weekly']
 ```
 
 This **single chart, multiple deployments** pattern is a Helm best practice for:
+
 - Reducing duplication
 - Ensuring consistency
 - Simplifying maintenance
@@ -132,6 +136,7 @@ charts-repo/
 ```
 
 However, these alternatives are typically used when:
+
 - Charts are shared across multiple projects (not applicable here)
 - Infrastructure is managed by a separate team
 - Charts are published to a Helm repository
@@ -183,6 +188,7 @@ devops/charts/
 **Action**: Update `COLLECTORS_ARCHITECTURE.md` to use `devops/charts/` instead of `devops/datadog/charts/`
 
 **Change**:
+
 ```diff
 - devops/datadog/charts/collector-cronjobs/
 + devops/charts/datadog-collectors/
@@ -193,6 +199,7 @@ devops/charts/
 **Action**: All future Helm charts should go in `devops/charts/<name>/`
 
 **Examples**:
+
 - `devops/charts/datadog-collectors/` - Multi-collector CronJob chart
 - `devops/charts/training-jobs/` - If we add Kubernetes Jobs for training
 - `devops/charts/evaluation-workers/` - If we add worker deployments
@@ -202,6 +209,7 @@ devops/charts/
 Once the new collector architecture is stable, consider:
 
 **Option A: Keep Separate**
+
 ```
 devops/charts/
 ├── dashboard-cronjob/      # GitHub metrics only
@@ -209,25 +217,27 @@ devops/charts/
 ```
 
 **Option B: Consolidate (Recommended)**
+
 ```
 devops/charts/
 └── datadog-collectors/     # ALL collectors including GitHub
 ```
 
 Consolidation would:
+
 - Reduce duplication
 - Simplify deployment (one chart, one helmfile entry)
 - Maintain single source of truth
 
 ## Summary Table
 
-| Question | Answer |
-|----------|--------|
-| Is `devops/charts/` standard for Helm? | ✅ Yes, absolutely standard |
-| Should we move it elsewhere? | ❌ No, keep it where it is |
-| Is this consistent with other charts? | ✅ Yes, all charts are in `devops/charts/` |
-| Should new collectors go here? | ✅ Yes, in `devops/charts/datadog-collectors/` |
-| Is the helmfile approach standard? | ✅ Yes, common for multi-chart repos |
+| Question                               | Answer                                         |
+| -------------------------------------- | ---------------------------------------------- |
+| Is `devops/charts/` standard for Helm? | ✅ Yes, absolutely standard                    |
+| Should we move it elsewhere?           | ❌ No, keep it where it is                     |
+| Is this consistent with other charts?  | ✅ Yes, all charts are in `devops/charts/`     |
+| Should new collectors go here?         | ✅ Yes, in `devops/charts/datadog-collectors/` |
+| Is the helmfile approach standard?     | ✅ Yes, common for multi-chart repos           |
 
 ## References
 
@@ -238,4 +248,6 @@ Consolidation would:
 
 ## Conclusion
 
-The current location (`devops/charts/dashboard-cronjob/`) is **exactly where it should be** according to Helm best practices. The only adjustment needed is updating the collector architecture documentation to use `devops/charts/` instead of `devops/datadog/charts/` for consistency.
+The current location (`devops/charts/dashboard-cronjob/`) is **exactly where it should be** according to Helm best
+practices. The only adjustment needed is updating the collector architecture documentation to use `devops/charts/`
+instead of `devops/datadog/charts/` for consistency.

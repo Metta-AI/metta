@@ -1,12 +1,13 @@
 # Data Collectors Architecture
 
-> **Status**: Phase 4 Complete (2025-10-23)
-> **Implemented**: Four collectors with BaseCollector pattern (GitHub, Skypilot, Asana, EC2)
-> **Total Metrics**: 87 metrics across all collectors
+> **Status**: Phase 4 Complete (2025-10-23) **Implemented**: Four collectors with BaseCollector pattern (GitHub,
+> Skypilot, Asana, EC2) **Total Metrics**: 87 metrics across all collectors
 
 ## Vision
 
-A scalable, modular system for collecting metrics from multiple services (GitHub, Skypilot, WandB, EC2, Asana, etc.) and submitting them to Datadog. Each collector is a self-contained module that knows how to:
+A scalable, modular system for collecting metrics from multiple services (GitHub, Skypilot, WandB, EC2, Asana, etc.) and
+submitting them to Datadog. Each collector is a self-contained module that knows how to:
+
 1. Authenticate with its service
 2. Fetch relevant data via API
 3. Transform data into Datadog metrics
@@ -17,6 +18,7 @@ All collectors run as scheduled Kubernetes CronJobs, deployed via Helm charts.
 ## Current Implementation (Phase 4)
 
 **Completed:**
+
 - ✅ BaseCollector abstract class (`common/base.py`)
 - ✅ @metric decorator system (`common/decorators.py`)
 - ✅ DatadogClient wrapper (`common/datadog_client.py`)
@@ -95,26 +97,33 @@ devops/charts/
         └── cronjob.yaml           # CronJob template for all collectors
 ```
 
-**Note**: Helm charts are kept in `devops/charts/` alongside other project charts for consistency with Helm best practices.
+**Note**: Helm charts are kept in `devops/charts/` alongside other project charts for consistency with Helm best
+practices.
 
 ## Architecture Principles
 
 ### 1. Single Responsibility
+
 Each collector focuses on one service and knows nothing about others.
 
 ### 2. Common Interface
+
 All collectors implement the same base interface for consistency.
 
 ### 3. Declarative Metrics
+
 Metrics are declared using decorators, automatically registered and collected.
 
 ### 4. Fail-Safe
+
 Individual metric failures don't crash the collector; errors are logged and reported.
 
 ### 5. Configuration-Driven
+
 Collectors are configured via environment variables and config files, not hardcoded values.
 
 ### 6. Observable
+
 All collectors emit metadata about their own health (collection time, error counts, metric counts).
 
 ## Base Collector Pattern
@@ -547,12 +556,12 @@ global:
   image:
     registry: 751442549699.dkr.ecr.us-east-1.amazonaws.com
     repository: datadog-collectors
-    tag: "latest"
+    tag: 'latest'
     pullPolicy: Always
 
   datadog:
-    env: "production"
-    site: "datadoghq.com"
+    env: 'production'
+    site: 'datadoghq.com'
 
   serviceAccount:
     create: true
@@ -563,7 +572,7 @@ global:
 collectors:
   github:
     enabled: true
-    schedule: "*/15 * * * *"  # Every 15 minutes
+    schedule: '*/15 * * * *' # Every 15 minutes
     resources:
       requests:
         cpu: 100m
@@ -572,12 +581,12 @@ collectors:
         cpu: 500m
         memory: 1Gi
     env:
-      GITHUB_ORG: "softmax-research"
-      GITHUB_REPO: "metta"
+      GITHUB_ORG: 'softmax-research'
+      GITHUB_REPO: 'metta'
 
   skypilot:
     enabled: true
-    schedule: "*/10 * * * *"  # Every 10 minutes
+    schedule: '*/10 * * * *' # Every 10 minutes
     resources:
       requests:
         cpu: 100m
@@ -588,7 +597,7 @@ collectors:
 
   wandb:
     enabled: true
-    schedule: "*/30 * * * *"  # Every 30 minutes
+    schedule: '*/30 * * * *' # Every 30 minutes
     resources:
       requests:
         cpu: 100m
@@ -599,7 +608,7 @@ collectors:
 
   ec2:
     enabled: true
-    schedule: "*/5 * * * *"  # Every 5 minutes
+    schedule: '*/5 * * * *' # Every 5 minutes
     resources:
       requests:
         cpu: 50m
@@ -609,8 +618,8 @@ collectors:
         memory: 256Mi
 
   asana:
-    enabled: false  # Disabled by default
-    schedule: "0 */6 * * *"  # Every 6 hours
+    enabled: false # Disabled by default
+    schedule: '0 */6 * * *' # Every 6 hours
     resources:
       requests:
         cpu: 50m
@@ -623,7 +632,7 @@ collectors:
 cronJob:
   successfulJobsHistoryLimit: 3
   failedJobsHistoryLimit: 3
-  concurrencyPolicy: Forbid  # Prevent overlapping runs
+  concurrencyPolicy: Forbid # Prevent overlapping runs
   restartPolicy: OnFailure
   backoffLimit: 2
 ```
@@ -912,6 +921,7 @@ Alert: GitHub collector taking >60s to run
 See `docs/ADDING_NEW_COLLECTOR.md` for step-by-step guide.
 
 Quick checklist:
+
 1. Create `devops/datadog/collectors/{name}/` directory
 2. Implement `collector.py` (subclass `BaseCollector`)
 3. Define metrics in `metrics.py` using `@metric` decorator
@@ -926,6 +936,7 @@ Quick checklist:
 ### Phase 1: Refactor Existing (Current)
 
 Move current GitHub metrics to new structure:
+
 - Create `devops/datadog/collectors/github/`
 - Migrate `softmax/dashboard/metrics.py` → `collectors/github/metrics.py`
 - Create `collectors/github/collector.py`
@@ -935,6 +946,7 @@ Move current GitHub metrics to new structure:
 ### Phase 2: Add New Collectors
 
 Add collectors one at a time:
+
 1. Skypilot (job tracking, compute costs)
 2. WandB (training runs, experiment metrics)
 3. EC2 (instance counts, costs, utilization)

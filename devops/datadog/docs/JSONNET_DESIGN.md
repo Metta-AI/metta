@@ -2,16 +2,14 @@
 
 ## Inspiration: Grafonnet for Grafana
 
-**Grafonnet** is a Jsonnet library for Grafana that lets you build dashboards from reusable components. We can use the same approach for Datadog!
+**Grafonnet** is a Jsonnet library for Grafana that lets you build dashboards from reusable components. We can use the
+same approach for Datadog!
 
 ### Why Jsonnet?
 
-✅ **Object-oriented** - Inheritance, mixins, composition
-✅ **Functions** - Parameterized widget templates
-✅ **Familiar** - Superset of JSON
-✅ **Multi-format** - Generates JSON/YAML
-✅ **Proven** - Used by Grafana, Kubernetes (libsonnet)
-✅ **Simple** - No Python/JS runtime needed
+✅ **Object-oriented** - Inheritance, mixins, composition ✅ **Functions** - Parameterized widget templates ✅
+**Familiar** - Superset of JSON ✅ **Multi-format** - Generates JSON/YAML ✅ **Proven** - Used by Grafana, Kubernetes
+(libsonnet) ✅ **Simple** - No Python/JS runtime needed
 
 ## Proposed Structure
 
@@ -284,29 +282,29 @@ This would be implemented in `lib/layout.libsonnet` to calculate positions.
 
 ## Benefits
 
-✅ **Reusable widgets** - Define once, use everywhere
-✅ **Type safety** - Jsonnet catches errors at build time
-✅ **DRY principle** - No duplicated widget definitions
-✅ **Grid layouts** - Easy N×M tiling
-✅ **Mix and match** - Combine widgets from different sources
-✅ **Version control** - Track changes to individual components
-✅ **Familiar syntax** - Just enhanced JSON
+✅ **Reusable widgets** - Define once, use everywhere ✅ **Type safety** - Jsonnet catches errors at build time ✅ **DRY
+principle** - No duplicated widget definitions ✅ **Grid layouts** - Easy N×M tiling ✅ **Mix and match** - Combine
+widgets from different sources ✅ **Version control** - Track changes to individual components ✅ **Familiar syntax** -
+Just enhanced JSON
 
 ## Migration Path
 
 ### Phase 1: Basic Setup (1-2 hours)
+
 1. Install jsonnet: `brew install jsonnet`
 2. Create basic library structure
 3. Extract one widget to Jsonnet
 4. Build and test
 
 ### Phase 2: Widget Library (2-3 hours)
+
 1. Extract all widgets from existing dashboards
 2. Create widget library in `components/`
 3. Create grid layout helper
 4. Rebuild existing dashboards in Jsonnet
 
 ### Phase 3: Polish (1 hour)
+
 1. Update Makefile with build commands
 2. Document Jsonnet workflow
 3. Create examples
@@ -325,10 +323,14 @@ This would be implemented in `lib/layout.libsonnet` to calculate positions.
       "definition": {
         "type": "timeseries",
         "title": "Tests Passing",
-        "requests": [/* 20 lines of config */],
-        "markers": [/* 5 lines */]
+        "requests": [
+          /* 20 lines of config */
+        ],
+        "markers": [
+          /* 5 lines */
+        ]
       },
-      "layout": {"x": 0, "y": 0, "width": 6, "height": 3}
+      "layout": { "x": 0, "y": 0, "width": 6, "height": 3 }
     },
     {
       /* Another 25 lines for next widget */
@@ -338,6 +340,7 @@ This would be implemented in `lib/layout.libsonnet` to calculate positions.
 ```
 
 **Problems:**
+
 - 200+ lines of JSON
 - Hard to find specific widgets
 - No reuse between dashboards
@@ -361,6 +364,7 @@ dashboard.dashboard(
 ```
 
 **Benefits:**
+
 - 10 lines total
 - Clear, readable
 - Reusable components
@@ -371,12 +375,14 @@ dashboard.dashboard(
 **Should we implement Jsonnet-based system?**
 
 **Pros:**
+
 - Industry standard (Grafonnet, Kubernetes)
 - Powerful composition
 - Grid layouts built-in
 - Better than custom templating
 
 **Cons:**
+
 - New dependency (jsonnet)
 - Learning curve
 - Build step required

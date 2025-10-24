@@ -8,68 +8,68 @@ Collects development metrics from GitHub API for the Metta repository.
 
 ### Pull Request Metrics
 
-| Metric | Description | Unit | Status |
-|--------|-------------|------|--------|
-| `github.prs.open` | Currently open pull requests | count | ✅ Implemented |
-| `github.prs.merged_7d` | PRs merged in last 7 days | count | ✅ Implemented |
+| Metric                               | Description                             | Unit  | Status         |
+| ------------------------------------ | --------------------------------------- | ----- | -------------- |
+| `github.prs.open`                    | Currently open pull requests            | count | ✅ Implemented |
+| `github.prs.merged_7d`               | PRs merged in last 7 days               | count | ✅ Implemented |
 | `github.prs.closed_without_merge_7d` | PRs closed without merge in last 7 days | count | ✅ Implemented |
-| `github.prs.avg_time_to_merge_hours` | Average time from PR creation to merge | hours | ✅ Implemented |
-| `github.prs.stale` | PRs open for >30 days | count | 📋 Planned |
-| `github.prs.draft` | Draft PRs | count | 📋 Planned |
+| `github.prs.avg_time_to_merge_hours` | Average time from PR creation to merge  | hours | ✅ Implemented |
+| `github.prs.stale`                   | PRs open for >30 days                   | count | 📋 Planned     |
+| `github.prs.draft`                   | Draft PRs                               | count | 📋 Planned     |
 
 ### Branch Metrics
 
-| Metric | Description | Unit | Status |
-|--------|-------------|------|--------|
-| `github.branches.active` | Active branches (excluding main/master) | count | ✅ Implemented |
-| `github.branches.stale` | Branches with no commits in >30 days | count | 📋 Planned |
-| `github.branches.merged_7d` | Branches merged in last 7 days | count | 📋 Planned |
+| Metric                      | Description                             | Unit  | Status         |
+| --------------------------- | --------------------------------------- | ----- | -------------- |
+| `github.branches.active`    | Active branches (excluding main/master) | count | ✅ Implemented |
+| `github.branches.stale`     | Branches with no commits in >30 days    | count | 📋 Planned     |
+| `github.branches.merged_7d` | Branches merged in last 7 days          | count | 📋 Planned     |
 
 ### Commit Metrics
 
-| Metric | Description | Unit | Status |
-|--------|-------------|------|--------|
-| `github.commits.total_7d` | Total commits to main in last 7 days | count | ✅ Implemented |
-| `github.commits.hotfix` | Hotfix commits in last 7 days | count | ✅ Implemented |
-| `github.commits.reverts` | Revert commits in last 7 days | count | ✅ Implemented |
-| `github.commits.per_developer_7d` | Average commits per developer | count | ✅ Implemented |
+| Metric                            | Description                          | Unit  | Status         |
+| --------------------------------- | ------------------------------------ | ----- | -------------- |
+| `github.commits.total_7d`         | Total commits to main in last 7 days | count | ✅ Implemented |
+| `github.commits.hotfix`           | Hotfix commits in last 7 days        | count | ✅ Implemented |
+| `github.commits.reverts`          | Revert commits in last 7 days        | count | ✅ Implemented |
+| `github.commits.per_developer_7d` | Average commits per developer        | count | ✅ Implemented |
 
 ### Code Change Metrics
 
-| Metric | Description | Unit | Status |
-|--------|-------------|------|--------|
-| `github.code.lines_added_7d` | Lines of code added in last 7 days | lines | ⚠️ Returns 0 (needs fix) |
+| Metric                         | Description                          | Unit  | Status                   |
+| ------------------------------ | ------------------------------------ | ----- | ------------------------ |
+| `github.code.lines_added_7d`   | Lines of code added in last 7 days   | lines | ⚠️ Returns 0 (needs fix) |
 | `github.code.lines_deleted_7d` | Lines of code deleted in last 7 days | lines | ⚠️ Returns 0 (needs fix) |
 | `github.code.files_changed_7d` | Unique files modified in last 7 days | count | ⚠️ Returns 0 (needs fix) |
-| `github.code.churn_7d` | Total lines changed (adds + deletes) | lines | 📋 Planned |
+| `github.code.churn_7d`         | Total lines changed (adds + deletes) | lines | 📋 Planned               |
 
 ### CI/CD Metrics
 
-| Metric | Description | Unit | Status |
-|--------|-------------|------|--------|
-| `github.ci.tests_passing_on_main` | Main branch test status (1=passing, 0=failing) | boolean | ✅ Implemented |
-| `github.ci.workflow_runs_7d` | Total workflow runs in last 7 days | count | ✅ Implemented |
-| `github.ci.failed_workflows_7d` | Failed workflow runs in last 7 days | count | ✅ Implemented |
-| `github.ci.avg_workflow_duration_minutes` | Average workflow run duration | minutes | ✅ Implemented |
-| `github.ci.success_rate_7d` | Workflow success rate (%) | percent | 📋 Planned |
-| `github.ci.flaky_tests` | Tests that failed then passed on same commit | count | 📋 Planned |
+| Metric                                    | Description                                    | Unit    | Status         |
+| ----------------------------------------- | ---------------------------------------------- | ------- | -------------- |
+| `github.ci.tests_passing_on_main`         | Main branch test status (1=passing, 0=failing) | boolean | ✅ Implemented |
+| `github.ci.workflow_runs_7d`              | Total workflow runs in last 7 days             | count   | ✅ Implemented |
+| `github.ci.failed_workflows_7d`           | Failed workflow runs in last 7 days            | count   | ✅ Implemented |
+| `github.ci.avg_workflow_duration_minutes` | Average workflow run duration                  | minutes | ✅ Implemented |
+| `github.ci.success_rate_7d`               | Workflow success rate (%)                      | percent | 📋 Planned     |
+| `github.ci.flaky_tests`                   | Tests that failed then passed on same commit   | count   | 📋 Planned     |
 
 ### Developer Activity Metrics
 
-| Metric | Description | Unit | Status |
-|--------|-------------|------|--------|
-| `github.developers.active_7d` | Unique developers with commits in last 7 days | count | ✅ Implemented |
-| `github.developers.top_contributor_commits` | Commits by top contributor | count | 📋 Planned |
-| `github.reviews.count_7d` | PR reviews in last 7 days | count | 📋 Planned |
-| `github.reviews.avg_time_to_first_review_hours` | Avg time to first review | hours | 📋 Planned |
+| Metric                                          | Description                                   | Unit  | Status         |
+| ----------------------------------------------- | --------------------------------------------- | ----- | -------------- |
+| `github.developers.active_7d`                   | Unique developers with commits in last 7 days | count | ✅ Implemented |
+| `github.developers.top_contributor_commits`     | Commits by top contributor                    | count | 📋 Planned     |
+| `github.reviews.count_7d`                       | PR reviews in last 7 days                     | count | 📋 Planned     |
+| `github.reviews.avg_time_to_first_review_hours` | Avg time to first review                      | hours | 📋 Planned     |
 
 ### Repository Health
 
-| Metric | Description | Unit | Status |
-|--------|-------------|------|--------|
-| `github.issues.open` | Currently open issues | count | 📋 Planned |
+| Metric                    | Description                  | Unit  | Status     |
+| ------------------------- | ---------------------------- | ----- | ---------- |
+| `github.issues.open`      | Currently open issues        | count | 📋 Planned |
 | `github.issues.closed_7d` | Issues closed in last 7 days | count | 📋 Planned |
-| `github.issues.stale` | Issues open for >60 days | count | 📋 Planned |
+| `github.issues.stale`     | Issues open for >60 days     | count | 📋 Planned |
 
 ## Configuration
 
@@ -100,14 +100,14 @@ Collects development metrics from GitHub API for the Metta repository.
 
 ## Implementation Details
 
-**Architecture**: Modular collector using BaseCollector pattern
-**Location**: `devops/datadog/collectors/github/collector.py`
-**Deployment**: Kubernetes CronJob via Helm (`devops/charts/dashboard-cronjob`)
-**Entry Point**: `devops/datadog/run_collector.py github --push`
+**Architecture**: Modular collector using BaseCollector pattern **Location**:
+`devops/datadog/collectors/github/collector.py` **Deployment**: Kubernetes CronJob via Helm
+(`devops/charts/dashboard-cronjob`) **Entry Point**: `devops/datadog/run_collector.py github --push`
 
 ### Migration Status
 
 ✅ **Complete** - Migrated from `softmax/dashboard/metrics.py` to modular architecture:
+
 1. ✅ Created `GitHubCollector(BaseCollector)` class
 2. ✅ Implemented all 25 metrics in collector
 3. ✅ Updated Helm chart for new collector
