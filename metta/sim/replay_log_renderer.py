@@ -121,7 +121,8 @@ class EpisodeReplay:
         self.step += 1
         if current_step != self.step:
             raise ValueError(
-                f"Writing multiple steps at once: step {current_step} != Replay step {self.step}. Probably a vecenv issue."
+                f"Writing multiple steps at once: step {current_step} != Replay step {self.step}."
+                "Probably a vecenv issue."
             )
 
     def _seq_key_merge(self, grid_object: dict, step: int, update_object: dict):
