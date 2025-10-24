@@ -505,7 +505,7 @@ class Simulation:
     def get_replay(self) -> dict:
         """Makes sure this sim has a single replay, and return it."""
         if self._replay_writer is None:
-            raise ValueError("Attempting to get single replay, but simulation has no replay writer (enable_replays=False).")
+            raise ValueError("Attempting to get single replay, but simulation has no replay writer.")
 
         # If no episodes yet, create initial replay data from the environment
         if len(self._replay_writer.episodes) == 0:
