@@ -68,121 +68,121 @@ class _EvalMissionBase(Mission):
 
 
 class EnergyStarved(_EvalMissionBase):
-    name = "energy_starved"
-    description = "Very low energy regen; plan charger routes."
-    map_name = "machina_eval_exp01.map"
-    charger_eff = 80
-    energy_regen = 0
-    max_uses_charger = 0
-    max_uses_carbon = 100
-    max_uses_oxygen = 30
-    max_uses_germanium = 5
-    max_uses_silicon = 100
+    name: str = "energy_starved"
+    description: str = "Very low energy regen; plan charger routes."
+    map_name: str = "machina_eval_exp01.map"
+    charger_eff: int = 80
+    energy_regen: int = 0
+    max_uses_charger: int = 0
+    max_uses_carbon: int = 100
+    max_uses_oxygen: int = 30
+    max_uses_germanium: int = 5
+    max_uses_silicon: int = 100
 
 
 class OxygenBottleneck(_EvalMissionBase):
-    name = "oxygen_bottleneck"
-    description = "Oxygen paces assembly; batch other resources."
-    map_name = "machina_eval_exp02.map"
-    oxygen_eff = 50
-    energy_regen = 1
-    max_uses_charger = 0
-    max_uses_carbon = 100
-    max_uses_oxygen = 20
-    max_uses_germanium = 10
-    max_uses_silicon = 100
+    name: str = "oxygen_bottleneck"
+    description: str = "Oxygen paces assembly; batch other resources."
+    map_name: str = "machina_eval_exp02.map"
+    oxygen_eff: int = 50
+    energy_regen: int = 1
+    max_uses_charger: int = 0
+    max_uses_carbon: int = 100
+    max_uses_oxygen: int = 20
+    max_uses_germanium: int = 10
+    max_uses_silicon: int = 100
 
 
 class GermaniumRush(_EvalMissionBase):
-    name = "germanium_rush"
-    description = "Race to limited germanium before it runs out."
-    map_name = "machina_eval_exp03.map"
-    max_uses_germanium = 10
-    max_uses_carbon = 100
-    max_uses_oxygen = 50
-    max_uses_silicon = 100
-    max_uses_charger = 0
+    name: str = "germanium_rush"
+    description: str = "Race to limited germanium before it runs out."
+    map_name: str = "machina_eval_exp03.map"
+    max_uses_germanium: int = 10
+    max_uses_carbon: int = 100
+    max_uses_oxygen: int = 50
+    max_uses_silicon: int = 100
+    max_uses_charger: int = 0
 
 
 class SiliconWorkbench(_EvalMissionBase):
-    name = "silicon_workbench"
-    description = "Silicon-rich environment; convert energy to silicon."
-    map_name = "machina_eval_exp04.map"
-    silicon_eff = 150
-    max_uses_silicon = 200
-    max_uses_oxygen = 50
-    max_uses_carbon = 100
-    max_uses_germanium = 10
-    max_uses_charger = 0
+    name: str = "silicon_workbench"
+    description: str = "Silicon-rich environment; convert energy to silicon."
+    map_name: str = "machina_eval_exp04.map"
+    silicon_eff: int = 150
+    max_uses_silicon: int = 200
+    max_uses_oxygen: int = 50
+    max_uses_carbon: int = 100
+    max_uses_germanium: int = 10
+    max_uses_charger: int = 0
 
 
 class CarbonDesert(_EvalMissionBase):
-    name = "carbon_desert"
-    description = "Sparse carbon dictates routes."
-    map_name = "machina_eval_exp05.map"
-    max_uses_carbon = 30
-    max_uses_oxygen = 50
-    max_uses_germanium = 10
-    max_uses_silicon = 100
-    max_uses_charger = 0
+    name: str = "carbon_desert"
+    description: str = "Sparse carbon dictates routes."
+    map_name: str = "machina_eval_exp05.map"
+    max_uses_carbon: int = 30
+    max_uses_oxygen: int = 50
+    max_uses_germanium: int = 10
+    max_uses_silicon: int = 100
+    max_uses_charger: int = 0
 
 
 class SingleUseWorld(_EvalMissionBase):
-    name = "single_use_world"
-    description = "Every station can be used exactly once."
-    map_name = "machina_eval_exp06.map"
-    max_uses_charger = 1
-    max_uses_carbon = 1
-    max_uses_oxygen = 1
-    max_uses_germanium = 1
-    max_uses_silicon = 1
+    name: str = "single_use_world"
+    description: str = "Every station can be used exactly once."
+    map_name: str = "machina_eval_exp06.map"
+    max_uses_charger: int = 1
+    max_uses_carbon: int = 1
+    max_uses_oxygen: int = 1
+    max_uses_germanium: int = 1
+    max_uses_silicon: int = 1
 
 
 class SlowOxygen(_EvalMissionBase):
-    name = "slow_oxygen"
-    description = "Very slow oxygen; interleave partial-usage taps."
-    map_name = "machina_eval_exp07.map"
-    oxygen_eff = 25
-    energy_regen = 2
-    max_uses_oxygen = 100
-    max_uses_carbon = 100
-    max_uses_germanium = 10
-    max_uses_silicon = 100
-    max_uses_charger = 0
+    name: str = "slow_oxygen"
+    description: str = "Very slow oxygen; interleave partial-usage taps."
+    map_name: str = "machina_eval_exp07.map"
+    oxygen_eff: int = 25
+    energy_regen: int = 2
+    max_uses_oxygen: int = 100
+    max_uses_carbon: int = 100
+    max_uses_germanium: int = 10
+    max_uses_silicon: int = 100
+    max_uses_charger: int = 0
 
 
 class HighRegenSprint(_EvalMissionBase):
-    name = "high_regen_sprint"
-    description = "High regen; minimize charger dependency."
-    map_name = "machina_eval_exp08.map"
-    energy_regen = 3
-    max_uses_carbon = 100
-    max_uses_oxygen = 50
-    max_uses_germanium = 10
-    max_uses_silicon = 100
-    max_uses_charger = 0
+    name: str = "high_regen_sprint"
+    description: str = "High regen; minimize charger dependency."
+    map_name: str = "machina_eval_exp08.map"
+    energy_regen: int = 3
+    max_uses_carbon: int = 100
+    max_uses_oxygen: int = 50
+    max_uses_germanium: int = 10
+    max_uses_silicon: int = 100
+    max_uses_charger: int = 0
 
 
 class SparseBalanced(_EvalMissionBase):
-    name = "sparse_balanced"
-    description = "Evenly sparse resources; balanced routing."
-    map_name = "machina_eval_exp09.map"
-    max_uses_carbon = 50
-    max_uses_oxygen = 50
-    max_uses_germanium = 10
-    max_uses_silicon = 50
-    max_uses_charger = 0
+    name: str = "sparse_balanced"
+    description: str = "Evenly sparse resources; balanced routing."
+    map_name: str = "machina_eval_exp09.map"
+    max_uses_carbon: int = 50
+    max_uses_oxygen: int = 50
+    max_uses_germanium: int = 10
+    max_uses_silicon: int = 50
+    max_uses_charger: int = 0
 
 
 class GermaniumClutch(_EvalMissionBase):
-    name = "germanium_clutch"
-    description = "A single germanium line determines success."
-    map_name = "machina_eval_exp10.map"
-    max_uses_germanium = 2
-    max_uses_carbon = 100
-    max_uses_oxygen = 50
-    max_uses_silicon = 100
-    max_uses_charger = 0
+    name: str = "germanium_clutch"
+    description: str = "A single germanium line determines success."
+    map_name: str = "machina_eval_exp10.map"
+    max_uses_germanium: int = 2
+    max_uses_carbon: int = 100
+    max_uses_oxygen: int = 50
+    max_uses_silicon: int = 100
+    max_uses_charger: int = 0
 
 
 EVAL_MISSIONS: list[type[Mission]] = [
