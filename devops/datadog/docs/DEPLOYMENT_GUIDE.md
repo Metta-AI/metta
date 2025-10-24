@@ -58,7 +58,25 @@ kubectl logs -n monitoring -l app.kubernetes.io/name=dashboard-cronjob --tail=10
 
 For testing changes before merging to main:
 
-### 1. Uncomment dev section in helmfile.yaml
+### 1. Build Docker image for your branch
+
+Trigger the GitHub Action to build an image from your branch:
+
+```bash
+# Trigger build for your branch
+gh workflow run build-dashboard-image.yml --ref your-branch-name
+
+# Wait for build to complete (~1-2 minutes)
+gh run watch
+
+# Check the image tag (uses git SHA)
+git rev-parse --short=7 HEAD
+# Image tag will be: sha-<first-7-chars-of-SHA>
+```
+
+The image will be pushed to ECR as: `751442549699.dkr.ecr.us-east-1.amazonaws.com/softmax-dashboard:sha-<commit-sha>`
+
+### 2. Uncomment dev section in helmfile.yaml
 
 Edit `devops/charts/helmfile.yaml` and uncomment:
 
@@ -73,11 +91,11 @@ Edit `devops/charts/helmfile.yaml` and uncomment:
         tag: "your-feature-branch"  # Update this
 ```
 
-### 2. Deploy development copy
+### 3. Deploy development copy
 
 ```bash
 cd devops/charts
-helmfile apply -i -l name=dashboard-cronjob-dev
+helmfile apply -l name=dashboard-cronjob-dev
 ```
 
 This deploys a `-dev` copy to the same `monitoring` namespace that:
@@ -85,7 +103,7 @@ This deploys a `-dev` copy to the same `monitoring` namespace that:
 - Tags metrics with `env:development` for filtering
 - Runs alongside production without interference
 
-### 3. Monitor development deployment
+### 4. Monitor development deployment
 
 ```bash
 # Check dev cronjob
@@ -99,13 +117,13 @@ kubectl create job --from=cronjob/dashboard-cronjob-dev-dashboard-cronjob \
 kubectl logs -n monitoring -l job-name=test-* --tail=100
 ```
 
-### 4. Cleanup
+### 5. Cleanup
 
 When done testing:
 
 ```bash
 cd devops/charts
-helmfile delete -l name=dashboard-cronjob-dev
+helmfile destroy -l name=dashboard-cronjob-dev
 ```
 
 Or comment out the dev section in helmfile.yaml and run:
@@ -113,6 +131,8 @@ Or comment out the dev section in helmfile.yaml and run:
 ```bash
 helmfile apply
 ```
+
+**Note**: Services suffixed with `-dev` are safe to destroy and clean up.
 
 ## Deployment Options
 
