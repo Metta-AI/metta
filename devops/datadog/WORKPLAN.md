@@ -1,6 +1,6 @@
 # Datadog Observability System - Work Plan
 
-**Current Status**: Phase 4 - Three collectors implemented (GitHub, Skypilot, Asana) with 84 total metrics
+**Current Status**: Phase 4 - Four collectors implemented (GitHub, Skypilot, Asana, EC2) with 87 total metrics
 **Branch**: `robb/1022-datadog`
 **PR**: [#3384](https://github.com/Metta-AI/metta/pull/3384)
 **Last Updated**: 2025-10-23
@@ -11,14 +11,15 @@
 
 ### ✅ Modular Collector Architecture
 - **BaseCollector pattern** for consistent collector implementation
-- **Three collectors implemented and tested**:
+- **Four collectors implemented and tested**:
   - GitHub (24 metrics): PRs, commits, CI/CD, developers
   - Skypilot (30 metrics): Jobs, runtime stats, resources, clusters
-  - Asana (30 metrics): Tasks, velocity, Bugs project workflow
-- **84 total metrics** ready to deploy
+  - Asana (14 metrics): Tasks, velocity, Bugs project workflow
+  - EC2 (19 metrics): Instances, costs, utilization, EBS volumes
+- **87 total metrics** ready to deploy
 - **GitHub collector** deployed to production (Helm revision 16, monitoring namespace)
 - **Metrics flowing successfully** to Datadog for 24+ hours
-- Framework ready for additional collectors (WandB, EC2)
+- Framework ready for additional collectors (WandB, etc.)
 
 ### ✅ Deployment Infrastructure
 - **Helm chart** for CronJob deployment (`devops/charts/dashboard-cronjob/`)
@@ -228,23 +229,67 @@ wandb.training.cost_estimate_usd     # Estimated cloud cost
 
 **References**: `collectors/wandb/README.md`
 
-#### B. EC2 Collector (High Priority) - 2 days
-**Why**: Track compute costs and utilization
+#### B. WandB Collector (High Priority) - 3 days
+**Why**: Track training run metrics
 
 **Planned Metrics**:
 ```python
-# Instance Metrics
-ec2.instances.running               # Running instances
-ec2.instances.stopped               # Stopped instances
-ec2.costs.monthly_estimate_usd      # Cost projection
+# Training Progress
+wandb.runs.active                    # Currently running experiments
+wandb.runs.completed_7d              # Completed runs in last week
+wandb.runs.failed_7d                 # Failed runs in last week
 
-# GPU Instances
-ec2.gpu.instances.running           # GPU instances
-ec2.gpu.utilization_pct             # GPU usage
-ec2.gpu.costs.daily_usd             # Daily GPU costs
+# Model Performance
+wandb.metrics.best_accuracy          # Best model accuracy across runs
+wandb.metrics.latest_loss            # Latest training loss
+wandb.training.gpu_utilization_pct   # GPU usage
+
+# Resource Usage
+wandb.training.duration_hours        # Training time per run
+wandb.training.cost_estimate_usd     # Estimated cloud cost
 ```
 
-#### C. Skypilot Collector ✅ Complete
+#### C. EC2 Collector ✅ Complete
+**Status**: Implemented and tested (2025-10-23)
+
+**Implemented Metrics** (19 total):
+```python
+# Instance Metrics (9 metrics)
+ec2.instances.total                 # Total instances
+ec2.instances.running               # Running instances
+ec2.instances.stopped               # Stopped instances
+ec2.instances.spot                  # Spot instances
+ec2.instances.ondemand              # On-demand instances
+ec2.instances.gpu_count             # GPU instance count
+ec2.instances.cpu_count             # CPU-only instance count
+ec2.instances.idle                  # Idle instance count
+ec2.instances.avg_age_days          # Average instance age
+ec2.instances.oldest_age_days       # Oldest instance age
+
+# EBS Metrics (6 metrics)
+ec2.ebs.volumes.total               # Total volumes
+ec2.ebs.volumes.attached            # Attached volumes
+ec2.ebs.volumes.unattached          # Unattached volumes
+ec2.ebs.volumes.size_gb             # Total storage size
+ec2.ebs.snapshots.total             # Total snapshots
+ec2.ebs.snapshots.size_gb           # Snapshot storage size
+
+# Cost Metrics (4 metrics)
+ec2.cost.running_hourly_estimate    # Hourly cost estimate
+ec2.cost.monthly_estimate           # Monthly cost estimate
+ec2.cost.spot_savings_pct           # Spot savings percentage
+```
+
+**Usage**:
+```bash
+# Test locally
+uv run python devops/datadog/run_collector.py ec2 --verbose
+
+# Push to Datadog
+uv run python devops/datadog/run_collector.py ec2 --push
+```
+
+#### D. Skypilot Collector ✅ Complete
 **Status**: Implemented and tested (2025-10-23)
 
 **Implemented Metrics** (30 total):
@@ -295,10 +340,10 @@ metta datadog collect skypilot
 metta datadog collect skypilot --push
 ```
 
-#### D. Asana Collector ✅ Complete
+#### E. Asana Collector ✅ Complete
 **Status**: Implemented and tested (2025-10-23)
 
-**Implemented Metrics** (30 total):
+**Implemented Metrics** (14 total):
 ```python
 # Workspace Task Status (9 metrics)
 asana.tasks.total, open, completed_7d, completed_30d

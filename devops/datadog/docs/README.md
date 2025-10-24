@@ -51,15 +51,19 @@ We use **Jsonnet** (instead of raw JSON or Terraform) because:
    - Go to Organization Settings → Application Keys (create with `dashboards_read` permission)
 
 2. **Set up environment**
+
+   All credentials are stored in AWS Secrets Manager. See [SECRETS_SETUP.md](../SECRETS_SETUP.md) for complete setup.
+
+   For local development, you can set environment variables:
    ```bash
    cd devops/datadog
 
-   # Copy and edit .env with your credentials
-   cp .env.sample .env
-   vim .env
+   # Set environment variables (optional, for local development)
+   export DD_API_KEY=your_api_key
+   export DD_APP_KEY=your_app_key
 
-   # Load credentials
-   source ./load_env.sh
+   # Or validate AWS secrets configuration
+   uv run python scripts/validate_secrets.py
    ```
 
 ### Complete Workflow
