@@ -243,10 +243,10 @@ class CoreTrainingLoop:
 
         for _ in range(update_epochs):
             stop_update_epoch = False
-            for mb_idx in range(self.experience.num_minibatches):
-                if mb_idx % self.accumulate_minibatches == 0:
-                    self.optimizer.zero_grad()
+            self.optimizer.zero_grad()
+            processed_minibatch = False
 
+            for mb_idx in range(self.experience.num_minibatches):
                 total_loss = torch.tensor(0.0, dtype=torch.float32, device=self.device)
                 stop_update_epoch_mb = False
 
@@ -262,25 +262,25 @@ class CoreTrainingLoop:
                     break
 
                 total_loss.backward()
-
-                # Optimizer step with gradient accumulation
-                if (mb_idx + 1) % self.accumulate_minibatches == 0:
-                    # Get max_grad_norm from first loss that has it
-                    actual_max_grad_norm = max_grad_norm
-                    for loss_obj in self.losses.values():
-                        if hasattr(loss_obj.loss_cfg, "max_grad_norm"):
-                            actual_max_grad_norm = loss_obj.loss_cfg.max_grad_norm
-                            break
-
-                    torch.nn.utils.clip_grad_norm_(self.policy.parameters(), actual_max_grad_norm)
-                    self.optimizer.step()
-
-                    if self.device.type == "cuda":
-                        torch.cuda.synchronize()
+                processed_minibatch = True
 
                 # Notify losses of minibatch end
                 for loss_obj in self.losses.values():
                     loss_obj.on_mb_end(context, mb_idx)
+
+            if processed_minibatch:
+                # Get max_grad_norm from first loss that has it
+                actual_max_grad_norm = max_grad_norm
+                for loss_obj in self.losses.values():
+                    if hasattr(loss_obj.loss_cfg, "max_grad_norm"):
+                        actual_max_grad_norm = loss_obj.loss_cfg.max_grad_norm
+                        break
+
+                torch.nn.utils.clip_grad_norm_(self.policy.parameters(), actual_max_grad_norm)
+                self.optimizer.step()
+
+                if self.device.type == "cuda":
+                    torch.cuda.synchronize()
 
             epochs_trained += 1
             if stop_update_epoch:
