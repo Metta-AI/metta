@@ -1,10 +1,14 @@
 from pathlib import Path
-from typing import Any
+from types import MethodType
+from typing import Any, Callable, List, Optional, cast
 
 from pydantic import Field
 
 from cogames.cogs_vs_clips.mission import Mission, MissionVariant, Site
-from cogames.cogs_vs_clips.procedural import make_hub_only_map_builder, make_machina_procedural_map_builder
+from cogames.cogs_vs_clips.procedural import (
+    make_hub_only_map_builder,
+    make_machina_procedural_map_builder,
+)
 from cogames.cogs_vs_clips.stations import (
     CarbonExtractorConfig,
     ChargerConfig,
@@ -15,9 +19,13 @@ from cogames.cogs_vs_clips.stations import (
     OxygenExtractorConfig,
     SiliconExtractorConfig,
 )
-from mettagrid.config.mettagrid_config import AssemblerConfig, ChestConfig, GridObjectConfig, MettaGridConfig
+from mettagrid.config.mettagrid_config import (
+    AssemblerConfig,
+    ChestConfig,
+    GridObjectConfig,
+    MettaGridConfig,
+)
 from mettagrid.map_builder.map_builder import MapBuilderConfig
-from typing import Callable, List
 
 
 def get_map(site: str) -> MapBuilderConfig:
@@ -248,6 +256,7 @@ SITES = [
 ]
 
 
+# TODO Make missions accept variants directly and allow them to select which variants are allowed to be applied
 # Training Facility Missions
 class HarvestMission(Mission):
     name: str = "harvest"
@@ -518,9 +527,9 @@ def make_game(num_cogs: int = 2, map_name: str = "training_facility_open_1.map")
 
 
 def _add_make_env_modifier(mission: Mission, modifier: Callable[[MettaGridConfig], None]) -> Mission:
-    modifiers: List[Callable[[MettaGridConfig], None]] = getattr(mission, "__env_modifiers__", None)
+    modifiers_attr: Optional[List[Callable[[MettaGridConfig], None]]] = getattr(mission, "__env_modifiers__", None)
 
-    if modifiers is None:
+    if modifiers_attr is None:
         original_make_env = mission.make_env.__func__
         original_instantiate = mission.instantiate.__func__
 
@@ -542,7 +551,8 @@ def _add_make_env_modifier(mission: Mission, modifier: Callable[[MettaGridConfig
         object.__setattr__(mission, "__env_modifiers__", [])
         object.__setattr__(mission, "make_env", MethodType(wrapped_make_env, mission))
         object.__setattr__(mission, "instantiate", MethodType(wrapped_instantiate, mission))
-        modifiers = mission.__env_modifiers__
-
+    modifiers: List[Callable[[MettaGridConfig], None]] = cast(
+        List[Callable[[MettaGridConfig], None]], mission.__env_modifiers__
+    )
     modifiers.append(modifier)
     return mission
