@@ -135,6 +135,7 @@ def make_curriculum(
             min_samples_for_lp=10,  # Use exploration bonus for first 10 samples
             max_slice_axes=3,
             enable_detailed_slice_logging=enable_detailed_slice_logging,
+            lp_score_temperature=0.1,  # Low temperature to amplify small LP differences
         )
 
     return CurriculumConfig(

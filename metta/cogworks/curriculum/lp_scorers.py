@@ -376,7 +376,7 @@ class BidirectionalLPScorer(LPScorer):
         """Calculate raw learning progress (fast EMA - slow EMA)."""
         if self._p_fast is None or self._p_slow is None:
             return np.array([])
-        return self._p_fast - self._p_slow
+        return np.abs(self._p_fast - self._p_slow)
 
     def _sigmoid(self, x: np.ndarray) -> np.ndarray:
         """Sigmoid function with clipping to prevent overflow."""
@@ -404,6 +404,12 @@ class BidirectionalLPScorer(LPScorer):
         if self.config.performance_bonus_weight > 0 and self._p_true is not None:
             performance_bonus = self._p_true * self.config.performance_bonus_weight
             subprobs = subprobs + performance_bonus
+
+        # Apply temperature scaling before sigmoid
+        # Low temperature (< 1.0) amplifies differences, high temperature (> 1.0) smooths them
+        temperature = self.config.lp_score_temperature
+        if temperature > 0:
+            subprobs = subprobs / temperature
 
         subprobs = self._sigmoid(subprobs)
 

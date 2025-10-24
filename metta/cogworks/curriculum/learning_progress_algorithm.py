@@ -27,6 +27,7 @@ class LearningProgressConfig(CurriculumAlgorithmConfig):
     exploration_bonus: float = 0.1
     progress_smoothing: float = 0.01  # For bidirectional reweighting
     performance_bonus_weight: float = 0.0  # Weight for performance bonus in LP calculation
+    lp_score_temperature: float = 0.1  # Temperature for rescaling LP scores (low = amplify differences)
 
     # Task distribution and sampling
     num_active_tasks: int = 1000

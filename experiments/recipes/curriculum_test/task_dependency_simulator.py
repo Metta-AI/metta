@@ -704,6 +704,7 @@ def create_curriculum(
     slow_timescale_factor: float = 0.02,
     exploration_bonus: float = 0.1,
     progress_smoothing: float = 0.05,
+    lp_score_temperature: float = 0.1,
     use_bidirectional: bool = True,
     max_slice_axes: int = 3,
     num_active_tasks: int = 1000,
@@ -726,6 +727,7 @@ def create_curriculum(
         slow_timescale_factor=slow_timescale_factor,
         exploration_bonus=exploration_bonus,
         progress_smoothing=progress_smoothing,
+        lp_score_temperature=lp_score_temperature,
         max_slice_axes=max_slice_axes,
         enable_detailed_slice_logging=enable_detailed_slice_logging,
         num_active_tasks=num_active_tasks,
@@ -759,6 +761,7 @@ def simulate_task_dependencies(
     slow_timescale_factor: float = 0.2,
     exploration_bonus: float = 0.1,
     progress_smoothing: float = 0.05,
+    lp_score_temperature: float = 0.1,
     use_bidirectional: bool = True,
     max_slice_axes: int = 3,
     num_active_tasks: int = 1000,
@@ -824,6 +827,7 @@ def simulate_task_dependencies(
         slow_timescale_factor=slow_timescale_factor,
         exploration_bonus=exploration_bonus,
         progress_smoothing=progress_smoothing,
+        lp_score_temperature=lp_score_temperature,
         use_bidirectional=use_bidirectional,
         max_slice_axes=max_slice_axes,
         num_active_tasks=num_active_tasks,
@@ -1034,6 +1038,7 @@ class TaskDependencySimulationTool(Tool):
     slow_timescale_factor: float = 1 / 5
     exploration_bonus: float = 0.1
     progress_smoothing: float = 1e-4
+    lp_score_temperature: float = 0.1
     use_bidirectional: bool = True
     max_slice_axes: int = 3
     num_active_tasks: int = 1000
@@ -1072,6 +1077,7 @@ class TaskDependencySimulationTool(Tool):
                 slow_timescale_factor=self.slow_timescale_factor,
                 exploration_bonus=self.exploration_bonus,
                 progress_smoothing=self.progress_smoothing,
+                lp_score_temperature=self.lp_score_temperature,
                 use_bidirectional=self.use_bidirectional,
                 max_slice_axes=self.max_slice_axes,
                 num_active_tasks=self.num_active_tasks,
@@ -1191,6 +1197,7 @@ def train(
         slow_timescale_factor=0.2,  # Slow EMA is 5x slower
         exploration_bonus=0.2,  # Reasonable exploration
         progress_smoothing=0.01,  # Smooth reweighting
+        lp_score_temperature=0.1,  # Low temperature to amplify small LP differences
         use_bidirectional=True,  # Use bidirectional LP scoring (default)
         # Task pool management
         num_active_tasks=200,  # Reasonable pool size
