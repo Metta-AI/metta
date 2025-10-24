@@ -24,9 +24,10 @@
 - Framework ready for additional collectors
 
 ### ✅ Deployment Infrastructure
-- **Helm chart** for CronJob deployment (`devops/charts/dashboard-cronjob/`)
-- **Multi-collector support**: Separate CronJobs for GitHub, Skypilot, Asana collectors
-- **Docker image** updated with all collector dependencies (asana, skypilot, github)
+- **Helm chart** for unified CronJob deployment (`devops/charts/dashboard-cronjob/`)
+- **Single CronJob** runs all 6 collectors sequentially every 15 minutes
+- **Docker image** updated with all collector dependencies
+- **Kubernetes RBAC** for reading pods, deployments, and metrics
 - **CI/CD pipeline** automatically builds and deploys on push to main
 - **AWS Secrets Manager** integration for credentials
 - **IAM Roles for Service Accounts** (IRSA) with proper trust policies
