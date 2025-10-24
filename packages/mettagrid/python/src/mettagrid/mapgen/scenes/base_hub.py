@@ -184,16 +184,17 @@ class BaseHub(Scene[BaseHubConfig]):
         # Spawn pads: ensure at least spawn_count if provided, otherwise place 4
         desired = max(0, int(cfg.spawn_count)) if cfg.spawn_count is not None else 4
         base_positions = [(cx, cy - 2), (cx + 2, cy), (cx, cy + 2), (cx - 2, cy)]
-        positions: list[tuple[int, int]] = []
-        for p in base_positions:
-            if len(positions) >= desired:
+        valid_positions: list[tuple[int, int]] = []
+        for sx, sy in base_positions:
+            if len(valid_positions) >= desired:
                 break
-            positions.append(p)
+            if 0 <= sx < w and 0 <= sy < h and grid[sy, sx] == "empty":
+                valid_positions.append((sx, sy))
 
-        # If more spawns are needed, add rings around center
+        # If more spawns are needed, expand rings until we have enough empty tiles
         radius = 3
-        while len(positions) < desired and radius < max(h, w):
-            # cardinal and diagonal positions for this radius
+        max_radius = max(h, w)
+        while len(valid_positions) < desired and radius < max_radius:
             candidates = [
                 (cx + radius, cy),
                 (cx - radius, cy),
@@ -204,13 +205,14 @@ class BaseHub(Scene[BaseHubConfig]):
                 (cx - radius, cy + radius),
                 (cx - radius, cy - radius),
             ]
-            for p in candidates:
-                if len(positions) >= desired:
+            for sx, sy in candidates:
+                if len(valid_positions) >= desired:
                     break
-                positions.append(p)
+                if 0 <= sx < w and 0 <= sy < h and grid[sy, sx] == "empty":
+                    valid_positions.append((sx, sy))
             radius += 1
 
-        self._place_spawn_pads(positions[:desired])
+        self._place_spawn_pads(valid_positions[:desired])
 
         # Place corner objects symmetrically
         corner_positions = [
