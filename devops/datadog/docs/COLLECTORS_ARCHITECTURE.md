@@ -72,8 +72,7 @@ devops/datadog/
 │
 ├── scripts/                       # Management scripts
 │   ├── run_collector.py           # CLI to run any collector
-│   ├── list_collectors.py         # List available collectors
-│   └── test_collector.py          # Test collector locally
+│   └── list_collectors.py         # List available collectors
 │
 ├── docs/                          # Documentation
 │   ├── COLLECTORS_ARCHITECTURE.md (this file)

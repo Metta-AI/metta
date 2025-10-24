@@ -1001,184 +1001,27 @@ git push
 
 ---
 
-## Improved FoM Grid Visualization Exploration (2025-10-23)
+## FoM Grid Visualization Options (2025-10-24)
 
-**Context**: After deploying the System Health Rollup dashboard with a 7×7 grid of query_value widgets, explored alternative visualization approaches to improve alignment, add text labels, and maintain Datadog-native data management.
+**Two Working Approaches**:
 
-### Three Approaches Evaluated
+1. **Widget Grid** - [2mx-kfj-8pi](https://app.datadoghq.com/dashboard/2mx-kfj-8pi/system-health-rollup)
+   - 65 individual widgets (49 data cells + 16 labels)
+   - Native Datadog widgets, simple and reliable
+   - No text labels on cells
 
-#### Approach 1: Widget Grid (Current - Deployed)
+2. **Wildcard Widget** - [bew-kg3-w4f](https://app.datadoghq.com/dashboard/bew-kg3-w4f/system-health-rollup-wildcard)
+   - Single widget with Vega-Lite visualization
+   - Text labels showing exact values
+   - Easier to maintain (1 widget vs 65)
 
-**What**: 65 individual widgets (49 query_value cells + 7 row labels + 7 column headers + 1 corner + 1 title)
+**Note**: Image-based approach (matplotlib → S3 → display) was rejected to keep data in Datadog.
 
-**Pros**:
-- ✅ Native Datadog widgets - simple and reliable
-- ✅ Datadog manages all historical data (no external storage)
-- ✅ Already working and deployed
-- ✅ Interactive hover for values
-- ✅ Conditional color formatting
+**Generators**:
+- Widget Grid: `scripts/generate_health_grid.py`
+- Wildcard: `scripts/generate_wildcard_fom_grid.py`
 
-**Cons**:
-- ❌ Limited to 12-column Datadog grid (layout constraints)
-- ❌ No text labels showing exact FoM values
-- ❌ Manual alignment required (corner placeholders, precise width calculations)
-- ❌ 65 separate widgets to maintain
-
-**Status**: ✅ Deployed at [2mx-kfj-8pi](https://app.datadoghq.com/dashboard/2mx-kfj-8pi/system-health-rollup)
-
-**Files**:
-- Generator: `devops/datadog/scripts/generate_health_grid.py`
-- Template: `devops/datadog/templates/system_health_rollup.json`
-
----
-
-#### Approach 2: Image Collector with Matplotlib (Explored)
-
-**What**: New collector type that fetches FoM data from Datadog, generates heatmap image with matplotlib, uploads to S3/Imgur, displays via image widget
-
-**Pros**:
-- ✅ Full visual control (matplotlib/seaborn customization)
-- ✅ Text labels showing exact values
-- ✅ Perfect grid alignment
-- ✅ Can add annotations, sparklines, custom formatting
-
-**Cons**:
-- ❌ **Requires external storage** (S3 or Imgur) - user rejected this approach
-- ❌ Static image - no interactivity
-- ❌ More complex architecture (fetch → generate → upload → display)
-- ❌ Additional dependencies (matplotlib, seaborn, pillow, boto3/imgurpython)
-- ❌ Higher maintenance complexity
-
-**Status**: ❌ Rejected due to S3 dependency requirement
-
-**Files**:
-- Architecture plan: `devops/datadog/docs/IMAGE_COLLECTOR_PLAN.md` (reference only)
-
-**User Feedback**: "I am not crazy about the s3 data layer ... I'd rather have datadog manage the historical data if at all possible"
-
----
-
-#### Approach 3: Wildcard Widget with Vega-Lite (Recommended)
-
-**What**: Single Wildcard widget using Vega-Lite visualization to create interactive heatmap with 49 Datadog metric queries and data transforms
-
-**Pros**:
-- ✅ **Datadog manages all data** - no external storage needed
-- ✅ Full visual control via Vega-Lite grammar of graphics
-- ✅ Text labels showing exact FoM values overlaid on heatmap
-- ✅ Perfect grid alignment (automatic Vega-Lite layout)
-- ✅ Interactive tooltips with metric details
-- ✅ **1 widget instead of 65** - much easier to maintain
-- ✅ Native to Datadog (supported widget type)
-- ✅ Can add advanced interactivity (click-through, selection, etc.)
-
-**Cons**:
-- ⚠️ Medium complexity - requires understanding Vega-Lite transforms
-- ⚠️ May have query limits (49 metric queries in one widget)
-- ⚠️ Wildcard widget may not be available in our Datadog plan (needs verification)
-- ⚠️ More complex debugging if transforms fail
-
-**Status**: ❌ Blocked by Datadog API limitations (see below)
-
-**API Blocker Discovered** (2025-10-23):
-Attempted to deploy Wildcard widget via Datadog API but encountered persistent validation errors:
-```
-Error: "Invalid widget definition at position 0 of type wildcard.
-        Error: 'type' is a required property."
-```
-
-Even minimal test cases following documented structure were rejected. Possible causes:
-1. Wildcard widgets may only be creatable via UI, not API
-2. May require specific Datadog plan tier or feature flag
-3. API structure differs from public documentation
-4. Feature may be in beta with limited API support
-
-**Alternative Approach**: Could create manually in UI and export JSON to understand correct structure, but this defeats the purpose of programmatic generation.
-
-**Recommendation**: Continue with current Widget Grid approach which is proven to work and already deployed.
-
-**Files**:
-- Specification: `devops/datadog/docs/WILDCARD_FOM_GRID_SPEC.md` (includes blocker details)
-- Generator: `devops/datadog/scripts/generate_wildcard_fom_grid.py` (reference only)
-- Template: `devops/datadog/templates/system_health_rollup_wildcard.json` (not deployable)
-
-### Technical Implementation: Wildcard Widget
-
-**Architecture**:
-```
-Datadog Wildcard Widget
-├── 49 Metric Queries (7 metrics × 7 days with timeshift)
-│   ├── tests_passing_{today,1d,2d,3d,4d,5d,6d}
-│   ├── failing_workflows_{today,1d,2d,3d,4d,5d,6d}
-│   ├── ... (5 more metrics)
-│   └── All queries use: avg:health.ci.*.fom{*}.timeshift(-Nd)
-│
-└── Vega-Lite Visualization
-    ├── Transform: Fold 49 fields into rows (metric, day, value)
-    ├── Layer 1: Rect marks with color encoding (FoM → RGB)
-    ├── Layer 2: Text marks with value labels
-    └── Config: Color scale [0.0-0.3: red, 0.3-0.7: yellow, 0.7-1.0: green]
-```
-
-**Vega-Lite Color Encoding**:
-```json
-{
-  "scale": {
-    "domain": [0, 0.3, 0.7, 1.0],
-    "range": ["#dc3545", "#ffc107", "#ffc107", "#28a745"],
-    "type": "threshold"
-  }
-}
-```
-
-**Data Transform Flow**:
-1. Datadog returns scalar values: `{"tests_passing_today": 0.95, "tests_passing_1d": 0.92, ...}`
-2. Fold transform: Creates 49 rows with `[metric_day, value]` columns
-3. Calculate transforms: Extract metric name and day from field names
-4. Visual encoding: Map to x (day), y (metric), color (value), text (value)
-
-### Next Steps for Wildcard Widget Approach
-
-**Phase 1: Verification (30 min)**
-1. Check if Wildcard widget is available in our Datadog plan
-2. Test if 49 queries in one widget is within limits
-3. Verify Vega-Lite version support
-
-**Phase 2: POC Deployment (1 hour)**
-1. Push generated dashboard JSON to Datadog
-2. Verify all metrics display correctly
-3. Test data transform logic
-4. Check interactive tooltips work
-
-**Phase 3: Comparison (30 min)**
-1. Compare side-by-side with current widget grid
-2. Evaluate visual quality, performance, usability
-3. Gather team feedback
-4. Make go/no-go decision
-
-**Phase 4: Migration (if approved) (30 min)**
-1. Update dashboard ID in templates
-2. Deprecate old widget grid generator
-3. Update documentation
-4. Communicate change to team
-
-**Total Estimated Time**: 2.5 hours
-
-### Comparison Table
-
-| Feature | Widget Grid (Current) | Image Collector | Wildcard Widget (POC) |
-|---------|----------------------|-----------------|----------------------|
-| **Data Storage** | ✅ Datadog | ❌ S3/Imgur | ✅ Datadog |
-| **Text Labels** | ❌ No | ✅ Yes | ✅ Yes |
-| **Grid Alignment** | ⚠️ Manual | ✅ Perfect | ✅ Perfect |
-| **Interactivity** | ✅ Hover | ❌ None | ✅ Tooltips + more |
-| **Maintenance** | ⚠️ 65 widgets | ❌ Complex | ✅ 1 widget |
-| **Visual Control** | ❌ Limited | ✅ Full | ✅ Full |
-| **Complexity** | ✅ Low | ❌ High | ⚠️ Medium |
-| **External Deps** | ✅ None | ❌ S3, matplotlib | ✅ None |
-| **Implementation** | ✅ Complete | ❌ Not started | ✅ POC ready |
-
-**Recommendation**: Deploy Wildcard widget POC and compare with current grid. If it works well (no plan limitations, acceptable performance), migrate to Wildcard for improved maintainability and visual quality.
+**Reference**: See `docs/WILDCARD_WIDGET.md` for API structure details.
 
 ---
 
@@ -1187,14 +1030,15 @@ Datadog Wildcard Widget
 ### Dashboard URLs
 
 ```
-✅ GitHub CI/CD:           https://app.datadoghq.com/dashboard/7gy-9ub-2sq/github-cicd-dashboard
-✅ Skypilot Jobs:          https://app.datadoghq.com/dashboard/wjp-n4n-dsf/skypilot-jobs-dashboard
-✅ System Health Rollup:   https://app.datadoghq.com/dashboard/2mx-kfj-8pi/system-health-rollup
-✅ Asana Project Mgmt:     https://app.datadoghq.com/dashboard/rx3-q2m-u9d/asana-project-management
-✅ EC2 Infrastructure:     https://app.datadoghq.com/dashboard/qc6-92h-hap/ec2-infrastructure
-   Training & WandB:       (not yet created)
-   Eval & Testing:         (not yet created)
-   Collector Health:       (not yet created)
+✅ GitHub CI/CD:                 https://app.datadoghq.com/dashboard/7gy-9ub-2sq/github-cicd-dashboard
+✅ Skypilot Jobs:                https://app.datadoghq.com/dashboard/wjp-n4n-dsf/skypilot-jobs-dashboard
+✅ System Health Rollup (Grid):  https://app.datadoghq.com/dashboard/2mx-kfj-8pi/system-health-rollup
+✅ System Health (Wildcard):     https://app.datadoghq.com/dashboard/bew-kg3-w4f/system-health-rollup-wildcard
+✅ Asana Project Mgmt:           https://app.datadoghq.com/dashboard/rx3-q2m-u9d/asana-project-management
+✅ EC2 Infrastructure:           https://app.datadoghq.com/dashboard/qc6-92h-hap/ec2-infrastructure
+   Training & WandB:             (not yet created)
+   Eval & Testing:               (not yet created)
+   Collector Health:             (not yet created)
 ```
 
 ### Key Commands
@@ -1228,7 +1072,7 @@ Main Workplan:         devops/datadog/WORKPLAN.md
 
 ---
 
-**Last Updated**: 2025-10-23
+**Last Updated**: 2025-10-24
 **Owner**: DevOps team
-**Status**: Phase 1 complete (5/5 dashboards), exploring improved visualization options
-**Next Review**: After Wildcard widget evaluation
+**Status**: Phase 1 complete (6/6 dashboards including Wildcard widget POC)
+**Next Review**: After Wildcard widget data validation
