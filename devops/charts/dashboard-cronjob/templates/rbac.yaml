@@ -1,0 +1,36 @@
+{{- if .Values.serviceAccount.create -}}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ include "dashboard-cronjob.fullname" . }}
+  labels:
+    {{- include "dashboard-cronjob.labels" . | nindent 4 }}
+rules:
+  # Kubernetes collector needs to read pods and deployments
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list"]
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    verbs: ["get", "list"]
+  # Kubernetes collector needs to read pod metrics from metrics-server
+  - apiGroups: ["metrics.k8s.io"]
+    resources: ["pods"]
+    verbs: ["get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ include "dashboard-cronjob.fullname" . }}
+  labels:
+    {{- include "dashboard-cronjob.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ include "dashboard-cronjob.fullname" . }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "dashboard-cronjob.serviceAccountName" . }}
+    namespace: {{ .Release.Namespace }}
+{{- end }}

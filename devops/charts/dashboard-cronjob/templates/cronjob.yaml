@@ -50,6 +50,11 @@ spec:
               value: {{ .Values.asana.bugsProjectGid | quote }}
             {{- end }}
             {{- end }}
+            {{- if .Values.kubernetes }}
+            # Kubernetes configuration
+            - name: K8S_CLUSTER_NAME
+              value: {{ .Values.kubernetes.clusterName | quote }}
+            {{- end }}
             # Secrets are accessed from AWS Secrets Manager via the serviceAccount IAM role
             # The softmax.aws.secrets_manager module handles fetching them at runtime
             resources:

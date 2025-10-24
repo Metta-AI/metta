@@ -104,18 +104,17 @@ uv run python scripts/validate_secrets.py
 ### View Collected Metrics
 
 ```bash
-# See all currently collected metrics
-metta datadog collect github
+# Run all collectors (recommended - used by CronJob)
+uv run python devops/datadog/run_all_collectors.py
 
-# Output shows 17+ metrics across categories:
-# - Pull Requests (open, merged, time to merge)
-# - Branches (active branches)
-# - Commits (total, per developer, hotfixes)
-# - CI/CD (workflow runs, failures, duration)
-# - Developers (active count, productivity)
+# Run individual collector
+uv run python devops/datadog/run_collector.py github --verbose
+uv run python devops/datadog/run_collector.py kubernetes --verbose
+uv run python devops/datadog/run_collector.py ec2 --verbose
 
 # Push metrics to Datadog
-metta datadog collect github --push
+uv run python devops/datadog/run_all_collectors.py  # Pushes all
+uv run python devops/datadog/run_collector.py github --push  # Individual
 ```
 
 ### Deploy a Dashboard
@@ -206,6 +205,11 @@ devops/datadog/
 ## Common Commands
 
 ```bash
+# Collector management (all collectors run together every 15 minutes)
+uv run python devops/datadog/run_all_collectors.py              # Run all collectors
+uv run python devops/datadog/run_collector.py github --verbose  # Run individual collector
+uv run python devops/datadog/run_collector.py kubernetes --push # Push individual collector
+
 # Dashboard management
 metta datadog dashboard build        # Build all dashboards from Jsonnet
 metta datadog dashboard push         # Upload dashboards to Datadog
@@ -214,11 +218,6 @@ metta datadog dashboard list         # List dashboards in Datadog
 metta datadog dashboard metrics      # Discover available metrics
 metta datadog dashboard diff         # Show git diff of changes
 metta datadog dashboard clean        # Remove generated JSON files
-
-# Collector management
-metta datadog collect github         # Run GitHub collector (dry-run)
-metta datadog collect github --push  # Run and push metrics to Datadog
-metta datadog list-collectors        # List available collectors
 
 # Utility
 metta datadog env                    # Check environment variables
