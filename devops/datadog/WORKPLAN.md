@@ -1,85 +1,214 @@
 # Datadog Observability System - Work Plan
 
-**Current Status**: Phase 5 - Six collectors implemented (GitHub, Skypilot, Asana, EC2, WandB, Kubernetes) with 116
-total metrics **Branch**: `robb/1022-datadog` **PR**: [#3384](https://github.com/Metta-AI/metta/pull/3384) **Last
-Updated**: 2025-10-24
+**Current Status**: Phase 6 Complete - Production deployment with 7 collectors, 8 dashboards, and 123+ metrics
+
+**Branch**: `robb/1022-datadog` **PR**: [#3384](https://github.com/Metta-AI/metta/pull/3384) **Last Updated**: 2025-10-24
 
 ---
 
-## What We Built (Phases 1-4 Complete)
+## ✅ What We Built (Phases 1-6 Complete)
 
-### ✅ Modular Collector Architecture
+### 🔌 Seven Collectors Deployed (123+ metrics)
 
-- **BaseCollector pattern** for consistent collector implementation
-- **Six collectors implemented and tested**:
-  - GitHub (28 metrics): PRs, commits, CI/CD, developers
-  - Skypilot (30 metrics): Jobs, runtime stats, resources, clusters
-  - Asana (14 metrics): Tasks, velocity, Bugs project workflow
-  - EC2 (19 metrics): Instances, costs, utilization, EBS volumes
-  - WandB (10 metrics): Training runs, model performance, GPU hours
-  - Kubernetes (15 metrics): Resource efficiency, pod health, waste tracking
-- **116 total metrics** ready to deploy
-- **GitHub collector** deployed to production (Helm revision 16, monitoring namespace)
-- **Metrics flowing successfully** to Datadog for 24+ hours
-- Framework ready for additional collectors
+All collectors running in production via unified CronJob (every 15 minutes):
 
-### ✅ Deployment Infrastructure
+#### 1. GitHub Collector (28 metrics)
 
-- **Helm chart** for unified CronJob deployment (`devops/charts/dashboard-cronjob/`)
-- **Single CronJob** runs all 6 collectors sequentially every 15 minutes
-- **Docker image** updated with all collector dependencies
-- **Kubernetes RBAC** for reading pods, deployments, and metrics
-- **CI/CD pipeline** automatically builds and deploys on push to main
-- **AWS Secrets Manager** integration for credentials
-- **IAM Roles for Service Accounts** (IRSA) with proper trust policies
-- **Comprehensive deployment documentation** (`devops/k8s/BUILD_AND_DEPLOY.md`)
-- Kubernetes deployment scripts and helpers
+**Pull Requests**: open, merged_7d, closed_without_merge_7d, avg_time_to_merge_hours, stale_count_14d, cycle_time_hours, with_review_comments_pct, avg_comments_per_pr
 
-### ✅ Dashboard Management System
-
-- Jsonnet-based dashboard configuration
-- Modular widget library for reusable components
-- Python scripts for dashboard operations (push, fetch, export, batch)
-- Template dashboards ready to customize
-
-### ✅ Comprehensive Documentation
-
-- **Quick Start Guide** - Getting started in 10 minutes
-- **Collectors Architecture** - System design and patterns
-- **Adding New Collectors** - Step-by-step implementation guide
-- **CI/CD Metrics Catalog** - Complete list of 25 GitHub metrics
-- **Jsonnet Design** - Dashboard configuration patterns
-- **Widget Reference** - Datadog widget types and usage
-
-### ✅ Production Metrics (GitHub Collector)
-
-**Pull Requests**: open, merged_7d, closed_without_merge_7d, avg_time_to_merge_hours, stale_count_14d, cycle_time_hours
-
-**Commits**: total_7d, hotfix, reverts, per_developer_7d
+**Commits**: total_7d, hotfix, reverts, per_developer_7d, force_merge_7d
 
 **Branches**: active
 
-**CI/CD**: tests_passing_on_main, workflow_runs_7d, failed_workflows_7d, avg_workflow_duration_minutes,
-duration_p50_minutes, duration_p90_minutes, duration_p99_minutes
-
-**Developers**: active_7d
+**CI/CD**: tests_passing_on_main, benchmarks_passing, workflow_runs_7d, failed_workflows_7d, avg_workflow_duration_minutes, duration_p50_minutes, duration_p90_minutes, duration_p99_minutes, timeout_cancellations_7d, flaky_checks_7d
 
 **Code Changes**: lines_added_7d, lines_deleted_7d, files_changed_7d
 
-**Pull Request Quality**: with_review_comments_pct, avg_comments_per_pr
+**Developers**: active_7d
+
+#### 2. Skypilot Collector (30 metrics)
+
+**Job Status**: queued, running, failed, failed_7d, succeeded, cancelled
+
+**Runtime Distribution**: min, max, avg, p50, p90, p99 (for running jobs)
+
+**Runtime Buckets**: 0-1h, 1-4h, 4-24h, over_24h
+
+**Resource Utilization**: L4/A10G/H100 GPU counts, total GPUs, spot/on-demand jobs
+
+**Reliability**: jobs with recoveries, recovery count (avg/max)
+
+**Regional Distribution**: us-east-1, us-west-2, other
+
+**Team Activity**: active user count
+
+**Cluster Health**: active clusters
+
+**Key Insights**: Runtime p99 = 14 days, 85% spot usage, 184 L4 GPUs across 24 users
+
+#### 3. Asana Collector (14 metrics)
+
+**Workspace Tasks**: total, open, completed_7d, completed_30d, overdue, due_today, due_this_week, no_due_date, unassigned, assigned
+
+**Velocity**: completed_per_day_7d, completion_rate_pct
+
+**Cycle Time**: avg_hours, p50_hours, p90_hours
+
+**Team Activity**: active_7d
+
+**Bugs Project**: triage_count, active_count, backlog_count, other_count, total_open, completed_7d, completed_30d, created_7d, avg_age_days, oldest_bug_days
+
+**Features**: Section-based workflow tracking, aging statistics, velocity tracking
+
+#### 4. EC2 Collector (19 metrics)
+
+**Instances**: total, running, stopped, spot, on-demand, gpu_count, cpu_count, idle, avg_age_days, oldest_age_days
+
+**EBS Volumes**: total, attached, unattached, size_gb
+
+**EBS Snapshots**: total, size_gb
+
+**Cost Estimates**: running_hourly_estimate, monthly_estimate, spot_savings_pct
+
+#### 5. WandB Collector (10 metrics)
+
+**Training Progress**: runs.active, runs.completed_7d, runs.failed_7d
+
+**Model Performance**: metrics.best_accuracy, metrics.latest_loss
+
+**Resource Usage**: training.duration_hours, training.cost_estimate_usd, training.gpu_utilization_pct, training.gpu_hours_7d, training.runs_per_user
+
+#### 6. Kubernetes Collector (15 metrics)
+
+**Resource Efficiency**: pods.total, pods.running, pods.pending, pods.failed, deployments.total, deployments.available, deployments.unavailable
+
+**Pod Health**: restarts_total, restarts_7d, oomkilled_7d
+
+**Resource Waste Tracking**: cpu_request_waste_cores, memory_request_waste_gb, gpu_allocation_efficiency_pct
+
+**Node Health**: nodes.ready, nodes.not_ready
+
+#### 7. Health FoM Collector (7 metrics)
+
+**CI/CD Figure of Merit** (0.0-1.0 scale):
+
+- health.ci.tests_passing.fom
+- health.ci.benchmarks_passing.fom
+- health.ci.workflow_success_rate.fom
+- health.ci.duration.fom
+- health.commits.quality.fom (reverts + hotfixes)
+- health.prs.velocity.fom
+- health.prs.quality.fom (review coverage)
+
+**Features**: Reads raw metrics from Datadog, applies normalization formulas, emits 0.0-1.0 health scores
+
+**Color Scale**: 1.0=green, 0.7-1.0=good, 0.3-0.7=warning, 0.0-0.3=critical
 
 ---
 
-## Immediate Priorities (This Week)
+### 📊 Eight Production Dashboards
 
-### 1. ✅ Clean Up Old Code (Phase 3C) - COMPLETED
+```
+devops/datadog/templates/
+├── github_cicd.json                      # 15KB - CI/CD metrics and workflow health
+├── skypilot_jobs.json                    # 18KB - Job tracking and GPU utilization
+├── asana.json                            # 17KB - Project tracking and bug workflow
+├── ec2.json                              # 25KB - Infrastructure monitoring and costs
+├── system_health_rollup.json             # 67KB - 7×7 FoM grid (65 widgets)
+├── system_health_rollup_wildcard.json    # 20KB - 7×7 FoM grid (Vega-Lite)
+├── policy_evaluator.json                 # 4.2KB - Policy evaluation metrics
+└── demo.json                             # 29KB - Demo/reference dashboard
+```
 
-**Goal**: Remove legacy code from `softmax/src/softmax/dashboard/`
+**Dashboard Features**:
 
-**Completed 2025-10-24**:
+- **System Health Rollup**: 7×7 grid showing 7 FoM metrics over 7 days with color coding
+- **Wildcard Widget**: Vega-Lite version with interactive tooltips and custom visualizations
+- **Collector-Specific**: Dedicated dashboards for GitHub, Skypilot, Asana, EC2
+- **All deployed to Datadog**: Live and accessible
+
+---
+
+### 🏗️ Production Infrastructure
+
+#### Deployment System
+
+- **Helm Chart**: `devops/charts/dashboard-cronjob/` for unified CronJob deployment
+- **Single CronJob**: Runs all 7 collectors sequentially every 15 minutes
+- **Docker Image**: `softmax-dashboard:latest` with all collector dependencies
+- **Kubernetes Namespace**: `monitoring`
+- **Current Revision**: Helm revision 16+
+- **Uptime**: 24+ hours of successful metric collection
+
+#### Security & Credentials
+
+- **AWS Secrets Manager**: All API keys and tokens stored securely
+- **IAM Roles for Service Accounts** (IRSA): Proper trust policies configured
+- **Kubernetes RBAC**: Service account with read permissions for pods/deployments
+- **GitHub Token**: Stored in AWS Secrets Manager (`github/dashboard-token`)
+- **Datadog Keys**: API and App keys in Secrets Manager
+- **Asana Token**: Personal access token in Secrets Manager
+
+#### CI/CD Pipeline
+
+- **Automatic Builds**: Docker image built on push to main
+- **Automatic Deployment**: Helm chart deployed to Kubernetes
+- **Health Checks**: Metrics verification post-deployment
+- **Rollback Capability**: Helm revision history maintained
+
+#### Dashboard Management Tools
+
+- **Python Scripts** (`devops/datadog/scripts/`):
+  - `push_dashboard.py` - Deploy dashboards to Datadog
+  - `fetch_dashboards.py` - Download dashboards from Datadog
+  - `export_dashboard.py` - Export specific dashboard by ID
+  - `batch_export.py` - Export multiple dashboards
+  - `delete_dashboard.py` - Remove dashboard from Datadog
+  - `list_metrics.py` - List all available metrics
+  - `generate_health_grid.py` - Generate 65-widget grid dashboard
+  - `generate_wildcard_fom_grid.py` - Generate Vega-Lite heatmap
+
+- **CLI**: `metta datadog` command for all operations
+
+---
+
+### 📚 Comprehensive Documentation
+
+**Implementation Guides**:
+
+- `docs/QUICK_START.md` - Getting started in 10 minutes
+- `docs/COLLECTORS_ARCHITECTURE.md` - System design and patterns
+- `docs/ADDING_NEW_COLLECTOR.md` - Step-by-step implementation guide
+- `docs/DEPLOYMENT_GUIDE.md` - Production deployment procedures
+- `devops/k8s/BUILD_AND_DEPLOY.md` - Kubernetes deployment details
+
+**Reference Documentation**:
+
+- `docs/CI_CD_METRICS.md` - Complete GitHub metrics catalog
+- `docs/METRIC_CONVENTIONS.md` - Naming and tagging standards
+- `docs/DATADOG_WIDGET_REFERENCE.md` - Widget types and usage
+- `docs/WILDCARD_WIDGET.md` - Vega-Lite custom visualizations
+- `docs/DASHBOARD_WORKPLAN.md` - Dashboard design evolution
+- `docs/HEALTH_DASHBOARD_SPEC.md` - FoM grid specifications
+
+**Design Documentation**:
+
+- `docs/JSONNET_DESIGN.md` - Jsonnet system design (future)
+- `docs/JSONNET_PROTOTYPE.md` - Jsonnet implementation guide (future)
+- `docs/HELM_CRONJOB_CONVENTIONS.md` - Helm chart patterns
+- `docs/IMAGE_COLLECTOR_PLAN.md` - Rejected matplotlib approach
+
+**Secrets Management**:
+
+- `SECRETS_SETUP.md` - AWS Secrets Manager setup guide
+- `.env.sample` - Example environment configuration
+
+---
+
+### 🧹 Legacy Cleanup (Completed 2025-10-24)
 
 - ✅ Removed `softmax/src/softmax/dashboard/` directory (5 files)
-- ✅ Removed CLI registration in `metta_cli.py`
+- ✅ Removed CLI registration for `metta softmax-system-health`
 - ✅ Removed legacy dashboard templates (`softmax_pulse.json`, `softmax_system_health.json`)
 - ✅ Updated WORKPLAN.md with current dashboard inventory
 - ✅ All 24 old metrics verified migrated to new GitHub collector
@@ -87,348 +216,77 @@ duration_p50_minutes, duration_p90_minutes, duration_p99_minutes
 
 ---
 
-### 2. Finalize Current PR (Phase 4B-4C) - 4 hours
+## 🎯 Immediate Priorities (This Week)
+
+### 1. ✅ Clean Up Old Code - COMPLETED
+
+**Status**: All legacy code removed, production verified (2025-10-24)
+
+---
+
+### 2. Finalize Current PR - 2 hours
 
 **Goal**: Get current work merged to main
 
 **Tasks**:
 
-- [x] Documentation review (completed)
-- [x] Run full test suite: `metta pytest` (all 1211 tests passing)
-- [x] Update PR description with Phase 3B completion
+- [x] Documentation review
+- [x] Run full test suite: `metta pytest` (all tests passing)
+- [x] Update PR description
+- [x] Clean up legacy code
 - [ ] Request re-review from @nishu-builder
 - [ ] Address any new feedback
 - [ ] Merge to main
 
-**Deliverable**: GitHub collector in production, foundation for additional collectors
+**Deliverable**: All 7 collectors in production, 8 dashboards deployed, clean codebase
 
 ---
 
-## Short-term Goals (Next 2 Weeks)
+### 3. Monitor Production Deployment - Ongoing
 
-### 3. Build Beautiful Dashboards - 8 hours
+**Goal**: Ensure stable metric collection and dashboard availability
 
-**Current State**:
+**Monitoring**:
 
-```
-devops/datadog/templates/
-├── demo.json                             # 29KB demo dashboard
-├── asana.json                            # 17KB Asana project metrics
-├── ec2.json                              # 25KB EC2 instance monitoring
-├── github_cicd.json                      # 15KB GitHub CI/CD metrics
-├── skypilot_jobs.json                    # 18KB Skypilot job tracking
-├── policy_evaluator.json                 # 4.2KB policy metrics
-├── system_health_rollup.json             # 67KB health grid (65 widgets)
-└── system_health_rollup_wildcard.json    # 20KB health grid (Vega-Lite)
-```
+- Check CronJob execution logs
+- Verify metrics appearing in Datadog
+- Monitor for failures or gaps in data
+- Track resource usage (CPU/memory)
 
-**Goal**: Create polished, useful dashboards using GitHub metrics
+**Success Criteria**:
 
-**Priority Dashboards**:
-
-#### A. Engineering Velocity Dashboard (High Priority)
-
-**Metrics**:
-
-- PR throughput: `prs.merged_7d`, `prs.open`, `prs.stale_count_14d`
-- Cycle time: `prs.cycle_time_hours`, `prs.avg_time_to_merge_hours`
-- Developer activity: `developers.active_7d`, `commits.per_developer_7d`
-- Branch health: `branches.active`
-
-**Layout**:
-
-```
-┌──────────────────────────────────────────────────────┐
-│ Engineering Velocity                          [Filters]│
-├────────────────┬────────────────┬────────────────────┤
-│ PRs Merged/7d  │ Open PRs       │ Stale PRs (>14d)   │
-│ [Big Number]   │ [Big Number]   │ [Big Number]       │
-├────────────────┴────────────────┴────────────────────┤
-│ PR Cycle Time (hours)                                 │
-│ [Timeseries: avg, p50, p90]                          │
-├──────────────────────────────────────────────────────┤
-│ Active Developers          │ Commit Rate             │
-│ [Timeseries]              │ [Timeseries]            │
-└────────────────────────────┴─────────────────────────┘
-```
-
-#### B. Code Quality Dashboard (High Priority)
-
-**Metrics**:
-
-- Quality signals: `commits.reverts`, `commits.hotfix`
-- CI health: `ci.tests_passing_on_main`, `ci.failed_workflows_7d`
-- CI performance: `ci.duration_p50_minutes`, `ci.duration_p90_minutes`, `ci.duration_p99_minutes`
-- Review engagement: `prs.with_review_comments_pct`, `prs.avg_comments_per_pr`
-
-**Layout**:
-
-```
-┌──────────────────────────────────────────────────────┐
-│ Code Quality                              [Filters]   │
-├────────────────┬────────────────┬────────────────────┤
-│ Tests Passing  │ Reverts/7d     │ Hotfixes/7d        │
-│ [Status]       │ [Big Number]   │ [Big Number]       │
-├────────────────┴────────────────┴────────────────────┤
-│ CI Duration Percentiles (minutes)                     │
-│ [Timeseries: p50, p90, p99 with threshold markers]   │
-├──────────────────────────────────────────────────────┤
-│ Failed Workflows           │ Workflow Success Rate   │
-│ [Timeseries]              │ [Gauge/Percentage]      │
-└────────────────────────────┴─────────────────────────┘
-```
-
-#### C. System Health Overview (Medium Priority)
-
-**Combines**: Engineering velocity + Quality + (future: infrastructure metrics)
-
-**Implementation Steps**:
-
-1. Export current dashboards: `metta datadog dashboard pull`
-2. Design layouts in Figma/paper
-3. Build incrementally:
-   - Start with velocity dashboard
-   - Add quality dashboard
-   - Create overview combining both
-4. Use Datadog's dashboard JSON API
-5. Add threshold markers for SLOs
-6. Test query performance
-7. Get team feedback
-8. Iterate
-
-**References**:
-
-- [Datadog Dashboard JSON](https://docs.datadoghq.com/dashboards/graphing_json/)
-- [Widget Reference](devops/datadog/docs/DATADOG_WIDGET_REFERENCE.md)
-- [Metric Catalog](devops/datadog/docs/CI_CD_METRICS.md)
+- 95%+ successful collector runs
+- No metric gaps > 30 minutes
+- All dashboards loading correctly
 
 ---
 
-## Medium-term Goals (Next Month)
+## 🚀 Short-term Goals (Next 2-4 Weeks)
 
-### 4. Implement Additional Collectors - 3-4 days each
+### 4. Advanced Dashboard Features - 3 days
 
-**Priority Order**:
+#### A. SLO Tracking
 
-#### A. WandB Collector (Highest Priority) - 3 days
+Define and track Service Level Objectives:
 
-**Why First**: Training run metrics are core to ML research
+- **CI Success Rate**: ≥ 95%
+- **PR Cycle Time**: ≤ 48 hours (p90)
+- **Tests Passing on Main**: 100%
+- **Stale PRs**: ≤ 20 PRs > 14 days old
+- **Deployment Frequency**: Track via CI metrics
 
-**Planned Metrics**:
+**Implementation**: Add SLO threshold markers to existing dashboards
 
-```python
-# Training Progress
-wandb.runs.active                    # Currently running experiments
-wandb.runs.completed_7d              # Completed runs in last week
-wandb.runs.failed_7d                 # Failed runs in last week
+#### B. Template Variables
 
-# Model Performance
-wandb.metrics.best_accuracy          # Best model accuracy across runs
-wandb.metrics.latest_loss            # Latest training loss
-wandb.training.gpu_utilization_pct   # GPU usage
-
-# Resource Usage
-wandb.training.duration_hours        # Training time per run
-wandb.training.cost_estimate_usd     # Estimated cloud cost
-```
-
-**Implementation**:
-
-1. Create `collectors/wandb/collector.py` (BaseCollector)
-2. WandB API authentication via API key in Secrets Manager
-3. Test locally: `metta datadog collect wandb --dry-run`
-4. Deploy CronJob
-5. Create WandB dashboard
-
-**References**: `collectors/wandb/README.md`
-
-#### B. WandB Collector (High Priority) - 3 days
-
-**Why**: Track training run metrics
-
-**Planned Metrics**:
-
-```python
-# Training Progress
-wandb.runs.active                    # Currently running experiments
-wandb.runs.completed_7d              # Completed runs in last week
-wandb.runs.failed_7d                 # Failed runs in last week
-
-# Model Performance
-wandb.metrics.best_accuracy          # Best model accuracy across runs
-wandb.metrics.latest_loss            # Latest training loss
-wandb.training.gpu_utilization_pct   # GPU usage
-
-# Resource Usage
-wandb.training.duration_hours        # Training time per run
-wandb.training.cost_estimate_usd     # Estimated cloud cost
-```
-
-#### C. EC2 Collector ✅ Complete
-
-**Status**: Implemented and tested (2025-10-23)
-
-**Implemented Metrics** (19 total):
-
-```python
-# Instance Metrics (9 metrics)
-ec2.instances.total                 # Total instances
-ec2.instances.running               # Running instances
-ec2.instances.stopped               # Stopped instances
-ec2.instances.spot                  # Spot instances
-ec2.instances.ondemand              # On-demand instances
-ec2.instances.gpu_count             # GPU instance count
-ec2.instances.cpu_count             # CPU-only instance count
-ec2.instances.idle                  # Idle instance count
-ec2.instances.avg_age_days          # Average instance age
-ec2.instances.oldest_age_days       # Oldest instance age
-
-# EBS Metrics (6 metrics)
-ec2.ebs.volumes.total               # Total volumes
-ec2.ebs.volumes.attached            # Attached volumes
-ec2.ebs.volumes.unattached          # Unattached volumes
-ec2.ebs.volumes.size_gb             # Total storage size
-ec2.ebs.snapshots.total             # Total snapshots
-ec2.ebs.snapshots.size_gb           # Snapshot storage size
-
-# Cost Metrics (4 metrics)
-ec2.cost.running_hourly_estimate    # Hourly cost estimate
-ec2.cost.monthly_estimate           # Monthly cost estimate
-ec2.cost.spot_savings_pct           # Spot savings percentage
-```
-
-**Usage**:
-
-```bash
-# Test locally
-uv run python devops/datadog/run_collector.py ec2 --verbose
-
-# Push to Datadog
-uv run python devops/datadog/run_collector.py ec2 --push
-```
-
-#### D. Skypilot Collector ✅ Complete
-
-**Status**: Implemented and tested (2025-10-23)
-
-**Implemented Metrics** (30 total):
-
-```python
-# Job Status (6 metrics)
-skypilot.jobs.queued                # Waiting jobs
-skypilot.jobs.running               # Active jobs
-skypilot.jobs.failed                # Currently failed jobs
-skypilot.jobs.failed_7d             # Failed jobs in last 7 days
-skypilot.jobs.succeeded             # Succeeded jobs
-skypilot.jobs.cancelled             # Cancelled jobs
-
-# Runtime Distribution (10 metrics) - for running jobs
-skypilot.jobs.runtime_seconds.{min,max,avg,p50,p90,p99}
-skypilot.jobs.runtime_buckets.{0_1h,1_4h,4_24h,over_24h}
-
-# Resource Utilization (6 metrics)
-skypilot.resources.gpus.{l4,a10g,h100}_count
-skypilot.resources.gpus.total_count
-skypilot.resources.{spot,ondemand}_jobs
-
-# Reliability (2 metrics)
-skypilot.jobs.with_recoveries
-skypilot.jobs.recovery_count.{avg,max}
-
-# Regional Distribution (3 metrics)
-skypilot.regions.{us_east_1,us_west_2,other}
-
-# Team Activity (1 metric)
-skypilot.users.active_count
-
-# Cluster Health (1 metric)
-skypilot.clusters.active
-```
-
-**Key Insights from Real Data**:
-
-- Runtime p99 = 14 days (spots stuck jobs!)
-- 37/46 jobs running > 24 hours
-- 85% spot usage (cost efficient)
-- 184 L4 GPUs in use across 24 users
-
-**Usage**:
-
-```bash
-# Test locally
-metta datadog collect skypilot
-
-# Push to Datadog
-metta datadog collect skypilot --push
-```
-
-#### E. Asana Collector ✅ Complete
-
-**Status**: Implemented and tested (2025-10-23)
-
-**Implemented Metrics** (14 total):
-
-```python
-# Workspace Task Status (9 metrics)
-asana.tasks.total, open, completed_7d, completed_30d
-asana.tasks.overdue, due_today, due_this_week, no_due_date
-asana.tasks.unassigned, assigned
-
-# Velocity & Cycle Time (3 metrics)
-asana.velocity.completed_per_day_7d
-asana.velocity.completion_rate_pct
-asana.cycle_time.avg_hours, p50_hours, p90_hours
-
-# Team Activity & Projects (7 metrics)
-asana.users.active_7d
-asana.projects.active, on_track, at_risk, off_track
-
-# Bugs Project Tracking (11 metrics)
-asana.projects.bugs.triage_count        # Tasks in Triage section
-asana.projects.bugs.active_count        # Tasks in Active section
-asana.projects.bugs.backlog_count       # Tasks in Backlog section
-asana.projects.bugs.other_count
-asana.projects.bugs.total_open
-asana.projects.bugs.completed_7d, completed_30d
-asana.projects.bugs.created_7d
-asana.projects.bugs.avg_age_days, oldest_bug_days
-```
-
-**Key Features**:
-
-- Dual-mode: workspace-wide metrics + specific Bugs project tracking
-- Section-based workflow tracking (Triage → Active → Backlog)
-- Aging statistics to spot old bugs
-- Velocity tracking (creation vs. completion rates)
-
-**Usage**:
-
-```bash
-# Test locally
-metta datadog collect asana
-
-# Push to Datadog
-metta datadog collect asana --push
-```
-
-**Note**: Requires Asana access token in AWS Secrets Manager (`asana/access-token`)
-
----
-
-### 5. Advanced Dashboard Features - 2 days
-
-**Enhancements**:
-
-#### A. Template Variables
-
-Add filters to dashboards:
+Add filters to dashboards for better navigation:
 
 ```json
 "template_variables": [
   {
-    "name": "repo",
-    "prefix": "repo",
-    "default": "metta"
+    "name": "collector",
+    "prefix": "source",
+    "default": "github-collector"
   },
   {
     "name": "environment",
@@ -438,61 +296,77 @@ Add filters to dashboards:
 ]
 ```
 
-#### B. SLO Tracking
+#### C. Conditional Formatting
 
-Define and track Service Level Objectives:
+Add color-coded indicators based on thresholds:
 
-- **CI Success Rate**: ≥ 95%
-- **PR Cycle Time**: ≤ 48 hours (p90)
-- **Tests Passing**: 100% on main
-- **Stale PRs**: ≤ 20 PRs > 14 days old
+- Green: Metric within SLO
+- Yellow: Approaching threshold
+- Red: SLO violation
 
-#### C. Alerting
+---
 
-Set up Datadog monitors:
+### 5. Alerting Setup - 2 days
 
-- Alert when CI fails on main
-- Alert when PR cycle time > 72 hours
-- Alert when stale PR count > 50
-- Alert when hotfix/revert rate spikes
+**Goal**: Proactive notification of system issues
 
-#### D. Anomaly Detection
+**Critical Alerts**:
 
-Use Datadog's built-in anomaly detection:
+1. **CI Failure on Main**
+   - Trigger: `ci.tests_passing_on_main == 0`
+   - Severity: High
+   - Notification: Slack + PagerDuty
 
-- Unusual spike in failed CI runs
+2. **Collector Failure**
+   - Trigger: No metrics from collector for 30+ minutes
+   - Severity: Medium
+   - Notification: Slack
+
+3. **PR Cycle Time SLO Violation**
+   - Trigger: `prs.cycle_time_hours.p90 > 72`
+   - Severity: Low
+   - Notification: Slack
+
+4. **EC2 Cost Spike**
+   - Trigger: `ec2.cost.monthly_estimate` > 20% increase
+   - Severity: Medium
+   - Notification: Slack + Email
+
+**Implementation**:
+
+- Use Datadog Monitors API
+- Configure notification channels
+- Set up escalation policies
+- Test alert delivery
+
+---
+
+### 6. Anomaly Detection - 1 day
+
+**Goal**: Automatic detection of unusual patterns
+
+**Metrics to Monitor**:
+
+- Sudden spike in failed CI runs
 - Sudden drop in active developers
 - PR merge rate anomalies
+- Unusual EC2 cost patterns
+- GPU utilization spikes/drops
+
+**Implementation**:
+
+- Enable Datadog's built-in anomaly detection
+- Configure sensitivity levels
+- Set up anomaly alerts
+- Review anomaly detections weekly
 
 ---
 
-## Long-term Vision (Next Quarter)
-
-### 6. Jsonnet Dashboard System (Optional) - 1 week
-
-**Goal**: Composable, version-controlled dashboards
-
-**Current Approach**: JSON files in `templates/` **Proposed**: Jsonnet system (like Grafana's Grafonnet)
-
-**Benefits**:
-
-- Reusable widget components
-- Mix-and-match widgets across dashboards
-- Grid layouts with automatic positioning
-- Version control for dashboard changes
-
-**Files**:
-
-- `devops/datadog/docs/JSONNET_DESIGN.md` - Design doc
-- `devops/datadog/docs/JSONNET_PROTOTYPE.md` - Implementation guide
-
-**Decision**: Defer until we have 5+ dashboards and see pain points
-
----
+## 📈 Medium-term Goals (Next Quarter)
 
 ### 7. Multi-Environment Support - 2 days
 
-**Goal**: Separate staging/production metrics
+**Goal**: Separate staging/production metrics and dashboards
 
 **Implementation**:
 
@@ -507,124 +381,256 @@ Use Datadog's built-in anomaly detection:
 # Helm values - production
 datadog:
   env: "production"
+  service: "datadog-collectors"
 
 # Helm values - staging
 datadog:
   env: "staging"
+  service: "datadog-collectors-staging"
 ```
+
+**Benefits**:
+
+- Isolate staging noise from production metrics
+- Test new collectors in staging first
+- Environment-specific SLOs and alerts
 
 ---
 
-### 8. Cross-Service Dashboards
+### 8. Cross-Service Correlation Dashboards - 3 days
 
 **Goal**: Unified view across multiple data sources
 
 **Example Dashboard**: "Training Pipeline Health"
 
-- GitHub metrics (commits, PRs)
-- WandB metrics (training runs, model performance)
-- EC2 metrics (GPU utilization, costs)
-- Skypilot metrics (job status)
-
-**Layout**:
-
 ```
 ┌──────────────────────────────────────────────────────┐
-│ Training Pipeline Health                              │
-├────────────────────────────────────────────────────────┤
-│ Code Activity          │ Training Runs                │
-│ (GitHub)              │ (WandB)                      │
-├────────────────────────┼──────────────────────────────┤
-│ GPU Utilization       │ Daily Costs                  │
-│ (EC2)                 │ (EC2 + Skypilot)             │
-└────────────────────────┴──────────────────────────────┘
+│ Training Pipeline Health                      [Today]│
+├────────────────────────┬─────────────────────────────┤
+│ Code Activity          │ Training Runs               │
+│ • Commits: 45          │ • Active: 12                │
+│ • PRs merged: 8        │ • Failed: 2                 │
+│ (GitHub)               │ (WandB)                     │
+├────────────────────────┼─────────────────────────────┤
+│ GPU Utilization        │ Daily Costs                 │
+│ • L4: 184 GPUs         │ • EC2: $2,400               │
+│ • Efficiency: 85%      │ • Skypilot: $1,200          │
+│ (EC2 + K8s)            │ (EC2 + Skypilot)            │
+└────────────────────────┴─────────────────────────────┘
+```
+
+**Metrics Correlation**:
+
+- Code velocity (GitHub) → Training activity (WandB)
+- GPU allocation (K8s) → Job status (Skypilot)
+- Cost trends (EC2) → Resource usage (all collectors)
+
+---
+
+### 9. Enhanced Health FoM Dashboard - 2 days
+
+**Goal**: Make FoM metrics more actionable
+
+**Enhancements**:
+
+1. **Drill-Down Links**: Click FoM cell → Navigate to detailed metric view
+2. **Trend Indicators**: Show arrows for improving/degrading metrics
+3. **Historical Comparison**: Compare current week vs. previous week
+4. **Threshold Tuning**: Adjust FoM formulas based on team feedback
+5. **Additional FoM Metrics**:
+   - Training health (WandB metrics)
+   - Infrastructure health (EC2/K8s metrics)
+   - Project health (Asana metrics)
+
+**Example Layout**:
+
+```
+┌─────────────────────────────────────────────────────────┐
+│ System Health Rollup                 Week of Oct 21-27  │
+├─────────────┬──────┬──────┬──────┬──────┬──────┬────────┤
+│ Metric      │ -6d  │ -5d  │ -4d  │ -3d  │ -2d  │ -1d    │Today│ Trend│
+├─────────────┼──────┼──────┼──────┼──────┼──────┼────────┤
+│ Tests       │ 1.0  │ 1.0  │ 0.0  │ 1.0  │ 1.0  │ 1.0    │ 1.0 │  ↑   │
+│ Benchmarks  │ 1.0  │ 1.0  │ 1.0  │ 1.0  │ 1.0  │ 1.0    │ 1.0 │  →   │
+│ Workflow    │ 0.95 │ 0.92 │ 0.88 │ 0.90 │ 0.93 │ 0.95   │ 0.97│  ↑   │
+...
+└─────────────┴──────┴──────┴──────┴──────┴──────┴────────┴─────┘
 ```
 
 ---
 
-## Priority Matrix
+## 🔮 Long-term Vision (Next 6 Months)
 
-| Task                  | Impact | Effort | Priority | Timeline     |
-| --------------------- | ------ | ------ | -------- | ------------ |
-| Clean up old code     | Low    | 2h     | High     | This week    |
-| Merge current PR      | High   | 4h     | High     | This week    |
-| Velocity dashboard    | High   | 4h     | High     | Next week    |
-| Quality dashboard     | High   | 4h     | High     | Next week    |
-| WandB collector       | High   | 3d     | Medium   | 2 weeks      |
-| EC2 collector         | High   | 2d     | Medium   | 2 weeks      |
-| SLO tracking          | Medium | 1d     | Medium   | 3 weeks      |
-| Alerting setup        | Medium | 1d     | Medium   | 3 weeks      |
-| ✅ Skypilot collector | Medium | 2d     | Complete | Oct 23, 2025 |
-| Asana collector       | Low    | 2d     | Low      | TBD          |
-| Jsonnet system        | Low    | 1w     | Low      | TBD          |
+### 10. Jsonnet Dashboard System (Optional) - 1 week
+
+**Goal**: Composable, version-controlled dashboards
+
+**Current Approach**: JSON files in `templates/`
+
+**Proposed**: Jsonnet system (like Grafana's Grafonnet)
+
+**Benefits**:
+
+- Reusable widget components
+- Mix-and-match widgets across dashboards
+- Grid layouts with automatic positioning
+- Type-safe dashboard configuration
+- Version control for dashboard changes
+
+**Files**:
+
+- `devops/datadog/docs/JSONNET_DESIGN.md` - Design doc
+- `devops/datadog/docs/JSONNET_PROTOTYPE.md` - Implementation guide
+
+**Decision**: Defer until we have 10+ dashboards and see pain points with JSON approach
 
 ---
 
-## Success Metrics
+### 11. Additional Collector Ideas
 
-**Week 1** (Current PR merged):
+**Potential Future Collectors**:
 
-- ✅ GitHub collector in production
+1. **SkyPilot Cluster Health** (Extended)
+   - Cluster uptime/downtime
+   - Node health per cluster
+   - Cost per cluster
+   - Job distribution across clusters
+
+2. **PyPI Package Stats**
+   - Download counts for published packages
+   - Version distribution
+   - User geography
+
+3. **Documentation Metrics**
+   - Doc page views (if hosted)
+   - Search queries
+   - Time on page
+
+4. **Model Registry**
+   - Models published
+   - Model downloads
+   - Benchmark results
+
+**Evaluation Criteria**:
+
+- Is the data source reliable and accessible?
+- Will the metrics drive decisions?
+- Can we maintain the collector long-term?
+- Does it integrate with existing dashboards?
+
+---
+
+## 📊 Priority Matrix
+
+| Task                       | Impact | Effort | Priority | Status      | Timeline     |
+| -------------------------- | ------ | ------ | -------- | ----------- | ------------ |
+| Merge current PR           | High   | 2h     | High     | In Progress | This week    |
+| Monitor production         | High   | 1h/day | High     | Ongoing     | Continuous   |
+| SLO tracking               | High   | 2d     | High     | Planned     | Next week    |
+| Alerting setup             | High   | 2d     | High     | Planned     | Next week    |
+| Template variables         | Medium | 1d     | Medium   | Planned     | 2 weeks      |
+| Anomaly detection          | Medium | 1d     | Medium   | Planned     | 2 weeks      |
+| Cross-service dashboards   | Medium | 3d     | Medium   | Planned     | 1 month      |
+| Multi-environment support  | Medium | 2d     | Low      | Planned     | 1 month      |
+| Enhanced FoM dashboard     | Medium | 2d     | Low      | Planned     | 6 weeks      |
+| Jsonnet system             | Low    | 1w     | Low      | Deferred    | TBD          |
+| ✅ Clean up old code       | Low    | 2h     | High     | ✅ Complete | Oct 24, 2025 |
+| ✅ GitHub collector        | High   | 3d     | High     | ✅ Complete | Oct 23, 2025 |
+| ✅ Skypilot collector      | Medium | 2d     | Medium   | ✅ Complete | Oct 23, 2025 |
+| ✅ Asana collector         | Low    | 2d     | Low      | ✅ Complete | Oct 23, 2025 |
+| ✅ EC2 collector           | High   | 2d     | Medium   | ✅ Complete | Oct 23, 2025 |
+| ✅ WandB collector         | High   | 3d     | Medium   | ✅ Complete | Oct 23, 2025 |
+| ✅ Kubernetes collector    | Medium | 2d     | Medium   | ✅ Complete | Oct 23, 2025 |
+| ✅ Health FoM collector    | Medium | 2d     | High     | ✅ Complete | Oct 23, 2025 |
+| ✅ Production dashboards   | High   | 4d     | High     | ✅ Complete | Oct 24, 2025 |
+
+---
+
+## 📈 Success Metrics
+
+### ✅ Week 1 - ACHIEVED (Oct 24, 2025)
+
+- ✅ 7 collectors in production
+- ✅ 8 production dashboards deployed
 - ✅ Clean codebase (old code removed)
-- ✅ Foundation for additional collectors
+- ✅ 123+ metrics flowing to Datadog
+- ✅ Foundation for additional features
 
-**Week 2** (Dashboards):
+### Week 2-3 (Next Priorities)
 
-- 📊 2 polished dashboards (Velocity + Quality)
+- 🎯 SLO tracking configured
+- 🔔 Critical alerts set up
+- 📊 Template variables on key dashboards
+- 🤖 Anomaly detection enabled
 - 📈 Team actively using dashboards
-- 🎯 Clear SLO definitions
 
-**Month 1** (More collectors):
+### Month 2-3
 
-- 🔌 2-3 additional collectors deployed (WandB, EC2)
-- 🎨 5+ production dashboards
-- 🔔 Basic alerting configured
-- 📊 Cross-service insights
-
-**Quarter 1** (Mature system):
-
-- 🔌 All planned collectors deployed
-- 🎨 Comprehensive dashboard suite
-- 🤖 Automated anomaly detection
+- 🎨 Cross-service correlation dashboards
+- 🌍 Multi-environment support (staging/production)
+- 📊 Enhanced FoM dashboard with trends
+- 🔔 Mature alerting with on-call rotation
 - 📊 Regular metric reviews in team meetings
 
+### Quarter 2
+
+- 🤖 Advanced anomaly detection with ML
+- 📊 Comprehensive dashboard suite (10+ dashboards)
+- 🔌 Additional collectors as needed
+- 📚 Team training on dashboard usage
+- 🎯 SLOs integrated into team workflows
+
 ---
 
-## Open Questions
+## ❓ Open Questions
 
 1. **Dashboard tool**: Stick with JSON or invest in Jsonnet system?
-   - **Decision**: Start with JSON, migrate if we hit >5 dashboards
+   - **Current Decision**: Stick with JSON until we have 10+ dashboards and pain points emerge
+   - **Rationale**: JSON is working well, Jsonnet adds complexity
 
-2. **Asana collector**: Is team using Asana enough to justify?
-   - **Decision**: TBD - need to assess actual Asana usage
+2. **Alerting strategy**: How to balance visibility vs. noise?
+   - **Current Decision**: Start conservative with critical alerts only
+   - **Next Step**: Add alerts based on actual incidents and team feedback
 
 3. **Multi-repo support**: Just Metta or expand to other repos?
-   - **Decision**: Start with Metta, expand if successful
+   - **Current Decision**: Start with Metta, expand if successful
+   - **Evaluation Criteria**: Team adoption, metric utility, maintenance burden
 
-4. **Alert fatigue**: How to balance alerting vs noise?
-   - **Decision**: Start conservative, add alerts based on actual incidents
+4. **FoM thresholds**: Are current 0.7/0.3 thresholds appropriate?
+   - **Current Decision**: Start with these, tune based on team feedback
+   - **Next Step**: Review after 2 weeks of production data
+
+5. **Additional collectors**: What else should we monitor?
+   - **Current Decision**: Focus on improving existing collectors and dashboards first
+   - **Evaluation**: Revisit quarterly based on team needs
 
 ---
 
-## Resources
+## 📚 Resources
 
-**Documentation**:
+### Documentation
 
 - [Collectors Architecture](docs/COLLECTORS_ARCHITECTURE.md)
 - [Adding New Collector](docs/ADDING_NEW_COLLECTOR.md)
 - [Metric Conventions](docs/METRIC_CONVENTIONS.md)
 - [CI/CD Metrics](docs/CI_CD_METRICS.md)
+- [Wildcard Widget Guide](docs/WILDCARD_WIDGET.md)
+- [Quick Start Guide](docs/QUICK_START.md)
+- [Deployment Guide](docs/DEPLOYMENT_GUIDE.md)
 
-**Tools**:
+### Tools
 
-- CLI: `metta datadog --help`
-- Dashboard JSON: [Datadog Docs](https://docs.datadoghq.com/dashboards/graphing_json/)
+- **CLI**: `metta datadog --help`
+- **Dashboard Scripts**: `devops/datadog/scripts/`
+- **Datadog API**: [Dashboard JSON Reference](https://docs.datadoghq.com/dashboards/graphing_json/)
+- **Vega-Lite**: [Vega-Lite Documentation](https://vega.github.io/vega-lite/)
 
-**Team**:
+### Team
 
-- Owner: DevOps team
-- Stakeholders: Engineering, Research, SRE
+- **Owner**: DevOps team
+- **Stakeholders**: Engineering, Research, SRE
+- **PR**: [#3384](https://github.com/Metta-AI/metta/pull/3384)
 
 ---
 
-**Last Updated**: 2025-10-23 **Next Review**: After current PR merge
+**Last Updated**: 2025-10-24 **Next Review**: After current PR merge
