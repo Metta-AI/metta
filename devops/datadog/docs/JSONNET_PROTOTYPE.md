@@ -28,7 +28,7 @@ echo '{ name: "test", value: 1 + 2 }' | jsonnet -
 
 ### 1. Basic Widget Library
 
-`lib/widgets.libsonnet`:
+`dashboards/lib/widgets.libsonnet`:
 
 ```jsonnet
 {
@@ -52,7 +52,7 @@ echo '{ name: "test", value: 1 + 2 }' | jsonnet -
 
 ### 2. Component Library
 
-`components/ci.libsonnet`:
+`dashboards/components/ci.libsonnet`:
 
 ```jsonnet
 local widgets = import '../lib/widgets.libsonnet';
@@ -74,7 +74,7 @@ local widgets = import '../lib/widgets.libsonnet';
 
 ### 3. Dashboard Definition
 
-`dashboards/test.jsonnet`:
+`dashboards/sources/test.jsonnet`:
 
 ```jsonnet
 local ci = import '../components/ci.libsonnet';
@@ -94,12 +94,12 @@ local ci = import '../components/ci.libsonnet';
 
 ```bash
 cd devops/datadog
-jsonnet dashboards/test.jsonnet > templates/test.json
+jsonnet dashboards/sources/test.jsonnet > dashboards/templates/test.json
 ```
 
 ## Grid Layout Example
 
-`lib/layout.libsonnet`:
+`dashboards/lib/layout.libsonnet`:
 
 ```jsonnet
 {
@@ -141,7 +141,7 @@ local ci = import '../components/ci.libsonnet';
 1. **Install jsonnet**: `brew install jsonnet`
 2. **Create directory structure**:
    ```bash
-   mkdir -p lib components dashboards
+   mkdir -p dashboards/lib dashboards/components dashboards/sources
    ```
 3. **Extract one widget** from existing dashboard to test
 4. **Build and verify** JSON output
@@ -149,7 +149,7 @@ local ci = import '../components/ci.libsonnet';
 
 ## Expected Output
 
-When you run `jsonnet dashboards/test.jsonnet`, you get valid Datadog JSON:
+When you run `jsonnet dashboards/sources/test.jsonnet`, you get valid Datadog JSON:
 
 ```json
 {

@@ -137,11 +137,11 @@ cd devops/datadog
 uv run python scripts/validate_secrets.py  # Validate configuration
 
 # Daily workflow
-vim components/ci.libsonnet         # Edit widget components
-vim dashboards/my_dashboard.jsonnet # Compose dashboard
-metta datadog dashboard build        # Build JSON from Jsonnet
-metta datadog dashboard diff         # Review changes
-metta datadog dashboard push         # Upload to Datadog
+vim dashboards/components/ci.libsonnet       # Edit widget components
+vim dashboards/sources/my_dashboard.jsonnet  # Compose dashboard
+metta datadog dashboard build                 # Build JSON from Jsonnet
+metta datadog dashboard diff                  # Review changes
+metta datadog dashboard push                  # Upload to Datadog
 ```
 
 ### Add a New Collector
@@ -181,10 +181,11 @@ devops/datadog/
 │   ├── registry.py        # Metric registry and auto-discovery
 │   └── decorators.py      # @metric decorator
 │
-├── lib/                # Jsonnet library (widget builders)
-├── components/         # Reusable widget collections
-├── dashboards/         # Dashboard definitions (SOURCE)
-├── templates/          # Generated JSON (OUTPUT, gitignored)
+├── dashboards/         # Dashboard files (grouped)
+│   ├── lib/           # Jsonnet library (widget builders)
+│   ├── components/    # Reusable widget collections
+│   ├── sources/       # Dashboard definitions (SOURCE)
+│   └── templates/     # Generated JSON (OUTPUT, gitignored)
 ├── scripts/            # Management scripts
 │   ├── run_collector.py    # Run any collector
 │   └── push_dashboard.py   # Push dashboards to Datadog

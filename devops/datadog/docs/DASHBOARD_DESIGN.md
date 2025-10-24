@@ -626,14 +626,14 @@ Naming convention:
 metta datadog dashboard pull
 
 # 4. Find the new dashboard JSON
-ls -lt devops/datadog/templates/
+ls -lt devops/datadog/dashboards/templates/
 
 # 5. Commit to version control
-git add devops/datadog/templates/github_cicd.json
+git add devops/datadog/dashboards/templates/github_cicd.json
 git commit -m "feat: add GitHub CI/CD dashboard"
 
 # 6. Future updates via JSON
-vim devops/datadog/templates/github_cicd.json
+vim devops/datadog/dashboards/templates/github_cicd.json
 metta datadog dashboard push
 ```
 
@@ -647,13 +647,13 @@ metta datadog dashboard push
 ### Naming Convention
 
 ```
-Templates directory:
-- system_health_rollup.json
-- github_cicd.json
-- training_wandb.json
-- skypilot_jobs.json
-- eval_testing.json
-- collector_health.json
+Dashboard templates directory:
+- dashboards/templates/system_health_rollup.json
+- dashboards/templates/github_cicd.json
+- dashboards/templates/training_wandb.json
+- dashboards/templates/skypilot_jobs.json
+- dashboards/templates/eval_testing.json
+- dashboards/templates/collector_health.json
 ```
 
 ---

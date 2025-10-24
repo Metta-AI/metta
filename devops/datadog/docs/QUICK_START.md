@@ -74,7 +74,7 @@ Create reusable widget components in `components/`:
 mkdir -p lib components dashboards
 ```
 
-`lib/widgets.libsonnet`:
+`dashboards/lib/widgets.libsonnet`:
 
 ```jsonnet
 {
@@ -96,7 +96,7 @@ mkdir -p lib components dashboards
 }
 ```
 
-`components/ci.libsonnet`:
+`dashboards/components/ci.libsonnet`:
 
 ```jsonnet
 local widgets = import '../lib/widgets.libsonnet';
@@ -112,7 +112,7 @@ local widgets = import '../lib/widgets.libsonnet';
 
 ### Step 2: Create Dashboard
 
-`dashboards/test.jsonnet`:
+`dashboards/sources/test.jsonnet`:
 
 ```jsonnet
 local ci = import '../components/ci.libsonnet';
@@ -134,7 +134,7 @@ local ci = import '../components/ci.libsonnet';
 metta datadog dashboard build
 
 # Review generated JSON
-cat templates/test.json
+cat dashboards/templates/test.json
 
 # Push to Datadog
 metta datadog dashboard push
@@ -144,8 +144,8 @@ metta datadog dashboard push
 
 ```bash
 # 1. Edit components or dashboards
-vim components/ci.libsonnet
-vim dashboards/my_dashboard.jsonnet
+vim dashboards/components/ci.libsonnet
+vim dashboards/sources/my_dashboard.jsonnet
 
 # 2. Build JSON from Jsonnet
 metta datadog dashboard build
@@ -157,7 +157,7 @@ metta datadog dashboard diff
 metta datadog dashboard push
 
 # 5. Commit source files (.jsonnet, not .json!)
-git add components/ dashboards/ lib/
+git add dashboards/components/ dashboards/sources/ dashboards/lib/
 git commit -m "Update dashboard components"
 ```
 
@@ -178,7 +178,7 @@ uv run python devops/datadog/scripts/list_metrics.py --search=commits
 
 Create a 2×2 grid of widgets:
 
-`lib/layout.libsonnet`:
+`dashboards/lib/layout.libsonnet`:
 
 ```jsonnet
 {
@@ -197,7 +197,7 @@ Create a 2×2 grid of widgets:
 }
 ```
 
-`dashboards/grid_dashboard.jsonnet`:
+`dashboards/sources/grid_dashboard.jsonnet`:
 
 ```jsonnet
 local layout = import '../lib/layout.libsonnet';
@@ -249,10 +249,10 @@ local apm = import '../components/apm.libsonnet';
 
 ```bash
 # Create dashboard directory
-mkdir -p dashboards
+mkdir -p dashboards/sources
 
 # Add a test dashboard
-vim dashboards/test.jsonnet
+vim dashboards/sources/test.jsonnet
 ```
 
 ### "jsonnet: command not found"
@@ -291,9 +291,9 @@ aws configure
    ```
 
 3. **Build widget library**:
-   - Extract widgets from `templates/*.json`
-   - Create component files in `components/`
-   - Build grid layout helpers in `lib/`
+   - Extract widgets from `dashboards/templates/*.json`
+   - Create component files in `dashboards/components/`
+   - Build grid layout helpers in `dashboards/lib/`
 
 ## Tips
 
