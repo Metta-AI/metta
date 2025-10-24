@@ -1,4 +1,4 @@
-"""AWS utilities for Metta."""
+"""AWS Secrets Manager utilities for Metta."""
 
 import time
 from functools import wraps

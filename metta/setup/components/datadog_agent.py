@@ -2,7 +2,7 @@ import os
 import platform
 import subprocess
 
-from metta.common.util.aws import get_secretsmanager_secret
+from metta.common.util.aws_secrets import get_secretsmanager_secret
 from metta.setup.components.base import SetupModule
 from metta.setup.registry import register_module
 from metta.setup.utils import error, info, success, warning
