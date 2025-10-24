@@ -500,10 +500,6 @@ proc loadReplayString*(jsonData: string, fileName: string): Replay =
     mapSize: (jsonObj["map_size"][0].getInt, jsonObj["map_size"][1].getInt)
   )
 
-  # echo "map size: ", replay.mapSize[0], "x", replay.mapSize[1]
-  # replay.mapSize[0] = 64
-  # replay.mapSize[1] = 64 + 32
-
   replay.typeImages = initTable[string, string]()
   for typeName in replay.typeNames:
     var imagePath = "objects/" & typeName

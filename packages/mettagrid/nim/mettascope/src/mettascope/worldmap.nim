@@ -1,8 +1,7 @@
 import
   std/[math, os, strutils, tables, strformat, random],
   boxy, vmath, windy, fidget2/[hybridrender, common],
-  common, panels, actions, utils, replays, objectinfo, pathfinding, tilemap,
-  ../../tests/perlin
+  common, panels, actions, utils, replays, objectinfo, pathfinding, tilemap
 
 const TS = 1.0 / 64.0 # Tile scale.
 
@@ -107,7 +106,6 @@ proc buildAtlas*() =
     if path.endsWith(".png") and "fidget" notin path:
       let name = path.replace(dataDir & "/", "").replace(".png", "")
       bxy.addImage(name, readImage(path))
-
 
 proc useSelections*(panel: Panel) =
   ## Reads the mouse position and selects the thing under it.
