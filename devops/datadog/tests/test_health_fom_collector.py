@@ -200,7 +200,7 @@ class TestFomFormulas:
 class TestHealthFomCollector:
     """Test HealthFomCollector integration."""
 
-    @patch("softmax.aws.secrets_manager.get_secretsmanager_secret")
+    @patch("devops.datadog.utils.secrets.get_secretsmanager_secret")
     def test_collector_initialization_requires_env_vars(self, mock_get_secret):
         """Test that collector requires DD_API_KEY and DD_APP_KEY."""
         # Mock secrets manager to raise error (no credentials available)

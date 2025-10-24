@@ -25,7 +25,7 @@ def get_datadog_credentials() -> tuple[str, str, str]:
     # Fetch from AWS Secrets Manager if not in environment
     if not api_key:
         try:
-            from softmax.aws.secrets_manager import get_secretsmanager_secret
+            from devops.datadog.utils.secrets import get_secretsmanager_secret
 
             api_key = get_secretsmanager_secret("datadog/api-key")
         except Exception as e:
@@ -33,7 +33,7 @@ def get_datadog_credentials() -> tuple[str, str, str]:
 
     if not app_key:
         try:
-            from softmax.aws.secrets_manager import get_secretsmanager_secret
+            from devops.datadog.utils.secrets import get_secretsmanager_secret
 
             app_key = get_secretsmanager_secret("datadog/app-key")
         except Exception as e:
