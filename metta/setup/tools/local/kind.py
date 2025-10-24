@@ -7,7 +7,6 @@ import typer
 from rich.console import Console
 
 from devops.docker.push_image import push_image
-from metta.app_backend.clients.base_client import get_machine_token
 from metta.common.util.constants import DEV_STATS_SERVER_URI, METTA_AWS_ACCOUNT_ID, METTA_AWS_REGION
 from metta.common.util.fs import get_repo_root
 from metta.setup.utils import error, info, success
@@ -191,6 +190,8 @@ class KindLocal(Kind):
         if not wandb_api_key:
             error("No WANDB API key found. Please run 'wandb login' and try again.")
             sys.exit(1)
+
+        from metta.app_backend.clients.base_client import get_machine_token
 
         machine_token = get_machine_token(DEV_STATS_SERVER_URI)
 
