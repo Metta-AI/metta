@@ -53,7 +53,7 @@ Datadog.
 
 2. **Set up environment**
 
-   All credentials are stored in AWS Secrets Manager. See [SECRETS_SETUP.md](../SECRETS_SETUP.md) for complete setup.
+   All credentials are stored in AWS Secrets Manager. See [docs/SECRETS_SETUP.md](../docs/SECRETS_SETUP.md) for complete setup.
 
    ```bash
    # Configure AWS CLI (one-time setup)

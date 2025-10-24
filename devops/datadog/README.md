@@ -95,7 +95,7 @@ aws secretsmanager get-secret-value --secret-id github/dashboard-token --region 
 
 ### Datadog API Keys & Secrets
 
-All secrets are stored in AWS Secrets Manager. See [SECRETS_SETUP.md](SECRETS_SETUP.md) for complete setup guide.
+All secrets are stored in AWS Secrets Manager. See [docs/SECRETS_SETUP.md](docs/SECRETS_SETUP.md) for complete setup guide.
 
 **Both Production and Local Development** use AWS Secrets Manager:
 
@@ -116,16 +116,16 @@ uv run python scripts/validate_secrets.py
 
 ```bash
 # Run all collectors (recommended - used by CronJob)
-uv run python devops/datadog/run_all_collectors.py
+uv run python devops/datadog/scripts/run_all_collectors.py
 
 # Run individual collector
-uv run python devops/datadog/run_collector.py github --verbose
-uv run python devops/datadog/run_collector.py kubernetes --verbose
-uv run python devops/datadog/run_collector.py ec2 --verbose
+uv run python devops/datadog/scripts/run_collector.py github --verbose
+uv run python devops/datadog/scripts/run_collector.py kubernetes --verbose
+uv run python devops/datadog/scripts/run_collector.py ec2 --verbose
 
 # Push metrics to Datadog
-uv run python devops/datadog/run_all_collectors.py  # Pushes all
-uv run python devops/datadog/run_collector.py github --push  # Individual
+uv run python devops/datadog/scripts/run_all_collectors.py  # Pushes all
+uv run python devops/datadog/scripts/run_collector.py github --push  # Individual
 ```
 
 ### Deploy a Dashboard
@@ -133,7 +133,7 @@ uv run python devops/datadog/run_collector.py github --push  # Individual
 ```bash
 # Setup (one time)
 cd devops/datadog
-# Configure secrets (see SECRETS_SETUP.md for complete guide)
+# Configure secrets (see docs/SECRETS_SETUP.md for complete guide)
 uv run python scripts/validate_secrets.py  # Validate configuration
 
 # Daily workflow
@@ -221,9 +221,9 @@ devops/datadog/
 
 ```bash
 # Collector management (all collectors run together every 15 minutes)
-uv run python devops/datadog/run_all_collectors.py              # Run all collectors
-uv run python devops/datadog/run_collector.py github --verbose  # Run individual collector
-uv run python devops/datadog/run_collector.py kubernetes --push # Push individual collector
+uv run python devops/datadog/scripts/run_all_collectors.py              # Run all collectors
+uv run python devops/datadog/scripts/run_collector.py github --verbose  # Run individual collector
+uv run python devops/datadog/scripts/run_collector.py kubernetes --push # Push individual collector
 
 # Dashboard management
 metta datadog dashboard build        # Build all dashboards from Jsonnet

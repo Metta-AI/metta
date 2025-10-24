@@ -31,7 +31,7 @@ composable widgets instead of monolithic JSON files.
 
 ### 2. Configure Environment
 
-All credentials are stored in AWS Secrets Manager. See [SECRETS_SETUP.md](../SECRETS_SETUP.md) for complete setup.
+All credentials are stored in AWS Secrets Manager. See [docs/SECRETS_SETUP.md](../docs/SECRETS_SETUP.md) for complete setup.
 
 ```bash
 cd devops/datadog

@@ -110,12 +110,12 @@ This will check:
 
 ```bash
 # Test each collector (dry-run, no push to Datadog)
-uv run python devops/datadog/run_collector.py github --verbose
-uv run python devops/datadog/run_collector.py skypilot --verbose
-uv run python devops/datadog/run_collector.py asana --verbose
+uv run python devops/datadog/scripts/run_collector.py github --verbose
+uv run python devops/datadog/scripts/run_collector.py skypilot --verbose
+uv run python devops/datadog/scripts/run_collector.py asana --verbose
 
 # Test with actual push to Datadog
-uv run python devops/datadog/run_collector.py github --push --verbose
+uv run python devops/datadog/scripts/run_collector.py github --push --verbose
 ```
 
 ## Secret Management

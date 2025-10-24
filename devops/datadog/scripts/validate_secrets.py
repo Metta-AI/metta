@@ -215,9 +215,9 @@ def validate_secrets(verbose: bool = False) -> bool:
     if all_valid:
         print(f"\n{Colors.GREEN}{Colors.BOLD}✓ All validations passed!{Colors.RESET}")
         print("\nYou can now run collectors:")
-        print("  uv run python devops/datadog/run_collector.py github --verbose")
-        print("  uv run python devops/datadog/run_collector.py skypilot --verbose")
-        print("  uv run python devops/datadog/run_collector.py asana --verbose")
+        print("  uv run python devops/datadog/scripts/run_collector.py github --verbose")
+        print("  uv run python devops/datadog/scripts/run_collector.py skypilot --verbose")
+        print("  uv run python devops/datadog/scripts/run_collector.py asana --verbose")
         return True
     else:
         print(f"\n{Colors.RED}{Colors.BOLD}✗ Validation failed!{Colors.RESET}")

@@ -5,10 +5,10 @@ This script runs in the project environment and has access to all dependencies.
 Used by cli.py to execute collectors.
 
 Usage:
-    uv run python devops/datadog/run_collector.py github [--push] [--verbose]
-    uv run python devops/datadog/run_collector.py skypilot [--push] [--verbose]
-    uv run python devops/datadog/run_collector.py asana [--push] [--verbose]
-    uv run python devops/datadog/run_collector.py ec2 [--push] [--verbose]
+    uv run python devops/datadog/scripts/run_collector.py github [--push] [--verbose]
+    uv run python devops/datadog/scripts/run_collector.py skypilot [--push] [--verbose]
+    uv run python devops/datadog/scripts/run_collector.py asana [--push] [--verbose]
+    uv run python devops/datadog/scripts/run_collector.py ec2 [--push] [--verbose]
 """
 
 import argparse

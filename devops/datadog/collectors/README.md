@@ -134,10 +134,10 @@ metta datadog collect skypilot --push
 
 ```bash
 # Collect metrics (dry-run)
-uv run python devops/datadog/run_collector.py kubernetes --verbose
+uv run python devops/datadog/scripts/run_collector.py kubernetes --verbose
 
 # Push metrics to Datadog
-uv run python devops/datadog/run_collector.py kubernetes --push
+uv run python devops/datadog/scripts/run_collector.py kubernetes --push
 ```
 
 **Docs**: [kubernetes/README.md](kubernetes/README.md)
@@ -169,13 +169,13 @@ uv run python devops/datadog/run_collector.py kubernetes --push
 
 ```bash
 # Collect metrics (dry-run)
-uv run python devops/datadog/run_collector.py ec2 --verbose
+uv run python devops/datadog/scripts/run_collector.py ec2 --verbose
 
 # Push metrics to Datadog
-uv run python devops/datadog/run_collector.py ec2 --push
+uv run python devops/datadog/scripts/run_collector.py ec2 --push
 ```
 
-**Setup**: Requires AWS credentials with EC2 read permissions. See [SECRETS_SETUP.md](../SECRETS_SETUP.md).
+**Setup**: Requires AWS credentials with EC2 read permissions. See [docs/SECRETS_SETUP.md](../docs/SECRETS_SETUP.md).
 
 ### Asana Collector ✅
 
@@ -204,13 +204,13 @@ uv run python devops/datadog/run_collector.py ec2 --push
 
 ```bash
 # Collect metrics (dry-run)
-uv run python devops/datadog/run_collector.py asana --verbose
+uv run python devops/datadog/scripts/run_collector.py asana --verbose
 
 # Push metrics to Datadog
-uv run python devops/datadog/run_collector.py asana --push
+uv run python devops/datadog/scripts/run_collector.py asana --push
 ```
 
-**Setup**: See [SECRETS_SETUP.md](../SECRETS_SETUP.md) for configuring Asana access token and workspace/project IDs.
+**Setup**: See [docs/SECRETS_SETUP.md](../docs/SECRETS_SETUP.md) for configuring Asana access token and workspace/project IDs.
 
 ### Health FoM Collector ✅
 
@@ -243,10 +243,10 @@ uv run python devops/datadog/run_collector.py asana --push
 
 ```bash
 # Collect health scores (reads from Datadog)
-uv run python devops/datadog/run_collector.py health_fom --verbose
+uv run python devops/datadog/scripts/run_collector.py health_fom --verbose
 
 # Push to Datadog
-uv run python devops/datadog/run_collector.py health_fom --push
+uv run python devops/datadog/scripts/run_collector.py health_fom --push
 ```
 
 ## Architecture
@@ -323,9 +323,9 @@ Quick steps:
 
 1. Create `collectors/{service}/` directory
 2. Implement `collector.py` (inherit `BaseCollector`)
-3. Add secrets to AWS Secrets Manager (see [SECRETS_SETUP.md](../SECRETS_SETUP.md))
+3. Add secrets to AWS Secrets Manager (see [docs/SECRETS_SETUP.md](../docs/SECRETS_SETUP.md))
 4. Configure in Helm `values.yaml` (environment variables for configuration)
-5. Test locally: `uv run python devops/datadog/run_collector.py {service} --verbose`
+5. Test locally: `uv run python devops/datadog/scripts/run_collector.py {service} --verbose`
 6. Deploy with Helm
 
 ## Secrets Management
@@ -354,10 +354,10 @@ Examples:
 
 ```bash
 # Test collector without pushing to Datadog
-uv run python devops/datadog/run_collector.py github --verbose
+uv run python devops/datadog/scripts/run_collector.py github --verbose
 
 # Push to Datadog
-uv run python devops/datadog/run_collector.py github --push
+uv run python devops/datadog/scripts/run_collector.py github --push
 
 # Validate secrets configuration
 uv run python devops/datadog/scripts/validate_secrets.py

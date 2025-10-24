@@ -200,7 +200,7 @@ devops/datadog/templates/
 
 **Secrets Management**:
 
-- `SECRETS_SETUP.md` - AWS Secrets Manager setup guide
+- `docs/SECRETS_SETUP.md` - AWS Secrets Manager setup guide
 - `.env.sample` - Example environment configuration
 
 ---
