@@ -426,11 +426,65 @@ class BidirectionalLPScorer(LPScorer):
         self._task_success_rate = task_success_rates
         self._stale_dist = True
 
+    def _reweight(self, p: float) -> float:
+        """Reweight performance signal to amplify unsolved/solved task signals.
+
+        Applies the reweighting function: R(p) = p * (1 - theta) / (p + theta * (1 - 2p))
+
+        Args:
+            p: Performance value (success rate) between 0 and 1
+
+        Returns:
+            Reweighted performance value
+
+        Notes:
+            - When theta = 0.5, R(p) ≈ p (effectively OFF)
+            - When theta is low (e.g., 0.05), amplifies signal from unsolved tasks (p~0)
+              and dampens signal from partially-solved tasks (p~0.5)
+            - Higher theta values reweight toward higher performance tasks
+        """
+        theta = self.config.early_progress_amplification
+
+        # Numerator: p * (1 - theta)
+        numerator = p * (1.0 - theta)
+
+        # Denominator: p + theta * (1 - 2p)
+        denominator = p + theta * (1.0 - 2.0 * p)
+
+        # Handle potential division by zero
+        # If p=0 and theta=0, or if denominator is very small
+        if abs(denominator) < 1e-10:
+            # When p=0, R(p) should be 0; when p=1, R(p) should be 1
+            return 0.0 if p < 0.5 else 1.0
+
+        return numerator / denominator
+
     def _learning_progress(self) -> np.ndarray:
-        """Calculate raw learning progress (fast EMA - slow EMA)."""
+        """Calculate raw learning progress with optional reweighting.
+
+        Applies reweighting to fast and slow EMAs before computing absolute difference.
+        This amplifies learning signal from unsolved tasks when early_progress_amplification
+        is set to a low value (e.g., 0.05).
+        """
         if self._p_fast is None or self._p_slow is None:
             return np.array([])
-        return np.abs(self._p_fast - self._p_slow)
+
+        # Apply reweighting if not at default (0.5)
+        if abs(self.config.early_progress_amplification - 0.5) > 1e-6:
+            # Apply reweighting element-wise to both fast and slow EMAs
+            # Need to clip to [0, 1] range to ensure valid probability values
+            p_fast_clipped = np.clip(self._p_fast, 0.0, 1.0)
+            p_slow_clipped = np.clip(self._p_slow, 0.0, 1.0)
+
+            # Vectorize the reweight function and apply
+            reweighted_fast = np.vectorize(self._reweight)(p_fast_clipped)
+            reweighted_slow = np.vectorize(self._reweight)(p_slow_clipped)
+
+            # Calculate LP from reweighted signals
+            return np.abs(reweighted_fast - reweighted_slow)
+        else:
+            # Default behavior: unweighted LP
+            return np.abs(self._p_fast - self._p_slow)
 
     def _sigmoid(self, x: np.ndarray) -> np.ndarray:
         """Sigmoid function with clipping to prevent overflow."""

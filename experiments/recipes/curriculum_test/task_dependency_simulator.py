@@ -720,6 +720,7 @@ def create_curriculum(
     exploration_bonus: float = 0.1,
     progress_smoothing: float = 0.0,
     lp_score_temperature: float = 0.0,
+    early_progress_amplification: float = 0.5,
     use_bidirectional: bool = True,
     max_slice_axes: int = 3,
     num_active_tasks: int = 1000,
@@ -743,6 +744,7 @@ def create_curriculum(
         exploration_bonus=exploration_bonus,
         progress_smoothing=progress_smoothing,
         lp_score_temperature=lp_score_temperature,
+        early_progress_amplification=early_progress_amplification,
         max_slice_axes=max_slice_axes,
         enable_detailed_slice_logging=enable_detailed_slice_logging,
         show_curriculum_troubleshooting_logging=show_curriculum_troubleshooting_logging,
@@ -780,6 +782,7 @@ def simulate_task_dependencies(
     exploration_bonus: float = 0.1,
     progress_smoothing: float = 0.0,
     lp_score_temperature: float = 0.0,
+    early_progress_amplification: float = 0.5,
     use_bidirectional: bool = True,
     max_slice_axes: int = 3,
     num_active_tasks: int = 1000,
@@ -848,6 +851,7 @@ def simulate_task_dependencies(
         exploration_bonus=exploration_bonus,
         progress_smoothing=progress_smoothing,
         lp_score_temperature=lp_score_temperature,
+        early_progress_amplification=early_progress_amplification,
         use_bidirectional=use_bidirectional,
         max_slice_axes=max_slice_axes,
         num_active_tasks=num_active_tasks,
@@ -1065,6 +1069,9 @@ class TaskDependencySimulationTool(Tool):
     exploration_bonus: float = 0.1
     progress_smoothing: float = 0.0
     lp_score_temperature: float = 0.0
+    early_progress_amplification: float = (
+        0.5  # 0.5 = OFF, low values (0.05) amplify unsolved tasks
+    )
     use_bidirectional: bool = True
     max_slice_axes: int = 3
     num_active_tasks: int = 1000
@@ -1106,6 +1113,7 @@ class TaskDependencySimulationTool(Tool):
                 exploration_bonus=self.exploration_bonus,
                 progress_smoothing=self.progress_smoothing,
                 lp_score_temperature=self.lp_score_temperature,
+                early_progress_amplification=self.early_progress_amplification,
                 use_bidirectional=self.use_bidirectional,
                 max_slice_axes=self.max_slice_axes,
                 num_active_tasks=self.num_active_tasks,
@@ -1227,6 +1235,7 @@ def train(
         exploration_bonus=0.2,  # Reasonable exploration
         progress_smoothing=0.0,  # No artificial floor
         lp_score_temperature=0.0,  # Z-score normalization for relative LP comparison
+        early_progress_amplification=0.5,  # 0.5 = OFF, low values (0.05) amplify unsolved tasks
         use_bidirectional=True,  # Use bidirectional LP scoring (default)
         # Task pool management
         num_active_tasks=200,  # Reasonable pool size

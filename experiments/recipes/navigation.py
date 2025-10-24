@@ -137,6 +137,7 @@ def make_curriculum(
             enable_detailed_slice_logging=enable_detailed_slice_logging,
             lp_score_temperature=0.0,  # Z-score normalization for relative LP comparison
             show_curriculum_troubleshooting_logging=True,  # Enable per-task metrics for debugging
+            early_progress_amplification=0.5,  # 0.5 = OFF, low values (0.05) amplify unsolved tasks
         )
 
     return CurriculumConfig(
