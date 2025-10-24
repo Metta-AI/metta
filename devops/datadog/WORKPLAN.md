@@ -1,9 +1,9 @@
 # Datadog Observability System - Work Plan
 
-**Current Status**: Phase 4 - Five collectors implemented (GitHub, Skypilot, Asana, EC2, WandB) with 101 total metrics
+**Current Status**: Phase 5 - Six collectors implemented (GitHub, Skypilot, Asana, EC2, WandB, Kubernetes) with 116 total metrics
 **Branch**: `robb/1022-datadog`
 **PR**: [#3384](https://github.com/Metta-AI/metta/pull/3384)
-**Last Updated**: 2025-10-23
+**Last Updated**: 2025-10-24
 
 ---
 
@@ -11,16 +11,17 @@
 
 ### ✅ Modular Collector Architecture
 - **BaseCollector pattern** for consistent collector implementation
-- **Five collectors implemented and tested**:
+- **Six collectors implemented and tested**:
   - GitHub (28 metrics): PRs, commits, CI/CD, developers
   - Skypilot (30 metrics): Jobs, runtime stats, resources, clusters
   - Asana (14 metrics): Tasks, velocity, Bugs project workflow
   - EC2 (19 metrics): Instances, costs, utilization, EBS volumes
   - WandB (10 metrics): Training runs, model performance, GPU hours
-- **101 total metrics** ready to deploy
+  - Kubernetes (15 metrics): Resource efficiency, pod health, waste tracking
+- **116 total metrics** ready to deploy
 - **GitHub collector** deployed to production (Helm revision 16, monitoring namespace)
 - **Metrics flowing successfully** to Datadog for 24+ hours
-- Framework ready for additional collectors (WandB, etc.)
+- Framework ready for additional collectors
 
 ### ✅ Deployment Infrastructure
 - **Helm chart** for CronJob deployment (`devops/charts/dashboard-cronjob/`)

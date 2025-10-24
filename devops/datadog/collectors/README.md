@@ -22,6 +22,7 @@ All collectors share a common base class and follow consistent patterns.
 | [asana](asana/) | ✅ Implemented | Medium | 14 | 6 hours | Project health, bugs tracking, team velocity |
 | [ec2](ec2/) | ✅ Implemented | High | 19 | 5 min | Instances, costs, utilization, EBS volumes |
 | [wandb](wandb/) | ✅ Implemented | High | 10 | 30 min | Training runs, model performance, GPU hours |
+| [kubernetes](kubernetes/) | ✅ Implemented | High | 15 | 5 min | Resource efficiency, pod health, waste tracking |
 
 ## Quick Reference
 
@@ -81,17 +82,44 @@ metta datadog collect skypilot --push
 - **Resource efficiency**: Track spot vs on-demand ratio over time
 - **Alert on p99 > 48h**: Catch long-running jobs that might be stuck
 
-### WandB Collector 📋
+### WandB Collector ✅
 
-**Planned** - Training experiment tracking
+**Implemented** - Training experiment tracking (10 metrics)
 
 **Key Metrics**:
 - `wandb.runs.active`, `wandb.runs.completed_7d` - Run status
-- `wandb.metrics.best_accuracy` - Model performance
-- `wandb.compute.total_gpu_hours_7d` - Resource usage
-- `wandb.users.active_7d` - Team activity
+- `wandb.metrics.best_accuracy`, `wandb.metrics.latest_loss` - Model performance
+- `wandb.training.total_gpu_hours_7d`, `wandb.training.gpu_utilization_avg` - Resource usage
 
 **Docs**: [wandb/README.md](wandb/README.md)
+
+### Kubernetes Collector ✅
+
+**Implemented** - Resource efficiency and pod health (15 metrics)
+
+**Resource Efficiency**:
+- `k8s.resources.cpu_waste_cores`, `k8s.resources.memory_waste_gb` - Wasted resources
+- `k8s.resources.cpu_efficiency_pct`, `k8s.resources.memory_efficiency_pct` - Utilization
+- `k8s.resources.overallocated_pods` - Pods using <20% of requested resources
+
+**Pod Health**:
+- `k8s.pods.crash_looping`, `k8s.pods.failed`, `k8s.pods.pending` - Pod status
+- `k8s.pods.oomkilled_24h`, `k8s.pods.high_restarts` - Stability issues
+
+**Underutilization**:
+- `k8s.pods.idle_count`, `k8s.pods.low_cpu_usage`, `k8s.pods.low_memory_usage` - Idle resources
+- `k8s.deployments.zero_replicas` - Unused deployments
+
+**Usage**:
+```bash
+# Collect metrics (dry-run)
+uv run python devops/datadog/run_collector.py kubernetes --verbose
+
+# Push metrics to Datadog
+uv run python devops/datadog/run_collector.py kubernetes --push
+```
+
+**Docs**: [kubernetes/README.md](kubernetes/README.md)
 
 ### EC2 Collector ✅
 
