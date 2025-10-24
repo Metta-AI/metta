@@ -222,7 +222,8 @@ void main()
 
     // 1) Which map cell are we in?
     vec2  mapPos   = TexCoord * uMapSize;        // [0..mapW/H) in tile units
-    ivec2 mapTexel = ivec2(floor(mapPos));       // integer tile coords
+    ivec2 mapTexel0 = ivec2(floor(mapPos));       // integer tile coords
+    ivec2 mapTexel = ivec2(mapTexel0.x, int(uMapSize.y) - mapTexel0.y - 1);
 
     // 2) Read tile index EXACTLY (no filtering, no mips)
     uint tileIndexU = texelFetch(uIndexTexture, mapTexel, 0).r;
@@ -267,9 +268,9 @@ void main()
   # Quad vertices (position + texture coordinates)
   tileMap.quadVertices = @[
     # positions    # texture coords
-    -1.0f,  1.0f,   0.0f, 0.0f,  # top left
-    -1.0f, -1.0f,   0.0f, 1.0f,  # bottom left
-    1.0f, -1.0f,   1.0f, 1.0f,  # bottom right
+    0.0f,  1.0f,   0.0f, 0.0f,  # top left
+    0.0f,  0.0f,   0.0f, 1.0f,  # bottom left
+    1.0f,  0.0f,   1.0f, 1.0f,  # bottom right
     1.0f,  1.0f,   1.0f, 0.0f   # top right
   ]
 
@@ -320,8 +321,7 @@ proc draw*(
   zoomThreshold = 1.25f
 ) =
 
-  glClearColor(1, 0, 0, 1)
-  glClear(GL_COLOR_BUFFER_BIT)
+  # Do not clear here; Boxy manages the target/FBO.
   # Use our custom shader.
   glUseProgram(tileMap.shader.programId)
 
@@ -348,12 +348,23 @@ proc draw*(
 
   tileMap.shader.bindUniforms()
 
-  # Bind the buffers
-  glBindBuffer(GL_ARRAY_BUFFER, tileMap.VBO)
-  glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, tileMap.EBO)
+  # Bind our VAO (encapsulates attrib pointers and EBO)
   glBindVertexArray(tileMap.VAO)
 
   # Draw the quad
   glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, nil)
 
-  echo "end draw tile map"
+  # Restore minimal GL state so Boxy continues to work after exitRawOpenGLMode.
+  # Unbind textures in reverse order
+  glActiveTexture(GL_TEXTURE2)
+  glBindTexture(GL_TEXTURE_2D, 0)
+  glActiveTexture(GL_TEXTURE1)
+  glBindTexture(GL_TEXTURE_2D_ARRAY, 0)
+  glActiveTexture(GL_TEXTURE0)
+  glBindTexture(GL_TEXTURE_2D, 0)
+
+  # Unbind VAO (Boxy will restore its own in exitRawOpenGLMode)
+  glBindVertexArray(0)
+
+  # Unbind our shader program (Boxy will bind its own when needed)
+  glUseProgram(0)

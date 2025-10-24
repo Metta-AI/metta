@@ -141,7 +141,6 @@ window.onFrame = proc() =
   let oldAt = oldMat.inverse() * window.mousePos.vec2
   pos -= (oldAt - newAt).xy * (zoomPow2)
 
-
   # Create MVP matrix.
   let projection = ortho(0.0f, window.size.x.float32, window.size.y.float32, 0.0f, -1.0f, 1.0f)
   let view = translate(vec3(pos.x, pos.y, 0.0f)) *
@@ -164,7 +163,8 @@ window.onFrame = proc() =
     )
     echo "mouse tile: ", tileX, ", ", tileY, " -> ", mouseTile
 
-  terrainMap.draw(mat4(), 1.0f, 1.25f)
+  terrainMap.draw(mvp, zoom, 1.25f)
+  #terrainMap.draw(mat4(), 1.0f, 1.25f)
 
   # End this frame, flushing the draw commands.
   bxy.endFrame()
