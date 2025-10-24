@@ -1,13 +1,10 @@
 # Development/testing values for dashboard-cronjob
-# Deploy to monitoring-dev namespace with separate IRSA role
+# Deploy to same monitoring namespace alongside production
 #
 # Usage:
-#   ./devops/k8s/deploy-helm-chart.sh \
-#     --chart devops/charts/dashboard-cronjob \
-#     --release dashboard-cronjob \
-#     --namespace monitoring-dev \
-#     --values devops/charts/dashboard-cronjob/values-dev.yaml \
-#     --create-namespace
+#   1. Uncomment dashboard-cronjob-dev section in devops/charts/helmfile.yaml
+#   2. Update image.tag to your feature branch
+#   3. Run: cd devops/charts && helmfile apply -i -l name=dashboard-cronjob-dev
 
 # Use same schedule as production
 schedule: "*/15 * * * *"
