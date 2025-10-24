@@ -42,14 +42,30 @@ class HealthFomCollector(BaseCollector):
         """
         fom_metrics = {}
 
-        # Phase 1: CI/CD FoMs (7 metrics, all raw sources available from GitHub collector)
-        fom_metrics.update(self._ci_foms())
+        try:
+            # Phase 1: CI/CD FoMs (7 metrics, all raw sources available from GitHub collector)
+            ci_foms = self._ci_foms()
+            if ci_foms:
+                fom_metrics.update(ci_foms)
+                self.logger.info(f"Collected {len(ci_foms)} CI FoM metrics")
+            else:
+                self.logger.warning("No CI FoM metrics available")
 
-        # Phase 2: Training FoMs (using available WandB metrics)
-        fom_metrics.update(self._training_foms())
+            # Phase 2: Training FoMs (using available WandB metrics)
+            training_foms = self._training_foms()
+            if training_foms:
+                fom_metrics.update(training_foms)
+                self.logger.info(f"Collected {len(training_foms)} Training FoM metrics")
+            else:
+                self.logger.warning("No Training FoM metrics available")
 
-        # Phase 3: Eval FoMs (5 metrics, requires Eval collector)
-        # fom_metrics.update(self._eval_foms())
+            # Phase 3: Eval FoMs (5 metrics, requires Eval collector)
+            # fom_metrics.update(self._eval_foms())
+
+        except Exception as e:
+            self.logger.error(f"Failed to collect FoM metrics: {e}")
+            # Return empty dict on error - don't crash the entire collector job
+            return {}
 
         return fom_metrics
 
@@ -198,10 +214,15 @@ class HealthFomCollector(BaseCollector):
             Most recent metric value, or None if not available
         """
         try:
-            # Query Datadog for metric value from last 1 hour
-            # This uses the timeseries query API
-            value = self._dd_client.query_metric(metric_name, aggregation=aggregation)
+            # Query Datadog for metric value from last 30 minutes (reduced from 1 hour)
+            # This reduces the amount of data returned and speeds up queries
+            value = self._dd_client.query_metric(
+                metric_name,
+                aggregation=aggregation,
+                lookback_seconds=1800,  # 30 minutes
+            )
             return value
         except Exception as e:
-            self.logger.warning(f"Failed to query metric {metric_name}: {e}")
+            # Don't log warnings for missing metrics - it's expected during initial deployment
+            self.logger.debug(f"Metric {metric_name} not available: {e}")
             return None
