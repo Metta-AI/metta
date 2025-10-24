@@ -45,8 +45,8 @@ class HealthFomCollector(BaseCollector):
         # Phase 1: CI/CD FoMs (7 metrics, all raw sources available from GitHub collector)
         fom_metrics.update(self._ci_foms())
 
-        # Phase 2: Training FoMs (9 metrics, requires WandB collector)
-        # fom_metrics.update(self._training_foms())
+        # Phase 2: Training FoMs (using available WandB metrics)
+        fom_metrics.update(self._training_foms())
 
         # Phase 3: Eval FoMs (5 metrics, requires Eval collector)
         # fom_metrics.update(self._eval_foms())
@@ -105,6 +105,85 @@ class HealthFomCollector(BaseCollector):
 
         except Exception as e:
             self.logger.error(f"Failed to calculate CI FoMs: {e}")
+
+        return foms
+
+    def _training_foms(self) -> dict[str, float]:
+        """Calculate Training Figure of Merit values.
+
+        Uses available WandB metrics to assess training health.
+
+        Returns:
+            Dict of health.training.*.fom metrics
+        """
+        foms = {}
+
+        try:
+            # 1. Training Run Success (at least 1 completed run in 7 days)
+            completed_runs = self._query_metric("wandb.runs.completed_7d")
+            if completed_runs is not None:
+                # Target: at least 7 runs per week (1 per day)
+                foms["health.training.run_success.fom"] = min(completed_runs / 7.0, 1.0)
+
+            # 2. Training Run Failures (fewer is better)
+            failed_runs = self._query_metric("wandb.runs.failed_7d")
+            if failed_runs is not None:
+                # Target: 0 failures, tolerate up to 3
+                foms["health.training.run_failures.fom"] = max(1.0 - (failed_runs / 3.0), 0.0)
+
+            # 3. Model Performance - Best Accuracy (higher is better)
+            best_accuracy = self._query_metric("wandb.metrics.best_accuracy")
+            if best_accuracy is not None:
+                # Normalize to 0-1 range (assuming accuracy is already a percentage 0-100 or ratio 0-1)
+                # If accuracy is 0-100, divide by 100. If 0-1, use as-is
+                if best_accuracy > 1.0:
+                    # Assume percentage (0-100)
+                    foms["health.training.best_accuracy.fom"] = min(best_accuracy / 100.0, 1.0)
+                else:
+                    # Already a ratio (0-1)
+                    foms["health.training.best_accuracy.fom"] = best_accuracy
+
+            # 4. Model Performance - Average Accuracy (7 days)
+            avg_accuracy = self._query_metric("wandb.metrics.avg_accuracy_7d")
+            if avg_accuracy is not None:
+                if avg_accuracy > 1.0:
+                    foms["health.training.avg_accuracy.fom"] = min(avg_accuracy / 100.0, 1.0)
+                else:
+                    foms["health.training.avg_accuracy.fom"] = avg_accuracy
+
+            # 5. Training Loss (lower is better, inverse metric)
+            latest_loss = self._query_metric("wandb.metrics.latest_loss")
+            if latest_loss is not None and latest_loss > 0:
+                # Normalize: loss of 0.1→1.0 (excellent), 1.0→0.5 (ok), 2.0+→0.0 (poor)
+                fom_value = 1.0 - (latest_loss - 0.1) / (2.0 - 0.1)
+                foms["health.training.latest_loss.fom"] = max(0.0, min(1.0, fom_value))
+
+            # 6. GPU Utilization (higher is better)
+            gpu_util = self._query_metric("wandb.training.gpu_utilization_avg")
+            if gpu_util is not None:
+                # Target: >80% utilization
+                # 80%→1.0, 50%→0.63, 0%→0.0
+                foms["health.training.gpu_utilization.fom"] = min(gpu_util / 80.0, 1.0)
+
+            # 7. Training Duration Consistency (faster is better, but consistent)
+            avg_duration = self._query_metric("wandb.training.avg_duration_hours")
+            if avg_duration is not None:
+                # Target: 2-8 hours per run
+                # Too fast (<1h) might indicate incomplete runs
+                # Too slow (>12h) might indicate issues
+                if avg_duration < 1.0:
+                    # Suspiciously fast
+                    foms["health.training.duration.fom"] = 0.3
+                elif avg_duration <= 8.0:
+                    # Optimal range
+                    foms["health.training.duration.fom"] = 1.0
+                else:
+                    # Too slow: 8h→1.0, 16h→0.0
+                    fom_value = 1.0 - (avg_duration - 8.0) / (16.0 - 8.0)
+                    foms["health.training.duration.fom"] = max(0.0, min(1.0, fom_value))
+
+        except Exception as e:
+            self.logger.error(f"Failed to calculate Training FoMs: {e}")
 
         return foms
 

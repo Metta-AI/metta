@@ -10,6 +10,7 @@ from pathlib import Path
 
 # Define metrics (rows)
 METRICS = [
+    # CI/CD Metrics
     {
         "name": "Tests Passing",
         "metric": "health.ci.tests_passing.fom",
@@ -44,6 +45,42 @@ METRICS = [
         "name": "PR Cycle Time",
         "metric": "health.ci.pr_cycle_time.fom",
         "description": "PR cycle time",
+    },
+    # Training Metrics
+    {
+        "name": "Training Run Success",
+        "metric": "health.training.run_success.fom",
+        "description": "Completed runs (7d)",
+    },
+    {
+        "name": "Training Run Failures",
+        "metric": "health.training.run_failures.fom",
+        "description": "Failed runs (7d)",
+    },
+    {
+        "name": "Best Model Accuracy",
+        "metric": "health.training.best_accuracy.fom",
+        "description": "Best model performance",
+    },
+    {
+        "name": "Avg Model Accuracy",
+        "metric": "health.training.avg_accuracy.fom",
+        "description": "Avg accuracy (7d)",
+    },
+    {
+        "name": "Training Loss",
+        "metric": "health.training.latest_loss.fom",
+        "description": "Latest training loss",
+    },
+    {
+        "name": "GPU Utilization",
+        "metric": "health.training.gpu_utilization.fom",
+        "description": "GPU utilization avg",
+    },
+    {
+        "name": "Training Duration",
+        "metric": "health.training.duration.fom",
+        "description": "Avg duration (hours)",
     },
 ]
 
@@ -164,7 +201,7 @@ def generate_dashboard() -> dict:
         create_note_widget(
             content=(
                 "## System Health Rollup\n\n"
-                "**Figure of Merit (FoM)** values for CI/CD metrics over 7 days.\n\n"
+                "**Figure of Merit (FoM)** values for CI/CD and Training metrics over 7 days.\n\n"
                 "🟢 Green (0.7-1.0) = Healthy | "
                 "🟡 Yellow (0.3-0.7) = Warning | "
                 "🔴 Red (0.0-0.3) = Critical"
