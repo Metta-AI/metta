@@ -20,8 +20,8 @@ All collectors share a common base class and follow consistent patterns.
 | [github](github/) | ✅ Implemented | High | 24 | 15 min | PRs, commits, CI/CD, branches, developers |
 | [skypilot](skypilot/) | ✅ Implemented | High | 30 | 10 min | Jobs, clusters, runtime stats, resource utilization |
 | [asana](asana/) | ✅ Implemented | Medium | 14 | 6 hours | Project health, bugs tracking, team velocity |
+| [ec2](ec2/) | ✅ Implemented | High | 19 | 5 min | Instances, costs, utilization, EBS volumes |
 | [wandb](wandb/) | 📋 Planned | Medium | 15+ | 30 min | Training runs, experiments, GPU hours |
-| [ec2](ec2/) | 📋 Planned | High | 20+ | 5 min | Instances, costs, utilization |
 
 ## Quick Reference
 
@@ -93,17 +93,36 @@ metta datadog collect skypilot --push
 
 **Docs**: [wandb/README.md](wandb/README.md)
 
-### EC2 Collector 📋
+### EC2 Collector ✅
 
-**Planned** - AWS infrastructure monitoring
+**Implemented** - AWS infrastructure monitoring (19 metrics)
 
-**Key Metrics**:
-- `ec2.instances.running`, `ec2.instances.spot` - Instance counts
-- `ec2.cost.running_hourly`, `ec2.cost.monthly_estimate` - Cost tracking
-- `ec2.utilization.idle_instances` - Waste detection
-- `ec2.ebs.unattached_volumes` - Orphaned resources
+**Instance Metrics**:
+- `ec2.instances.total`, `ec2.instances.running`, `ec2.instances.stopped` - Instance counts
+- `ec2.instances.spot`, `ec2.instances.ondemand` - Instance lifecycle
+- `ec2.instances.gpu_count`, `ec2.instances.cpu_count` - Resource counts
+- `ec2.instances.idle` - Idle instance count
+- `ec2.instances.avg_age_days`, `ec2.instances.oldest_age_days` - Instance age
 
-**Docs**: [ec2/README.md](ec2/README.md)
+**EBS Metrics**:
+- `ec2.ebs.volumes.total`, `ec2.ebs.volumes.attached`, `ec2.ebs.volumes.unattached` - Volume counts
+- `ec2.ebs.volumes.size_gb` - Total storage size
+- `ec2.ebs.snapshots.total`, `ec2.ebs.snapshots.size_gb` - Snapshot tracking
+
+**Cost Metrics**:
+- `ec2.cost.running_hourly_estimate`, `ec2.cost.monthly_estimate` - Cost tracking
+- `ec2.cost.spot_savings_pct` - Spot instance savings percentage
+
+**Usage**:
+```bash
+# Collect metrics (dry-run)
+uv run python devops/datadog/run_collector.py ec2 --verbose
+
+# Push metrics to Datadog
+uv run python devops/datadog/run_collector.py ec2 --push
+```
+
+**Setup**: Requires AWS credentials with EC2 read permissions. See [SECRETS_SETUP.md](../SECRETS_SETUP.md).
 
 ### Asana Collector ✅
 
@@ -280,14 +299,14 @@ Alert: GitHub collector hasn't reported metrics in 30 minutes
 - ✅ GitHub collector (24 metrics)
 - ✅ Skypilot collector (30 metrics)
 - ✅ Asana collector (14 metrics)
+- ✅ EC2 collector (19 metrics)
 - ✅ AWS Secrets Manager integration
 - ✅ Deployed as Kubernetes CronJobs
 
 ### Phase 2: Additional Collectors 📋
 Priority order:
 1. **WandB** (training visibility) - Planned
-2. **EC2** (infrastructure visibility) - Planned
-3. **Custom metrics** (as needed)
+2. **Custom metrics** (as needed)
 
 ### Phase 3: Enhancements 📋
 - Dashboard auto-generation from metadata

@@ -4,8 +4,8 @@
 
 Concrete implementation plan for building all Datadog dashboards in the Metta observability system. This workplan focuses exclusively on dashboard creation, assuming collectors are implemented per the main [WORKPLAN.md](../WORKPLAN.md).
 
-**Status**: Phase 1 complete - 3/3 dashboards deployed (GitHub ✅, Skypilot ✅, Health Rollup ✅)
-**Last Updated**: 2025-10-23 (System Health Rollup dashboard deployed)
+**Status**: Phase 1 complete - 5/5 core dashboards deployed (GitHub ✅, Skypilot ✅, Health Rollup ✅, Asana ✅, EC2 ✅)
+**Last Updated**: 2025-10-23 (Asana and EC2 dashboards deployed)
 **Related Docs**: [DASHBOARD_DESIGN.md](DASHBOARD_DESIGN.md), [HEALTH_DASHBOARD_SPEC.md](HEALTH_DASHBOARD_SPEC.md)
 
 ---
@@ -17,11 +17,13 @@ Concrete implementation plan for building all Datadog dashboards in the Metta ob
 | GitHub CI/CD | GitHub collector | ✅ **Complete** | P0 | 2 hours | [7gy-9ub-2sq](https://app.datadoghq.com/dashboard/7gy-9ub-2sq/github-cicd-dashboard) |
 | Skypilot Jobs | Skypilot collector | ✅ **Complete** | P1 | 1.5 hours | [wjp-n4n-dsf](https://app.datadoghq.com/dashboard/wjp-n4n-dsf/skypilot-jobs-dashboard) |
 | System Health Rollup | FoM collector | ✅ **Complete** | P0 | 2 hours | [2mx-kfj-8pi](https://app.datadoghq.com/dashboard/2mx-kfj-8pi/system-health-rollup) |
+| Asana Project Mgmt | Asana collector | ✅ **Complete** | P1 | 1 hour | [rx3-q2m-u9d](https://app.datadoghq.com/dashboard/rx3-q2m-u9d/asana-project-management) |
+| EC2 Infrastructure | EC2 collector | ✅ **Complete** | P0 | 1 hour | [qc6-92h-hap](https://app.datadoghq.com/dashboard/qc6-92h-hap/ec2-infrastructure) |
 | Training & WandB | WandB collector | Blocked | P1 | 6 hours (est) | - |
 | Eval & Testing | Eval collector | Blocked | P2 | 4 hours (est) | - |
 | Collector Health | All collectors | Not started | P2 | 3 hours (est) | - |
 
-**Progress**: 3/6 complete (50%)
+**Progress**: 5/8 complete (62.5%)
 **Total Effort**: ~13 hours remaining (~2 days of focused work)
 
 ---
@@ -75,6 +77,72 @@ Concrete implementation plan for building all Datadog dashboards in the Metta ob
 3. **FoM scaling** - Linear scaling formulas with proper clamping to [0.0, 1.0] range
 4. **Test-driven development** - Unit tests caught clamping bug before deployment
 5. **Efficient development** - 2 hours vs 8 hour estimate (75% faster than planned)
+
+---
+
+### ✅ EC2 Infrastructure Dashboard (2025-10-23)
+
+**Dashboard**: [EC2 Infrastructure](https://app.datadoghq.com/dashboard/qc6-92h-hap/ec2-infrastructure)
+**ID**: `qc6-92h-hap`
+**Time Spent**: 1 hour
+**Approach**: Jsonnet components → JSON
+
+**What We Built**:
+- **30+ widgets** across 5 sections with grouped layouts
+- **Jsonnet components**: Created `components/ec2.libsonnet` with 24 reusable widgets
+- **Dashboard source**: `dashboards/ec2.jsonnet` compiled to JSON
+
+**Sections**:
+1. **EC2 Instances** (5 widgets): Total, running, stopped, idle, trend chart
+2. **Resources & Instance Types** (5 widgets): Spot, on-demand, GPU, CPU, comparison chart
+3. **Instance Age** (3 widgets): Average/oldest age, analysis notes
+4. **EBS Storage** (7 widgets): Volumes, snapshots, storage sizes, trend
+5. **Cost Tracking** (5 widgets): Hourly/monthly estimates, spot savings, optimization notes
+
+**Metrics Used** (19 total):
+- Instance counts: `total`, `running`, `stopped`, `spot`, `ondemand`
+- Resources: `gpu_count`, `cpu_count`, `idle`
+- Age: `avg_age_days`, `oldest_age_days`
+- EBS: `volumes.{total,attached,unattached,size_gb}`, `snapshots.{total,size_gb}`
+- Costs: `running_hourly_estimate`, `monthly_estimate`, `spot_savings_pct`
+
+**Key Features**:
+- ✅ Grouped sections with colored backgrounds
+- ✅ Cost optimization guidance in notes
+- ✅ Timeseries trends for instances, costs, storage
+- ✅ Reusable Jsonnet components for all widgets
+
+---
+
+### ✅ Asana Project Management Dashboard (2025-10-23)
+
+**Dashboard**: [Asana Project Management](https://app.datadoghq.com/dashboard/rx3-q2m-u9d/asana-project-management)
+**ID**: `rx3-q2m-u9d`
+**Time Spent**: 1 hour
+**Approach**: Jsonnet components → JSON
+
+**What We Built**:
+- **20+ widgets** across 4 sections with grouped layouts
+- **Jsonnet components**: Created `components/asana.libsonnet` with 17 reusable widgets
+- **Dashboard source**: `dashboards/asana.jsonnet` compiled to JSON
+
+**Sections**:
+1. **Project Health** (5 widgets): Active projects, on track, at risk, off track, trend
+2. **Bug Status** (5 widgets): Total open, triage, active, backlog, trend
+3. **Bug Velocity** (4 widgets): Created/completed (7d/30d), velocity chart
+4. **Bug Age Metrics** (3 widgets): Average age, oldest bug, analysis notes
+
+**Metrics Used** (14 total):
+- Projects: `active`, `on_track`, `at_risk`, `off_track`
+- Bugs status: `bugs.total_open`, `bugs.triage_count`, `bugs.active_count`, `bugs.backlog_count`
+- Bugs velocity: `bugs.completed_{7d,30d}`, `bugs.created_7d`
+- Bug age: `bugs.avg_age_days`, `bugs.oldest_bug_days`
+
+**Key Features**:
+- ✅ Grouped sections with colored backgrounds
+- ✅ Bug age analysis guidelines in notes
+- ✅ Timeseries trends for bug lifecycle
+- ✅ Reusable Jsonnet components for all widgets
 
 ---
 
@@ -938,9 +1006,11 @@ git push
 ### Dashboard URLs
 
 ```
-✅ GitHub CI/CD:           https://app.datadoghq.com/dashboard/a53-9nk-w6j/github-cicd-dashboard
-✅ Skypilot Jobs:          https://app.datadoghq.com/dashboard/ndg-4cn-2h2/skypilot-jobs-dashboard
-   System Health Rollup:   (not yet created)
+✅ GitHub CI/CD:           https://app.datadoghq.com/dashboard/7gy-9ub-2sq/github-cicd-dashboard
+✅ Skypilot Jobs:          https://app.datadoghq.com/dashboard/wjp-n4n-dsf/skypilot-jobs-dashboard
+✅ System Health Rollup:   https://app.datadoghq.com/dashboard/2mx-kfj-8pi/system-health-rollup
+✅ Asana Project Mgmt:     https://app.datadoghq.com/dashboard/rx3-q2m-u9d/asana-project-management
+✅ EC2 Infrastructure:     https://app.datadoghq.com/dashboard/qc6-92h-hap/ec2-infrastructure
    Training & WandB:       (not yet created)
    Eval & Testing:         (not yet created)
    Collector Health:       (not yet created)
