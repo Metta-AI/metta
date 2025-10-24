@@ -159,7 +159,6 @@ def train(
 
     trainer_cfg = TrainerConfig(
         losses=LossConfig(),
-        async_factor=1,
     )
 
     evaluator_cfg = EvaluatorConfig(
@@ -168,7 +167,10 @@ def train(
 
     return TrainTool(
         trainer=trainer_cfg,
-        training_env=TrainingEnvironmentConfig(curriculum=resolved_curriculum),
+        training_env=TrainingEnvironmentConfig(
+            curriculum=resolved_curriculum,
+            async_factor=1,
+        ),
         evaluator=evaluator_cfg,
     )
 
