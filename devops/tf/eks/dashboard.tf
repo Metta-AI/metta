@@ -8,7 +8,7 @@ module "dashboard_irsa" {
   oidc_providers = {
     main = {
       provider_arn               = module.eks.oidc_provider_arn
-      namespace_service_accounts = ["monitoring:dashboard-cronjob-*"]
+      namespace_service_accounts = ["monitoring:dashboard-cronjob-dashboard-cronjob"]
     }
   }
 

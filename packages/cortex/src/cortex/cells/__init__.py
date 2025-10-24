@@ -9,6 +9,7 @@ from cortex.cells.lstm import LSTMCell
 from cortex.cells.mlstm import mLSTMCell
 from cortex.cells.registry import build_cell, get_cell_class, register_cell
 from cortex.cells.slstm import sLSTMCell
+from cortex.cells.xl import XLCell
 
 __all__ = [
     "MemoryCell",
@@ -18,6 +19,7 @@ __all__ = [
     "AxonCell",
     "AxonLayer",
     "sLSTMCell",
+    "XLCell",
     "register_cell",
     "build_cell",
     "get_cell_class",
