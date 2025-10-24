@@ -1,0 +1,185 @@
+from __future__ import annotations
+
+import json
+import os
+from dataclasses import dataclass
+from pathlib import Path
+from typing import TYPE_CHECKING, Any, Mapping, Sequence
+
+from metta.setup.utils import error, info, step, success, warning
+
+if TYPE_CHECKING:
+    from .test_python import PackageResult
+
+
+@dataclass(slots=True)
+class TestFailure:
+    nodeid: str
+    message: str
+
+
+@dataclass(slots=True)
+class PackageSummary:
+    package_name: str
+    target: str
+    returncode: int
+    duration: float
+    total: int | None
+    failures: list[TestFailure]
+
+
+def _load_report(report: Path) -> Mapping[str, Any] | None:
+    if not report.exists():
+        warning(f"Pytest JSON report missing: {report}")
+        return None
+    try:
+        with report.open("r", encoding="utf-8") as handle:
+            data = json.load(handle)
+    except (OSError, json.JSONDecodeError) as exc:
+        warning(f"Unable to read pytest report {report}: {exc}")
+        return None
+    if isinstance(data, Mapping):
+        return data
+    warning(f"Unexpected JSON structure in {report}")
+    return None
+
+
+def _summary_total(summary: Mapping[str, Any]) -> int | None:
+    total = summary.get("total")
+    if isinstance(total, int):
+        return total
+    values = [value for value in summary.values() if isinstance(value, (int, float))]
+    if not values:
+        return None
+    return int(sum(values))
+
+
+def _failure_message(entry: Mapping[str, Any]) -> str:
+    for key in ("longreprtext", "longrepr"):
+        value = entry.get(key)
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+    for phase in ("setup", "call", "teardown"):
+        phase_data = entry.get(phase)
+        if isinstance(phase_data, Mapping):
+            message = phase_data.get("longreprtext")
+            if isinstance(message, str) and message.strip():
+                return message.strip()
+    nodeid = entry.get("nodeid")
+    if isinstance(nodeid, str):
+        outcome = entry.get("outcome")
+        return f"{nodeid} -> {outcome}"
+    return "pytest reported a failure without details"
+
+
+def summarise(results: Sequence["PackageResult"]) -> list[PackageSummary]:
+    summaries: list[PackageSummary] = []
+    for result in results:
+        data = _load_report(result.report_file)
+        summary_section: Mapping[str, Any] = data.get("summary", {}) if data else {}
+        total = _summary_total(summary_section) if summary_section else None
+
+        failures: list[TestFailure] = []
+        tests = data.get("tests") if data else None
+        if isinstance(tests, list):
+            for entry in tests:
+                if not isinstance(entry, Mapping):
+                    continue
+                if entry.get("outcome") not in {"failed", "error"}:
+                    continue
+                nodeid = entry.get("nodeid")
+                if not isinstance(nodeid, str):
+                    continue
+                message = _failure_message(entry)
+                failures.append(TestFailure(nodeid=nodeid, message=message))
+
+        summaries.append(
+            PackageSummary(
+                package_name=result.package.name,
+                target=result.target,
+                returncode=result.returncode,
+                duration=result.duration,
+                total=total,
+                failures=failures,
+            )
+        )
+    return summaries
+
+
+def log_results(summaries: Sequence[PackageSummary]) -> None:
+    if not summaries:
+        info("No Python test packages were selected.")
+        return
+
+    for summary in summaries:
+        total_text = f"{summary.total} tests" if summary.total else "no tests"
+        duration_text = f"{summary.duration:.1f}s"
+        failure_count = len(summary.failures)
+
+        if summary.returncode == 0 and failure_count == 0:
+            success(f"✓ {summary.package_name} · {total_text} · {duration_text}")
+        elif failure_count:
+            error(f"✗ {summary.package_name} · {total_text} · {duration_text} · {failure_count} failing")
+        else:
+            error(f"✗ {summary.package_name} · {total_text} · {duration_text} · exit {summary.returncode}")
+
+
+def report_failures(summaries: Sequence[PackageSummary]) -> dict[str, list[TestFailure]]:
+    failure_map: dict[str, list[TestFailure]] = {
+        summary.package_name: summary.failures for summary in summaries if summary.failures
+    }
+
+    if not summaries:
+        return failure_map
+    if not failure_map:
+        if all(summary.returncode == 0 for summary in summaries):
+            success("All Python test packages passed.")
+        else:
+            warning("Python test packages completed without JSON failures but returned non-zero exit codes.")
+        return failure_map
+
+    error("Failing tests:")
+    for package_name, failures in failure_map.items():
+        error(package_name, indent=2)
+        rerun_targets = " ".join(failure.nodeid for failure in failures)
+        for failure in failures:
+            step(f"• {failure.nodeid}", indent=4)
+            message = failure.message.strip()
+            if message:
+                for line in message.splitlines()[:40]:
+                    print(f"      {line}")
+        info(f"Re-run locally: uv run pytest {rerun_targets}", indent=4)
+    return failure_map
+
+
+def write_github_summary(summaries: Sequence[PackageSummary]) -> None:
+    summary_path = os.environ.get("GITHUB_STEP_SUMMARY")
+    if not summary_path:
+        return
+
+    lines: list[str] = []
+    lines.append("### Python test results")
+    lines.append("")
+    lines.append("| Package | Status | Rerun |")
+    lines.append("| --- | --- | --- |")
+
+    for summary in summaries:
+        failures = summary.failures
+        if failures:
+            status = f"❌ {len(failures)} failing"
+            rerun_targets = " ".join(failure.nodeid for failure in failures)
+            rerun = f"`uv run pytest {rerun_targets}`"
+        elif summary.returncode != 0:
+            status = f"⚠️ exit {summary.returncode}"
+            rerun = f"`uv run pytest {summary.target}`"
+        else:
+            total = summary.total or 0
+            status = f"✅ {total} passed" if total else "✅ no tests"
+            rerun = "—"
+        lines.append(f"| {summary.package_name} | {status} | {rerun} |")
+
+    lines.append("")
+
+    with open(summary_path, "a", encoding="utf-8") as handle:
+        handle.write("\n".join(lines))
+        handle.write("\n")
