@@ -71,6 +71,9 @@ class MettaGridEnv(MettaGridPufferBase):
         self._is_training = is_training
         self._label_completions = {"completed_tasks": [], "completion_rates": {}}
         self.per_label_rewards = {}
+        # Initialize using config; finalize once core reports actual agent count post-super().__init__()
+        self._episode_reward_sum = np.zeros(env_cfg.game.num_agents, dtype=float)
+        self._episode_steps = 0
 
         # DesyncEpisodes - when training we want to stagger experience. The first episode
         # will end early so that the next episode can begin at a different time on each worker.
@@ -80,6 +83,9 @@ class MettaGridEnv(MettaGridPufferBase):
 
         # Initialize MettaGridPufferBase
         super().__init__(env_cfg)
+
+        # Ensure episode reward tracking aligns with the core-reported agent count
+        self._episode_reward_sum = np.zeros(self.num_agents, dtype=float)
 
         # Create or use renderer after super().__init__() to avoid it being overwritten by MettaGridCore
         self._renderer = renderer or self._create_renderer(render_mode)
@@ -110,6 +116,8 @@ class MettaGridEnv(MettaGridPufferBase):
         # Reset counters
         self._steps = 0
         self._resets += 1
+        self._episode_reward_sum.fill(0.0)
+        self._episode_steps = 0
 
         # Set up episode tracking
         self._last_reset_ts = datetime.datetime.now()
@@ -131,6 +139,8 @@ class MettaGridEnv(MettaGridPufferBase):
         with self.timer("_c_env.step"):
             observations, rewards, terminals, truncations, infos = super().step(actions)
             self._steps += 1
+            self._episode_reward_sum += rewards
+            self._episode_steps += 1
 
         with self.timer("_renderer.log_step"):
             self._renderer.on_step(self._steps, observations, actions, rewards, infos)
@@ -141,6 +151,11 @@ class MettaGridEnv(MettaGridPufferBase):
             self._early_reset = None
 
         infos = {}
+        if hasattr(self, "last_episode_avg_reward"):
+            infos["agent/avg_reward_per_agent"] = float(self.last_episode_avg_reward)
+        if hasattr(self, "last_episode_per_label_reward"):
+            infos.setdefault("per_label_rewards", {})
+            infos["per_label_rewards"][self.mg_config.label] = float(self.last_episode_per_label_reward)
         if terminals.all() or truncations.all():
             self._process_episode_completion(infos)
 
@@ -183,8 +198,13 @@ class MettaGridEnv(MettaGridPufferBase):
         with self.timer("_c_env.get_episode_stats"):
             stats = self.get_episode_stats()
 
+        avg_reward = float(episode_rewards.mean())
+        if self._episode_steps > 0:
+            avg_reward = float(self._episode_reward_sum.mean())
+        self.last_episode_avg_reward = avg_reward
+
         # add the average reward per agent to the infos so we can show it in the pufferlib dashboard
-        infos["agent/avg_reward_per_agent"] = episode_rewards.mean()
+        infos["agent/avg_reward_per_agent"] = avg_reward
 
         # Process agent stats
         infos["game"] = stats["game"]
@@ -210,8 +230,11 @@ class MettaGridEnv(MettaGridPufferBase):
         # only plot label completions once we have a full moving average window, to prevent initial bias
         if len(self._label_completions["completed_tasks"]) >= 50:
             infos["label_completions"] = self._label_completions["completion_rates"]
-        self.per_label_rewards[self.mg_config.label] = episode_rewards.mean()
+        self.per_label_rewards[self.mg_config.label] = avg_reward
+        self.last_episode_per_label_reward = float(self.per_label_rewards[self.mg_config.label])
         infos["per_label_rewards"] = self.per_label_rewards
+        self._episode_reward_sum.fill(0.0)
+        self._episode_steps = 0
 
         # Add attributes
         attributes: Dict[str, Any] = {

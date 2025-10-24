@@ -515,8 +515,6 @@ class PuffeRL:
         for k in list(self.stats.keys()):
             v = self.stats[k]
             try:
-                if k == "agent/avg_reward_per_agent":
-                    print("DEBUG raw avg rewards", v)
                 v = np.mean(v)
             except:
                 del self.stats[k]
@@ -686,14 +684,29 @@ class PuffeRL:
                 except (TypeError, ValueError):
                     continue
 
-        if stats_source:
-            # store a copy so clearing self.stats later doesn't wipe the cached data
-            self.last_stats = dict(stats_source)
-
         if not stats_source:
             return
 
-        print("DEBUG stats_source", stats_source)
+        if stats_source.get("agent/avg_reward_per_agent", 0.0) == 0.0:
+            env_rewards: list[float] = []
+            label_rewards: list[float] = []
+            envs = getattr(self.vecenv, "envs", [])
+            for env in envs:
+                avg = getattr(env, "last_episode_avg_reward", None)
+                if avg is not None and avg != 0.0:
+                    env_rewards.append(float(avg))
+
+                label_reward = getattr(env, "last_episode_per_label_reward", None)
+                if label_reward is not None and label_reward != 0.0:
+                    label_rewards.append(float(label_reward))
+
+            if env_rewards:
+                stats_source["agent/avg_reward_per_agent"] = float(np.mean(env_rewards))
+            if label_rewards:
+                stats_source["per_label_rewards/mettagrid"] = float(np.mean(label_rewards))
+
+        if stats_source:
+            self.last_stats = dict(stats_source)
 
         priority_metrics = [
             "agent/avg_reward_per_agent",
