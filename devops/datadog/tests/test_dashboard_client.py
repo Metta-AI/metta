@@ -209,19 +209,21 @@ class TestDatadogDashboardClient:
             assert "metric.one" in metrics
 
     def test_list_metrics_with_filter(self):
-        """Test that list_metrics passes filter parameter."""
+        """Test that list_metrics filters results with search parameter."""
         client = DatadogDashboardClient(api_key="key", app_key="app")
 
         mock_response = MagicMock()
-        mock_response.json.return_value = {"metrics": ["github.prs.open"]}
+        mock_response.json.return_value = {"metrics": ["github.prs.open", "github.commits.total", "system.cpu.usage"]}
 
-        with patch.object(client._session, "get", return_value=mock_response) as mock_get:
-            client.list_metrics(filter_query="github*")
+        with patch.object(client._session, "get", return_value=mock_response):
+            # Client-side filtering with search parameter
+            metrics = client.list_metrics(search="github")
 
-            # Verify filter was passed
-            call_args = mock_get.call_args
-            assert "filter" in call_args[1]["params"]
-            assert call_args[1]["params"]["filter"] == "github*"
+            # Should only return metrics matching search
+            assert len(metrics) == 2
+            assert "github.prs.open" in metrics
+            assert "github.commits.total" in metrics
+            assert "system.cpu.usage" not in metrics
 
     def test_get_metric_metadata_success(self):
         """Test that get_metric_metadata returns metadata."""
@@ -253,7 +255,9 @@ class TestDatadogDashboardClient:
         }
 
         with patch.object(client._session, "get", return_value=mock_response):
-            tags = client.list_tags()
+            response = client.list_tags()
 
-            assert "env" in tags
-            assert "prod" in tags["env"]
+            # Returns full response with "tags" key
+            assert "tags" in response
+            assert "env" in response["tags"]
+            assert "prod" in response["tags"]["env"]
