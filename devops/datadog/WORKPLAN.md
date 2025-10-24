@@ -72,32 +72,18 @@ duration_p50_minutes, duration_p90_minutes, duration_p99_minutes
 
 ## Immediate Priorities (This Week)
 
-### 1. Clean Up Old Code (Phase 3C) - 2 hours
+### 1. ✅ Clean Up Old Code (Phase 3C) - COMPLETED
 
 **Goal**: Remove legacy code from `softmax/src/softmax/dashboard/`
 
-**Files to Remove**:
+**Completed 2025-10-24**:
 
-```bash
-softmax/src/softmax/dashboard/
-├── metrics.py          # Old GitHub collector (27KB)
-├── registry.py         # Old metric registry
-├── report.py           # Old CLI entry point
-├── __init__.py         # Empty init
-└── README.md           # Old docs
-```
-
-**Steps**:
-
-1. Verify new collector running 24+ hours without issues
-2. Run `metta pytest` to ensure tests pass
-3. Remove `softmax/src/softmax/dashboard/` directory
-4. Search for any imports: `grep -r "softmax.dashboard" .`
-5. Update any references in code/docs
-6. Verify `metta pytest` still passes
-7. Commit: "chore: remove legacy dashboard code"
-
-**Dependencies**: ✅ New collector verified (deployed 2025-10-23)
+- ✅ Removed `softmax/src/softmax/dashboard/` directory (5 files)
+- ✅ Removed CLI registration in `metta_cli.py`
+- ✅ Removed legacy dashboard templates (`softmax_pulse.json`, `softmax_system_health.json`)
+- ✅ Updated WORKPLAN.md with current dashboard inventory
+- ✅ All 24 old metrics verified migrated to new GitHub collector
+- ✅ Production using new system successfully for 24+ hours
 
 ---
 
@@ -126,10 +112,14 @@ softmax/src/softmax/dashboard/
 
 ```
 devops/datadog/templates/
-├── demo.json                      # 31KB demo dashboard
-├── softmax_system_health.json     # 4.7KB basic health
-├── softmax_pulse.json             # 450B minimal
-└── policy_evaluator.json          # 4.5KB policy metrics
+├── demo.json                             # 29KB demo dashboard
+├── asana.json                            # 17KB Asana project metrics
+├── ec2.json                              # 25KB EC2 instance monitoring
+├── github_cicd.json                      # 15KB GitHub CI/CD metrics
+├── skypilot_jobs.json                    # 18KB Skypilot job tracking
+├── policy_evaluator.json                 # 4.2KB policy metrics
+├── system_health_rollup.json             # 67KB health grid (65 widgets)
+└── system_health_rollup_wildcard.json    # 20KB health grid (Vega-Lite)
 ```
 
 **Goal**: Create polished, useful dashboards using GitHub metrics
