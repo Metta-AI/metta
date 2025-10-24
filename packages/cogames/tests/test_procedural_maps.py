@@ -146,6 +146,7 @@ def _build_base_hub_only(*, corner_bundle: str | None, cross_bundle: str | None,
     cfg = MapGen.Config(
         width=21,
         height=21,
+        border_width=0,
         instance=BaseHub.Config(
             spawn_count=0,
             include_inner_wall=False,
