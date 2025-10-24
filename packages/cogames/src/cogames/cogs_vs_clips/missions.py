@@ -139,8 +139,17 @@ class PackRatVariant(MissionVariant):
     description: str = "Boost heart inventory limits so agents can haul more at once."
 
     def apply(self, mission: Mission) -> Mission:
-        mission.heart_capacity = max(mission.heart_capacity, 10)
-        return mission
+        mission.heart_capacity = max(mission.heart_capacity, 1000)
+        mission.energy_capacity = max(mission.energy_capacity, 1000)
+        mission.cargo_capacity = max(mission.cargo_capacity, 1000)
+        mission.gear_capacity = max(mission.gear_capacity, 1000)
+
+        def modifier(cfg: MettaGridConfig) -> None:
+            agent = cfg.game.agent
+            agent.default_resource_limit = max(agent.default_resource_limit, 1000)
+            agent.resource_limits.clear()
+
+        return _add_make_env_modifier(mission, modifier)
 
 
 class NeutralFacedVariant(MissionVariant):
