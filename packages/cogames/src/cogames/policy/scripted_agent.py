@@ -77,7 +77,7 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
 
     # ---- Constants & thresholds ----
     RECHARGE_START = 50  # enter recharge when below this (increased for larger maps)
-    RECHARGE_STOP = 90   # stay in recharge until at least this
+    RECHARGE_STOP = 90  # stay in recharge until at least this
     CARBON_REQ = 20
     OXYGEN_REQ = 20
     SILICON_REQ = 50
@@ -109,6 +109,7 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
 
         # Vibes/glyphs
         from cogames.cogs_vs_clips.vibes import VIBES
+
         self._glyph_name_to_id: Dict[str, int] = {vibe.name: idx for idx, vibe in enumerate(VIBES)}
 
         # Stations → glyphs
@@ -148,7 +149,7 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
 
         # Incremental knowledge - NO OMNISCIENCE
         self._station_positions: Dict[str, Tuple[int, int]] = {}  # discovered stations
-        self._wall_positions: set[Tuple[int, int]] = set()        # learned walls
+        self._wall_positions: set[Tuple[int, int]] = set()  # learned walls
         self._visited_cells: set[Tuple[int, int]] = set()
 
         # Occupancy grid: 0=unknown, 1=free, 2=wall
@@ -178,8 +179,12 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
         logger.info(f"Map size: {self._map_height}x{self._map_width}")
         logger.info(
             "Inv feature IDs: "
-            + str([(k, self._feature_name_to_id.get(k))
-                   for k in ("inv:carbon", "inv:oxygen", "inv:germanium", "inv:silicon", "inv:energy", "inv:heart")])
+            + str(
+                [
+                    (k, self._feature_name_to_id.get(k))
+                    for k in ("inv:carbon", "inv:oxygen", "inv:germanium", "inv:silicon", "inv:energy", "inv:heart")
+                ]
+            )
         )
 
     # ---------- Policy Interface ----------
@@ -426,7 +431,11 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
             return self._step_toward(tr - sr, tc - sc)
 
         # Else path to a free neighbor of the frontier (excluding our current cell)
-        candidates = [(nr, nc) for nr, nc in self._neighbors4(tr, tc) if self._occ[nr][nc] == self.OCC_FREE and (nr, nc) != (sr, sc)]
+        candidates = [
+            (nr, nc)
+            for nr, nc in self._neighbors4(tr, tc)
+            if self._occ[nr][nc] == self.OCC_FREE and (nr, nc) != (sr, sc)
+        ]
         if not candidates:
             return None
 
@@ -488,7 +497,9 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
         """BFS treating unknown cells as walkable; avoids only known walls."""
         return self._bfs_next_step(start, goal, optimistic=True)
 
-    def _bfs_next_step(self, start: Tuple[int, int], goal: Tuple[int, int], optimistic: bool) -> Optional[Tuple[int, int]]:
+    def _bfs_next_step(
+        self, start: Tuple[int, int], goal: Tuple[int, int], optimistic: bool
+    ) -> Optional[Tuple[int, int]]:
         """Grid BFS; return next cell toward goal or None."""
         if start == goal:
             return start
@@ -543,11 +554,7 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
 
         dr, dc = self._action_to_dir(preferred_dir)
         nr, nc = state.agent_row + (dr or 0), state.agent_col + (dc or 0)
-        if (
-            preferred_dir in self._MOVE_SET
-            and self._is_valid_position(nr, nc)
-            and (nr, nc) not in self._wall_positions
-        ):
+        if preferred_dir in self._MOVE_SET and self._is_valid_position(nr, nc) and (nr, nc) not in self._wall_positions:
             return preferred_dir
 
         # Try moving down a row
@@ -557,7 +564,9 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
 
         # Otherwise pick any reasonable alternative, preferring not-recent cells
         alt = self._find_best_exploration_direction(state)
-        return alt if alt is not None else (preferred_dir if preferred_dir != -1 else self._action_lookup.get("noop", 0))
+        return (
+            alt if alt is not None else (preferred_dir if preferred_dir != -1 else self._action_lookup.get("noop", 0))
+        )
 
     def _find_best_exploration_direction(self, state: AgentState) -> Optional[int]:
         """Pick a direction toward an in-bounds, not-wall cell; prefer not-recent."""
