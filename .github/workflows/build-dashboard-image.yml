@@ -12,7 +12,13 @@ on:
       - "packages/gitta/**"
       - "devops/charts/dashboard-cronjob/**"
       - ".github/workflows/build-dashboard-image.yml"
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: "Branch to build from (defaults to current branch)"
+        required: false
+        type: string
+        default: ""
 
 jobs:
   build-and-push-image:
