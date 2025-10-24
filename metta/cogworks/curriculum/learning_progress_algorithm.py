@@ -296,6 +296,13 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         """Get learning progress score for a specific task (alias for get_learning_progress_score)."""
         return self.get_learning_progress_score(task_id)
 
+    def get_task_raw_lp_score(self, task_id: int) -> float:
+        """Get raw learning progress score for a specific task (before z-score normalization)."""
+        if hasattr(self.scorer, "get_raw_lp_score"):
+            return self.scorer.get_raw_lp_score(task_id, self.task_tracker)
+        # Fallback to regular LP score if scorer doesn't support raw LP
+        return self.get_learning_progress_score(task_id)
+
     def get_stats(self) -> Dict[str, float]:
         """Get learning progress statistics (compatibility method for tests)."""
         return self.scorer.get_stats()

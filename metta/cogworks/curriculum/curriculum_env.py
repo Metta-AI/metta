@@ -42,7 +42,8 @@ class CurriculumEnv(PufferEnv):
         self._first_reset_done = False
 
         # Per-label metrics tracking
-        self._per_label_lp_scores = {}
+        self._per_label_lp_scores = {}  # Raw LP scores (before z-score normalization)
+        self._per_label_lp_probs = {}  # Final sampling probabilities (after z-score + sigmoid)
 
         # Cache curriculum stats
         self._cached_curriculum_stats = {}
@@ -82,8 +83,13 @@ class CurriculumEnv(PufferEnv):
             stats = self._cached_curriculum_stats
 
             # Add per-label learning progress metrics (EMA smoothed per environment)
+            # Raw LP scores (before z-score normalization)
             if self._per_label_lp_scores:
                 info_dict[self._CURRICULUM_STAT_PREFIX + "per_label_lp_scores"] = self._per_label_lp_scores.copy()
+
+            # Final sampling probabilities (after z-score + sigmoid)
+            if self._per_label_lp_probs:
+                info_dict[self._CURRICULUM_STAT_PREFIX + "per_label_lp_probs"] = self._per_label_lp_probs.copy()
 
             # Add pool composition fractions (fraction of task pool for each label)
             pool_composition = {}
@@ -273,12 +279,19 @@ class CurriculumEnv(PufferEnv):
             label = self._current_task.get_label()
             # Only track if label is a valid string (not None, not a Mock)
             if label is not None and isinstance(label, str):
-                # Update LP score with EMA (α = 0.01)
-                lp_score = self._curriculum.get_task_lp_score(self._current_task._task_id)
+                # Update raw LP score with EMA (α = 0.01)
+                raw_lp_score = self._curriculum.get_task_raw_lp_score(self._current_task._task_id)
                 if label in self._per_label_lp_scores:
-                    self._per_label_lp_scores[label] = 0.99 * self._per_label_lp_scores[label] + 0.01 * lp_score
+                    self._per_label_lp_scores[label] = 0.99 * self._per_label_lp_scores[label] + 0.01 * raw_lp_score
                 else:
-                    self._per_label_lp_scores[label] = lp_score
+                    self._per_label_lp_scores[label] = raw_lp_score
+
+                # Update sampling probability with EMA (α = 0.01)
+                lp_prob = self._curriculum.get_task_lp_score(self._current_task._task_id)
+                if label in self._per_label_lp_probs:
+                    self._per_label_lp_probs[label] = 0.99 * self._per_label_lp_probs[label] + 0.01 * lp_prob
+                else:
+                    self._per_label_lp_probs[label] = lp_prob
 
                 # Emit per-label completion count directly in infos (following episode stats pattern)
                 # This will be summed across all vectorized environments automatically
@@ -356,6 +369,7 @@ class CurriculumEnv(PufferEnv):
             "force_stats_update",
             "_first_reset_done",
             "_per_label_lp_scores",
+            "_per_label_lp_probs",
             "_cached_curriculum_stats",
             "_curriculum_stats_cache_valid",
             "_tracked_task_ids",
