@@ -20,6 +20,9 @@ on:
 
 jobs:
   build-and-deploy:
+    permissions:
+      id-token: write
+      contents: read
     uses: ./.github/workflows/build-and-deploy-docker-image.yml
     with:
       image_name: metta-app-backend
