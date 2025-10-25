@@ -536,9 +536,7 @@ void MettaGrid::_apply_supervisor_overrides(Actions& actions) {
     ObservationTokens agent_obs(obs_ptr, num_tokens);
 
     // Let supervisor evaluate and potentially override the action
-    // xcxc don't pass agent
-    auto [supervised_action, supervised_arg] =
-        agent->supervisor->supervise(*agent, original_action, original_arg, agent_obs);
+    auto [supervised_action, supervised_arg] = agent->supervisor->supervise(original_action, original_arg, agent_obs);
 
     // Only update if the supervisor actually overrides the action
     if (supervised_action != original_action || supervised_arg != original_arg) {
@@ -625,7 +623,7 @@ void MettaGrid::_step(Actions actions) {
       // Notify supervisor of action result
       // xcxc needed?
       if (agent->supervisor) {
-        agent->supervisor->post_action(*agent, _action_success[agent_idx]);
+        agent->supervisor->post_action(_action_success[agent_idx]);
       }
     }
   }

@@ -42,22 +42,19 @@ public:
   // Called before the agent's action is executed
   // Returns the action that should be executed (may override the agent's action)
   // The supervisor receives the same observation data as the agent
-  virtual std::pair<ActionType, ActionArg> supervise(Agent& agent,
-                                                     ActionType agent_action,
+  virtual std::pair<ActionType, ActionArg> supervise(ActionType agent_action,
                                                      ActionArg agent_arg,
                                                      const ObservationTokens& observation);
 
   // Called after the action has been executed
-  virtual void post_action(Agent& agent, bool action_success) {}
+  virtual void post_action(bool action_success) {}
 
 protected:
   // Subclasses must implement this to provide their recommended action
-  virtual std::pair<ActionType, ActionArg> get_recommended_action(Agent& agent,
-                                                                  const ObservationTokens& observation) = 0;
+  virtual std::pair<ActionType, ActionArg> get_recommended_action(const ObservationTokens& observation) = 0;
 
   // Optional hook for additional processing during supervision
-  virtual void on_supervise(Agent& agent,
-                            ActionType agent_action,
+  virtual void on_supervise(ActionType agent_action,
                             ActionArg agent_arg,
                             ActionType supervisor_action,
                             ActionArg supervisor_arg,
