@@ -78,9 +78,13 @@ Running in production via unified CronJob (every 15 minutes):
 
 ### Next Steps
 
-- [ ] Build and deploy updated image with GitHub metrics fix
+**Ready for PR Review and Merge:**
+- ✅ All code changes complete (GitHub metrics fix, documentation updates)
+- ✅ Example component libraries clarified
+- ✅ Deployment guide updated to distinguish production vs dev deployment
 - [ ] Address PR feedback and merge to main
-- [ ] Monitor production stability (95%+ collector success rate)
+- [ ] Production deployment will happen automatically on merge (GitHub Actions)
+- [ ] Monitor production stability after deployment (95%+ collector success rate)
 
 ### Dashboard Migration - ✅ Complete!
 
