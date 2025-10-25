@@ -57,7 +57,6 @@ CI_FLAGS: tuple[str, ...] = (
     "--timeout-method=thread",
     "--benchmark-skip",
     "--disable-warnings",
-    "--durations=10",
     "--color=yes",
     "-v",
 )
