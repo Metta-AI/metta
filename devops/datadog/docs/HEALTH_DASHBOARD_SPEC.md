@@ -10,7 +10,7 @@ spectrum over a 7-day rolling window.
 
 **Deployed Infrastructure**:
 - 7 Collectors: GitHub, Skypilot, Asana, EC2, WandB, Kubernetes, Health FoM
-- 130+ Total Metrics
+- 140 Total Metrics (28 GitHub, 30 Skypilot, 14 Asana, 19 EC2, 20 WandB, 15 Kubernetes, 14 Health FoM)
 - 14 FoM Metrics: 7 CI/CD + 7 Training
 - 2 Dashboard Implementations: Widget Grid + Wildcard Vega-Lite
 
