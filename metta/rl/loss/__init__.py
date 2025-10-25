@@ -17,13 +17,15 @@ if TYPE_CHECKING:
 
 _EXPORTS: dict[str, tuple[str, str | None]] = {
     "LossConfig": ("metta.rl.loss.loss_config", "LossConfig"),
+    "LossSchedule": ("metta.rl.loss.loss_config", "LossSchedule"),
+    "LossPhaseSchedule": ("metta.rl.loss.loss_config", "LossPhaseSchedule"),
     "Loss": ("metta.rl.loss.loss", "Loss"),
     "PPOConfig": ("metta.rl.loss.ppo", "PPOConfig"),
     "ContrastiveConfig": ("metta.rl.loss.contrastive_config", "ContrastiveConfig"),
 }
 
 # Explicitly define __all__ to help type checkers
-__all__ = ["LossConfig", "Loss", "PPOConfig", "ContrastiveConfig"]
+__all__ = ["LossConfig", "LossSchedule", "LossPhaseSchedule", "Loss", "PPOConfig", "ContrastiveConfig"]
 
 
 def __getattr__(name: str) -> Any:
