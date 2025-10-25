@@ -172,6 +172,12 @@ def _fetch_series(run_id: str, metric_key: str, fetch: FetchSpec) -> _RunSeries:
                 if df_window is None:
                     df_window = last_window if last_window is not None else df_all
 
+                # Fail fast if the requested window does not meet the desired budget
+                if len(df_window) < desired:
+                    raise ValueError(
+                        f"Insufficient points in requested step window (need >= {desired}) in run {run_id}"
+                    )
+
                 # Uniformly downsample to the desired budget inside the window
                 if len(df_window) > desired:
                     idx = np.linspace(0, len(df_window) - 1, num=desired, dtype=int)
@@ -238,7 +244,7 @@ def _reduce_summary(series: _RunSeries, summary: SummarySpec) -> float:
             steps_w = steps[mask]
             vals_w = vals[mask]
 
-    if len(steps_w) < 2:  # this should probably be much higher!
+    if len(steps_w) < 30:  # this is kind of arbitrary
         raise ValueError(
             f"Insufficient points in window for AUC (need >=2) in run {series.run_id}"
         )
