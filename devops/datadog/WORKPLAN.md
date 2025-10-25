@@ -9,6 +9,8 @@
 - ✅ Fixed health_fom collector crashes (improved error handling)
 - ✅ WandB collector expanded to 20 metrics (push-to-main CI tracking + sweep metrics)
 - ✅ All dashboards using Jsonnet framework
+- ✅ Dev deployment updated and tested with GitHub metrics fix (image: sha-5d549e5)
+- ✅ Documentation improvements (deployment guide, component library clarifications)
 
 **Dashboard Framework**: Comprehensive Jsonnet library with layouts, presets, and 7 component libraries (2,550+ lines of documentation)
 
@@ -69,19 +71,29 @@ Running in production via unified CronJob (every 15 minutes):
   - Reduced Datadog API lookback from 1 hour to 30 minutes
   - Changed missing metric logging from WARNING to DEBUG level
 
-- [x] **Fixed GitHub metrics naming** (commits 2b65385e2a, f4512bdeb7)
+- [x] **Fixed GitHub metrics naming** (commits 2b65385e2a, f4512bdeb7, 0b2f72f4e6)
   - Added `github.` prefix to all 28 metric names throughout codebase
   - Updated collector metric assignments, error handling, and dashboard components
   - Metrics now consistent with other collectors (wandb.*, asana.*, ec2.*)
   - Tested locally and pushed to Datadog - metrics appear in catalog
   - Health_fom collector already queries correct names
+  - **Deployed to dev environment** (image: sha-5d549e5) and verified working
+
+- [x] **Documentation improvements** (commits c94b4fc870, f8e60be4b3, 1057e871aa)
+  - Clarified example component libraries (apm, ci, infrastructure)
+  - Updated DEPLOYMENT_GUIDE to distinguish production vs dev deployment
+  - Added --ref flag requirement for feature branch builds
+  - Explained helm deployment skip behavior for non-main branches
 
 ### Next Steps
 
 **Ready for PR Review and Merge:**
 - ✅ All code changes complete (GitHub metrics fix, documentation updates)
 - ✅ Example component libraries clarified
-- ✅ Deployment guide updated to distinguish production vs dev deployment
+- ✅ Deployment guide updated with feature branch workflow
+- ✅ Dev environment deployed and verified (sha-5d549e5)
+- ✅ Helmfile.yaml updated with new dev image tag
+- [ ] Monitor dev deployment stability (1-2 days)
 - [ ] Address PR feedback and merge to main
 - [ ] Production deployment will happen automatically on merge (GitHub Actions)
 - [ ] Monitor production stability after deployment (95%+ collector success rate)
