@@ -23,6 +23,7 @@ from mettagrid.mettagrid_c import GlobalObsConfig as CppGlobalObsConfig
 from mettagrid.mettagrid_c import InventoryConfig as CppInventoryConfig
 from mettagrid.mettagrid_c import Recipe as CppRecipe
 from mettagrid.mettagrid_c import ResourceModConfig as CppResourceModConfig
+from mettagrid.mettagrid_c import ResourceTransportSupervisorConfig as CppResourceTransportSupervisorConfig
 from mettagrid.mettagrid_c import WallConfig as CppWallConfig
 
 # Note that these are left to right, top to bottom.
@@ -191,6 +192,25 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
 
         inventory_config = CppInventoryConfig(limits=limits_list)
 
+        # Convert supervisor configuration if present
+        supervisor_config = None
+        if first_agent.supervisor:
+            supervisor = first_agent.supervisor
+            if supervisor.type == "resource_transport":
+                # Convert resource name to ID
+                target_resource_id = resource_name_to_id.get(supervisor.target_resource)
+                if target_resource_id is None:
+                    raise ValueError(f"Unknown resource '{supervisor.target_resource}' in supervisor config")
+
+                supervisor_config = CppResourceTransportSupervisorConfig(
+                    target_resource=target_resource_id,
+                    min_energy_threshold=supervisor.min_energy_threshold,
+                    manage_energy=supervisor.manage_energy,
+                    max_search_distance=supervisor.max_search_distance,
+                    can_override_action=supervisor.can_override_action,
+                    name=supervisor.name,
+                )
+
         agent_cpp_params = {
             "freeze_duration": agent_props["freeze_duration"],
             "group_id": team_id,
@@ -208,6 +228,10 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
             "inventory_regen_amounts": inventory_regen_amounts,
             "diversity_tracked_resources": diversity_tracked_resources,
         }
+
+        if supervisor_config:
+            agent_cpp_params["supervisor_config"] = supervisor_config
+
         cpp_agent_config = CppAgentConfig(**agent_cpp_params)
         cpp_agent_config.tag_ids = tag_ids
 

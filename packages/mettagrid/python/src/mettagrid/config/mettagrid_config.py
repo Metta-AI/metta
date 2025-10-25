@@ -35,6 +35,33 @@ class AgentRewards(Config):
     stats_max: dict[str, float] = Field(default_factory=dict)
 
 
+class SupervisorConfig(Config):
+    """Base supervisor configuration."""
+
+    type: str = Field(description="Type of supervisor")
+    can_override_action: bool = Field(default=False, description="Whether the supervisor can override agent actions")
+    name: str = Field(default="supervisor", description="Name for logging and statistics")
+
+
+class ResourceTransportSupervisorConfig(SupervisorConfig):
+    """Configuration for resource transport supervisor."""
+
+    type: Literal["resource_transport"] = "resource_transport"
+    target_resource: str = Field(description="The resource to transport (e.g., 'Carbon')")
+    min_energy_threshold: int = Field(default=10, ge=0, description="Minimum energy level to maintain")
+    manage_energy: bool = Field(default=True, description="Whether to manage energy levels")
+    max_search_distance: int = Field(default=30, ge=0, description="Maximum distance to search for objects")
+
+
+# Union type for all supervisor configs
+# For now we only have one supervisor type, but we use Union to allow future expansion
+# When there's only one type, we can't use Discriminator yet
+AnySupervisorConfig = Union[
+    ResourceTransportSupervisorConfig,
+    # Future supervisor types can be added here
+]
+
+
 class AgentConfig(Config):
     """Python agent configuration."""
 
@@ -61,6 +88,9 @@ class AgentConfig(Config):
     diversity_tracked_resources: list[str] = Field(
         default_factory=list,
         description="Resource names that contribute to inventory diversity metrics",
+    )
+    supervisor: Optional[AnySupervisorConfig] = Field(
+        default=None, description="Optional supervisor configuration for this agent"
     )
 
 

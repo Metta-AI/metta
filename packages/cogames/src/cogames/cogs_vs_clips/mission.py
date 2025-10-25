@@ -23,6 +23,7 @@ from mettagrid.config.mettagrid_config import (
     GameConfig,
     MettaGridConfig,
     ProtocolConfig,
+    ResourceTransportSupervisorConfig,
 )
 from mettagrid.map_builder.map_builder import MapBuilderConfig
 
@@ -113,6 +114,17 @@ class Mission(Config):
         if self.num_cogs is None:
             raise ValueError("Cannot make_env without num_cogs. Call instantiate() first.")
 
+        # xcxc
+        supervisor_config = ResourceTransportSupervisorConfig(
+            type="resource_transport",
+            target_resource="carbon",
+            min_energy_threshold=10,
+            manage_energy=True,
+            max_search_distance=30,
+            can_override_action=True,
+            name="carbon_collector",
+        )
+
         game = GameConfig(
             map_builder=self.map,
             num_agents=self.num_cogs,
@@ -139,6 +151,7 @@ class Mission(Config):
                 shareable_resources=["energy"],
                 inventory_regen_amounts={"energy": self.energy_regen_amount},
                 diversity_tracked_resources=["energy", "carbon", "oxygen", "germanium", "silicon"],
+                supervisor=supervisor_config,
             ),
             inventory_regen_interval=1,
             clipper=ClipperConfig(
