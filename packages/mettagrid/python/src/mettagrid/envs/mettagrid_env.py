@@ -9,7 +9,8 @@ from __future__ import annotations
 import datetime
 import logging
 import time
-from typing import TYPE_CHECKING, Any, Dict, Optional, Tuple, cast
+from collections import defaultdict
+from typing import TYPE_CHECKING, Any, Dict, Optional, Sequence, Tuple, cast
 
 import numpy as np
 from pydantic import validate_call
@@ -38,6 +39,42 @@ class MettaGridEnv(MettaGridPufferBase):
     replay writing, and episode tracking. This class is tightly coupled to PufferLib for
     vectorization support in the training system.
     """
+
+    @staticmethod
+    def _gini_coefficient(values: Sequence[float]) -> float:
+        """Compute the Gini coefficient for a sequence of values."""
+
+        arr = np.asarray(values, dtype=np.float32)
+        if arr.size <= 1:
+            return 0.0
+        if np.allclose(arr, arr[0]):
+            return 0.0
+
+        min_value = float(arr.min())
+        shifted = arr - min_value if min_value < 0.0 else arr
+        if np.allclose(shifted, 0.0):
+            return 0.0
+
+        mean = float(shifted.mean())
+        if np.isclose(mean, 0.0):
+            return 0.0
+
+        diff_sum = np.abs(shifted[:, None] - shifted[None, :]).sum()
+        n = shifted.size
+        return float(diff_sum / (2.0 * n * n * mean))
+
+    @classmethod
+    def _compute_fairness_metrics(cls, reward_list: Sequence[float]) -> tuple[float, float, float]:
+        """Return fairness metrics (gap, std, gini) for the provided rewards."""
+
+        rewards_arr = np.asarray(reward_list, dtype=np.float32)
+        if rewards_arr.size <= 1:
+            return 0.0, 0.0, 0.0
+
+        fairness_gap = float(rewards_arr.max() - rewards_arr.min())
+        fairness_std = float(rewards_arr.std(ddof=0))
+        fairness_gini = cls._gini_coefficient(rewards_arr)
+        return fairness_gap, fairness_std, fairness_gini
 
     @validate_call(config={"arbitrary_types_allowed": True})
     def __init__(
@@ -252,18 +289,46 @@ class MettaGridEnv(MettaGridPufferBase):
             env_cfg_flattened[f"config.{str(k).replace('/', '.')}"] = str(v)
 
         # Prepare agent metrics
-        agent_metrics = {}
+        agent_metrics: Dict[int, Dict[str, float]] = {}
         for agent_idx, agent_stats in enumerate(stats["agent"]):
             agent_metrics[agent_idx] = {}
             agent_metrics[agent_idx]["reward"] = float(episode_rewards[agent_idx])
             for k, v in agent_stats.items():
                 agent_metrics[agent_idx][k] = float(v)
 
-        # Get agent groups
+        # Get agent groups for fairness tracking and recording
         grid_objects = self.grid_objects()
         agent_groups: Dict[int, int] = {
             v["agent_id"]: v["agent:group"] for v in grid_objects.values() if v["type_name"] == "agent"
         }
+
+        # Compute fairness metrics within agent groups (or globally if no groups)
+        if agent_metrics:
+            grouped_rewards: Dict[int, list[float]] = defaultdict(list)
+
+            if agent_groups:
+                for agent_id, metrics in agent_metrics.items():
+                    group_id = agent_groups.get(agent_id, -1)
+                    grouped_rewards[group_id].append(metrics["reward"])
+            else:
+                grouped_rewards[-1].extend(metrics["reward"] for metrics in agent_metrics.values())
+
+            for group_id, reward_list in grouped_rewards.items():
+                if not reward_list:
+                    continue
+                fairness_gap, fairness_std, fairness_gini = self._compute_fairness_metrics(reward_list)
+
+                if group_id == -1 and agent_groups:
+                    target_agents = [agent_id for agent_id in agent_metrics.keys() if agent_id not in agent_groups]
+                elif group_id == -1:
+                    target_agents = list(agent_metrics.keys())
+                else:
+                    target_agents = [agent_id for agent_id, g_id in agent_groups.items() if g_id == group_id]
+
+                for agent_id in target_agents:
+                    agent_metrics[agent_id]["reward_fairness_gap"] = fairness_gap
+                    agent_metrics[agent_id]["reward_fairness_std"] = fairness_std
+                    agent_metrics[agent_id]["reward_fairness_gini"] = fairness_gini
 
         # Record episode
         self._stats_writer.record_episode(
