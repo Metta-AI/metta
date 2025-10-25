@@ -11,6 +11,7 @@ export type ScorecardData = {
   policyAverageScores: Record<string, number>
   evalAverageScores: Record<string, number>
   evalMaxScores: Record<string, number>
+  availableMetrics?: string[]
 }
 
 export type TokenInfo = {
