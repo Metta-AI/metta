@@ -1,5 +1,8 @@
 // CI/CD component library
 // Widgets for continuous integration and deployment health
+//
+// NOTE: This is an example/template component library.
+// See github.libsonnet for the actively-used GitHub CI/CD components.
 
 local widgets = import '../lib/widgets.libsonnet';
 
