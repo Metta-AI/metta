@@ -1,7 +1,11 @@
+from typing import Any
+
 from pydantic import Field
 
 from cogames.cogs_vs_clips import vibes
+from cogames.cogs_vs_clips.procedural import apply_procedural_overrides_to_builder
 from cogames.cogs_vs_clips.stations import (
+    RESOURCE_CHESTS,
     CarbonExtractorConfig,
     ChargerConfig,
     CvCAssemblerConfig,
@@ -39,6 +43,7 @@ class Site(Config):
     name: str
     description: str
     map_builder: MapBuilderConfig
+
     min_cogs: int = Field(default=1, ge=1)
     max_cogs: int = Field(default=1000, ge=1)
 
@@ -57,6 +62,7 @@ class Mission(Config):
     # Map and num_cogs are optional for template missions, required for instantiated missions
     map: MapBuilderConfig | None = Field(default=None)
     num_cogs: int | None = Field(default=None)
+    procedural_overrides: dict[str, Any] = Field(default_factory=dict)
 
     carbon_extractor: CarbonExtractorConfig = Field(default_factory=CarbonExtractorConfig)
     oxygen_extractor: OxygenExtractorConfig = Field(default_factory=OxygenExtractorConfig)
@@ -75,6 +81,9 @@ class Mission(Config):
     move_energy_cost: int = Field(default=2)
     heart_capacity: int = Field(default=1)
 
+    def configure(self):
+        pass
+
     def instantiate(
         self, map_builder: MapBuilderConfig, num_cogs: int, variant: MissionVariant | None = None
     ) -> "Mission":
@@ -89,11 +98,19 @@ class Mission(Config):
             New Mission instance with map and num_cogs set
         """
         mission = self.model_copy(deep=True)
+        mission.configure()
         mission.map = map_builder
         mission.num_cogs = num_cogs
 
         if variant:
             mission = variant.apply(mission)
+
+        # Apply mission-level procedural overrides to supported builders (hub-only, machina, etc.)
+        mission.map = apply_procedural_overrides_to_builder(
+            mission.map or map_builder,
+            num_cogs=int(mission.num_cogs or 0),
+            overrides=getattr(mission, "procedural_overrides", {}) or {},
+        )
 
         return mission
 
@@ -170,6 +187,7 @@ class Mission(Config):
                 "oxygen_extractor": self.oxygen_extractor.station_cfg(),
                 "germanium_extractor": self.germanium_extractor.station_cfg(),
                 "silicon_extractor": self.silicon_extractor.station_cfg(),
+                **RESOURCE_CHESTS,
             },
         )
         return MettaGridConfig(game=game)
