@@ -38,8 +38,6 @@ jobs:
           fetch-depth: 0
           fetch-tags: true
       - uses: actions/setup-python@v5
-        with:
-          python-version: "3.11.7"
       - name: Build sdist
         run: pipx run build --sdist --outdir dist packages/pufferlib-core
       - uses: actions/upload-artifact@v4
