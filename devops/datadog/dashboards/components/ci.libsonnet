@@ -8,7 +8,7 @@ local widgets = import '../lib/widgets.libsonnet';
   testsPassingWidget()::
     widgets.timeseries(
       title='Tests are passing on main',
-      query='avg:ci.tests_passing_on_main{source:softmax-system-health}',
+      query='avg:github.ci.tests_passing_on_main{*}',
       options={
         line_width: 'thick',
         markers: [
@@ -25,7 +25,7 @@ local widgets = import '../lib/widgets.libsonnet';
   revertsCountWidget()::
     widgets.timeseries(
       title='Number of reverts in the last 7 days',
-      query='avg:commits.reverts{source:softmax-system-health}',
+      query='avg:github.commits.reverts{*}',
       options={
         line_width: 'thick',
         markers: [
@@ -42,7 +42,7 @@ local widgets = import '../lib/widgets.libsonnet';
   hotfixCountWidget()::
     widgets.timeseries(
       title='Number of hotfixes in the last 7 days',
-      query='avg:commits.hotfix{source:softmax-system-health}',
+      query='avg:github.commits.hotfix{*}',
       options={
         line_width: 'thick',
         markers: [
