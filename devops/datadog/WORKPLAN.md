@@ -55,19 +55,24 @@ Running in production via unified CronJob (every 15 minutes):
 
 ## 🎯 Next Steps
 
-### Immediate (This Week)
+### Completed
 
-- [x] **Fixed health_fom collector crashes** - Improved error handling
+- [x] **Fixed health_fom collector crashes**
   - Added try/except around collect_metrics() to prevent job crashes
-  - Collector now gracefully returns empty dict when source metrics unavailable
+  - Collector gracefully returns empty dict when source metrics unavailable
   - Reduced Datadog API lookback from 1 hour to 30 minutes
   - Changed missing metric logging from WARNING to DEBUG level
-- [x] **Add github. prefix to GitHub metrics** - ✅ FIXED (commit 2b65385e2a)
-  - Added `github.` prefix to all 28 metric names in GitHub collector
+
+- [x] **Fixed GitHub metrics naming** (commits 2b65385e2a, f4512bdeb7)
+  - Added `github.` prefix to all 28 metric names throughout codebase
+  - Updated collector metric assignments, error handling, and dashboard components
   - Metrics now consistent with other collectors (wandb.*, asana.*, ec2.*)
-  - Tested locally and pushed to Datadog successfully
-  - Health_fom collector already queries correct names (github.ci.*, etc.)
-  - Old unprefixed metrics (ci.*, prs.*, etc.) will stop being emitted after deployment
+  - Tested locally and pushed to Datadog - metrics appear in catalog
+  - Health_fom collector already queries correct names
+
+### Next Steps
+
+- [ ] Build and deploy updated image with GitHub metrics fix
 - [ ] Address PR feedback and merge to main
 - [ ] Monitor production stability (95%+ collector success rate)
 
