@@ -5,10 +5,10 @@ from datetime import timedelta
 from typing import Any, Optional
 
 import torch
-from pydantic import Field, model_validator
+from pydantic import Field, field_validator, model_validator
 
 from metta.agent.policies.vit import ViTDefaultConfig
-from metta.agent.policy import Policy, PolicyArchitecture
+from metta.agent.policy import POLICY_PRESETS, Policy, PolicyArchitecture
 from metta.agent.util.torch_backends import build_sdpa_context
 from metta.app_backend.clients.stats_client import StatsClient
 from metta.common.tool import Tool
@@ -54,6 +54,17 @@ logger = getRankAwareLogger(__name__)
 
 
 class TrainTool(Tool):
+    @classmethod
+    def policy_presets(cls) -> dict[str, str]:
+        return {name: name for name in POLICY_PRESETS}
+
+    @field_validator("policy_architecture", mode="before")
+    @classmethod
+    def _coerce_policy_architecture(cls, value: Any) -> Any:
+        if value is None or isinstance(value, (PolicyArchitecture, dict)):
+            return value
+        return PolicyArchitecture.resolve(value)
+
     run: Optional[str] = None
 
     trainer: TrainerConfig = Field(default_factory=TrainerConfig)

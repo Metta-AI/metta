@@ -3,8 +3,9 @@
 This ensures that all policies (ComponentPolicy, PyTorch agents with mixin, etc.)
 implement the required methods that MettaAgent depends on."""
 
+import importlib
 from abc import ABC, abstractmethod
-from typing import ClassVar, List, Optional
+from typing import Any, Callable, ClassVar, Dict, List, Optional
 
 import torch
 import torch.nn as nn
@@ -24,6 +25,36 @@ from metta.rl.training import GameRules
 from mettagrid.base_config import Config
 from mettagrid.util.module import load_symbol
 
+PolicyPresetFactory = Callable[[], type["PolicyArchitecture"]]
+
+
+def _resolve_symbol(path: str) -> Any:
+    try:
+        return load_symbol(path)
+    except (AttributeError, ModuleNotFoundError, ValueError) as exc:
+        raise ValueError(f"Failed to resolve symbol '{path}': {exc}") from exc
+
+
+def _preset(module: str, attribute: str) -> PolicyPresetFactory:
+    return lambda: getattr(importlib.import_module(module), attribute)
+
+
+def _normalize_preset_key(value: str) -> str:
+    return value.lower().replace("-", "_")
+
+
+POLICY_PRESETS: Dict[str, PolicyPresetFactory] = {
+    "fast": _preset("metta.agent.policies.fast", "FastConfig"),
+    "fast_dynamics": _preset("metta.agent.policies.fast_dynamics", "FastDynamicsConfig"),
+    "fast_lstm_reset": _preset("metta.agent.policies.fast_lstm_reset", "FastLSTMResetConfig"),
+    "memory_free": _preset("metta.agent.policies.memory_free", "MemoryFreeConfig"),
+    "puffer": _preset("metta.agent.policies.puffer", "PufferPolicyConfig"),
+    "transformer": _preset("metta.agent.policies.transformer", "TransformerPolicyConfig"),
+    "vit": _preset("metta.agent.policies.vit", "ViTDefaultConfig"),
+    "vit_reset": _preset("metta.agent.policies.vit_reset", "ViTResetConfig"),
+    "vit_sliding_trans": _preset("metta.agent.policies.vit_sliding_trans", "ViTSlidingTransConfig"),
+}
+
 
 class PolicyArchitecture(Config):
     """Policy architecture configuration."""
@@ -37,12 +68,29 @@ class PolicyArchitecture(Config):
     # a separate component that optionally accepts actions and process logits into log probs, entropy, etc.
     action_probs_config: ComponentConfig
 
+    @classmethod
+    def resolve(cls, value: Any) -> "PolicyArchitecture":
+        if isinstance(value, cls):
+            return value
+
+        if isinstance(value, str):
+            preset_key = _normalize_preset_key(value)
+            preset = POLICY_PRESETS.get(preset_key)
+            if preset is None:
+                available = ", ".join(sorted(POLICY_PRESETS))
+                raise ValueError(f"Unknown policy preset: {value}. Available: [{available}]")
+            return preset()()
+
+        if isinstance(value, type) and issubclass(value, cls):
+            return value()
+
+        raise TypeError(f"Unable to resolve value {value!r} into a {cls.__name__}")
+
     def make_policy(self, game_rules: GameRules) -> "Policy":
         """Create an agent instance from configuration."""
 
-        AgentClass = load_symbol(self.class_path)
-        return AgentClass(game_rules, self)
-
+        agent_cls = _resolve_symbol(self.class_path)
+        return agent_cls(game_rules, self)
 
 class Policy(ABC, nn.Module):
     """Abstract base class defining the interface that all policies must implement.
