@@ -25,13 +25,13 @@ def test_load_symbol_with_stdlib_function() -> None:
 
 
 def test_load_symbol_invalid_format_raises_value_error() -> None:
-    with pytest.raises(ValueError) as excinfo:
+    with pytest.raises(ModuleNotFoundError) as excinfo:
         load_symbol("NotFullyQualifiedName")
     assert "Invalid symbol name" in str(excinfo.value)
 
 
 def test_load_symbol_missing_module_raises_module_not_found_error() -> None:
-    with pytest.raises(ValueError):
+    with pytest.raises(ModuleNotFoundError):
         load_symbol("this_module_does_not_exist__abcdef.Symbol")
 
 
