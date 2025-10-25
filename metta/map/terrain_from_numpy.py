@@ -151,6 +151,23 @@ class NavigationFromNumpy(TerrainFromNumpy):
 
         grid, valid_positions, agent_labels = self.clean_grid(grid, assemblers=False)
         num_agents = len(agent_labels)
+
+        # If not enough valid positions, fallback to any empty cell
+        if len(valid_positions) < num_agents:
+            logger.warning(
+                f"Map {uri} has only {len(valid_positions)} valid positions but needs {num_agents} agents. "
+                f"Falling back to placing agents on any empty cell."
+            )
+            empty_mask = grid == "empty"
+            all_empty_positions = list(zip(*np.where(empty_mask), strict=False))
+            self.config.rng.shuffle(all_empty_positions)
+            if len(all_empty_positions) < num_agents:
+                raise ValueError(
+                    f"Map {uri} has only {len(all_empty_positions)} empty cells but needs {num_agents} agents. "
+                    f"Cannot place all agents."
+                )
+            valid_positions = all_empty_positions
+
         # Place agents in first slice
         agent_positions = valid_positions[:num_agents]
         for pos, label in zip(agent_positions, agent_labels, strict=False):
@@ -227,6 +244,23 @@ class CogsVClippiesFromNumpy(TerrainFromNumpy):
 
         grid, valid_positions, agent_labels = self.clean_grid(grid, assemblers=True)
         num_agents = len(agent_labels)
+
+        # If not enough valid positions, fallback to any empty cell
+        if len(valid_positions) < num_agents:
+            logger.warning(
+                f"Map {uri} has only {len(valid_positions)} valid positions but needs {num_agents} agents. "
+                f"Falling back to placing agents on any empty cell."
+            )
+            empty_mask = grid == "empty"
+            all_empty_positions = list(zip(*np.where(empty_mask), strict=False))
+            self.config.rng.shuffle(all_empty_positions)
+            if len(all_empty_positions) < num_agents:
+                raise ValueError(
+                    f"Map {uri} has only {len(all_empty_positions)} empty cells but needs {num_agents} agents. "
+                    f"Cannot place all agents."
+                )
+            valid_positions = all_empty_positions
+
         # Place agents in first slice
         agent_positions = valid_positions[:num_agents]
         for pos, label in zip(agent_positions, agent_labels, strict=False):
