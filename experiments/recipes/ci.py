@@ -1,4 +1,4 @@
-from experiments.recipes import arena
+from experiments.recipes import arenas
 from metta.tools.play import PlayTool
 from metta.tools.replay import ReplayTool
 from metta.tools.train import TrainTool
@@ -8,7 +8,7 @@ from metta.sim.simulation_config import SimulationConfig
 
 
 def train() -> TrainTool:
-    cfg = arena.train(curriculum=arena.make_curriculum(arena.mettagrid()))
+    cfg = arenas.train(curriculum=arenas.make_curriculum(arenas.mettagrid()))
 
     cfg.wandb.enabled = False
     cfg.system.vectorization = "serial"
@@ -27,7 +27,7 @@ def train() -> TrainTool:
 
 
 def replay() -> ReplayTool:
-    env = arena.mettagrid()
+    env = arenas.mettagrid()
     env.game.max_steps = 100
     cfg = ReplayTool(sim=SimulationConfig(suite="arena", name="eval", env=env))
     cfg.wandb.enabled = False
@@ -45,7 +45,7 @@ def replay_null() -> ReplayTool:
 
 
 def play() -> PlayTool:
-    env = arena.mettagrid()
+    env = arenas.mettagrid()
     env.game.max_steps = 100
     cfg = PlayTool(sim=SimulationConfig(suite="arena", name="eval", env=env))
     cfg.wandb.enabled = False

@@ -5,6 +5,7 @@ import torch.nn as nn
 from tensordict import TensorDict
 from tensordict.nn import TensorDictModule as TDM
 from tensordict.nn import TensorDictSequential
+from torchrl.modules import ConsistentDropout
 
 import pufferlib.pytorch
 from metta.agent.components.component_config import ComponentConfig
@@ -23,6 +24,8 @@ class MLPConfig(ComponentConfig):
     nonlinearity: Optional[str] = "ReLU"  # e.g., "ReLU", "Tanh"; Name of a torch.nn module
     output_nonlinearity: Optional[str] = None  # e.g., "ReLU", "Tanh"; Name of a torch.nn module
     layer_init_std: float = 1.0
+    dropout_p: float = 0.25
+    is_dropout: bool = True
 
     def make_component(self, env=None):
         return MLP(config=self)
@@ -34,6 +37,7 @@ class MLP(nn.Module):
     def __init__(self, config: MLPConfig):
         super().__init__()
         self.config = config
+        self.mask = None
 
         layers = []
         current_in_features = self.config.in_features
@@ -76,6 +80,9 @@ class MLP(nn.Module):
 
         self.network = TensorDictSequential(*layers)
 
+        if self.config.is_dropout:
+            self.dropout = ConsistentDropout(p=self.config.dropout_p)
+
     def _get_nonlinearity(self, name: str) -> nn.Module:
         if hasattr(nn, name):
             cls = getattr(nn, name)
@@ -84,7 +91,22 @@ class MLP(nn.Module):
         raise ValueError(f"Unsupported or unknown nonlinearity in torch.nn: {name}")
 
     def forward(self, td: TensorDict) -> TensorDict:
-        return self.network(td)
+        td = self.network(td)
+        if self.config.is_dropout:
+            # Apply dropout to the output key
+            output_tensor = td[self.config.out_key]
+            # Check if mask needs to be reset due to batch size mismatch
+            if self.mask is not None and self.mask.shape[0] != output_tensor.shape[0]:
+                self.mask = None
+            result = self.dropout(output_tensor, mask=self.mask)
+            # ConsistentDropout returns (tensor, mask) in train mode, but only tensor in eval mode
+            if isinstance(result, tuple):
+                dropped_tensor, mask = result
+                self.mask = mask
+            else:
+                dropped_tensor = result
+            td[self.config.out_key] = dropped_tensor
+        return td
 
 
 ###------------- Deep Residual MLP -------------------------
