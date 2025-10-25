@@ -2,9 +2,21 @@
 
 This guide covers deploying the dashboard metrics collectors to Kubernetes/EKS.
 
-## Quick Reference: Common Workflow
+## Production Deployment
 
-**Testing changes before merging to main:**
+**Production deployment is fully automated via GitHub Actions:**
+
+- **Trigger**: Automatic on merge to `main` branch (when changes affect collector code)
+- **Process**: Builds Docker image → Pushes to ECR → Deploys via Helm
+- **No manual steps required** for production deployment
+
+See [CI/CD Integration](#cicd-integration) section below for details.
+
+## Development/Testing Deployment
+
+**For testing changes before merging to main:**
+
+### Quick Reference: Common Workflow
 
 ```bash
 # 1. Build Docker image from your branch
@@ -61,11 +73,11 @@ aws eks update-kubeconfig --name main --region us-east-1
 kubectl get namespaces
 ```
 
-### 2. Deploy to production
+### 2. Production Deployment (Automated)
 
 Production is automatically deployed by GitHub Actions on merge to main.
 
-For manual deployment:
+For manual production deployment (rarely needed):
 
 ```bash
 cd devops/charts
@@ -85,9 +97,9 @@ kubectl get jobs -n monitoring --sort-by=.metadata.creationTimestamp | tail -5
 kubectl logs -n monitoring -l app.kubernetes.io/name=dashboard-cronjob --tail=100
 ```
 
-## Development/Testing Environment
+## Development/Testing Deployment
 
-For testing changes before merging to main:
+For testing changes before merging to main (this is the main focus of this guide):
 
 ### 1. Build Docker image for your branch
 
