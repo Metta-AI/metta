@@ -5,12 +5,14 @@ Both local development (metta ci) and GitHub Actions call this same tool.
 
 GitHub Actions workflow calls individual stages:
   - uv run metta ci --stage lint
-  - uv run metta ci --stage pytest
-  - uv run metta ci --stage cpptest
+  - uv run metta ci --stage python-tests
+  - uv run metta ci --stage python-benchmarks
+  - uv run metta ci --stage cpp-tests
+  - uv run metta ci --stage cpp-benchmarks
 
 Local development can run all stages:
   - metta ci (runs all stages)
-  - metta ci --stage lint (runs specific stage)
+  - metta ci --stage <name> (runs specific stage)
 """
 
 import subprocess
@@ -87,7 +89,7 @@ def _run_lint(*, verbose: bool = False) -> CheckResult:
 
 
 def _run_python_tests(*, verbose: bool = False, extra_args: list[str] | None = None) -> CheckResult:
-    """Run Python tests.
+    """Run Python tests (excludes benchmarks).
 
     Uses metta pytest command - same command used by CI.
     This ensures local and CI behavior stay perfectly in sync.
@@ -102,28 +104,48 @@ def _run_python_tests(*, verbose: bool = False, extra_args: list[str] | None = N
     return CheckResult("Python Tests", passed)
 
 
+def _run_python_benchmarks(*, verbose: bool = False, extra_args: list[str] | None = None) -> CheckResult:
+    """Run Python benchmarks.
+
+    Uses pytest with benchmark flags - same command used by CI.
+    This ensures local and CI behavior stay perfectly in sync.
+    """
+    _print_header("Python Benchmarks")
+
+    cmd = "uv run pytest --benchmark-only"
+    if extra_args:
+        cmd += " " + " ".join(extra_args)
+    passed = _run_command(cmd, "Python benchmarks", verbose=verbose)
+
+    return CheckResult("Python Benchmarks", passed)
+
+
 def _run_cpp_tests(*, verbose: bool = False) -> CheckResult:
-    """Run C++ tests and benchmarks.
+    """Run C++ unit tests (excludes benchmarks).
 
     Uses metta cpptest command - same command used by CI.
     This ensures local and CI behavior stay perfectly in sync.
     """
     _print_header("C++ Tests")
 
-    # Run C++ unit tests
     cmd = "uv run metta cpptest --test --verbose"
-    tests_passed = _run_command(cmd, "C++ unit tests", verbose=verbose)
+    passed = _run_command(cmd, "C++ unit tests", verbose=verbose)
 
-    if not tests_passed:
-        return CheckResult("C++ Tests", False)
+    return CheckResult("C++ Tests", passed)
 
-    # Run C++ benchmarks
+
+def _run_cpp_benchmarks(*, verbose: bool = False) -> CheckResult:
+    """Run C++ benchmarks.
+
+    Uses metta cpptest command - same command used by CI.
+    This ensures local and CI behavior stay perfectly in sync.
+    """
+    _print_header("C++ Benchmarks")
+
     cmd = "uv run metta cpptest --benchmark --verbose"
-    benchmarks_passed = _run_command(cmd, "C++ benchmarks", verbose=verbose)
-    if not benchmarks_passed:
-        return CheckResult("C++ Tests", False)
+    passed = _run_command(cmd, "C++ benchmarks", verbose=verbose)
 
-    return CheckResult("C++ Tests", True)
+    return CheckResult("C++ Benchmarks", passed)
 
 
 def _print_summary(results: list[CheckResult]) -> None:
@@ -147,7 +169,10 @@ def _print_summary(results: list[CheckResult]) -> None:
 )
 def cmd_ci(
     ctx: typer.Context,
-    stage: Annotated[str | None, typer.Option(help="Run specific stage: lint, pytest, or cpptest")] = None,
+    stage: Annotated[
+        str | None,
+        typer.Option(help="Run specific stage: lint, python-tests, python-benchmarks, cpp-tests, cpp-benchmarks"),
+    ] = None,
     continue_on_error: Annotated[bool, typer.Option("--continue-on-error", help="Don't stop on first failure")] = False,
     verbose: Annotated[bool, typer.Option("--verbose", "-v", help="Show detailed output")] = False,
 ):
@@ -157,11 +182,13 @@ def cmd_ci(
     GitHub Actions and local development both use this command.
 
     Examples:
-        metta ci                                    # Run all stages (local development)
-        metta ci --stage lint                       # Run only linting (used by CI)
-        metta ci --stage pytest                     # Run only Python tests (used by CI)
-        metta ci --stage pytest --skip-package app  # Pass extra args to pytest
-        metta ci --stage cpptest                    # Run only C++ tests (used by CI)
+        metta ci                                        # Run all stages (local development)
+        metta ci --stage lint                           # Run only linting
+        metta ci --stage python-tests                   # Run only Python tests
+        metta ci --stage python-benchmarks              # Run only Python benchmarks
+        metta ci --stage cpp-tests                      # Run only C++ tests
+        metta ci --stage cpp-benchmarks                 # Run only C++ benchmarks
+        metta ci --stage python-tests --skip-package X  # Pass extra args
 
     Individual tools can also be run directly:
         metta lint          # Run only linting checks
@@ -174,8 +201,10 @@ def cmd_ci(
     # Map of valid stages to their runner functions
     stages = {
         "lint": lambda v: _run_lint(verbose=v),
-        "pytest": lambda v: _run_python_tests(verbose=v, extra_args=extra_args),
-        "cpptest": lambda v: _run_cpp_tests(verbose=v),
+        "python-tests": lambda v: _run_python_tests(verbose=v, extra_args=extra_args),
+        "python-benchmarks": lambda v: _run_python_benchmarks(verbose=v, extra_args=extra_args),
+        "cpp-tests": lambda v: _run_cpp_tests(verbose=v),
+        "cpp-benchmarks": lambda v: _run_cpp_benchmarks(verbose=v),
     }
 
     # If specific stage requested, run only that stage
