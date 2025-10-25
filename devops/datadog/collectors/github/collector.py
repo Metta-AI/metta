@@ -145,14 +145,14 @@ class GitHubCollector(BaseCollector):
             logger.error(f"Failed to collect PR metrics: {e}", exc_info=True)
             # Return partial metrics collected so far
             for key in [
-                "prs.open",
-                "prs.merged_7d",
-                "prs.closed_without_merge_7d",
-                "prs.avg_time_to_merge_hours",
-                "prs.cycle_time_hours",
-                "prs.stale_count_14d",
-                "prs.with_review_comments_pct",
-                "prs.avg_comments_per_pr",
+                "github.prs.open",
+                "github.prs.merged_7d",
+                "github.prs.closed_without_merge_7d",
+                "github.prs.avg_time_to_merge_hours",
+                "github.prs.cycle_time_hours",
+                "github.prs.stale_count_14d",
+                "github.prs.with_review_comments_pct",
+                "github.prs.avg_comments_per_pr",
             ]:
                 metrics.setdefault(key, 0 if "count" in key or "pct" not in key else None)
 
@@ -252,13 +252,13 @@ class GitHubCollector(BaseCollector):
         except Exception as e:
             logger.error(f"Failed to collect commit metrics: {e}", exc_info=True)
             for key in [
-                "commits.total_7d",
-                "commits.hotfix",
-                "commits.reverts",
-                "commits.force_merge_7d",
-                "code.lines_added_7d",
-                "code.lines_deleted_7d",
-                "code.files_changed_7d",
+                "github.commits.total_7d",
+                "github.commits.hotfix",
+                "github.commits.reverts",
+                "github.commits.force_merge_7d",
+                "github.code.lines_added_7d",
+                "github.code.lines_deleted_7d",
+                "github.code.files_changed_7d",
             ]:
                 metrics.setdefault(key, 0)
 
@@ -361,16 +361,16 @@ class GitHubCollector(BaseCollector):
         except Exception as e:
             logger.error(f"Failed to collect CI metrics: {e}", exc_info=True)
             for key in [
-                "ci.workflow_runs_7d",
-                "ci.failed_workflows_7d",
-                "ci.timeout_cancellations_7d",
-                "ci.flaky_checks_7d",
-                "ci.tests_passing_on_main",
-                "ci.benchmarks_passing",
-                "ci.avg_workflow_duration_minutes",
-                "ci.duration_p50_minutes",
-                "ci.duration_p90_minutes",
-                "ci.duration_p99_minutes",
+                "github.ci.workflow_runs_7d",
+                "github.ci.failed_workflows_7d",
+                "github.ci.timeout_cancellations_7d",
+                "github.ci.flaky_checks_7d",
+                "github.ci.tests_passing_on_main",
+                "github.ci.benchmarks_passing",
+                "github.ci.avg_workflow_duration_minutes",
+                "github.ci.duration_p50_minutes",
+                "github.ci.duration_p90_minutes",
+                "github.ci.duration_p99_minutes",
             ]:
                 if "count" in key or "runs" in key or "cancellations" in key or "checks" in key:
                     metrics.setdefault(key, 0)
