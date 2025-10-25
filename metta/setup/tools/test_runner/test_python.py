@@ -15,6 +15,7 @@ from metta.setup.tools.test_runner.summary import (
     report_failures,
     summarize_test_results,
     write_github_summary,
+    write_slow_tests_github_summary,
 )
 from metta.setup.utils import error, info
 
@@ -206,6 +207,7 @@ def run(
             log_results(summaries)
             report_failures(summaries)
             write_github_summary(summaries)
+            write_slow_tests_github_summary(summaries)
             exit_code = max((result.returncode for result in results), default=0)
         raise typer.Exit(exit_code)
 

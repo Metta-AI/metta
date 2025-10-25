@@ -272,20 +272,33 @@ def write_github_summary(summaries: Sequence[PackageSummary]) -> None:
         handle.write("\n".join(lines))
         handle.write("\n")
 
+
+def write_slow_tests_github_summary(summaries: Sequence[PackageSummary], limit: int = 25) -> None:
     durations: list[TestDuration] = []
     for summary in summaries:
         durations.extend(summary.durations)
 
     if not durations:
         return
-    with open(summary_path, "a", encoding="utf-8") as handle:
-        header_lines = [
-            "### Slowest tests",
-            "",
-            "| Duration (s) | Package | Test |",
-            "| --- | --- | --- |",
-        ]
-        handle.write("\n".join(header_lines))
-        for entry in durations:
-            handle.write(f"\n| {entry.duration:.2f} | {entry.package_name} | `{entry.nodeid}` |")
-        handle.write("\n\n")
+
+    top_durations = sorted(durations, key=lambda item: item.duration, reverse=True)
+    if limit > 0:
+        top_durations = top_durations[:limit]
+
+    table_lines: list[str] = [
+        "# Slowest tests",
+        "",
+        "| Duration (s) | Package | Test |",
+        "| --- | --- | --- |",
+    ]
+    for entry in top_durations:
+        table_lines.append(f"| {entry.duration:.2f} | {entry.package_name} | `{entry.nodeid}` |")
+    table_lines.append("")
+
+    summary_path = os.environ.get("GITHUB_STEP_SUMMARY")
+    if summary_path:
+        with open(summary_path, "a", encoding="utf-8") as handle:
+            handle.write("\n".join(table_lines[:4]))
+            for entry in top_durations:
+                handle.write(f"\n| {entry.duration:.2f} | {entry.package_name} | `{entry.nodeid}` |")
+            handle.write("\n\n")
