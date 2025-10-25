@@ -3,7 +3,7 @@ from __future__ import annotations
 import inspect
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import Any, ClassVar, Generic, Self, Type, TypeVar
+from typing import Any, ClassVar, Generic, Self, TypeVar, cast, get_args, get_origin
 
 import yaml
 from pydantic import ModelWrapValidatorHandler, SerializeAsAny, model_serializer, model_validator
@@ -27,24 +27,29 @@ class GameMap:
         self.grid = grid
 
 
-TBuilder = TypeVar("TBuilder", bound="MapBuilder")
+TBuilder = TypeVar("TBuilder", bound="MapBuilder[Any]")
 
 
 class MapBuilderConfig(Config, Generic[TBuilder]):
     """
-    Base class for all map builder configs. Subclasses *optionally* know
-    which MapBuilder they build via `_builder_cls` (auto-filled when nested
-    inside a MapBuilder subclass; see MapBuilder.__init_subclass__ below).
+    Base class for all map builder configs.
     """
 
-    _builder_cls: ClassVar = None
+    # Can't use correct generic parameter because ClassVar doesn't support generics.
+    # We access this field through `builder_cls()` instead.
+    _builder_cls: ClassVar[type[MapBuilder] | None] = None
+
+    @classmethod
+    def builder_cls(cls) -> type[TBuilder]:
+        if cls._builder_cls is None:
+            raise TypeError(f"{cls.__qualname__} is not bound to a MapBuilder")
+        return cast(type[TBuilder], cls._builder_cls)
 
     def create(self) -> TBuilder:
         """
         Instantiate the bound MapBuilder.
-        Subclasses nested under a MapBuilder automatically bind `_builder_cls`.
-        If you define a standalone Config subclass, either set `_builder_cls`
-        on the class or override `create()`.
+
+        If your config class is generic over the builder class, this method will return the exact instance type.
         """
         return self.builder_cls()(self)  # type: ignore[call-arg]
 
@@ -53,12 +58,6 @@ class MapBuilderConfig(Config, Generic[TBuilder]):
 
     def model_dump_json(self, **kwargs) -> str:
         return super().model_dump_json(serialize_as_any=True, **kwargs)
-
-    @classmethod
-    def builder_cls(cls) -> Type[TBuilder]:
-        if cls._builder_cls is None:
-            raise TypeError(f"{cls.__class__.__name__} is not bound to a MapBuilder")
-        return cls._builder_cls
 
     @classmethod
     def from_uri(cls, uri: str | Path) -> Self:
@@ -79,15 +78,20 @@ class MapBuilderConfig(Config, Generic[TBuilder]):
 
         return builder_config
 
+    @classmethod
+    def _type_str(cls) -> str:
+        # Prefer builder_cls name (`RandomMapBuilder.Config`) over the original class name (`RandomMapBuilderConfig`).
+        # This is important in case when the same config class is reused by multiple builders.
+        # (See how `MapBuilder.__init_subclass__` clones the config class if it's already bound to another builder.)
+        builder_cls = cls.builder_cls()
+        return f"{builder_cls.__module__}.{builder_cls.__qualname__}.Config"
+
     # Ensure YAML/JSON dumps always include a 'type' with a nice FQCN
     @model_serializer(mode="wrap")
     def _serialize_with_type(self, handler):
         data = handler(self)  # dict of the model's fields
 
-        type_cls = self.builder_cls()
-        type_str = f"{type_cls.__module__}.{type_cls.__name__}"
-
-        return {"type": type_str, **data}
+        return {"type": self._type_str(), **data}
 
     @model_validator(mode="wrap")
     @classmethod
@@ -95,15 +99,15 @@ class MapBuilderConfig(Config, Generic[TBuilder]):
         """
         Accepts any of:
         - a MapBuilderConfig instance (already specific)
-        - a dict with {"type": "<FQCN-of-Builder-or-Config>", ...params...}
+        - a dict with {"type": "<FQCN-of-Config>", ...params...}
         """
         if isinstance(v, MapBuilderConfig):
             if not isinstance(v, cls):
-                raise TypeError(f"Expected {cls.__qualname__}, got {type(v).__qualname__}")
+                raise TypeError(f"Expected {cls.__qualname__} subclass, got {type(v).__qualname__}")
             return v
 
         if not isinstance(v, dict):
-            raise ValueError("MapBuilder config must be a dict")
+            raise ValueError("MapBuilderConfig params must be a dict")
 
         t = v.get("type")
         if t is None:
@@ -116,22 +120,14 @@ class MapBuilderConfig(Config, Generic[TBuilder]):
         if not inspect.isclass(type_cls):
             raise TypeError("'type' must point to a class")
 
-        # If it's a MapBuilder, use its nested Config
-        if not issubclass(type_cls, MapBuilder):
-            raise TypeError(f"'type' must point to a MapBuilder subclass; got {type_cls.__qualname__}")
-
-        cfg_cls = getattr(type_cls, "Config", None)
-        if not (isinstance(cfg_cls, type) and issubclass(cfg_cls, MapBuilderConfig)):
-            raise TypeError(f"{type_cls.__qualname__} must define a nested class Config(MapBuilderConfig).")
-
-        # `cfg_cls` can be more specific than `cls`.
+        # `type_cls` can be more specific than `cls`.
         # This might matter when we load the config from YAML through a specific MapBuilderConfig subclass.
         # For example, `AsciiMapBuilder.Config.from_uri()` will return an instance of `AsciiMapBuilder.Config`.
-        if not issubclass(cfg_cls, cls):
-            raise TypeError(f"'type' {cfg_cls.__qualname__} is not a subclass of {cls.__qualname__}")
+        if not issubclass(type_cls, cls):
+            raise TypeError(f"'type' {t} is not a subclass of {cls._type_str()}")
 
         data = {k: v for k, v in v.items() if k != "type"}
-        result = cfg_cls.model_validate(data)
+        result = type_cls.model_validate(data)
 
         assert isinstance(result, cls)  # should always be true because we checked the subclass relationship above
 
@@ -141,19 +137,50 @@ class MapBuilderConfig(Config, Generic[TBuilder]):
 AnyMapBuilderConfig = SerializeAsAny[MapBuilderConfig]
 
 
-class MapBuilder(ABC):
+ConfigT = TypeVar("ConfigT", bound=MapBuilderConfig[Any])
+
+
+class MapBuilder(ABC, Generic[ConfigT]):
     """
     A base class for building MettaGridEnv game maps.
 
-    If a subclass declares a nested class `Config` that inherits from MapBuilderConfig, it will be *automatically
-    bound*.
+    Subclasses must:
+    1. Inherit from MapBuilder[ConfigT], where ConfigT is a subclass of MapBuilderConfig.
+    2. Define the build() method that returns a GameMap.
     """
 
-    Config: ClassVar[type[MapBuilderConfig]]
+    Config: type[ConfigT]
 
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
-        cls.Config._builder_cls = cls  # type: ignore[assignment]
+
+        # Look for MapBuilder base class
+        try:
+            base = next(base for base in getattr(cls, "__orig_bases__", ()) if get_origin(base) is MapBuilder)
+        except StopIteration:
+            raise TypeError(
+                f"{cls.__name__} must inherit from MapBuilder[…], with a concrete Config class parameter"
+            ) from None
+
+        # Set the Config class - this allows to use MapBuilder.Config shorthand
+        Config = get_args(base)[0]
+
+        # Should be guaranteed by the type checker.
+        assert isinstance(Config, type) and issubclass(Config, MapBuilderConfig)
+
+        if Config._builder_cls:
+            # Already bound to another MapBuilder class, so we need to clone it
+            class CloneConfig(Config):
+                pass
+
+            Config = CloneConfig
+
+        Config._builder_cls = cls
+        cls.Config = Config  # pyright: ignore[reportAttributeAccessIssue]
+        return
+
+    def __init__(self, config: ConfigT):
+        self.config = config
 
     @abstractmethod
     def build(self) -> GameMap: ...

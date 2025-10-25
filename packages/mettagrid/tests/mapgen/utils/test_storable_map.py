@@ -26,7 +26,7 @@ LEGEND = {
 def test_serializes_map_from_yaml_string():
     ascii_yaml = textwrap.dedent(
         """
-        type: mettagrid.map_builder.ascii.AsciiMapBuilder
+        type: mettagrid.map_builder.ascii.AsciiMapBuilder.Config
         map_data: |-
           ####
           #.m#
@@ -50,7 +50,7 @@ def test_serializes_map_from_yaml_string():
     storable_map = StorableMap.from_cfg(
         MapBuilderConfig.model_validate(
             {
-                "type": "mettagrid.map_builder.ascii.AsciiMapBuilder",
+                "type": "mettagrid.map_builder.ascii.AsciiMapBuilder.Config",
                 "map_data": config.map_data,
                 "char_to_name_map": config.char_to_name_map,
             }

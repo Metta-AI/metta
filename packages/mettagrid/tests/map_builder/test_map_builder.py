@@ -1,4 +1,5 @@
 import numpy as np
+import pytest
 
 from mettagrid.map_builder.map_builder import GameMap, MapBuilder, MapBuilderConfig
 from mettagrid.mapgen.types import map_grid_dtype
@@ -23,16 +24,14 @@ class TestGameMap:
         assert large_map.grid.shape == (10, 15)
 
 
-class ConcreteMapBuilder(MapBuilder):
+class ConcreteMapBuilderConfig(MapBuilderConfig["ConcreteMapBuilder"]):
+    """Test implementation of abstract MapBuilderConfig"""
+
+    pass
+
+
+class ConcreteMapBuilder(MapBuilder[ConcreteMapBuilderConfig]):
     """Test implementation of abstract MapBuilder"""
-
-    class Config(MapBuilderConfig["ConcreteMapBuilder"]):
-        """Test implementation of abstract MapBuilderConfig"""
-
-        pass
-
-    def __init__(self, config: Config):
-        self._config = config
 
     def build(self) -> GameMap:
         grid = np.array([["wall", "empty"], ["agent.agent", "altar"]], dtype=map_grid_dtype)
@@ -50,7 +49,7 @@ class TestMapBuilder:
     def test_init(self):
         config = ConcreteMapBuilder.Config()
         builder = ConcreteMapBuilder(config)
-        assert builder._config == config
+        assert builder.config == config
 
     def test_build_abstract_method(self):
         config = ConcreteMapBuilder.Config()
@@ -59,6 +58,15 @@ class TestMapBuilder:
         assert isinstance(game_map, GameMap)
         expected_grid = np.array([["wall", "empty"], ["agent.agent", "altar"]], dtype=map_grid_dtype)
         assert np.array_equal(game_map.grid, expected_grid)
+
+    def test_map_builder_without_generic_parameter(self):
+        with pytest.raises(
+            TypeError,
+            match=r"MapBuilderWithoutGenericParameter must inherit from MapBuilder",
+        ):
+
+            class MapBuilderWithoutGenericParameter(MapBuilder):
+                pass
 
 
 class TestMapGrid:

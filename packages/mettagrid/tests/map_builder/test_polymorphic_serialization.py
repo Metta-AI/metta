@@ -29,7 +29,7 @@ def test_random_config_serialization():
 
     # Test serialization
     serialized = config.model_dump()
-    assert serialized["type"] == "mettagrid.map_builder.random.RandomMapBuilder"
+    assert serialized["type"] == "mettagrid.map_builder.random.RandomMapBuilder.Config"
     assert serialized["width"] == 20
     assert serialized["height"] == 30
     assert serialized["seed"] == 42
@@ -82,7 +82,7 @@ def wrapped_any_config():
 
 def test_any_config_serialization(wrapped_any_config: OuterConfig):
     serialized = wrapped_any_config.model_dump()
-    assert serialized["map_builder"]["type"] == "mettagrid.map_builder.random.RandomMapBuilder"
+    assert serialized["map_builder"]["type"] == "mettagrid.map_builder.random.RandomMapBuilder.Config"
     assert serialized["map_builder"]["agents"] == 2
 
 
@@ -96,7 +96,7 @@ def test_any_config_deserialization(wrapped_any_config: OuterConfig):
 def test_ascii_config_serialization():
     """Test serialization and deserialization of AsciiMapBuilderConfig."""
     yaml_content = """\
-type: mettagrid.map_builder.ascii.AsciiMapBuilder
+type: mettagrid.map_builder.ascii.AsciiMapBuilder.Config
 map_data: |-
     ###
     #.#
@@ -115,7 +115,7 @@ char_to_name_map:
 
         # Test serialization
         serialized = config.model_dump()
-        assert serialized["type"] == "mettagrid.map_builder.ascii.AsciiMapBuilder"
+        assert serialized["type"] == "mettagrid.map_builder.ascii.AsciiMapBuilder.Config"
         assert serialized["map_data"] == [["#", "#", "#"], ["#", ".", "#"], ["#", "#", "#"]]
 
         # Test deserialization
@@ -131,7 +131,7 @@ char_to_name_map:
 def random_config_yaml():
     return textwrap.dedent(
         """
-        type: mettagrid.map_builder.random.RandomMapBuilder
+        type: mettagrid.map_builder.random.RandomMapBuilder.Config
         width: 4
         height: 3
         seed: 99
@@ -185,7 +185,10 @@ def test_random_config_from_str(random_config_yaml: str):
 
 
 def test_config_from_str_wrong_class(random_config_yaml: str):
-    with pytest.raises(TypeError, match="RandomMapBuilder.Config is not a subclass of AsciiMapBuilder.Config"):
+    with pytest.raises(
+        TypeError,
+        match="RandomMapBuilder.Config is not a subclass of mettagrid.map_builder.ascii.AsciiMapBuilder.Config",
+    ):
         AsciiMapBuilder.Config.from_str(random_config_yaml)
 
 
@@ -205,9 +208,9 @@ def test_json_round_trip():
 
         # Reconstruct the config
         config_type = data["type"]
-        if config_type == "mettagrid.map_builder.random.RandomMapBuilder":
+        if config_type == "mettagrid.map_builder.random.RandomMapBuilder.Config":
             reconstructed = RandomMapBuilder.Config.model_validate(data)
-        elif config_type == "mettagrid.map_builder.maze.MazePrimMapBuilder":
+        elif config_type == "mettagrid.map_builder.maze.MazePrimMapBuilder.Config":
             reconstructed = MazePrimMapBuilder.Config.model_validate(data)
         else:
             pytest.fail(f"Unexpected config type: {config_type}")
