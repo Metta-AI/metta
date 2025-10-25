@@ -2,14 +2,24 @@
 
 ## Problem
 
-**Status**: 🔧 **IN PROGRESS** - Need to add `github.` prefix (2025-10-24)
+**Status**: ✅ **FIXED** - Added `github.` prefix to all metrics (2025-10-24)
 
-The GitHub collector metrics ARE in Datadog, but they're **missing the `github.` prefix**.
+The GitHub collector now emits all metrics with the `github.` prefix.
 
-**Current**: `ci.*`, `prs.*`, `commits.*`, `branches.*`, `code.*`, `developers.*`
-**Desired**: `github.ci.*`, `github.prs.*`, `github.commits.*`, etc.
+**Old**: `ci.*`, `prs.*`, `commits.*`, `branches.*`, `code.*`, `developers.*` (no longer emitted)
+**New**: `github.ci.*`, `github.prs.*`, `github.commits.*`, etc. (consistent with wandb.*, asana.*, ec2.*)
 
-**Decision**: Add `github.` prefix for consistency with all other collectors (wandb.*, asana.*, ec2.*, etc.)
+## Solution
+
+Added `github.` prefix to all metric names in `/Users/rwalters/GitHub/metta/devops/datadog/collectors/github/collector.py` (commit 2b65385e2a).
+
+All 28 metrics now properly namespaced:
+- 11 `github.ci.*` metrics (CI/CD workflows, duration, tests)
+- 7 `github.prs.*` metrics (open, merged, stale, cycle time)
+- 5 `github.commits.*` metrics (total, hotfix, reverts, force merge)
+- 3 `github.code.*` metrics (lines added/deleted, files changed)
+- 1 `github.branches.*` metric (active branches)
+- 1 `github.developers.*` metric (active developers)
 
 ## Evidence
 
