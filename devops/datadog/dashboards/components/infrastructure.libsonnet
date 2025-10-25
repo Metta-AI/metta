@@ -1,5 +1,8 @@
 // Infrastructure component library
 // Widgets for system, container, and Kubernetes metrics
+//
+// NOTE: This is an example/template component library.
+// See kubernetes.libsonnet for actively-used infrastructure components.
 
 local widgets = import '../lib/widgets.libsonnet';
 

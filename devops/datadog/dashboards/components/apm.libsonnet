@@ -1,5 +1,8 @@
 // APM/Tracing component library
 // Widgets for application performance monitoring
+//
+// NOTE: This is an example/template component library.
+// See policy_evaluator.jsonnet for a working APM dashboard implementation.
 
 local widgets = import '../lib/widgets.libsonnet';
 
