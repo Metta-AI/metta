@@ -68,7 +68,7 @@ class JobConfig:
 def log_job_config(jc: JobConfig):
     """Log job configuration with sensitive values redacted."""
     logger.info("Run Configuration:")
-    for field_name, value in jc.to_filtered_dict().items():  # Need .items() here
+    for field_name, value in jc.to_filtered_dict().items():
         logger.info(f"  - {field_name}: {value}")
 
 

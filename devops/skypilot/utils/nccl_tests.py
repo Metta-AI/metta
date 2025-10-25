@@ -8,6 +8,7 @@ import socket
 import subprocess
 import sys
 import time
+from contextlib import redirect_stderr, redirect_stdout
 from typing import Any, Optional
 
 import torch
@@ -104,8 +105,7 @@ def measure_allreduce_bandwidth(
             required_memory = size_elements * 4 * 2
 
             if free_memory < required_memory:
-                if rank == 0:
-                    print(f"Skipping size {size_mb}MB - insufficient memory")
+                print(f"Skipping size {size_mb}MB - insufficient memory")
                 continue
 
             # Allocate tensor
@@ -147,12 +147,10 @@ def measure_allreduce_bandwidth(
             torch.cuda.empty_cache()
 
         except torch.cuda.OutOfMemoryError:
-            if rank == 0:
-                print(f"Out of memory at size {size_mb}MB")
+            print(f"Out of memory at size {size_mb}MB")
             break
         except Exception as e:
-            if rank == 0:
-                print(f"Error at size {size_mb}MB: {e}")
+            print(f"Error at size {size_mb}MB: {e}")
             break
 
     # Single barrier at end
@@ -167,7 +165,7 @@ def collect_nccl_benchmarks() -> dict[str, Any] | None:
         torch.cuda.set_device(local_rank)
         device = torch.device(f"cuda:{local_rank}")
         if not dist.is_initialized():
-            print("Process group not initialized, cannot run benchmarks")
+            print("[WARNING] Process group not initialized, cannot run benchmarks")
             return None
 
         rank = dist.get_rank()
@@ -215,14 +213,14 @@ def format_benchmark_results(results: dict[str, Any]) -> str:
     # P2P bandwidth
     if "p2p_bandwidth" in results:
         p2p = results["p2p_bandwidth"]
-        output.write(f"\n  📊 P2P BANDWIDTH (Rank {p2p['src_rank']} → Rank {p2p['dst_rank']}):\n")
+        output.write(f"\n  🔊 P2P BANDWIDTH (Rank {p2p['src_rank']} → Rank {p2p['dst_rank']}):\n")
         output.write(f"    Message Size : {p2p['message_size_mb']} MB\n")
         output.write(f"    Bandwidth    : {p2p['bandwidth_gbps']:.2f} GB/s\n")
         output.write(f"    Time         : {p2p['time_ms']:.2f} ms\n")
 
     # Allreduce bandwidth
     if "allreduce_bandwidth" in results:
-        output.write("\n  📊 ALLREDUCE BANDWIDTH:\n")
+        output.write("\n  🔊 ALLREDUCE BANDWIDTH:\n")
         output.write(f"    {'Size (MB)':<12} {'Time (ms)':<12} {'Bandwidth (GB/s)':<15}\n")
         output.write(f"    {'-' * 12} {'-' * 12} {'-' * 15}\n")
 
@@ -259,7 +257,7 @@ def print_benchmark_results(results: dict[str, Any], topology: dict[str, Any] | 
 
         efficiency = (p2p["bandwidth_gbps"] / expected_bandwidth) * 100
 
-        output += "\n  📊 Topology Analysis:\n"
+        output += "\n  🔊 Topology Analysis:\n"
         output += f"    Connection Type: {conn_type}\n"
         output += f"    Expected BW: ~{expected_bandwidth:.0f} GB/s\n"
         output += f"    Efficiency: {efficiency:.0f}%\n"
@@ -268,40 +266,58 @@ def print_benchmark_results(results: dict[str, Any], topology: dict[str, Any] | 
 
 
 def format_box_header(title: str, width: int = 75, include_rank: bool = True) -> str:
-    """Format a box header as a string instead of printing directly."""
+    """Format a box header as a string instead of printing directly.
+
+    Args:
+        title: The title text (can include \n for multi-line)
+        width: Total width of the box
+        include_rank: Whether to append rank info to the first line
+
+    Returns:
+        Formatted box as a string
+    """
     output = io.StringIO()
 
     # Prepare the title with rank info if requested
     rank = int(os.environ.get("RANK", 0))
-    node_rank = int(os.environ.get("NODE_RANK", os.environ.get("NODE_INDEX", 0)))
+    node_index = int(os.environ.get("NODE_INDEX", 0))
     local_rank = int(os.environ.get("LOCAL_RANK", 0))
-    display_title = f"{title} (Rank {rank}, Node {node_rank}, GPU {local_rank})"
 
-    if not include_rank:
-        display_title = f"{title}"
+    # Split title into lines
+    lines = title.split("\n")
 
-    # Ensure title fits with padding
+    if include_rank and lines:
+        lines[0] = f"{lines[0]} (Rank {rank}, Node {node_index}, GPU {local_rank})"
+
+    # Ensure each line fits with padding
     max_title_width = width - 4  # Account for borders and spacing
-    if len(display_title) > max_title_width:
-        display_title = display_title[: max_title_width - 3] + "..."
-
-    # Calculate padding for centering
-    padding = width - len(display_title)
-    left_pad = padding // 2
-    right_pad = padding - left_pad
+    formatted_lines = []
+    for line in lines:
+        if len(line) > max_title_width:
+            line = line[: max_title_width - 3] + "..."
+        formatted_lines.append(line)
 
     output.write(f"╔{'═' * width}╗\n")
-    output.write(f"║{' ' * left_pad}{display_title}{' ' * right_pad}║\n")
+
+    for line in formatted_lines:
+        # Calculate padding for centering
+        padding = width - len(line)
+        left_pad = padding // 2
+        right_pad = padding - left_pad
+        output.write(f"║{' ' * left_pad}{line}{' ' * right_pad}║\n")
+
     output.write(f"╚{'═' * width}╝\n")
     return output.getvalue()
 
 
 def print_box_header(title: str, width: int = 75, include_rank: bool = True) -> None:
-    """Print a formatted box header with centered title."""
+    """Print a formatted box header with centered title.
+    Supports multi-line titles by using \n in the title string.
+    """
     if dist.is_available() and dist.is_initialized() and dist.get_rank() != 0:
         return  # Only print from rank 0 in distributed mode
 
-    print(format_box_header(title, width, include_rank), end="")
+    print(format_box_header(title, width, include_rank))
 
 
 def run_command(cmd: list[str], check: bool = False) -> tuple[int, str, str]:
@@ -448,7 +464,7 @@ def get_gpu_diagnostics(node_index: int) -> dict[str, Any]:
     }
 
     # Get nvidia-smi output
-    print(f"Running nvidia-smi on node {node_index}...")
+    print("Running nvidia-smi...")
     code, stdout, stderr = run_command(["nvidia-smi"])
     if code == 0:
         diagnostics["nvidia_smi"] = stdout
@@ -461,7 +477,7 @@ def get_gpu_diagnostics(node_index: int) -> dict[str, Any]:
         diagnostics["errors"].append(f"nvidia-smi failed: {stderr}")
 
     if code == 0:  # If nvidia-smi worked
-        print(f"Checking GPU topology on node {node_index}...")
+        print("Checking GPU topology...")
         topo_code, topo_stdout, topo_stderr = run_command(["nvidia-smi", "topo", "-m"])
         if topo_code == 0:
             diagnostics["gpu_topology"] = parse_gpu_topology(topo_stdout)
@@ -469,7 +485,7 @@ def get_gpu_diagnostics(node_index: int) -> dict[str, Any]:
             diagnostics["errors"].append(f"Failed to get GPU topology: {topo_stderr}")
 
     # Get CUDA version from nvcc
-    print(f"Checking CUDA version on node {node_index}...")
+    print("Checking CUDA version...")
     code, stdout, stderr = run_command(["nvcc", "--version"])
     if code == 0:
         # Extract version from output
@@ -481,7 +497,7 @@ def get_gpu_diagnostics(node_index: int) -> dict[str, Any]:
         diagnostics["cuda_version"] = "nvcc not found"
 
     # Get NCCL version
-    print(f"Checking NCCL version on node {node_index}...")
+    print("Checking NCCL version...")
     nccl_paths = ["/usr/local/cuda/lib64/libnccl.so", "/usr/lib/x86_64-linux-gnu/libnccl.so", "/usr/lib64/libnccl.so"]
 
     for nccl_path in nccl_paths:
@@ -668,16 +684,11 @@ def format_system_diagnostics(diagnostics: dict[str, Any]) -> str:
     output.write(f"  Debug Level            : {debug_str}\n")
 
     output.write("\n  Communication Modes:\n")
-    output.write(f"    • P2P (GPU Direct)   : {'✓ Enabled' if not nccl_p2p_disable else '✗ Disabled'}\n")
-    output.write(f"    • Shared Memory      : {'✓ Enabled' if not nccl_shm_disable else '✗ Disabled'}\n")
-    output.write(f"    • InfiniBand/EFA     : {'✓ Enabled' if not nccl_ib_disable else '✗ Disabled'}\n")
+    output.write(f"    • P2P (GPU Direct)   : {'✔ Enabled' if not nccl_p2p_disable else '✗ Disabled'}\n")
+    output.write(f"    • Shared Memory      : {'✔ Enabled' if not nccl_shm_disable else '✗ Disabled'}\n")
+    output.write(f"    • InfiniBand/EFA     : {'✔ Enabled' if not nccl_ib_disable else '✗ Disabled'}\n")
 
     return output.getvalue()
-
-
-def print_system_diagnostics(diagnostics: dict[str, Any]) -> None:
-    """Print system diagnostics in a clean format - kept for backward compatibility."""
-    print(format_system_diagnostics(diagnostics))
 
 
 def format_gpu_diagnostics(diagnostics: dict[str, Any]) -> str:
@@ -703,11 +714,8 @@ def format_gpu_diagnostics(diagnostics: dict[str, Any]) -> str:
 
     # nvidia-smi output (if available)
     if diagnostics["nvidia_smi"]:
-        output.write("\n  NVIDIA-SMI Output:\n")
-        output.write("  " + "-" * 70 + "\n")
         for line in diagnostics["nvidia_smi"].strip().split("\n"):
             output.write(f"  {line}\n")
-        output.write("  " + "-" * 70 + "\n")
 
     # Add topology section if available
     if diagnostics.get("gpu_topology") and diagnostics["gpu_topology"].get("matrix"):
@@ -754,29 +762,6 @@ def format_gpu_diagnostics(diagnostics: dict[str, Any]) -> str:
     return output.getvalue()
 
 
-def print_diagnostics(diagnostics: dict[str, Any]) -> None:
-    """Pretty print GPU diagnostics information - kept for backward compatibility."""
-    print(format_gpu_diagnostics(diagnostics))
-
-
-def setup_nccl_debug_env(master_addr: str | None = None) -> None:
-    """Set minimal NCCL settings for test runs."""
-    if not master_addr:
-        master_addr = os.environ.get("MASTER_ADDR")
-
-    os.environ["NCCL_DEBUG"] = "VERSION"
-    os.environ["NCCL_DEBUG_SUBSYS"] = "INIT,IPC"
-    os.environ["TORCH_NCCL_ASYNC_ERROR_HANDLING"] = "1"
-
-    # Log current NCCL settings
-    print("Setting NCCL Environment for testing:")
-    for key, value in sorted(os.environ.items()):
-        if key.startswith("NCCL_"):
-            print(f"  {key} = {value}")
-
-    print(f"MASTER_ADDR={master_addr or os.environ.get('MASTER_ADDR', '<unset>')}")
-
-
 def test_nccl_communication() -> bool:
     """Test NCCL communication in distributed setting."""
 
@@ -794,7 +779,7 @@ def test_nccl_communication() -> bool:
     try:
         # Check if we're in a distributed environment
         if "RANK" not in os.environ:
-            print("RANK not set, skipping distributed NCCL test")
+            print("[WARNING] RANK not set, skipping distributed NCCL test")
             return True
 
         local_rank = int(os.environ.get("LOCAL_RANK", 0))
@@ -802,7 +787,9 @@ def test_nccl_communication() -> bool:
         device = torch.device(f"cuda:{local_rank}")
 
         # Initialize process group
-        dist.init_process_group(backend="nccl", timeout=datetime.timedelta(seconds=300))
+        with open(os.devnull, "w") as devnull:
+            with redirect_stderr(devnull), redirect_stdout(devnull):
+                dist.init_process_group(backend="nccl", timeout=datetime.timedelta(seconds=300))
 
         rank = dist.get_rank()
         world_size = dist.get_world_size()
@@ -952,7 +939,6 @@ def main():
             return launch_distributed_test()
 
     # Determine our position in the cluster
-    # Standardize on NODE_INDEX (your launch script seems to use this)
     node_index = int(os.environ.get("NODE_INDEX", 0))
     local_rank = int(os.environ.get("LOCAL_RANK", 0))
     rank = int(os.environ.get("RANK", 0))
@@ -970,15 +956,20 @@ def main():
 
     if is_distributed and IS_GPU0:
         # Quick node status line
-        print(f"[Node {node_index}] Initialized - {num_gpus_per_node} GPUs detected")
+        print(f"Node Initialized - {num_gpus_per_node} GPUs detected")
 
     # Print header (master only)
     if IS_MASTER:
-        print("\n" + "═" * 75)
-        print("                      NCCL DIAGNOSTICS AND TESTING")
+        print()  # Add blank line before
         if is_distributed:
-            print(f"                    Nodes: {num_nodes}, GPUs/node: {num_gpus_per_node}, Total: {world_size}")
-        print("═" * 75)
+            title = (
+                f"NCCL DIAGNOSTICS AND TESTING\nNodes: {num_nodes}, "
+                + f"GPUs/node: {num_gpus_per_node}, Total: {world_size}"
+            )
+        else:
+            title = "NCCL DIAGNOSTICS AND TESTING"
+
+        print_box_header(title, include_rank=False)
 
     # delay to de-synchronize printing
     time.sleep(0.02 * rank)
@@ -1014,36 +1005,13 @@ def main():
         print(f"  UMASK           : {sys_info['UMASK']}")
 
     if IS_GPU0:
-        print(f"Collecting GPU diagnostics on node {node_index}...")
+        print(f"[Node {node_index}] Collecting GPU diagnostics...")
         gpu_diagnostics = get_gpu_diagnostics(node_index)
-        print_box_header(f"NODE {node_index} GPU DIAGNOSTICS", include_rank=False)
-        print(f"  PyTorch Version        : {gpu_diagnostics['torch_version']}")
-        print(f"  PyTorch CUDA Available : {gpu_diagnostics['pytorch_cuda_available']}")
-        print(f"  PyTorch CUDA Version   : {gpu_diagnostics['pytorch_cuda_version']}")
-        print(f"  CUDA Version           : {gpu_diagnostics['cuda_version']}")
-        print(f"  NCCL Version           : {gpu_diagnostics['nccl_version']}")
-        print(f"  CUDA_VISIBLE_DEVICES   : {gpu_diagnostics['cuda_visible_devices']}")
-        print(f"  GPU Count              : {gpu_diagnostics['gpu_count']}")
-
-        if gpu_diagnostics["nvidia_smi"]:
-            print("\n  NVIDIA-SMI Output:")
-            print("  " + "-" * 70)
-            for line in gpu_diagnostics["nvidia_smi"].strip().split("\n"):
-                print(f"  {line}")
-            print("  " + "-" * 70)
-
-    # NCCL environment - print from each rank as it can differ
-    print_box_header("NCCL ENVIRONMENT", include_rank=True)
-    nccl_env = system_diagnostics["nccl_env"]
-    nccl_vars = sorted([(k, v) for k, v in nccl_env.items() if k.startswith("NCCL_")])
-    for k, v in nccl_vars:
-        print(f"  {k:<25} : {v}")
 
     # Setup debug environment
-    setup_nccl_debug_env()
-
-    # Run tests - each rank runs but only master logs key info
-    print_box_header("RUNNING TESTS", include_rank=True)
+    os.environ["NCCL_DEBUG"] = "VERSION"
+    os.environ["NCCL_DEBUG_SUBSYS"] = "INIT,IPC"
+    os.environ["TORCH_NCCL_ASYNC_ERROR_HANDLING"] = "1"
 
     all_passed = True
     test_results = []
@@ -1051,9 +1019,9 @@ def main():
     # Single GPU test
     if torch.cuda.is_available():
         if IS_GPU0:
-            print(f"\n  🔧 Node {node_index}: Running single GPU tests...")
+            print(f"[Node {node_index}] 🔧 Running single GPU tests...")
         if test_single_gpu():
-            test_results.append((f"Single GPU Test [Rank {rank}]", "✓ PASSED"))
+            test_results.append((f"Single GPU Test [Rank {rank}]", "✔ PASSED"))
         else:
             test_results.append((f"Single GPU Test [Rank {rank}]", "✗ FAILED"))
             all_passed = False
@@ -1064,10 +1032,10 @@ def main():
     # NCCL communication test
     if all_passed and world_size > 1:
         if IS_GPU0:
-            print(f"\n  🔧 Node {node_index}: Running NCCL communication tests...")
+            print(f"[Node {node_index}] 🔧 Running NCCL communication tests...")
 
         if test_nccl_communication():
-            test_results.append((f"NCCL Communication Test [Rank {rank}]", "✓ PASSED"))
+            test_results.append((f"NCCL Communication Test [Rank {rank}]", "✔ PASSED"))
         else:
             test_results.append((f"NCCL Communication Test [Rank {rank}]", "✗ FAILED"))
             all_passed = False
@@ -1078,14 +1046,14 @@ def main():
     benchmark_results = None
     if all_passed and world_size > 1:
         if IS_GPU0:
-            print(f"\n  📊 Node {node_index}: Running benchmarks...")
+            print(f"[Node {node_index}] 🔊 Running benchmarks...")
 
         bench_result = collect_nccl_benchmarks()
 
         # Only rank 0 gets results
         if bench_result is not None:
             benchmark_results = bench_result
-            test_results.append((f"NCCL Benchmarks [Rank {rank}]", "✓ PASSED"))
+            test_results.append((f"NCCL Benchmarks [Rank {rank}]", "✔ PASSED"))
         else:
             test_results.append((f"NCCL Benchmarks [Rank {rank}]", "✗ FAILED"))
             all_passed = False
@@ -1105,7 +1073,15 @@ def main():
         else:
             # If process group was destroyed, we can't aggregate
             # In this case, we just report our local status
-            print("Process group not initialized for result aggregation")
+            print("[WARNING] Process group not initialized for result aggregation")
+
+    # Print formatted diagnostics
+    if IS_MASTER:
+        print(format_system_diagnostics(system_diagnostics))
+
+    # GPU diagnostics only exist if IS_GPU0 was true
+    if IS_GPU0 and "gpu_diagnostics" in locals():
+        print(format_gpu_diagnostics(gpu_diagnostics))
 
     # Summary - only from master
     if IS_MASTER and benchmark_results:
@@ -1114,20 +1090,29 @@ def main():
         print_benchmark_results(benchmark_results, topology)
 
     if IS_MASTER:
-        print_box_header("TEST SUMMARY", include_rank=False)
+        # Build multi-line content for the box
+        lines = ["TEST SUMMARY"]
+        lines.append("")  # blank line for spacing
 
+        # Add test results
         for test_name, result in test_results:
-            print(f"  {test_name:<30} : {result}")
+            lines.append(f"{test_name:<30} : {result}")
 
+        # Add overall status if distributed
         if is_distributed:
-            print(f"\n  Overall: {'✓ All ranks passed' if all_ranks_passed else '✗ Some ranks failed'}")
+            lines.append("")  # blank line
+            lines.append(f"Overall: {'✔ All ranks passed' if all_ranks_passed else '✗ Some ranks failed'}")
 
-        print("\n" + "═" * 75)
+        # Add final status
+        lines.append("")  # blank line
         if all_ranks_passed:
-            print("                    ✓ ALL TESTS PASSED! ✓")
+            lines.append("✔ ALL TESTS PASSED! ✔")
         else:
-            print("                    ✗ SOME TESTS FAILED ✗")
-        print("═" * 75 + "\n")
+            lines.append("✗ SOME TESTS FAILED ✗")
+
+        # Print the complete box
+        print()  # blank line before
+        print_box_header("\n".join(lines), include_rank=False)
 
     # Add after tests, before destroying process group
     if is_distributed and dist.is_initialized() and not all_ranks_passed:
@@ -1154,6 +1139,30 @@ def main():
         dist.destroy_process_group()
 
     return 0 if all_passed else 1
+
+
+def launch_nccl_tests(logger, is_master: bool) -> bool:
+    logger.info("Running GPU diagnostics and NCCL tests...")
+    try:
+        result = subprocess.run(
+            ["uv", "run", "python", "./devops/skypilot/utils/nccl_tests.py"],
+            capture_output=True,
+            text=True,
+        )
+
+        if is_master and result.stdout:
+            print(result.stdout)
+
+        if result.returncode != 0:
+            logger.error(f"NCCL tests failed: {result.stderr}")
+            return False
+        else:
+            logger.info("NCCL tests passed")
+            return True
+
+    except Exception as e:
+        logger.error(f"Failed to run NCCL tests: {e}")
+        return False
 
 
 if __name__ == "__main__":
