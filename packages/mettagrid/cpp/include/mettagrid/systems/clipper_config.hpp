@@ -14,7 +14,10 @@ struct ClipperConfig {
   float cutoff_distance;
   float clip_rate;
 
-  ClipperConfig(std::vector<std::shared_ptr<Recipe>> recipe_ptrs, float length_scale, float cutoff_distance, float clip_rate)
+  ClipperConfig(std::vector<std::shared_ptr<Recipe>> recipe_ptrs,
+                float length_scale,
+                float cutoff_distance,
+                float clip_rate)
       : unclipping_recipes(std::move(recipe_ptrs)),
         length_scale(length_scale),
         cutoff_distance(cutoff_distance),

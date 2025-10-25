@@ -54,7 +54,9 @@ namespace py = pybind11;
 
 inline void bind_wall_config(py::module& m) {
   py::class_<WallConfig, GridObjectConfig, std::shared_ptr<WallConfig>>(m, "WallConfig")
-      .def(py::init<TypeId, const std::string&, bool>(), py::arg("type_id"), py::arg("type_name"),
+      .def(py::init<TypeId, const std::string&, bool>(),
+           py::arg("type_id"),
+           py::arg("type_name"),
            py::arg("swappable") = false)
       .def_readwrite("type_id", &WallConfig::type_id)
       .def_readwrite("type_name", &WallConfig::type_name)

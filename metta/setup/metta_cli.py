@@ -17,6 +17,7 @@ from metta.setup.components.base import SetupModuleStatus
 from metta.setup.local_commands import app as local_app
 from metta.setup.symlink_setup import app as symlink_app
 from metta.setup.tools.book import app as book_app
+from metta.setup.tools.ci_runner import cmd_ci
 from metta.setup.tools.code_formatters import get_formatters, parse_format_types, partition_files_by_type, run_formatter
 from metta.setup.tools.test_runner.test_cpp import app as cpp_test_runner_app
 from metta.setup.tools.test_runner.test_python import app as python_test_runner_app
@@ -677,16 +678,25 @@ def cmd_lint(
             continue
 
         # Run formatter
+        check_mode = check or not fix
         success_fmt = run_formatter(
             file_type,
             formatter,
             cli.repo_root,
-            check_only=check or not fix,
+            check_only=check_mode,
             files=type_files,
         )
 
+        # Only treat as failure if formatter ran and failed
+        # If check_mode is True and formatter doesn't support check, it returns False but that's not a failure
         if not success_fmt:
-            failed_formatters.append(formatter.name)
+            # If we're in check mode and the formatter doesn't have a check_cmd, ignore the failure
+            if check_mode and formatter.check_cmd is None:
+                # This is expected - formatter doesn't support check mode, was skipped
+                pass
+            else:
+                # This is an actual failure
+                failed_formatters.append(formatter.name)
 
     # Run Python linting (ruff check) if Python files are involved
     if "python" in types_to_format:
@@ -832,6 +842,11 @@ app.add_typer(symlink_app, name="symlink-setup")
 app.add_typer(softmax_system_health_app, name="softmax-system-health")
 app.add_typer(python_test_runner_app, name="pytest")
 app.add_typer(cpp_test_runner_app, name="cpptest")
+app.command(
+    name="ci",
+    help="Run CI checks locally",
+    context_settings={"allow_extra_args": True, "ignore_unknown_options": True, "allow_interspersed_args": False},
+)(cmd_ci)
 
 
 def main() -> None:
