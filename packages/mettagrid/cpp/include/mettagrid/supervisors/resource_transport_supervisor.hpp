@@ -58,28 +58,28 @@ public:
   }
 
 protected:
-  std::pair<ActionType, ActionArg> get_recommended_action(Agent& agent, const ObservationTokens& observation) override {
+  std::pair<ActionType, ActionArg> get_recommended_action(const ObservationTokens& observation) override {
     // Check energy levels if energy management is enabled
-    if (config_.manage_energy && needs_energy(agent)) {
-      return seek_energy(agent);
+    if (config_.manage_energy && needs_energy()) {
+      return seek_energy();
     }
 
     // State machine for resource transportation
     switch (state_) {
       case State::SEARCHING:
-        return search_for_targets(agent);
+        return search_for_targets();
 
       case State::MOVING_TO_EXTRACTOR:
-        return move_to_extractor(agent);
+        return move_to_extractor();
 
       case State::EXTRACTING:
-        return extract_resource(agent);
+        return extract_resource();
 
       case State::MOVING_TO_CHEST:
-        return move_to_chest(agent);
+        return move_to_chest();
 
       case State::DEPOSITING:
-        return deposit_resource(agent);
+        return deposit_resource();
 
       default:
         // Fallback to no-op
@@ -87,18 +87,17 @@ protected:
     }
   }
 
-  void on_supervise(Agent& agent,
-                    ActionType agent_action,
+  void on_supervise(ActionType agent_action,
                     ActionArg agent_arg,
                     ActionType supervisor_action,
                     ActionArg supervisor_arg,
                     bool agrees) override {
     // Record state-specific statistics
     std::string state_name = get_state_name();
-    agent.stats.incr(name_ + ".state." + state_name);
+    agent_->stats.incr(name_ + ".state." + state_name);
 
     if (!agrees) {
-      agent.stats.incr(name_ + ".state." + state_name + ".disagree");
+      agent_->stats.incr(name_ + ".state." + state_name + ".disagree");
     }
   }
 
@@ -118,7 +117,7 @@ private:
   size_t search_index_;
   std::vector<GridLocation> visited_locations_;
 
-  bool needs_energy(const Agent& agent) const {
+  bool needs_energy() const {
     // Check if agent has an energy resource and it's below threshold
     // This assumes energy is resource 0 or we need to determine the energy resource ID
     // For now, we'll check if any resource that could be "energy" is low
@@ -126,30 +125,30 @@ private:
     return false;  // Placeholder - implement based on game configuration
   }
 
-  std::pair<ActionType, ActionArg> seek_energy(Agent& agent) {
+  std::pair<ActionType, ActionArg> seek_energy() {
     // Find and move to nearest energy source
     // This is a placeholder - implement based on game configuration
     return {0, 0};  // Return noop for now
   }
 
-  std::pair<ActionType, ActionArg> search_for_targets(Agent& agent) {
+  std::pair<ActionType, ActionArg> search_for_targets() {
     // Find extractor and chest for the target resource
     if (!target_extractor_ || !target_chest_) {
-      find_resource_infrastructure(agent);
+      find_resource_infrastructure();
     }
 
     if (target_extractor_ && target_chest_) {
       state_ = State::MOVING_TO_EXTRACTOR;
-      return move_to_extractor(agent);
+      return move_to_extractor();
     }
 
     // Explore the map systematically
-    return explore_map(agent);
+    return explore_map();
   }
 
-  void find_resource_infrastructure(Agent& agent) {
-    GridCoord agent_r = agent.location.r;
-    GridCoord agent_c = agent.location.c;
+  void find_resource_infrastructure() {
+    GridCoord agent_r = agent_->location.r;
+    GridCoord agent_c = agent_->location.c;
 
     // Search for converters that produce the target resource
     for (GridCoord r = 0; r < grid_->height; ++r) {
@@ -167,14 +166,14 @@ private:
 
         Converter* converter = dynamic_cast<Converter*>(obj);
         if (converter && produces_resource(converter, config_.target_resource)) {
-          if (!target_extractor_ || distance_to(agent, converter) < distance_to(agent, target_extractor_)) {
+          if (!target_extractor_ || distance_to(converter) < distance_to(target_extractor_)) {
             target_extractor_ = converter;
           }
         }
 
         Chest* chest = dynamic_cast<Chest*>(obj);
         if (chest && can_store_resource(chest, config_.target_resource)) {
-          if (!target_chest_ || distance_to(agent, chest) < distance_to(agent, target_chest_)) {
+          if (!target_chest_ || distance_to(chest) < distance_to(target_chest_)) {
             target_chest_ = chest;
           }
         }
@@ -195,29 +194,29 @@ private:
     return chest->inventory.amount(resource) < 1000;  // Simplified check
   }
 
-  GridCoord distance_to(const Agent& agent, GridObject* obj) const {
-    return std::abs(agent.location.r - obj->location.r) + std::abs(agent.location.c - obj->location.c);
+  GridCoord distance_to(GridObject* obj) const {
+    return std::abs(agent_->location.r - obj->location.r) + std::abs(agent_->location.c - obj->location.c);
   }
 
-  std::pair<ActionType, ActionArg> move_to_extractor(Agent& agent) {
+  std::pair<ActionType, ActionArg> move_to_extractor() {
     if (!target_extractor_) {
       state_ = State::SEARCHING;
-      return search_for_targets(agent);
+      return search_for_targets();
     }
 
     // Check if we're adjacent to the extractor
-    if (is_adjacent(agent, target_extractor_)) {
+    if (is_adjacent(target_extractor_)) {
       state_ = State::EXTRACTING;
-      return extract_resource(agent);
+      return extract_resource();
     }
 
-    return move_toward(agent, target_extractor_->location);
+    return move_toward(target_extractor_->location);
   }
 
-  std::pair<ActionType, ActionArg> extract_resource(Agent& agent) {
+  std::pair<ActionType, ActionArg> extract_resource() {
     if (!target_extractor_) {
       state_ = State::SEARCHING;
-      return search_for_targets(agent);
+      return search_for_targets();
     }
 
     // Check if extractor has resources available
@@ -226,52 +225,52 @@ private:
       // Extractor is empty, search for a new one
       target_extractor_ = nullptr;
       state_ = State::SEARCHING;
-      return search_for_targets(agent);
+      return search_for_targets();
     }
 
     // Check if agent inventory is full
-    InventoryQuantity agent_amount = agent.inventory.amount(config_.target_resource);
+    InventoryQuantity agent_amount = agent_->inventory.amount(config_.target_resource);
     InventoryQuantity agent_limit = 100;  // Simplified limit check
 
     if (agent_amount >= agent_limit) {
       // Agent is full, move to chest
       state_ = State::MOVING_TO_CHEST;
-      return move_to_chest(agent);
+      return move_to_chest();
     }
 
     // Extract resources (assuming action 3 is get_items)
     // The arg would be the direction to the extractor
-    ActionArg direction = get_direction_to(agent, target_extractor_);
+    ActionArg direction = get_direction_to(target_extractor_);
     return {3, direction};  // Action 3 = get_items
   }
 
-  std::pair<ActionType, ActionArg> move_to_chest(Agent& agent) {
+  std::pair<ActionType, ActionArg> move_to_chest() {
     if (!target_chest_) {
       state_ = State::SEARCHING;
-      return search_for_targets(agent);
+      return search_for_targets();
     }
 
     // Check if we're adjacent to the chest
-    if (is_adjacent(agent, target_chest_)) {
+    if (is_adjacent(target_chest_)) {
       state_ = State::DEPOSITING;
-      return deposit_resource(agent);
+      return deposit_resource();
     }
 
-    return move_toward(agent, target_chest_->location);
+    return move_toward(target_chest_->location);
   }
 
-  std::pair<ActionType, ActionArg> deposit_resource(Agent& agent) {
+  std::pair<ActionType, ActionArg> deposit_resource() {
     if (!target_chest_) {
       state_ = State::SEARCHING;
-      return search_for_targets(agent);
+      return search_for_targets();
     }
 
     // Check if agent has resources to deposit
-    InventoryQuantity agent_amount = agent.inventory.amount(config_.target_resource);
+    InventoryQuantity agent_amount = agent_->inventory.amount(config_.target_resource);
     if (agent_amount == 0) {
       // No resources to deposit, go back to extractor
       state_ = State::MOVING_TO_EXTRACTOR;
-      return move_to_extractor(agent);
+      return move_to_extractor();
     }
 
     // Check if chest is full
@@ -279,15 +278,15 @@ private:
       // Chest is full, find a new one
       target_chest_ = nullptr;
       state_ = State::SEARCHING;
-      return search_for_targets(agent);
+      return search_for_targets();
     }
 
     // Deposit resources (assuming action 2 is put_items)
-    ActionArg direction = get_direction_to(agent, target_chest_);
+    ActionArg direction = get_direction_to(target_chest_);
     return {2, direction};  // Action 2 = put_items
   }
 
-  std::pair<ActionType, ActionArg> explore_map(Agent& agent) {
+  std::pair<ActionType, ActionArg> explore_map() {
     // Systematic exploration pattern
     // Move in a spiral or grid pattern to discover the map
 
@@ -296,7 +295,7 @@ private:
 
     // Check each direction
     for (ActionArg dir = 0; dir < 4; ++dir) {
-      GridLocation next_loc = get_location_in_direction(agent.location, dir);
+      GridLocation next_loc = get_location_in_direction(agent_->location, dir);
 
       // Check if location is valid and not recently visited
       if (is_valid_location(next_loc) && !is_recently_visited(next_loc)) {
@@ -307,7 +306,7 @@ private:
     if (!possible_moves.empty()) {
       // Choose the least recently visited direction
       ActionArg chosen_dir = possible_moves[0];
-      GridLocation chosen_loc = get_location_in_direction(agent.location, chosen_dir);
+      GridLocation chosen_loc = get_location_in_direction(agent_->location, chosen_dir);
       visited_locations_.push_back(chosen_loc);
 
       // Keep visited locations list bounded
@@ -322,10 +321,10 @@ private:
     return {0, 0};  // noop
   }
 
-  std::pair<ActionType, ActionArg> move_toward(Agent& agent, const GridLocation& target) {
+  std::pair<ActionType, ActionArg> move_toward(const GridLocation& target) {
     // Calculate best direction to move toward target
-    GridCoord dr = target.r - agent.location.r;
-    GridCoord dc = target.c - agent.location.c;
+    GridCoord dr = target.r - agent_->location.r;
+    GridCoord dc = target.c - agent_->location.c;
 
     // Prefer moving in the dimension with greater distance
     ActionArg direction;
@@ -340,7 +339,7 @@ private:
     }
 
     // Check if the move is valid
-    GridLocation next_loc = get_location_in_direction(agent.location, direction);
+    GridLocation next_loc = get_location_in_direction(agent_->location, direction);
     if (is_valid_location(next_loc)) {
       return {1, direction};  // Action 1 = move
     }
@@ -349,7 +348,7 @@ private:
     for (ActionArg alt_dir = 0; alt_dir < 4; ++alt_dir) {
       if (alt_dir == direction) continue;
 
-      GridLocation alt_loc = get_location_in_direction(agent.location, alt_dir);
+      GridLocation alt_loc = get_location_in_direction(agent_->location, alt_dir);
       if (is_valid_location(alt_loc)) {
         return {1, alt_dir};
       }
@@ -358,14 +357,14 @@ private:
     return {0, 0};  // No valid moves
   }
 
-  bool is_adjacent(const Agent& agent, GridObject* obj) const {
-    GridCoord dist = std::abs(agent.location.r - obj->location.r) + std::abs(agent.location.c - obj->location.c);
+  bool is_adjacent(GridObject* obj) const {
+    GridCoord dist = std::abs(agent_->location.r - obj->location.r) + std::abs(agent_->location.c - obj->location.c);
     return dist == 1;
   }
 
-  ActionArg get_direction_to(const Agent& agent, GridObject* obj) const {
-    GridCoord dr = obj->location.r - agent.location.r;
-    GridCoord dc = obj->location.c - agent.location.c;
+  ActionArg get_direction_to(GridObject* obj) const {
+    GridCoord dr = obj->location.r - agent_->location.r;
+    GridCoord dc = obj->location.c - agent_->location.c;
 
     if (dr == -1 && dc == 0) return 0;  // North
     if (dr == 0 && dc == 1) return 1;   // East
