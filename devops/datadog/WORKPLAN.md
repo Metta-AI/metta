@@ -9,8 +9,10 @@
 - ✅ Fixed health_fom collector crashes (improved error handling)
 - ✅ WandB collector expanded to 20 metrics (push-to-main CI tracking + sweep metrics)
 - ✅ All dashboards using Jsonnet framework
-- ✅ Dev deployment updated and tested with GitHub metrics fix (image: sha-5d549e5)
+- ✅ **Implemented robust timeout protection** (multiprocessing-based, kills hanging subprocesses)
+- ✅ Dev deployment updated and tested with timeout fix (image: sha-3d3180c)
 - ✅ Documentation improvements (deployment guide, component library clarifications)
+- ✅ Analyzed SkyPilot authentication optimization (documented in ISSUE-skypilot-authentication.md)
 
 **Dashboard Framework**: Comprehensive Jsonnet library with layouts, presets, and 7 component libraries (2,550+ lines of documentation)
 
