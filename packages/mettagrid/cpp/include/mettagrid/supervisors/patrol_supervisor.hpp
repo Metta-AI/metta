@@ -1,8 +1,9 @@
 #ifndef PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_SUPERVISORS_PATROL_SUPERVISOR_HPP_
 #define PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_SUPERVISORS_PATROL_SUPERVISOR_HPP_
 
+#include "actions/orientation.hpp"
+#include "objects/agent.hpp"
 #include "supervisors/agent_supervisor.hpp"
-
 struct PatrolSupervisorConfig : public AgentSupervisorConfig {
   // Number of steps to move in each direction before turning
   int steps_per_direction;
@@ -34,10 +35,8 @@ protected:
     steps_in_current_direction_++;
 
     // Return move action with appropriate direction
-    // Assuming action 1 is move, and directions are:
-    // 0 = North, 1 = East (right), 2 = South, 3 = West (left)
     ActionType move_action = 1;
-    ActionArg direction = moving_right_ ? 1 : 3;  // East : West
+    ActionArg direction = moving_right_ ? Orientation::East : Orientation::West;
 
     return {move_action, direction};
   }

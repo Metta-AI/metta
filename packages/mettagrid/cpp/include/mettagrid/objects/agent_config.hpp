@@ -12,7 +12,7 @@
 #include "core/grid_object.hpp"
 #include "core/types.hpp"
 #include "objects/inventory_config.hpp"
-#include "supervisors/agent_supervisor.hpp"  // Need full definition for shared_ptr member
+#include "supervisors/agent_supervisor.hpp"
 
 struct AgentConfig : public GridObjectConfig {
   AgentConfig(TypeId type_id,
