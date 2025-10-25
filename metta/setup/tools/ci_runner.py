@@ -27,12 +27,6 @@ from rich.table import Table
 from metta.common.util.fs import get_repo_root
 from metta.setup.utils import error, info, success
 
-app = typer.Typer(
-    help="Run CI checks locally",
-    rich_markup_mode="rich",
-    no_args_is_help=False,
-)
-
 console = Console()
 
 
@@ -164,9 +158,6 @@ def _print_summary(results: list[CheckResult]) -> None:
     console.print()
 
 
-@app.command(
-    name="ci", help="Run CI checks locally", context_settings={"allow_extra_args": True, "ignore_unknown_options": True}
-)
 def cmd_ci(
     ctx: typer.Context,
     stage: Annotated[
@@ -182,13 +173,13 @@ def cmd_ci(
     GitHub Actions and local development both use this command.
 
     Examples:
-        metta ci                                        # Run all stages (local development)
-        metta ci --stage lint                           # Run only linting
-        metta ci --stage python-tests                   # Run only Python tests
-        metta ci --stage python-benchmarks              # Run only Python benchmarks
-        metta ci --stage cpp-tests                      # Run only C++ tests
-        metta ci --stage cpp-benchmarks                 # Run only C++ benchmarks
-        metta ci --stage python-tests --skip-package X  # Pass extra args
+        metta ci                                            # Run all stages (local development)
+        metta ci --stage lint                               # Run only linting
+        metta ci --stage python-tests                       # Run only Python tests
+        metta ci --stage python-benchmarks                  # Run only Python benchmarks
+        metta ci --stage cpp-tests                          # Run only C++ tests
+        metta ci --stage cpp-benchmarks                     # Run only C++ benchmarks
+        metta ci --stage python-tests -- --skip-package X   # Pass extra args
 
     Individual tools can also be run directly:
         metta lint          # Run only linting checks
@@ -250,5 +241,4 @@ def cmd_ci(
         sys.exit(1)
 
 
-if __name__ == "__main__":
-    app()
+# No main - this module exports cmd_ci for use in metta_cli.py

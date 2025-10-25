@@ -842,7 +842,11 @@ app.add_typer(symlink_app, name="symlink-setup")
 app.add_typer(softmax_system_health_app, name="softmax-system-health")
 app.add_typer(python_test_runner_app, name="pytest")
 app.add_typer(cpp_test_runner_app, name="cpptest")
-app.command(name="ci", help="Run CI checks locally")(cmd_ci)
+app.command(
+    name="ci",
+    help="Run CI checks locally",
+    context_settings={"allow_extra_args": True, "ignore_unknown_options": True, "allow_interspersed_args": False},
+)(cmd_ci)
 
 
 def main() -> None:
