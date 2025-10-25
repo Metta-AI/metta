@@ -6,7 +6,6 @@
 
 #include "supervisors/agent_supervisor.hpp"
 #include "supervisors/patrol_supervisor.hpp"
-#include "supervisors/resource_transport_supervisor.hpp"
 
 // Factory class to create supervisors from configurations
 class SupervisorFactory {
@@ -14,11 +13,6 @@ public:
   static std::unique_ptr<AgentSupervisor> create(const AgentSupervisorConfig* config) {
     if (!config) {
       return nullptr;
-    }
-
-    // Check if it's a ResourceTransportSupervisorConfig
-    if (auto* transport_config = dynamic_cast<const ResourceTransportSupervisorConfig*>(config)) {
-      return std::make_unique<ResourceTransportSupervisor>(*transport_config);
     }
 
     // Check if it's a PatrolSupervisorConfig
