@@ -7,7 +7,6 @@ Quick start
 
 - CPU/GPU is auto-detected. CUDA is used when available.
 - Run one or all stacks against a task:
-
   - Single stack
     - `python packages/cortex/evaluations/run.py --task delayed_recall --stack slstm_postup`
   - All registered stacks

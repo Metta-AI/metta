@@ -6,8 +6,11 @@ image:
   pullPolicy: Always
   tag: "latest"
 
-# Command to run - can be overridden for different scripts
-command: ["uv", "run", "python", "-m", "softmax.dashboard.report", "--push"]
+# Command to run all collectors
+# Uses the new modular collector architecture
+# Container working directory is /app (lean collector image)
+# Use absolute path because uv run resolves paths relative to package directories
+command: ["python", "/app/devops/datadog/scripts/run_all_collectors.py"]
 
 serviceAccount:
   create: true
@@ -25,8 +28,22 @@ resources:
 # Datadog metric tagging (for organizing metrics in Datadog)
 datadog:
   env: "production"
-  service: "dashboard-cronjob"
+  service: "datadog-collectors"  # Changed from github-collector to reflect all collectors
   site: "datadoghq.com"
+
+# GitHub configuration
+github:
+  org: "PufferAI"
+  repo: "metta"
+
+# Asana configuration (workspace and project IDs are not secrets)
+asana:
+  workspaceGid: "1209016784099267"  # Company workspace
+  bugsProjectGid: "1210062854657778"  # Bugs project
+
+# Kubernetes configuration
+kubernetes:
+  clusterName: "main"  # Cluster name for metric tagging
 
 # CronJob configuration
 successfulJobsHistoryLimit: 3
