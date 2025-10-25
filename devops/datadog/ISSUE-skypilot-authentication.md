@@ -218,46 +218,33 @@ aws secretsmanager create-secret \
     --region us-east-1
 ```
 
-Update IAM role policy for IRSA (if needed):
-```json
-{
-  "Version": "2012-10-17",
-  "Statement": [
-    {
-      "Effect": "Allow",
-      "Action": "secretsmanager:GetSecretValue",
-      "Resource": [
-        "arn:aws:secretsmanager:us-east-1:751442549699:secret:skypilot/api-key*"
-      ]
-    }
-  ]
-}
-```
+**Note**: The existing IAM role policy for the dashboard-cronjob service account already allows `secretsmanager:GetSecretValue` on `skypilot/api-key*` via IRSA. No policy update needed.
 
 #### 3. Secret Access Code
 
-**File:** `devops/datadog/utils/secrets.py` (or similar)
+The existing `get_credential()` function in `devops/datadog/scripts/run_collector.py` already implements the correct pattern:
 
 ```python
-def get_skypilot_api_key() -> str | None:
-    """
-    Get SkyPilot API key from environment or AWS Secrets Manager.
+# In run_all_collectors.py or similar
+from devops.datadog.scripts.run_collector import get_credential
 
-    Returns None if not available (graceful degradation).
-    """
-    # Try environment variable first
-    api_key = os.environ.get("SKYPILOT_API_KEY")
-    if api_key:
-        return api_key
+def initialize_skypilot_auth() -> bool:
+    """Try to authenticate with SkyPilot API server."""
+    # Uses existing get_credential() which checks env var then Secrets Manager
+    api_key = get_credential("SKYPILOT_API_KEY", "skypilot/api-key", required=False)
 
-    # Try AWS Secrets Manager
-    try:
-        from devops.datadog.utils.aws_secrets import get_secret
-        return get_secret("skypilot/api-key")
-    except Exception as e:
-        logger.debug(f"Could not fetch SkyPilot API key from Secrets Manager: {e}")
-        return None
+    if not api_key:
+        logger.warning("SKYPILOT_API_KEY not set - will use local API server")
+        return False
+
+    # ... rest of authentication logic
 ```
+
+**Pattern**: The `get_credential()` helper already:
+- Checks environment variable first (`SKYPILOT_API_KEY`)
+- Falls back to AWS Secrets Manager (`skypilot/api-key`)
+- Returns None gracefully if not found (when `required=False`)
+- Uses the existing `get_secretsmanager_secret()` utility with caching
 
 ### Testing Plan
 
@@ -365,25 +352,43 @@ The timeout protection (multiprocessing) solved the critical issue - jobs no lon
 
 When we decide to implement:
 
-- [ ] Get SKYPILOT_API_KEY from monitoring repo or SkyPilot admin
-- [ ] Add secret to AWS Secrets Manager
-- [ ] Update IAM role policy if needed
-- [ ] Implement `initialize_skypilot_auth()` in run_all_collectors.py
-- [ ] Add environment variable to Helm chart (optional: true)
-- [ ] Add volume mount for /root/.sky
-- [ ] Test authentication locally
-- [ ] Deploy to dev and verify <10s collection time
-- [ ] Test fallback behavior (without key)
-- [ ] Monitor dev for 1 week
+**Phase 1: Secret Setup**
+- [ ] Get SKYPILOT_API_KEY from monitoring repo deployment
+  ```bash
+  kubectl get secret softmax-monitor-secrets -n softmax-monitor -o json | \
+    jq -r '.data["skypilot-api-key"]' | base64 -d
+  ```
+- [ ] Add secret to AWS Secrets Manager as `skypilot/api-key`
+  ```bash
+  aws secretsmanager create-secret \
+    --name skypilot/api-key \
+    --secret-string "<key>" \
+    --region us-east-1
+  ```
+- [ ] Verify IAM role policy (should already allow `skypilot/api-key*` access via IRSA)
+
+**Phase 2: Code Implementation**
+- [ ] Implement `initialize_skypilot_auth()` in run_all_collectors.py using existing `get_credential()` pattern
+- [ ] Add volume mount for /root/.sky in Helm chart (emptyDir)
+- [ ] Test authentication locally with env var
+- [ ] Test fallback behavior (without key) to ensure graceful degradation
+
+**Phase 3: Deployment & Validation**
+- [ ] Deploy to dev environment
+- [ ] Verify <10s SkyPilot collection time (vs current 38s)
+- [ ] Confirm fallback works if secret unavailable
+- [ ] Monitor dev for 1 week for stability
 - [ ] Deploy to production
 - [ ] Document in DEPLOYMENT_GUIDE.md
 
 ## Related Files
 
-- `devops/datadog/scripts/run_all_collectors.py` - Main orchestration
+- `devops/datadog/scripts/run_all_collectors.py` - Main orchestration (add `initialize_skypilot_auth()` here)
+- `devops/datadog/scripts/run_collector.py` - Contains `get_credential()` helper for secret retrieval
+- `devops/datadog/utils/secrets.py` - AWS Secrets Manager utilities (already implemented)
 - `devops/datadog/collectors/skypilot/collector.py` - SkyPilot collector
-- `devops/charts/dashboard-cronjob/templates/cronjob.yaml` - Kubernetes deployment
-- `monitoring/skypilot_monitor/initialize_skypilot_sdk.py` - Reference implementation
+- `devops/charts/dashboard-cronjob/templates/cronjob.yaml` - Kubernetes deployment (add volume mount)
+- `monitoring/skypilot_monitor/initialize_skypilot_sdk.py` - Reference implementation from monitoring repo
 
 ## References
 
