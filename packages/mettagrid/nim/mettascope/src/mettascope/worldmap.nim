@@ -1,9 +1,97 @@
 import
-  std/[math, os, strutils, tables],
+  std/[math, os, strutils, tables, strformat, random],
   boxy, vmath, windy, fidget2/[hybridrender, common],
-  common, panels, actions, utils, replays, objectinfo, pathfinding
+  common, panels, actions, utils, replays, objectinfo, pathfinding, tilemap
 
 const TS = 1.0 / 64.0 # Tile scale.
+
+var terrainMap*: TileMap
+
+proc weightedRandomInt*(weights: seq[int]): int =
+  ## Return a random integer between 0 and 7, with a weighted distribution.
+  var r = rand(sum(weights))
+  var acc = 0
+  for i, w in weights:
+    acc += w
+    if r <= acc:
+      return i
+  doAssert false, "should not happen"
+
+proc generateTileMap(): TileMap =
+  ## Generate a 1024x1024 texture where each pixel is a byte index into the 16x16 tile map.
+  let
+    width = ceil(replay.mapSize[0].float32 / 32.0f).int * 32
+    height = ceil(replay.mapSize[1].float32 / 32.0f).int * 32
+
+  echo "Real map size: ", replay.mapSize[0], "x", replay.mapSize[1]
+  echo "Tile map size: ", width, "x", height, " (multiples of 32)"
+
+  var terrainMap = newTileMap(
+    width = width,
+    height = height,
+    tileSize = 64,
+    atlasPath = dataDir & "/blob7x8.png"
+  )
+
+  var asteroidMap: seq[bool] = newSeq[bool](width * height)
+  # Fill the asteroid map with ground (true).
+  for y in 0 ..< replay.mapSize[1]:
+    for x in 0 ..< replay.mapSize[0]:
+      asteroidMap[y * width + x] = true
+
+  # Walk the walls and generate a map of which tiles are present.
+  for obj in replay.objects:
+    if obj.typeName == "wall":
+      let pos = obj.location.at(0)
+      asteroidMap[pos.y * width + pos.x] = false
+
+  # Generate the tile edges.
+  let patternToTile = @[
+    18, 17, 4, 4, 12, 22, 4, 4, 30, 13, 41, 41, 30, 13, 41, 41, 19, 23, 5, 5, 37,
+    9, 5, 5, 30, 13, 41, 41, 30, 13, 41, 41, 24, 43, 39, 39, 44, 45, 39, 39, 48,
+    32, 46, 46, 48, 32, 46, 46, 24, 43, 39, 39, 44, 45, 39, 39, 48, 32, 46, 46,
+    48, 32, 46, 46, 36, 10, 3, 3, 16, 40, 3, 3, 20, 27, 6, 6, 20, 27, 6, 6, 25,
+    15, 2, 2, 26, 38, 2, 2, 20, 27, 6, 6, 20, 27, 6, 6, 24, 43, 39, 39, 44, 45,
+    39, 39, 48, 32, 46, 46, 48, 32, 46, 46, 24, 43, 39, 39, 44, 45, 39, 39, 48,
+    32, 46, 46, 48, 32, 46, 46, 28, 28, 8, 8, 21, 21, 8, 8, 33, 33, 7, 7, 33, 33,
+    7, 7, 35, 35, 31, 31, 14, 14, 31, 31, 33, 33, 7, 7, 33, 33, 7, 7, 47, 47, 1,
+    1, 42, 42, 1, 1, 34, 34, 0, 0, 34, 34, 0, 0, 47, 47, 1, 1, 42, 42, 1, 1,
+    34, 34, 0, 0, 34, 34, 0, 0, 28, 28, 8, 8, 21, 21, 8, 8, 33, 33, 7, 7, 33,
+    33, 7, 7, 35, 35, 31, 31, 14, 14, 31, 31, 33, 33, 7, 7, 33, 33, 7, 7, 47, 47,
+    1, 1, 42, 42, 1, 1, 34, 34, 0, 0, 34, 34, 0, 0, 47, 47, 1, 1, 42, 42, 1,
+    1, 34, 34, 0, 0, 34, 34, 0, 0
+  ]
+  for i in 0 ..< terrainMap.indexData.len:
+    let x = i mod width
+    let y = i div width
+
+    proc get(map: seq[bool], x: int, y: int): int =
+      if x < 0 or y < 0 or x >= width or y >= height:
+        return 0
+      if map[y * width + x]:
+        return 1
+      return 0
+
+    var tile: uint8 = 0
+    if asteroidMap[y * width + x]:
+      tile = (49 + weightedRandomInt(@[100, 50, 25, 10, 5, 2, 1])).uint8
+    else:
+      let
+        pattern = (
+          1 * asteroidMap.get(x-1, y-1) + # NW
+          2 * asteroidMap.get(x, y-1) + # N
+          4 * asteroidMap.get(x+1, y-1) + # NE
+          8 * asteroidMap.get(x+1, y) + # E
+          16 * asteroidMap.get(x+1, y+1) + # SE
+          32 * asteroidMap.get(x, y+1) + # S
+          64 * asteroidMap.get(x-1, y+1) + # SW
+          128 * asteroidMap.get(x-1, y) # W
+        )
+      tile = patternToTile[pattern].uint8
+    terrainMap.indexData[i] = tile
+
+  terrainMap.setupGPU()
+  return terrainMap
 
 proc buildAtlas*() =
   ## Build the atlas.
@@ -100,82 +188,6 @@ proc useSelections*(panel: Panel) =
           # Replace the entire objective queue.
           agentObjectives[selection.agentId] = @[objective]
           recomputePath(selection.agentId, startPos)
-
-proc drawFloor*() =
-  # Draw the floor tiles.
-  discard
-  # for x in 0 ..< replay.mapSize[0]:
-  #   for y in 0 ..< replay.mapSize[1]:
-  #     bxy.drawImage("objects/floor1", ivec2(x.int32, y.int32).vec2, angle = 0, scale = TS)
-
-const wallSprites = @[
-  "objects/wall.0",
-  "objects/wall.e",
-  "objects/wall.s",
-  "objects/wall.se",
-  "objects/wall.w",
-  "objects/wall.we",
-  "objects/wall.ws",
-  "objects/wall.wse",
-  "objects/wall.n",
-  "objects/wall.ne",
-  "objects/wall.ns",
-  "objects/wall.nse",
-  "objects/wall.nw",
-  "objects/wall.nwe",
-  "objects/wall.nws",
-  "objects/wall.nwse",
-]
-
-type WallTile = enum
-  WallNone = 0,
-  WallE = 1,
-  WallS = 2,
-  WallW = 4,
-  WallN = 8,
-  WallSE = 2 or 1,
-  WallNW = 8 or 4,
-
-proc drawWalls*() =
-  ## Draw the walls on the map.
-  var grid = newSeq2D[bool](replay.mapSize[0], replay.mapSize[1])
-  for obj in replay.objects:
-    if obj.typeName == "wall":
-      let pos = obj.location.at
-      grid[pos.x][pos.y] = true
-
-  template hasWall(x: int, y: int): bool =
-    if x >= 0 and x < replay.mapSize[0] and
-      y >= 0 and y < replay.mapSize[1]:
-        grid[x][y]
-    else:
-      true
-
-  var wallFills: seq[IVec2]
-  for x in 0 ..< replay.mapSize[0]:
-    for y in 0 ..< replay.mapSize[1]:
-      if grid[x][y]:
-        var tile = 0'u16
-        if hasWall(x, y + 1): tile = tile or WallS.uint16
-        if hasWall(x + 1, y): tile = tile or WallE.uint16
-        if hasWall(x, y - 1): tile = tile or WallN.uint16
-        if hasWall(x - 1, y): tile = tile or WallW.uint16
-
-        if (tile and WallSE.uint16) == WallSE.uint16 and
-            hasWall(x + 1, y + 1):
-          wallFills.add(ivec2(x.int32, y.int32))
-          if (tile and WallNW.uint16) == WallNW.uint16 and
-              hasWall(x - 1, y - 1) and
-              hasWall(x - 1, y + 1) and
-              hasWall(x + 1, y - 1):
-            continue
-        bxy.drawImage(wallSprites[tile], vec2(x.float32, y.float32), angle = 0, scale = TS)
-      else:
-        # Draw floor tile.
-        bxy.drawImage("objects/floor1", vec2(x.float32, y.float32), angle = 0, scale = TS)
-
-  for fillPos in wallFills:
-    bxy.drawImage("objects/void.fill", fillPos.vec2 + vec2(0.5, 0.8), angle = 0, scale = TS)
 
 proc drawObjects*() =
   ## Draw the objects on the map.
@@ -385,27 +397,6 @@ proc drawGrid*() =
         scale = TS
       )
 
-proc drawInventory*() =
-  # Draw the inventory.
-  discard
-  # for obj in replay.objects:
-  #   let inventory = obj.inventory.at
-  #   var numItems = 0
-  #   for itemAmount in inventory:
-  #     numItems += itemAmount.count
-  #   let widthItems = (numItems.float32 * 0.1).clamp(0.0, 1.0)
-  #   var x = -widthItems / 2
-  #   var xAdvance = widthItems / numItems.float32
-  #   for itemAmount in inventory:
-  #     for i in 0 ..< itemAmount.count:
-  #       bxy.drawImage(
-  #         replay.itemImages[itemAmount.itemId],
-  #         obj.location.at.xy.vec2 + vec2(x.float32, -0.5),
-  #         angle = 0,
-  #         scale = 1/200 / 4
-  #       )
-  #       x += xAdvance
-
 proc drawPlannedPath*() =
   ## Draw the planned paths for all agents.
   ## Only show paths when in realtime mode and viewing the latest step.
@@ -494,23 +485,6 @@ proc drawSelection*() =
       angle = 0,
       scale = 1/200
     )
-
-proc drawRewards*() =
-  # Draw the rewards on the bottom of the object.
-  discard
-  # for obj in replay.objects:
-  #   if obj.isAgent:
-  #     let totalReward = obj.totalReward.at
-  #     let advanceX = min(32/200, 1.0 / totalReward)
-  #     var rewardX = -0.5
-  #     for i in 0 ..< totalReward.int:
-  #       bxy.drawImage(
-  #         "resources/reward",
-  #         obj.location.at.xy.vec2 + vec2(rewardX, 0.5 - 16/200),
-  #         angle = 0,
-  #         scale = 1/200/8
-  #       )
-  #       rewardX += advanceX
 
 proc applyOrientationOffset*(x: int, y: int, orientation: int): (int, int) =
   case orientation
@@ -619,27 +593,37 @@ proc drawThoughtBubbles*() =
         scale = 1/200/8
       )
 
+proc drawTerrain*() =
+  ## Draw the terrain, space and asteroid tiles using the terrainMap tilemap.
+  bxy.enterRawOpenGLMode()
+  if terrainMap == nil:
+    terrainMap = generateTileMap()
+
+  let m = bxy.getTransform()
+  let boxyView = mat4(
+    m[0, 0], m[0, 1], m[0, 2], 0,
+    m[1, 0], m[1, 1], m[1, 2], 0,
+    0, 0, 0, 1,
+    m[2, 0], m[2, 1], m[2, 2], 1
+  )
+  let projection = ortho(0.0f, window.size.x.float32, window.size.y.float32, 0.0f, -1.0f, 1.0f)
+  let mvp = projection *
+    boxyView *
+    translate(vec3(-0.5, -0.5, 0)) *
+    scale(vec3(
+      terrainMap.width.float32,
+      terrainMap.height.float32,
+      1.0f
+    ))
+
+  terrainMap.draw(mvp, 2.0f, 1.5f)
+  bxy.exitRawOpenGLMode()
+
 proc drawWorldMini*() =
   const wallTypeName = "wall"
   const agentTypeName = "agent"
 
-  # Floor
-  bxy.drawRect(rect(0, 0, replay.mapSize[0].float32 - 0.5,
-      replay.mapSize[1].float32 - 0.5),
-      color(0.906, 0.831, 0.718, 1))
-
-  # Walls
-  for obj in replay.objects:
-    if obj.typeName == agentTypeName:
-      continue
-    let color =
-      if obj.typeName == wallTypeName:
-        color(0.380, 0.341, 0.294, 1)
-      else:
-        color(1, 1, 1, 1)
-
-    let loc = obj.location.at(step).xy
-    bxy.drawRect(rect(loc.x.float32 - 0.5, loc.y.float32 - 0.5, 1, 1), color)
+  drawTerrain()
 
   # Agents
   let scale = 3.0
@@ -663,11 +647,13 @@ proc drawWorldMini*() =
     drawFogOfWar()
 
 proc centerAt*(panel: Panel, entity: Entity) =
+  ## Center the map on the given entity.
+  ## TODO: Implement this.
   discard
 
 proc drawWorldMain*() =
-  drawFloor()
-  drawWalls()
+  ## Draw the world map.
+  drawTerrain()
   drawTrajectory()
   drawObjects()
   drawActions()
@@ -675,8 +661,6 @@ proc drawWorldMain*() =
   drawClippedStatus()
   drawSelection()
   drawPlannedPath()
-  drawInventory()
-  drawRewards()
 
   if settings.showVisualRange:
     drawVisualRanges()
