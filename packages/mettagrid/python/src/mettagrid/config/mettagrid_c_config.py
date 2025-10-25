@@ -21,6 +21,7 @@ from mettagrid.mettagrid_c import ConverterConfig as CppConverterConfig
 from mettagrid.mettagrid_c import GameConfig as CppGameConfig
 from mettagrid.mettagrid_c import GlobalObsConfig as CppGlobalObsConfig
 from mettagrid.mettagrid_c import InventoryConfig as CppInventoryConfig
+from mettagrid.mettagrid_c import PatrolSupervisorConfig as CppPatrolSupervisorConfig
 from mettagrid.mettagrid_c import Recipe as CppRecipe
 from mettagrid.mettagrid_c import ResourceModConfig as CppResourceModConfig
 from mettagrid.mettagrid_c import ResourceTransportSupervisorConfig as CppResourceTransportSupervisorConfig
@@ -207,6 +208,12 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
                     min_energy_threshold=supervisor.min_energy_threshold,
                     manage_energy=supervisor.manage_energy,
                     max_search_distance=supervisor.max_search_distance,
+                    can_override_action=supervisor.can_override_action,
+                    name=supervisor.name,
+                )
+            elif supervisor.type == "patrol":
+                supervisor_config = CppPatrolSupervisorConfig(
+                    steps_per_direction=supervisor.steps_per_direction,
                     can_override_action=supervisor.can_override_action,
                     name=supervisor.name,
                 )

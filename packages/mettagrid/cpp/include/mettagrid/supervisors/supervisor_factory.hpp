@@ -5,6 +5,7 @@
 #include <string>
 
 #include "supervisors/agent_supervisor.hpp"
+#include "supervisors/patrol_supervisor.hpp"
 #include "supervisors/resource_transport_supervisor.hpp"
 
 // Factory class to create supervisors from configurations
@@ -18,6 +19,11 @@ public:
     // Check if it's a ResourceTransportSupervisorConfig
     if (auto* transport_config = dynamic_cast<const ResourceTransportSupervisorConfig*>(config)) {
       return std::make_unique<ResourceTransportSupervisor>(*transport_config);
+    }
+
+    // Check if it's a PatrolSupervisorConfig
+    if (auto* patrol_config = dynamic_cast<const PatrolSupervisorConfig*>(config)) {
+      return std::make_unique<PatrolSupervisor>(*patrol_config);
     }
 
     // Default: create base supervisor (which would be abstract, so this shouldn't happen)

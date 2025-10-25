@@ -53,11 +53,19 @@ class ResourceTransportSupervisorConfig(SupervisorConfig):
     max_search_distance: int = Field(default=30, ge=0, description="Maximum distance to search for objects")
 
 
+class PatrolSupervisorConfig(SupervisorConfig):
+    """Configuration for patrol supervisor that moves agent left and right repeatedly."""
+
+    type: Literal["patrol"] = "patrol"
+    steps_per_direction: int = Field(
+        default=5, ge=1, description="Number of steps to move in each direction before turning"
+    )
+
+
 # Union type for all supervisor configs
-# For now we only have one supervisor type, but we use Union to allow future expansion
-# When there's only one type, we can't use Discriminator yet
 AnySupervisorConfig = Union[
     ResourceTransportSupervisorConfig,
+    PatrolSupervisorConfig,
     # Future supervisor types can be added here
 ]
 
