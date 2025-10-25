@@ -12,9 +12,7 @@
 #include "core/grid_object.hpp"
 #include "core/types.hpp"
 #include "objects/inventory_config.hpp"
-
-// Forward declaration
-struct AgentSupervisorConfig;
+#include "supervisors/agent_supervisor.hpp"  // Need full definition for shared_ptr member
 
 struct AgentConfig : public GridObjectConfig {
   AgentConfig(TypeId type_id,
