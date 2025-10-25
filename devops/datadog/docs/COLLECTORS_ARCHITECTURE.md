@@ -1,7 +1,7 @@
 # Data Collectors Architecture
 
-> **Status**: Phase 4 Complete (2025-10-23) **Implemented**: Four collectors with BaseCollector pattern (GitHub,
-> Skypilot, Asana, EC2) **Total Metrics**: 87 metrics across all collectors
+> **Status**: Phase 5 Complete (2025-10-24) **Implemented**: Seven collectors with BaseCollector pattern (GitHub,
+> Skypilot, Asana, EC2, WandB, Kubernetes, Health FoM) **Total Metrics**: 140 metrics across all collectors
 
 ## Vision
 
@@ -15,18 +15,21 @@ submitting them to Datadog. Each collector is a self-contained module that knows
 
 All collectors run as scheduled Kubernetes CronJobs, deployed via Helm charts.
 
-## Current Implementation (Phase 4)
+## Current Implementation (Phase 5)
 
 **Completed:**
 
 - ✅ BaseCollector abstract class (`utils/base.py`)
 - ✅ @metric decorator system (`utils/decorators.py`)
 - ✅ DatadogClient wrapper (`utils/datadog_client.py`)
-- ✅ Four collectors fully implemented:
-  - GitHubCollector with 24 metrics (`collectors/github/collector.py`)
+- ✅ Seven collectors fully implemented:
+  - GitHubCollector with 28 metrics (`collectors/github/collector.py`)
   - SkypilotCollector with 30 metrics (`collectors/skypilot/collector.py`)
   - AsanaCollector with 14 metrics (`collectors/asana/collector.py`)
   - EC2Collector with 19 metrics (`collectors/ec2/collector.py`)
+  - WandBCollector with 20 metrics (`collectors/wandb/collector.py`)
+  - KubernetesCollector with 15 metrics (`collectors/kubernetes/collector.py`)
+  - HealthFoMCollector with 14 metrics (`collectors/health_fom/collector.py`)
 - ✅ Comprehensive error handling and logging
 - ✅ Modern datadog-api-client v2 API integration
 - ✅ AWS Secrets Manager integration for all credentials
@@ -59,7 +62,17 @@ devops/datadog/
 │   │   ├── collector.py
 │   │   ├── metrics.py
 │   │   └── README.md
-│   └── asana/                     # Asana project tracking collector
+│   ├── asana/                     # Asana project tracking collector
+│   │   ├── __init__.py
+│   │   ├── collector.py
+│   │   ├── metrics.py
+│   │   └── README.md
+│   ├── kubernetes/                # Kubernetes cluster health collector
+│   │   ├── __init__.py
+│   │   ├── collector.py
+│   │   ├── metrics.py
+│   │   └── README.md
+│   └── health_fom/                # System health Figure of Merit collector
 │       ├── __init__.py
 │       ├── collector.py
 │       ├── metrics.py
