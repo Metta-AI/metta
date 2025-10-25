@@ -25,6 +25,7 @@
 #include "core/hash.hpp"
 #include "core/types.hpp"
 #include "objects/agent.hpp"
+#include "objects/agent_config.hpp"
 #include "objects/assembler.hpp"
 #include "objects/assembler_config.hpp"
 #include "objects/chest.hpp"

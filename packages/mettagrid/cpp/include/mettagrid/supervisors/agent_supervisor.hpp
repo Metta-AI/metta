@@ -8,10 +8,10 @@
 
 #include "core/grid_object.hpp"  // for ObservationTokens
 #include "core/types.hpp"
-#include "objects/agent.hpp"
 
 // Forward declarations
 class Grid;
+class Agent;
 
 // Configuration for AgentSupervisor
 struct AgentSupervisorConfig {
