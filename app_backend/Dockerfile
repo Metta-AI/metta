@@ -12,7 +12,7 @@ RUN curl -L https://github.com/bazelbuild/bazelisk/releases/latest/download/baze
     && chmod +x /usr/local/bin/bazel
 
 # Install uv
-COPY --from=ghcr.io/astral-sh/uv:0.7.2 /uv /uvx /bin/
+COPY --from=ghcr.io/astral-sh/uv:0.9.5 /uv /uvx /bin/
 
 # Set working directory
 WORKDIR /app
