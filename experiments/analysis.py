@@ -47,7 +47,7 @@ class SummarySpec(BaseModel):
 
 
 class FetchSpec(BaseModel):
-    samples: int | None = 10000
+    samples: int | None = 2000
     min_step: int | None = None
     max_step: int | None = None
     keys: list[str] | None = None  # will default to [metric_key]
@@ -86,21 +86,21 @@ class _RunSeries:
 
 
 def get_run(
-    run_name: str,
+    run_id: str,
     entity: str = METTA_WANDB_ENTITY,
     project: str = METTA_WANDB_PROJECT,
 ) -> Run | None:
     try:
-        api = wandb.Api(timeout=60)
+        api = wandb.Api(timeout=20)
     except Exception as e:  # noqa: BLE001
         print(f"Error connecting to W&B: {str(e)}")
         print("Make sure you are connected to W&B: `metta status`")
         return None
 
     try:
-        return api.run(f"{entity}/{project}/{run_name}")
+        return api.run(f"{entity}/{project}/{run_id}")
     except Exception as e:  # noqa: BLE001
-        print(f"Error getting run {run_name}: {str(e)}")
+        print(f"Error getting run {run_id}: {str(e)}")
         return None
 
 
@@ -132,13 +132,55 @@ def _fetch_series(run_id: str, metric_key: str, fetch: FetchSpec) -> _RunSeries:
             raise RuntimeError(f"Failed to scan history for run {run_id}: {e}") from e
         df = pd.DataFrame(records)
     else:
-        if fetch.min_step is not None or fetch.max_step is not None:
-            # WandB ignores min/max when sampling; warn by printing once per run
-            print(
-                f"Warning: min_step/max_step ignored when samples={fetch.samples} for run {run_id}; use samples=None for filtering"
-            )
         try:
-            df = run.history(samples=fetch.samples, keys=keys, pandas=True)  # type: ignore[assignment]
+            # If a sampling budget is provided together with a step window, adaptively
+            # request enough global samples to obtain approximately `samples` points
+            # inside the window, then uniformly downsample the window to the target.
+            if (
+                fetch.min_step is not None
+                and fetch.max_step is not None
+                and fetch.samples is not None
+            ):
+                desired = max(1, int(fetch.samples))
+                samples_n = max(desired, 2000)
+                max_samples_cap = 10_000
+                max_attempts = 3
+
+                df_window: pd.DataFrame | None = None
+                last_window: pd.DataFrame | None = None
+
+                for _ in range(max_attempts):
+                    df_all = run.history(samples=samples_n, keys=keys, pandas=True)  # type: ignore[assignment]
+                    steps_all = _resolve_step_column(df_all)
+                    lo = float(fetch.min_step)
+                    hi = float(fetch.max_step)
+                    mask = (steps_all >= lo) & (steps_all <= hi)
+                    df_w = df_all.loc[mask]
+                    last_window = df_w
+                    if len(df_w) >= desired or samples_n >= max_samples_cap:
+                        df_window = df_w
+                        break
+                    # Increase request size based on observed fraction in window
+                    window_count = max(1, int(len(df_w)))
+                    samples_n = int(
+                        min(
+                            max_samples_cap,
+                            math.ceil(desired * samples_n / window_count * 1.25),
+                        )
+                    )
+
+                if df_window is None:
+                    df_window = last_window if last_window is not None else df_all
+
+                # Uniformly downsample to the desired budget inside the window
+                if len(df_window) > desired:
+                    idx = np.linspace(0, len(df_window) - 1, num=desired, dtype=int)
+                    df_window = df_window.iloc[idx]
+
+                df = df_window
+            else:
+                # No window specified; regular global sampling is fine
+                df = run.history(samples=fetch.samples, keys=keys, pandas=True)  # type: ignore[assignment]
         except Exception as e:  # noqa: BLE001
             raise RuntimeError(
                 f"Failed to fetch sampled history for run {run_id}: {e}"
@@ -150,11 +192,16 @@ def _fetch_series(run_id: str, metric_key: str, fetch: FetchSpec) -> _RunSeries:
     steps = _resolve_step_column(df)
     values = df[metric_key].to_numpy(dtype=float)
 
-    # Drop NaNs
-    mask = np.isfinite(values)
-    if mask.sum() == 0:
-        raise ValueError(f"No finite values for metric '{metric_key}' in run {run_id}")
-    return _RunSeries(run_id=run_id, steps=steps[mask], values=values[mask])
+    # raise value error if any values are NaN
+    if np.isnan(values).any():
+        raise ValueError(f"NaN values for metric '{metric_key}' in run {run_id}")
+    return _RunSeries(run_id=run_id, steps=steps, values=values)
+
+    # # Drop NaNs # av delete after testing
+    # mask = np.isfinite(values)
+    # if mask.sum() == 0:
+    #     raise ValueError(f"No finite values for metric '{metric_key}' in run {run_id}")
+    # return _RunSeries(run_id=run_id, steps=steps[mask], values=values[mask])
 
 
 def _reduce_summary(series: _RunSeries, summary: SummarySpec) -> float:
@@ -584,7 +631,7 @@ class CompareTool(Tool):
         print(f"  summary: {self.summary.type}")
         print(f"  N_control={n_control}, N_candidate={n_candidate}")
         side = self.bootstrap.side
-        print(f"  effect (candidate - control): {point:.6g}")
+        print(f"  bootstrapped effect size (candidate - control): {point:.6g}")
         print(f"  {side} {1 - self.bootstrap.alpha:.0%} CI: [{ci[0]:.6g}, {ci[1]:.6g}]")
         if ttest is not None:
             print("  t-test:")
