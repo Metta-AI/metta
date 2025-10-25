@@ -32,16 +32,13 @@ Automated metric collection from multiple services via Kubernetes CronJobs:
 
 **Current Collectors:**
 
-- **GitHub** ⚠️ **(Production, needs prefix fix)**: 28 metrics - PRs, commits, branches, CI/CD workflows, developer activity
-  - **Known Issue**: Metrics missing `github.` prefix (currently `ci.*`, should be `github.ci.*`)
-  - See `ISSUE-missing-github-metrics.md` for details
+- **GitHub** ✅ **(Production)**: 28 metrics - PRs, commits, branches, CI/CD workflows, developer activity
 - **Skypilot** ✅ **(Production)**: 30 metrics - Jobs, clusters, resource utilization
 - **Asana** ✅ **(Production)**: 14 metrics - Project health, bugs tracking, team velocity
 - **EC2** ✅ **(Production)**: 19 metrics - Instances, costs, utilization, EBS volumes
 - **WandB** ✅ **(Production)**: 20 metrics - Training runs (24h), push-to-main CI tracking (5 SPS metrics), sweep metrics, GPU hours
 - **Kubernetes** ✅ **(Production)**: 15 metrics - Resource efficiency, pod health, waste tracking
-- **Health FoM** ⚠️ **(Production, blocked)**: 14 metrics - Normalized 0.0-1.0 health scores for CI/CD and training metrics
-  - **Blocked by**: GitHub metrics naming issue (queries wrong names)
+- **Health FoM** ✅ **(Production)**: 14 metrics - Normalized 0.0-1.0 health scores for CI/CD and training metrics
 
 All collectors:
 
