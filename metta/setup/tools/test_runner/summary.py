@@ -199,15 +199,15 @@ def write_github_summary(summaries: Sequence[PackageSummary]) -> None:
     for summary in summaries:
         failures = summary.failures
         if failures:
-            status = f"❌ {len(failures)} failing"
+            status = f"✗ {len(failures)} failing"
             rerun_targets = " ".join(failure.nodeid for failure in failures)
             rerun = f"`metta pytest {rerun_targets}`"
         elif summary.returncode != 0:
-            status = f"⚠️ exit {summary.returncode}"
+            status = f"✗ exit {summary.returncode}"
             rerun = f"`metta pytest {summary.target}`"
         else:
             total = summary.total or 0
-            status = f"✅ {total} passed" if total else "✅ no tests"
+            status = f"✓ {total} passed" if total else "✓ no tests"
             rerun = "—"
         lines.append(f"| {summary.package_name} | {status} | {rerun} |")
 
