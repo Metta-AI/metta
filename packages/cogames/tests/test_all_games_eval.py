@@ -34,6 +34,8 @@ def test_mission_eval(mission_name):
     if result.returncode != 0:
         pytest.fail(f"Eval failed for mission {mission_name}: {result.stderr}")
 
+    assert False, "This is for testing"
+
     assert "Episode 1" in result.stdout or "episode" in result.stdout.lower()
 
 
