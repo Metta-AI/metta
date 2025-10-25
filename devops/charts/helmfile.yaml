@@ -172,4 +172,4 @@ releases:
     values:
       - ./dashboard-cronjob/values-dev.yaml
       - image:
-          tag: "sha-5d549e5"  # GitHub metrics fix + documentation updates
+          tag: "sha-3d3180c"  # Timeout protection fix using multiprocessing
