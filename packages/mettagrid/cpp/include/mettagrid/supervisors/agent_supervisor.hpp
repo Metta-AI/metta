@@ -8,9 +8,9 @@
 
 #include "core/grid_object.hpp"  // for ObservationTokens
 #include "core/types.hpp"
+#include "objects/agent.hpp"
 
 // Forward declarations
-class Agent;
 class Grid;
 
 // Configuration for AgentSupervisor

@@ -22,8 +22,8 @@ from mettagrid.config.mettagrid_config import (
     ClipperConfig,
     GameConfig,
     MettaGridConfig,
+    PatrolSupervisorConfig,
     ProtocolConfig,
-    ResourceTransportSupervisorConfig,
 )
 from mettagrid.map_builder.map_builder import MapBuilderConfig
 
@@ -115,14 +115,10 @@ class Mission(Config):
             raise ValueError("Cannot make_env without num_cogs. Call instantiate() first.")
 
         # xcxc
-        supervisor_config = ResourceTransportSupervisorConfig(
-            type="resource_transport",
-            target_resource="carbon",
-            min_energy_threshold=10,
-            manage_energy=True,
-            max_search_distance=30,
+        supervisor_config = PatrolSupervisorConfig(
+            steps_per_direction=5,
             can_override_action=True,
-            name="carbon_collector",
+            name="patrol_supervisor",
         )
 
         game = GameConfig(

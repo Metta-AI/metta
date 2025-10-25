@@ -9,10 +9,12 @@
 
 #include "core/grid.hpp"
 #include "core/grid_object.hpp"
+#include "objects/agent.hpp"
 #include "objects/chest.hpp"
 #include "objects/converter.hpp"
 #include "objects/wall.hpp"
 #include "supervisors/agent_supervisor.hpp"
+#include "systems/packed_coordinate.hpp"
 
 // Configuration for ResourceTransportSupervisor
 struct ResourceTransportSupervisorConfig : public AgentSupervisorConfig {
@@ -24,18 +26,32 @@ struct ResourceTransportSupervisorConfig : public AgentSupervisorConfig {
   bool manage_energy;
   // Maximum distance to search for objects
   GridCoord max_search_distance;
+  // Grid dimensions for obstacle tracking
+  GridCoord grid_width;
+  GridCoord grid_height;
+  // Observation window dimensions
+  ObservationCoord obs_width;
+  ObservationCoord obs_height;
 
   ResourceTransportSupervisorConfig(InventoryItem target_resource,
                                     InventoryQuantity min_energy_threshold = 10,
                                     bool manage_energy = true,
                                     GridCoord max_search_distance = 30,
                                     bool can_override_action = false,
-                                    const std::string& name = "resource_transport_supervisor")
+                                    const std::string& name = "resource_transport_supervisor",
+                                    GridCoord grid_width = 100,
+                                    GridCoord grid_height = 100,
+                                    ObservationCoord obs_width = 11,
+                                    ObservationCoord obs_height = 11)
       : AgentSupervisorConfig(can_override_action, name),
         target_resource(target_resource),
         min_energy_threshold(min_energy_threshold),
         manage_energy(manage_energy),
-        max_search_distance(max_search_distance) {}
+        max_search_distance(max_search_distance),
+        grid_width(grid_width),
+        grid_height(grid_height),
+        obs_width(obs_width),
+        obs_height(obs_height) {}
 };
 
 // Supervisor that manages resource transportation from extractors to chests
@@ -47,7 +63,8 @@ public:
         state_(State::SEARCHING),
         target_extractor_(nullptr),
         target_chest_(nullptr),
-        search_index_(0) {}
+        search_index_(0),
+        obstacle_map_(config.grid_height, std::vector<bool>(config.grid_width, false)) {}
 
   void reset() override {
     state_ = State::SEARCHING;
@@ -55,10 +72,31 @@ public:
     target_chest_ = nullptr;
     search_index_ = 0;
     visited_locations_.clear();
+    // Reset obstacle map
+    for (auto& row : obstacle_map_) {
+      std::fill(row.begin(), row.end(), false);
+    }
+  }
+
+  // Get a read-only view of the obstacle map (for debugging/visualization)
+  const std::vector<std::vector<bool>>& get_obstacle_map() const {
+    return obstacle_map_;
+  }
+
+  // Check if a specific position is marked as an obstacle
+  bool is_obstacle_at(GridCoord r, GridCoord c) const {
+    if (r >= 0 && r < static_cast<GridCoord>(config_.grid_height) && c >= 0 &&
+        c < static_cast<GridCoord>(config_.grid_width)) {
+      return obstacle_map_[r][c];
+    }
+    return false;
   }
 
 protected:
   std::pair<ActionType, ActionArg> get_recommended_action(const ObservationTokens& observation) override {
+    // Update obstacle map based on observations
+    update_obstacle_map(observation);
+
     // Check energy levels if energy management is enabled
     if (config_.manage_energy && needs_energy()) {
       return seek_energy();
@@ -116,6 +154,57 @@ private:
   Chest* target_chest_;
   size_t search_index_;
   std::vector<GridLocation> visited_locations_;
+  std::vector<std::vector<bool>> obstacle_map_;
+
+  void update_obstacle_map(const ObservationTokens& observation) {
+    // Calculate observation window radius
+    ObservationCoord obs_height_radius = config_.obs_height >> 1;
+    ObservationCoord obs_width_radius = config_.obs_width >> 1;
+
+    // Process each observation token
+    for (const auto& token : observation) {
+      // Skip empty tokens
+      if (PackedCoordinate::is_empty(token.location)) {
+        continue;
+      }
+
+      // Unpack the location within the observation window
+      auto unpacked = PackedCoordinate::unpack(token.location);
+      if (!unpacked.has_value()) {
+        continue;
+      }
+
+      auto [obs_r, obs_c] = unpacked.value();
+
+      // The observation window is centered on the agent
+      // Calculate the actual grid position from the relative observation position
+      int grid_r = agent_->location.r + static_cast<int>(obs_r) - static_cast<int>(obs_height_radius);
+      int grid_c = agent_->location.c + static_cast<int>(obs_c) - static_cast<int>(obs_width_radius);
+
+      // Check if the position is within grid bounds
+      if (grid_r < 0 || grid_r >= static_cast<int>(config_.grid_height) || grid_c < 0 ||
+          grid_c >= static_cast<int>(config_.grid_width)) {
+        continue;
+      }
+
+      // Check if this token represents an object (not empty)
+      // We need to check if it's not an agent to mark it as an obstacle
+      // The feature_id would tell us what type of object it is
+      // For simplicity, we'll mark any non-empty, non-agent object as an obstacle
+
+      // Check if there's an object at this location in the grid
+      GridLocation loc(grid_r, grid_c, GridLayer::ObjectLayer);
+      GridObject* obj = grid_->object_at(loc);
+      if (obj != nullptr) {
+        // Check if it's not an agent
+        Agent* agent = dynamic_cast<Agent*>(obj);
+        if (agent == nullptr) {
+          // It's not an agent, so mark it as an obstacle
+          obstacle_map_[grid_r][grid_c] = true;
+        }
+      }
+    }
+  }
 
   bool needs_energy() const {
     // Check if agent has an energy resource and it's below threshold
@@ -394,8 +483,14 @@ private:
   }
 
   bool is_valid_location(const GridLocation& loc) const {
-    // Simplified bounds check - assume a reasonable grid size
-    if (loc.r < 0 || loc.r >= 100 || loc.c < 0 || loc.c >= 100) {
+    // Check bounds against actual grid dimensions
+    if (loc.r < 0 || loc.r >= static_cast<GridCoord>(config_.grid_height) || loc.c < 0 ||
+        loc.c >= static_cast<GridCoord>(config_.grid_width)) {
+      return false;
+    }
+
+    // Check if location is marked as an obstacle in our map
+    if (obstacle_map_[loc.r][loc.c]) {
       return false;
     }
 

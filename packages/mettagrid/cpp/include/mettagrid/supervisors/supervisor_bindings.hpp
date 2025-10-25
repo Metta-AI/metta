@@ -5,6 +5,7 @@
 #include <pybind11/stl.h>
 
 #include "supervisors/agent_supervisor.hpp"
+#include "supervisors/patrol_supervisor.hpp"
 #include "supervisors/resource_transport_supervisor.hpp"
 
 namespace py = pybind11;
@@ -31,6 +32,15 @@ inline void bind_supervisor_configs(py::module& m) {
       .def_readwrite("min_energy_threshold", &ResourceTransportSupervisorConfig::min_energy_threshold)
       .def_readwrite("manage_energy", &ResourceTransportSupervisorConfig::manage_energy)
       .def_readwrite("max_search_distance", &ResourceTransportSupervisorConfig::max_search_distance);
+
+  // PatrolSupervisorConfig
+  py::class_<PatrolSupervisorConfig, AgentSupervisorConfig, std::shared_ptr<PatrolSupervisorConfig>>(
+      m, "PatrolSupervisorConfig")
+      .def(py::init<int, bool, const std::string&>(),
+           py::arg("steps_per_direction") = 5,
+           py::arg("can_override_action") = false,
+           py::arg("name") = "patrol_supervisor")
+      .def_readwrite("steps_per_direction", &PatrolSupervisorConfig::steps_per_direction);
 }
 
 #endif  // PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_SUPERVISORS_SUPERVISOR_BINDINGS_HPP_
