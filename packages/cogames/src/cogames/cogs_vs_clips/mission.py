@@ -22,6 +22,7 @@ from mettagrid.config.mettagrid_config import (
     ClipperConfig,
     GameConfig,
     MettaGridConfig,
+    PatrolSupervisorConfig,
     ProtocolConfig,
 )
 from mettagrid.map_builder.map_builder import MapBuilderConfig
@@ -113,6 +114,13 @@ class Mission(Config):
         if self.num_cogs is None:
             raise ValueError("Cannot make_env without num_cogs. Call instantiate() first.")
 
+        # xcxc
+        supervisor_config = PatrolSupervisorConfig(
+            steps_per_direction=5,
+            can_override_action=True,
+            name="patrol_supervisor",
+        )
+
         game = GameConfig(
             map_builder=self.map,
             num_agents=self.num_cogs,
@@ -138,6 +146,7 @@ class Mission(Config):
                 },
                 shareable_resources=["energy"],
                 inventory_regen_amounts={"energy": self.energy_regen_amount},
+                supervisor=supervisor_config,
             ),
             inventory_regen_interval=1,
             clipper=ClipperConfig(

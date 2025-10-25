@@ -195,6 +195,7 @@ private:
   WallConfig _create_wall_config(const py::dict& wall_cfg_py);
   void build_flat_action_catalog();
   int flat_action_index(ActionType action, ActionArg arg) const;
+  void _apply_supervisor_overrides(Actions& actions);
 };
 
 #endif  // PACKAGES_METTAGRID_CPP_BINDINGS_METTAGRID_C_HPP_
