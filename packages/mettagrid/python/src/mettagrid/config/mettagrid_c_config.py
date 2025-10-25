@@ -183,8 +183,7 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
             if resource_name not in configured_resources:
                 limits_list.append([[resource_name_to_id[resource_name]], default_resource_limit])
 
-        inventory_limits = [(resource_ids, limit) for resource_ids, limit in limits_list]
-        inventory_config = CppInventoryConfig(limits=inventory_limits)
+        inventory_config = CppInventoryConfig(limits=limits_list)
 
         agent_cpp_params = {
             "freeze_duration": agent_props["freeze_duration"],
