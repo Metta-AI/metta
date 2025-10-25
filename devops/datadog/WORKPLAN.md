@@ -1,28 +1,34 @@
 # Datadog Observability System - Work Plan
 
-**Current Status**: Production deployment with 7 collectors, 8 dashboards (all using Jsonnet), and 130+ metrics
+**Current Status**: Production deployment with 7 collectors, 8 dashboards (all using Jsonnet), and 140 metrics
 
 **Branch**: `robb/1022-datadog` **PR**: [#3384](https://github.com/Metta-AI/metta/pull/3384)
 
-**Dashboard Framework**: Comprehensive Jsonnet library with layouts, presets, and 7 component libraries (2,550+ lines of documentation)
+**Latest Updates**:
+- ✅ Fixed GitHub metrics naming (all metrics now use `github.*` prefix)
+- ✅ Fixed health_fom collector crashes (improved error handling)
+- ✅ WandB collector expanded to 20 metrics (push-to-main CI tracking + sweep metrics)
+- ✅ All dashboards using Jsonnet framework
 
-**✅ All Dashboards Migrated**: Every collector now has a Jsonnet-based dashboard with component libraries
+**Dashboard Framework**: Comprehensive Jsonnet library with layouts, presets, and 7 component libraries (2,550+ lines of documentation)
 
 ---
 
 ## ✅ What's Deployed and Working
 
-### 🔌 Seven Collectors (137+ metrics)
+### 🔌 Seven Collectors (140 metrics)
 
 Running in production via unified CronJob (every 15 minutes):
 
 1. **GitHub Collector** (28 metrics) - PRs, commits, CI/CD, code changes, developers
+   - **Fixed**: All metrics now use `github.*` prefix (commits 2b65385e2a, f4512bdeb7, 0b2f72f4e6)
 2. **Skypilot Collector** (30 metrics) - Job status, runtime, GPU utilization, regional distribution
 3. **Asana Collector** (14 metrics) - Tasks, velocity, cycle time, bugs workflow
 4. **EC2 Collector** (19 metrics) - Instances, EBS volumes, snapshots, cost estimates
 5. **WandB Collector** (20 metrics) - Training runs (24h), push-to-main CI tracking (5 SPS metrics), sweep metrics, GPU hours
 6. **Kubernetes Collector** (15 metrics) - Pods, deployments, node health, resource waste
 7. **Health FoM Collector** (14 metrics) - CI/CD and Training health scores (0.0-1.0 scale)
+   - **Fixed**: Improved error handling to prevent CronJob crashes
 
 ---
 
