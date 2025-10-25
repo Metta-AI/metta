@@ -172,4 +172,4 @@ releases:
     values:
       - ./dashboard-cronjob/values-dev.yaml
       - image:
-          tag: "sha-f2c2e44"  # WandB collector improvements
+          tag: "sha-5d549e5"  # GitHub metrics fix + documentation updates

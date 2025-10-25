@@ -20,11 +20,13 @@ See [CI/CD Integration](#cicd-integration) section below for details.
 
 ```bash
 # 1. Build Docker image from your branch
-gh workflow run build-dashboard-image.yml
+gh workflow run build-dashboard-image.yml --ref your-branch-name
+# IMPORTANT: Use --ref to specify your feature branch, otherwise it builds from main
 gh run watch  # Wait for completion (~1-2 min)
 
 # 2. Get the image tag
 git rev-parse --short=7 HEAD  # Output: abc1234
+# Image will be tagged as: sha-abc1234
 
 # 3. Update helmfile with your image tag
 vim devops/charts/helmfile.yaml
@@ -103,14 +105,13 @@ For testing changes before merging to main (this is the main focus of this guide
 
 ### 1. Build Docker image for your branch
 
-Trigger the GitHub Action to build an image from your branch:
+Trigger the GitHub Action to build an image from your feature branch:
 
 ```bash
-# Trigger build from your current branch
-gh workflow run build-dashboard-image.yml
+# Trigger build from a specific branch (REQUIRED for feature branches)
+gh workflow run build-dashboard-image.yml --ref robb/1022-datadog
 
-# OR trigger build from a specific branch
-gh workflow run build-dashboard-image.yml --ref your-branch-name
+# IMPORTANT: Without --ref, the workflow runs on main branch, not your feature branch!
 
 # Wait for build to complete (~1-2 minutes)
 gh run watch
@@ -122,7 +123,10 @@ git rev-parse --short=7 HEAD
 
 The image will be pushed to ECR as: `751442549699.dkr.ecr.us-east-1.amazonaws.com/softmax-dashboard:sha-<commit-sha>`
 
-**Note:** The workflow must be manually triggered via `gh workflow run` or the GitHub Actions UI. It does NOT automatically build on every push to your branch.
+**Important Notes:**
+- The workflow must be manually triggered via `gh workflow run` or the GitHub Actions UI. It does NOT automatically build on every push to your branch.
+- When building from a feature branch (not `main`), the "Deploy helm chart" step will be **skipped**. This is expected - only builds from `main` trigger automatic deployment.
+- You must manually deploy using `helmfile apply` (see step 3 below) to test your feature branch changes.
 
 ### 2. Uncomment dev section in helmfile.yaml
 
