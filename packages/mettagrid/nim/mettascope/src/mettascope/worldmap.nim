@@ -595,8 +595,7 @@ proc drawThoughtBubbles*() =
 
 proc drawTerrain*() =
   ## Draw the terrain, space and asteroid tiles using the terrainMap tilemap.
-  when declared(bxy.enterRawOpenGLMode):
-    bxy.enterRawOpenGLMode()
+  bxy.enterRawOpenGLMode()
   if terrainMap == nil:
     terrainMap = generateTileMap()
 
@@ -618,8 +617,7 @@ proc drawTerrain*() =
     ))
 
   terrainMap.draw(mvp, 2.0f, 1.5f)
-  when declared(bxy.exitRawOpenGLMode):
-    bxy.exitRawOpenGLMode()
+  bxy.exitRawOpenGLMode()
 
 proc drawWorldMini*() =
   const wallTypeName = "wall"
