@@ -209,20 +209,24 @@ def report_failures(summaries: Sequence[PackageSummary]) -> dict[str, list[TestF
             grouped.setdefault(failure.base_nodeid, []).append(failure)
         for base_nodeid, grouped_failures in grouped.items():
             step(f"• {base_nodeid}", indent=4)
+            pending_labels: list[str] = []
             for failure in grouped_failures:
                 message_lines = [line for line in failure.message.strip().splitlines() if line][:40]
                 header = escape(f"[{failure.param_id}]") if failure.param_id else ""
                 escaped_lines = [escape(line) for line in message_lines]
-                if header and escaped_lines:
-                    info(f"{header} {escaped_lines[0]}", indent=6)
-                    for line in escaped_lines[1:]:
-                        info(line, indent=8)
+                if escaped_lines:
+                    if header:
+                        info(f"{header} {escaped_lines[0]}", indent=6)
+                        for line in escaped_lines[1:]:
+                            info(line, indent=8)
+                    else:
+                        info(escaped_lines[0], indent=6)
+                        for line in escaped_lines[1:]:
+                            info(line, indent=8)
                 elif header:
-                    info(header, indent=6)
-                elif escaped_lines:
-                    info(escaped_lines[0], indent=6)
-                    for line in escaped_lines[1:]:
-                        info(line, indent=8)
+                    pending_labels.append(header)
+            if pending_labels:
+                info(" ".join(pending_labels), indent=6)
         unique_targets = list(dict.fromkeys(failure.nodeid for failure in failures))
         command_text = _format_rerun_command(unique_targets)
         info("Re-run locally:", indent=4)
@@ -239,7 +243,7 @@ def write_github_summary(summaries: Sequence[PackageSummary]) -> None:
     lines: list[str] = []
     lines.append("### Python test results")
     lines.append("")
-    lines.append("| Package | Status | Rerun |")
+    lines.append("| Package | Status | Rerun command |")
     lines.append("| --- | --- | --- |")
 
     for summary in summaries:
@@ -249,12 +253,13 @@ def write_github_summary(summaries: Sequence[PackageSummary]) -> None:
             targets = list(dict.fromkeys(failure.nodeid for failure in failures))
             command_text = _format_rerun_command(targets)
             if "\n" in command_text:
-                rerun = f"<pre><code>{html.escape(command_text)}</code></pre>"
+                escaped_lines = [html.escape(line).replace(" ", "&nbsp;") for line in command_text.splitlines()]
+                rerun = f"<code>{'<br>'.join(escaped_lines)}</code>"
             else:
-                rerun = f"`{command_text}`"
+                rerun = f"<code>{html.escape(command_text)}</code>"
         elif summary.returncode != 0:
             status = f"⚠️ exit {summary.returncode}"
-            rerun = f"`metta pytest {summary.target}`"
+            rerun = f"<code>{html.escape(f'metta pytest {summary.target}')}</code>"
         else:
             total = summary.total or 0
             status = f"✅ {total} passed" if total else "✅ no tests"
