@@ -120,27 +120,6 @@ class PackageResult:
     duration: float
 
 
-def _run_ci_package(
-    package: Package,
-    target: str,
-    base_cmd: Sequence[str],
-    report_dir: Path,
-) -> PackageResult:
-    report_file = report_dir / f"{package.key}.json"
-    if report_file.exists():
-        report_file.unlink()
-    start = time.perf_counter()
-    returncode = _run_command([*base_cmd, target, "--json-report", f"--json-report-file={report_file}"])
-    duration = time.perf_counter() - start
-    return PackageResult(
-        package=package,
-        target=target,
-        returncode=returncode,
-        report_file=report_file,
-        duration=duration,
-    )
-
-
 def _execute_ci_packages(
     packages: Sequence[Package],
     targets: Sequence[str],
@@ -150,6 +129,27 @@ def _execute_ci_packages(
     index_map = {package.key: index for index, package in enumerate(packages)}
     futures = []
     results: list[PackageResult] = []
+
+    def _run_ci_package(
+        package: Package,
+        target: str,
+        base_cmd: Sequence[str],
+        report_dir: Path,
+    ) -> PackageResult:
+        report_file = report_dir / f"{package.key}.json"
+        if report_file.exists():
+            report_file.unlink()
+        start = time.perf_counter()
+        returncode = _run_command([*base_cmd, target, "--json-report", f"--json-report-file={report_file}"])
+        duration = time.perf_counter() - start
+        return PackageResult(
+            package=package,
+            target=target,
+            returncode=returncode,
+            report_file=report_file,
+            duration=duration,
+        )
+
     with ThreadPoolExecutor(max_workers=len(targets)) as pool:
         for package, target in zip(packages, targets, strict=True):
             futures.append(pool.submit(_run_ci_package, package, target, base_cmd, report_dir))

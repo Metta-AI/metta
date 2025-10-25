@@ -15,6 +15,8 @@ if TYPE_CHECKING:
 @dataclass(slots=True)
 class TestFailure:
     nodeid: str
+    base_nodeid: str
+    param_id: str | None
     message: str
 
 
@@ -65,11 +67,26 @@ def _failure_message(entry: Mapping[str, Any]) -> str:
             message = phase_data.get("longreprtext")
             if isinstance(message, str) and message.strip():
                 return message.strip()
-    nodeid = entry.get("nodeid")
-    if isinstance(nodeid, str):
-        outcome = entry.get("outcome")
-        return f"{nodeid} -> {outcome}"
-    return "pytest reported a failure without details"
+    return ""
+
+
+def _split_nodeid(nodeid: str) -> tuple[str, str | None]:
+    if "[" not in nodeid:
+        return nodeid, None
+    base, _, remainder = nodeid.partition("[")
+    return base, remainder.rstrip("]")
+
+
+def _format_rerun_command(targets: Sequence[str]) -> list[str]:
+    if not targets:
+        return ["metta pytest"]
+    if len(targets) == 1:
+        return [f"metta pytest {targets[0]}"]
+    lines = ["metta pytest \\"]
+    for index, target in enumerate(targets):
+        continuation = " \\" if index < len(targets) - 1 else ""
+        lines.append(f"  {target}{continuation}")
+    return lines
 
 
 def summarize_test_results(results: Sequence["PackageResult"]) -> list[PackageSummary]:
@@ -91,7 +108,8 @@ def summarize_test_results(results: Sequence["PackageResult"]) -> list[PackageSu
                 if not isinstance(nodeid, str):
                     continue
                 message = _failure_message(entry)
-                failures.append(TestFailure(nodeid=nodeid, message=message))
+                base_nodeid, param_id = _split_nodeid(nodeid)
+                failures.append(TestFailure(nodeid=nodeid, base_nodeid=base_nodeid, param_id=param_id, message=message))
 
         summaries.append(
             PackageSummary(
@@ -141,14 +159,29 @@ def report_failures(summaries: Sequence[PackageSummary]) -> dict[str, list[TestF
     error("Failing tests:")
     for package_name, failures in failure_map.items():
         error(package_name, indent=2)
-        rerun_targets = " ".join(failure.nodeid for failure in failures)
+        grouped: dict[str, list[TestFailure]] = {}
         for failure in failures:
-            step(f"• {failure.nodeid}", indent=4)
-            message = failure.message.strip()
-            if message:
-                for line in message.splitlines()[:40]:
-                    print(f"      {line}")
-        info(f"Re-run locally: metta pytest {rerun_targets}", indent=4)
+            grouped.setdefault(failure.base_nodeid, []).append(failure)
+        for base_nodeid, grouped_failures in grouped.items():
+            step(f"• {base_nodeid}", indent=4)
+            for failure in grouped_failures:
+                message_lines = [line for line in failure.message.strip().splitlines() if line][:40]
+                header = f"[{failure.param_id}]" if failure.param_id else ""
+                if header and message_lines:
+                    info(f"{header} {message_lines[0]}", indent=6)
+                    for line in message_lines[1:]:
+                        info(line, indent=8)
+                elif header:
+                    info(header, indent=6)
+                elif message_lines:
+                    info(message_lines[0], indent=6)
+                    for line in message_lines[1:]:
+                        info(line, indent=8)
+        unique_targets = list(dict.fromkeys(failure.nodeid for failure in failures))
+        command_lines = _format_rerun_command(unique_targets)
+        info("Re-run locally:", indent=4)
+        for line in command_lines:
+            info(line, indent=6)
     return failure_map
 
 
