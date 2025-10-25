@@ -9,7 +9,7 @@ from mettagrid.map_builder.map_builder import GameMap, MapBuilder, MapBuilderCon
 from mettagrid.mapgen.utils.ascii_grid import merge_with_global_defaults
 
 
-class AsciiMapBuilderConfig(MapBuilderConfig["AsciiMapBuilder"]):
+class AsciiMapBuilderConfig(MapBuilderConfig):
     map_data: list[list[str]]
     char_to_name_map: dict[
         Annotated[str, StringConstraints(min_length=1, max_length=1)],  # keys are single characters

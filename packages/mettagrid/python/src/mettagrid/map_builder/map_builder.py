@@ -27,13 +27,12 @@ class GameMap:
         self.grid = grid
 
 
-TBuilder = TypeVar("TBuilder", bound="MapBuilder[Any]", covariant=True)
+TBuilder = TypeVar("TBuilder", bound="MapBuilder[Any]")
 
 
 class MapBuilderConfig(Config, Generic[TBuilder]):
     """
-    Base class for all map builder configs. Subclasses know which MapBuilder they build via `_builder_cls` (auto-filled
-    when nested inside a MapBuilder subclass; see MapBuilder.__init_subclass__ below).
+    Base class for all map builder configs.
     """
 
     # Can't use correct generic parameter because ClassVar doesn't support generics.
@@ -50,8 +49,7 @@ class MapBuilderConfig(Config, Generic[TBuilder]):
         """
         Instantiate the bound MapBuilder.
 
-        Subclasses nested under a MapBuilder automatically bind `_builder_cls`.  If you define a standalone Config
-        subclass, either set `_builder_cls` on the class or override `create()`.
+        If your config class is generic over the builder class, this method will return the exact instance type.
         """
         return self.builder_cls()(self)  # type: ignore[call-arg]
 
@@ -148,7 +146,7 @@ class MapBuilder(ABC, Generic[ConfigT]):
 
     Subclasses must:
     1. Inherit from MapBuilder[ConfigT], where ConfigT is a subclass of MapBuilderConfig.
-    2. Define a `build()` method that returns a GameMap.
+    2. Define the build() method that returns a GameMap.
     """
 
     Config: type[ConfigT]
