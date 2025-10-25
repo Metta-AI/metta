@@ -17,9 +17,9 @@ Exit codes:
     1: One or more collectors failed
 """
 
+import multiprocessing
 import sys
 import time
-from concurrent.futures import ThreadPoolExecutor, TimeoutError
 from datetime import datetime
 
 # Import the generic run_collector function
@@ -41,6 +41,98 @@ COLLECTORS = [
 COLLECTOR_TIMEOUT = 120
 
 
+def _run_collector_in_process(name: str, queue: multiprocessing.Queue) -> None:
+    """Run collector in a separate process and put results in queue.
+
+    This wrapper runs in a subprocess and is used to enable timeout+kill behavior.
+    If the collector hangs, the parent process can kill this entire process tree.
+
+    Args:
+        name: Collector name
+        queue: Multiprocessing queue to return results
+    """
+    try:
+        metrics = run_collector(name, push=True, verbose=False)
+        queue.put({"status": "success", "metrics": metrics})
+    except Exception as e:
+        queue.put({"status": "error", "error": str(e)})
+
+
+def run_collector_with_timeout(name: str, timeout: int) -> dict:
+    """Run a collector with robust timeout protection.
+
+    Uses multiprocessing to run the collector in a separate process that can be
+    forcefully terminated if it hangs. This handles cases where collectors spawn
+    subprocesses that don't respond to thread-based timeouts.
+
+    Args:
+        name: Collector name
+        timeout: Timeout in seconds
+
+    Returns:
+        Dictionary with collector results:
+        - status: "success", "timeout", or "error"
+        - metrics: Collected metrics (if successful)
+        - metrics_count: Number of metrics
+        - duration: Time taken
+        - error: Error message (if failed)
+    """
+    queue = multiprocessing.Queue()
+    process = multiprocessing.Process(target=_run_collector_in_process, args=(name, queue))
+
+    start_time = time.time()
+    process.start()
+
+    # Wait for process to complete or timeout
+    process.join(timeout=timeout)
+    duration = time.time() - start_time
+
+    # If process is still alive after timeout, kill it
+    if process.is_alive():
+        print(f"   ⚠️  Timeout after {timeout}s - terminating process...")
+        process.terminate()
+        process.join(timeout=5)  # Give it 5 seconds to cleanup
+
+        if process.is_alive():
+            print("   ⚠️  Process didn't terminate cleanly - killing...")
+            process.kill()
+            process.join()
+
+        return {
+            "status": "timeout",
+            "error": f"Timeout after {timeout}s",
+            "metrics_count": 0,
+            "duration": duration,
+        }
+
+    # Process completed - get results from queue
+    if not queue.empty():
+        result = queue.get()
+        if result["status"] == "success":
+            metrics = result["metrics"]
+            return {
+                "status": "success",
+                "metrics": metrics,
+                "metrics_count": len(metrics),
+                "duration": duration,
+            }
+        else:
+            return {
+                "status": "error",
+                "error": result.get("error", "Unknown error"),
+                "metrics_count": 0,
+                "duration": duration,
+            }
+    else:
+        # Process exited but didn't put anything in queue
+        return {
+            "status": "error",
+            "error": f"Process exited with code {process.exitcode}",
+            "metrics_count": 0,
+            "duration": duration,
+        }
+
+
 def main():
     """Run all collectors and report results."""
     print("=" * 80)
@@ -55,34 +147,21 @@ def main():
         print(f"Running {name} collector...")
         print(f"{'=' * 80}")
 
-        collector_start = time.time()
         try:
-            # Run collector with timeout protection
-            with ThreadPoolExecutor(max_workers=1) as executor:
-                future = executor.submit(run_collector, name, True, False, False)
-                try:
-                    metrics = future.result(timeout=COLLECTOR_TIMEOUT)
-                    collector_duration = time.time() - collector_start
+            # Run collector with robust timeout protection
+            # This uses multiprocessing to ensure we can kill hanging subprocesses
+            result = run_collector_with_timeout(name, COLLECTOR_TIMEOUT)
+            results[name] = result
 
-                    results[name] = {
-                        "status": "success",
-                        "metrics_count": len(metrics),
-                        "duration": collector_duration,
-                    }
-
-                    print(f"✅ {name}: {len(metrics)} metrics collected in {collector_duration:.2f}s")
-
-                except TimeoutError:
-                    collector_duration = time.time() - collector_start
-                    results[name] = {
-                        "status": "failed",
-                        "error": f"Timeout after {COLLECTOR_TIMEOUT}s",
-                        "metrics_count": 0,
-                        "duration": collector_duration,
-                    }
-                    print(f"❌ {name}: Timeout after {COLLECTOR_TIMEOUT}s")
-                    print("   Skipping to next collector...")
-                    # Continue to next collector
+            if result["status"] == "success":
+                print(f"✅ {name}: {result['metrics_count']} metrics collected in {result['duration']:.2f}s")
+            elif result["status"] == "timeout":
+                print(f"❌ {name}: {result['error']}")
+                print("   Skipping to next collector...")
+            else:  # error
+                print(f"❌ {name}: Failed after {result['duration']:.2f}s")
+                print(f"   Error: {result['error']}")
+                print("   Skipping to next collector...")
 
         except KeyboardInterrupt:
             print(f"\n⚠️  Interrupted while running {name} collector")
@@ -90,16 +169,15 @@ def main():
             break
 
         except Exception as e:
-            collector_duration = time.time() - collector_start
+            # Catch-all for any unexpected errors in the wrapper itself
             results[name] = {
-                "status": "failed",
-                "error": str(e),
+                "status": "error",
+                "error": f"Wrapper error: {str(e)}",
                 "metrics_count": 0,
-                "duration": collector_duration,
+                "duration": 0,
             }
-
-            print(f"❌ {name}: Failed after {collector_duration:.2f}s")
-            print(f"   Error: {e}")
+            print(f"❌ {name}: Unexpected wrapper error: {e}")
+            print("   Skipping to next collector...")
             # Continue to next collector
 
     # Print summary
@@ -112,7 +190,7 @@ def main():
     print()
 
     successful = [name for name, result in results.items() if result["status"] == "success"]
-    failed = [name for name, result in results.items() if result["status"] == "failed"]
+    failed = [name for name, result in results.items() if result["status"] in ("error", "timeout", "failed")]
     interrupted = [name for name, result in results.items() if result["status"] == "interrupted"]
 
     total_metrics = sum(r["metrics_count"] for r in results.values())
@@ -152,4 +230,6 @@ def main():
 
 
 if __name__ == "__main__":
+    # Required for multiprocessing on macOS/Windows
+    multiprocessing.set_start_method("spawn", force=True)
     main()

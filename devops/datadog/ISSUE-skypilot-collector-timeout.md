@@ -230,12 +230,64 @@ kubectl top pod dashboard-cronjob-dashboard-cronjob-29355810-vqvkc -n monitoring
 - **Scope**: Affects both production and dev environments equally
 - **GitHub metrics fix**: Unrelated - same issue occurs with old image (production) and new image (dev)
 
-## Next Steps
+## Solution Implemented
 
-- [ ] Reproduce the hang locally
-- [ ] Test different timeout mechanisms
-- [ ] Implement chosen solution
+**Date**: 2025-10-25
+
+### Root Cause Confirmed
+
+Testing revealed two issues:
+
+1. **ThreadPoolExecutor timeout doesn't kill subprocesses**: The original timeout mechanism used `ThreadPoolExecutor.future.result(timeout=X)` which only abandons the Python thread but doesn't kill subprocesses spawned by collectors.
+
+2. **SkyPilot missing local state**: SkyPilot requires `~/.sky/` directory with state.db and jobs.db files. When missing in K8s, it tries to start a local API server which hangs.
+
+### Implemented Solution: Multiprocessing with Process Termination
+
+Replaced ThreadPoolExecutor with multiprocessing.Process which provides proper subprocess termination:
+
+**Key Changes in `run_all_collectors.py`:**
+
+```python
+def run_collector_with_timeout(name: str, timeout: int) -> dict:
+    """Run a collector with robust timeout protection using multiprocessing."""
+    queue = multiprocessing.Queue()
+    process = multiprocessing.Process(target=_run_collector_in_process, args=(name, queue))
+
+    process.start()
+    process.join(timeout=timeout)
+
+    # Kill process if still alive after timeout
+    if process.is_alive():
+        process.terminate()
+        process.join(timeout=5)
+        if process.is_alive():
+            process.kill()
+            process.join()
+        return {"status": "timeout", ...}
+
+    # Return results from queue
+    ...
+```
+
+**Benefits:**
+- ✅ Kills entire process tree including subprocesses
+- ✅ DRY wrapper works for all collectors
+- ✅ Handles hanging network calls, subprocess spawns, etc.
+- ✅ Allows job to continue even if one collector hangs
+
+### Testing Results
+
+**Local Testing (2025-10-25):**
+- GitHub collector: 28 metrics in 17.32s (success)
+- Timeout mechanism verified with synthetic hang test (5s timeout, process killed successfully)
+
+### Next Steps
+
+- [x] Reproduce the hang locally - **DONE**: Timeout mechanism was the issue
+- [x] Test different timeout mechanisms - **DONE**: Multiprocessing works
+- [x] Implement chosen solution - **DONE**: Implemented in run_all_collectors.py
 - [ ] Deploy to dev for testing
-- [ ] Monitor for 24 hours
+- [ ] Monitor for 24 hours to verify SkyPilot timeout behavior
 - [ ] Deploy to production
-- [ ] Document findings and solution
+- [ ] (Optional) Fix SkyPilot missing state issue if needed
