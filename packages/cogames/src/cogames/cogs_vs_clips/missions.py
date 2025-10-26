@@ -146,6 +146,20 @@ class PackRatVariant(MissionVariant):
         return mission
 
 
+class EmpoweredVariant(MissionVariant):
+    name: str = "empowered"
+    description: str = "Keep energy topped off every tick so agents never run dry."
+
+    def apply(self, mission: Mission) -> Mission:
+        mission.energy_capacity = max(mission.energy_capacity, 100)
+
+        def modifier(cfg: MettaGridConfig) -> None:
+            cfg.game.agent.initial_inventory = {"energy": cfg.game.agent.energy_capacity}
+            cfg.game.agent.inventory_regen_amounts = {"energy": cfg.game.agent.energy_capacity}
+
+        return _add_make_env_modifier(mission, modifier)
+
+
 class NeutralFacedVariant(MissionVariant):
     name: str = "neutral_faced"
     description: str = "Keep the neutral face glyph; disable glyph swapping entirely."
@@ -166,16 +180,25 @@ class HeartChorusVariant(MissionVariant):
 
     def apply(self, mission: Mission) -> Mission:
         def modifier(cfg: MettaGridConfig) -> None:
-            cfg.game.agent.rewards.stats = {
-                "heart.gained": 0.25,
-                "chest.heart.deposited": 1.0,
-                "chest.heart.withdrawn": -0.25,
-                "carbon.gained": 0.02,
-                "oxygen.gained": 0.02,
-                "germanium.gained": 0.05,
-                "silicon.gained": 0.02,
-                "energy.gained": 0.005,
+            heart_reward = 1.0
+            base_stats = {
+                "heart.gained": heart_reward,
+                "chest.heart.deposited": heart_reward,
+                "chest.heart.withdrawn": -heart_reward,
+                "carbon.gained": 0.005,
+                "oxygen.gained": 0.005,
+                "germanium.gained": 0.005,
+                "silicon.gained": 0.005,
             }
+
+            diversity_levels = {
+                "inventory.diversity.ge.2": 0.17,
+                "inventory.diversity.ge.3": 0.18,
+                "inventory.diversity.ge.4": 0.60,
+                "inventory.diversity.ge.5": 0.97,
+            }
+
+            cfg.game.agent.rewards.stats = base_stats | diversity_levels
 
         return _add_make_env_modifier(mission, modifier)
 
@@ -188,6 +211,7 @@ VARIANTS = [
     SolarFlareVariant,
     LonelyHeartVariant,
     PackRatVariant,
+    EmpoweredVariant,
     NeutralFacedVariant,
     HeartChorusVariant,
 ]

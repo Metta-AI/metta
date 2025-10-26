@@ -149,10 +149,46 @@ public:
       } else if (delta < 0) {
         this->stats.add(this->stats.resource_name(item) + ".lost", -delta);
       }
-      this->stats.set(this->stats.resource_name(item) + ".amount", this->inventory.amount(item));
+      const auto amount_key = this->stats.resource_name(item) + ".amount";
+      const auto amount = this->inventory.amount(item);
+      this->stats.set(amount_key, amount);
+      update_inventory_diversity_stats();
     }
 
     return delta;
+  }
+
+  void update_inventory_diversity_stats() {
+    const auto& current_items = this->inventory.get();
+    static const std::array<std::string, 5> tracked_resources = {"energy", "carbon", "oxygen", "germanium", "silicon"};
+
+    std::size_t distinct = 0;
+    for (const auto& [item_id, amount] : current_items) {
+      if (amount <= 0) {
+        continue;
+      }
+
+      const auto& resource_name = this->stats.resource_name(item_id);
+      if (std::find(tracked_resources.begin(), tracked_resources.end(), resource_name) != tracked_resources.end()) {
+        ++distinct;
+      }
+    }
+
+    const float new_diversity = static_cast<float>(distinct);
+    const float prev_diversity = this->stats.get("inventory.diversity");
+    this->stats.set("inventory.diversity", new_diversity);
+
+    auto latch_threshold = [this, prev_diversity](std::size_t threshold, float value) {
+      if (prev_diversity < static_cast<float>(threshold) && value >= static_cast<float>(threshold)) {
+        const std::string key = "inventory.diversity.ge." + std::to_string(threshold);
+        this->stats.set(key, 1.0f);
+      }
+    };
+
+    latch_threshold(2, new_diversity);
+    latch_threshold(3, new_diversity);
+    latch_threshold(4, new_diversity);
+    latch_threshold(5, new_diversity);
   }
 
   void compute_stat_rewards(StatsTracker* game_stats_tracker = nullptr) {
