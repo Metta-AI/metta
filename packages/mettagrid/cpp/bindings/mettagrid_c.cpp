@@ -499,7 +499,6 @@ void MettaGrid::_handle_invalid_action(size_t agent_idx, const std::string& stat
   *agent->reward -= agent->action_failure_penalty;
 }
 
-// xcxc apply supervisors
 void MettaGrid::_apply_supervisor_overrides(Actions& actions) {
   auto actions_view = actions.mutable_unchecked<2>();
   auto obs_view = _observations.unchecked<3>();
