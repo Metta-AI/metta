@@ -146,16 +146,18 @@ class PackRatVariant(MissionVariant):
         return mission
 
 
-class EmpoweredVariant(MissionVariant):
-    name: str = "empowered"
-    description: str = "Keep energy topped off every tick so agents never run dry."
+class EnergizedVariant(MissionVariant):
+    name: str = "energized"
+    description: str = "Top off energy every tick so agents never run dry."
 
     def apply(self, mission: Mission) -> Mission:
         mission.energy_capacity = max(mission.energy_capacity, 100)
+        mission.energy_regen_amount = mission.energy_capacity
 
         def modifier(cfg: MettaGridConfig) -> None:
-            cfg.game.agent.initial_inventory = {"energy": cfg.game.agent.energy_capacity}
-            cfg.game.agent.inventory_regen_amounts = {"energy": cfg.game.agent.energy_capacity}
+            energy_cap = cfg.game.agent.resource_limits.get("energy", mission.energy_capacity)
+            cfg.game.agent.initial_inventory = {"energy": energy_cap}
+            cfg.game.agent.inventory_regen_amounts = {"energy": energy_cap}
 
         return _add_make_env_modifier(mission, modifier)
 
@@ -211,7 +213,7 @@ VARIANTS = [
     SolarFlareVariant,
     LonelyHeartVariant,
     PackRatVariant,
-    EmpoweredVariant,
+    EnergizedVariant,
     NeutralFacedVariant,
     HeartChorusVariant,
 ]
