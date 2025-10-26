@@ -17,8 +17,8 @@ struct PatrolSupervisorConfig : public AgentSupervisorConfig {
 // Supervisor that makes the agent patrol left and right
 class PatrolSupervisor : public AgentSupervisor {
 public:
-  explicit PatrolSupervisor(const PatrolSupervisorConfig& config)
-      : AgentSupervisor(config), config_(config), steps_in_current_direction_(0) {}
+  explicit PatrolSupervisor(const PatrolSupervisorConfig& config, Grid* grid, Agent* agent)
+      : AgentSupervisor(config, grid, agent), config_(config), steps_in_current_direction_(0) {}
 
 protected:
   std::pair<ActionType, ActionArg> get_recommended_action(const ObservationTokens& observation) override {

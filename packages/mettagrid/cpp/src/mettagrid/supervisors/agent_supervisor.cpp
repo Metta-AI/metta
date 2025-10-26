@@ -6,13 +6,8 @@
 #include "objects/agent.hpp"
 #include "systems/stats_tracker.hpp"
 
-AgentSupervisor::AgentSupervisor(const AgentSupervisorConfig& config)
-    : can_override_action_(config.can_override_action), name_(config.name), grid_(nullptr), agent_(nullptr) {}
-
-void AgentSupervisor::init(Grid* grid, Agent* agent) {
-  grid_ = grid;
-  agent_ = agent;
-}
+AgentSupervisor::AgentSupervisor(const AgentSupervisorConfig& config, Grid* grid, Agent* agent)
+    : can_override_action_(config.can_override_action), name_(config.name), grid_(grid), agent_(agent) {}
 
 std::pair<ActionType, ActionArg> AgentSupervisor::supervise(ActionType agent_action,
                                                             ActionArg agent_arg,

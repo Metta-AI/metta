@@ -205,10 +205,7 @@ MettaGrid::MettaGrid(const GameConfig& game_config, const py::list map, unsigned
 
         // Create and initialize supervisor if configured
         if (agent_config->supervisor_config) {
-          agent->supervisor = SupervisorFactory::create(agent_config->supervisor_config.get());
-          if (agent->supervisor) {
-            agent->supervisor->init(_grid.get(), agent);
-          }
+          agent->supervisor = SupervisorFactory::create(agent_config->supervisor_config.get(), _grid.get(), agent);
         }
 
         add_agent(agent);
@@ -705,14 +702,6 @@ py::tuple MettaGrid::reset() {
   if (_global_obs_config.visitation_counts) {
     for (auto& agent : _agents) {
       agent->reset_visitation_counts();
-    }
-  }
-
-  // xcxc needed?
-  // Reset supervisors for all agents
-  for (auto& agent : _agents) {
-    if (agent->supervisor) {
-      agent->supervisor->reset();
     }
   }
 

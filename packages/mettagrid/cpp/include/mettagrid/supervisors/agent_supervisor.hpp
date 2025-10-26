@@ -12,6 +12,7 @@
 // Forward declarations
 class Grid;
 class Agent;
+class ActionHandler;
 
 // Configuration for AgentSupervisor
 struct AgentSupervisorConfig {
@@ -29,15 +30,9 @@ struct AgentSupervisorConfig {
 // Base class for agent supervisors
 class AgentSupervisor {
 public:
-  explicit AgentSupervisor(const AgentSupervisorConfig& config);
+  explicit AgentSupervisor(const AgentSupervisorConfig& config, Grid* grid, Agent* agent);
 
   virtual ~AgentSupervisor() = default;
-
-  // Initialize the supervisor with grid access and agent
-  virtual void init(Grid* grid, Agent* agent);
-
-  // Called at the start of each episode
-  virtual void reset() {}
 
   // Called before the agent's action is executed
   // Returns the action that should be executed (may override the agent's action)
@@ -63,7 +58,7 @@ protected:
   bool can_override_action_;
   std::string name_;
   Grid* grid_;
-  Agent* agent_;  // The agent this supervisor is attached to
+  Agent* agent_;
 };
 
 #endif  // PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_SUPERVISORS_AGENT_SUPERVISOR_HPP_
