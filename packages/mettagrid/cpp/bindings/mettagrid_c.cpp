@@ -512,8 +512,8 @@ void MettaGrid::_apply_supervisor_overrides(Actions& actions) {
       continue;
     }
 
-    ActionType original_action = actions_view(agent_idx, 0);
-    ActionArg original_arg = actions_view(agent_idx, 1);
+    ActionType* action_ptr = &actions_view(agent_idx, 0);
+    ActionArg* arg_ptr = &actions_view(agent_idx, 1);
 
     // Find the number of valid tokens for this agent
     size_t num_tokens = 0;
@@ -534,28 +534,7 @@ void MettaGrid::_apply_supervisor_overrides(Actions& actions) {
     ObservationTokens agent_obs(obs_ptr, num_tokens);
 
     // Let supervisor evaluate and potentially override the action
-    auto [supervised_action, supervised_arg] = agent->supervisor->supervise(original_action, original_arg, agent_obs);
-
-    // Only update if the supervisor actually overrides the action
-    if (supervised_action != original_action || supervised_arg != original_arg) {
-      // Validate the supervised action
-      if (supervised_action < 0 || static_cast<size_t>(supervised_action) >= _num_action_handlers) {
-        // Invalid action from supervisor, keep original
-        agent->stats.incr("supervisor.invalid_action_type");
-        continue;
-      }
-
-      // Validate the supervised arg
-      if (supervised_arg < 0 || supervised_arg > _max_action_args[supervised_action]) {
-        // Invalid arg from supervisor, keep original
-        agent->stats.incr("supervisor.invalid_action_arg");
-        continue;
-      }
-
-      // Apply the override
-      actions_view(agent_idx, 0) = supervised_action;
-      actions_view(agent_idx, 1) = supervised_arg;
-    }
+    agent->supervisor->supervise(action_ptr, arg_ptr, agent_obs);
   }
 }
 
@@ -619,7 +598,6 @@ void MettaGrid::_step(Actions actions) {
       _action_success[agent_idx] = handler->handle_action(*agent, arg);
 
       // Notify supervisor of action result
-      // xcxc needed?
       if (agent->supervisor) {
         agent->supervisor->post_action(_action_success[agent_idx]);
       }

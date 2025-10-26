@@ -41,21 +41,6 @@ protected:
     return {move_action, direction};
   }
 
-  void on_supervise(ActionType agent_action,
-                    ActionArg agent_arg,
-                    ActionType supervisor_action,
-                    ActionArg supervisor_arg,
-                    bool agrees) override {
-    if (!agrees) {
-      agent_->stats.incr(name_ + ".disagree");
-      if (moving_right_) {
-        agent_->stats.incr(name_ + ".moving_right.disagree");
-      } else {
-        agent_->stats.incr(name_ + ".moving_left.disagree");
-      }
-    }
-  }
-
 private:
   PatrolSupervisorConfig config_;
   bool moving_right_;
