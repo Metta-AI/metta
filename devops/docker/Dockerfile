@@ -19,7 +19,7 @@ RUN curl -L https://github.com/bazelbuild/bazelisk/releases/latest/download/baze
 RUN mkdir -p /workspace/metta
 WORKDIR /workspace/metta
 
-COPY --from=ghcr.io/astral-sh/uv:0.8.13 /uv /uvx /bin/
+COPY --from=ghcr.io/astral-sh/uv:0.9.5 /uv /uvx /bin/
 
 COPY .python-version pyproject.toml uv.lock ./
 RUN uv python install

@@ -9,7 +9,7 @@ include-package-data = true
 name = "cogames"
 description = "Multi-agent cooperative games"
 readme = "README.md"
-requires-python = ">=3.11.7,<3.13"
+requires-python = ">=3.12,<3.13"
 dependencies = [
   "heavyball>=2.0.0",
   "mettagrid",
