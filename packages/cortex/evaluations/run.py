@@ -5,16 +5,24 @@ import logging
 import os
 import random
 from dataclasses import dataclass
-from typing import Callable, Dict, Tuple
+from typing import Callable, Dict, List, Optional, Tuple, cast
 
 import torch
 import torch.nn as nn
-from cortex.cells.axons import Axons  # runtime type check for gating
 from cortex.stacks import CortexStack
-from model import SequenceClassifier
-from stacks import STACKS, StackSpec
-from synthetic_datasets import DelayedRecallDataset, DyckDataset, MajorityDataset
+from model import SequenceClassifier  # type: ignore[import-not-found]
+from stacks import STACKS, StackSpec  # type: ignore[import-not-found]
+from synthetic_datasets import (  # type: ignore[import-not-found]
+    DelayedRecallDataset,
+    DyckDataset,
+    MajorityDataset,
+    MajorityHeadPadDataset,
+)
 from torch.utils.data import DataLoader
+
+# Globals used by optional Axons parity probe
+AXONS_PARITY_PROBE: int = 0
+EPOCH_IDX: int = 0
 
 
 def _ensure_disjoint_splits(train_ds, val_ds, test_ds) -> None:
@@ -51,9 +59,221 @@ class TaskSpec:
     n_classes: int
 
 
+#############################################
+# Fast TBPTT-breaker datasets (local-only)  #
+#############################################
+
+
+class TwoNeedleXORFast(torch.utils.data.Dataset):
+    """Binary parity over head with tail PAD; last-step supervision only.
+
+    - L total steps with final `tail` steps all PAD=0
+    - Place exactly two 1s uniformly in the head; with p=0.5, add a third 1
+    - Label = parity of ones in head (odd=1, even=0)
+    """
+
+    PAD, ONE = 0, 1
+
+    def __init__(
+        self,
+        num_samples: int,
+        *,
+        L: int = 256,
+        tail: int = 64,
+        seed: int = 0,
+        start_idx: int = 0,
+        end_idx: Optional[int] = None,
+    ) -> None:
+        super().__init__()
+        assert 0 < tail < L
+        self.L, self.tail = L, tail
+        self.num_samples = num_samples
+        self.seed = seed
+        seqs, labels = self._generate_all(num_samples, L, tail, seed)
+        end_idx = num_samples if end_idx is None else end_idx
+        self._seqs = seqs[start_idx:end_idx]
+        self._labels = labels[start_idx:end_idx]
+        self.ids = list(range(start_idx, end_idx))
+
+    @staticmethod
+    def _generate_all(num_samples: int, L: int, tail: int, seed: int) -> Tuple[List[torch.Tensor], torch.Tensor]:
+        rng = random.Random(seed)
+        head_len = L - tail
+        seqs: List[torch.Tensor] = []
+        labels: List[int] = []
+        for _ in range(num_samples):
+            seq = torch.zeros(L, dtype=torch.long)
+            i = rng.randrange(head_len)
+            j = rng.randrange(head_len)
+            while j == i:
+                j = rng.randrange(head_len)
+            seq[i] = seq[j] = TwoNeedleXORFast.ONE
+            ones = 2
+            if rng.random() < 0.5:
+                k = rng.randrange(head_len)
+                while k == i or k == j:
+                    k = rng.randrange(head_len)
+                seq[k] = TwoNeedleXORFast.ONE
+                ones = 3
+            label = int(ones % 2 == 1)
+            seqs.append(seq)
+            labels.append(label)
+        return seqs, torch.tensor(labels, dtype=torch.long)
+
+    def __len__(self) -> int:  # type: ignore[override]
+        return len(self._seqs)
+
+    def __getitem__(self, idx: int) -> Tuple[torch.Tensor, torch.Tensor]:  # type: ignore[override]
+        return self._seqs[idx], self._labels[idx]
+
+    @classmethod
+    def splits(
+        cls,
+        *,
+        num_samples: int,
+        L: int = 256,
+        tail: int = 64,
+        train_frac: float = 0.8,
+        val_frac: float = 0.1,
+        seed: int = 0,
+    ) -> Tuple["TwoNeedleXORFast", "TwoNeedleXORFast", "TwoNeedleXORFast"]:
+        n_train = int(num_samples * train_frac)
+        n_val = int(num_samples * val_frac)
+        assert n_train > 0 and n_val > 0 and (num_samples - n_train - n_val) > 0
+        train = cls(num_samples, L=L, tail=tail, seed=seed, start_idx=0, end_idx=n_train)
+        val = cls(num_samples, L=L, tail=tail, seed=seed, start_idx=n_train, end_idx=n_train + n_val)
+        test = cls(num_samples, L=L, tail=tail, seed=seed, start_idx=n_train + n_val, end_idx=None)
+        return train, val, test
+
+
+class AssocRecallFast(torch.utils.data.Dataset):
+    KEY, VAL, QRY, PAD = 0, 1, 2, 3
+
+    def __init__(
+        self,
+        num_samples: int,
+        *,
+        L: int = 384,
+        K: int = 8,
+        tail: int = 128,
+        n_key: int = 256,
+        n_val: int = 256,
+        seed: int = 0,
+        start_idx: int = 0,
+        end_idx: Optional[int] = None,
+    ) -> None:
+        super().__init__()
+        assert 0 < tail < L
+        self.L, self.K, self.tail = L, K, tail
+        self.nk, self.nv = n_key, n_val
+        self.base = max(n_key, n_val)
+        self.num_samples = num_samples
+        self.seed = seed
+        seqs, labels = self._generate_all(num_samples, L, K, tail, n_key, n_val, seed)
+        end_idx = num_samples if end_idx is None else end_idx
+        self._seqs = seqs[start_idx:end_idx]
+        self._labels = labels[start_idx:end_idx]
+        self.ids = list(range(start_idx, end_idx))
+
+    @classmethod
+    def _generate_all(
+        cls,
+        num_samples: int,
+        L: int,
+        K: int,
+        tail: int,
+        n_key: int,
+        n_val: int,
+        seed: int,
+    ) -> Tuple[List[torch.Tensor], torch.Tensor]:
+        rng = random.Random(seed)
+        base = max(n_key, n_val)
+        PAD_TOKEN = cls.PAD * base + 0
+        head_len = L - tail
+        seqs: List[torch.Tensor] = []
+        labels: List[int] = []
+        for _ in range(num_samples):
+            seq = [PAD_TOKEN] * L
+            pos = rng.sample(range(head_len), 2 * K)
+            keys = [rng.randrange(n_key) for _ in range(K)]
+            vals = [rng.randrange(n_val) for _ in range(K)]
+            # place keys
+            for p, k in zip(pos[:K], keys, strict=False):
+                seq[p] = cls.KEY * base + k
+            # place values, avoiding collisions by linear probe within head
+            for p, v in zip(pos[K:], vals, strict=False):
+                q = p
+                while seq[q] != PAD_TOKEN:
+                    q = (q + 1) % head_len
+                seq[q] = cls.VAL * base + v
+            j = rng.randrange(K)
+            seq[-1] = cls.QRY * base + keys[j]
+            seqs.append(torch.tensor(seq, dtype=torch.long))
+            labels.append(vals[j])
+        return seqs, torch.tensor(labels, dtype=torch.long)
+
+    def __len__(self) -> int:  # type: ignore[override]
+        return len(self._seqs)
+
+    def __getitem__(self, idx: int) -> Tuple[torch.Tensor, torch.Tensor]:  # type: ignore[override]
+        return self._seqs[idx], self._labels[idx]
+
+    @classmethod
+    def splits(
+        cls,
+        *,
+        num_samples: int,
+        L: int = 384,
+        K: int = 8,
+        tail: int = 128,
+        n_key: int = 256,
+        n_val: int = 256,
+        train_frac: float = 0.8,
+        val_frac: float = 0.1,
+        seed: int = 0,
+    ) -> Tuple["AssocRecallFast", "AssocRecallFast", "AssocRecallFast"]:
+        n_train = int(num_samples * train_frac)
+        n_val = int(num_samples * val_frac)
+        assert n_train > 0 and n_val > 0 and (num_samples - n_train - n_val) > 0
+        train = cls(
+            num_samples,
+            L=L,
+            K=K,
+            tail=tail,
+            n_key=n_key,
+            n_val=n_val,
+            seed=seed,
+            start_idx=0,
+            end_idx=n_train,
+        )
+        val = cls(
+            num_samples,
+            L=L,
+            K=K,
+            tail=tail,
+            n_key=n_key,
+            n_val=n_val,
+            seed=seed,
+            start_idx=n_train,
+            end_idx=n_train + n_val,
+        )
+        test = cls(
+            num_samples,
+            L=L,
+            K=K,
+            tail=tail,
+            n_key=n_key,
+            n_val=n_val,
+            seed=seed,
+            start_idx=n_train + n_val,
+            end_idx=None,
+        )
+        return train, val, test
+
+
 def make_task(task: str, *, num_samples: int, seed: int) -> TaskSpec:
     if task == "delayed_recall":
-        delay = 128
+        delay = 512
 
         def _splits():
             return DelayedRecallDataset.splits(num_samples=num_samples, delay=delay, seed=seed)
@@ -68,6 +288,17 @@ def make_task(task: str, *, num_samples: int, seed: int) -> TaskSpec:
 
         return TaskSpec(name=task, make_splits=_splits, vocab_size=3, n_classes=2)
 
+    if task == "majority_headpad":
+        length = 1024
+        tail_pad_len = 256  # choose chunk-size=256 to make last chunk all PAD
+
+        def _splits():
+            return MajorityHeadPadDataset.splits(
+                num_samples=num_samples, length=length, tail_pad_len=tail_pad_len, seed=seed
+            )
+
+        return TaskSpec(name=task, make_splits=_splits, vocab_size=3, n_classes=2)
+
     if task == "dyck":
         n_pairs = 50
 
@@ -75,6 +306,31 @@ def make_task(task: str, *, num_samples: int, seed: int) -> TaskSpec:
             return DyckDataset.splits(num_samples=num_samples, n_pairs=n_pairs, seed=seed)
 
         return TaskSpec(name=task, make_splits=_splits, vocab_size=2, n_classes=2)
+
+    if task == "two_needle_xor_fast":
+        L = 256
+        tail = 64
+
+        def _splits():
+            return TwoNeedleXORFast.splits(num_samples=num_samples, L=L, tail=tail, seed=seed)
+
+        return TaskSpec(name=task, make_splits=_splits, vocab_size=2, n_classes=2)
+
+    if task == "assoc_recall_fast":
+        L = 384
+        K = 8
+        tail = 128
+        n_key = 256
+        n_val = 256
+
+        def _splits():
+            return AssocRecallFast.splits(
+                num_samples=num_samples, L=L, K=K, tail=tail, n_key=n_key, n_val=n_val, seed=seed
+            )
+
+        vocab_size = 4 * max(n_key, n_val)
+        n_classes = n_val
+        return TaskSpec(name=task, make_splits=_splits, vocab_size=vocab_size, n_classes=n_classes)
 
     raise ValueError(f"Unknown task: {task}")
 
@@ -88,19 +344,10 @@ def set_seed(seed: int) -> None:
 def _enable_determinism() -> None:
     """Force deterministic behavior where possible (CUDA/cuBLAS/torch)."""
     os.environ.setdefault("CUBLAS_WORKSPACE_CONFIG", ":4096:8")
-    try:
-        torch.use_deterministic_algorithms(True)
-    except Exception:
-        pass
-    try:
-        torch.backends.cuda.matmul.allow_tf32 = False  # type: ignore[attr-defined]
-    except Exception:
-        pass
-    try:
-        torch.backends.cudnn.deterministic = True  # type: ignore[attr-defined]
-        torch.backends.cudnn.benchmark = False  # type: ignore[attr-defined]
-    except Exception:
-        pass
+    torch.use_deterministic_algorithms(True)
+    torch.backends.cuda.matmul.allow_tf32 = False  # type: ignore[attr-defined]
+    torch.backends.cudnn.deterministic = True  # type: ignore[attr-defined]
+    torch.backends.cudnn.benchmark = False  # type: ignore[attr-defined]
 
 
 def train_one(
@@ -112,8 +359,12 @@ def train_one(
     epochs: int,
     batch_size: int,
     lr: float,
-    rtu_chunk_size: int | None = None,
+    axon_lr_mult: float = 1.0,
+    axon_weight_decay: float | None = None,
+    chunk_size: int | None = None,
     rtu_disable_traces_last_chunk: bool = False,
+    reset_state_before_last_chunk: bool = False,
+    axons_parity_probe: int = 0,
 ) -> Dict[str, float]:
     train_ds, val_ds, test_ds = task.make_splits()
     _ensure_disjoint_splits(train_ds, val_ds, test_ds)
@@ -132,79 +383,135 @@ def train_one(
     trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
     logging.info("model parameters: total=%d trainable=%d", total_params, trainable_params)
 
-    opt = torch.optim.AdamW(model.parameters(), lr=lr)
+    # Optimizer: optionally boost LR and/or set weight_decay for Axon dynamics/input params
+    if axon_lr_mult != 1.0 or axon_weight_decay is not None:
+        axon_names = ("nu_log", "theta_log", "w1", "w2")
+        axon_params = []
+        base_params = []
+        for n, p in model.named_parameters():
+            if any(n.endswith(k) or (f".{k}" in n) for k in axon_names):
+                axon_params.append(p)
+            else:
+                base_params.append(p)
+        param_groups = [
+            {"params": base_params, "lr": lr},
+            {
+                "params": axon_params,
+                "lr": lr * max(axon_lr_mult, 0.0),
+                **({"weight_decay": float(axon_weight_decay)} if axon_weight_decay is not None else {}),
+            },
+        ]
+        logging.info(
+            "optimizer param groups: base=%d axon=%d (lr_mult=%.2f, wd=%s)",
+            sum(p.numel() for p in base_params),
+            sum(p.numel() for p in axon_params),
+            axon_lr_mult,
+            "None" if axon_weight_decay is None else f"{axon_weight_decay}",
+        )
+        opt = torch.optim.AdamW(param_groups)
+    else:
+        opt = torch.optim.AdamW(model.parameters(), lr=lr)
     criterion = nn.CrossEntropyLoss()
 
-    def _stack_uses_rtu_stream(s: CortexStack) -> bool:
-        """Return True if any block in the stack uses Axons (RTU stream)."""
-        for blk in s.blocks:
-            # Adapter blocks wrap another block; in our templates we use PreUp directly
-            cell = getattr(blk, "cell", None)
-            if isinstance(cell, Axons):
-                return True
-        return False
+    # Generic chunked processing (TBPTT on last chunk) for any stack when enabled
+    chunk_enabled = bool(chunk_size and chunk_size > 0)
+    if chunk_enabled:
+        logging.info("chunked processing enabled: chunk_size=%d", int(cast(int, chunk_size)))
 
-    rtu_enabled = bool(rtu_chunk_size and rtu_chunk_size > 0 and _stack_uses_rtu_stream(stack))
-    if rtu_chunk_size and rtu_chunk_size > 0 and not rtu_enabled:
-        logging.warning("--rtu-chunk-size provided but current stack has no RTUStream cell; ignoring chunked streaming")
+    def _zero_rtu_traces_in_state(state) -> tuple[int, int]:
+        """Zero Axon eligibility traces wherever they appear in the nested state.
 
-    def _zero_rtu_traces_in_state(state) -> None:
-        """Zero carried streaming traces inside RTUStream cell states in-place.
-
-        This disables boundary-correction terms for the next chunk.
+        Supports both direct AxonCell states (under a block key) and AxonLayer-managed
+        substates nested under groups like 'axon', 'slstm', 'mlstm', 'mlstm_qkv', etc.
         """
-        if state is None:
-            return
-        try:
-            keys = list(state.keys()) if hasattr(state, "keys") else []
-        except Exception:
-            keys = []
-        for bk in keys:
-            try:
-                bstate = state.get(bk)
-            except Exception:
-                bstate = None
-            if bstate is None or not hasattr(bstate, "keys"):
-                continue
-            # Axons state (if present) lives under this key
-            if "Axons" in bstate.keys():
-                try:
-                    cstate = bstate.get("Axons")
-                except Exception:
-                    cstate = None
-                if cstate is None or not hasattr(cstate, "keys"):
-                    continue
-                for name in (
-                    "E_nu_c1",
-                    "E_nu_c2",
-                    "E_th_c1",
-                    "E_th_c2",
-                    "E_w1_c1",
-                    "E_w1_c2",
-                    "E_w2_c1",
-                    "E_w2_c2",
-                ):
-                    if name in cstate.keys():
-                        t = cstate.get(name)
-                        if torch.is_tensor(t):
-                            with torch.no_grad():
-                                cstate[name] = torch.zeros_like(t)
+        if state is None or not hasattr(state, "keys"):
+            return (0, 0)
+
+        trace_keys = (
+            "E_nu_c1",
+            "E_nu_c2",
+            "E_th_c1",
+            "E_th_c2",
+            "E_w1_c1",
+            "E_w1_c2",
+            "E_w2_c1",
+            "E_w2_c2",
+        )
+
+        scanned = 0
+        zeroed = 0
+
+        def _recurse(td, path: str) -> None:
+            if td is None or not hasattr(td, "keys"):
+                return
+            td_keys = list(td.keys())
+
+            # If this TensorDict looks like an Axon trace container, zero its traces
+            has_explicit_traces = any(k in td_keys for k in trace_keys)
+            looks_like_axon_state = ("hc1" in td_keys) and ("hc2" in td_keys)
+            if has_explicit_traces or looks_like_axon_state:
+                nonlocal scanned, zeroed
+                scanned += 1
+                pre_stats = []
+                # Collect both explicit and generic E_* traces for logging
+                for name in td_keys:
+                    if (name in trace_keys or name.startswith("E_")) and torch.is_tensor(td.get(name)):
+                        t = td.get(name)
+                        pre_stats.append((name, float(t.norm().item())))
+                if pre_stats:
+                    msg = ", ".join(f"{n}:l2={v:.3e}" for n, v in pre_stats)
+                    logging.debug("[traces] before-zero path=%s %s", path, msg)
+                # Zero any known or generic E_* trace tensors
+                for name in list(td_keys):
+                    if (name in trace_keys or name.startswith("E_")) and torch.is_tensor(td.get(name)):
+                        with torch.no_grad():
+                            t = td.get(name)
+                            td[name] = torch.zeros_like(t)
+                zeroed += 1
+                post_nonzero = []
+                for name in td_keys:
+                    if (name in trace_keys or name.startswith("E_")) and torch.is_tensor(td.get(name)):
+                        t = td.get(name)
+                        if float(t.abs().sum().item()) != 0.0:
+                            post_nonzero.append(name)
+                if post_nonzero:
+                    logging.warning("[traces] non-zero after zeroing path=%s keys=%s", path, post_nonzero)
+                else:
+                    logging.debug("[traces] after-zero path=%s all-zero", path)
+
+            # Recurse into children TensorDicts
+            for k in td_keys:
+                child = td.get(k)
+                if hasattr(child, "keys"):
+                    _recurse(child, f"{path}/{k}")
+
+            # No architecture-specific fallbacks: recursion + generic E_* detection handles all cases
+
+        # Start recursion from each top-level block key
+        top_keys = list(state.keys())
+        for k in top_keys:
+            sub = state.get(k)
+            if hasattr(sub, "keys"):
+                _recurse(sub, k)
+        logging.debug("[traces] summary: scanned=%d zeroed=%d", scanned, zeroed)
+        return scanned, zeroed
 
     def _run_epoch(loader: DataLoader, train: bool) -> Tuple[float, float]:
         model.train(train)
         total_loss = 0.0
         correct = 0
         total = 0
+        warned_no_traces = False
         for seq, labels in loader:
             state = None  # independent sequences; do not carry state across batches during training/eval
             seq = seq.to(device)
             labels = labels.to(device)
             if train:
                 opt.zero_grad(set_to_none=True)
-            if rtu_enabled:
+            if chunk_enabled:
                 # Stream in chunks; detach state between chunks (TBPTT on last chunk)
                 T = seq.size(1)
-                C = int(rtu_chunk_size)  # type: ignore[arg-type]
+                C = int(chunk_size)  # type: ignore[arg-type]
                 assert C > 0
                 logits = None  # type: ignore[assignment]
 
@@ -220,15 +527,21 @@ def train_one(
                         with torch.no_grad():
                             _out, state = model(seq[:, start:end], state)
                             if state is not None:
-                                try:
-                                    state = state.detach()
-                                except Exception:
-                                    state = state.apply(lambda t: t.detach() if torch.is_tensor(t) else t)
+                                state = state.detach()
 
                 # Final chunk with gradients (tail if present, else last full chunk)
-                # Optionally disable traces at last chunk for sanity checks
+                # Optionally disable RTU traces at last chunk for sanity checks (no-op for non-RTU stacks)
                 if rtu_disable_traces_last_chunk and state is not None:
-                    _zero_rtu_traces_in_state(state)
+                    scanned, zeroed = _zero_rtu_traces_in_state(state)
+                    if scanned == 0 and not warned_no_traces:
+                        warned_no_traces = True
+                        logging.warning(
+                            "rtu-disable-traces-last-chunk requested, but no Axon/RTU traces were found in state. "
+                            "This flag is a no-op for stacks without AxonCell/AxonLayer (e.g., slstm_postup)."
+                        )
+                # Optionally drop the carried state entirely before final chunk
+                if reset_state_before_last_chunk:
+                    state = None
                 if tail > 0:
                     start = n_full * C
                     logits, state = model(seq[:, start:], state)
@@ -244,7 +557,7 @@ def train_one(
                 train
                 and AXONS_PARITY_PROBE > 0
                 and hasattr(model.stack.blocks[0], "cell")
-                and model.stack.blocks[0].cell.__class__.__name__ == "Axons"
+                and model.stack.blocks[0].cell.__class__.__name__ == "AxonsCell"
                 and total == 0  # first minibatch only to avoid overhead
                 and (EPOCH_IDX % max(AXONS_PARITY_PROBE, 1) == 0)
             ):
@@ -294,13 +607,11 @@ def train_one(
         return avg_loss, acc
 
     best_val = 0.0
-    # Globals for the parity probe inside the epoch loop
+    # Globals for the parity probe inside the epoch loop. CLI flag overrides env.
     global AXONS_PARITY_PROBE, EPOCH_IDX
-    AXONS_PARITY_PROBE = int(os.getenv("AXONS_PARITY_PROBE", "0"))
+    env_probe = int(os.getenv("AXONS_PARITY_PROBE", "0"))
+    AXONS_PARITY_PROBE = axons_parity_probe if axons_parity_probe > 0 else env_probe
     EPOCH_IDX = 0
-    if AXONS_PARITY_PROBE <= 0:
-        # allow CLI flag to control as well
-        AXONS_PARITY_PROBE = 0
 
     for epoch in range(1, epochs + 1):
         EPOCH_IDX = epoch
@@ -324,7 +635,18 @@ def train_one(
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Cortex synthetic evaluations")
-    parser.add_argument("--task", choices=["delayed_recall", "majority", "dyck"], required=True)
+    parser.add_argument(
+        "--task",
+        choices=[
+            "delayed_recall",
+            "majority",
+            "majority_headpad",
+            "dyck",
+            "two_needle_xor_fast",
+            "assoc_recall_fast",
+        ],
+        required=True,
+    )
     # Build stack choices dynamically from the registry so new entries in STACKS are auto-discovered.
     stack_choices = sorted(list(STACKS.keys())) + ["all"]
     parser.add_argument("--stack", choices=stack_choices, default="all")
@@ -349,12 +671,30 @@ def main() -> None:
     )
     parser.add_argument("--log-level", type=str, default="INFO", help="Logging level (DEBUG, INFO, WARNING, ERROR)")
     parser.add_argument(
-        "--rtu-chunk-size",
+        "--chunk-size",
         type=int,
         default=0,
         help=(
-            "If >0, enable streaming in RTU stacks by chunking sequences into this many tokens and detaching state "
-            "between chunks (TBPTT on last chunk only). Ignored for non-RTU stacks."
+            "If >0, process sequences in chunks of this many timesteps and detach state between chunks "
+            "(TBPTT on the last chunk only). Applies to any stack."
+        ),
+    )
+    parser.add_argument(
+        "--axon-lr-mult",
+        type=float,
+        default=1.0,
+        help=(
+            "If !=1, multiply LR of Axon dynamics/input params (nu_log, theta_log, w1, w2). "
+            "Useful to accelerate Axon learning without affecting the rest of the model."
+        ),
+    )
+    parser.add_argument(
+        "--axon-weight-decay",
+        type=float,
+        default=None,
+        help=(
+            "If set, override weight_decay just for Axon dynamics/input params (nu_log, theta_log, w1, w2). "
+            "Recommended: 0.0 to avoid shrinking retention on long-horizon tasks."
         ),
     )
     parser.add_argument(
@@ -363,6 +703,14 @@ def main() -> None:
         help=(
             "Sanity check: zero carried RTU streaming traces right before the final gradient-bearing chunk. "
             "Disables boundary-correction terms so delayed_recall should degrade under chunking."
+        ),
+    )
+    parser.add_argument(
+        "--reset-state-before-last-chunk",
+        action="store_true",
+        help=(
+            "Diagnostic: set state=None immediately before the final gradient-bearing chunk when chunking is on. "
+            "Removes information propagated from earlier chunks; majority and delayed_recall should drop toward chance."
         ),
     )
     args = parser.parse_args()
@@ -404,8 +752,12 @@ def main() -> None:
             epochs=args.epochs,
             batch_size=args.batch_size,
             lr=args.lr,
-            rtu_chunk_size=args.rtu_chunk_size if args.rtu_chunk_size > 0 else None,
+            axon_lr_mult=args.axon_lr_mult,
+            axon_weight_decay=args.axon_weight_decay,
+            chunk_size=args.chunk_size if args.chunk_size > 0 else None,
             rtu_disable_traces_last_chunk=args.rtu_disable_traces_last_chunk,
+            reset_state_before_last_chunk=args.reset_state_before_last_chunk,
+            axons_parity_probe=args.axons_parity_probe,
         )
         results[name] = metrics
         logging.info(

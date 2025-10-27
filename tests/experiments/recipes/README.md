@@ -18,6 +18,7 @@ A unified script for launching and checking SkyPilot test jobs across all active
 ## Test Configurations
 
 - **Recipes tested**:
+
   - `arena_basic_easy_shaped`: Basic arena with easy shaping
   - `arena`: Standard arena recipe
   - `icl_resource_chain`: In-context learning resource chain

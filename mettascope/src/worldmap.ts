@@ -145,9 +145,7 @@ function drawWalls() {
 
   // Construct a wall adjacency map.
   for (const gridObject of state.replay.objects) {
-    const type = gridObject.typeId
-    const typeName = state.replay.typeNames[type]
-    if (typeName !== 'wall') {
+    if (gridObject.typeName !== 'wall') {
       continue
     }
     const location = gridObject.location.get()
@@ -194,8 +192,7 @@ function drawWalls() {
 }
 
 function drawObject(gridObject: Entity) {
-  const type: number = gridObject.typeId
-  const typeName: string = state.replay.typeNames[type]
+  const typeName = gridObject.typeName
   if (typeName === 'wall') {
     // Walls are drawn in a different way.
     return
@@ -228,7 +225,8 @@ function drawObject(gridObject: Entity) {
     )
   } else {
     // Draw regular objects.
-    ctx.drawSprite(state.replay.objectImages[type], x * Common.TILE_SIZE, y * Common.TILE_SIZE)
+    const sprite = state.replay.objectImages[typeName] ?? 'objects/unknown.png'
+    ctx.drawSprite(sprite, x * Common.TILE_SIZE, y * Common.TILE_SIZE)
   }
 }
 
@@ -654,9 +652,7 @@ function drawVisibility() {
     } else {
       // When there is no selected grid object, update the visibility map for all agents.
       for (const gridObject of state.replay.objects) {
-        const type = gridObject.typeId
-        const typeName = state.replay.typeNames[type]
-        if (typeName === 'agent') {
+        if (gridObject.typeName === 'agent') {
           updateVisibilityMap(gridObject)
         }
       }
@@ -974,8 +970,7 @@ export function drawMap(panel: PanelInfo) {
 
     // Draw matching objects on top of the overlay.
     for (const gridObject of state.replay.objects) {
-      const typeId = gridObject.typeId
-      const typeName = state.replay.typeNames[typeId]
+      const typeName = gridObject.typeName
       const location = gridObject.location.get()
       const x = location[0]
       const y = location[1]

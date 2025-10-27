@@ -14,8 +14,8 @@
 #include "objects/recipe.hpp"
 
 struct AssemblerConfig : public GridObjectConfig {
-  AssemblerConfig(TypeId type_id, const std::string& type_name, const std::vector<int>& tag_ids = {})
-      : GridObjectConfig(type_id, type_name, tag_ids),
+  AssemblerConfig(TypeId type_id, const std::string& type_name)
+      : GridObjectConfig(type_id, type_name),
         recipe_details_obs(false),
         input_recipe_offset(0),
         output_recipe_offset(0),
@@ -52,10 +52,7 @@ namespace py = pybind11;
 
 inline void bind_assembler_config(py::module& m) {
   py::class_<AssemblerConfig, GridObjectConfig, std::shared_ptr<AssemblerConfig>>(m, "AssemblerConfig")
-      .def(py::init<TypeId, const std::string&, const std::vector<int>&>(),
-           py::arg("type_id"),
-           py::arg("type_name"),
-           py::arg("tag_ids") = std::vector<int>{})
+      .def(py::init<TypeId, const std::string&>(), py::arg("type_id"), py::arg("type_name"))
       .def_readwrite("type_id", &AssemblerConfig::type_id)
       .def_readwrite("type_name", &AssemblerConfig::type_name)
       .def_readwrite("tag_ids", &AssemblerConfig::tag_ids)

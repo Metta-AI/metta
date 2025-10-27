@@ -226,11 +226,9 @@ class CogsVClippiesFromNumpy(TerrainFromNumpy):
         grid = np.load(f"{map_dir}/{uri}", allow_pickle=True)
 
         grid, valid_positions, agent_labels = self.clean_grid(grid, assemblers=True)
-        # breakpoint()
         num_agents = len(agent_labels)
         # Place agents in first slice
         agent_positions = valid_positions[:num_agents]
-        print(f"Placeing {num_agents} agents in {agent_positions}")
         for pos, label in zip(agent_positions, agent_labels, strict=False):
             grid[pos] = label
 
@@ -244,7 +242,6 @@ class CogsVClippiesFromNumpy(TerrainFromNumpy):
         for obj_name, count in self.config.objects.items():
             # Sample from remaining valid positions
             positions = self.config.rng.sample(list(valid_positions_set), min(count, len(valid_positions_set)))
-            # breakpoint()
             for pos in positions:
                 grid[pos] = obj_name
                 valid_positions_set.remove(pos)

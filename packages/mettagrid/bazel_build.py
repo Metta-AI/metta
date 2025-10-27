@@ -35,7 +35,7 @@ def _run_bazel_build() -> None:
     """Run Bazel build to compile the C++ extension."""
     # Check if bazel is available
     if shutil.which("bazel") is None:
-        raise RuntimeError("Bazel is required to build mettagrid. Please install Bazel: https://bazel.build/install")
+        raise RuntimeError("Bazel is required to build mettagrid. Run ./devops/tools/install-system.sh to install it.")
 
     # Determine build configuration from environment
     debug = os.environ.get("DEBUG", "").lower() in ("1", "true", "yes")
@@ -187,27 +187,21 @@ def _run_mettascope_build() -> None:
         return
 
     # Check if nim and nimble are available
-    if shutil.which("nim") is None:
-        print("Warning: Nim compiler not found. Skipping mettascope build.")
-        print("To build mettascope, install Nim: https://nim-lang.org/install.html")
-        raise RuntimeError("Nim compiler not found")
-
-    if shutil.which("nimble") is None:
-        print("Warning: Nimble package manager not found. Skipping mettascope build.")
-        print("To build mettascope, install Nim: https://nim-lang.org/install.html")
-        raise RuntimeError("Nimble package manager not found")
+    if shutil.which("nim") is None or shutil.which("nimble") is None:
+        raise RuntimeError(
+            "Nim compiler or Nimble package manager not found! To build mettascope, install Nim: https://nim-lang.org/install.html"
+        )
 
     print(f"Building mettascope from {METTASCOPE_DIR}")
 
-    # Run the build script
-    for cmd in ["update", "install", "bindings"]:
-        result = subprocess.run(["nimble", cmd, "-y"], cwd=METTASCOPE_DIR, capture_output=True, text=True)
-        print(result.stderr, file=sys.stderr)
-        print(result.stdout, file=sys.stderr)
-        if result.returncode != 0:
-            print(f"Warning: Mettascope build failed. {cmd} failed. STDERR:", file=sys.stderr)
-            print(f"Mettascope build {cmd} STDOUT:", file=sys.stderr)
-            raise RuntimeError("Mettascope build failed")
+    # Build the Nim bindings library
+    result = subprocess.run(["nimble", "bindings", "-y"], cwd=METTASCOPE_DIR, capture_output=True, text=True)
+    print(result.stderr, file=sys.stderr)
+    print(result.stdout, file=sys.stderr)
+    if result.returncode != 0:
+        print("Warning: Mettascope build failed. bindings failed. STDERR:", file=sys.stderr)
+        print("Mettascope build bindings STDOUT:", file=sys.stderr)
+        raise RuntimeError("Mettascope build failed")
     print("Successfully built mettascope")
     _sync_mettascope_package_data()
 
