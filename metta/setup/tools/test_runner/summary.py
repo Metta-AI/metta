@@ -100,6 +100,17 @@ def _format_rerun_command(targets: Sequence[str]) -> str:
     return "\n".join(lines)
 
 
+def _format_copy_button(command: str) -> str:
+    escaped_value = html.escape(command, quote=True).replace("\n", "&#10;")
+    return (
+        '<clipboard-copy class="btn btn-sm" '
+        f'value="{escaped_value}" '
+        'aria-label="Copy pytest command">'
+        "Copy command"
+        "</clipboard-copy>"
+    )
+
+
 def _normalize_nodeid(nodeid: str, target: str) -> str:
     path_part, sep, remainder = nodeid.partition("::")
     if not path_part:
@@ -231,7 +242,7 @@ def report_failures(summaries: Sequence[PackageSummary]) -> dict[str, list[TestF
         command_text = _format_rerun_command(unique_targets)
         info("Re-run locally:", indent=4)
         for line in command_text.splitlines():
-            info(escape(line), indent=6)
+            info(escape(line), indent=6, no_wrap=True)
     return failure_map
 
 
@@ -252,14 +263,11 @@ def write_github_summary(summaries: Sequence[PackageSummary]) -> None:
             status = f"❌ {len(failures)} failing"
             targets = list(dict.fromkeys(failure.nodeid for failure in failures))
             command_text = _format_rerun_command(targets)
-            if "\n" in command_text:
-                escaped_lines = [html.escape(line).replace(" ", "&nbsp;") for line in command_text.splitlines()]
-                rerun = f"<code>{'<br>'.join(escaped_lines)}</code>"
-            else:
-                rerun = f"<code>{html.escape(command_text)}</code>"
+            rerun = _format_copy_button(command_text)
         elif summary.returncode != 0:
             status = f"⚠️ exit {summary.returncode}"
-            rerun = f"<code>{html.escape(f'metta pytest {summary.target}')}</code>"
+            command_text = f"metta pytest {summary.target}"
+            rerun = _format_copy_button(command_text)
         else:
             total = summary.total or 0
             status = f"✅ {total} passed" if total else "✅ no tests"
