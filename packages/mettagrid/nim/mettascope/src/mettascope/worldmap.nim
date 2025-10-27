@@ -1,11 +1,13 @@
 import
   std/[math, os, strutils, tables, strformat, random],
   boxy, vmath, windy, fidget2/[hybridrender, common],
-  common, panels, actions, utils, replays, objectinfo, pathfinding, tilemap
+  common, panels, actions, utils, replays, objectinfo,
+  pathfinding, tilemap, pixelatlas
 
 const TS = 1.0 / 64.0 # Tile scale.
 
 var terrainMap*: TileMap
+var px*: Pixalator
 
 proc weightedRandomInt*(weights: seq[int]): int =
   ## Return a random integer between 0 and 7, with a weighted distribution.
@@ -605,6 +607,10 @@ proc drawTerrain*() =
   bxy.enterRawOpenGLMode()
   if terrainMap == nil:
     terrainMap = generateTileMap()
+    px = newPixalator(
+      dataDir & "/atlas.png",
+      dataDir & "/atlas.json"
+    )
 
   let m = bxy.getTransform()
   let boxyView = mat4(
@@ -624,6 +630,7 @@ proc drawTerrain*() =
     ))
 
   terrainMap.draw(mvp, 2.0f, 1.5f)
+  px.draw(mvp)
   bxy.exitRawOpenGLMode()
 
 proc drawWorldMini*() =

@@ -226,7 +226,8 @@ void main()
     ivec2 mapTexel = ivec2(mapTexel0.x, int(uMapSize.y) - mapTexel0.y - 1);
 
     // 2) Read tile index EXACTLY (no filtering, no mips)
-    uint tileIndexU = texelFetch(uIndexTexture, mapTexel, 0).r;
+    uint tileIndexU = texelFetch(uIndexTexture,
+     mapTexel, 0).r;
     int  tileIndex  = int(tileIndexU);
 
     // 3) Local coordinates inside this tile (continuous + fractional)
