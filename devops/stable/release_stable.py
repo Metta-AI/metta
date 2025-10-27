@@ -293,7 +293,7 @@ def step_task_validation(
 
     # Initialize JobManager
     from metta.common.util.fs import get_repo_root
-    from metta.jobs import JobManager
+    from metta.jobs.manager import JobManager
 
     base_dir = get_repo_root() / "devops/stable"
     job_manager = JobManager(base_dir=base_dir, max_local_jobs=1, max_remote_jobs=4)
