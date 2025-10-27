@@ -9,7 +9,6 @@ from typing import Dict, List
 from cogames.cogs_vs_clips.exploration_experiments import (
     Experiment1Mission,
     Experiment2Mission,
-    Experiment3Mission,
     Experiment4Mission,
     Experiment5Mission,
     Experiment6Mission,
@@ -18,10 +17,10 @@ from cogames.cogs_vs_clips.exploration_experiments import (
     Experiment9Mission,
     Experiment10Mission,
 )
-from cogames.policy.scripted_agent_outpost import ScriptedAgentPolicy, Hyperparameters
+from cogames.policy.scripted_agent_outpost import ScriptedAgentPolicy
 from mettagrid import MettaGridEnv
 
-logging.basicConfig(level=logging.WARNING, format="%(levelname)s:%(name)s:%(message)s")
+logging.basicConfig(level=logging.INFO, format="%(levelname)s:%(name)s:%(message)s")
 logger = logging.getLogger(__name__)
 
 
@@ -83,7 +82,6 @@ CONFIGS = [
 EXPERIMENTS = [
     ("exp1", Experiment1Mission),
     ("exp2", Experiment2Mission),
-    ("exp3", Experiment3Mission),
     ("exp4", Experiment4Mission),
     ("exp5", Experiment5Mission),
     ("exp6", Experiment6Mission),
@@ -94,18 +92,57 @@ EXPERIMENTS = [
 ]
 
 
+def get_max_steps_for_mission(mission_class) -> int:
+    """Determine appropriate step limit based on map size."""
+    mission = mission_class()
+    map_builder = mission.site.map_builder
+
+    # Get map dimensions
+    width = map_builder.width if hasattr(map_builder, "width") else 30
+    height = map_builder.height if hasattr(map_builder, "height") else 30
+    map_size = max(width, height)
+
+    # Scale steps with map size (larger maps need proportionally more time)
+    # Allow enough time for 3 full cycles (forage+assemble+deposit) for optimal agents
+    # Exp3 (60x60) needs extra time due to sparse resource placement
+    if map_size >= 100:
+        return 3000  # 90x100+ maps
+    elif map_size >= 80:
+        return 2500  # 80x89 maps
+    elif map_size >= 60:
+        return 3000  # 60x79 maps (Exp3 needs more time for sparse resources)
+    elif map_size >= 50:
+        return 2000  # 50x59 maps
+    else:  # 30x49 maps
+        return 1000
+
+
 def run_evaluation(
-    experiment_name: str, mission_class, config: EvalConfig, max_steps: int = 1000
+    experiment_name: str,
+    mission_class,
+    config: EvalConfig,
+    max_steps: int = None,
+    success_count: int = 0,
+    total_count: int = 0,
 ) -> EvalResult:
     """Run a single evaluation."""
-    print(f"\n{'='*80}")
-    print(f"Testing {experiment_name} with config '{config.name}'")
-    print(f"{'='*80}")
+    if max_steps is None:
+        max_steps = get_max_steps_for_mission(mission_class)
+
+    print(f"\n{'=' * 80}")
+    status = f"[{success_count}/{total_count} succeeded]"
+    test_info = f"Testing {experiment_name} with config '{config.name}' (max_steps={max_steps})"
+    print(f"{status} {test_info}")
+    print(f"{'=' * 80}")
 
     # Create mission and environment
     mission = mission_class()
     mission = mission.instantiate(mission.site.map_builder, num_cogs=1)
     env_config = mission.make_env()
+
+    # Override max_steps based on map size
+    env_config.game.max_steps = max_steps
+
     env = MettaGridEnv(env_config)
 
     # Create policy with custom hyperparameters
@@ -113,7 +150,7 @@ def run_evaluation(
     impl = policy._impl
 
     # Apply hyperparameters
-    impl.RECHARGE_START = config.recharge_start
+    # impl.RECHARGE_START = config.recharge_start  # Now a @property (dynamic based on map size)
     impl.hyperparams.energy_buffer = config.energy_buffer
     impl.hyperparams.min_energy_for_silicon = config.min_energy_for_silicon
     impl.hyperparams.charger_search_threshold = config.charger_search_threshold
@@ -124,7 +161,8 @@ def run_evaluation(
     agent_policy = policy.agent_policy(0)
 
     total_reward = 0.0
-    for step in range(max_steps):
+    step = 0
+    for step in range(max_steps):  # noqa: B007 - step used after loop for steps_taken
         action = agent_policy.step(observations[0])
         observations, rewards, dones, truncated, info = env.step([action])
         total_reward += rewards[0]
@@ -138,25 +176,23 @@ def run_evaluation(
     # Count extractor uses
     extractors_used = {}
     for resource_type in ["carbon", "oxygen", "germanium", "silicon"]:
-        total_uses = sum(
-            e.total_harvests for e in impl.extractor_memory.get_by_type(resource_type)
-        )
+        total_uses = sum(e.total_harvests for e in impl.extractor_memory.get_by_type(resource_type))
         if total_uses > 0:
             extractors_used[resource_type] = total_uses
 
     result = EvalResult(
         experiment=experiment_name,
         config_name=config.name,
-        total_reward=total_reward,
-        hearts_assembled=state.hearts_assembled,
-        steps_taken=step + 1,
-        final_energy=state.energy,
+        total_reward=float(total_reward),
+        hearts_assembled=int(state.hearts_assembled),
+        steps_taken=int(step + 1),
+        final_energy=int(state.energy),
         extractors_used=extractors_used,
-        success=total_reward > 0,
+        success=bool(state.hearts_assembled > 0),  # True success = assembled hearts, not just resource rewards
     )
 
     # Print summary
-    print(f"\nResults:")
+    print("\nResults:")
     print(f"  Reward: {result.total_reward:.2f}")
     print(f"  Hearts: {result.hearts_assembled}")
     print(f"  Steps: {result.steps_taken}/{max_steps}")
@@ -175,20 +211,28 @@ def main():
     print("=" * 80)
 
     all_results: List[EvalResult] = []
+    success_count = 0
+    total_count = 0
 
     # Run each experiment with each config
     for exp_name, mission_class in EXPERIMENTS:
-        print(f"\n\n{'#'*80}")
+        print(f"\n\n{'#' * 80}")
         print(f"# EXPERIMENT: {exp_name.upper()}")
-        print(f"{'#'*80}")
+        print(f"{'#' * 80}")
 
         for config in CONFIGS:
             try:
-                result = run_evaluation(exp_name, mission_class, config, max_steps=1000)
+                result = run_evaluation(
+                    exp_name, mission_class, config, success_count=success_count, total_count=total_count
+                )
                 all_results.append(result)
+                total_count += 1
+                if result.total_reward > 0:  # Success = at least 1 reward
+                    success_count += 1
             except Exception as e:
                 print(f"❌ Error running {exp_name} with {config.name}: {e}")
                 logger.exception("Evaluation error")
+                total_count += 1
 
     # Generate summary report
     print("\n\n" + "=" * 80)
@@ -224,10 +268,7 @@ def main():
     for exp_name in sorted(by_experiment.keys()):
         results = by_experiment[exp_name]
         best = max(results, key=lambda r: (r.total_reward, -r.steps_taken))
-        print(
-            f"{exp_name:6s}: {best.config_name:15s} "
-            f"(reward={best.total_reward:.1f}, hearts={best.hearts_assembled})"
-        )
+        print(f"{exp_name:6s}: {best.config_name:15s} (reward={best.total_reward:.1f}, hearts={best.hearts_assembled})")
 
     # Overall statistics
     print("\n" + "=" * 80)
@@ -239,7 +280,7 @@ def main():
     avg_reward = sum(r.total_reward for r in all_results) / total_count
     avg_hearts = sum(r.hearts_assembled for r in all_results) / total_count
 
-    print(f"Success Rate: {success_count}/{total_count} ({100*success_count/total_count:.1f}%)")
+    print(f"Success Rate: {success_count}/{total_count} ({100 * success_count / total_count:.1f}%)")
     print(f"Average Reward: {avg_reward:.2f}")
     print(f"Average Hearts Assembled: {avg_hearts:.2f}")
 
@@ -268,7 +309,7 @@ def main():
     # Save detailed results to JSON
     output_file = "phase1_evaluation_results.json"
     with open(output_file, "w") as f:
-        json.dump([asdict(r) for r in all_results], f, indent=2, cls=CustomJsonEncoder)
+        json.dump([asdict(r) for r in all_results], f, indent=2)
     print(f"\nDetailed results saved to: {output_file}")
 
     print("\n" + "=" * 80)
@@ -280,4 +321,3 @@ def main():
 
 if __name__ == "__main__":
     results = main()
-

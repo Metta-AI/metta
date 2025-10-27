@@ -4,48 +4,68 @@
     "config_name": "baseline",
     "reward": 0.0,
     "hearts_assembled": 0,
-    "steps_taken": 0,
+    "steps_taken": 1000,
     "max_steps": 1000,
-    "final_energy": 0,
-    "extractors_used": {},
+    "final_energy": 62,
+    "extractors_used": {
+      "carbon": 5,
+      "oxygen": 1,
+      "germanium": 3,
+      "silicon": 2
+    },
     "success": false,
-    "error": "1 validation error for MapBuilderConfig\nmap_data\n  Assertion failed, Line 1 has length 41, expected 40. All lines in ASCII map must have the same length. [type=assertion_error, input_value='########################...#######################', input_type=str]\n    For further information visit https://errors.pydantic.dev/2.12/v/assertion_error"
+    "error": null
   },
   {
     "experiment_name": "machina_eval.energy_starved",
     "config_name": "conservative",
     "reward": 0.0,
     "hearts_assembled": 0,
-    "steps_taken": 0,
+    "steps_taken": 1000,
     "max_steps": 1000,
-    "final_energy": 0,
-    "extractors_used": {},
+    "final_energy": 62,
+    "extractors_used": {
+      "carbon": 5,
+      "oxygen": 1,
+      "germanium": 3,
+      "silicon": 2
+    },
     "success": false,
-    "error": "1 validation error for MapBuilderConfig\nmap_data\n  Assertion failed, Line 1 has length 41, expected 40. All lines in ASCII map must have the same length. [type=assertion_error, input_value='########################...#######################', input_type=str]\n    For further information visit https://errors.pydantic.dev/2.12/v/assertion_error"
+    "error": null
   },
   {
     "experiment_name": "machina_eval.energy_starved",
     "config_name": "aggressive",
     "reward": 0.0,
     "hearts_assembled": 0,
-    "steps_taken": 0,
+    "steps_taken": 1000,
     "max_steps": 1000,
-    "final_energy": 0,
-    "extractors_used": {},
+    "final_energy": 62,
+    "extractors_used": {
+      "carbon": 5,
+      "oxygen": 1,
+      "germanium": 3,
+      "silicon": 2
+    },
     "success": false,
-    "error": "1 validation error for MapBuilderConfig\nmap_data\n  Assertion failed, Line 1 has length 41, expected 40. All lines in ASCII map must have the same length. [type=assertion_error, input_value='########################...#######################', input_type=str]\n    For further information visit https://errors.pydantic.dev/2.12/v/assertion_error"
+    "error": null
   },
   {
     "experiment_name": "machina_eval.energy_starved",
     "config_name": "silicon_focused",
     "reward": 0.0,
     "hearts_assembled": 0,
-    "steps_taken": 0,
+    "steps_taken": 1000,
     "max_steps": 1000,
-    "final_energy": 0,
-    "extractors_used": {},
+    "final_energy": 62,
+    "extractors_used": {
+      "carbon": 5,
+      "oxygen": 1,
+      "germanium": 3,
+      "silicon": 2
+    },
     "success": false,
-    "error": "1 validation error for MapBuilderConfig\nmap_data\n  Assertion failed, Line 1 has length 41, expected 40. All lines in ASCII map must have the same length. [type=assertion_error, input_value='########################...#######################', input_type=str]\n    For further information visit https://errors.pydantic.dev/2.12/v/assertion_error"
+    "error": null
   },
   {
     "experiment_name": "machina_eval.oxygen_bottleneck",
@@ -192,8 +212,8 @@
     "max_steps": 1000,
     "final_energy": 100,
     "extractors_used": {
-      "carbon": 5,
-      "germanium": 3,
+      "carbon": 2,
+      "oxygen": 1,
       "silicon": 2
     },
     "success": false,
@@ -208,8 +228,8 @@
     "max_steps": 1000,
     "final_energy": 100,
     "extractors_used": {
-      "carbon": 5,
-      "germanium": 3,
+      "carbon": 2,
+      "oxygen": 1,
       "silicon": 2
     },
     "success": false,
@@ -224,8 +244,8 @@
     "max_steps": 1000,
     "final_energy": 100,
     "extractors_used": {
-      "carbon": 5,
-      "germanium": 3,
+      "carbon": 2,
+      "oxygen": 1,
       "silicon": 2
     },
     "success": false,
@@ -240,8 +260,8 @@
     "max_steps": 1000,
     "final_energy": 100,
     "extractors_used": {
-      "carbon": 5,
-      "germanium": 3,
+      "carbon": 2,
+      "oxygen": 1,
       "silicon": 2
     },
     "success": false,
@@ -324,7 +344,7 @@
     "max_steps": 1000,
     "final_energy": 100,
     "extractors_used": {
-      "germanium": 1
+      "silicon": 1
     },
     "success": false,
     "error": null
@@ -338,7 +358,7 @@
     "max_steps": 1000,
     "final_energy": 100,
     "extractors_used": {
-      "germanium": 1
+      "silicon": 1
     },
     "success": false,
     "error": null
@@ -352,7 +372,7 @@
     "max_steps": 1000,
     "final_energy": 100,
     "extractors_used": {
-      "germanium": 1
+      "silicon": 1
     },
     "success": false,
     "error": null
@@ -366,7 +386,7 @@
     "max_steps": 1000,
     "final_energy": 100,
     "extractors_used": {
-      "germanium": 1
+      "silicon": 1
     },
     "success": false,
     "error": null
@@ -584,7 +604,10 @@
     "max_steps": 1000,
     "final_energy": 100,
     "extractors_used": {
-      "germanium": 2
+      "carbon": 5,
+      "oxygen": 1,
+      "germanium": 2,
+      "silicon": 2
     },
     "success": false,
     "error": null
@@ -598,7 +621,10 @@
     "max_steps": 1000,
     "final_energy": 100,
     "extractors_used": {
-      "germanium": 2
+      "carbon": 5,
+      "oxygen": 1,
+      "germanium": 2,
+      "silicon": 2
     },
     "success": false,
     "error": null
@@ -612,7 +638,10 @@
     "max_steps": 1000,
     "final_energy": 100,
     "extractors_used": {
-      "germanium": 2
+      "carbon": 5,
+      "oxygen": 1,
+      "germanium": 2,
+      "silicon": 2
     },
     "success": false,
     "error": null
@@ -626,7 +655,10 @@
     "max_steps": 1000,
     "final_energy": 100,
     "extractors_used": {
-      "germanium": 2
+      "carbon": 5,
+      "oxygen": 1,
+      "germanium": 2,
+      "silicon": 2
     },
     "success": false,
     "error": null
