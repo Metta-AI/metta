@@ -69,6 +69,7 @@ class JobMonitor:
             status_dict = {
                 "name": name,
                 "status": job_state.status,
+                "request_id": job_state.request_id,
                 "job_id": job_state.job_id,
             }
 
@@ -80,8 +81,8 @@ class JobMonitor:
                 if job_state.started_at and job_state.completed_at:
                     try:
                         started = datetime.fromisoformat(job_state.started_at)
-                        completed = datetime.fromisoformat(job_state.completed_at)
-                        status_dict["duration_s"] = (completed - started).total_seconds()
+                        completed_at = datetime.fromisoformat(job_state.completed_at)
+                        status_dict["duration_s"] = (completed_at - started).total_seconds()
                     except Exception:
                         pass
 
@@ -120,7 +121,8 @@ class JobMonitor:
             highlight_failures: Highlight failed jobs in red (default: True)
         """
         if clear_screen:
-            print("\033[2J\033[H", end="")  # Clear screen and move cursor to top
+            # Clear screen: move cursor to home, clear from cursor to end of screen
+            print("\033[H\033[J", end="", flush=True)
 
         status = self.get_status()
 
@@ -185,9 +187,19 @@ class JobMonitor:
             # Build line
             line = f"  {name:30s} {status_display:20s}"
 
-            # Add job ID if available
-            if job_id:
-                line += f" (ID: {job_id})"
+            # Show request_id → job_id progression for remote jobs
+            request_id = job_status.get("request_id")
+            if request_id and not job_id:
+                # Remote job launching: have request_id but not job_id yet
+                line += f" (Request: {request_id[:8]}... → waiting for job ID)"
+            elif job_id:
+                # Have job_id (local or remote)
+                if request_id:
+                    # Remote job: show request -> job progression
+                    line += f" (Request: {request_id[:8]}... → Job: {job_id})"
+                else:
+                    # Local job: just show ID (PID)
+                    line += f" (PID: {job_id})"
 
             # Add duration if completed
             if "duration_s" in job_status:
@@ -208,7 +220,7 @@ def get_status_symbol(status: str) -> str:
     """Get symbol for job status.
 
     Args:
-        status: Status string (completed, failed, running, pending, etc.)
+        status: Status string (completed, running, pending)
 
     Returns:
         Unicode symbol representing the status
@@ -219,7 +231,6 @@ def get_status_symbol(status: str) -> str:
         "failed": "✗",
         "running": "⋯",
         "pending": "○",
-        "cancelled": "✗",
     }
     return symbols.get(status.lower(), "○")
 
