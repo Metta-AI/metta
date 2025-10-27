@@ -5,7 +5,6 @@ import
 # This file specifically deals with the pixel atlas texture.
 # It supports pixel art style drawing with pixel perfect AA sampling.
 # It is used to draw the objects in the mettascope.
-# It also supports animations.
 
 type
 
@@ -14,7 +13,6 @@ type
     y*: int
     width*: int
     height*: int
-    animationFrames*: int
 
   PixelAtlas* = ref object
     size*: int
@@ -50,8 +48,7 @@ proc generatePixelAtlas*(
           x: allocation.x,
           y: allocation.y,
           width: image.width,
-          height: image.height,
-          animationFrames: 1
+          height: image.height
         )
         var key = file.path
         key.removePrefix("data/")

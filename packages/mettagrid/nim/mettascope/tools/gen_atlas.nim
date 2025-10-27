@@ -1,4 +1,4 @@
-import ../src/mettascope/pixelatlas
+import ../src/mettascope/pixelator
 
 generatePixelAtlas(
   size = 1024,
