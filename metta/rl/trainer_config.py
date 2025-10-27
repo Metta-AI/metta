@@ -47,6 +47,18 @@ class TorchProfilerConfig(Config):
         return self
 
 
+class DualPolicyConfig(Config):
+    enabled: bool = Field(default=False)
+    npc_policy_uri: str | None = Field(default=None)
+    training_agents_pct: float = Field(default=0.5, gt=0.0, lt=1.0)
+
+    @model_validator(mode="after")
+    def validate_fields(self) -> "DualPolicyConfig":
+        if self.enabled and not self.npc_policy_uri:
+            raise ValueError("dual_policy.npc_policy_uri must be set when dual policy is enabled")
+        return self
+
+
 class TrainerConfig(Config):
     total_timesteps: int = Field(default=50_000_000_000, gt=0)
     losses: LossConfig = Field(default_factory=LossConfig)
@@ -66,6 +78,7 @@ class TrainerConfig(Config):
 
     hyperparameter_scheduler: HyperparameterSchedulerConfig = Field(default_factory=HyperparameterSchedulerConfig)
     heartbeat: Optional[HeartbeatConfig] = Field(default_factory=HeartbeatConfig)
+    dual_policy: DualPolicyConfig = Field(default_factory=DualPolicyConfig)
 
     initial_policy: InitialPolicyConfig = Field(default_factory=InitialPolicyConfig)
     profiler: TorchProfilerConfig = Field(default_factory=TorchProfilerConfig)

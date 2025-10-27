@@ -70,8 +70,11 @@ class Loss:
 
     def on_rollout_start(self, context: ComponentContext | None = None) -> None:
         """Called before starting a rollout phase."""
-        self._ensure_context(context)
+        ctx = self._ensure_context(context)
         self.policy.reset_memory()
+        npc_policy = getattr(ctx, "npc_policy", None)
+        if npc_policy is not None:
+            npc_policy.reset_memory()
 
     def rollout(self, td: TensorDict, context: ComponentContext | None = None) -> None:
         """Rollout step executed while experience buffer requests more data."""

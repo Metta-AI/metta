@@ -96,6 +96,14 @@ class ComponentContext:
         self.get_train_epoch_fn: Callable[[], Callable[[], None]] | None = None
         self.set_train_epoch_fn: Callable[[Callable[[], None]], None] | None = None
 
+        # Dual-policy (NPC) configuration set by trainer if enabled
+        self.dual_policy_enabled: bool = False
+        self.dual_policy_training_agents_pct: float = 1.0
+        self.npc_policy: Policy | None = None
+        self.npc_policy_uri: Optional[str] = None
+        self.student_mask_per_env = None
+        self.npc_mask_per_env = None
+
         self._training_env_id: slice | None = (
             self.state.training_env_window.to_slice() if self.state.training_env_window else None
         )

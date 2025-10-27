@@ -5,6 +5,7 @@ import torch
 
 from metta.agent.policy import Policy
 from metta.common.util.log_config import getRankAwareLogger
+from metta.rl.checkpoint_manager import CheckpointManager
 from metta.rl.trainer_config import TrainerConfig
 from metta.rl.training import (
     ComponentContext,
@@ -60,6 +61,11 @@ class Trainer:
         self.timer = Stopwatch(log_level=logger.getEffectiveLevel())
         self.timer.start()
 
+        self._npc_policy: Policy | None = None
+        self._student_mask_per_env: torch.Tensor | None = None
+        self._npc_mask_per_env: torch.Tensor | None = None
+        self._dual_policy_enabled: bool = False
+
         self._policy.to(self._device)
         self._policy.initialize_to_environment(self._env.game_rules, self._device)
         self._policy.train()
@@ -111,6 +117,8 @@ class Trainer:
 
         self._train_epoch_callable: Callable[[], None] = self._run_epoch
 
+        self._configure_dual_policy()
+
         self.core_loop = CoreTrainingLoop(
             policy=self._policy,
             experience=self._experience,
@@ -133,6 +141,85 @@ class Trainer:
         """Return the shared trainer context."""
 
         return self._context
+
+    def _configure_dual_policy(self) -> None:
+        """Load and configure NPC policy for dual-policy training if enabled."""
+
+        dual_cfg = getattr(self._cfg, "dual_policy", None)
+        # Ensure context defaults are set even if disabled
+        self._context.dual_policy_enabled = False
+        self._context.dual_policy_training_agents_pct = 1.0
+        self._context.npc_policy = None
+        self._context.npc_policy_uri = None
+        self._context.student_mask_per_env = None
+        self._context.npc_mask_per_env = None
+
+        if not dual_cfg or not dual_cfg.enabled:
+            return
+
+        num_agents = self._env.game_rules.num_agents
+        if num_agents <= 1:
+            logger.warning("Dual policy requested but environment has %d agent(s); disabling.", num_agents)
+            return
+
+        npc_fraction = 1.0 - dual_cfg.training_agents_pct
+        npc_agents = int(round(num_agents * npc_fraction))
+        npc_agents = max(1, min(num_agents - 1, npc_agents))
+
+        if npc_agents <= 0:
+            logger.warning(
+                "Dual policy training_agents_pct=%.3f leaves no student agents; disabling.",
+                dual_cfg.training_agents_pct,
+            )
+            return
+
+        if dual_cfg.npc_policy_uri is None:
+            logger.warning("Dual policy enabled without npc_policy_uri; disabling.")
+            return
+
+        try:
+            npc_policy = CheckpointManager.load_from_uri(
+                dual_cfg.npc_policy_uri,
+                self._env.game_rules,
+                self._device,
+            )
+        except Exception as exc:  # pragma: no cover - defensive logging
+            logger.error(
+                "Failed to load NPC policy from %s: %s. Dual policy disabled.",
+                dual_cfg.npc_policy_uri,
+                exc,
+                exc_info=True,
+            )
+            return
+
+        npc_policy.to(self._device)
+        npc_policy.eval()
+        for param in npc_policy.parameters():
+            param.requires_grad = False
+        npc_policy.initialize_to_environment(self._env.game_rules, self._device)
+
+        npc_mask = torch.zeros(num_agents, dtype=torch.bool, device=self._device)
+        npc_mask[:npc_agents] = True
+        student_mask = ~npc_mask
+
+        self._npc_policy = npc_policy
+        self._npc_mask_per_env = npc_mask
+        self._student_mask_per_env = student_mask
+        self._dual_policy_enabled = True
+
+        self._context.dual_policy_enabled = True
+        self._context.dual_policy_training_agents_pct = dual_cfg.training_agents_pct
+        self._context.npc_policy = npc_policy
+        self._context.npc_policy_uri = dual_cfg.npc_policy_uri
+        self._context.npc_mask_per_env = npc_mask
+        self._context.student_mask_per_env = student_mask
+
+        logger.info(
+            "Dual policy enabled: %d NPC / %d student agents (uri=%s)",
+            npc_agents,
+            num_agents - npc_agents,
+            dual_cfg.npc_policy_uri,
+        )
 
     def train(self) -> None:
         """Run the main training loop."""
