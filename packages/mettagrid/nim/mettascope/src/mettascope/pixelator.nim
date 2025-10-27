@@ -31,9 +31,9 @@ type
     instanceCount: int
 
 var
-  uMVP: Uniform[Mat4]
-  uAtlasSize: Uniform[Vec2]
-  uAtlas: Uniform[Sampler2d]
+  mvp: Uniform[Mat4]
+  atlasSize: Uniform[Vec2]
+  atlas: Uniform[Sampler2D]
 
 proc pixelVert*(aPos: UVec2, aUv: UVec4, vUv: var Vec2) =
   # Compute the corner of the quad based on the vertex ID.
@@ -43,19 +43,19 @@ proc pixelVert*(aPos: UVec2, aUv: UVec4, vUv: var Vec2) =
   # Compute the position of the vertex in the atlas.
   let dx = float(aPos.x) + (float(corner.x) - 0.5) * float(aUv.z)
   let dy = float(aPos.y) + (float(corner.y) - 0.5) * float(aUv.w)
-  gl_Position = uMVP * vec4(dx, dy, 0.0, 1.0)
+  gl_Position = mvp * vec4(dx, dy, 0.0, 1.0)
 
   # Compute the texture coordinates of the vertex.
   let sx = float(aUv.x) + float(corner.x) * float(aUv.z)
   let sy = float(aUv.y) + float(corner.y) * float(aUv.w)
-  vUv = vec2(sx, sy) / uAtlasSize
+  vUv = vec2(sx, sy) / atlasSize
 
 proc pixelFrag*(vUv: Vec2, FragColor: var Vec4) =
   # Compute the texture coordinates of the pixel.
-  let pixCoord = vUv * uAtlasSize
+  let pixCoord = vUv * atlasSize
   # Compute the AA pixel coordinates.
   let pixAA = floor(pixCoord) + min(fract(pixCoord) / fwidth(pixCoord), 1.0) - 0.5
-  FragColor = texture(uAtlas, pixAA / uAtlasSize)
+  FragColor = texture(atlas, pixAA / atlasSize)
 
 proc generatePixelAtlas*(
   size: int,
@@ -201,11 +201,11 @@ proc flush*(
 
   # Bind the shader and the atlas texture.
   glUseProgram(px.shader.programId)
-  px.shader.setUniform("uMVP", mvp)
-  px.shader.setUniform("uAtlasSize", vec2(px.image.width.float32, px.image.height.float32))
+  px.shader.setUniform("mvp", mvp)
+  px.shader.setUniform("atlasSize", vec2(px.image.width.float32, px.image.height.float32))
   glActiveTexture(GL_TEXTURE0)
   glBindTexture(GL_TEXTURE_2D, px.atlasTexture)
-  px.shader.setUniform("uAtlas", 0)
+  px.shader.setUniform("atlas", 0)
   px.shader.bindUniforms()
   glBindVertexArray(px.vao)
 
