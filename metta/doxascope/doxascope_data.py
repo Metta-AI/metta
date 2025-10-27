@@ -117,18 +117,31 @@ class DoxascopeLogger:
         if object_type_names and "agent" in object_type_names:
             self.agent_type_id = object_type_names.index("agent")
         else:
-            logger.warning("Could not find 'agent' in object_type_names, defaulting to type ID 0.")
+            logger.warning(f"Could not find 'agent' in object_type_names {object_type_names}, defaulting to type ID 0.")
 
         logger.info("Doxascope logging enabled.")
 
     def _build_agent_id_map(self, env_grid_objects: Dict) -> Dict[int, int]:
         """Builds a mapping from agent IDs to grid object IDs."""
         agent_id_map = {}
+        agent_obj_ids = []
+        type_counts = {}
         for obj_id, obj in env_grid_objects.items():
-            if obj.get("type") == self.agent_type_id:
-                agent_id = obj.get("agent_id")
-                if agent_id is not None:
-                    agent_id_map[agent_id] = obj_id
+            obj_type = obj.get("type_id")
+            type_counts[obj_type] = type_counts.get(obj_type, 0) + 1
+            if obj_type == self.agent_type_id:
+                agent_obj_ids.append(obj_id)
+
+        agent_obj_ids.sort()
+
+        for agent_id, obj_id in enumerate(agent_obj_ids):
+            agent_id_map[agent_id] = obj_id
+
+        logger.debug(f"Type counts in grid objects: {type_counts}")
+        logger.debug(
+            f"Looking for agent_type_id={self.agent_type_id}, found "
+            f"{len(agent_obj_ids)} agent-type objects, mapped {len(agent_id_map)} with sequential agent_ids"
+        )
         return agent_id_map
 
     def _get_last_lstm_layer(
