@@ -289,15 +289,11 @@ except ImportError:
     EXPLORATION_SITES = []
     _exploration_available = False
 
-# Import eval missions
-try:
-    from cogames.cogs_vs_clips.eval_missions import EVAL_MISSIONS, MACHINA_EVAL
-
-    _eval_available = True
-except ImportError:
-    EVAL_MISSIONS = []
-    MACHINA_EVAL = None
-    _eval_available = False
+# Defer eval missions import until after _add_make_env_modifier is defined (line 360)
+# to avoid circular import
+EVAL_MISSIONS = []
+MACHINA_EVAL = None
+_eval_available = False
 
 
 MISSIONS = [
@@ -312,16 +308,14 @@ MISSIONS = [
     Machina1OpenWorldMission,
     Machina1SmallOpenWorldMission,
     *EXPLORATION_MISSIONS,  # Add exploration experiments
-    *EVAL_MISSIONS,  # Add eval missions
+    *EVAL_MISSIONS,  # Add eval missions (will be empty initially, populated later)
 ]
 
 # Update SITES with exploration sites
 if _exploration_available:
     SITES.extend(EXPLORATION_SITES)
 
-# Update SITES with eval site
-if _eval_available and MACHINA_EVAL is not None:
-    SITES.append(MACHINA_EVAL)
+# Eval missions will be added later after _add_make_env_modifier is defined
 
 
 def _get_default_map_objects() -> dict[str, GridObjectConfig]:
@@ -385,3 +379,18 @@ def _add_make_env_modifier(mission: Mission, modifier: Callable[[MettaGridConfig
 
     modifiers.append(modifier)
     return mission
+
+
+# Import eval missions AFTER _add_make_env_modifier is defined to avoid circular import
+try:
+    from cogames.cogs_vs_clips.eval_missions import EVAL_MISSIONS as _EVAL_MISSIONS
+    from cogames.cogs_vs_clips.eval_missions import MACHINA_EVAL as _MACHINA_EVAL
+
+    # Add eval missions to the global lists
+    MISSIONS.extend(_EVAL_MISSIONS)
+    if _MACHINA_EVAL is not None:
+        SITES.append(_MACHINA_EVAL)
+    _eval_available = True
+except ImportError:
+    # Silently fail if eval_missions can't be imported
+    pass
