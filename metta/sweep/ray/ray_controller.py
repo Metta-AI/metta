@@ -27,8 +27,8 @@ class SweepConfig(Config):
     eval_overrides: dict[str, Any] = Field(default_factory=dict)
     stats_server_uri: str | None = None
     experiment_id: str = "ray_v1"
-    cpus_per_trial: float = 1.0
-    gpus_per_trial: float = 0.0
+    cpus_per_trial: int = 2
+    gpus_per_trial: int = 1
     max_concurrent_trials: int = 1
 
 
