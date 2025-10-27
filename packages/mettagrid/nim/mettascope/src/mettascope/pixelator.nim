@@ -35,7 +35,7 @@ var
   atlasSize: Uniform[Vec2]
   atlas: Uniform[Sampler2D]
 
-proc pixelVert*(aPos: UVec2, aUv: UVec4, vUv: var Vec2) =
+proc pixelatorVert*(aPos: UVec2, aUv: UVec4, vUv: var Vec2) =
   # Compute the corner of the quad based on the vertex ID.
   # 0:(0,0), 1:(1,0), 2:(0,1), 3:(1,1)
   let corner = uvec2(gl_VertexID mod 2, gl_VertexID div 2)
@@ -50,7 +50,7 @@ proc pixelVert*(aPos: UVec2, aUv: UVec4, vUv: var Vec2) =
   let sy = float(aUv.y) + float(corner.y) * float(aUv.w)
   vUv = vec2(sx, sy) / atlasSize
 
-proc pixelFrag*(vUv: Vec2, FragColor: var Vec4) =
+proc pixelatorFrag*(vUv: Vec2, FragColor: var Vec4) =
   # Compute the texture coordinates of the pixel.
   let pixCoord = vUv * atlasSize
   # Compute the AA pixel coordinates.
@@ -109,8 +109,8 @@ proc newPixelator*(imagePath, jsonPath: string): Pixelator =
   result.instanceCount = 0
 
   result.shader = newShader(
-    ("pixelVert", toGLSL(pixelVert, "410", "")),
-    ("pixelFrag", toGLSL(pixelFrag, "410", ""))
+    ("pixelatorVert", toGLSL(pixelatorVert, "410", "")),
+    ("pixelatorFrag", toGLSL(pixelatorFrag, "410", ""))
   )
 
   # Upload atlas image to GL texture
