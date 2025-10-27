@@ -67,10 +67,13 @@ Running in production via unified CronJob (every 15 minutes):
 
 ### Completed
 
-- [x] **Fixed health_fom collector crashes**
+- [x] **Fixed health_fom collector crashes and metric query failures**
   - Added try/except around collect_metrics() to prevent job crashes
   - Collector gracefully returns empty dict when source metrics unavailable
-  - Reduced Datadog API lookback from 1 hour to 30 minutes
+  - **Fixed race condition**: Increased lookback window from 30 min to 4 hours (commit b46e53c350)
+    - Health_fom was querying Datadog seconds after other collectors submitted metrics
+    - Datadog's 30-60s indexing delay meant queries returned "no data"
+    - Now queries metrics from previous cronjob runs instead of current run
   - Changed missing metric logging from WARNING to DEBUG level
 
 - [x] **Fixed GitHub metrics naming** (commits 2b65385e2a, f4512bdeb7, 0b2f72f4e6)
