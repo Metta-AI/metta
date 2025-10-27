@@ -203,7 +203,7 @@ class HealthFomCollector(BaseCollector):
 
         return foms
 
-    def _query_metric(self, metric_name: str, aggregation: str = "last") -> float | None:
+    def _query_metric(self, metric_name: str, aggregation: str = "avg") -> float | None:
         """Query a metric value from Datadog.
 
         Args:
@@ -213,17 +213,22 @@ class HealthFomCollector(BaseCollector):
         Returns:
             Most recent metric value, or None if not available
         """
+        lookback_seconds = 14400  # 4 hours
+        self.logger.info(f"Querying metric: {metric_name} (aggregation={aggregation}, lookback={lookback_seconds}s)")
+
         try:
-            # Query Datadog for metric value from last 4 hours
-            # This ensures we get metrics from previous cronjob runs (every 15 min)
-            # rather than trying to query metrics submitted seconds ago (indexing delay)
             value = self._dd_client.query_metric(
                 metric_name,
                 aggregation=aggregation,
-                lookback_seconds=14400,  # 4 hours
+                lookback_seconds=lookback_seconds,
             )
+
+            if value is not None:
+                self.logger.info(f"✓ Found {metric_name} = {value}")
+            else:
+                self.logger.warning(f"✗ No data returned for {metric_name}")
+
             return value
         except Exception as e:
-            # Don't log warnings for missing metrics - it's expected during initial deployment
-            self.logger.debug(f"Metric {metric_name} not available: {e}")
+            self.logger.error(f"✗ Failed to query {metric_name}: {type(e).__name__}: {e}")
             return None

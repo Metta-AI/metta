@@ -245,6 +245,8 @@ class DatadogClient:
                 # Format: "aggregation:metric_name{*}"
                 query = f"{aggregation}:{metric_name}{{*}}"
 
+                logger.debug(f"Datadog query: {query} (from={from_time}, to={now}, window={lookback_seconds}s)")
+
                 # Query metric
                 response = api_instance.query_metrics(
                     _from=from_time,
@@ -254,15 +256,27 @@ class DatadogClient:
 
                 # Extract value from response
                 if response.series and len(response.series) > 0:
+                    logger.debug(f"Response: {len(response.series)} series returned")
                     series = response.series[0]
-                    if series.pointlist and len(series.pointlist) > 0:
-                        # Get the last point [timestamp, value]
-                        last_point = series.pointlist[-1]
-                        value = last_point[1]  # Second element is the value
-                        logger.debug(f"Queried {metric_name}: {value}")
-                        return float(value) if value is not None else None
 
-                logger.warning(f"No data returned for metric {metric_name}")
+                    if series.pointlist and len(series.pointlist) > 0:
+                        logger.debug(f"Series has {len(series.pointlist)} data points")
+                        # Get the last point - Point object has .value attribute containing [timestamp, value]
+                        last_point = series.pointlist[-1]
+                        point_data = last_point.value if hasattr(last_point, "value") else last_point
+                        timestamp_ms = point_data[0]
+                        value = point_data[1]
+                        timestamp = timestamp_ms / 1000  # Convert ms to seconds
+                        from datetime import datetime
+
+                        dt = datetime.fromtimestamp(timestamp)
+                        logger.debug(f"Last point: timestamp={dt}, value={value}")
+                        return float(value) if value is not None else None
+                    else:
+                        logger.warning(f"Series exists but has no data points for {metric_name}")
+                        return None
+
+                logger.warning(f"No series returned for metric {metric_name}")
                 return None
 
         except Exception as e:
