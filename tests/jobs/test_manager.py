@@ -17,8 +17,8 @@ def test_job_manager_basic():
             name="test_job",
             module="echo",
             args={"message": "hello"},
-            execution="local",
             timeout_s=60,
+            # remote=None (default) means local execution
         )
 
         # Submit job
@@ -46,9 +46,9 @@ def test_job_manager_group_operations():
                 name=f"job_{i}",
                 module="echo",
                 args={"i": i},
-                execution="local",
                 timeout_s=60,
                 group="group_1",
+                # remote=None (default) means local execution
             )
             manager.submit(config)
 

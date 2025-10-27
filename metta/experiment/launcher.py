@@ -70,9 +70,12 @@ class ExperimentLauncher:
                 print(f"    Module: {job.module}")
                 print(f"    Args: {job.args}")
                 print(f"    Overrides: {job.overrides}")
-                print(f"    Execution: {job.execution}")
-                if job.execution == "remote":
-                    print(f"    Resources: {job.gpus} GPU(s), {job.nodes} node(s), spot={job.spot}")
+                execution_mode = "remote" if job.remote else "local"
+                print(f"    Execution: {execution_mode}")
+                if job.remote:
+                    print(
+                        f"    Resources: {job.remote.gpus} GPU(s), {job.remote.nodes} node(s), spot={job.remote.spot}"
+                    )
             return 0
 
         # Save initial state
@@ -157,18 +160,16 @@ class ExperimentLauncher:
         """
         try:
             # Create appropriate job type based on execution mode
-            if job_spec.execution == "remote":
-                job = RemoteJob(**job_spec.to_remote_job_args(str(self.log_dir)))
-            elif job_spec.execution == "local":
-                job = LocalJob(**job_spec.to_local_job_args(str(self.log_dir)))
+            if job_spec.remote is not None:
+                job = RemoteJob(job_spec, str(self.log_dir))
             else:
-                raise ValueError(f"Unknown execution mode: {job_spec.execution}")
+                job = LocalJob(job_spec, str(self.log_dir))
 
             # Submit (non-blocking)
             job.submit()
 
             # Extract job_id (for remote: skypilot job id, for local: process pid)
-            if job_spec.execution == "remote":
+            if job_spec.remote is not None:
                 if job._job_id:
                     job_id = str(job._job_id)
                 else:
@@ -194,7 +195,7 @@ class ExperimentLauncher:
                 logs_path=str(job._get_log_path()),
             )
 
-            mode_str = "remote" if job_spec.execution == "remote" else "local"
+            mode_str = "remote" if job_spec.remote is not None else "local"
             print(f"✓ Launched successfully ({mode_str}, Job ID: {job_id})")
             return True
 
