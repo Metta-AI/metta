@@ -245,7 +245,7 @@ version_ge() {
   local required="$2"
 
   # Prefer version-aware sort if available (GNU sort -V)
-  if sort -V </dev/null >/dev/null 2>&1; then
+  if sort -V < /dev/null > /dev/null 2>&1; then
     if [ "$(printf '%s\n%s\n' "$required" "$current" | sort -V | tail -n1)" = "$current" ]; then
       return 0
     else
@@ -309,7 +309,7 @@ get_bazel_version() {
   fi
 
   local version_line
-  if ! version_line=$(bazel --version 2>/dev/null); then
+  if ! version_line=$(bazel --version 2> /dev/null); then
     return 1
   fi
 
