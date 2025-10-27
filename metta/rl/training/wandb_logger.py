@@ -14,6 +14,8 @@ class WandbLogger(TrainerComponent):
         super().__init__(epoch_interval=epoch_interval)
         self._wandb_run = wandb_run
         self._last_agent_step = 0
+        # Track cumulative elapsed times to compute per-epoch deltas robustly
+        self._prev_elapsed: Dict[str, float] = {}
 
     def register(self, context) -> None:  # type: ignore[override]
         super().register(context)
@@ -30,12 +32,27 @@ class WandbLogger(TrainerComponent):
             "metric/stats_time": float(context.stopwatch.get_last_elapsed("_process_stats")),
         }
 
+        # Add rollout breakdown metrics as per-epoch deltas of cumulative elapsed time
+        elapsed = context.stopwatch.get_all_elapsed()
+
+        for timer_name, current_elapsed in elapsed.items():
+            if timer_name.startswith("_rollout."):
+                prev_elapsed = self._prev_elapsed.get(timer_name, 0.0)
+                delta = max(0.0, float(current_elapsed) - float(prev_elapsed))
+
+                # Convert "_rollout.env_wait" to "metric/rollout_env_wait_time"
+                metric_name = f"metric/rollout_{timer_name[9:].replace('.', '_')}_time"
+                payload[metric_name] = delta
+
         total_time = payload["metric/train_time"] + payload["metric/rollout_time"] + payload["metric/stats_time"]
         steps_delta = context.agent_step - self._last_agent_step
         if total_time > 0 and steps_delta > 0:
             payload["overview/steps_per_second"] = float(steps_delta / total_time)
 
         self._last_agent_step = context.agent_step
+        # Update baseline after computing deltas
+        for k, v in elapsed.items():
+            self._prev_elapsed[k] = float(v)
 
         for key, value in context.latest_losses_stats.items():
             metric_key = key if "/" in key else f"loss/{key}"

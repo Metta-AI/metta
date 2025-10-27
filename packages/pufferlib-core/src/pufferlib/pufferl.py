@@ -673,7 +673,10 @@ class PuffeRL:
         if self.stats:
             self.last_stats = self.stats
 
-        for metric, value in (self.stats or self.last_stats).items():
+        # do some reordering of self.stats so that important stats are always shown
+        prioritized_stats = self._reorder_stats_for_dashboard()
+
+        for metric, value in prioritized_stats:
             try:  # Discard non-numeric values
                 int(value)
             except:
@@ -692,6 +695,22 @@ class PuffeRL:
             console.print(dashboard)
 
         print("\033[0;0H" + capture.get())
+
+    def _reorder_stats_for_dashboard(self) -> list[tuple[str, float]]:
+        priority_metrics = ["agent/avg_reward_per_agent", "agent/energy.amount", "agent/status.max_steps_without_motion"]
+        new_stats = []
+
+        stats = self.stats if len(self.stats) > 0 else self.last_stats
+
+        for name in priority_metrics:
+            if name in stats:
+                new_stats.append((name, stats[name]))
+
+        for name in stats.keys():
+            if name not in priority_metrics:
+                new_stats.append((name, stats[name]))
+
+        return new_stats
 
 
 def compute_puff_advantage(

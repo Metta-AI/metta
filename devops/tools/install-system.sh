@@ -96,6 +96,15 @@ ensure_tool() {
     err "Failed to install Nim via choosenim"
   fi
 
+  # Special handling for Bazel via Bazelisk
+  if [ "$tool" = "bazel" ]; then
+    if ensure_bazel_setup; then
+      ensure_paths
+      return 0
+    fi
+    err "Failed to install Bazel via bazelisk"
+  fi
+
   if check_cmd "$tool"; then
     return 0
   fi
@@ -121,6 +130,7 @@ ensure_tool() {
 
 # Required tool versions
 REQUIRED_NIM_VERSION="2.2.4"
+REQUIRED_BAZEL_VERSION="7.0.0"
 
 # Common install directories in order of preference
 COMMON_INSTALL_DIRS="/usr/local/bin /usr/bin /opt/bin $HOME/.local/bin $HOME/bin $HOME/.nimble/bin $HOME/.cargo/bin /opt/homebrew/bin"
@@ -212,12 +222,38 @@ ensure_bazel_setup() {
       err "Failed to install bazelisk. Please install it manually from https://github.com/bazelbuild/bazelisk"
     fi
   fi
+
+  # Check version
+  local current_version
+  if ! current_version=$(get_bazel_version); then
+    err "Failed to determine bazel version"
+  fi
+
+  if ! version_ge "$current_version" "$REQUIRED_BAZEL_VERSION"; then
+    echo "ERROR: Bazel version $current_version is too old" >&2
+    echo "ERROR: Minimum required version is $REQUIRED_BAZEL_VERSION" >&2
+    echo "ERROR: Please upgrade bazel:" >&2
+    echo "  - If using bazelisk: it should auto-upgrade (try removing ~/.bazelisk/downloads)" >&2
+    echo "  - If using system bazel: uninstall and let install-system.sh install bazelisk" >&2
+    echo "  - Manual install: https://github.com/bazelbuild/bazelisk" >&2
+    exit 1
+  fi
 }
 
 version_ge() {
   local current="$1"
   local required="$2"
 
+  # Prefer version-aware sort if available (GNU sort -V)
+  if sort -V </dev/null >/dev/null 2>&1; then
+    if [ "$(printf '%s\n%s\n' "$required" "$current" | sort -V | tail -n1)" = "$current" ]; then
+      return 0
+    else
+      return 1
+    fi
+  fi
+
+  # Fallback: numeric segment compare (handles X.Y.Z)
   local -a current_parts
   local -a required_parts
 
@@ -258,6 +294,30 @@ get_nim_version() {
   # Expected format: "Nim Compiler Version X.Y.Z [os: arch]"
   local version
   version=$(echo "$version_line" | awk '{print $4}')
+
+  if [ -z "$version" ]; then
+    return 1
+  fi
+
+  echo "$version"
+  return 0
+}
+
+get_bazel_version() {
+  if ! check_cmd bazel; then
+    return 1
+  fi
+
+  local version_line
+  if ! version_line=$(bazel --version 2>/dev/null); then
+    return 1
+  fi
+
+  # Extract second field and strip any non-numeric suffix (e.g., '-homebrew', '+build', etc.)
+  local version_raw
+  version_raw=$(echo "$version_line" | awk '{print $2}')
+  local version
+  version=$(echo "$version_raw" | sed -E 's/[^0-9.].*$//')
 
   if [ -z "$version" ]; then
     return 1
@@ -403,5 +463,5 @@ ensure_tool "g++"
 ensure_tool "git"
 ensure_tool "nim"
 ensure_tool "nimble"
-ensure_bazel_setup
+ensure_tool "bazel"
 ensure_uv_setup
