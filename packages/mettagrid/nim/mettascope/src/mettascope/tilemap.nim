@@ -263,29 +263,27 @@ proc setupGPU*(tileMap: TileMap) =
   glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, tileMap.EBO)
   glBufferData(GL_ELEMENT_ARRAY_BUFFER, tileMap.quadIndices.len * sizeof(uint32), tileMap.quadIndices[0].addr, GL_STATIC_DRAW)
 
-  # Bind attributes by name since shady doesn't emit layout locations
-  let locPos = glGetAttribLocation(tileMap.shader.programId, "aPos")
-  if locPos >= 0:
-    glVertexAttribPointer(
-      locPos.GLuint,
-      2,
-      cGL_FLOAT,
-      GL_FALSE,
-      4 * sizeof(float32),
-      cast[pointer](0)
-    )
-    glEnableVertexAttribArray(locPos.GLuint)
-  let locUV = glGetAttribLocation(tileMap.shader.programId, "aTexCoord")
-  if locUV >= 0:
-    glVertexAttribPointer(
-      locUV.GLuint,
-      2,
-      cGL_FLOAT,
-      GL_FALSE,
-      4 * sizeof(float32),
-      cast[pointer](2 * sizeof(float32))
-    )
-    glEnableVertexAttribArray(locUV.GLuint)
+  # Position attribute
+  glVertexAttribPointer(
+    0,
+    2,
+    cGL_FLOAT,
+    GL_FALSE,
+    4 * sizeof(float32),
+    cast[pointer](0)
+  )
+  glEnableVertexAttribArray(0)
+
+  # Texture coordinate attribute
+  glVertexAttribPointer(
+    1,
+    2,
+    cGL_FLOAT,
+    GL_FALSE,
+    4 * sizeof(float32),
+    cast[pointer](2 * sizeof(float32))
+  )
+  glEnableVertexAttribArray(1)
 
 proc draw*(
   tileMap: TileMap,
