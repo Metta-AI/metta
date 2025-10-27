@@ -6,8 +6,11 @@ import logging
 import re
 import subprocess
 import sys
+import textwrap
 
 import sky
+from sky import clouds as sky_clouds
+from sky.backends import CloudVmRayBackend
 import yaml
 
 import gitta as git
@@ -110,6 +113,129 @@ def patch_task(
     return task
 
 
+def _build_ray_launch_task(
+    *,
+    base_task: sky.Task,
+    run_id: str,
+    commit_hash: str,
+    args: argparse.Namespace,
+) -> sky.Task:
+    """Create a Ray-ready Sky task using the base task as template."""
+    ray_task = sky.Task(
+        setup=base_task.setup,
+        envs=base_task.envs,
+        secrets=base_task.secrets,
+        file_mounts=base_task.file_mounts,
+        storage_mounts=base_task.storage_mounts,
+        workdir=base_task.workdir,
+    )
+
+    # Ray cluster managed externally; run command executed via sky.exec.
+    ray_task.run = None
+    ray_task.num_nodes = args.ray_num_nodes
+    ray_task.name = run_id
+    ray_task.validate_name()
+
+    accelerator = args.ray_accelerator
+    resources = sky.Resources(
+        cloud=sky_clouds.AWS(),
+        accelerators={accelerator: args.ray_gpus_per_node},
+        cpus=args.ray_cpus_per_node,
+        use_spot=not args.no_spot,
+        image_id="docker:metta:latest",
+        job_recovery={"strategy": "EAGER_NEXT_REGION", "max_restarts_on_errors": 20},
+    )
+    ray_task.set_resources(resources)
+
+    env_updates = dict(base_task.envs or {})
+    env_updates.update(
+        {
+            "METTA_RUN_ID": run_id,
+            "METTA_GIT_REF": commit_hash,
+            "METTA_MODULE_PATH": args.module_path,
+            "METTA_ARGS": "",
+        }
+    )
+    ray_task = ray_task.update_envs(env_updates)
+    return ray_task
+
+
+def launch_ray_sweep(
+    *,
+    args: argparse.Namespace,
+    run_id: str,
+    commit_hash: str,
+    ray_args: list[str],
+) -> None:
+    """Launch a Ray cluster and execute the sweep controller."""
+    if args.copies != 1:
+        print(red("Ray sweeps do not support --copies; launch one sweep per command."))
+        sys.exit(1)
+
+    base_task = sky.Task.from_yaml("./devops/skypilot/config/skypilot_run.yaml")
+    ray_task = _build_ray_launch_task(
+        base_task=base_task,
+        run_id=run_id,
+        commit_hash=commit_hash,
+        args=args,
+    )
+    set_task_secrets(ray_task)
+
+    ray_command_args = " ".join(ray_args)
+    ray_command = textwrap.dedent(
+        f"""
+        if [[ "${{SKYPILOT_NODE_RANK:-0}}" != "0" ]]; then
+            echo "[Ray Sweep] Worker node ${{SKYPILOT_NODE_RANK}} waiting for head..."
+            exit 0
+        fi
+        cd /workspace/metta
+        source .venv/bin/activate
+        uv run python metta/sweep/ray/ray_controller.py {ray_command_args}
+        """
+    ).strip()
+
+    display_job_summary(
+        job_name=run_id,
+        cmd=f"Ray sweep: {ray_command}",
+        task_args=ray_args,
+        commit_hash=commit_hash,
+        git_ref=args.git_ref,
+        timeout_hours=args.max_runtime_hours,
+        task=ray_task,
+        nodes=args.ray_num_nodes,
+        gpus_per_node=args.ray_gpus_per_node,
+    )
+
+    if args.dry_run:
+        print(red("Dry run: exiting"))
+        sys.exit(0)
+
+    if args.confirm and not get_user_confirmation("Should we launch this Ray sweep?"):
+        sys.exit(0)
+
+    backend = CloudVmRayBackend()
+
+    print("[RAY] Launching cluster...")
+    sky.launch(
+        ray_task,
+        cluster_name=run_id,
+        backend=backend,
+        retry_until_up=True,
+    )
+
+    # Execute sweep controller on head node.
+    run_task = sky.Task(run=ray_command, num_nodes=1)
+    run_task.update_envs({"METTA_RUN_ID": run_id})
+    set_task_secrets(run_task)
+
+    print("[RAY] Executing sweep controller on head node...")
+    sky.exec(
+        run_task,
+        cluster_name=run_id,
+        backend=backend,
+    )
+
+
 def main():
     parser = argparse.ArgumentParser(
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -172,6 +298,35 @@ Examples:
         action="store_true",
         help="Run NCCL and job restart tests",
     )
+    parser.add_argument(
+        "--ray-sweep",
+        action="store_true",
+        help="Launch a Ray sweep instead of a single run.",
+    )
+    parser.add_argument(
+        "--ray-num-nodes",
+        type=int,
+        default=4,
+        help="Number of Ray nodes (default: 4).",
+    )
+    parser.add_argument(
+        "--ray-gpus-per-node",
+        type=int,
+        default=4,
+        help="GPUs per node for Ray sweep (default: 4).",
+    )
+    parser.add_argument(
+        "--ray-accelerator",
+        type=str,
+        default="A10G",
+        help="GPU accelerator type for Ray nodes (default: A10G).",
+    )
+    parser.add_argument(
+        "--ray-cpus-per-node",
+        type=int,
+        default=32,
+        help="CPUs per node for Ray sweep (default: 32).",
+    )
 
     # Use parse_known_args to handle both launch flags and tool args
     args, tool_args = parser.parse_known_args()
@@ -195,7 +350,10 @@ Examples:
         logger.info(f"Using auto-generated run ID: {run_id}")
         logger.info("To specify a run ID pass run=foo")
 
-    filtered_args.append(f"run={run_id}")
+    ray_args = filtered_args.copy()
+
+    if not args.ray_sweep:
+        filtered_args.append(f"run={run_id}")
 
     cd_repo_root()
 
@@ -216,6 +374,18 @@ Examples:
                 print("  - Skip check: add --skip-git-check flag")
                 sys.exit(1)
 
+    if not _validate_sky_cluster_name(run_id):
+        sys.exit(1)
+
+    if args.ray_sweep:
+        launch_ray_sweep(
+            args=args,
+            run_id=run_id,
+            commit_hash=commit_hash,
+            ray_args=ray_args,
+        )
+        return
+
     # Validate module path (supports shorthand like 'arena.train')
     if not validate_module_path(args.module_path):
         sys.exit(1)
@@ -224,10 +394,6 @@ Examples:
 
     # Validate the run.py tool configuration early to catch errors before setting up the task
     _validate_run_tool(args.module_path, run_id, filtered_args)
-
-    # Validate the provided run name
-    if not _validate_sky_cluster_name(run_id):
-        sys.exit(1)
 
     task = sky.Task.from_yaml("./devops/skypilot/config/skypilot_run.yaml")
 
@@ -315,7 +481,6 @@ Examples:
             copy_task.name = run_id
             copy_task.validate_name()
             launch_task(copy_task)
-
 
 if __name__ == "__main__":
     main()
