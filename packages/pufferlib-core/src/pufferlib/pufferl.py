@@ -703,6 +703,7 @@ class PuffeRL:
             "agent/avg_reward_per_agent",
             "agent/energy.amount",
             "agent/status.max_steps_without_motion",
+            "game/chest.heart.amount",
         ]
         new_stats = []
 
