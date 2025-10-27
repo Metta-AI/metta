@@ -2,205 +2,205 @@
   {
     "experiment_name": "machina_eval.energy_starved",
     "config_name": "baseline",
-    "reward": 0.0,
-    "hearts_assembled": 0,
+    "reward": 2.0,
+    "hearts_assembled": 2,
     "steps_taken": 1000,
     "max_steps": 1000,
-    "final_energy": 62,
+    "final_energy": 68,
     "extractors_used": {
-      "carbon": 5,
-      "oxygen": 1,
-      "germanium": 3,
-      "silicon": 2
+      "carbon": 15,
+      "oxygen": 3,
+      "germanium": 5,
+      "silicon": 6
     },
-    "success": false,
+    "success": true,
     "error": null
   },
   {
     "experiment_name": "machina_eval.energy_starved",
     "config_name": "conservative",
-    "reward": 0.0,
-    "hearts_assembled": 0,
+    "reward": 2.0,
+    "hearts_assembled": 2,
     "steps_taken": 1000,
     "max_steps": 1000,
-    "final_energy": 62,
+    "final_energy": 68,
     "extractors_used": {
-      "carbon": 5,
-      "oxygen": 1,
-      "germanium": 3,
-      "silicon": 2
+      "carbon": 15,
+      "oxygen": 3,
+      "germanium": 5,
+      "silicon": 6
     },
-    "success": false,
+    "success": true,
     "error": null
   },
   {
     "experiment_name": "machina_eval.energy_starved",
     "config_name": "aggressive",
-    "reward": 0.0,
-    "hearts_assembled": 0,
+    "reward": 2.0,
+    "hearts_assembled": 2,
     "steps_taken": 1000,
     "max_steps": 1000,
-    "final_energy": 62,
+    "final_energy": 68,
     "extractors_used": {
-      "carbon": 5,
-      "oxygen": 1,
-      "germanium": 3,
-      "silicon": 2
+      "carbon": 15,
+      "oxygen": 3,
+      "germanium": 5,
+      "silicon": 6
     },
-    "success": false,
+    "success": true,
     "error": null
   },
   {
     "experiment_name": "machina_eval.energy_starved",
     "config_name": "silicon_focused",
-    "reward": 0.0,
-    "hearts_assembled": 0,
+    "reward": 2.0,
+    "hearts_assembled": 2,
     "steps_taken": 1000,
     "max_steps": 1000,
-    "final_energy": 62,
+    "final_energy": 68,
     "extractors_used": {
-      "carbon": 5,
-      "oxygen": 1,
-      "germanium": 3,
-      "silicon": 2
+      "carbon": 15,
+      "oxygen": 3,
+      "germanium": 5,
+      "silicon": 6
     },
-    "success": false,
+    "success": true,
     "error": null
   },
   {
     "experiment_name": "machina_eval.oxygen_bottleneck",
     "config_name": "baseline",
-    "reward": 0.0,
-    "hearts_assembled": 0,
+    "reward": 2.0,
+    "hearts_assembled": 2,
     "steps_taken": 1000,
     "max_steps": 1000,
     "final_energy": 100,
     "extractors_used": {
-      "carbon": 5,
-      "oxygen": 1,
-      "germanium": 3,
-      "silicon": 2
+      "carbon": 15,
+      "oxygen": 16,
+      "germanium": 7,
+      "silicon": 6
     },
-    "success": false,
+    "success": true,
     "error": null
   },
   {
     "experiment_name": "machina_eval.oxygen_bottleneck",
     "config_name": "conservative",
-    "reward": 0.0,
-    "hearts_assembled": 0,
+    "reward": 2.0,
+    "hearts_assembled": 2,
     "steps_taken": 1000,
     "max_steps": 1000,
     "final_energy": 100,
     "extractors_used": {
-      "carbon": 5,
-      "oxygen": 1,
-      "germanium": 3,
-      "silicon": 2
+      "carbon": 15,
+      "oxygen": 16,
+      "germanium": 7,
+      "silicon": 6
     },
-    "success": false,
+    "success": true,
     "error": null
   },
   {
     "experiment_name": "machina_eval.oxygen_bottleneck",
     "config_name": "aggressive",
-    "reward": 0.0,
-    "hearts_assembled": 0,
+    "reward": 2.0,
+    "hearts_assembled": 2,
     "steps_taken": 1000,
     "max_steps": 1000,
     "final_energy": 100,
     "extractors_used": {
-      "carbon": 5,
-      "oxygen": 1,
-      "germanium": 3,
-      "silicon": 2
+      "carbon": 15,
+      "oxygen": 16,
+      "germanium": 7,
+      "silicon": 6
     },
-    "success": false,
+    "success": true,
     "error": null
   },
   {
     "experiment_name": "machina_eval.oxygen_bottleneck",
     "config_name": "silicon_focused",
-    "reward": 0.0,
-    "hearts_assembled": 0,
+    "reward": 2.0,
+    "hearts_assembled": 2,
     "steps_taken": 1000,
     "max_steps": 1000,
     "final_energy": 100,
     "extractors_used": {
-      "carbon": 5,
-      "oxygen": 1,
-      "germanium": 3,
-      "silicon": 2
+      "carbon": 15,
+      "oxygen": 16,
+      "germanium": 7,
+      "silicon": 6
     },
-    "success": false,
+    "success": true,
     "error": null
   },
   {
     "experiment_name": "machina_eval.germanium_rush",
     "config_name": "baseline",
-    "reward": 0.0,
-    "hearts_assembled": 0,
+    "reward": 2.0,
+    "hearts_assembled": 2,
     "steps_taken": 1000,
     "max_steps": 1000,
     "final_energy": 100,
     "extractors_used": {
-      "carbon": 5,
-      "oxygen": 1,
-      "germanium": 3,
-      "silicon": 2
+      "carbon": 15,
+      "oxygen": 3,
+      "germanium": 7,
+      "silicon": 6
     },
-    "success": false,
+    "success": true,
     "error": null
   },
   {
     "experiment_name": "machina_eval.germanium_rush",
     "config_name": "conservative",
-    "reward": 0.0,
-    "hearts_assembled": 0,
+    "reward": 2.0,
+    "hearts_assembled": 2,
     "steps_taken": 1000,
     "max_steps": 1000,
     "final_energy": 100,
     "extractors_used": {
-      "carbon": 5,
-      "oxygen": 1,
-      "germanium": 3,
-      "silicon": 2
+      "carbon": 15,
+      "oxygen": 3,
+      "germanium": 7,
+      "silicon": 6
     },
-    "success": false,
+    "success": true,
     "error": null
   },
   {
     "experiment_name": "machina_eval.germanium_rush",
     "config_name": "aggressive",
-    "reward": 0.0,
-    "hearts_assembled": 0,
+    "reward": 2.0,
+    "hearts_assembled": 2,
     "steps_taken": 1000,
     "max_steps": 1000,
     "final_energy": 100,
     "extractors_used": {
-      "carbon": 5,
-      "oxygen": 1,
-      "germanium": 3,
-      "silicon": 2
+      "carbon": 15,
+      "oxygen": 3,
+      "germanium": 7,
+      "silicon": 6
     },
-    "success": false,
+    "success": true,
     "error": null
   },
   {
     "experiment_name": "machina_eval.germanium_rush",
     "config_name": "silicon_focused",
-    "reward": 0.0,
-    "hearts_assembled": 0,
+    "reward": 2.0,
+    "hearts_assembled": 2,
     "steps_taken": 1000,
     "max_steps": 1000,
     "final_energy": 100,
     "extractors_used": {
-      "carbon": 5,
-      "oxygen": 1,
-      "germanium": 3,
-      "silicon": 2
+      "carbon": 15,
+      "oxygen": 3,
+      "germanium": 7,
+      "silicon": 6
     },
-    "success": false,
+    "success": true,
     "error": null
   },
   {
@@ -270,69 +270,69 @@
   {
     "experiment_name": "machina_eval.carbon_desert",
     "config_name": "baseline",
-    "reward": 0.0,
-    "hearts_assembled": 0,
+    "reward": 2.0,
+    "hearts_assembled": 2,
     "steps_taken": 1000,
     "max_steps": 1000,
     "final_energy": 100,
     "extractors_used": {
-      "carbon": 5,
-      "oxygen": 1,
-      "germanium": 3,
-      "silicon": 2
+      "carbon": 15,
+      "oxygen": 3,
+      "germanium": 7,
+      "silicon": 6
     },
-    "success": false,
+    "success": true,
     "error": null
   },
   {
     "experiment_name": "machina_eval.carbon_desert",
     "config_name": "conservative",
-    "reward": 0.0,
-    "hearts_assembled": 0,
+    "reward": 2.0,
+    "hearts_assembled": 2,
     "steps_taken": 1000,
     "max_steps": 1000,
     "final_energy": 100,
     "extractors_used": {
-      "carbon": 5,
-      "oxygen": 1,
-      "germanium": 3,
-      "silicon": 2
+      "carbon": 15,
+      "oxygen": 3,
+      "germanium": 7,
+      "silicon": 6
     },
-    "success": false,
+    "success": true,
     "error": null
   },
   {
     "experiment_name": "machina_eval.carbon_desert",
     "config_name": "aggressive",
-    "reward": 0.0,
-    "hearts_assembled": 0,
+    "reward": 2.0,
+    "hearts_assembled": 2,
     "steps_taken": 1000,
     "max_steps": 1000,
     "final_energy": 100,
     "extractors_used": {
-      "carbon": 5,
-      "oxygen": 1,
-      "germanium": 3,
-      "silicon": 2
+      "carbon": 15,
+      "oxygen": 3,
+      "germanium": 7,
+      "silicon": 6
     },
-    "success": false,
+    "success": true,
     "error": null
   },
   {
     "experiment_name": "machina_eval.carbon_desert",
     "config_name": "silicon_focused",
-    "reward": 0.0,
-    "hearts_assembled": 0,
+    "reward": 2.0,
+    "hearts_assembled": 2,
     "steps_taken": 1000,
     "max_steps": 1000,
     "final_energy": 100,
     "extractors_used": {
-      "carbon": 5,
-      "oxygen": 1,
-      "germanium": 3,
-      "silicon": 2
+      "carbon": 15,
+      "oxygen": 3,
+      "germanium": 7,
+      "silicon": 6
     },
-    "success": false,
+    "success": true,
     "error": null
   },
   {
@@ -394,205 +394,205 @@
   {
     "experiment_name": "machina_eval.slow_oxygen",
     "config_name": "baseline",
-    "reward": 0.0,
-    "hearts_assembled": 0,
+    "reward": 2.0,
+    "hearts_assembled": 2,
     "steps_taken": 1000,
     "max_steps": 1000,
     "final_energy": 100,
     "extractors_used": {
-      "carbon": 5,
-      "oxygen": 1,
-      "germanium": 3,
-      "silicon": 2
+      "carbon": 15,
+      "oxygen": 16,
+      "germanium": 7,
+      "silicon": 6
     },
-    "success": false,
+    "success": true,
     "error": null
   },
   {
     "experiment_name": "machina_eval.slow_oxygen",
     "config_name": "conservative",
-    "reward": 0.0,
-    "hearts_assembled": 0,
+    "reward": 2.0,
+    "hearts_assembled": 2,
     "steps_taken": 1000,
     "max_steps": 1000,
     "final_energy": 100,
     "extractors_used": {
-      "carbon": 5,
-      "oxygen": 1,
-      "germanium": 3,
-      "silicon": 2
+      "carbon": 15,
+      "oxygen": 16,
+      "germanium": 7,
+      "silicon": 6
     },
-    "success": false,
+    "success": true,
     "error": null
   },
   {
     "experiment_name": "machina_eval.slow_oxygen",
     "config_name": "aggressive",
-    "reward": 0.0,
-    "hearts_assembled": 0,
+    "reward": 2.0,
+    "hearts_assembled": 2,
     "steps_taken": 1000,
     "max_steps": 1000,
     "final_energy": 100,
     "extractors_used": {
-      "carbon": 5,
-      "oxygen": 1,
-      "germanium": 3,
-      "silicon": 2
+      "carbon": 15,
+      "oxygen": 16,
+      "germanium": 7,
+      "silicon": 6
     },
-    "success": false,
+    "success": true,
     "error": null
   },
   {
     "experiment_name": "machina_eval.slow_oxygen",
     "config_name": "silicon_focused",
-    "reward": 0.0,
-    "hearts_assembled": 0,
+    "reward": 2.0,
+    "hearts_assembled": 2,
     "steps_taken": 1000,
     "max_steps": 1000,
     "final_energy": 100,
     "extractors_used": {
-      "carbon": 5,
-      "oxygen": 1,
-      "germanium": 3,
-      "silicon": 2
+      "carbon": 15,
+      "oxygen": 16,
+      "germanium": 7,
+      "silicon": 6
     },
-    "success": false,
+    "success": true,
     "error": null
   },
   {
     "experiment_name": "machina_eval.high_regen_sprint",
     "config_name": "baseline",
-    "reward": 0.0,
-    "hearts_assembled": 0,
+    "reward": 2.0,
+    "hearts_assembled": 2,
     "steps_taken": 1000,
     "max_steps": 1000,
     "final_energy": 100,
     "extractors_used": {
-      "carbon": 5,
-      "oxygen": 1,
-      "germanium": 3,
-      "silicon": 2
+      "carbon": 15,
+      "oxygen": 3,
+      "germanium": 7,
+      "silicon": 6
     },
-    "success": false,
+    "success": true,
     "error": null
   },
   {
     "experiment_name": "machina_eval.high_regen_sprint",
     "config_name": "conservative",
-    "reward": 0.0,
-    "hearts_assembled": 0,
+    "reward": 2.0,
+    "hearts_assembled": 2,
     "steps_taken": 1000,
     "max_steps": 1000,
     "final_energy": 100,
     "extractors_used": {
-      "carbon": 5,
-      "oxygen": 1,
-      "germanium": 3,
-      "silicon": 2
+      "carbon": 15,
+      "oxygen": 3,
+      "germanium": 7,
+      "silicon": 6
     },
-    "success": false,
+    "success": true,
     "error": null
   },
   {
     "experiment_name": "machina_eval.high_regen_sprint",
     "config_name": "aggressive",
-    "reward": 0.0,
-    "hearts_assembled": 0,
+    "reward": 2.0,
+    "hearts_assembled": 2,
     "steps_taken": 1000,
     "max_steps": 1000,
     "final_energy": 100,
     "extractors_used": {
-      "carbon": 5,
-      "oxygen": 1,
-      "germanium": 3,
-      "silicon": 2
+      "carbon": 15,
+      "oxygen": 3,
+      "germanium": 7,
+      "silicon": 6
     },
-    "success": false,
+    "success": true,
     "error": null
   },
   {
     "experiment_name": "machina_eval.high_regen_sprint",
     "config_name": "silicon_focused",
-    "reward": 0.0,
-    "hearts_assembled": 0,
+    "reward": 2.0,
+    "hearts_assembled": 2,
     "steps_taken": 1000,
     "max_steps": 1000,
     "final_energy": 100,
     "extractors_used": {
-      "carbon": 5,
-      "oxygen": 1,
-      "germanium": 3,
-      "silicon": 2
+      "carbon": 15,
+      "oxygen": 3,
+      "germanium": 7,
+      "silicon": 6
     },
-    "success": false,
+    "success": true,
     "error": null
   },
   {
     "experiment_name": "machina_eval.sparse_balanced",
     "config_name": "baseline",
-    "reward": 0.0,
-    "hearts_assembled": 0,
+    "reward": 2.0,
+    "hearts_assembled": 2,
     "steps_taken": 1000,
     "max_steps": 1000,
     "final_energy": 100,
     "extractors_used": {
-      "carbon": 5,
-      "oxygen": 1,
-      "germanium": 3,
-      "silicon": 2
+      "carbon": 15,
+      "oxygen": 3,
+      "germanium": 7,
+      "silicon": 6
     },
-    "success": false,
+    "success": true,
     "error": null
   },
   {
     "experiment_name": "machina_eval.sparse_balanced",
     "config_name": "conservative",
-    "reward": 0.0,
-    "hearts_assembled": 0,
+    "reward": 2.0,
+    "hearts_assembled": 2,
     "steps_taken": 1000,
     "max_steps": 1000,
     "final_energy": 100,
     "extractors_used": {
-      "carbon": 5,
-      "oxygen": 1,
-      "germanium": 3,
-      "silicon": 2
+      "carbon": 15,
+      "oxygen": 3,
+      "germanium": 7,
+      "silicon": 6
     },
-    "success": false,
+    "success": true,
     "error": null
   },
   {
     "experiment_name": "machina_eval.sparse_balanced",
     "config_name": "aggressive",
-    "reward": 0.0,
-    "hearts_assembled": 0,
+    "reward": 2.0,
+    "hearts_assembled": 2,
     "steps_taken": 1000,
     "max_steps": 1000,
     "final_energy": 100,
     "extractors_used": {
-      "carbon": 5,
-      "oxygen": 1,
-      "germanium": 3,
-      "silicon": 2
+      "carbon": 15,
+      "oxygen": 3,
+      "germanium": 7,
+      "silicon": 6
     },
-    "success": false,
+    "success": true,
     "error": null
   },
   {
     "experiment_name": "machina_eval.sparse_balanced",
     "config_name": "silicon_focused",
-    "reward": 0.0,
-    "hearts_assembled": 0,
+    "reward": 2.0,
+    "hearts_assembled": 2,
     "steps_taken": 1000,
     "max_steps": 1000,
     "final_energy": 100,
     "extractors_used": {
-      "carbon": 5,
-      "oxygen": 1,
-      "germanium": 3,
-      "silicon": 2
+      "carbon": 15,
+      "oxygen": 3,
+      "germanium": 7,
+      "silicon": 6
     },
-    "success": false,
+    "success": true,
     "error": null
   },
   {
