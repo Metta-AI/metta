@@ -59,6 +59,9 @@ class UpdateEpochAutoTunerConfig(Config):
     cooldown_epochs: int = Field(default=2, ge=0)
     min_relative_improvement: float = Field(default=0.05, ge=0.0)
     metrics_window: int = Field(default=4, ge=1)
+    target_kl: float = Field(default=0.015, ge=0.0)
+    kl_tolerance: float = Field(default=0.3, ge=0.0)
+    max_clipfrac: float = Field(default=0.3, ge=0.0, le=1.0)
 
     @model_validator(mode="after")
     def validate_bounds(self) -> "UpdateEpochAutoTunerConfig":

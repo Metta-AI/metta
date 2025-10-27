@@ -4,17 +4,6 @@ from metta.rl.trainer_config import TrainerConfig, UpdateEpochAutoTunerConfig
 from metta.rl.training.update_epochs_tuner import UpdateEpochAutoTuner
 
 
-class FakeStopwatch:
-    def __init__(self) -> None:
-        self._elapsed = 0.0
-
-    def advance(self, delta: float) -> None:
-        self._elapsed += delta
-
-    def get_elapsed(self, name: str | None = None) -> float:  # noqa: ARG002 - API compatibility
-        return self._elapsed
-
-
 class MasterOnlyDistributed:
     def __init__(self) -> None:
         self._last = None
@@ -27,7 +16,7 @@ class MasterOnlyDistributed:
         return obj
 
 
-def test_update_epochs_autotuner_explores_and_finds_best_value() -> None:
+def test_update_epochs_autotuner_tracks_kl_signal() -> None:
     autotune_cfg = UpdateEpochAutoTunerConfig(
         enabled=True,
         min_update_epochs=1,
@@ -36,8 +25,10 @@ def test_update_epochs_autotuner_explores_and_finds_best_value() -> None:
         evaluation_epochs=1,
         warmup_epochs=0,
         cooldown_epochs=0,
-        min_relative_improvement=0.0,
         metrics_window=2,
+        target_kl=0.02,
+        kl_tolerance=0.25,
+        max_clipfrac=0.2,
     )
     trainer_cfg = TrainerConfig(update_epochs=1, update_epochs_autotune=autotune_cfg)
 
@@ -45,37 +36,24 @@ def test_update_epochs_autotuner_explores_and_finds_best_value() -> None:
         config=trainer_cfg,
         agent_step=0,
         epoch=0,
-        stopwatch=FakeStopwatch(),
+        latest_losses_stats={},
         distributed=MasterOnlyDistributed(),
     )
 
     tuner = UpdateEpochAutoTuner(autotune_cfg)
     tuner.register(context)
 
-    # Initial epoch establishes baseline timing without making adjustments.
-    context.agent_step = 1_000
-    context.epoch = 1
-    context.stopwatch.advance(1.0)
-    tuner.on_epoch_end(context.epoch)
+    # Low KL encourages reusing the batch once.
+    context.latest_losses_stats = {"approx_kl": 0.002, "clipfrac": 0.05}
+    tuner.on_epoch_end(epoch=1)
+    assert context.config.update_epochs == 2
+
+    # KL near target keeps the current value steady.
+    context.latest_losses_stats = {"approx_kl": 0.018, "clipfrac": 0.07}
+    tuner.on_epoch_end(epoch=2)
+    assert context.config.update_epochs == 2
+
+    # Excessive clip fraction nudges the tuner back down.
+    context.latest_losses_stats = {"approx_kl": 0.03, "clipfrac": 0.4}
+    tuner.on_epoch_end(epoch=3)
     assert context.config.update_epochs == 1
-
-    # First measured epoch at update_epochs=1 triggers exploration upwards.
-    context.agent_step = 2_000
-    context.epoch = 2
-    context.stopwatch.advance(1.0)
-    tuner.on_epoch_end(context.epoch)
-    assert context.config.update_epochs == 2
-
-    # High throughput at update_epochs=2 encourages another exploration step.
-    context.agent_step = 3_600
-    context.epoch = 3
-    context.stopwatch.advance(1.0)
-    tuner.on_epoch_end(context.epoch)
-    assert context.config.update_epochs == 3
-
-    # Poor throughput at update_epochs=3 causes the tuner to revert to the best-known value (2).
-    context.agent_step = 4_500
-    context.epoch = 4
-    context.stopwatch.advance(1.0)
-    tuner.on_epoch_end(context.epoch)
-    assert context.config.update_epochs == 2
