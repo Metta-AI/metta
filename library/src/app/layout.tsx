@@ -5,6 +5,7 @@ import { SessionProvider } from "next-auth/react";
 import { redirect } from "next/navigation";
 import { NuqsAdapter } from "nuqs/adapters/next/app";
 import { FC, PropsWithChildren } from "react";
+import { Toaster } from "sonner";
 
 import { LibraryLayout } from "@/components/LibraryLayout";
 import { MathJaxProvider } from "@/components/MathJaxProvider";
@@ -39,6 +40,7 @@ export default async function RootLayout({ children }: PropsWithChildren) {
       <body className="overflow-y-scroll" suppressHydrationWarning={true}>
         <GlobalProviders>
           <LibraryLayout>{children}</LibraryLayout>
+          <Toaster position="top-right" richColors closeButton />
         </GlobalProviders>
       </body>
     </html>

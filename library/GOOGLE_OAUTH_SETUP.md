@@ -42,10 +42,12 @@ This guide walks you through setting up Google OAuth authentication for your Lib
 5. Add authorized origins and redirect URIs:
 
    **Authorized JavaScript origins:**
+
    - For development: `http://localhost:3001`
    - For production: `https://your-domain.com`
 
    **Authorized redirect URIs:**
+
    - For development: `http://localhost:3001/api/auth/callback/google`
    - For production: `https://your-domain.com/api/auth/callback/google`
 
@@ -115,16 +117,19 @@ This uses Google OAuth authentication.
 ### Common Issues
 
 1. **"redirect_uri_mismatch" error**
+
    - Make sure the callback URL in Google Console exactly matches your application URL
    - Development: `http://localhost:3001/api/auth/callback/google`
    - Check for trailing slashes and protocol (http vs https)
 
 2. **"access_denied" error**
+
    - Check that your OAuth consent screen is properly configured
    - Make sure you're using the correct Google account
    - Verify the app isn't restricted to specific users only
 
 3. **Environment variables not loading**
+
    - Restart your development server after changing `.env.local`
    - Make sure there are no extra spaces around the `=` sign
    - Verify the file is named exactly `.env.local`

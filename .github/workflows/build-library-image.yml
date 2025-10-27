@@ -17,6 +17,7 @@ on:
 jobs:
   build-and-push-image:
     runs-on: ubuntu-latest
+    timeout-minutes: 20 # up from default of 10 minutes
     permissions:
       id-token: write
       contents: read

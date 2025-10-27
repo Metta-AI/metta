@@ -15,7 +15,7 @@ cc_binary(
     srcs=["test_stats_tracker.cpp"],
     copts=COPTS + ["-Icpp/include/mettagrid", "-Itests"],
     # linkopts=["-fsanitize=address"],  # Disabled - causes issues on macOS
-    linkstatic=False,
+    linkstatic=True,  # Changed to True to ensure all symbols are linked
     deps=[
         "//:mettagrid_lib",
         "@googletest//:gtest_main",
@@ -28,7 +28,7 @@ cc_binary(
     srcs=["test_grid_object.cpp"],
     copts=COPTS + ["-Icpp/include/mettagrid", "-Itests"],
     # linkopts=["-fsanitize=address"],  # Disabled - causes issues on macOS
-    linkstatic=False,
+    linkstatic=True,  # Changed to True to ensure all symbols are linked
     deps=[
         "//:mettagrid_lib",
         "@googletest//:gtest_main",
@@ -49,7 +49,7 @@ cc_binary(
     srcs=["test_mettagrid.cpp"] + [":mettagrid_sources"],
     copts=COPTS + ["-Icpp/include/mettagrid", "-Icpp", "-Itests"],
     # linkopts=["-fsanitize=address"],  # Disabled - causes issues on macOS
-    linkstatic=False,
+    linkstatic=True,  # Changed to True to ensure all symbols are linked
     deps=[
         "//:mettagrid_lib",  # For pybind11 headers
         "@googletest//:gtest_main",
@@ -62,7 +62,7 @@ cc_binary(
     srcs=["test_observations.cpp"],
     copts=COPTS + ["-Icpp/include/mettagrid", "-Itests"],
     # linkopts=["-fsanitize=address"],  # Disabled - causes issues on macOS
-    linkstatic=False,
+    linkstatic=True,  # Changed to True to ensure all symbols are linked
     deps=[
         "//:mettagrid_lib",
         "@googletest//:gtest_main",
@@ -75,7 +75,7 @@ cc_binary(
     srcs=["test_clipper.cpp"],
     copts=COPTS + ["-Icpp/include/mettagrid", "-Itests"],
     # linkopts=["-fsanitize=address"],  # Disabled - causes issues on macOS
-    linkstatic=False,
+    linkstatic=True,  # Changed to True to ensure all symbols are linked
     deps=[
         "//:mettagrid_lib",
         "@googletest//:gtest_main",

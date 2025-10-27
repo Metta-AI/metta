@@ -4,7 +4,6 @@ version = "0.1.0"
 description = "Model Context Protocol server for WandB dashboard management"
 authors = [{ name = "Metta Team", email = "team@metta.ai" }]
 readme = "README.md"
-requires-python = ">=3.11"
 dependencies = [
   "mcp>=1.0.0",
   "wandb",
@@ -21,7 +20,7 @@ dev = ["pytest", "pytest-asyncio", "ruff", "mypy"]
 wandb-mcp-server = "wandb_dashboard.server:cli_main"
 
 [build-system]
-requires = ["setuptools>=61.0", "wheel"]
+requires = ["setuptools==80.9.0", "wheel==0.45.1"]
 build-backend = "setuptools.build_meta"
 
 [tool.ruff]
@@ -41,7 +40,6 @@ line-length = 120
 target-version = ['py311']
 
 [tool.mypy]
-python_version = "3.11"
 warn_return_any = true
 warn_unused_configs = true
 disallow_untyped_defs = true

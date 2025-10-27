@@ -28,6 +28,11 @@ resource "aws_ecr_lifecycle_policy" "metta" {
   })
 }
 
+# Create ECR repository for softmax dashboard
+resource "aws_ecr_repository" "dashboard" {
+  name = "softmax-dashboard"
+}
+
 # Replicate to other regions
 data "aws_caller_identity" "current" {}
 
