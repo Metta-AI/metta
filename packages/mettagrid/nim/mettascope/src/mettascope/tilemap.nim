@@ -174,19 +174,19 @@ proc setupGPU*(tileMap: TileMap) =
 
   # Vertex shader source (OpenGL 4.1)
   let vertexShaderSource = """
-  #version 410 core
+#version 410 core
 
-  layout (location = 0) in vec2 aPos;
-  layout (location = 1) in vec2 aTexCoord;
+layout (location = 0) in vec2 aPos;
+layout (location = 1) in vec2 aTexCoord;
 
-  out vec2 TexCoord;
+out vec2 TexCoord;
 
-  uniform mat4 uMVP;
+uniform mat4 uMVP;
 
-  void main() {
-      gl_Position = uMVP * vec4(aPos, 0.0, 1.0);
-      TexCoord = aTexCoord;
-  }
+void main() {
+    gl_Position = uMVP * vec4(aPos, 0.0, 1.0);
+    TexCoord = aTexCoord;
+}
   """
 
   # Fragment shader source (OpenGL 4.1)
@@ -222,7 +222,8 @@ void main()
 
     // 1) Which map cell are we in?
     vec2  mapPos   = TexCoord * uMapSize;        // [0..mapW/H) in tile units
-    ivec2 mapTexel = ivec2(floor(mapPos));       // integer tile coords
+    ivec2 mapTexel0 = ivec2(floor(mapPos));       // integer tile coords
+    ivec2 mapTexel = ivec2(mapTexel0.x, int(uMapSize.y) - mapTexel0.y - 1);
 
     // 2) Read tile index EXACTLY (no filtering, no mips)
     uint tileIndexU = texelFetch(uIndexTexture, mapTexel, 0).r;
@@ -267,9 +268,9 @@ void main()
   # Quad vertices (position + texture coordinates)
   tileMap.quadVertices = @[
     # positions    # texture coords
-    -1.0f,  1.0f,   0.0f, 0.0f,  # top left
-    -1.0f, -1.0f,   0.0f, 1.0f,  # bottom left
-    1.0f, -1.0f,   1.0f, 1.0f,  # bottom right
+    0.0f,  1.0f,   0.0f, 0.0f,  # top left
+    0.0f,  0.0f,   0.0f, 1.0f,  # bottom left
+    1.0f,  0.0f,   1.0f, 1.0f,  # bottom right
     1.0f,  1.0f,   1.0f, 0.0f   # top right
   ]
 
@@ -313,15 +314,15 @@ void main()
   )
   glEnableVertexAttribArray(1)
 
-  glBindVertexArray(0)
-
 proc draw*(
   tileMap: TileMap,
   mvp: Mat4,
   zoom: float32,
   zoomThreshold = 1.25f
 ) =
-  # Use our custom shaderf
+
+  # Do not clear here; Boxy manages the target/FBO.
+  # Use our custom shader.
   glUseProgram(tileMap.shader.programId)
 
   # Set uniforms
@@ -330,7 +331,6 @@ proc draw*(
   tileMap.shader.setUniform("uTileSize", 64.0f)  # Tile size in pixels.
   tileMap.shader.setUniform("uZoom", zoom)
   tileMap.shader.setUniform("uZoomThreshold", zoomThreshold)
-
   tileMap.shader.bindUniforms()
 
   # Bind textures
@@ -348,7 +348,23 @@ proc draw*(
 
   tileMap.shader.bindUniforms()
 
-  # Draw the quad
+  # Bind our VAO (encapsulates attrib pointers and EBO)
   glBindVertexArray(tileMap.VAO)
+
+  # Draw the quad
   glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, nil)
+
+  # Restore minimal GL state so Boxy continues to work after exitRawOpenGLMode.
+  # Unbind textures in reverse order
+  glActiveTexture(GL_TEXTURE2)
+  glBindTexture(GL_TEXTURE_2D, 0)
+  glActiveTexture(GL_TEXTURE1)
+  glBindTexture(GL_TEXTURE_2D_ARRAY, 0)
+  glActiveTexture(GL_TEXTURE0)
+  glBindTexture(GL_TEXTURE_2D, 0)
+
+  # Unbind VAO (Boxy will restore its own in exitRawOpenGLMode)
   glBindVertexArray(0)
+
+  # Unbind our shader program (Boxy will bind its own when needed)
+  glUseProgram(0)
