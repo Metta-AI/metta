@@ -2,7 +2,7 @@
 
 import pytest
 
-from metta.jobs.metrics import extract_wandb_info, fetch_wandb_metrics
+from metta.jobs.job_metrics import extract_wandb_info, fetch_wandb_metrics
 
 
 def test_extract_wandb_url():
@@ -31,7 +31,7 @@ def test_extract_wandb_no_url():
 
 def test_fetch_metrics_with_mocked_wandb(monkeypatch):
     """Test wandb metric fetching with mocked wandb API."""
-    from metta.jobs.metrics import WandBInfo
+    from metta.jobs.job_metrics import WandBInfo
 
     wandb_info = WandBInfo(
         project="proj",
@@ -64,7 +64,7 @@ def test_fetch_metrics_with_mocked_wandb(monkeypatch):
         def run(self, path):
             return FakeRun()
 
-    import metta.jobs.metrics as metrics_module
+    import metta.jobs.job_metrics as metrics_module
 
     monkeypatch.setattr(metrics_module.wandb, "Api", FakeApi)
 

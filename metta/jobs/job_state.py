@@ -6,29 +6,22 @@ from typing import Any, Literal, Optional
 from sqlalchemy import Text
 from sqlmodel import Column, Field, SQLModel
 
-from metta.jobs.models import JobConfig
+from metta.jobs.job_config import JobConfig
 
 JobStatus = Literal["pending", "running", "completed", "failed", "cancelled"]
 
 
 class JobState(SQLModel, table=True):
-    """State of a single job.
+    """Tracks job execution state and results.
 
-    This tracks the runtime status, results, and extracted artifacts
-    from a job execution. Persisted to SQLite via SQLModel.
-
-    Primary key: name (must be globally unique within database).
-    Group information is stored in the config for organizational purposes.
+    Persisted to SQLite with name as primary key.
+    Config stored as JSON, exposed via property for type safety.
     """
 
-    # Primary key
     name: str = Field(primary_key=True)
-
-    # Job configuration (stored as JSON TEXT, exposed as 'config' property)
     config_json: str = Field(default="", sa_column=Column("config", Text), exclude=True)
 
     def __init__(self, **data: Any):
-        """Initialize JobState, handling JobConfig serialization."""
         if "config" in data and isinstance(data["config"], JobConfig):
             data["config_json"] = json.dumps(data["config"].model_dump())
             del data["config"]
@@ -36,19 +29,17 @@ class JobState(SQLModel, table=True):
 
     @property
     def config(self) -> JobConfig:
-        """Get JobConfig from JSON."""
         if not self.config_json:
             raise ValueError("Config not set")
         return JobConfig(**json.loads(self.config_json))
 
     @config.setter
     def config(self, value: JobConfig) -> None:
-        """Set JobConfig as JSON."""
         self.config_json = json.dumps(value.model_dump())
 
     # Runtime state
     status: str = Field(default="pending")
-    job_id: Optional[str] = None  # Skypilot job ID for remote, PID for local
+    job_id: Optional[str] = None
     started_at: Optional[str] = None
     completed_at: Optional[str] = None
 
@@ -61,15 +52,13 @@ class JobState(SQLModel, table=True):
     wandb_run_id: Optional[str] = None
     checkpoint_uri: Optional[str] = None
 
-    # Metrics (stored as JSON TEXT)
+    # Metrics
     metrics_json: str = Field(default="{}", sa_column=Column("metrics", Text), exclude=True)
 
     @property
     def metrics(self) -> dict[str, float]:
-        """Get metrics from JSON."""
         return json.loads(self.metrics_json)
 
     @metrics.setter
     def metrics(self, value: dict[str, float]) -> None:
-        """Set metrics as JSON."""
         self.metrics_json = json.dumps(value)
