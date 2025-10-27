@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <array>
 #include <cassert>
+#include <string_view>
 #include <string>
 #include <vector>
 
@@ -46,6 +47,8 @@ public:
   unsigned int steps_without_motion;
   // Inventory regeneration amounts (per-agent)
   std::unordered_map<InventoryItem, InventoryQuantity> inventory_regen_amounts;
+  std::array<bool, 5> tracked_resource_presence_{};
+  std::size_t tracked_resource_diversity_{0};
 
   Agent(GridCoord r, GridCoord c, const AgentConfig& config, const std::vector<std::string>* resource_names)
       : GridObject(),
@@ -149,46 +152,51 @@ public:
       } else if (delta < 0) {
         this->stats.add(this->stats.resource_name(item) + ".lost", -delta);
       }
-      const auto amount_key = this->stats.resource_name(item) + ".amount";
+      const auto resource_name = this->stats.resource_name(item);
+      const auto amount_key = resource_name + ".amount";
       const auto amount = this->inventory.amount(item);
       this->stats.set(amount_key, amount);
-      update_inventory_diversity_stats();
+      update_inventory_diversity_stats(resource_name, amount);
     }
 
     return delta;
   }
 
-  void update_inventory_diversity_stats() {
-    const auto& current_items = this->inventory.get();
-    static const std::array<std::string, 5> tracked_resources = {"energy", "carbon", "oxygen", "germanium", "silicon"};
+  void update_inventory_diversity_stats(const std::string& resource_name, InventoryQuantity amount) {
+    static constexpr std::array<std::string_view, 5> tracked_resources = {
+        "energy", "carbon", "oxygen", "germanium", "silicon"};
 
-    std::size_t distinct = 0;
-    for (const auto& [item_id, amount] : current_items) {
-      if (amount <= 0) {
-        continue;
-      }
-
-      const auto& resource_name = this->stats.resource_name(item_id);
-      if (std::find(tracked_resources.begin(), tracked_resources.end(), resource_name) != tracked_resources.end()) {
-        ++distinct;
+    std::size_t index = tracked_resources.size();
+    for (std::size_t i = 0; i < tracked_resources.size(); ++i) {
+      if (resource_name == tracked_resources[i]) {
+        index = i;
+        break;
       }
     }
 
-    const float new_diversity = static_cast<float>(distinct);
-    const float prev_diversity = this->stats.get("inventory.diversity");
+    if (index == tracked_resources.size()) {
+      return;
+    }
+
+    const bool currently_present = tracked_resource_presence_[index];
+    const bool now_present = amount > 0;
+    if (currently_present == now_present) {
+      return;
+    }
+
+    const float prev_diversity = static_cast<float>(tracked_resource_diversity_);
+    tracked_resource_presence_[index] = now_present;
+    tracked_resource_diversity_ += now_present ? 1 : -1;
+
+    const float new_diversity = static_cast<float>(tracked_resource_diversity_);
     this->stats.set("inventory.diversity", new_diversity);
 
-    auto latch_threshold = [this, prev_diversity](std::size_t threshold, float value) {
-      if (prev_diversity < static_cast<float>(threshold) && value >= static_cast<float>(threshold)) {
+    for (std::size_t threshold = 2; threshold <= 5; ++threshold) {
+      if (prev_diversity < static_cast<float>(threshold) && new_diversity >= static_cast<float>(threshold)) {
         const std::string key = "inventory.diversity.ge." + std::to_string(threshold);
         this->stats.set(key, 1.0f);
       }
-    };
-
-    latch_threshold(2, new_diversity);
-    latch_threshold(3, new_diversity);
-    latch_threshold(4, new_diversity);
-    latch_threshold(5, new_diversity);
+    }
   }
 
   void compute_stat_rewards(StatsTracker* game_stats_tracker = nullptr) {
