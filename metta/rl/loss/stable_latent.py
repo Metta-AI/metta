@@ -5,7 +5,6 @@ from __future__ import annotations
 from typing import Any, Sequence
 
 import torch
-import torch.nn.functional as F
 from pydantic import Field
 from tensordict import TensorDict
 from torch import Tensor
@@ -93,83 +92,85 @@ class StableLatentStateLoss(Loss):
         if latent is None:
             raise KeyError(f"StableLatentStateLoss expected key '{self._target_key}' in policy_td.")
 
-        latent = latent.to(dtype=torch.float32)
-        segments, horizon = minibatch.batch_size
-        if latent.dim() == 2:
-            latent = latent.view(int(segments), int(horizon), -1)
-        elif latent.dim() == 3:
-            if latent.shape[0] != int(segments) or latent.shape[1] != int(horizon):
-                raise ValueError(
-                    "Latent tensor must align with minibatch dimensions; "
-                    f"expected ({int(segments)}, {int(horizon)}, *), received {tuple(latent.shape)}."
-                )
-        else:
-            raise ValueError("Latent tensor must have shape [segments * horizon, dim] or [segments, horizon, dim].")
+        segments, horizon = map(int, minibatch.batch_size)
+        latent = self._reshape_latent(latent.to(dtype=torch.float32), segments, horizon)
 
-        if latent.shape[1] < 2:
-            zero_loss = self._zero()
-            self.loss_tracker["stable_latent_loss"].append(float(zero_loss.item()))
-            self.loss_tracker["stable_latent_delta_l2"].append(0.0)
-            return zero_loss, shared_loss_data, False
+        if horizon < 2:
+            return self._record_zero(shared_loss_data)
 
-        prev_latent = latent[:, :-1, :]
-        next_latent = latent[:, 1:, :]
-        per_step_loss = F.mse_loss(next_latent, prev_latent, reduction="none")
-
-        valid_mask: Tensor | None = None
-        if self.loss_cfg.exclude_done_transitions:
-            dones = minibatch.get("dones")
-            if dones is not None:
-                dones = dones.to(torch.bool)
-                if dones.dim() == 3:
-                    dones = dones.squeeze(-1)
-                if dones.dim() != 2:
-                    raise ValueError("Expected 'dones' tensor to have shape (segments, horizon[, 1]).")
-                valid_mask = ~dones[:, :-1]
-
-                truncateds = minibatch.get("truncateds")
-                if truncateds is not None:
-                    truncateds = truncateds.to(torch.bool)
-                    if truncateds.dim() == 3:
-                        truncateds = truncateds.squeeze(-1)
-                    if truncateds.dim() != 2:
-                        raise ValueError("Expected 'truncateds' tensor to have shape (segments, horizon[, 1]).")
-                    valid_mask = torch.logical_and(valid_mask, ~truncateds[:, :-1])
-
-        feature_dim = per_step_loss.shape[-1]
-
-        if valid_mask is not None:
-            valid_mask = valid_mask.unsqueeze(-1)
-            per_step_loss = per_step_loss * valid_mask.to(per_step_loss.dtype)
-            denom = valid_mask.sum().to(per_step_loss.dtype) * feature_dim
-        else:
-            denom = torch.tensor(
-                per_step_loss.shape[0] * per_step_loss.shape[1] * feature_dim,
-                device=per_step_loss.device,
-                dtype=per_step_loss.dtype,
-            )
-
+        deltas = latent.diff(dim=1)
+        mask = self._valid_transition_mask(minibatch, segments, horizon)
+        denom, squared_deltas = self._masked_squared_deltas(deltas, mask)
         if denom <= self.loss_cfg.epsilon:
-            zero_loss = self._zero()
-            self.loss_tracker["stable_latent_loss"].append(float(zero_loss.item()))
-            self.loss_tracker["stable_latent_delta_l2"].append(0.0)
-            return zero_loss, shared_loss_data, False
+            return self._record_zero(shared_loss_data)
 
-        loss = per_step_loss.sum() / denom
+        loss = squared_deltas.sum() / denom
         loss = loss * self.loss_cfg.loss_coef
 
-        with torch.no_grad():
-            delta = next_latent - prev_latent
-            if valid_mask is not None:
-                masked_delta = delta * valid_mask
-                denom_delta = valid_mask.sum().to(delta.dtype)
-                mean_delta = 0.0
-                if denom_delta > self.loss_cfg.epsilon:
-                    mean_delta = masked_delta.norm(dim=-1).sum() / denom_delta
-            else:
-                mean_delta = delta.norm(dim=-1).mean()
-
-        self.loss_tracker["stable_latent_loss"].append(float(loss.item()))
-        self.loss_tracker["stable_latent_delta_l2"].append(float(mean_delta))
+        mean_delta = self._mean_delta_norm(deltas, mask)
+        self._record_loss(loss, mean_delta)
 
         return loss, shared_loss_data, False
+
+    def _reshape_latent(self, latent: Tensor, segments: int, horizon: int) -> Tensor:
+        if latent.dim() == 2:
+            return latent.view(segments, horizon, -1)
+        if latent.dim() == 3 and latent.shape[:2] == (segments, horizon):
+            return latent
+        raise ValueError(
+            "Latent tensor must align with minibatch dimensions; "
+            f"expected ({segments}, {horizon}, *), received {tuple(latent.shape)}."
+        )
+
+    def _valid_transition_mask(self, minibatch: TensorDict, segments: int, horizon: int) -> Tensor | None:
+        if not self.loss_cfg.exclude_done_transitions:
+            return None
+
+        mask: Tensor | None = None
+        for key in ("dones", "truncateds"):
+            flags = minibatch.get(key)
+            if flags is None:
+                continue
+            flags = flags.to(torch.bool)
+            if flags.dim() == 3:
+                flags = flags.squeeze(-1)
+            if flags.shape != (segments, horizon):
+                raise ValueError(f"Expected '{key}' tensor to have shape ({segments}, {horizon}[, 1]).")
+            current = ~flags[:, :-1]
+            mask = current if mask is None else mask & current
+        return mask
+
+    def _masked_squared_deltas(self, deltas: Tensor, mask: Tensor | None) -> tuple[Tensor, Tensor]:
+        feature_dim = deltas.shape[-1]
+        if mask is not None:
+            mask = mask.to(device=deltas.device, dtype=deltas.dtype)
+            # Broadcast mask to feature dimension so we keep per-feature scaling.
+            deltas = deltas * mask.unsqueeze(-1)
+            valid_transitions = mask.sum()
+        else:
+            valid_transitions = torch.tensor(
+                deltas.shape[0] * deltas.shape[1], device=deltas.device, dtype=deltas.dtype
+            )
+        denom = valid_transitions * feature_dim
+        return denom, deltas.square()
+
+    def _mean_delta_norm(self, deltas: Tensor, mask: Tensor | None) -> float:
+        with torch.no_grad():
+            norm = deltas.norm(dim=-1)
+            if mask is None:
+                return float(norm.mean().item())
+            mask = mask.to(device=deltas.device, dtype=norm.dtype)
+            denom = mask.sum()
+            if denom <= self.loss_cfg.epsilon:
+                return 0.0
+            return float((norm * mask).sum().item() / denom.item())
+
+    def _record_loss(self, loss: Tensor, mean_delta: float) -> None:
+        self.loss_tracker["stable_latent_loss"].append(float(loss.item()))
+        self.loss_tracker["stable_latent_delta_l2"].append(mean_delta)
+
+    def _record_zero(self, shared_loss_data: TensorDict) -> tuple[Tensor, TensorDict, bool]:
+        zero_loss = self._zero()
+        self.loss_tracker["stable_latent_loss"].append(float(zero_loss.item()))
+        self.loss_tracker["stable_latent_delta_l2"].append(0.0)
+        return zero_loss, shared_loss_data, False
