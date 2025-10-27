@@ -1,6 +1,4 @@
 from pathlib import Path
-from types import MethodType
-from typing import Callable, List
 
 from cogames.cogs_vs_clips.mission import Mission, MissionVariant, Site
 from cogames.cogs_vs_clips.stations import (
@@ -106,7 +104,8 @@ class SimpleRecipesVariant(MissionVariant):
             ):
                 assembler.recipes = [energy_recipe, *assembler.recipes]
 
-        return _add_make_env_modifier(mission, modifier)
+        mission.add_env_modifier(modifier)
+        return mission
 
 
 class PackRatVariant(MissionVariant):
@@ -128,7 +127,8 @@ class NeutralFacedVariant(MissionVariant):
             change_glyph.enabled = False
             change_glyph.number_of_glyphs = 1
 
-        return _add_make_env_modifier(mission, modifier)
+        mission.add_env_modifier(modifier)
+        return mission
 
 
 # Backwards-compatible alias
@@ -148,7 +148,8 @@ class HeartChorusVariant(MissionVariant):
                 "energy.gained": 0.005,
             }
 
-        return _add_make_env_modifier(mission, modifier)
+        mission.add_env_modifier(modifier)
+        return mission
 
 
 VARIANTS = [
@@ -300,34 +301,3 @@ def make_game(num_cogs: int = 2, map_name: str = "training_facility_open_1.map")
     # Use no variant (default)
     variant = MissionVariant(name="default", description="Default mission variant")
     return mission.instantiate(map_builder, num_cogs, variant).make_env()
-
-
-def _add_make_env_modifier(mission: Mission, modifier: Callable[[MettaGridConfig], None]) -> Mission:
-    modifiers: List[Callable[[MettaGridConfig], None]] = getattr(mission, "__env_modifiers__", None)
-
-    if modifiers is None:
-        original_make_env = mission.make_env.__func__
-        original_instantiate = mission.instantiate.__func__
-
-        def wrapped_make_env(self, *args, **kwargs):
-            cfg = original_make_env(self, *args, **kwargs)
-            for fn in getattr(self, "__env_modifiers__", []):
-                fn(cfg)
-            return cfg
-
-        def wrapped_instantiate(self, *args, **kwargs):
-            instantiated = original_instantiate(self, *args, **kwargs)
-            parent_mods = getattr(self, "__env_modifiers__", [])
-            if parent_mods:
-                object.__setattr__(instantiated, "__env_modifiers__", list(parent_mods))
-                object.__setattr__(instantiated, "make_env", MethodType(wrapped_make_env, instantiated))
-                object.__setattr__(instantiated, "instantiate", MethodType(wrapped_instantiate, instantiated))
-            return instantiated
-
-        object.__setattr__(mission, "__env_modifiers__", [])
-        object.__setattr__(mission, "make_env", MethodType(wrapped_make_env, mission))
-        object.__setattr__(mission, "instantiate", MethodType(wrapped_instantiate, mission))
-        modifiers = mission.__env_modifiers__
-
-    modifiers.append(modifier)
-    return mission

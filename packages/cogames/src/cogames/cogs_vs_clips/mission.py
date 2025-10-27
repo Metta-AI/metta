@@ -1,3 +1,5 @@
+from typing import Callable
+
 from pydantic import Field
 
 from cogames.cogs_vs_clips import vibes
@@ -74,6 +76,13 @@ class Mission(Config):
     gear_capacity: int = Field(default=5)
     move_energy_cost: int = Field(default=2)
     heart_capacity: int = Field(default=1)
+    env_modifiers: list[Callable[[MettaGridConfig], None]] = Field(default_factory=list)
+
+    def add_env_modifier(self, modifier: Callable[[MettaGridConfig], None]) -> "Mission":
+        """Register a callable to tweak the generated environment config."""
+
+        self.env_modifiers.append(modifier)
+        return self
 
     def instantiate(
         self, map_builder: MapBuilderConfig, num_cogs: int, variant: MissionVariant | None = None
@@ -172,4 +181,7 @@ class Mission(Config):
                 "silicon_extractor": self.silicon_extractor.station_cfg(),
             },
         )
-        return MettaGridConfig(game=game)
+        cfg = MettaGridConfig(game=game)
+        for modifier in self.env_modifiers:
+            modifier(cfg)
+        return cfg
