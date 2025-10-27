@@ -20,5 +20,10 @@
       "Bash(./install.sh:*)"
     ],
     "deny": []
+  },
+  "mcpServers": {
+    "metta-pr-similarity": {
+      "command": "metta-pr-similarity-mcp"
+    }
   }
 }

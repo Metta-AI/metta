@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # /// script
-# requires-python = ">=3.11"
+# requires-python = ">=3.12"
 # ///
 """
 Calculate SkyPilot queue latency from SKYPILOT_TASK_ID env var.

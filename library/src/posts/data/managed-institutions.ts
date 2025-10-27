@@ -104,6 +104,7 @@ type InstitutionWithRelations = Institution & {
   userInstitutions: Array<
     UserInstitution & {
       user: {
+        id: string;
         name: string | null;
         email: string | null;
       };
@@ -224,7 +225,7 @@ function mapToUnifiedInstitution(
         pendingRequests: pendingRequests.map((ui) => ({
           id: ui.id,
           user: {
-            id: ui.user.id,
+            id: ui.userId,
             name: ui.user.name,
             email: ui.user.email,
           },
@@ -402,6 +403,7 @@ export async function loadAllInstitutions(): Promise<UnifiedInstitutionDTO[]> {
         include: {
           user: {
             select: {
+              id: true,
               name: true,
               email: true,
             },
@@ -483,6 +485,7 @@ export async function loadInstitutionByName(
         include: {
           user: {
             select: {
+              id: true,
               name: true,
               email: true,
             },
