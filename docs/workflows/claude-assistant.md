@@ -208,7 +208,8 @@ Example: `claude/auto-123-2024-01-15T10-30-45`
 
 > [User's @claude open-pr comment]
 
-**Context:** This PR addresses the request from [issue/PR #X] **Target:** This PR will merge into `branch-name` (not main)
+**Context:** This PR addresses the request from [issue/PR #X] **Target:** This PR will merge into `branch-name` (not
+main)
 
 **Changes made:**
 
@@ -226,12 +227,10 @@ _This PR was automatically created by Claude Code Assistant._
 ### Common Issues and Solutions
 
 1. **No commits created**
-
    - Claude may have failed to use the commit tool
    - Solution: Ensure request is clear and specific
 
 2. **Branch push failed**
-
    - Permissions or conflict issues
    - Solution: Check GitHub token permissions
 
