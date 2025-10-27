@@ -30,18 +30,14 @@ class NoiseLayer(nn.Module):
         self.config = config
         self.in_key = config.in_key
         self.out_key = config.out_key
-        self.std = float(config.std)
-        if self.std < 0.0:
-            raise ValueError("Noise standard deviation must be non-negative.")
+        self.std = self._validate_std(config.std)
         self.noise_during_eval = bool(config.noise_during_eval)
         self.clamp_min = config.clamp_min
         self.clamp_max = config.clamp_max
 
     def set_noise(self, *, std: float, noise_during_eval: Optional[bool] = None) -> None:
         """Update noise parameters at runtime."""
-        if std < 0.0:
-            raise ValueError("Noise standard deviation must be non-negative.")
-        self.std = float(std)
+        self.std = self._validate_std(std)
         if noise_during_eval is not None:
             self.noise_during_eval = bool(noise_during_eval)
 
@@ -70,3 +66,9 @@ class NoiseLayer(nn.Module):
             f"noise_during_eval={self.noise_during_eval}, "
             f"clamp_min={self.clamp_min}, clamp_max={self.clamp_max}"
         )
+
+    @staticmethod
+    def _validate_std(std: float) -> float:
+        if std < 0.0:
+            raise ValueError("Noise standard deviation must be non-negative.")
+        return float(std)
