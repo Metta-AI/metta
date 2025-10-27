@@ -38,9 +38,11 @@ class TestMetricsFormattingMain:
         )
 
         hyperparameters = {"learning_rate": 0.001}
+        curriculum_stats = {}  # Empty for tests without curriculum
 
         result = build_wandb_payload(
             processed_stats,
+            curriculum_stats,
             timing_info,
             weight_stats,
             grad_stats,

@@ -471,6 +471,40 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         if "scorer" in state:
             self.scorer.load_state(state["scorer"])
 
+    def get_per_label_lp_scores(self) -> dict[str, dict[str, float]]:
+        """Get per-label LP scores for troubleshooting.
+
+        Returns:
+            Dict mapping label -> {raw, postzscored, prob}
+        """
+        if not self.hypers.show_curriculum_troubleshooting_logging:
+            return {}
+
+        per_label: dict[str, dict[str, float]] = {}
+        for task_id, task in self._task_pool.items():
+            label = task.get_label()
+            if not label or not isinstance(label, str):
+                continue
+
+            if label not in per_label:
+                per_label[label] = {"raw": 0.0, "postzscored": 0.0, "prob": 0.0, "count": 0}
+
+            # Accumulate scores (will average later)
+            per_label[label]["raw"] += self.get_task_raw_lp_score(task_id)
+            per_label[label]["postzscored"] += self.get_task_postzscored_lp_score(task_id)
+            per_label[label]["prob"] += self.get_task_lp_score(task_id)
+            per_label[label]["count"] += 1
+
+        # Average scores per label
+        for _label, scores in per_label.items():
+            count = scores.pop("count")
+            if count > 0:
+                scores["raw"] /= count
+                scores["postzscored"] /= count
+                scores["prob"] /= count
+
+        return per_label
+
     def cleanup_shared_memory(self) -> None:
         """Clean up shared memory resources with better error handling."""
         if not hasattr(self, "task_tracker"):

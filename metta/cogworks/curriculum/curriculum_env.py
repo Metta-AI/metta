@@ -10,8 +10,11 @@ from .curriculum import Curriculum
 class CurriculumEnv(PufferEnv):
     """Environment wrapper that integrates with a curriculum system.
 
-    This wrapper passes all function calls to the wrapped environment, with special
-    handling for reset() and step() methods to integrate with curriculum task management.
+    This wrapper:
+    - Handles task selection and completion through the curriculum
+    - ALWAYS emits per-label episode counts (needed for basic curriculum monitoring)
+    - Optionally tracks first 3 tasks for debugging (if show_curriculum_troubleshooting_logging=True)
+    - All other curriculum stats are collected centrally at epoch boundaries by StatsReporter
     """
 
     def __init__(self, env: Any, curriculum: Curriculum):
@@ -31,228 +34,25 @@ class CurriculumEnv(PufferEnv):
         self._curriculum = curriculum
         self._current_task = self._curriculum.get_task()
 
-        # Stats batching configuration - updating stats too frequently is an SPS hit
-        self._stats_update_counter = 0
-        self._stats_update_frequency = 50  # Batch stats updates to reduce overhead
-
-        # Pre-compute string prefix for performance
-        self._CURRICULUM_STAT_PREFIX = "curriculum_stats/"
-
-        # Track first reset to avoid hasattr checks
-        self._first_reset_done = False
-
         # Check if troubleshooting logging is enabled
         self._enable_per_label_tracking = False
         if hasattr(curriculum, "_algorithm") and curriculum._algorithm is not None:
             if hasattr(curriculum._algorithm, "hypers"):
                 self._enable_per_label_tracking = curriculum._algorithm.hypers.show_curriculum_troubleshooting_logging
 
-        # Per-label metrics tracking (only if troubleshooting logging enabled to prevent memory leaks)
+        # Tracked task attributes (only if troubleshooting enabled)
         if self._enable_per_label_tracking:
-            self._per_label_lp_scores = {}  # Raw LP scores (before z-score normalization)
-            self._per_label_postzscored_lp_scores = {}  # Post-z-score LP scores (after z-score, before sigmoid)
-            self._per_label_lp_probs = {}  # Final sampling probabilities (after z-score + sigmoid)
-            self._task_slot_input_rewards = {0: [], 1: [], 2: []}  # Track rewards for first 3 task slots
+            self._tracked_task_ids = []
+            self._tracked_task_completions_this_epoch = {}
+            self._tracked_task_completions_baseline = {}
         else:
-            self._per_label_lp_scores = None
-            self._per_label_postzscored_lp_scores = None
-            self._per_label_lp_probs = None
-            self._task_slot_input_rewards = None
-
-        # Cache curriculum stats
-        self._cached_curriculum_stats = {}
-        self._curriculum_stats_cache_valid = False
-
-        # Track first 3 tasks for detailed dynamics analysis
-        self._tracked_task_ids = []  # Will store first 3 task IDs we encounter
-        self._tracked_task_completions_this_epoch = {}  # task_id -> count this epoch
-        self._tracked_task_completions_baseline = {}  # task_id -> count at last epoch reset
-
-    def reset_epoch_counters(self) -> None:
-        """Reset per-epoch tracking at the start of a new epoch.
-
-        Note: Per-label counts are emitted per-episode in infos (not accumulated),
-        so this is a no-op except for tracked task completion counters.
-        """
-        # Reset tracked task completion baselines for per-epoch counting
-        self._tracked_task_completions_baseline = self._tracked_task_completions_this_epoch.copy()
-
-    def _add_curriculum_stats_to_info(self, info_dict: dict) -> None:
-        """Add curriculum statistics to info dictionary for logging.
-
-        Logs:
-        - Per-label LP scores (raw, post-z-score, and final probabilities)
-          - only if show_curriculum_troubleshooting_logging enabled
-        - Per-label aggregate eviction counts
-          - only if show_curriculum_troubleshooting_logging enabled
-        - Pool composition fractions (fraction of task pool per label)
-        - Total completions, evictions
-        - Gini coefficient for sampling distribution across labels
-        - Mean LP score in task pool
-
-        Note: Per-label tracking is only enabled when show_curriculum_troubleshooting_logging=True
-        to prevent unbounded memory growth with large numbers of labels.
-        """
-        # Only update curriculum stats periodically to reduce overhead
-        if self._stats_update_counter >= self._stats_update_frequency:
-            # Get curriculum stats (with caching to reduce overhead)
-            if not self._curriculum_stats_cache_valid:
-                self._cached_curriculum_stats = self._curriculum.stats()
-                self._curriculum_stats_cache_valid = True
-
-            stats = self._cached_curriculum_stats
-
-            # Add per-label learning progress metrics (only if tracking enabled)
-            if self._enable_per_label_tracking:
-                # Raw LP scores (before z-score normalization)
-                if self._per_label_lp_scores:
-                    info_dict[self._CURRICULUM_STAT_PREFIX + "per_label_lp_scores"] = self._per_label_lp_scores.copy()
-
-                # Post-z-score LP scores (after z-score, before sigmoid)
-                if self._per_label_postzscored_lp_scores:
-                    info_dict[self._CURRICULUM_STAT_PREFIX + "per_label_postzscored_lp_scores"] = (
-                        self._per_label_postzscored_lp_scores.copy()
-                    )
-
-                # Final sampling probabilities (after z-score + sigmoid)
-                if self._per_label_lp_probs:
-                    info_dict[self._CURRICULUM_STAT_PREFIX + "per_label_lp_probs"] = self._per_label_lp_probs.copy()
-
-                # Input rewards for first 3 task slots
-                if self._task_slot_input_rewards is not None:
-                    for slot in range(3):
-                        if self._task_slot_input_rewards[slot]:
-                            info_dict[self._CURRICULUM_STAT_PREFIX + f"curriculum_input_rewards/task_slot_{slot}"] = (
-                                self._task_slot_input_rewards[slot].copy()
-                            )
-
-            # Add pool composition fractions (fraction of task pool for each label)
-            pool_composition = {}
-            total_pool_size = stats.get("num_active_tasks", 0)
-            if total_pool_size > 0:
-                for key, value in stats.items():
-                    if key.startswith("algorithm/pool_composition/"):
-                        label = key.replace("algorithm/pool_composition/", "")
-                        pool_composition[label] = value / total_pool_size
-
-            if pool_composition:
-                info_dict[self._CURRICULUM_STAT_PREFIX + "pool_composition_fraction"] = pool_composition
-
-            # Add per-label eviction counts (aggregate over all time)
-            per_label_evictions = {}
-            for key, value in stats.items():
-                if key.startswith("algorithm/eviction_counts/"):
-                    label = key.replace("algorithm/eviction_counts/", "")
-                    per_label_evictions[label] = int(value)
-
-            if per_label_evictions:
-                info_dict[self._CURRICULUM_STAT_PREFIX + "per_label_aggregate_evictions"] = per_label_evictions
-
-            # Add total completions
-            if "num_completed" in stats:
-                info_dict[self._CURRICULUM_STAT_PREFIX + "total_completions"] = stats["num_completed"]
-
-            # Add number of evictions
-            if "num_evicted" in stats:
-                info_dict[self._CURRICULUM_STAT_PREFIX + "num_evicted"] = stats["num_evicted"]
-
-            # Calculate and add Gini coefficient for sampling distribution
-            sampling_counts = []
-            for key, value in stats.items():
-                if key.startswith("algorithm/sampling_counts/"):
-                    sampling_counts.append(value)
-
-            if sampling_counts:
-                gini = self._calculate_gini_coefficient(sampling_counts)
-                info_dict[self._CURRICULUM_STAT_PREFIX + "sampling_gini"] = gini
-
-            # Calculate and add Gini coefficient for pool occupancy (completion counts)
-            pool_completion_counts = []
-            for key, value in stats.items():
-                if key.startswith("algorithm/completion_counts/"):
-                    pool_completion_counts.append(value)
-
-            if pool_completion_counts:
-                pool_gini = self._calculate_gini_coefficient(pool_completion_counts)
-                info_dict[self._CURRICULUM_STAT_PREFIX + "pool_occupancy_gini"] = pool_gini
-
-            # Calculate and add Gini coefficient for pool LP scores
-            pool_lp_scores = []
-            for key, value in stats.items():
-                if key.startswith("algorithm/lp_scores/"):
-                    pool_lp_scores.append(value)
-
-            if pool_lp_scores:
-                lp_gini = self._calculate_gini_coefficient(pool_lp_scores)
-                info_dict[self._CURRICULUM_STAT_PREFIX + "pool_lp_gini"] = lp_gini
-
-            # Add mean LP score from task pool
-            if "algorithm/mean_lp_score" in stats:
-                info_dict[self._CURRICULUM_STAT_PREFIX + "mean_pool_lp_score"] = stats["algorithm/mean_lp_score"]
-
-            # Add tracked task dynamics (first 3 tasks encountered)
-            if self._tracked_task_ids:
-                tracked_lp_scores = {}
-                tracked_completions_this_epoch = {}
-
-                for i, task_id in enumerate(self._tracked_task_ids):
-                    # Get LP score for this task
-                    lp_score = self._curriculum.get_task_lp_score(task_id)
-                    tracked_lp_scores[f"task_{i}"] = lp_score
-
-                    # Get completion count this epoch (delta from baseline)
-                    current_count = self._tracked_task_completions_this_epoch.get(task_id, 0)
-                    baseline_count = self._tracked_task_completions_baseline.get(task_id, 0)
-                    tracked_completions_this_epoch[f"task_{i}"] = current_count - baseline_count
-
-                info_dict[self._CURRICULUM_STAT_PREFIX + "tracked_task_lp_scores"] = tracked_lp_scores
-                info_dict[self._CURRICULUM_STAT_PREFIX + "tracked_task_completions_this_epoch"] = (
-                    tracked_completions_this_epoch
-                )
-
-            self._stats_update_counter = 0
-
-    def _calculate_gini_coefficient(self, values: list[float]) -> float:
-        """Calculate Gini coefficient for a distribution.
-
-        Measures inequality in sampling across labels:
-        - 0 = perfect equality (all labels sampled equally)
-        - 1 = perfect inequality (all samples from one label)
-
-        Args:
-            values: List of counts/frequencies (e.g., sampling counts per label)
-
-        Returns:
-            Gini coefficient between 0 and 1
-        """
-        if not values or len(values) == 0:
-            return 0.0
-
-        # Handle case with all zeros
-        if sum(values) == 0:
-            return 0.0
-
-        # Sort values in ascending order
-        sorted_values = sorted(values)
-        n = len(sorted_values)
-
-        # Calculate Gini coefficient using the formula:
-        # G = (2 * sum(i * x_i)) / (n * sum(x_i)) - (n + 1) / n
-        cumsum = 0.0
-        for i, value in enumerate(sorted_values, start=1):
-            cumsum += i * value
-
-        total = sum(sorted_values)
-        gini = (2.0 * cumsum) / (n * total) - (n + 1.0) / n
-
-        return gini
+            self._tracked_task_ids = None
+            self._tracked_task_completions_this_epoch = None
+            self._tracked_task_completions_baseline = None
 
     def reset(self, *args, **kwargs):
         """Reset the environment and get a new task from curriculum."""
         obs, info = self._env.reset(*args, **kwargs)
-
-        # Invalidate curriculum stats cache on reset (task pool may have changed)
-        self._curriculum_stats_cache_valid = False
 
         # Get a new task from curriculum, with retry logic for invalid configurations
         max_retries = 10
@@ -285,10 +85,6 @@ class CurriculumEnv(PufferEnv):
                     )
                     raise
 
-        # Mark that first reset is done (for future use)
-        if not self._first_reset_done:
-            self._first_reset_done = True
-
         return obs, info
 
     def step(self, *args, **kwargs):
@@ -306,58 +102,23 @@ class CurriculumEnv(PufferEnv):
             # Update the curriculum algorithm with task performance for learning progress
             self._curriculum.update_task_performance(self._current_task._task_id, mean_reward)
 
-            # Invalidate curriculum stats cache on task completion (stats have changed)
-            self._curriculum_stats_cache_valid = False
+            # ALWAYS emit per-label sample count (needed for basic curriculum monitoring)
+            label = self._current_task.get_label()
+            if label is not None and isinstance(label, str):
+                if "curriculum_stats/per_label_samples_this_epoch" not in infos:
+                    infos["curriculum_stats/per_label_samples_this_epoch"] = {}
+                infos["curriculum_stats/per_label_samples_this_epoch"][label] = 1
 
-            # Track first 3 task IDs for detailed dynamics analysis
-            task_id = self._current_task._task_id
-            if task_id not in self._tracked_task_ids and len(self._tracked_task_ids) < 3:
-                self._tracked_task_ids.append(task_id)
-
-            # Update completion counts for tracked tasks
-            if task_id in self._tracked_task_ids:
-                self._tracked_task_completions_this_epoch[task_id] = (
-                    self._tracked_task_completions_this_epoch.get(task_id, 0) + 1
-                )
-
-            # Track input rewards for first 3 task slots (only if troubleshooting enabled)
-            if self._task_slot_input_rewards is not None and task_id in self._tracked_task_ids:
-                slot = self._tracked_task_ids.index(task_id)
-                self._task_slot_input_rewards[slot].append(float(mean_reward))
-
-            # Update per-label metrics tracking (only if enabled to prevent memory leaks)
+            # Track task completions for troubleshooting (ONLY if flag enabled)
             if self._enable_per_label_tracking:
-                label = self._current_task.get_label()
-                # Only track if label is a valid string (not None, not a Mock)
-                if label is not None and isinstance(label, str):
-                    # Update raw LP score with EMA (α = 0.01)
-                    raw_lp_score = self._curriculum.get_task_raw_lp_score(self._current_task._task_id)
-                    if label in self._per_label_lp_scores:
-                        self._per_label_lp_scores[label] = 0.99 * self._per_label_lp_scores[label] + 0.01 * raw_lp_score
-                    else:
-                        self._per_label_lp_scores[label] = raw_lp_score
+                task_id = self._current_task._task_id
+                if task_id not in self._tracked_task_ids and len(self._tracked_task_ids) < 3:
+                    self._tracked_task_ids.append(task_id)
 
-                    # Update post-z-score LP score with EMA (α = 0.01)
-                    postzscored_lp_score = self._curriculum.get_task_postzscored_lp_score(self._current_task._task_id)
-                    if label in self._per_label_postzscored_lp_scores:
-                        self._per_label_postzscored_lp_scores[label] = (
-                            0.99 * self._per_label_postzscored_lp_scores[label] + 0.01 * postzscored_lp_score
-                        )
-                    else:
-                        self._per_label_postzscored_lp_scores[label] = postzscored_lp_score
-
-                    # Update sampling probability with EMA (α = 0.01)
-                    lp_prob = self._curriculum.get_task_lp_score(self._current_task._task_id)
-                    if label in self._per_label_lp_probs:
-                        self._per_label_lp_probs[label] = 0.99 * self._per_label_lp_probs[label] + 0.01 * lp_prob
-                    else:
-                        self._per_label_lp_probs[label] = lp_prob
-
-                    # Emit per-label completion count directly in infos (following episode stats pattern)
-                    # This will be summed across all vectorized environments automatically
-                    if "curriculum_stats/per_label_samples_this_epoch" not in infos:
-                        infos["curriculum_stats/per_label_samples_this_epoch"] = {}
-                    infos["curriculum_stats/per_label_samples_this_epoch"][label] = 1
+                if task_id in self._tracked_task_ids:
+                    self._tracked_task_completions_this_epoch[task_id] = (
+                        self._tracked_task_completions_this_epoch.get(task_id, 0) + 1
+                    )
 
             # Get new task with retry logic for invalid configurations
             max_retries = 10
@@ -392,24 +153,7 @@ class CurriculumEnv(PufferEnv):
                         )
                         raise
 
-        # Add label-specific curriculum stats to info for logging (batched)
-        self._stats_update_counter += 1
-        self._add_curriculum_stats_to_info(infos)
-
         return obs, rewards, terminals, truncations, infos
-
-    def set_stats_update_frequency(self, frequency: int) -> None:
-        """Set the frequency of curriculum stats updates during steps.
-
-        Args:
-            frequency: Number of steps between stats updates (default: 50)
-        """
-        self._stats_update_frequency = max(1, frequency)
-        self._stats_update_counter = 0  # Reset counter
-
-    def force_stats_update(self) -> None:
-        """Force an immediate update of curriculum stats."""
-        self._stats_update_counter = self._stats_update_frequency
 
     def __getattribute__(self, name: str):
         """Intercept all attribute access and delegate to wrapped environment when appropriate.
@@ -421,26 +165,12 @@ class CurriculumEnv(PufferEnv):
             "_env",
             "_curriculum",
             "_current_task",
-            "step",
-            "_add_curriculum_stats_to_info",
-            "_stats_update_counter",
-            "_stats_update_frequency",
-            "set_stats_update_frequency",
-            "force_stats_update",
-            "_first_reset_done",
             "_enable_per_label_tracking",
-            "_per_label_lp_scores",
-            "_per_label_postzscored_lp_scores",
-            "_per_label_lp_probs",
-            "_task_slot_input_rewards",
-            "_cached_curriculum_stats",
-            "_curriculum_stats_cache_valid",
             "_tracked_task_ids",
             "_tracked_task_completions_this_epoch",
             "_tracked_task_completions_baseline",
-            "_calculate_gini_coefficient",
-            "reset_epoch_counters",
-            "_CURRICULUM_STAT_PREFIX",
+            "step",
+            "reset",
         ):
             return object.__getattribute__(self, name)
 

@@ -860,10 +860,6 @@ def simulate_task_dependencies(config: SimulationConfig) -> Dict[str, Any]:
     metrics_history = []
 
     for epoch in range(config.num_epochs):
-        # Reset epoch counters in all CurriculumEnv wrappers (for per-epoch tracking)
-        for env in envs:
-            env.reset_epoch_counters()
-
         # Collect stats from all environments this epoch
         rollout_stats = defaultdict(list)
 
