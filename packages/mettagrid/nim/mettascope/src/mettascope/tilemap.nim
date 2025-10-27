@@ -1,4 +1,4 @@
-import pixie, opengl, boxy/shaders
+import pixie, opengl, boxy/shaders, shady, vmath
 
 type
   TileMap* = ref object
@@ -18,6 +18,64 @@ type
     EBO: GLuint
     quadVertices: seq[float32]
     quadIndices: seq[uint32]
+
+var
+  uMVP: Uniform[Mat4]
+  uIndexTexture: Uniform[USampler2d]
+  uTileArray: Uniform[Sampler2dArray]
+  uOverworld: Uniform[Sampler2d]
+  uMapSize: Uniform[Vec2]
+  uTileSize: Uniform[float32]
+  uZoom: Uniform[float32]
+  uZoomThreshold: Uniform[float32]
+
+proc tileVert*(aPos: Vec2, aTexCoord: Vec2, TextCoord: var Vec2) =
+  gl_Position = uMVP * vec4(aPos.x, aPos.y, 0.0, 1.0)
+  TextCoord = aTexCoord
+
+proc tileFrag*(TextCoord: Vec2, FragColor: var Vec4) =
+  if uZoom < uZoomThreshold:
+    # Use the overworld texture with mipmapping for higher zoom levels
+    let mapUV = TextCoord
+    FragColor = texture(uOverworld, vec2(mapUV.x, 1.0 - mapUV.y))
+  else:
+    let
+      # Compute the map cell coordinates.
+      mapPos = TextCoord * uMapSize
+      mapTexel0 = ivec2(mapPos.x.floor.int32, mapPos.y.floor.int32)
+      mapTexel = ivec2(mapTexel0.x, uMapSize.y.int32 - mapTexel0.y - 1)
+
+      # Read the tile index from the index texture.
+      tileIndexU = texelFetch(uIndexTexture, mapTexel, 0).x
+      tileIndex = tileIndexU.int32
+
+      # Local coordinates inside the tile, continuous and fractional.
+      tilePos01 = fract(mapPos)
+      localTexel = tilePos01 * uTileSize
+      contTexel = TextCoord * (uMapSize * uTileSize)
+
+      # Anti-aliasing the nearest snap in the tile space.
+      fw = max(fwidth(contTexel), vec2(1e-5))
+      fracPart = fract(localTexel)
+      blend = clamp(fracPart / fw, 0.0, 1.0)
+      localAA = floor(localTexel) + blend + 0.5
+
+      # Clamp to the valid texel range.
+      localClamped = clamp(localAA, 0.5, uTileSize - 0.5)
+
+      # Convert to per layer UVs. Flip Y coordinate to match texture array layout.
+      layerUV = vec2(localClamped.x / uTileSize, (uTileSize - localClamped.y) / uTileSize)
+
+      # Stable LOD: gradient from the continuous coordinates, matched to UV space.
+      dUVdx = (dFdx(contTexel) / uTileSize) * vec2(1.0, -1.0)
+      dUVdy = (dFdy(contTexel) / uTileSize) * vec2(1.0, -1.0)
+
+    FragColor = textureGrad(
+      uTileArray,
+      vec3(layerUV.x, layerUV.y, float(tileIndex)),
+      dUVdx,
+      dUVdy
+    )
 
 proc newTileMap*(
   width: int,
@@ -172,97 +230,10 @@ proc setupGPU*(tileMap: TileMap) =
   )
   glGenerateMipmap(GL_TEXTURE_2D)
 
-  # Vertex shader source (OpenGL 4.1)
-  let vertexShaderSource = """
-#version 410 core
-
-layout (location = 0) in vec2 aPos;
-layout (location = 1) in vec2 aTexCoord;
-
-out vec2 TexCoord;
-
-uniform mat4 uMVP;
-
-void main() {
-    gl_Position = uMVP * vec4(aPos, 0.0, 1.0);
-    TexCoord = aTexCoord;
-}
-  """
-
-  # Fragment shader source (OpenGL 4.1)
-  let fragmentShaderSource = """
-#version 410 core
-
-in vec2 TexCoord;    // 0..1 over the whole tilemap (screen mapping)
-out vec4 FragColor;
-
-// --- Textures ---
-// Use an integer index map if you can (R8UI or R16UI). No filtering, no mipmaps.
-uniform usampler2D    uIndexTexture;  // tile ids [0 .. layerCount-1]
-
-// Each layer is ONE tile image. All layers must be the same dimensions (uTileSize x uTileSize).
-uniform sampler2DArray uTileArray;
-uniform sampler2D      uOverworld;
-
-// --- Map / tile geometry ---
-uniform vec2  uMapSize;   // map size in tiles, e.g. (256, 256)
-uniform float uTileSize;  // tile size in texels, e.g. 16
-uniform float uZoom;      // current zoom (screen->world scale)
-uniform float uZoomThreshold; // switch to overworld when zoom below this
-
-void main()
-{
-    // 0) Switch to overworld if zoomed out enough
-    if (uZoom < uZoomThreshold) {
-        // Sample overworld at map texel resolution
-        vec2 mapUV = TexCoord; // TexCoord already spans 0..1 across map
-        FragColor = texture(uOverworld, mapUV);
-        return;
-    }
-
-    // 1) Which map cell are we in?
-    vec2  mapPos   = TexCoord * uMapSize;        // [0..mapW/H) in tile units
-    ivec2 mapTexel0 = ivec2(floor(mapPos));       // integer tile coords
-    ivec2 mapTexel = ivec2(mapTexel0.x, int(uMapSize.y) - mapTexel0.y - 1);
-
-    // 2) Read tile index EXACTLY (no filtering, no mips)
-    uint tileIndexU = texelFetch(uIndexTexture, mapTexel, 0).r;
-    int  tileIndex  = int(tileIndexU);
-
-    // 3) Local coordinates inside this tile (continuous + fractional)
-    vec2 tilePos01   = fract(mapPos);                 // [0..1) within the tile cell
-    vec2 localTexel  = tilePos01 * uTileSize;         // [0..tileSize) in texels (continuous)
-    vec2 contTexel   = TexCoord * (uMapSize * uTileSize); // continuous (no fract) for stable derivatives
-
-    // 4) Anti-aliased "nearest" snap in tile texel space
-    vec2 fw       = max(fwidth(contTexel), vec2(1e-5)); // stable across tile seams
-    vec2 fracPart = fract(localTexel);
-    vec2 blend    = clamp(fracPart / fw, 0.0, 1.0);
-    vec2 localAA  = floor(localTexel) + blend + 0.5;    // center of target texel
-
-    // 5) Clamp to valid texel centers
-    vec2 localClamped = clamp(localAA, vec2(0.5), vec2(uTileSize - 0.5));
-
-    // 6) Convert to per-layer UVs in [0,1], flipping Y if your source images are top-left origin
-    // If your tiles are already bottom-left origin, drop the flip and just do localClamped / uTileSize.
-    vec2 layerUV = vec2(
-        localClamped.x / uTileSize,
-        (uTileSize - localClamped.y) / uTileSize   // flip Y
-    );
-
-    // 7) Stable LOD: gradients from the continuous coords, scaled to layer UV space
-    vec2 dUVdx = (dFdx(contTexel) / uTileSize) * vec2(1.0, -1.0);
-    vec2 dUVdy = (dFdy(contTexel) / uTileSize) * vec2(1.0, -1.0);
-
-    // 8) Sample the tile layer
-    FragColor = textureGrad(uTileArray, vec3(layerUV, float(tileIndex)), dUVdx, dUVdy);
-}
-  """
-
-  # Compile shader
+  # Compile shader via shady
   tileMap.shader = newShader(
-    ("vertex", vertexShaderSource),
-    ("fragment", fragmentShaderSource)
+    ("tileVert", toGLSL(tileVert, "410", "")),
+    ("tileFrag", toGLSL(tileFrag, "410", ""))
   )
 
   # Quad vertices (position + texture coordinates)
@@ -292,27 +263,29 @@ void main()
   glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, tileMap.EBO)
   glBufferData(GL_ELEMENT_ARRAY_BUFFER, tileMap.quadIndices.len * sizeof(uint32), tileMap.quadIndices[0].addr, GL_STATIC_DRAW)
 
-  # Position attribute
-  glVertexAttribPointer(
-    0,
-    2,
-    cGL_FLOAT,
-    GL_FALSE,
-    4 * sizeof(float32),
-    cast[pointer](0)
-  )
-  glEnableVertexAttribArray(0)
-
-  # Texture coordinate attribute
-  glVertexAttribPointer(
-    1,
-    2,
-    cGL_FLOAT,
-    GL_FALSE,
-    4 * sizeof(float32),
-    cast[pointer](2 * sizeof(float32))
-  )
-  glEnableVertexAttribArray(1)
+  # Bind attributes by name since shady doesn't emit layout locations
+  let locPos = glGetAttribLocation(tileMap.shader.programId, "aPos")
+  if locPos >= 0:
+    glVertexAttribPointer(
+      locPos.GLuint,
+      2,
+      cGL_FLOAT,
+      GL_FALSE,
+      4 * sizeof(float32),
+      cast[pointer](0)
+    )
+    glEnableVertexAttribArray(locPos.GLuint)
+  let locUV = glGetAttribLocation(tileMap.shader.programId, "aTexCoord")
+  if locUV >= 0:
+    glVertexAttribPointer(
+      locUV.GLuint,
+      2,
+      cGL_FLOAT,
+      GL_FALSE,
+      4 * sizeof(float32),
+      cast[pointer](2 * sizeof(float32))
+    )
+    glEnableVertexAttribArray(locUV.GLuint)
 
 proc draw*(
   tileMap: TileMap,

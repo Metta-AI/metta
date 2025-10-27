@@ -31,8 +31,6 @@ type
     instanceCount: int
 
 var
-  gl_Position*: Vec4
-  gl_VertexID*: uint32
   uMVP: Uniform[Mat4]
   uAtlasSize: Uniform[Vec2]
   uAtlas: Uniform[Sampler2d]
