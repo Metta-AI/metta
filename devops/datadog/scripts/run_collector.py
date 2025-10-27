@@ -181,9 +181,8 @@ def push_metrics_to_datadog(metrics: dict, source_tag: str, extra_tags: list[str
     # Create client
     client = DatadogClient(api_key=api_key, app_key=app_key, site=site)
 
-    # Format metrics with environment tag from DD_ENV
-    env = os.getenv("DD_ENV", "production")
-    base_tags = [f"source:{source_tag}", f"env:{env}"]
+    # Format metrics
+    base_tags = [f"source:{source_tag}", "env:production"]
     if extra_tags:
         base_tags.extend(extra_tags)
 
