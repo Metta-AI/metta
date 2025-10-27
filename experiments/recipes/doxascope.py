@@ -42,4 +42,5 @@ def evaluate(
     return EvaluateTool(
         simulations=all_sim_configs,
         policy_uris=[policy_uri],
+        stats_dir="/tmp/stats",
     )
