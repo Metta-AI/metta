@@ -98,6 +98,10 @@ class ExtractorInfo:
         """Check if extractor is likely depleted."""
         return self.estimated_uses_left <= 0.05
 
+    def is_low(self, depletion_threshold: float) -> bool:
+        """Check if extractor is running low (below threshold, should find backup)."""
+        return self.estimated_uses_left <= depletion_threshold
+
     def avg_output(self) -> float:
         """Average output per use."""
         if self.total_harvests == 0:
@@ -172,13 +176,20 @@ class ExtractorMemory:
             else:
                 efficiency_score = 0.5  # Neutral if unknown
 
+            # Depletion penalty: Prefer extractors that aren't running low
+            if e.is_low(hyperparams.depletion_threshold):
+                depletion_penalty = 0.5  # Penalize low extractors (should find backups)
+            else:
+                depletion_penalty = 1.0  # No penalty
+
             # Combine with weights
             if hyperparams.prefer_nearby:
                 total_score = (
-                    1.0 - hyperparams.efficiency_weight
-                ) * distance_score + hyperparams.efficiency_weight * efficiency_score
+                    (1.0 - hyperparams.efficiency_weight) * distance_score
+                    + hyperparams.efficiency_weight * efficiency_score
+                ) * depletion_penalty
             else:
-                total_score = efficiency_score  # Only consider efficiency
+                total_score = efficiency_score * depletion_penalty  # Only consider efficiency
 
             return total_score
 
@@ -452,16 +463,13 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
             if state.energy < 15:
                 energy_needed = distance  # No buffer when desperate
             else:
-                energy_needed = distance + 5  # Small buffer when comfortable
+                energy_needed = distance + self.hyperparams.energy_buffer // 4  # Use configured buffer
         else:
             # For gathering: outbound + task + return
             # With passive regen, net cost per step is ~1
-            # Use minimal buffer for high-energy tasks (silicon)
+            # Use configured energy buffer
             net_travel_cost = (distance * 2) * 1  # Round trip
-            if task_energy >= 50:  # Silicon
-                buffer = 5  # Minimal buffer, trust regen on return
-            else:
-                buffer = max(5, min(15, distance // 2))  # Modest buffer
+            buffer = self.hyperparams.energy_buffer
             energy_needed = net_travel_cost + task_energy + buffer
 
         return state.energy >= energy_needed
@@ -559,11 +567,16 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
                     cooldown_time = self.cooldown_remaining(nearest_cooldown, state.step_count)
 
                     # If cooldown is reasonable, wait near it
-                    if cooldown_time <= self.hyperparams.max_cooldown_wait:
+                    # Use cooldown_tolerance for quick decision, max_cooldown_wait for max patience
+                    should_wait = cooldown_time <= min(
+                        self.hyperparams.cooldown_tolerance, self.hyperparams.max_cooldown_wait
+                    )
+                    if should_wait:
                         # Phase 3: Check if we're already waiting at this position
                         if state.wait_target == nearest_cooldown.position:
                             wait_duration = state.step_count - state.waiting_since_step
-                            if wait_duration >= cooldown_time:
+                            # Also check max_wait_turns to avoid waiting forever
+                            if wait_duration >= cooldown_time or wait_duration >= self.hyperparams.max_wait_turns:
                                 # Waited long enough, should be available now - try again
                                 logger.info(
                                     f"[Phase3] Finished waiting {wait_duration} turns, "
@@ -815,10 +828,12 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
 
         germ_needed = 5 if state.hearts_assembled == 0 else max(2, 5 - state.hearts_assembled)
 
-        # Recharge hysteresis
+        # Recharge hysteresis - use dynamic thresholds and charger_search_threshold
         if state.current_phase == GamePhase.RECHARGE and state.energy < self.RECHARGE_STOP:
             return GamePhase.RECHARGE
-        if state.energy < self.RECHARGE_START:
+        # Use charger_search_threshold hyperparameter (overrides RECHARGE_START if lower)
+        recharge_threshold = min(self.RECHARGE_START, self.hyperparams.charger_search_threshold)
+        if state.energy < recharge_threshold:
             return GamePhase.RECHARGE
 
         # Check if we have all resources for assembly (or 3/4 if one is blacklisted)
@@ -940,7 +955,12 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
         needed_resources = []
         if state.germanium < germ_needed and "germanium" not in state.unobtainable_resources:
             needed_resources.append(("germanium", germ_needed - state.germanium, GamePhase.GATHER_GERMANIUM))
-        if state.silicon < self.SILICON_REQ and "silicon" not in state.unobtainable_resources:
+        # Silicon requires high energy - check min_energy_for_silicon hyperparameter
+        if (
+            state.silicon < self.SILICON_REQ
+            and "silicon" not in state.unobtainable_resources
+            and state.energy >= self.hyperparams.min_energy_for_silicon
+        ):
             needed_resources.append(("silicon", self.SILICON_REQ - state.silicon, GamePhase.GATHER_SILICON))
         if state.carbon < self.CARBON_REQ and "carbon" not in state.unobtainable_resources:
             needed_resources.append(("carbon", self.CARBON_REQ - state.carbon, GamePhase.GATHER_CARBON))
@@ -1128,6 +1148,7 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
         """Pick the nearest frontier by BFS distance over known-free cells.
 
         Phase 3: If critical stations not discovered, bias toward spawn area first, then map center.
+        Uses exploration_strategy hyperparameter to choose between frontier/levy/mixed.
         """
         if state.agent_row < 0:
             return None
@@ -1136,6 +1157,19 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
         fronts = set(self._compute_frontiers())
         if not fronts:
             return None
+
+        # Filter frontiers by exploration_radius if configured
+        if self.hyperparams.exploration_radius > 0:
+            # Filter to frontiers within radius of home base (if known) or current position
+            center = (state.home_base_row, state.home_base_col) if state.home_base_row >= 0 else start
+            fronts = {
+                (r, c)
+                for r, c in fronts
+                if abs(r - center[0]) + abs(c - center[1]) <= self.hyperparams.exploration_radius
+            }
+            if not fronts:
+                # If all frontiers filtered out, expand radius temporarily
+                fronts = set(self._compute_frontiers())
 
         # Phase 3: If critical stations not found, prioritize spawn area FIRST
         if not state.assembler_discovered or not state.chest_discovered:
@@ -1206,7 +1240,25 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
                     logger.debug(f"[Phase3] Center-biased frontier: {best_frontier} (score={best_score:.2f})")
                     return best_frontier
 
-        # Default: Pick nearest frontier by BFS (original logic)
+        # Use exploration_strategy to choose frontier selection method
+        strategy = self.hyperparams.exploration_strategy
+
+        if strategy == "levy":
+            # Lévy flight: Prefer distant frontiers with power-law distribution
+            return self._choose_frontier_levy(start, fronts)
+        elif strategy == "mixed":
+            # Mixed: Alternate between frontier (systematic) and levy (exploratory)
+            # Use step count to alternate
+            if state.step_count % 100 < 50:
+                return self._choose_frontier_bfs(start, fronts)
+            else:
+                return self._choose_frontier_levy(start, fronts)
+        else:  # "frontier" or default
+            # BFS: Pick nearest frontier (systematic exploration)
+            return self._choose_frontier_bfs(start, fronts)
+
+    def _choose_frontier_bfs(self, start: Tuple[int, int], fronts: Set[Tuple[int, int]]) -> Optional[Tuple[int, int]]:
+        """Pick nearest frontier by BFS distance (systematic exploration)."""
         q = deque([start])
         seen = {start}
         while q:
@@ -1224,6 +1276,41 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
                 seen.add((nr, nc))
                 q.append((nr, nc))
         return None
+
+    def _choose_frontier_levy(self, start: Tuple[int, int], fronts: Set[Tuple[int, int]]) -> Optional[Tuple[int, int]]:
+        """Pick frontier using Lévy flight distribution (exploratory, long jumps)."""
+        import random
+
+        if not fronts:
+            return None
+
+        # Calculate distances to all frontiers
+        frontier_list = list(fronts)
+        distances = [abs(f[0] - start[0]) + abs(f[1] - start[1]) for f in frontier_list]
+
+        if not distances:
+            return None
+
+        # Lévy flight: probability ~ distance^(-alpha)
+        # Higher alpha = prefer closer, lower alpha = more long jumps
+        alpha = self.hyperparams.levy_alpha
+
+        # Calculate weights (avoid division by zero)
+        weights = [(d + 1) ** (-alpha) for d in distances]
+        total_weight = sum(weights)
+
+        if total_weight == 0:
+            return random.choice(frontier_list)
+
+        # Weighted random selection
+        r = random.random() * total_weight
+        cumulative = 0
+        for i, w in enumerate(weights):
+            cumulative += w
+            if r <= cumulative:
+                return frontier_list[i]
+
+        return frontier_list[-1]  # Fallback
 
     def _compute_frontiers(self) -> List[Tuple[int, int]]:
         """Unknown cells that are 4-adjacent to a known free cell."""
