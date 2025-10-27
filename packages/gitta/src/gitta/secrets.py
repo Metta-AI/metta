@@ -1,7 +1,7 @@
-"""Optional AWS Secrets Manager integration for API keys and tokens.
+"""AWS Secrets Manager integration for API keys and tokens.
 
 This module provides fallback to AWS Secrets Manager when environment variables
-are not set. AWS support is optional - boto3 is not required for gitta to work.
+are not set.
 
 Example usage:
     # Basic usage - try env var, then AWS, return None if not found
