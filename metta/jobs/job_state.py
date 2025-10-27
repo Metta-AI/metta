@@ -8,7 +8,7 @@ from sqlmodel import Column, Field, SQLModel
 
 from metta.jobs.job_config import JobConfig
 
-JobStatus = Literal["pending", "running", "completed", "failed", "cancelled"]
+JobStatus = Literal["pending", "running", "completed"]
 
 
 class JobState(SQLModel, table=True):
@@ -39,7 +39,8 @@ class JobState(SQLModel, table=True):
 
     # Runtime state
     status: str = Field(default="pending")
-    job_id: Optional[str] = None
+    request_id: Optional[str] = None  # SkyPilot request ID (remote jobs only)
+    job_id: Optional[str] = None  # SkyPilot job ID or local PID
     started_at: Optional[str] = None
     completed_at: Optional[str] = None
 

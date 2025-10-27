@@ -1,11 +1,15 @@
 """Job manager with worker pool, queue, and persistence."""
 
+import logging
+import os
+import threading
 import time
 from datetime import datetime
 from pathlib import Path
 
 from sqlmodel import Session, SQLModel, create_engine, select
 
+from devops.skypilot.utils.job_helpers import check_job_statuses
 from metta.jobs.job_config import JobConfig
 from metta.jobs.job_metrics import (
     extract_checkpoint_path,
@@ -15,6 +19,8 @@ from metta.jobs.job_metrics import (
 )
 from metta.jobs.job_runner import LocalJob, RemoteJob
 from metta.jobs.job_state import JobState, JobStatus
+
+logger = logging.getLogger(__name__)
 
 
 class JobManager:
@@ -50,11 +56,127 @@ class JobManager:
         self.max_remote_jobs = max_remote_jobs
         self._active_jobs: dict[str, LocalJob | RemoteJob] = {}
         self._init_db()
+        self._validate_job_states()
 
     def _init_db(self) -> None:
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
         self._engine = create_engine(f"sqlite:///{self.db_path}")
         SQLModel.metadata.create_all(self._engine)
+
+    def _validate_job_states(self) -> None:
+        """Validate and update status of all running jobs on startup.
+
+        Synchronously validates local jobs (fast PID checks).
+        Asynchronously validates remote jobs (slow SkyPilot API calls).
+
+        Local jobs: Check if PID exists, mark stale ones as completed.
+        Remote jobs: Query SkyPilot for actual status in background thread.
+        """
+        with Session(self._engine) as session:
+            running_jobs = session.exec(select(JobState).where(JobState.status == "running")).all()
+
+            local_stale_count = 0
+            remote_jobs = []
+
+            for job_state in running_jobs:
+                is_remote = job_state.config.remote is not None
+
+                if not is_remote:
+                    # Validate local jobs synchronously (fast)
+                    if job_state.job_id:
+                        try:
+                            pid = int(job_state.job_id)
+                            # Send signal 0 to check if process exists
+                            os.kill(pid, 0)
+                            # Process exists, leave it alone
+                            continue
+                        except (ValueError, OSError, ProcessLookupError):
+                            # Process doesn't exist - mark as stale
+                            pass
+
+                    # Mark stale local job as completed with abnormal termination
+                    job_state.status = "completed"
+                    job_state.exit_code = -1  # Abnormal termination
+                    job_state.completed_at = datetime.utcnow().isoformat(timespec="seconds")
+                    session.add(job_state)
+                    local_stale_count += 1
+                else:
+                    # Collect remote jobs for async validation
+                    remote_jobs.append((job_state.name, job_state.job_id))
+
+            session.commit()
+
+            if local_stale_count > 0:
+                logger.info(f"Cleaned up {local_stale_count} stale local job(s)")
+
+        # Start background validation for remote jobs
+        if remote_jobs:
+            logger.info(f"Validating {len(remote_jobs)} remote job(s) in background...")
+            thread = threading.Thread(
+                target=self._validate_remote_jobs_async,
+                args=(remote_jobs,),
+                daemon=True,
+            )
+            thread.start()
+
+    def _validate_remote_jobs_async(self, remote_jobs: list[tuple[str, str | None]]) -> None:
+        """Validate remote job statuses via SkyPilot API (runs in background thread).
+
+        Queries SkyPilot for actual job status and updates DB accordingly.
+        This is slow (API calls) so we run it asynchronously to not block startup.
+
+        Args:
+            remote_jobs: List of (job_name, job_id) tuples to validate
+        """
+        # Extract job IDs (skip jobs without IDs)
+        job_ids = []
+        job_id_to_name = {}
+        for job_name, job_id in remote_jobs:
+            if job_id:
+                try:
+                    job_id_int = int(job_id)
+                    job_ids.append(job_id_int)
+                    job_id_to_name[job_id_int] = job_name
+                except ValueError:
+                    pass
+
+        if not job_ids:
+            return
+
+        try:
+            # Query SkyPilot for job statuses (can be slow)
+            statuses = check_job_statuses(job_ids)
+
+            # Update DB with actual statuses
+            with Session(self._engine) as session:
+                for job_id, status in statuses.items():
+                    job_name = job_id_to_name.get(job_id)
+                    if not job_name:
+                        continue
+
+                    job_state = session.get(JobState, job_name)
+                    if not job_state or job_state.status != "running":
+                        continue
+
+                    # Update based on SkyPilot status
+                    if status in ("SUCCEEDED", "FAILED", "CANCELLED"):
+                        job_state.status = "completed"
+                        if status == "SUCCEEDED":
+                            job_state.exit_code = 0
+                        elif status == "CANCELLED":
+                            job_state.exit_code = 130  # User cancelled
+                        else:
+                            job_state.exit_code = 1  # Failed
+                        job_state.completed_at = datetime.utcnow().isoformat(timespec="seconds")
+                        session.add(job_state)
+                        logger.info(f"Remote job {job_name} updated: {status}")
+                    # If RUNNING or PENDING, leave as-is in DB
+
+                session.commit()
+
+        except Exception as e:
+            # Don't crash on validation errors - just log
+            logger.warning(f"Remote job validation failed: {e}")
 
     def submit(self, config: JobConfig) -> None:
         """Submit job to queue, starting immediately if worker slot available."""
@@ -105,14 +227,36 @@ class JobManager:
         config = job_state.config
         log_dir = str(self.log_dir)
         if config.remote is None:
-            return LocalJob(config, log_dir)
+            job = LocalJob(config, log_dir)
+            # Submit local job and capture PID
+            job.submit()
+            if hasattr(job, "_proc") and job._proc:
+                job_state.job_id = str(job._proc.pid)
+            return job
         else:
             job_id = int(job_state.job_id) if job_state.job_id else None
-            return RemoteJob(config, log_dir, job_id=job_id)
+            job = RemoteJob(config, log_dir, job_id=job_id)
+            # Submit remote job and capture request_id
+            job.submit()
+            if hasattr(job, "_request_id") and job._request_id:
+                job_state.request_id = job._request_id
+            if hasattr(job, "_job_id") and job._job_id:
+                job_state.job_id = str(job._job_id)
+            return job
 
     def poll(self) -> list[str]:
         """Check running jobs for completion, start pending jobs, return completed names."""
         completed = []
+
+        # Update job_id for remote jobs as they become available
+        with Session(self._engine) as session:
+            for name, job in list(self._active_jobs.items()):
+                if isinstance(job, RemoteJob):
+                    job_state = session.get(JobState, name)
+                    if job_state and hasattr(job, "_job_id") and job._job_id and not job_state.job_id:
+                        job_state.job_id = str(job._job_id)
+                        session.add(job_state)
+            session.commit()
 
         for name, job in list(self._active_jobs.items()):
             if job.is_complete():
@@ -221,7 +365,22 @@ class JobManager:
                 session.expunge(job)
             return {job.name: job for job in all_jobs}
 
-    def cancel_group(self, group: str) -> int:
+    def cancel_group(self, group: str, local_only: bool = False) -> int:
+        """Cancel jobs in a group.
+
+        This actually calls job.cancel() to stop jobs:
+        - Local jobs: Kills process via SIGTERM/SIGKILL
+        - Remote jobs: Cancels job on SkyPilot cluster (if local_only=False)
+
+        Cancelled jobs are marked as "completed" with exit_code=130 (SIGINT).
+
+        Args:
+            group: Group name to cancel
+            local_only: If True, only cancel local jobs (leave remote jobs running)
+
+        Returns:
+            Number of jobs cancelled
+        """
         count = 0
         with Session(self._engine) as session:
             all_jobs = session.exec(select(JobState)).all()
@@ -229,11 +388,23 @@ class JobManager:
 
             for job_state in group_jobs:
                 if job_state.status in ("pending", "running"):
+                    is_remote = job_state.config.remote is not None
+
+                    # Skip remote jobs if local_only
+                    if local_only and is_remote:
+                        continue
+
+                    # Cancel the job if it's active
                     if job_state.name in self._active_jobs:
                         job = self._active_jobs[job_state.name]
                         job.cancel()
                         del self._active_jobs[job_state.name]
-                    job_state.status = "cancelled"
+
+                    # Mark as completed with SIGINT exit code
+                    job_state.status = "completed"
+                    job_state.exit_code = 130  # Standard exit code for SIGINT/user cancel
+                    job_state.completed_at = datetime.utcnow().isoformat(timespec="seconds")
+
                     session.add(job_state)
                     count += 1
 
