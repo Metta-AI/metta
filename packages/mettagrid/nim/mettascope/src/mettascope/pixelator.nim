@@ -1,6 +1,6 @@
 import
   std/[os, json, strutils, tables],
-  pixie, opengl, boxy/shaders, boxy/allocator, jsony
+  pixie, opengl, boxy/[shaders, allocator], jsony
 
 # This file specifically deals with the pixel atlas texture.
 # It supports pixel art style drawing with pixel perfect AA sampling.
@@ -8,16 +8,19 @@ import
 
 type
   Entry* = object
+    ## The position and size of a sprite in the atlas.
     x*: int
     y*: int
     width*: int
     height*: int
 
   PixelAtlas* = ref object
+    ## The pixel atlas that gets converted to JSON.
     size*: int
     entries*: Table[string, Entry]
 
   Pixelator* = ref object
+    ## The pixelator that draws the AA pixel art sprites.
     atlas: PixelAtlas
     image: Image
     shader: Shader
@@ -51,9 +54,11 @@ proc generatePixelAtlas*(
             OverwriteBlend
           )
         else:
-          echo "Failed to allocate space for ", file.path
-          echo "You need to increase the size of the atlas"
-          quit(1)
+          raise newException(
+            ValueError,
+            "Failed to allocate space for " & file.path & "\n" &
+            "You need to increase the size of the atlas"
+          )
         let entry = Entry(
           x: allocation.x,
           y: allocation.y,
