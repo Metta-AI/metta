@@ -1,10 +1,11 @@
 from __future__ import annotations
 
+import json
 import shutil
 import sys
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
 
 import boto3
 from botocore.exceptions import BotoCoreError, ClientError
@@ -45,6 +46,7 @@ class PrSimilaritySetup(SetupModule):
         self._install_mcp_package(force)
         self._configure_claude(api_key=api_key, force=force)
         self._configure_codex(api_key=api_key)
+        self._configure_cursor(api_key=api_key)
 
     def _fetch_gemini_api_key(self) -> Optional[str]:
         secret_name = "GEMINI-API-KEY"
@@ -210,3 +212,81 @@ class PrSimilaritySetup(SetupModule):
             warning(
                 f"Failed to configure Codex MCP server 'metta-pr-similarity'. {error}",
             )
+
+    def _configure_cursor(self, *, api_key: Optional[str]) -> None:
+        if not api_key:
+            warning("Skipping Cursor MCP registration: no GEMINI API key available from Secrets Manager.")
+            return
+
+        command_path = shutil.which("metta-pr-similarity-mcp")
+        if not command_path:
+            warning(
+                "Unable to locate 'metta-pr-similarity-mcp' on PATH. "
+                "Install the MCP package before configuring Cursor.",
+            )
+            return
+
+        cursor_root = Path.home() / ".cursor"
+        if not cursor_root.exists():
+            debug("Cursor directory not found. Skipping Cursor MCP configuration.")
+            return
+        config_path = cursor_root / "mcp.json"
+
+        raw_config = ""
+        if config_path.exists():
+            try:
+                raw_config = config_path.read_text(encoding="utf-8")
+            except Exception as error:
+                warning(f"Unable to read Cursor MCP configuration: {error}")
+                return
+
+        config_data: dict[str, Any] = {}
+        if raw_config.strip():
+            try:
+                parsed = json.loads(raw_config)
+            except json.JSONDecodeError as error:
+                warning(f"Cursor MCP configuration is not valid JSON: {error}")
+                return
+            if isinstance(parsed, dict):
+                config_data = parsed
+            else:
+                warning("Cursor MCP configuration has unexpected structure; leaving it unchanged.")
+                return
+
+        servers = config_data.get("mcpServers")
+        if not isinstance(servers, dict):
+            servers = {}
+        config_data["mcpServers"] = servers
+
+        existing_entry = servers.get("metta-pr-similarity")
+        entry: dict[str, Any]
+        if isinstance(existing_entry, dict):
+            entry = dict(existing_entry)
+        else:
+            entry = {}
+
+        entry["command"] = command_path
+        entry["type"] = "stdio"
+        entry["name"] = "metta-pr-similarity"
+        entry["alwaysAllow"] = True
+        args = entry.get("args")
+        if not isinstance(args, list):
+            args = []
+        entry["args"] = args
+
+        env: dict[str, str]
+        existing_env = entry.get("env")
+        if isinstance(existing_env, dict):
+            env = {str(key): str(value) for key, value in existing_env.items()}
+        else:
+            env = {}
+        env["GEMINI_API_KEY"] = api_key
+        entry["env"] = env
+
+        servers["metta-pr-similarity"] = entry
+
+        try:
+            config_path.write_text(json.dumps(config_data, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+            info("Configured Cursor MCP server 'metta-pr-similarity'.")
+        except Exception as error:
+            warning(f"Failed to write Cursor MCP configuration: {error}")
