@@ -242,7 +242,7 @@ def report_failures(summaries: Sequence[PackageSummary]) -> dict[str, list[TestF
         command_text = _format_rerun_command(unique_targets)
         info("Re-run locally:", indent=4)
         for line in command_text.splitlines():
-            info(escape(line), indent=6, no_wrap=True)
+            info(escape(line), indent=6, no_wrap=True, overflow="ignore")
     return failure_map
 
 
