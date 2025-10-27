@@ -1,13 +1,15 @@
 import tables,pixie
 
-let blob7x7 = readImage("tools/blob7x7.png")
+# This file reads the blob7x7.png and computes the adjacency tile mapping.
+
+let blob7x7 = readImage("tools/blob7x7plain.png")
 
 let ts = 64
 
-
-var patternToTile = newTable[int, int]()
+var patternToTile = newSeq[int](256)
 for y in 0 ..< 7:
   for x in 0 ..< 7:
+    # First we look at each tile and figure out which neighbors it should have.
     let tileNum = x + y * 7
     echo "looking at tile: ", tileNum
     let nw = blob7x7[x * ts, y * ts].r == 255
@@ -41,6 +43,8 @@ for y in 0 ..< 7:
     patternToTile[pattern] = tileNum
 
 for pattern in 0 ..< 256:
+  # We map dump power of 8 patterns to blob 47 patterns that ignore the corners
+  # when edges are connected.
   echo "pattern: ", pattern
   var
     nw = (pattern and 1) == 1
@@ -79,7 +83,4 @@ for pattern in 0 ..< 256:
   patternToTile[pattern] = patternToTile[newPattern]
   echo "  tile: ", patternToTile[pattern]
 
-var arr = newSeq[int](256)
-for pattern in 0 ..< 256:
-  arr[pattern] = patternToTile[pattern]
-echo "arr: ", arr
+echo "patternToTile: ", patternToTile

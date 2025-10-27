@@ -2,17 +2,26 @@ import {
   createSafeActionClient,
   DEFAULT_SERVER_ERROR_MESSAGE,
 } from "next-safe-action";
-
-export class ActionError extends Error {}
+import { isAppError, getUserMessage } from "./errors";
+import { config } from "./config";
+import { Logger } from "./logging/logger";
 
 export const actionClient = createSafeActionClient({
   handleServerError(e) {
-    console.error("Action error:", e.message);
+    // Log the error
+    Logger.error("Server Action Error", e);
 
-    if (e instanceof ActionError) {
+    // Handle our custom AppError instances
+    if (isAppError(e)) {
       return e.message;
     }
 
-    return DEFAULT_SERVER_ERROR_MESSAGE;
+    // For unexpected errors, return generic message in production
+    if (config.nodeEnv === "production") {
+      return DEFAULT_SERVER_ERROR_MESSAGE;
+    }
+
+    // In development, show actual error message
+    return getUserMessage(e);
   },
 });

@@ -33,7 +33,7 @@ class CvCWallConfig(CvCStationConfig):
     type: Literal["wall"] = Field(default="wall")
 
     def station_cfg(self) -> WallConfig:
-        return WallConfig(name="wall", type_id=1, map_char="#", render_symbol=VIBE_BY_NAME["wall"].symbol)
+        return WallConfig(name="wall", map_char="#", render_symbol=VIBE_BY_NAME["wall"].symbol)
 
 
 class ExtractorConfig(CvCStationConfig):
@@ -49,7 +49,6 @@ class ChargerConfig(ExtractorConfig):
     def station_cfg(self) -> AssemblerConfig:
         return AssemblerConfig(
             name="charger",
-            type_id=5,
             map_char="+",
             render_symbol=VIBE_BY_NAME["charger"].symbol,
             # Protocols
@@ -77,7 +76,6 @@ class CarbonExtractorConfig(ExtractorConfig):
     def station_cfg(self) -> AssemblerConfig:
         return AssemblerConfig(
             name=self.type,
-            type_id=2,
             map_char="C",
             render_symbol=VIBE_BY_NAME["carbon"].symbol,
             # Protocols
@@ -105,7 +103,6 @@ class OxygenExtractorConfig(ExtractorConfig):
     def station_cfg(self) -> AssemblerConfig:
         return AssemblerConfig(
             name="oxygen_extractor",
-            type_id=3,
             map_char="O",
             render_symbol=VIBE_BY_NAME["oxygen"].symbol,
             # Protocols
@@ -135,7 +132,6 @@ class GermaniumExtractorConfig(ExtractorConfig):
     def station_cfg(self) -> AssemblerConfig:
         return AssemblerConfig(
             name="germanium_extractor",
-            type_id=4,
             map_char="G",
             render_symbol=vibes.VIBE_BY_NAME["germanium"].symbol,
             # Protocols
@@ -165,7 +161,6 @@ class SiliconExtractorConfig(ExtractorConfig):
     def station_cfg(self) -> AssemblerConfig:
         return AssemblerConfig(
             name="silicon_extractor",
-            type_id=15,
             map_char="S",
             render_symbol=vibes.VIBE_BY_NAME["silicon"].symbol,
             # Protocols
@@ -192,7 +187,6 @@ class CvCChestConfig(CvCStationConfig):
     def station_cfg(self) -> ChestConfig:
         return ChestConfig(
             name=self.type,
-            type_id=18,
             map_char="C",
             render_symbol=vibes.VIBE_BY_NAME["chest"].symbol,
             resource_type=self.default_resource,
@@ -202,12 +196,12 @@ class CvCChestConfig(CvCStationConfig):
 
 class CvCAssemblerConfig(CvCStationConfig):
     type: Literal["assembler"] = Field(default="assembler")
+    heart_cost: int = Field(default=10)
 
     def station_cfg(self) -> AssemblerConfig:
         gear = [("oxygen", "modulator"), ("germanium", "scrambler"), ("silicon", "resonator"), ("carbon", "decoder")]
         return AssemblerConfig(
             name=self.type,
-            type_id=8,
             map_char="&",
             render_symbol=vibes.VIBE_BY_NAME["assembler"].symbol,
             clip_immune=True,
@@ -215,7 +209,13 @@ class CvCAssemblerConfig(CvCStationConfig):
                 (
                     ["heart"] * (i + 1),
                     ProtocolConfig(
-                        input_resources={"carbon": 20, "oxygen": 20, "germanium": 5 - i, "silicon": 50, "energy": 20},
+                        input_resources={
+                            "carbon": self.heart_cost * 2,
+                            "oxygen": self.heart_cost * 2,
+                            "germanium": max(self.heart_cost // 2 - i, 1),
+                            "silicon": self.heart_cost * 5,
+                            "energy": self.heart_cost * 2,
+                        },
                         output_resources={"heart": 1},
                     ),
                 )

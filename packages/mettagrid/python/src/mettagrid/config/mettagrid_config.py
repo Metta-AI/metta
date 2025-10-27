@@ -123,10 +123,24 @@ class GlobalObsConfig(Config):
 
 
 class GridObjectConfig(Config):
-    """Base configuration for all grid objects."""
+    """Base configuration for all grid objects.
+
+    Type IDs are automatically assigned if not explicitly provided. Auto-assignment
+    is deterministic (sorted by object name) and fills gaps in the 1-255 range.
+    Type ID 0 is reserved for agents.
+
+    Explicit type_ids are optional and primarily useful for:
+    - Ensuring stable IDs across config changes
+    - Matching specific C++ expectations
+    - Debugging and development
+
+    In most cases, omit type_id and let the system auto-assign.
+    """
 
     name: str = Field(default="", description="Object name (used for identification)")
-    type_id: int = Field(ge=0, le=255, description="Numeric type ID for C++ runtime")
+    type_id: Optional[int] = Field(
+        default=None, ge=0, le=255, description="Numeric type ID for C++ runtime (auto-assigned if None)"
+    )
     map_char: str = Field(default="?", description="Character used in ASCII maps")
     render_symbol: str = Field(default="❓", description="Symbol used for rendering (e.g., emoji)")
     tags: list[str] = Field(default_factory=list, description="Tags for this object instance")
@@ -271,7 +285,13 @@ AnyGridObjectConfig = SerializeAsAny[
 
 
 class GameConfig(Config):
-    """Python game configuration."""
+    """Python game configuration.
+
+    Note: Type IDs are automatically assigned during validation when the GameConfig
+    is constructed. If you need to add objects after construction, create a new
+    GameConfig instance rather than modifying the objects dict post-construction,
+    as type_id assignment only happens at validation time.
+    """
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
@@ -303,6 +323,7 @@ class GameConfig(Config):
     actions: ActionsConfig = Field(default_factory=lambda: ActionsConfig(noop=ActionConfig()))
     global_obs: GlobalObsConfig = Field(default_factory=GlobalObsConfig)
     objects: dict[str, AnyGridObjectConfig] = Field(default_factory=dict)
+    resolved_type_ids: dict[str, int] = Field(default_factory=dict, exclude=True)
     # these are not used in the C++ code, but we allow them to be set for other uses.
     # E.g., templates can use params as a place where values are expected to be written,
     # and other parts of the template can read from there.
@@ -331,6 +352,60 @@ class GameConfig(Config):
     allow_diagonals: bool = Field(default=False, description="Enable actions to be aware of diagonal orientations")
 
     reward_estimates: Optional[dict[str, float]] = Field(default=None)
+
+    @model_validator(mode="after")
+    def _assign_type_ids(self) -> "GameConfig":
+        self._resolve_object_type_ids()
+        return self
+
+    def _resolve_object_type_ids(self) -> None:
+        resolved: dict[str, int] = {}
+        if not self.objects:
+            self.resolved_type_ids = resolved
+            return
+
+        sorted_objects = sorted(self.objects.items(), key=lambda item: item[0])
+        used_ids: set[int] = {0}
+
+        for object_name, object_config in sorted_objects:
+            if not object_config.name:
+                object_config.name = object_name
+
+            if object_config.type_id is None:
+                continue
+
+            if object_config.type_id == 0:
+                raise ValueError("type_id 0 is reserved for agents and cannot be assigned to objects")
+
+            if object_config.type_id in used_ids:
+                raise ValueError(f"Duplicate type_id {object_config.type_id} found for object '{object_name}'")
+
+            used_ids.add(object_config.type_id)
+            resolved[object_name] = object_config.type_id
+
+        next_candidate = 1
+        for object_name, object_config in sorted_objects:
+            if object_config.type_id is not None:
+                continue
+
+            while next_candidate in used_ids:
+                next_candidate += 1
+
+            if next_candidate > 255:
+                raise ValueError("Too many object types configured; auto-generated type_id exceeds uint8 range")
+
+            object_config.type_id = next_candidate
+            used_ids.add(next_candidate)
+            resolved[object_name] = next_candidate
+            next_candidate += 1
+
+        self.resolved_type_ids = resolved
+
+    def resolved_type_id(self, object_name: str) -> int:
+        self._resolve_object_type_ids()
+        if object_name not in self.resolved_type_ids:
+            raise KeyError(f"No object named '{object_name}' is registered")
+        return self.resolved_type_ids[object_name]
 
 
 class MettaGridConfig(Config):
@@ -362,7 +437,7 @@ class MettaGridConfig(Config):
         )
         objects = {}
         if border_width > 0 or with_walls:
-            objects["wall"] = WallConfig(name="wall", type_id=1, map_char="#", render_symbol="⬛", swappable=False)
+            objects["wall"] = WallConfig(name="wall", map_char="#", render_symbol="⬛", swappable=False)
         return MettaGridConfig(
             game=GameConfig(map_builder=map_builder, actions=actions, num_agents=num_agents, objects=objects)
         )

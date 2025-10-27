@@ -19,7 +19,6 @@ class TestAssemblerPartialUsage:
 
         # Configure assembler with partial usage disabled
         cfg.game.objects["assembler"] = AssemblerConfig(
-            type_id=20,
             name="assembler",
             map_char="Z",
             recipes=[([], ProtocolConfig(input_resources={"iron": 10}, output_resources={"steel": 5}, cooldown=10))],
@@ -83,7 +82,6 @@ class TestAssemblerPartialUsage:
 
         # Recipe: 20 iron -> 10 steel, 100 tick cooldown
         cfg.game.objects["assembler"] = AssemblerConfig(
-            type_id=20,
             name="assembler",
             map_char="Z",
             recipes=[([], ProtocolConfig(input_resources={"iron": 20}, output_resources={"steel": 10}, cooldown=100))],
