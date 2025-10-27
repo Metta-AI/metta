@@ -41,7 +41,7 @@ class ConcreteTestTask(Task):
 
     def __init__(self, name: str, exit_code: int = 0, job_id: str | None = None):
         # Create minimal JobConfig for testing
-        job_config = JobConfig(name=name, module="test", execution="local")
+        job_config = JobConfig(name=name, module="test")  # remote=None (default) = local
         super().__init__(job_config)
         self._exit_code = exit_code
         self._job_id = job_id
@@ -60,7 +60,7 @@ class ConcreteTrainingTask(TrainingTask):
 
     def __init__(self, name: str, logs: str = "", exit_code: int = 0, **kwargs):
         # Create JobConfig from args
-        job_config = JobConfig(name=name, module="fake.module", execution="local")
+        job_config = JobConfig(name=name, module="fake.module")  # remote=None (default) = local
         acceptance = kwargs.pop("acceptance", None)
         wandb_metrics = kwargs.pop("wandb_metrics", None)
         super().__init__(
