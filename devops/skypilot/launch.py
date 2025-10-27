@@ -174,7 +174,7 @@ def _build_ray_launch_task(
         {
             "METTA_RUN_ID": run_id,
             "METTA_GIT_REF": commit_hash,
-            "METTA_MODULE_PATH": args.module_path,
+            "METTA_MODULE_PATH": args.module_path or "",
             "METTA_ARGS": "",
             "RAY_PORT": str(ray_port),
         }
@@ -209,9 +209,9 @@ def launch_ray_sweep(
         f"ray://127.0.0.1:{args.ray_port}",
         "--experiment-id",
         run_id,
-        "--module-path",
-        args.module_path,
     ]
+    if args.module_path:
+        controller_args.extend(["--module-path", args.module_path])
     if args.ray_num_samples is not None:
         controller_args.extend(["--num-samples", str(args.ray_num_samples)])
     controller_args.extend(ray_args)
@@ -293,6 +293,8 @@ Examples:
     # We'll parse known args only, allowing unknown ones to be passed as tool args
     parser.add_argument(
         "module_path",
+        nargs="?",
+        default=None,
         help="Module path to run (e.g., arena.train or experiments.recipes.arena.train). "
         "Any arguments following the module path will be passed to the tool.",
     )
@@ -430,7 +432,7 @@ Examples:
         sys.exit(1)
 
     if args.ray_sweep:
-        if not validate_module_path(args.module_path):
+        if args.module_path and not validate_module_path(args.module_path):
             sys.exit(1)
         launch_ray_sweep(
             args=args,
@@ -439,6 +441,9 @@ Examples:
             ray_args=ray_args,
         )
         return
+
+    if not args.module_path:
+        parser.error("module_path is required unless --ray-sweep is specified.")
 
     # Validate module path (supports shorthand like 'arena.train')
     if not validate_module_path(args.module_path):
