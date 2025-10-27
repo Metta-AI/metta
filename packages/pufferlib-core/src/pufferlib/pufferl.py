@@ -701,8 +701,8 @@ class PuffeRL:
             "agent/avg_reward_per_agent",
             "agent/energy.amount",
             "agent/status.max_steps_without_motion",
-            "environment/heart.gained",
-            "environment/inventory.diversity",
+            "agent/heart.gained",
+            "agent/inventory.diversity",
         ]
         new_stats = []
 
