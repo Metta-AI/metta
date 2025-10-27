@@ -106,9 +106,9 @@ def _run_command(cmd: Sequence[str], description: str, *, verbose: bool = False)
         error(f"{description} failed")
         if not verbose:
             if exc.stdout:
-                console.print(exc.stdout)
+                console.print(exc.stdout, markup=False)
             if exc.stderr:
-                console.print(exc.stderr)
+                console.print(exc.stderr, markup=False)
         return False
 
 
