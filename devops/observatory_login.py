@@ -9,13 +9,8 @@ from urllib.parse import urlparse
 from cogames.auth import BaseCLIAuthenticator
 from metta.common.util.constants import (
     DEV_STATS_SERVER_URI,
-    PROD_OBSERVATORY_FRONTEND_URL,
     PROD_STATS_SERVER_URI,
 )
-
-_EXTRA_URIS: dict[str, list[str]] = {
-    f"{PROD_OBSERVATORY_FRONTEND_URL}/api": [PROD_STATS_SERVER_URI],
-}
 
 
 class CLIAuthenticator(BaseCLIAuthenticator):
@@ -26,7 +21,6 @@ class CLIAuthenticator(BaseCLIAuthenticator):
             auth_server_url=auth_server_url,
             token_file_name="observatory_tokens.yaml",
             token_storage_key=None,  # Top-level storage
-            extra_uris=_EXTRA_URIS,
         )
 
 

@@ -45,10 +45,10 @@ class PolicyAutoBuilder(Policy):
 
     def forward(self, td: TensorDict, action: Optional[torch.Tensor] = None) -> TensorDict:
         td = self.network(td)
+        self.action_probs(td, action)
+        # Only flatten values if they exist (GRPO policies don't have critic networks)
         if "values" in td.keys():
-            values = td["values"]
-            td["values"] = values.reshape(td.batch_size.numel())
-        td = self.action_probs(td, action)
+            td["values"] = td["values"].flatten()
         return td
 
     def initialize_to_environment(
@@ -59,7 +59,8 @@ class PolicyAutoBuilder(Policy):
         self.to(device)
         if device.type == "cuda":
             self._configure_sdp()
-            torch.set_float32_matmul_precision("medium")
+            torch.backends.cuda.matmul.fp32_precision = "tf32"  # type: ignore[attr-defined]
+            torch.backends.cudnn.conv.fp32_precision = "tf32"  # type: ignore[attr-defined]
         logs = []
         for _, value in self.components.items():
             if hasattr(value, "initialize_to_environment"):

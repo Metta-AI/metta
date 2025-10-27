@@ -39,7 +39,7 @@ If the setup fails:
 1. Check that you're in the Metta project root directory
 2. Ensure you have internet access for downloading dependencies
 3. For C++ build issues, you may need to install build tools
-4. Check the Python version (requires 3.11.7)
+4. Check the Python version (compare with `.python-version` file)
 
 ## Environment
 

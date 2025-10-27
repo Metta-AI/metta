@@ -94,15 +94,7 @@ jobs:
 
   # Consolidate all results and create a single review
   consolidate-review:
-    needs:
-      [
-        validate-pr,
-        review-readme,
-        review-comments,
-        review-types,
-        review-einops,
-        review-style,
-      ]
+    needs: [validate-pr, review-readme, review-comments, review-types, review-einops, review-style]
     runs-on: ubuntu-latest
     if: always() && !cancelled()
     permissions:
@@ -114,8 +106,6 @@ jobs:
 
       - name: Setup Python
         uses: actions/setup-python@v5
-        with:
-          python-version: "3.11.7"
 
       - name: Set up environment (minimal)
         uses: ./.github/actions/setup-environment

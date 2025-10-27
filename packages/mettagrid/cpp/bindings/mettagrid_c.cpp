@@ -841,8 +841,6 @@ py::dict MettaGrid::grid_objects(int min_row, int max_row, int min_col, int max_
 
     py::dict obj_dict;
     obj_dict["id"] = obj_id;
-    obj_dict["type"] = obj->type_id;
-    obj_dict["type_id"] = obj->type_id;
     obj_dict["type_name"] = object_type_names[obj->type_id];
     // Location here is defined as XYZ coordinates specifically to be used by MettaScope.
     // We define that for location: x is column, y is row, and z is layer.
