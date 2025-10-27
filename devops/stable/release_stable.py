@@ -390,10 +390,11 @@ def step_summary(version: str, **_kwargs) -> None:
     base_dir = get_repo_root() / "devops/stable"
     job_manager = JobManager(base_dir=base_dir, max_local_jobs=1, max_remote_jobs=4)
 
-    # Query JobManager for training metrics
+    # Query JobManager for training metrics from all jobs in this version's group
     training_metrics = {}
     training_job_id = None
-    for job_name in state.submitted_jobs:
+    all_jobs = job_manager.get_group_jobs(state_version)
+    for job_name in all_jobs:
         if "train" in job_name.lower():
             job_state = job_manager.get_job_state(job_name)
             if job_state:
@@ -505,10 +506,11 @@ def step_release(version: str, **_kwargs) -> None:
             print(f"  ❌ {name}")
         sys.exit(1)
 
-    # Extract metrics for release notes
+    # Extract metrics for release notes from all jobs in this version's group
     training_metrics = {}
     training_job_id = None
-    for job_name in state.submitted_jobs:
+    all_jobs = job_manager.get_group_jobs(state_version)
+    for job_name in all_jobs:
         if "train" in job_name.lower():
             job_state = job_manager.get_job_state(job_name)
             if job_state:

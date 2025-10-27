@@ -115,7 +115,6 @@ def test_state_persistence(tmp_path, monkeypatch):
         created_at=datetime.utcnow().isoformat(),
         commit_sha="abc123",
     )
-    state.submitted_jobs.add("test_task")
 
     save_state(state)
 
@@ -123,7 +122,7 @@ def test_state_persistence(tmp_path, monkeypatch):
     loaded = load_state("release_1.0.0")
     assert loaded is not None
     assert loaded.version == "release_1.0.0"
-    assert "test_task" in loaded.submitted_jobs
+    assert loaded.commit_sha == "abc123"
 
 
 def test_state_handles_version_exact_match(tmp_path, monkeypatch):
