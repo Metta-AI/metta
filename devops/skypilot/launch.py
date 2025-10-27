@@ -4,14 +4,15 @@ import copy
 import json
 import logging
 import re
+import shlex
 import subprocess
 import sys
 import textwrap
 
 import sky
+import yaml
 from sky import clouds as sky_clouds
 from sky.backends import CloudVmRayBackend
-import yaml
 
 import gitta as git
 from devops.skypilot.utils.job_helpers import (
@@ -130,8 +131,29 @@ def _build_ray_launch_task(
         workdir=base_task.workdir,
     )
 
-    # Ray cluster managed externally; run command executed via sky.exec.
-    ray_task.run = None
+    # Prepare Ray bootstrap script executed on all nodes during sky.launch.
+    ray_port = args.ray_port
+    ray_bootstrap = textwrap.dedent(
+        f"""
+        set -euo pipefail
+        cd /workspace/metta
+        if [ -f .venv/bin/activate ]; then
+            . .venv/bin/activate
+        fi
+        HEAD_IP=$(echo "$SKYPILOT_NODE_IPS" | head -n1)
+        if [[ "${{SKYPILOT_NODE_RANK:-0}}" == "0" ]]; then
+            echo "[Ray Sweep] Starting head node on port {ray_port}"
+            ray stop --force >/dev/null 2>&1 || true
+            ray start --head --port {ray_port} --disable-usage-stats --dashboard-host=0.0.0.0
+        else
+            echo "[Ray Sweep] Starting worker node -> $HEAD_IP:{ray_port}"
+            ray stop --force >/dev/null 2>&1 || true
+            ray start --address "$HEAD_IP:{ray_port}" --disable-usage-stats
+        fi
+        sleep 5
+        """
+    ).strip()
+    ray_task.run = ray_bootstrap
     ray_task.num_nodes = args.ray_num_nodes
     ray_task.name = run_id
     ray_task.validate_name()
@@ -154,6 +176,7 @@ def _build_ray_launch_task(
             "METTA_GIT_REF": commit_hash,
             "METTA_MODULE_PATH": args.module_path,
             "METTA_ARGS": "",
+            "RAY_PORT": str(ray_port),
         }
     )
     ray_task = ray_task.update_envs(env_updates)
@@ -181,16 +204,33 @@ def launch_ray_sweep(
     )
     set_task_secrets(ray_task)
 
-    ray_command_args = " ".join(ray_args)
+    controller_args: list[str] = [
+        "--ray-address",
+        f"ray://127.0.0.1:{args.ray_port}",
+        "--experiment-id",
+        run_id,
+        "--module-path",
+        args.module_path,
+    ]
+    if args.ray_num_samples is not None:
+        controller_args.extend(["--num-samples", str(args.ray_num_samples)])
+    controller_args.extend(ray_args)
+
+    controller_cmd_parts = ["uv", "run", "python", "metta/sweep/ray/ray_controller.py", *controller_args]
+    controller_cmd = shlex.join(controller_cmd_parts)
     ray_command = textwrap.dedent(
         f"""
+        set -euo pipefail
         if [[ "${{SKYPILOT_NODE_RANK:-0}}" != "0" ]]; then
-            echo "[Ray Sweep] Worker node ${{SKYPILOT_NODE_RANK}} waiting for head..."
+            echo "[Ray Sweep] Worker node ${{SKYPILOT_NODE_RANK}} skipping controller execution."
             exit 0
         fi
         cd /workspace/metta
-        source .venv/bin/activate
-        uv run python metta/sweep/ray/ray_controller.py {ray_command_args}
+        if [ -f .venv/bin/activate ]; then
+            . .venv/bin/activate
+        fi
+        echo "[Ray Sweep] Running controller: {controller_cmd}"
+        {controller_cmd}
         """
     ).strip()
 
@@ -225,7 +265,7 @@ def launch_ray_sweep(
 
     # Execute sweep controller on head node.
     run_task = sky.Task(run=ray_command, num_nodes=1)
-    run_task.update_envs({"METTA_RUN_ID": run_id})
+    run_task.update_envs({"METTA_RUN_ID": run_id, "RAY_PORT": str(args.ray_port)})
     set_task_secrets(run_task)
 
     print("[RAY] Executing sweep controller on head node...")
@@ -327,6 +367,18 @@ Examples:
         default=32,
         help="CPUs per node for Ray sweep (default: 32).",
     )
+    parser.add_argument(
+        "--ray-port",
+        type=int,
+        default=6379,
+        help="Port used for the Ray head node (default: 6379).",
+    )
+    parser.add_argument(
+        "--ray-num-samples",
+        type=int,
+        default=None,
+        help="Number of Ray Tune samples to run (defaults to sweep_config.max_trials).",
+    )
 
     # Use parse_known_args to handle both launch flags and tool args
     args, tool_args = parser.parse_known_args()
@@ -378,6 +430,8 @@ Examples:
         sys.exit(1)
 
     if args.ray_sweep:
+        if not validate_module_path(args.module_path):
+            sys.exit(1)
         launch_ray_sweep(
             args=args,
             run_id=run_id,
