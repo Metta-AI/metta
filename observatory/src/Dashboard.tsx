@@ -16,7 +16,7 @@ import { Scorecard } from './Scorecard'
 import styles from './Dashboard.module.css'
 import { MapViewer } from './MapViewer'
 import { SaveDashboardModal } from './SaveDashboardModal'
-import { METTASCOPE_REPLAY_URL } from './constants'
+import { METTASCOPE_REPLAY_URL_PREFIX } from './constants'
 import { filterValidEvalNames } from './utils/validationUtils'
 
 interface DashboardProps {
@@ -204,8 +204,7 @@ export function Dashboard({ repo }: DashboardProps) {
     const cell = scorecardData?.cells[policyName]?.[evalName]
     if (!cell?.replayUrl) return
 
-    const replay_url_prefix = `${METTASCOPE_REPLAY_URL}/?replayUrl=`
-    window.open(replay_url_prefix + cell.replayUrl, '_blank')
+    window.open(METTASCOPE_REPLAY_URL_PREFIX + cell.replayUrl, '_blank')
   }
 
   const toggleLock = () => {

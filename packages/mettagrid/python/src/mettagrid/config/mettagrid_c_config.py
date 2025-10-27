@@ -52,6 +52,10 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
     resource_names = list(game_config.resource_names)
     resource_name_to_id = {name: i for i, name in enumerate(resource_names)}
 
+    # Set up vibe mappings
+    vibe_names = list(game_config.vibe_names)
+    vibe_name_to_id = {name: i for i, name in enumerate(vibe_names)}
+
     objects_cpp_params = {}  # params for CppConverterConfig or CppWallConfig
 
     # These are the baseline settings for all agents
@@ -193,21 +197,22 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
             "type_id": 0,
             "type_name": "agent",
             "initial_inventory": initial_inventory,
-            "tag_ids": tag_ids,
             "soul_bound_resources": soul_bound_resources,
             "shareable_resources": shareable_resources,
             "inventory_regen_amounts": inventory_regen_amounts,
         }
+        cpp_agent_config = CppAgentConfig(**agent_cpp_params)
+        cpp_agent_config.tag_ids = tag_ids
 
-        objects_cpp_params["agent." + group_name] = CppAgentConfig(**agent_cpp_params)
+        objects_cpp_params["agent." + group_name] = cpp_agent_config
 
         # Also register team_X naming convention for maps that use it
-        objects_cpp_params[f"agent.team_{team_id}"] = CppAgentConfig(**agent_cpp_params)
+        objects_cpp_params[f"agent.team_{team_id}"] = cpp_agent_config
 
         # Also register aliases for team 0 for backward compatibility
         if team_id == 0:
-            objects_cpp_params["agent.default"] = CppAgentConfig(**agent_cpp_params)
-            objects_cpp_params["agent.agent"] = CppAgentConfig(**agent_cpp_params)
+            objects_cpp_params["agent.default"] = cpp_agent_config
+            objects_cpp_params["agent.agent"] = cpp_agent_config
 
     # Convert other objects
     for object_type, object_config in game_config.objects.items():
@@ -226,44 +231,43 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
                 cooldown_time=list(object_config.cooldown),
                 initial_resource_count=object_config.initial_resource_count,
                 recipe_details_obs=game_config.recipe_details_obs,
-                tag_ids=tag_ids,
             )
+            cpp_converter_config.tag_ids = tag_ids
             objects_cpp_params[object_type] = cpp_converter_config
         elif isinstance(object_config, WallConfig):
             # Convert tag names to IDs
             tag_ids = [tag_name_to_id[tag] for tag in object_config.tags]
 
-            cpp_wall_config = CppWallConfig(
-                type_id=object_config.type_id,
-                type_name=object_type,
-                swappable=object_config.swappable,
-                tag_ids=tag_ids,
-            )
+            cpp_wall_config = CppWallConfig(type_id=object_config.type_id, type_name=object_type)
+            cpp_wall_config.swappable = object_config.swappable
+            cpp_wall_config.tag_ids = tag_ids
             objects_cpp_params[object_type] = cpp_wall_config
         elif isinstance(object_config, AssemblerConfig):
             recipes = {}
 
             for vibes, recipe_config in reversed(object_config.recipes):
-                vibes = sorted(vibes)
+                # Convert vibe names to IDs
+                vibe_ids = sorted([vibe_name_to_id[vibe] for vibe in vibes])
                 overall_vibe = 0
-                for vibe in vibes:
-                    overall_vibe = overall_vibe << 8 | vibe
-                # Create C++ recipe
+                for vibe_id in vibe_ids:
+                    overall_vibe = overall_vibe << 8 | vibe_id
+                # Create C++ recipe - must use keyword args for pybind11
+                input_res = {resource_name_to_id[k]: int(v) for k, v in recipe_config.input_resources.items()}
+                output_res = {resource_name_to_id[k]: int(v) for k, v in recipe_config.output_resources.items()}
                 cpp_recipe = CppRecipe(
-                    input_resources={resource_name_to_id[k]: v for k, v in recipe_config.input_resources.items()},
-                    output_resources={resource_name_to_id[k]: v for k, v in recipe_config.output_resources.items()},
-                    cooldown=recipe_config.cooldown,
+                    input_resources=input_res, output_resources=output_res, cooldown=int(recipe_config.cooldown)
                 )
                 if overall_vibe in recipes:
-                    raise ValueError(f"Recipe with vibe {overall_vibe} already exists")
+                    raise ValueError(
+                        f"Recipe with vibe {overall_vibe} (from vibes {vibes}) already exists in {object_type}"
+                    )
                 recipes[overall_vibe] = cpp_recipe
 
             # Convert tag names to IDs
             tag_ids = [tag_name_to_id[tag] for tag in object_config.tags]
 
-            cpp_assembler_config = CppAssemblerConfig(
-                type_id=object_config.type_id, type_name=object_type, tag_ids=tag_ids
-            )
+            cpp_assembler_config = CppAssemblerConfig(type_id=object_config.type_id, type_name=object_type)
+            cpp_assembler_config.tag_ids = tag_ids
             cpp_assembler_config.recipes = recipes
             cpp_assembler_config.allow_partial_usage = object_config.allow_partial_usage
             cpp_assembler_config.max_uses = object_config.max_uses
@@ -284,15 +288,12 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
                 position_index = FIXED_POSITIONS.index(pos)
                 position_deltas_map[position_index] = delta
 
-            cpp_chest_config = CppChestConfig(
-                type_id=object_config.type_id,
-                type_name=object_type,
-                resource_type=resource_type_id,
-                position_deltas=position_deltas_map,
-                initial_inventory=object_config.initial_inventory,
-                max_inventory=object_config.max_inventory,
-                tag_ids=tag_ids,
-            )
+            cpp_chest_config = CppChestConfig(type_id=object_config.type_id, type_name=object_type)
+            cpp_chest_config.resource_type = resource_type_id
+            cpp_chest_config.position_deltas = position_deltas_map
+            cpp_chest_config.initial_inventory = object_config.initial_inventory
+            cpp_chest_config.max_inventory = object_config.max_inventory
+            cpp_chest_config.tag_ids = tag_ids
             objects_cpp_params[object_type] = cpp_chest_config
         else:
             raise ValueError(f"Unknown object type: {object_type}")
@@ -305,6 +306,8 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
         del game_cpp_params["params"]
     if "map_builder" in game_cpp_params:
         del game_cpp_params["map_builder"]
+    if "vibe_names" in game_cpp_params:
+        del game_cpp_params["vibe_names"]
 
     # Convert global_obs configuration
     global_obs_config = game_config.global_obs
@@ -405,11 +408,9 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
         clipper: ClipperConfig = game_config.clipper
         clipper_recipes = []
         for recipe_config in clipper.unclipping_recipes:
-            cpp_recipe = CppRecipe(
-                input_resources={resource_name_to_id[k]: v for k, v in recipe_config.input_resources.items()},
-                output_resources={resource_name_to_id[k]: v for k, v in recipe_config.output_resources.items()},
-                cooldown=recipe_config.cooldown,
-            )
+            input_res = {resource_name_to_id[k]: int(v) for k, v in recipe_config.input_resources.items()}
+            output_res = {resource_name_to_id[k]: int(v) for k, v in recipe_config.output_resources.items()}
+            cpp_recipe = CppRecipe(input_res, output_res, int(recipe_config.cooldown))
             clipper_recipes.append(cpp_recipe)
         game_cpp_params["clipper"] = CppClipperConfig(
             clipper_recipes, clipper.length_scale, clipper.cutoff_distance, clipper.clip_rate

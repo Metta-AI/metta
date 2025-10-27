@@ -13,10 +13,7 @@ from torch.autograd import Function
 from .utils import hillis_steele_segmented_inplace as _hillis_steele_segmented_inplace
 from .utils import scan_step_block_segmented as _scan_step_block_segmented
 
-try:
-    _TRITON_AVAILABLE = True
-except Exception:  # pragma: no cover
-    _TRITON_AVAILABLE = False
+_TRITON_AVAILABLE = True
 
 
 def _act_and_deriv(z: torch.Tensor, activation: str) -> tuple[torch.Tensor, torch.Tensor]:
