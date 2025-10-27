@@ -18,14 +18,12 @@ class MasterOnlyDistributed:
 
 def test_update_epochs_autotuner_tracks_kl_signal() -> None:
     autotune_cfg = UpdateEpochAutoTunerConfig(
-        enabled=True,
         min_update_epochs=1,
         max_update_epochs=3,
         step_size=1,
         evaluation_epochs=1,
         warmup_epochs=0,
         cooldown_epochs=0,
-        metrics_window=2,
         target_kl=0.02,
         kl_tolerance=0.25,
         max_clipfrac=0.2,

@@ -50,15 +50,12 @@ class TorchProfilerConfig(Config):
 class UpdateEpochAutoTunerConfig(Config):
     """Configuration for automatically tuning update epochs."""
 
-    enabled: bool = False
     min_update_epochs: int = Field(default=1, ge=1)
     max_update_epochs: int = Field(default=8, ge=1)
     step_size: int = Field(default=1, ge=1)
-    evaluation_epochs: int = Field(default=3, ge=1)
+    evaluation_epochs: int = Field(default=0, ge=0)
     warmup_epochs: int = Field(default=2, ge=0)
     cooldown_epochs: int = Field(default=2, ge=0)
-    min_relative_improvement: float = Field(default=0.05, ge=0.0)
-    metrics_window: int = Field(default=4, ge=1)
     target_kl: float = Field(default=0.015, ge=0.0)
     kl_tolerance: float = Field(default=0.3, ge=0.0)
     max_clipfrac: float = Field(default=0.3, ge=0.0, le=1.0)
@@ -68,6 +65,10 @@ class UpdateEpochAutoTunerConfig(Config):
         if self.max_update_epochs < self.min_update_epochs:
             raise ValueError("max_update_epochs must be >= min_update_epochs")
         return self
+
+    @property
+    def enabled(self) -> bool:
+        return self.evaluation_epochs > 0
 
 
 class TrainerConfig(Config):
