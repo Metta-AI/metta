@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import html
 import json
 import os
@@ -101,13 +102,16 @@ def _format_rerun_command(targets: Sequence[str]) -> str:
 
 
 def _format_copy_button(command: str) -> str:
-    escaped_value = html.escape(command, quote=True).replace("\n", "&#10;")
+    digest = hashlib.md5(command.encode("utf-8")).hexdigest()[:8]
+    element_id = f"pytest-rerun-{digest}"
+    escaped_value = html.escape(command)
     return (
         '<clipboard-copy class="btn btn-sm" '
-        f'value="{escaped_value}" '
+        f'for="{element_id}" '
         'aria-label="Copy pytest command">'
         "Copy command"
         "</clipboard-copy>"
+        f'<pre id="{element_id}" hidden>{escaped_value}</pre>'
     )
 
 
