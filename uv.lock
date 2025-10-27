@@ -3449,14 +3449,8 @@ dependencies = [
     { name = "torch" },
 ]
 
-[package.optional-dependencies]
-cogames = [
-    { name = "cogames" },
-]
-
 [package.metadata]
 requires-dist = [
-    { name = "cogames", marker = "extra == 'cogames'", editable = "packages/cogames" },
     { name = "gymnasium" },
     { name = "numpy" },
     { name = "nvidia-ml-py" },
@@ -3467,7 +3461,6 @@ requires-dist = [
     { name = "setuptools" },
     { name = "torch" },
 ]
-provides-extras = ["cogames"]
 
 [[package]]
 name = "pulp"
