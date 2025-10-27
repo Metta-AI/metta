@@ -62,7 +62,7 @@ proc generatePixelAtlas*(
   writeFile(outputJsonPath, atlas.toJson())
 
 type
-  Pixalator* = ref object
+  Pixelator* = ref object
     atlas: PixelAtlas
     image: Image
     shader: Shader
@@ -79,8 +79,8 @@ var
 proc newPixalator*(
   imagePath: string,
   jsonPath: string
-): Pixalator =
-  result = Pixalator()
+): Pixelator =
+  result = Pixelator()
   result.image = readImage(imagePath)
   result.atlas = readFile(jsonPath).fromJson(PixelAtlas)
   result.instanceData = @[]
@@ -107,8 +107,8 @@ void main() {
     uvec2 corner = uvec2(gl_VertexID & 1, gl_VertexID >> 1);
 
     // Destination position in pixels
-    float dx = float(aPos.x) + float(corner.x) * float(aUv.z);
-    float dy = float(aPos.y) + float(corner.y) * float(aUv.w);
+    float dx = float(aPos.x) + (float(corner.x) - 0.5) * float(aUv.z);
+    float dy = float(aPos.y) + (float(corner.y) - 0.5) * float(aUv.w);
 
     gl_Position = uMVP * vec4(dx, dy, 0.0, 1.0);
 
@@ -183,59 +183,59 @@ void main() {
   glBindVertexArray(0)
 
 proc drawSprite*(
-  pixalator: Pixalator,
+  px: Pixelator,
   name: string,
   x, y: uint16
 ) =
-  if name notin pixalator.atlas.entries:
+  if name notin px.atlas.entries:
     raise newException(ValueError, "Sprite not found in atlas: " & name)
-  let uv = pixalator.atlas.entries[name]
-  pixalator.instanceData.add(x.uint16)
-  pixalator.instanceData.add(y.uint16)
-  pixalator.instanceData.add(uv.x.uint16)
-  pixalator.instanceData.add(uv.y.uint16)
-  pixalator.instanceData.add(uv.width.uint16)
-  pixalator.instanceData.add(uv.height.uint16)
-  inc pixalator.instanceCount
+  let uv = px.atlas.entries[name]
+  px.instanceData.add(x.uint16)
+  px.instanceData.add(y.uint16)
+  px.instanceData.add(uv.x.uint16)
+  px.instanceData.add(uv.y.uint16)
+  px.instanceData.add(uv.width.uint16)
+  px.instanceData.add(uv.height.uint16)
+  inc px.instanceCount
 
 proc drawSprite*(
-  pixalator: Pixalator,
+  px: Pixelator,
   name: string,
   pos: IVec2
 ) =
-  pixalator.drawSprite(name, pos.x.uint16, pos.y.uint16)
+  px.drawSprite(name, pos.x.uint16, pos.y.uint16)
 
-proc clear*(pixalator: Pixalator) =
+proc clear*(px: Pixelator) =
   ## Clears the current instance queue.
-  pixalator.instanceData.setLen(0)
-  pixalator.instanceCount = 0
+  px.instanceData.setLen(0)
+  px.instanceCount = 0
 
 proc flush*(
-  pixalator: Pixalator,
+  px: Pixelator,
   mvp: Mat4
 ) =
   ## Draw all queued instances for the current sprite.
-  if pixalator.instanceCount == 0:
+  if px.instanceCount == 0:
     return
 
   # Upload instance buffer
-  glBindBuffer(GL_ARRAY_BUFFER, pixalator.instanceVbo)
-  let byteLen = pixalator.instanceData.len * sizeof(uint16)
-  glBufferData(GL_ARRAY_BUFFER, byteLen, pixalator.instanceData[0].addr, GL_STREAM_DRAW)
+  glBindBuffer(GL_ARRAY_BUFFER, px.instanceVbo)
+  let byteLen = px.instanceData.len * sizeof(uint16)
+  glBufferData(GL_ARRAY_BUFFER, byteLen, px.instanceData[0].addr, GL_STREAM_DRAW)
 
   # Bind state
-  glUseProgram(pixalator.shader.programId)
-  pixalator.shader.setUniform("uMVP", mvp)
-  pixalator.shader.setUniform("uAtlasSize", vec2(pixalator.image.width.float32, pixalator.image.height.float32))
+  glUseProgram(px.shader.programId)
+  px.shader.setUniform("uMVP", mvp)
+  px.shader.setUniform("uAtlasSize", vec2(px.image.width.float32, px.image.height.float32))
   glActiveTexture(GL_TEXTURE0)
-  glBindTexture(GL_TEXTURE_2D, pixalator.atlasTexture)
-  pixalator.shader.setUniform("uAtlas", 0)
-  pixalator.shader.bindUniforms()
+  glBindTexture(GL_TEXTURE_2D, px.atlasTexture)
+  px.shader.setUniform("uAtlas", 0)
+  px.shader.bindUniforms()
 
-  glBindVertexArray(pixalator.vao)
+  glBindVertexArray(px.vao)
 
   # Draw 4-vertex triangle strip per instance (expanded in vertex shader)
-  glDrawArraysInstanced(GL_TRIANGLE_STRIP, 0, 4, pixalator.instanceCount.GLsizei)
+  glDrawArraysInstanced(GL_TRIANGLE_STRIP, 0, 4, px.instanceCount.GLsizei)
 
   # Unbind minimal state
   glBindVertexArray(0)
@@ -243,4 +243,4 @@ proc flush*(
   glBindTexture(GL_TEXTURE_2D, 0)
 
   # Reset queue for next frame if desired
-  pixalator.clear()
+  px.clear()

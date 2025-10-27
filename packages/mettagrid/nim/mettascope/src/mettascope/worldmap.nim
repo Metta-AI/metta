@@ -2,13 +2,13 @@ import
   std/[math, os, strutils, tables, strformat, random],
   boxy, vmath, windy, fidget2/[hybridrender, common],
   common, panels, actions, utils, replays, objectinfo,
-  pathfinding, tilemap, pixelatlas
+  pathfinding, tilemap, pixelator
 
 const TS = 1.0 / 64.0 # Tile scale.
 const TILE_SIZE = 64
 
 var terrainMap*: TileMap
-var px*: Pixalator
+var px*: Pixelator
 
 proc weightedRandomInt*(weights: seq[int]): int =
   ## Return a random integer between 0 and 7, with a weighted distribution.
@@ -675,10 +675,9 @@ proc drawWorldMain*() =
   let projection = ortho(0.0f, window.size.x.float32, window.size.y.float32, 0.0f, -1.0f, 1.0f)
   let mvp2 = projection *
     boxyView *
-    translate(vec3(-0.5, -0.5, 0)) *
     scale(vec3(
-      1/64f,
-      1/64f,
+      TS,
+      TS,
       1.0f
     ))
   px.flush(mvp2)
