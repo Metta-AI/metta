@@ -50,7 +50,7 @@ class TorchProfilerConfig(Config):
 class DualPolicyConfig(Config):
     enabled: bool = Field(default=False)
     npc_policy_uri: str | None = Field(default=None)
-    training_agents_pct: float = Field(default=0.5, gt=0.0, lt=1.0)
+    training_agents_pct: float = Field(default=0.5, ge=0.0, le=1.0)
 
     @model_validator(mode="after")
     def validate_fields(self) -> "DualPolicyConfig":

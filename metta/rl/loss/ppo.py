@@ -138,7 +138,10 @@ class PPO(Loss):
         npc_input_td: TensorDict | None = None
 
         if dual_enabled:
-            npc_input_td = td.select(*self.policy_experience_spec.keys(include_nested=True)).clone()
+            npc_input_td = td.select(
+                *self.policy_experience_spec.keys(include_nested=True),
+                strict=False,
+            ).clone()
 
         with torch.no_grad():
             self.policy.forward(td)

@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Callable, Dict, Optional
 
+import torch
 from torch.optim import Optimizer
 
 from metta.agent.policy import Policy
@@ -101,8 +102,8 @@ class ComponentContext:
         self.dual_policy_training_agents_pct: float = 1.0
         self.npc_policy: Policy | None = None
         self.npc_policy_uri: Optional[str] = None
-        self.student_mask_per_env = None
-        self.npc_mask_per_env = None
+        self.student_mask_per_env: Optional[torch.Tensor] = None
+        self.npc_mask_per_env: Optional[torch.Tensor] = None
 
         self._training_env_id: slice | None = (
             self.state.training_env_window.to_slice() if self.state.training_env_window else None

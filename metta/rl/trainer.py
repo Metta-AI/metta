@@ -162,19 +162,22 @@ class Trainer:
             logger.warning("Dual policy requested but environment has %d agent(s); disabling.", num_agents)
             return
 
-        npc_fraction = 1.0 - dual_cfg.training_agents_pct
-        npc_agents = int(round(num_agents * npc_fraction))
-        npc_agents = max(1, min(num_agents - 1, npc_agents))
-
-        if npc_agents <= 0:
-            logger.warning(
-                "Dual policy training_agents_pct=%.3f leaves no student agents; disabling.",
-                dual_cfg.training_agents_pct,
-            )
+        if dual_cfg.training_agents_pct <= 0.0:
+            logger.warning("Dual policy training_agents_pct=0.0 produces no trainable agents; disabling.")
+            return
+        if dual_cfg.training_agents_pct >= 1.0:
+            logger.info("Dual policy training_agents_pct=1.0 -> all agents trained; NPC policy disabled.")
             return
 
         if dual_cfg.npc_policy_uri is None:
             logger.warning("Dual policy enabled without npc_policy_uri; disabling.")
+            return
+
+        student_agents = int(round(num_agents * dual_cfg.training_agents_pct))
+        student_agents = max(1, min(num_agents - 1, student_agents))
+        npc_agents = num_agents - student_agents
+        if npc_agents <= 0:
+            logger.info("Dual policy configuration results in zero NPC agents after rounding; disabling NPC policy.")
             return
 
         try:
@@ -198,9 +201,9 @@ class Trainer:
             param.requires_grad = False
         npc_policy.initialize_to_environment(self._env.game_rules, self._device)
 
-        npc_mask = torch.zeros(num_agents, dtype=torch.bool, device=self._device)
-        npc_mask[:npc_agents] = True
-        student_mask = ~npc_mask
+        student_mask = torch.zeros(num_agents, dtype=torch.bool)
+        student_mask[:student_agents] = True
+        npc_mask = ~student_mask
 
         self._npc_policy = npc_policy
         self._npc_mask_per_env = npc_mask
@@ -208,7 +211,7 @@ class Trainer:
         self._dual_policy_enabled = True
 
         self._context.dual_policy_enabled = True
-        self._context.dual_policy_training_agents_pct = dual_cfg.training_agents_pct
+        self._context.dual_policy_training_agents_pct = student_agents / num_agents
         self._context.npc_policy = npc_policy
         self._context.npc_policy_uri = dual_cfg.npc_policy_uri
         self._context.npc_mask_per_env = npc_mask
@@ -217,7 +220,7 @@ class Trainer:
         logger.info(
             "Dual policy enabled: %d NPC / %d student agents (uri=%s)",
             npc_agents,
-            num_agents - npc_agents,
+            student_agents,
             dual_cfg.npc_policy_uri,
         )
 
