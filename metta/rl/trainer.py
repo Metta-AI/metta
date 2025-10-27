@@ -61,7 +61,7 @@ class Trainer:
         self.timer.start()
 
         self._policy.to(self._device)
-        self._policy.initialize_to_environment(self._env.meta_data, self._device)
+        self._policy.initialize_to_environment(self._env.game_rules, self._device)
         self._policy.train()
 
         self._policy = self._distributed_helper.wrap_policy(self._policy, self._device)
@@ -73,7 +73,7 @@ class Trainer:
 
         parallel_agents = getattr(self._env, "total_parallel_agents", None)
         if parallel_agents is None:
-            parallel_agents = batch_info.num_envs * self._env.meta_data.num_agents
+            parallel_agents = batch_info.num_envs * self._env.game_rules.num_agents
 
         self._experience = Experience.from_losses(
             total_agents=parallel_agents,

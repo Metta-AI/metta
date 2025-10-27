@@ -12,7 +12,7 @@ from metta.agent.utils import obs_to_td
 from metta.common.tool import Tool
 from metta.common.wandb.context import WandbConfig
 from metta.rl.checkpoint_manager import CheckpointManager
-from metta.rl.training.training_environment import EnvironmentMetaData
+from metta.rl.training.training_environment import GameRules
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.utils.auto_config import auto_wandb_config
 from mettagrid import MettaGridEnv, RenderMode, dtype_actions
@@ -67,9 +67,26 @@ class PlayTool(Tool):
     wandb: WandbConfig = auto_wandb_config()
     sim: SimulationConfig
     policy_uri: str | None = None
+    replay_dir: str | None = None
+    stats_dir: str | None = None
+    open_browser_on_start: bool = True
     max_steps: Optional[int] = None
     seed: int = 42
     render: RenderMode = "gui"
+
+    @property
+    def effective_replay_dir(self) -> str:
+        """Return configured replay directory or default under system data_dir."""
+        if self.replay_dir is not None:
+            return self.replay_dir
+        return str(self.system.data_dir / "replays")
+
+    @property
+    def effective_stats_dir(self) -> str:
+        """Return configured stats directory or default under system data_dir."""
+        if self.stats_dir is not None:
+            return self.stats_dir
+        return str(self.system.data_dir / "stats")
 
     def invoke(self, args: dict[str, str]) -> int | None:
         """Run an interactive play session with the configured simulation."""
@@ -83,10 +100,7 @@ class PlayTool(Tool):
         # Load policy if provided, otherwise use mock agent (random actions)
         if self.policy_uri:
             logger.info(f"Loading policy from {self.policy_uri}")
-            policy = CheckpointManager.load_from_uri(self.policy_uri)
-
-            # Create environment metadata for policy initialization
-            env_metadata = EnvironmentMetaData(
+            game_rules = GameRules(
                 obs_width=env.obs_width,
                 obs_height=env.obs_height,
                 obs_features=env.observation_features,
@@ -96,10 +110,11 @@ class PlayTool(Tool):
                 action_space=env.single_action_space,
                 feature_normalizations=env.feature_normalizations,
             )
+            policy = CheckpointManager.load_from_uri(self.policy_uri, game_rules, device)
 
             # Initialize policy to environment
             policy.eval()
-            policy.initialize_to_environment(env_metadata, device)
+            policy.initialize_to_environment(game_rules, device)
         else:
             logger.info("No policy specified, using random actions")
             policy = None

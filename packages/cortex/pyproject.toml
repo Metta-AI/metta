@@ -1,0 +1,37 @@
+[build-system]
+requires = ["setuptools==80.9.0", "wheel==0.45.1"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "cortexcore"
+version = "0.1.0"
+description = "Memory module library for Metta policies"
+readme = "README.md"
+requires-python = ">=3.12"
+license = { text = "MIT" }
+authors = [{ name = "Subhojeet Pramanik", email = "email@subho.in" }]
+dependencies = [
+  "torch",
+  "pydantic>=2.11.5",
+  "tensordict",
+  "einops",
+  "ninja>=1.11.1",
+  "triton>=2.0.0; platform_system == 'Linux'",
+]
+
+[dependency-groups]
+dev = ["pytest>=8.3.3", "pytest-cov>=6.1.1", "pytest-xdist>=3.8.0"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["cortex", "cortex.*"]
+
+[tool.setuptools.package-data]
+cortex = ["py.typed"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+markers = ["slow: marks tests as slow (deselect with '-m \"not slow\"')"]
+
+[tool.coverage.run]
+source = ["cortex"]

@@ -4,7 +4,7 @@ import torch
 from tensordict import TensorDict
 
 from metta.agent.policy import Policy
-from metta.rl.training import EnvironmentMetaData
+from metta.rl.training import GameRules
 
 
 class MockAgent(Policy):
@@ -94,7 +94,7 @@ class MockAgent(Policy):
 
     def initialize_to_environment(
         self,
-        env: EnvironmentMetaData,
+        env: GameRules,
         device: torch.device,
         *,
         is_training: bool | None = None,

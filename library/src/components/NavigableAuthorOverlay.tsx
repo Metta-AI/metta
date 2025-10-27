@@ -4,6 +4,7 @@ import React from "react";
 import { AuthorDTO } from "@/posts/data/authors-client";
 import { AuthorProfile } from "./AuthorProfile";
 import { useOverlayNavigation } from "./OverlayStack";
+import * as papersApi from "@/lib/api/resources/papers";
 
 interface NavigableAuthorOverlayProps {
   author: AuthorDTO;
@@ -33,21 +34,39 @@ export default function NavigableAuthorOverlay({
   };
 
   // Handle paper click
-  const handlePaperClick = (paper: any) => {
-    // For now, we'll need to provide minimal required props
-    // In a real implementation, you'd fetch the full paper data with user context
-    const mockUsers: any[] = [];
-    const mockInteractions: any[] = [];
-    const mockOnStarToggle = (paperId: string) =>
-      console.log("Star toggle:", paperId);
-    const mockOnQueueToggle = (paperId: string) =>
-      console.log("Queue toggle:", paperId);
+  const handlePaperClick = async (paper: any) => {
+    // Fetch full paper data to get all authors
+    // (AuthorDTO.recentPapers may not have full author data for performance)
+    try {
+      const fullPaper = await papersApi.getPaper(paper.id);
 
-    // Note: This would need proper paper data with user context in a real implementation
-    // openPaper(paper, mockUsers, mockInteractions, mockOnStarToggle, mockOnQueueToggle);
-    console.log(
-      "Paper navigation not yet fully implemented - need PaperWithUserContext"
-    );
+      const paperWithContext = {
+        id: fullPaper.id,
+        title: fullPaper.title,
+        abstract: fullPaper.abstract,
+        tags: fullPaper.tags || [],
+        link: fullPaper.link,
+        source: fullPaper.source,
+        externalId: null,
+        stars: fullPaper.stars,
+        starred: false,
+        createdAt: new Date(fullPaper.createdAt),
+        updatedAt: new Date(fullPaper.createdAt),
+        authors: fullPaper.authors || [],
+        institutions: paper.institutions || [],
+        isStarredByCurrentUser: false,
+      };
+
+      // Open paper overlay with minimal context
+      openPaper(
+        paperWithContext,
+        [], // users
+        [], // interactions
+        () => {} // onStarToggle (noop)
+      );
+    } catch (error) {
+      console.error("Error loading paper:", error);
+    }
   };
 
   return (
@@ -55,6 +74,7 @@ export default function NavigableAuthorOverlay({
       author={author}
       onClose={onClose}
       onInstitutionClick={handleInstitutionClick}
+      onPaperClick={handlePaperClick}
     />
   );
 }

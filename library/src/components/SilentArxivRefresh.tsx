@@ -2,6 +2,10 @@
 
 import { useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
+import {
+  getPaperDataAction,
+  checkPaperHasInstitutionsAction,
+} from "@/posts/actions/getPaperDataAction";
 
 interface SilentArxivRefreshProps {
   postId: string;
@@ -39,35 +43,31 @@ export function SilentArxivRefresh({
     // Poll silently for completion
     const checkStatus = async () => {
       try {
-        const response = await fetch(`/api/papers/${postId}/institutions`);
-        if (response.ok) {
-          const { hasInstitutions } = await response.json();
-          if (hasInstitutions) {
-            // Mark as completed
-            if (typeof window !== "undefined") {
-              window.localStorage.setItem(storageKey, "true");
-            }
+        const { hasInstitutions } =
+          await checkPaperHasInstitutionsAction(postId);
 
-            // Fetch the actual institution data and update local state
-            if (onInstitutionsAdded) {
-              try {
-                const paperResponse = await fetch(`/api/papers/${postId}/data`);
-                if (paperResponse.ok) {
-                  const { institutions } = await paperResponse.json();
-                  onInstitutionsAdded(institutions || []);
-                }
-              } catch (error) {
-                console.error("Failed to fetch institution data:", error);
-              }
-            }
+        if (hasInstitutions) {
+          // Mark as completed
+          if (typeof window !== "undefined") {
+            window.localStorage.setItem(storageKey, "true");
+          }
 
-            // Also refresh as fallback
-            router.refresh();
-
-            if (intervalRef.current) {
-              clearInterval(intervalRef.current);
-              intervalRef.current = null;
+          // Fetch the actual institution data and update local state
+          if (onInstitutionsAdded) {
+            try {
+              const { institutions } = await getPaperDataAction(postId);
+              onInstitutionsAdded(institutions || []);
+            } catch (error) {
+              console.error("Failed to fetch institution data:", error);
             }
+          }
+
+          // Also refresh as fallback
+          router.refresh();
+
+          if (intervalRef.current) {
+            clearInterval(intervalRef.current);
+            intervalRef.current = null;
           }
         }
       } catch (error) {

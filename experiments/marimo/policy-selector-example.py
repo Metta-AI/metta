@@ -82,7 +82,7 @@ async def _(client, live_widget):
     scorecard_widget = ScorecardWidget(client=client)
 
     await scorecard_widget.fetch_real_scorecard_data(
-        restrict_to_metrics=["heart.get", "reward"],
+        restrict_to_metrics=["heart.gained", "reward"],
         restrict_to_policy_ids=policies_for_scorecard,
         policy_selector="latest",
         max_policies=20,

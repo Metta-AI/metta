@@ -15,7 +15,6 @@ class TestChest:
         cfg = MettaGridConfig.EmptyRoom(num_agents=1, with_walls=True)
 
         cfg.game.objects["chest"] = ChestConfig(
-            type_id=10,
             resource_type="gold",
             map_char="C",
             name="chest",
@@ -53,7 +52,7 @@ class TestChest:
         # Check deposit happened
         grid_objects = env.grid_objects()
         agent = next(obj for _obj_id, obj in grid_objects.items() if "agent_id" in obj)
-        chest = next(obj for _obj_id, obj in grid_objects.items() if obj["type"] == 10)
+        chest = next(obj for _obj_id, obj in grid_objects.items() if obj["type_name"] == "chest")
 
         assert agent["inventory"].get(gold_idx, 0) == 4, (
             f"Agent should have 4 gold. Has {agent['inventory'].get(gold_idx, 0)}"
@@ -83,7 +82,7 @@ class TestChest:
         # Check withdrawal happened
         grid_objects_after = env.grid_objects()
         agent_after = next(obj for _obj_id, obj in grid_objects_after.items() if "agent_id" in obj)
-        chest_after = next(obj for _obj_id, obj in grid_objects_after.items() if obj["type"] == 10)
+        chest_after = next(obj for _obj_id, obj in grid_objects_after.items() if obj["type_name"] == "chest")
 
         assert agent_after["inventory"].get(gold_idx, 0) == 5, (
             f"Agent should have 5 gold after withdrawal, has {agent_after['inventory'].get(gold_idx, 0)}"
@@ -101,7 +100,6 @@ class TestChest:
 
         # Configure chest with larger deltas than available resources
         cfg.game.objects["chest"] = ChestConfig(
-            type_id=10,
             name="chest",
             resource_type="gold",
             map_char="C",
@@ -136,7 +134,7 @@ class TestChest:
         # Check partial deposit happened
         grid_objects = env.grid_objects()
         agent = next(obj for _obj_id, obj in grid_objects.items() if "agent_id" in obj)
-        chest = next(obj for _obj_id, obj in grid_objects.items() if obj["type"] == 10)
+        chest = next(obj for _obj_id, obj in grid_objects.items() if obj["type_name"] == "chest")
 
         assert agent["inventory"].get(gold_idx, 0) == 0, (
             f"Agent should have 0 gold (deposited all 3). Has {agent['inventory'].get(gold_idx, 0)}"
@@ -162,7 +160,7 @@ class TestChest:
         # Check full withdrawal happened
         grid_objects_after = env.grid_objects()
         agent_after = next(obj for _obj_id, obj in grid_objects_after.items() if "agent_id" in obj)
-        chest_after = next(obj for _obj_id, obj in grid_objects_after.items() if obj["type"] == 10)
+        chest_after = next(obj for _obj_id, obj in grid_objects_after.items() if obj["type_name"] == "chest")
 
         assert agent_after["inventory"].get(gold_idx, 0) == 5, (
             f"Agent should have 5 gold after withdrawal, has {agent_after['inventory'].get(gold_idx, 0)}"
@@ -180,7 +178,7 @@ class TestChest:
         # Check nothing changed (no resources to withdraw)
         grid_objects_final = env.grid_objects()
         agent_final = next(obj for _obj_id, obj in grid_objects_final.items() if "agent_id" in obj)
-        chest_final = next(obj for _obj_id, obj in grid_objects_final.items() if obj["type"] == 10)
+        chest_final = next(obj for _obj_id, obj in grid_objects_final.items() if obj["type_name"] == "chest")
 
         assert agent_final["inventory"].get(gold_idx, 0) == 5, (
             f"Agent should still have 5 gold, has {agent_final['inventory'].get(gold_idx, 0)}"

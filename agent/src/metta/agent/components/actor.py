@@ -9,7 +9,7 @@ from tensordict.nn import TensorDictModule as TDM
 import pufferlib.pytorch
 from metta.agent.components.component_config import ComponentConfig
 from metta.agent.util.distribution_utils import evaluate_actions, sample_actions
-from metta.rl.training import EnvironmentMetaData
+from metta.rl.training import GameRules
 
 
 class ActorQueryConfig(ComponentConfig):
@@ -121,7 +121,7 @@ class ActionProbs(nn.Module):
 
     def initialize_to_environment(
         self,
-        env: EnvironmentMetaData,
+        env: GameRules,
         device: torch.device,
     ) -> None:
         from gymnasium.spaces import Discrete
@@ -193,16 +193,16 @@ class ActorHeadConfig(ComponentConfig):
     layer_init_std: float = 1.0
     name: str = "actor_head"
 
-    def make_component(self, env: EnvironmentMetaData | None = None):
+    def make_component(self, env: GameRules | None = None):
         if env is None:
-            raise ValueError("ActorHeadConfig requires EnvironmentMetaData to determine action dimensions")
+            raise ValueError("ActorHeadConfig requires GameRules to determine action dimensions")
         return ActorHead(config=self, env=env)
 
 
 class ActorHead(nn.Module):
     """Simple linear head that maps hidden features to environment logits."""
 
-    def __init__(self, config: ActorHeadConfig, env: EnvironmentMetaData):
+    def __init__(self, config: ActorHeadConfig, env: GameRules):
         super().__init__()
         self.config = config
         self.in_key = self.config.in_key

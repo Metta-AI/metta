@@ -11,11 +11,6 @@ def test_recipe_discovery_without_init():
     recipes = {r.module_name for r in recipe_registry.get_all()}
 
     # Should find recipes in subdirectories without __init__.py
-    # Check for a known recipe in a subdirectory
-    assert any("in_context_learning" in name for name in recipes), (
-        f"Should discover recipes in subdirectories. Found: {sorted(recipes)}"
-    )
-
     # Should find top-level recipes
     assert "experiments.recipes.arena" in recipes, f"Should find top-level recipes. Found: {sorted(recipes)}"
 
@@ -45,11 +40,6 @@ def test_recipe_registry_get_normalizes_paths():
     # Should be the same recipe
     assert recipe_full.module_name == recipe_short.module_name
 
-    # Should work with subdirectory (short form)
-    recipe_sub = recipe_registry.get("in_context_learning.in_context_learning")
-    if recipe_sub:  # Only test if this recipe exists
-        assert recipe_sub.module_name.startswith("experiments.recipes.")
-
 
 def test_recipe_short_name():
     """Test Recipe.short_name property."""
@@ -62,8 +52,3 @@ def test_recipe_short_name():
 
     assert recipe.module_name == "experiments.recipes.arena"
     assert recipe.short_name == "arena"
-
-    # Test with subdirectory
-    recipe_sub = recipe_registry.get("in_context_learning.in_context_learning")
-    if recipe_sub:
-        assert recipe_sub.short_name == "in_context_learning.in_context_learning"

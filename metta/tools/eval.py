@@ -16,10 +16,12 @@ from metta.eval.eval_request_config import EvalResults
 from metta.eval.eval_service import evaluate_policy
 from metta.rl import stats as rl_stats
 from metta.rl.checkpoint_manager import CheckpointManager
+from metta.rl.training.training_environment import GameRules
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.remote_job import JobResult, RemoteJobTool
 from metta.tools.utils.auto_config import auto_wandb_config
 from metta.utils.uri import ParsedURI
+from mettagrid import MettaGridEnv
 
 logger = logging.getLogger(__name__)
 
@@ -36,6 +38,7 @@ class EvaluateRemoteJobTool(RemoteJobTool):
     simulations: Sequence[SimulationConfig]  # list of simulations to run
     policy_uri: str  # policy uri to evaluate
     replay_dir: str = Field(default=f"{SOFTMAX_S3_BASE}/replays/{str(uuid.uuid4())}")
+    enable_replays: bool = True
     job_result_file_path: str  # path to the file where the results will be written
 
     group: str | None = None  # Separate group parameter like in train.py
@@ -49,6 +52,7 @@ class EvaluateRemoteJobTool(RemoteJobTool):
             simulations=self.simulations,
             policy_uris=[self.policy_uri],
             replay_dir=self.replay_dir,
+            enable_replays=self.enable_replays,
             group=self.group,
             stats_server_uri=self.stats_server_uri,
             eval_task_id=self.eval_task_id,
@@ -86,6 +90,7 @@ class EvaluateTool(Tool):
     simulations: Sequence[SimulationConfig]  # list of simulations to run
     policy_uris: str | Sequence[str] | None = None  # list of policy uris to evaluate
     replay_dir: str = Field(default=f"{SOFTMAX_S3_BASE}/replays/{str(uuid.uuid4())}")
+    enable_replays: bool = True
 
     group: str | None = None  # Separate group parameter like in train.py
 
@@ -95,6 +100,26 @@ class EvaluateTool(Tool):
     register_missing_policies: bool = False
     eval_task_id: str | None = None
     push_metrics_to_wandb: bool = False
+
+    def _build_game_rules(self) -> GameRules:
+        if not self.simulations:
+            raise ValueError("At least one simulation configuration is required to evaluate a policy")
+
+        primary_simulation = self.simulations[0]
+        env = MettaGridEnv(env_cfg=primary_simulation.env, render_mode="none")
+        try:
+            return GameRules(
+                obs_width=env.obs_width,
+                obs_height=env.obs_height,
+                obs_features=env.observation_features,
+                action_names=env.action_names,
+                num_agents=env.num_agents,
+                observation_space=env.observation_space,
+                action_space=env.single_action_space,
+                feature_normalizations=env.feature_normalizations,
+            )
+        finally:
+            env.close()
 
     def _log_to_wandb(self, policy_uri: str, eval_results: EvalResults, stats_client: StatsClient | None):
         if stats_client is None:
@@ -158,9 +183,11 @@ class EvaluateTool(Tool):
                     logger.error("Fallback WandB logging failed: %s", e2)
 
     def eval_policy(self, normalized_uri: str, device: torch.device, stats_client: StatsClient | None) -> EvalResults:
+        game_rules = self._build_game_rules()
+
         # Verify the checkpoint exists
         try:
-            agent = CheckpointManager.load_from_uri(normalized_uri, device="cpu")
+            agent = CheckpointManager.load_from_uri(normalized_uri, game_rules, device)
             metadata = CheckpointManager.get_policy_metadata(normalized_uri)
             del agent
         except Exception as e:
@@ -178,7 +205,11 @@ class EvaluateTool(Tool):
             checkpoint_uri=normalized_uri,
             simulations=list(self.simulations),
             stats_dir=self.stats_dir,
-            replay_dir=f"{self.replay_dir}/{eval_run_name}/{metadata.get('run_name', 'unknown')}",
+            replay_dir=(
+                f"{self.replay_dir}/{eval_run_name}/{metadata.get('run_name', 'unknown')}"
+                if self.enable_replays
+                else None
+            ),
             device=device,
             vectorization=self.system.vectorization,
             export_stats_db_uri=self.stats_db_uri,
