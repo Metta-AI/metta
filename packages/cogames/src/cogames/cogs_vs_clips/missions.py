@@ -27,27 +27,19 @@ def _replace_heart_recipes(
     cfg: MettaGridConfig,
     input_resources: dict[str, int],
     *,
-    cooldown: int | None = None,
+    cooldown: int = 1,
     vibe_tokens: list[str] | None = None,
 ) -> None:
     assembler = cfg.game.objects.get("assembler")
     if assembler is None:
         return
 
-    existing_cooldown = next(
-        (recipe.cooldown for _, recipe in assembler.recipes if recipe.output_resources.get("heart", 0) > 0),
-        1,
-    )
-
-    # Preserve the slowest existing heart protocol unless the caller explicitly opts in to a faster recipe.
-    desired_cooldown = existing_cooldown
-    if cooldown is not None:
-        desired_cooldown = max(cooldown, existing_cooldown, 1)
+    # Replace existing heart recipes with a single simplified one.
 
     heart_recipe = ProtocolConfig(
         input_resources=dict(input_resources),
         output_resources={"heart": 1},
-        cooldown=desired_cooldown,
+        cooldown=max(cooldown, 1),
     )
 
     non_heart_recipes = [
