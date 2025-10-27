@@ -120,8 +120,9 @@ def _build_ray_launch_task(
     run_id: str,
     commit_hash: str,
     args: argparse.Namespace,
+    controller_cmd: str,
 ) -> sky.Task:
-    """Create a Ray-ready Sky task using the base task as template."""
+    """Create a Ray-ready Sky task that starts Ray cluster and runs controller on head node."""
     ray_task = sky.Task(
         setup=base_task.setup,
         envs=base_task.envs,
@@ -131,29 +132,42 @@ def _build_ray_launch_task(
         workdir=base_task.workdir,
     )
 
-    # Prepare Ray bootstrap script executed on all nodes during sky.launch.
+    # Combined script: start Ray + run controller on head, just Ray on workers
     ray_port = args.ray_port
-    ray_bootstrap = textwrap.dedent(
+    combined_script = textwrap.dedent(
         f"""
         set -euo pipefail
         cd /workspace/metta
         if [ -f .venv/bin/activate ]; then
             . .venv/bin/activate
         fi
+
         HEAD_IP=$(echo "$SKYPILOT_NODE_IPS" | head -n1)
+
         if [[ "${{SKYPILOT_NODE_RANK:-0}}" == "0" ]]; then
             echo "[Ray Sweep] Starting head node on port {ray_port}"
             ray stop --force >/dev/null 2>&1 || true
             ray start --head --port {ray_port} --disable-usage-stats --dashboard-host=0.0.0.0
+
+            # Wait for worker nodes to connect
+            echo "[Ray Sweep] Waiting for worker nodes to join..."
+            sleep 15
+
+            # Run sweep controller on head node
+            echo "[Ray Sweep] Running controller: {controller_cmd}"
+            {controller_cmd}
+
+            # After sweep completes, stop Ray on head
+            echo "[Ray Sweep] Sweep complete, stopping Ray head"
+            ray stop
         else
-            echo "[Ray Sweep] Starting worker node -> $HEAD_IP:{ray_port}"
+            echo "[Ray Sweep] Starting worker node ${{SKYPILOT_NODE_RANK}} -> $HEAD_IP:{ray_port}"
             ray stop --force >/dev/null 2>&1 || true
-            ray start --address "$HEAD_IP:{ray_port}" --disable-usage-stats
+            ray start --address "$HEAD_IP:{ray_port}" --disable-usage-stats --block
         fi
-        sleep 5
         """
     ).strip()
-    ray_task.run = ray_bootstrap
+    ray_task.run = combined_script
     ray_task.num_nodes = args.ray_num_nodes
     ray_task.name = run_id
     ray_task.validate_name()
@@ -190,20 +204,12 @@ def launch_ray_sweep(
     commit_hash: str,
     ray_args: list[str],
 ) -> None:
-    """Launch a Ray cluster and execute the sweep controller."""
+    """Launch a Ray cluster and execute the sweep controller in a single stage."""
     if args.copies != 1:
         print(red("Ray sweeps do not support --copies; launch one sweep per command."))
         sys.exit(1)
 
-    base_task = sky.Task.from_yaml("./devops/skypilot/config/skypilot_run.yaml")
-    ray_task = _build_ray_launch_task(
-        base_task=base_task,
-        run_id=run_id,
-        commit_hash=commit_hash,
-        args=args,
-    )
-    set_task_secrets(ray_task)
-
+    # Build controller command first (needed for task construction)
     controller_args: list[str] = [
         "--ray-address",
         f"ray://127.0.0.1:{args.ray_port}",
@@ -218,25 +224,21 @@ def launch_ray_sweep(
 
     controller_cmd_parts = ["uv", "run", "python", "metta/sweep/ray/ray_controller.py", *controller_args]
     controller_cmd = shlex.join(controller_cmd_parts)
-    ray_command = textwrap.dedent(
-        f"""
-        set -euo pipefail
-        if [[ "${{SKYPILOT_NODE_RANK:-0}}" != "0" ]]; then
-            echo "[Ray Sweep] Worker node ${{SKYPILOT_NODE_RANK}} skipping controller execution."
-            exit 0
-        fi
-        cd /workspace/metta
-        if [ -f .venv/bin/activate ]; then
-            . .venv/bin/activate
-        fi
-        echo "[Ray Sweep] Running controller: {controller_cmd}"
-        {controller_cmd}
-        """
-    ).strip()
+
+    # Build Ray task with combined bootstrap + controller execution
+    base_task = sky.Task.from_yaml("./devops/skypilot/config/skypilot_run.yaml")
+    ray_task = _build_ray_launch_task(
+        base_task=base_task,
+        run_id=run_id,
+        commit_hash=commit_hash,
+        args=args,
+        controller_cmd=controller_cmd,
+    )
+    set_task_secrets(ray_task)
 
     display_job_summary(
         job_name=run_id,
-        cmd=f"Ray sweep: {ray_command}",
+        cmd=f"Ray sweep controller: {controller_cmd}",
         task_args=ray_args,
         commit_hash=commit_hash,
         git_ref=args.git_ref,
@@ -255,7 +257,9 @@ def launch_ray_sweep(
 
     backend = CloudVmRayBackend()
 
-    print("[RAY] Launching cluster...")
+    print("[RAY] Launching Ray cluster and starting sweep...")
+    print(f"[RAY] Head node will run: {controller_cmd}")
+    print(f"[RAY] Worker nodes will stay alive serving Ray tasks")
     sky.launch(
         ray_task,
         cluster_name=run_id,
@@ -263,17 +267,8 @@ def launch_ray_sweep(
         retry_until_up=True,
     )
 
-    # Execute sweep controller on head node.
-    run_task = sky.Task(run=ray_command, num_nodes=1)
-    run_task.update_envs({"METTA_RUN_ID": run_id, "RAY_PORT": str(args.ray_port)})
-    set_task_secrets(run_task)
-
-    print("[RAY] Executing sweep controller on head node...")
-    sky.exec(
-        run_task,
-        cluster_name=run_id,
-        backend=backend,
-    )
+    print("[RAY] Sweep complete! Cluster will remain up until manually stopped.")
+    print(f"[RAY] To stop cluster: sky down {run_id}")
 
 
 def main():
