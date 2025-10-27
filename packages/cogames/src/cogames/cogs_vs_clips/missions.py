@@ -26,10 +26,13 @@ class MinedOutVariant(MissionVariant):
     description: str = "Some resources are depleted. You must be efficient to survive."
 
     def apply(self, mission: Mission) -> Mission:
-        mission.carbon_extractor.efficiency -= 50
-        mission.oxygen_extractor.efficiency -= 50
-        mission.germanium_extractor.efficiency -= 50
-        mission.silicon_extractor.efficiency -= 50
+        def clamp_efficiency(value: int, amount: int = 50) -> int:
+            return max(1, value - amount)
+
+        mission.carbon_extractor.efficiency = clamp_efficiency(mission.carbon_extractor.efficiency)
+        mission.oxygen_extractor.efficiency = clamp_efficiency(mission.oxygen_extractor.efficiency)
+        mission.germanium_extractor.efficiency = clamp_efficiency(mission.germanium_extractor.efficiency)
+        mission.silicon_extractor.efficiency = clamp_efficiency(mission.silicon_extractor.efficiency)
         return mission
 
 
