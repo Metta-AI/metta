@@ -592,7 +592,7 @@ proc drawTerrain*() =
   bxy.enterRawOpenGLMode()
   if terrainMap == nil:
     terrainMap = generateTileMap()
-    px = newPixalator(
+    px = newPixelator(
       dataDir & "/atlas.png",
       dataDir & "/atlas.json"
     )
