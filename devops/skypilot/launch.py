@@ -155,7 +155,9 @@ def _build_ray_launch_task(
             echo "[Ray Sweep] Starting head node on port {ray_port}"
             ray stop --force >/dev/null 2>&1 || true
 
-            if ! ray start --head --port {ray_port} --disable-usage-stats --dashboard-host=0.0.0.0; then
+            if ! ray start --head --port {ray_port} --disable-usage-stats --dashboard-host=0.0.0.0 \
+                --object-store-memory=2000000000 \
+                --num-cpus=0; then
                 echo "[Ray Sweep] ERROR: Failed to start Ray head node"
                 exit 1
             fi
@@ -181,7 +183,9 @@ def _build_ray_launch_task(
             echo "[Ray Sweep] Starting worker node ${{SKYPILOT_NODE_RANK}} -> $HEAD_IP:{ray_port}"
             ray stop --force >/dev/null 2>&1 || true
 
-            if ! ray start --address "$HEAD_IP:{ray_port}" --disable-usage-stats --block; then
+            if ! ray start --address "$HEAD_IP:{ray_port}" --disable-usage-stats \
+                --object-store-memory=2000000000 \
+                --block; then
                 echo "[Ray Sweep] ERROR: Failed to start Ray worker node"
                 exit 1
             fi
