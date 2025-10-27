@@ -137,11 +137,13 @@ echo $ANTHROPIC_API_KEY  # Should show your key
 
 ### Deprecation warning about the model
 
-If you see a warning that the Claude model is deprecated, set `GITTA_SPLIT_MODEL` (or pass `--model`) to a newer `*-latest` alias so future runs automatically stay on a supported release.
+If you see a warning that the Claude model is deprecated, set `GITTA_SPLIT_MODEL` (or pass `--model`) to a newer
+`*-latest` alias so future runs automatically stay on a supported release.
 
 ### Commit timed out or hook is slow
 
-Set `GITTA_SKIP_HOOKS=1` (or pass `--skip-hooks`) to append `--no-verify`, and/or raise `GITTA_COMMIT_TIMEOUT` (or `--commit-timeout`) to give hooks more time.
+Set `GITTA_SKIP_HOOKS=1` (or pass `--skip-hooks`) to append `--no-verify`, and/or raise `GITTA_COMMIT_TIMEOUT` (or
+`--commit-timeout`) to give hooks more time.
 
 ### GitHub PR Creation Failed
 
