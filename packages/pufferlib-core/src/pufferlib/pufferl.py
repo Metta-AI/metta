@@ -698,11 +698,11 @@ class PuffeRL:
 
     def _reorder_stats_for_dashboard(self) -> list[tuple[str, float]]:
         priority_metrics = [
+            "agent/heart.gained",
+            "agent/inventory.diversity",
             "agent/avg_reward_per_agent",
             "agent/energy.amount",
             "agent/status.max_steps_without_motion",
-            "agent/heart.gained",
-            "agent/inventory.diversity",
         ]
         new_stats = []
 
