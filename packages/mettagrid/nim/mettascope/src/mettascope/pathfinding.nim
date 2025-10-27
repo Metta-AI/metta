@@ -4,17 +4,17 @@ import
   common, replays
 
 type
-  PathNode = object
-    pos: IVec2
-    gCost: int
-    hCost: int
-    parent: int
+  PathNode* = object
+    pos*: IVec2
+    gCost*: int
+    hCost*: int
+    parent*: int
 
-proc fCost(node: PathNode): int =
+proc fCost*(node: PathNode): int =
   ## Calculate the total cost of a node.
   node.gCost + node.hCost
 
-proc heuristic(a, b: IVec2): int =
+proc heuristic*(a, b: IVec2): int =
   ## Calculate the Manhattan distance heuristic.
   abs(a.x - b.x) + abs(a.y - b.y)
 
