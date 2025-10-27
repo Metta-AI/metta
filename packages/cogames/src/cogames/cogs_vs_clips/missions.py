@@ -187,10 +187,6 @@ class HeartChorusVariant(MissionVariant):
                 "heart.gained": heart_reward,
                 "chest.heart.deposited": heart_reward,
                 "chest.heart.withdrawn": -heart_reward,
-                "carbon.gained": 0.005,
-                "oxygen.gained": 0.005,
-                "germanium.gained": 0.005,
-                "silicon.gained": 0.005,
             }
 
             diversity_levels = {
