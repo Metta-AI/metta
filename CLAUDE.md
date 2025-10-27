@@ -350,7 +350,6 @@ Renovate groups related packages together to reduce PR noise:
 #### Handling Dependency Updates
 
 1. **Automatic Updates**
-
    - Patch updates for stable packages are auto-merged
    - Minor updates create PRs for review
    - Major updates require approval via dependency dashboard
