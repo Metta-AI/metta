@@ -16,7 +16,7 @@ class FakeTask(Task):
     """Fake task for testing."""
 
     def __init__(self, name: str, exit_code: int = 0, error: str | None = None):
-        job_config = JobConfig(name=name, module="fake.module", execution="local")
+        job_config = JobConfig(name=name, module="fake.module")  # remote=None (default) = local
         super().__init__(job_config)
         self._exit_code = exit_code
         self._error = error
@@ -391,7 +391,7 @@ def test_run_task_injects_policy_uri(tmp_path, monkeypatch):
     state.results["train_task"] = train_result
 
     # Create training task (will be skipped since already completed)
-    train_config = JobConfig(name="train_task", module="fake.module", execution="local")
+    train_config = JobConfig(name="train_task", module="fake.module")  # remote=None (default) = local
     train_task = Task(train_config)
 
     # Create evaluation task that depends on training
@@ -399,7 +399,7 @@ def test_run_task_injects_policy_uri(tmp_path, monkeypatch):
         name="eval_task",
         module="test.evaluate",
         args={},  # No policy_uri yet
-        execution="local",
+        # remote=None (default) means local execution
     )
     eval_task = Task(eval_config)
     eval_task.dependencies = [train_task]

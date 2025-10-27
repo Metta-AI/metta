@@ -65,6 +65,7 @@ from devops.skypilot.utils.job_helpers import (
 )
 from metta.common.util.fs import get_repo_root
 from metta.common.util.retry import retry_function
+from metta.jobs.models import JobConfig
 
 
 @dataclass
@@ -220,15 +221,35 @@ class LocalJob(Job):
 
     def __init__(
         self,
-        name: str,
-        cmd: list[str],
-        timeout_s: int = 900,
+        config: JobConfig,
         log_dir: str = "logs/local",
         cwd: Optional[str] = None,
     ):
-        super().__init__(name, log_dir, timeout_s)
-        self.cmd = cmd
+        super().__init__(config.name, log_dir, config.timeout_s)
         self.cwd = cwd or get_repo_root()
+
+        # Build command from config
+        if "cmd" in config.metadata:
+            # Use raw shell command from metadata
+            import shlex
+
+            cmd = config.metadata["cmd"]
+            # Handle string commands - split into list
+            if isinstance(cmd, str):
+                cmd = shlex.split(cmd)
+            self.cmd = cmd
+        else:
+            # Default: Build command via run.py
+            self.cmd = ["uv", "run", "./tools/run.py", config.module]
+
+            # Add args
+            for k, v in config.args.items():
+                self.cmd.append(f"{k}={v}")
+
+            # Add overrides
+            for k, v in config.overrides.items():
+                self.cmd.append(f"{k}={v}")
+
         self._proc: Optional[subprocess.Popen] = None
         self._exit_code: Optional[int] = None
         self._start_time: Optional[float] = None
@@ -359,39 +380,47 @@ class RemoteJob(Job):
 
     def __init__(
         self,
-        name: str,
-        module: Optional[str] = None,
-        args: Optional[list[str]] = None,
-        timeout_s: int = 3600,
+        config: JobConfig,
         log_dir: str = "logs/remote",
-        base_args: Optional[list[str]] = None,
         job_id: Optional[int] = None,
         skip_git_check: bool = False,
     ):
         """Initialize a remote job.
 
         Args:
-            name: Job name for logging/display
-            module: Module path to run (e.g., "experiments.recipes.arena.train")
-            args: Arguments to pass to module (e.g., ["run=test", "trainer.total_timesteps=100000"])
-            timeout_s: Job timeout in seconds
+            config: Job configuration (must have config.remote set)
             log_dir: Directory to store logs
-            base_args: Base arguments for launch (e.g., ["--gpus=4", "--no-spot"])
             job_id: Existing job ID to resume (if provided, skips launch)
             skip_git_check: Skip git state validation (default: False)
 
         Raises:
-            ValueError: If neither module nor job_id is provided
+            ValueError: If config.remote is None (local execution not supported by RemoteJob)
         """
-        super().__init__(name, log_dir, timeout_s)
+        super().__init__(config.name, log_dir, config.timeout_s)
 
-        # Either module or job_id must be provided
-        if not module and not job_id:
-            raise ValueError("Must provide either module or job_id")
+        # Validate remote config
+        if not config.remote and not job_id:
+            raise ValueError("RemoteJob requires config.remote to be set (or job_id for resuming)")
 
-        self.module = module
-        self.args = args or []
-        self.base_args = base_args or ["--no-spot", "--gpus=4", "--nodes", "1"]
+        # Build module args from config
+        arg_list = []
+        for k, v in config.args.items():
+            arg_list.append(f"{k}={v}")
+        for k, v in config.overrides.items():
+            arg_list.append(f"{k}={v}")
+
+        # Build base args from remote config
+        if config.remote:
+            base_args = [f"--gpus={config.remote.gpus}", f"--nodes={config.remote.nodes}"]
+            if not config.remote.spot:
+                base_args.insert(0, "--no-spot")
+        else:
+            # Resuming existing job - use defaults
+            base_args = ["--no-spot", "--gpus=4", "--nodes", "1"]
+
+        self.module = config.module
+        self.args = arg_list
+        self.base_args = base_args
         self.skip_git_check = skip_git_check
         self._job_id: Optional[int] = job_id
         self._request_id: Optional[str] = None
