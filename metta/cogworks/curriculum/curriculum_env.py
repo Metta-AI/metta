@@ -43,8 +43,8 @@ class CurriculumEnv(PufferEnv):
 
         # Check if troubleshooting logging is enabled
         self._enable_per_label_tracking = False
-        if hasattr(curriculum, '_algorithm') and curriculum._algorithm is not None:
-            if hasattr(curriculum._algorithm, 'hypers'):
+        if hasattr(curriculum, "_algorithm") and curriculum._algorithm is not None:
+            if hasattr(curriculum._algorithm, "hypers"):
                 self._enable_per_label_tracking = curriculum._algorithm.hypers.show_curriculum_troubleshooting_logging
 
         # Per-label metrics tracking (only if troubleshooting logging enabled to prevent memory leaks)
@@ -52,10 +52,12 @@ class CurriculumEnv(PufferEnv):
             self._per_label_lp_scores = {}  # Raw LP scores (before z-score normalization)
             self._per_label_postzscored_lp_scores = {}  # Post-z-score LP scores (after z-score, before sigmoid)
             self._per_label_lp_probs = {}  # Final sampling probabilities (after z-score + sigmoid)
+            self._task_slot_input_rewards = {0: [], 1: [], 2: []}  # Track rewards for first 3 task slots
         else:
             self._per_label_lp_scores = None
             self._per_label_postzscored_lp_scores = None
             self._per_label_lp_probs = None
+            self._task_slot_input_rewards = None
 
         # Cache curriculum stats
         self._cached_curriculum_stats = {}
@@ -79,8 +81,10 @@ class CurriculumEnv(PufferEnv):
         """Add curriculum statistics to info dictionary for logging.
 
         Logs:
-        - Per-label LP scores (raw, post-z-score, and final probabilities) - only if show_curriculum_troubleshooting_logging enabled
-        - Per-label aggregate eviction counts - only if show_curriculum_troubleshooting_logging enabled
+        - Per-label LP scores (raw, post-z-score, and final probabilities)
+          - only if show_curriculum_troubleshooting_logging enabled
+        - Per-label aggregate eviction counts
+          - only if show_curriculum_troubleshooting_logging enabled
         - Pool composition fractions (fraction of task pool per label)
         - Total completions, evictions
         - Gini coefficient for sampling distribution across labels
@@ -106,11 +110,21 @@ class CurriculumEnv(PufferEnv):
 
                 # Post-z-score LP scores (after z-score, before sigmoid)
                 if self._per_label_postzscored_lp_scores:
-                    info_dict[self._CURRICULUM_STAT_PREFIX + "per_label_postzscored_lp_scores"] = self._per_label_postzscored_lp_scores.copy()
+                    info_dict[self._CURRICULUM_STAT_PREFIX + "per_label_postzscored_lp_scores"] = (
+                        self._per_label_postzscored_lp_scores.copy()
+                    )
 
                 # Final sampling probabilities (after z-score + sigmoid)
                 if self._per_label_lp_probs:
                     info_dict[self._CURRICULUM_STAT_PREFIX + "per_label_lp_probs"] = self._per_label_lp_probs.copy()
+
+                # Input rewards for first 3 task slots
+                if self._task_slot_input_rewards is not None:
+                    for slot in range(3):
+                        if self._task_slot_input_rewards[slot]:
+                            info_dict[self._CURRICULUM_STAT_PREFIX + f"curriculum_input_rewards/task_slot_{slot}"] = (
+                                self._task_slot_input_rewards[slot].copy()
+                            )
 
             # Add pool composition fractions (fraction of task pool for each label)
             pool_composition = {}
@@ -306,6 +320,11 @@ class CurriculumEnv(PufferEnv):
                     self._tracked_task_completions_this_epoch.get(task_id, 0) + 1
                 )
 
+            # Track input rewards for first 3 task slots (only if troubleshooting enabled)
+            if self._task_slot_input_rewards is not None and task_id in self._tracked_task_ids:
+                slot = self._tracked_task_ids.index(task_id)
+                self._task_slot_input_rewards[slot].append(float(mean_reward))
+
             # Update per-label metrics tracking (only if enabled to prevent memory leaks)
             if self._enable_per_label_tracking:
                 label = self._current_task.get_label()
@@ -321,7 +340,9 @@ class CurriculumEnv(PufferEnv):
                     # Update post-z-score LP score with EMA (α = 0.01)
                     postzscored_lp_score = self._curriculum.get_task_postzscored_lp_score(self._current_task._task_id)
                     if label in self._per_label_postzscored_lp_scores:
-                        self._per_label_postzscored_lp_scores[label] = 0.99 * self._per_label_postzscored_lp_scores[label] + 0.01 * postzscored_lp_score
+                        self._per_label_postzscored_lp_scores[label] = (
+                            0.99 * self._per_label_postzscored_lp_scores[label] + 0.01 * postzscored_lp_score
+                        )
                     else:
                         self._per_label_postzscored_lp_scores[label] = postzscored_lp_score
 
@@ -411,6 +432,7 @@ class CurriculumEnv(PufferEnv):
             "_per_label_lp_scores",
             "_per_label_postzscored_lp_scores",
             "_per_label_lp_probs",
+            "_task_slot_input_rewards",
             "_cached_curriculum_stats",
             "_curriculum_stats_cache_valid",
             "_tracked_task_ids",
