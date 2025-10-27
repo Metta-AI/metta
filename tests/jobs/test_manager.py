@@ -3,7 +3,8 @@
 import tempfile
 from pathlib import Path
 
-from metta.jobs import JobConfig, JobManager
+from metta.jobs.manager import JobManager
+from metta.jobs.models import JobConfig
 
 
 def test_job_manager_basic():

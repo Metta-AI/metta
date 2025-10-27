@@ -19,7 +19,7 @@ from datetime import datetime
 from devops.stable.state import ReleaseState, save_state
 from devops.stable.tasks import Task, TaskResult
 from metta.common.util.text_styles import blue, green, red, yellow
-from metta.jobs import JobManager
+from metta.jobs.manager import JobManager
 
 
 def _prompt_user_verification(result: TaskResult) -> bool:
