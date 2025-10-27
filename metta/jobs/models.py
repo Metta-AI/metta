@@ -53,7 +53,3 @@ class JobConfig(Config):
 
     # Metadata (experiment_id, tags, etc.)
     metadata: dict[str, Any] = Field(default_factory=dict)
-
-
-# Backwards compatibility alias
-JobSpec = JobConfig
