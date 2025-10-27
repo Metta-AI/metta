@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Literal, Optional, TypeVar
 
 import typer
-import yaml
+import yaml  # type: ignore[import]
 from click.core import ParameterSource
 from packaging.version import Version
 from rich.table import Table
@@ -154,7 +154,8 @@ def play_cmd(
         ParameterSource.ENVIRONMENT,
         ParameterSource.PROMPT,
     ):
-        env_cfg.game.num_agents = cogs
+        if cogs is not None:
+            env_cfg.game.num_agents = cogs
 
     play_module.play(
         console,
@@ -300,12 +301,17 @@ def train_cmd(
 
 @app.command(
     name="eval",
-    help="Evaluate one or more policies on a mission",
+    help="Evaluate one or more policies on one or more missions",
 )
 @app.command("evaluate", hidden=True)
 def evaluate_cmd(
     ctx: typer.Context,
-    mission: Optional[str] = typer.Option(None, "--mission", "-m", help="Name of the mission"),
+    missions: Optional[list[str]] = typer.Option(  # noqa: B008
+        None,
+        "--mission",
+        "-m",
+        help="Missions to evaluate (supports wildcards, e.g., --mission training_facility.*)",
+    ),
     cogs: Optional[int] = typer.Option(None, "--cogs", "-c", help="Number of cogs (agents)"),
     variant: Optional[list[str]] = typer.Option(  # noqa: B008
         None,
@@ -327,30 +333,17 @@ def evaluate_cmd(
         min=1,
     ),
     steps: Optional[int] = typer.Option(1000, "--steps", "-s", help="Max steps per episode", min=1),
-    print_cvc_config: bool = typer.Option(
-        False, "--print-cvc-config", help="Print Mission config (CVC config) and exit"
-    ),
-    print_mg_config: bool = typer.Option(False, "--print-mg-config", help="Print MettaGridConfig and exit"),
 ) -> None:
-    resolved_mission, env_cfg, mission_cfg = get_mission_name_and_config(ctx, mission, variant, cogs)
-
-    if print_cvc_config or print_mg_config:
-        try:
-            verbose.print_configs(console, env_cfg, mission_cfg, print_cvc_config, print_mg_config)
-        except Exception as exc:
-            console.print(f"[red]Error printing config: {exc}[/red]")
-            raise typer.Exit(1) from exc
-
+    selected_missions = get_mission_names_and_configs(ctx, missions, variants_arg=variant, cogs=cogs)
     policy_specs = get_policy_specs(ctx, policies)
 
     console.print(
-        f"[cyan]Evaluating {len(policy_specs)} policies on {resolved_mission} over {episodes} episodes[/cyan]"
+        f"[cyan]Preparing evaluation for {len(policy_specs)} policies across {len(selected_missions)} mission(s)[/cyan]"
     )
 
     evaluate_module.evaluate(
         console,
-        resolved_game=resolved_mission,
-        env_cfg=env_cfg,
+        missions=selected_missions,
         policy_specs=policy_specs,
         action_timeout_ms=action_timeout_ms,
         episodes=episodes,
