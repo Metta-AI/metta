@@ -20,39 +20,39 @@ type
     quadIndices: seq[uint32]
 
 var
-  uMVP: Uniform[Mat4]
-  uIndexTexture: Uniform[USampler2d]
-  uTileArray: Uniform[Sampler2dArray]
-  uOverworld: Uniform[Sampler2d]
-  uMapSize: Uniform[Vec2]
-  uTileSize: Uniform[float32]
-  uZoom: Uniform[float32]
-  uZoomThreshold: Uniform[float32]
+  mvp: Uniform[Mat4]
+  indexTexture: Uniform[USampler2D]
+  tileArray: Uniform[Sampler2DArray]
+  overworld: Uniform[Sampler2D]
+  mapSize: Uniform[Vec2]
+  tileSize: Uniform[float32]
+  zoom: Uniform[float32]
+  zoomThreshold: Uniform[float32]
 
-proc tileVert*(aPos: Vec2, aTexCoord: Vec2, TextCoord: var Vec2) =
-  gl_Position = uMVP * vec4(aPos.x, aPos.y, 0.0, 1.0)
+proc tileMapVert*(aPos: Vec2, aTexCoord: Vec2, TextCoord: var Vec2) =
+  gl_Position = mvp * vec4(aPos.x, aPos.y, 0.0, 1.0)
   TextCoord = aTexCoord
 
-proc tileFrag*(TextCoord: Vec2, FragColor: var Vec4) =
-  if uZoom < uZoomThreshold:
+proc tileMapFrag*(TextCoord: Vec2, FragColor: var Vec4) =
+  if zoom < zoomThreshold:
     # Use the overworld texture with mipmapping for higher zoom levels
     let mapUV = TextCoord
-    FragColor = texture(uOverworld, vec2(mapUV.x, 1.0 - mapUV.y))
+    FragColor = texture(overworld, vec2(mapUV.x, 1.0 - mapUV.y))
   else:
     let
       # Compute the map cell coordinates.
-      mapPos = TextCoord * uMapSize
+      mapPos = TextCoord * mapSize
       mapTexel0 = ivec2(mapPos.x.floor.int32, mapPos.y.floor.int32)
-      mapTexel = ivec2(mapTexel0.x, uMapSize.y.int32 - mapTexel0.y - 1)
+      mapTexel = ivec2(mapTexel0.x, mapSize.y.int32 - mapTexel0.y - 1)
 
       # Read the tile index from the index texture.
-      tileIndexU = texelFetch(uIndexTexture, mapTexel, 0).x
+      tileIndexU = texelFetch(indexTexture, mapTexel, 0).x
       tileIndex = tileIndexU.int32
 
       # Local coordinates inside the tile, continuous and fractional.
       tilePos01 = fract(mapPos)
-      localTexel = tilePos01 * uTileSize
-      contTexel = TextCoord * (uMapSize * uTileSize)
+      localTexel = tilePos01 * tileSize
+      contTexel = TextCoord * (mapSize * tileSize)
 
       # Anti-aliasing the nearest snap in the tile space.
       fw = max(fwidth(contTexel), vec2(1e-5))
@@ -61,17 +61,17 @@ proc tileFrag*(TextCoord: Vec2, FragColor: var Vec4) =
       localAA = floor(localTexel) + blend + 0.5
 
       # Clamp to the valid texel range.
-      localClamped = clamp(localAA, 0.5, uTileSize - 0.5)
+      localClamped = clamp(localAA, 0.5, tileSize - 0.5)
 
       # Convert to per layer UVs. Flip Y coordinate to match texture array layout.
-      layerUV = vec2(localClamped.x / uTileSize, (uTileSize - localClamped.y) / uTileSize)
+      layerUV = vec2(localClamped.x / tileSize, (tileSize - localClamped.y) / tileSize)
 
       # Stable LOD: gradient from the continuous coordinates, matched to UV space.
-      dUVdx = (dFdx(contTexel) / uTileSize) * vec2(1.0, -1.0)
-      dUVdy = (dFdy(contTexel) / uTileSize) * vec2(1.0, -1.0)
+      dUVdx = (dFdx(contTexel) / tileSize) * vec2(1.0, -1.0)
+      dUVdy = (dFdy(contTexel) / tileSize) * vec2(1.0, -1.0)
 
     FragColor = textureGrad(
-      uTileArray,
+      tileArray,
       vec3(layerUV.x, layerUV.y, float(tileIndex)),
       dUVdx,
       dUVdy
@@ -232,8 +232,8 @@ proc setupGPU*(tileMap: TileMap) =
 
   # Compile shader via shady
   tileMap.shader = newShader(
-    ("tileVert", toGLSL(tileVert, "410", "")),
-    ("tileFrag", toGLSL(tileFrag, "410", ""))
+    ("tileMapVert", toGLSL(tileMapVert, "410", "")),
+    ("tileMapFrag", toGLSL(tileMapFrag, "410", ""))
   )
 
   # Quad vertices (position + texture coordinates)
@@ -297,25 +297,25 @@ proc draw*(
   glUseProgram(tileMap.shader.programId)
 
   # Set uniforms
-  tileMap.shader.setUniform("uMVP", mvp)
-  tileMap.shader.setUniform("uMapSize", vec2(tileMap.width.float32, tileMap.height.float32))
-  tileMap.shader.setUniform("uTileSize", 64.0f)  # Tile size in pixels.
-  tileMap.shader.setUniform("uZoom", zoom)
-  tileMap.shader.setUniform("uZoomThreshold", zoomThreshold)
+  tileMap.shader.setUniform("mvp", mvp)
+  tileMap.shader.setUniform("mapSize", vec2(tileMap.width.float32, tileMap.height.float32))
+  tileMap.shader.setUniform("tileSize", 64.0f)  # Tile size in pixels.
+  tileMap.shader.setUniform("zoom", zoom)
+  tileMap.shader.setUniform("zoomThreshold", zoomThreshold)
   tileMap.shader.bindUniforms()
 
   # Bind textures
   glActiveTexture(GL_TEXTURE0)
   glBindTexture(GL_TEXTURE_2D, tileMap.indexTexture)
-  tileMap.shader.setUniform("uIndexTexture", 0)
+  tileMap.shader.setUniform("indexTexture", 0)
 
   glActiveTexture(GL_TEXTURE1)
   glBindTexture(GL_TEXTURE_2D_ARRAY, tileMap.tileAtlasTextureArray)
-  tileMap.shader.setUniform("uTileArray", 1)
+  tileMap.shader.setUniform("tileArray", 1)
 
   glActiveTexture(GL_TEXTURE2)
   glBindTexture(GL_TEXTURE_2D, tileMap.overworldTexture)
-  tileMap.shader.setUniform("uOverworld", 2)
+  tileMap.shader.setUniform("overworld", 2)
 
   tileMap.shader.bindUniforms()
 
