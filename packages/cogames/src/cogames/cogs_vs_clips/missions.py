@@ -152,7 +152,7 @@ class EnergizedVariant(MissionVariant):
     description: str = "Top off energy every tick so agents never run dry."
 
     def apply(self, mission: Mission) -> Mission:
-        mission.energy_capacity = max(mission.energy_capacity, 100)
+        mission.energy_capacity = max(mission.energy_capacity, 255)
         mission.energy_regen_amount = mission.energy_capacity
 
         def modifier(cfg: MettaGridConfig) -> None:
