@@ -71,11 +71,9 @@ class ExperimentMonitor:
                 print(f"{'=' * 80}\n")
 
                 # Create appropriate job type and attach
-                if job_state.config.execution == "remote":
+                if job_state.config.remote is not None:
                     job = RemoteJob(
-                        name=job_name,
-                        module=job_state.config.module,
-                        args=[f"{k}={v}" for k, v in job_state.config.args.items()],
+                        config=job_state.config,
                         job_id=int(job_state.job_id),
                         log_dir=str(Path("experiments/logs") / self.instance_id),
                     )
@@ -128,7 +126,7 @@ class ExperimentMonitor:
             # Collect all job IDs to check
             job_ids = []
             for job_state in self.state.jobs.values():
-                if job_state.status == "running" and job_state.job_id and job_state.config.execution == "remote":
+                if job_state.status == "running" and job_state.job_id and job_state.config.remote is not None:
                     try:
                         job_ids.append(int(job_state.job_id))
                     except ValueError:
@@ -146,7 +144,7 @@ class ExperimentMonitor:
                     continue
                 if not job_state.job_id:
                     continue
-                if job_state.config.execution != "remote":
+                if job_state.config.remote is None:
                     continue
 
                 try:
@@ -222,7 +220,7 @@ class ExperimentMonitor:
                 status_str = f"○ {job_state.status.upper()}"
 
             job_id_str = job_state.job_id or "-"
-            execution_str = job_state.config.execution
+            execution_str = "remote" if job_state.config.remote is not None else "local"
             wandb_str = job_state.wandb_run_id or "-"
 
             print(f"{job_name:<30} {status_str:<15} {job_id_str:<10} {execution_str:<10} {wandb_str:<30}")

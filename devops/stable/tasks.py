@@ -9,7 +9,7 @@ from typing import Callable, Literal, Optional
 from pydantic import BaseModel, Field
 
 from metta.common.util.text_styles import blue, cyan, green, magenta, red, yellow
-from metta.jobs.models import JobConfig
+from metta.jobs.models import JobConfig, RemoteConfig
 from metta.jobs.state import JobState
 
 # Type definitions
@@ -289,9 +289,9 @@ def python_ci(name: str = "python_ci", timeout_s: int = 1800) -> Task:
     job_config = JobConfig(
         name=name,
         module="__unused__",  # Not used for command-based tasks
-        execution="local",
         timeout_s=timeout_s,
         metadata={"cmd": ["metta", "pytest", "--ci"]},
+        # remote=None (default) means local execution
     )
     return Task(job_config)
 
@@ -301,9 +301,9 @@ def cpp_ci(name: str = "cpp_ci", timeout_s: int = 1800) -> Task:
     job_config = JobConfig(
         name=name,
         module="__unused__",  # Not used for command-based tasks
-        execution="local",
         timeout_s=timeout_s,
         metadata={"cmd": ["metta", "cpptest", "--test"]},
+        # remote=None (default) means local execution
     )
     return Task(job_config)
 
@@ -313,9 +313,9 @@ def cpp_benchmark(name: str = "cpp_benchmark", timeout_s: int = 1800) -> Task:
     job_config = JobConfig(
         name=name,
         module="__unused__",  # Not used for command-based tasks
-        execution="local",
         timeout_s=timeout_s,
         metadata={"cmd": ["metta", "cpptest", "--benchmark"]},
+        # remote=None (default) means local execution
     )
     return Task(job_config)
 
@@ -345,9 +345,9 @@ def local_train(
         module=module,
         args=args_dict,
         overrides=overrides_dict,
-        execution="local",
         timeout_s=timeout_s,
         job_type="train",
+        # remote=None (default) means local execution
     )
 
     return LocalTrainingTask(
@@ -387,12 +387,13 @@ def remote_train(
         module=module,
         args=args_dict,
         overrides=overrides_dict,
-        execution="remote",
         timeout_s=timeout_s,
-        gpus=gpus,
-        nodes=nodes,
-        spot=use_spot,
         job_type="train",
+        remote=RemoteConfig(
+            gpus=gpus,
+            nodes=nodes,
+            spot=use_spot,
+        ),
     )
 
     return RemoteTrainingTask(
@@ -430,9 +431,9 @@ def evaluate(
         module=module,
         args=args_dict,
         overrides=overrides_dict,
-        execution="local",
         timeout_s=timeout_s,
         job_type="eval",
+        # remote=None (default) means local execution
     )
 
     task = Task(job_config)

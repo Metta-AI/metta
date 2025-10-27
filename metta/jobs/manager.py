@@ -3,7 +3,6 @@
 import time
 from datetime import datetime
 from pathlib import Path
-from typing import Literal
 
 from sqlmodel import Session, SQLModel, create_engine, select
 
@@ -110,8 +109,9 @@ class JobManager:
             if not job_state or job_state.status != "pending":
                 return False
 
-            # Check if slot available
-            if not self._has_available_slot(job_state.config.execution):
+            # Check if slot available based on remote config
+            is_remote = job_state.config.remote is not None
+            if not self._has_available_slot(is_remote):
                 return False
 
             # Start job
@@ -126,16 +126,15 @@ class JobManager:
 
             return True
 
-    def _has_available_slot(self, execution: Literal["local", "remote"]) -> bool:
+    def _has_available_slot(self, is_remote: bool) -> bool:
         """Check if worker slot available for execution type."""
         active_count = sum(
             1
             for job in self._active_jobs.values()
-            if (execution == "local" and isinstance(job, LocalJob))
-            or (execution == "remote" and isinstance(job, RemoteJob))
+            if (not is_remote and isinstance(job, LocalJob)) or (is_remote and isinstance(job, RemoteJob))
         )
 
-        if execution == "local":
+        if not is_remote:
             return active_count < self.max_local_jobs
         else:
             return active_count < self.max_remote_jobs
@@ -147,15 +146,14 @@ class JobManager:
         # Use manager's log_dir for all jobs
         log_dir = str(self.log_dir)
 
-        if config.execution == "local":
-            args = config.to_local_job_args(log_dir)
-            return LocalJob(**args)
+        # Check config.remote to determine execution location
+        if config.remote is None:
+            # Local execution
+            return LocalJob(config, log_dir)
         else:
-            args = config.to_remote_job_args(log_dir)
-            # Check if we're resuming an existing job
-            if job_state.job_id:
-                args["job_id"] = int(job_state.job_id)
-            return RemoteJob(**args)
+            # Remote execution
+            job_id = int(job_state.job_id) if job_state.job_id else None
+            return RemoteJob(config, log_dir, job_id=job_id)
 
     # ---- Polling ----
 
