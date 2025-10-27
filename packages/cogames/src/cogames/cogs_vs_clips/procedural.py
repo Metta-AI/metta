@@ -1,6 +1,7 @@
 from typing import Any, Literal, cast
 
 import numpy as np
+from pydantic import BaseModel
 
 from mettagrid.map_builder.map_builder import MapBuilderConfig
 from mettagrid.mapgen.area import AreaWhere
@@ -72,7 +73,7 @@ def make_machina_procedural_map_builder(
         dungeons = max(3, min(48, area // dungeon_divisor))
         return int(biomes), int(dungeons)
 
-    biome_map: dict[str, tuple[type, type]] = {
+    biome_map: dict[str, tuple[type[Any], type[BaseModel]]] = {
         "caves": (BiomeCaves, BiomeCavesConfig),
         "forest": (BiomeForest, BiomeForestConfig),
         "desert": (BiomeDesert, BiomeDesertConfig),
@@ -82,8 +83,8 @@ def make_machina_procedural_map_builder(
     if base_biome not in biome_map:
         raise ValueError(f"Unknown base_biome '{base_biome}'. Valid: {sorted(biome_map.keys())}")
 
-    _, ConfigModel = biome_map[base_biome]
-    base_cfg = ConfigModel.model_validate(base_biome_config or {})
+    ConfigModelType: type[BaseModel] = biome_map[base_biome][1]
+    base_cfg = cast(SceneConfig, ConfigModelType.model_validate(base_biome_config or {}))
 
     default_extractors = {
         "chest": 0.0,
@@ -127,13 +128,13 @@ def make_machina_procedural_map_builder(
         w = {**defaults, **(weights or {})}
         cands: list[RandomSceneCandidate] = []
         if w.get("caves", 0) > 0:
-            cands.append(RandomSceneCandidate(scene=BiomeCaves.Config(), weight=float(w["caves"])))
+            cands.append(RandomSceneCandidate(scene=BiomeCavesConfig(), weight=float(w["caves"])))
         if w.get("forest", 0) > 0:
-            cands.append(RandomSceneCandidate(scene=BiomeForest.Config(), weight=float(w["forest"])))
+            cands.append(RandomSceneCandidate(scene=BiomeForestConfig(), weight=float(w["forest"])))
         if w.get("desert", 0) > 0:
-            cands.append(RandomSceneCandidate(scene=BiomeDesert.Config(), weight=float(w["desert"])))
+            cands.append(RandomSceneCandidate(scene=BiomeDesertConfig(), weight=float(w["desert"])))
         if w.get("city", 0) > 0:
-            cands.append(RandomSceneCandidate(scene=BiomeCity.Config(), weight=float(w["city"])))
+            cands.append(RandomSceneCandidate(scene=BiomeCityConfig(), weight=float(w["city"])))
         return cands
 
     def _make_dungeon_candidates(weights: dict[str, float] | None) -> list[RandomSceneCandidate]:
@@ -143,7 +144,12 @@ def make_machina_procedural_map_builder(
         if w.get("bsp", 0) > 0:
             cands.append(
                 RandomSceneCandidate(
-                    scene=BSP.Config(rooms=4, min_room_size=6, min_room_size_ratio=0.35, max_room_size_ratio=0.75),
+                    scene=cast(Any, BSP).Config(
+                        rooms=4,
+                        min_room_size=6,
+                        min_room_size_ratio=0.35,
+                        max_room_size_ratio=0.75,
+                    ),
                     weight=float(w["bsp"]),
                 )
             )
@@ -152,7 +158,7 @@ def make_machina_procedural_map_builder(
             maze_weight = float(w["maze"]) if isinstance(w.get("maze", 0), (int, float)) else 1.0
             cands.append(
                 RandomSceneCandidate(
-                    scene=Maze.Config(
+                    scene=cast(Any, Maze).Config(
                         algorithm="dfs",
                         room_size=IntConstantDistribution(value=2),
                         wall_size=IntConstantDistribution(value=1),
@@ -162,7 +168,7 @@ def make_machina_procedural_map_builder(
             )
             cands.append(
                 RandomSceneCandidate(
-                    scene=Maze.Config(
+                    scene=cast(Any, Maze).Config(
                         algorithm="kruskal",
                         room_size=IntConstantDistribution(value=2),
                         wall_size=IntConstantDistribution(value=1),
@@ -173,7 +179,7 @@ def make_machina_procedural_map_builder(
         if w.get("radial", 0) > 0:
             cands.append(
                 RandomSceneCandidate(
-                    scene=RadialMaze.Config(arms=8, arm_width=2),
+                    scene=cast(Any, RadialMaze).Config(arms=8, arm_width=2),
                     weight=float(w["radial"]),
                 )
             )
@@ -187,7 +193,7 @@ def make_machina_procedural_map_builder(
 
     def _wrap_in_layout(scene_cfg: SceneConfig, tag: str, max_w: int, max_h: int) -> SceneConfig:
         # Use BoundedLayout to clamp to both max_* and current zone size
-        return BoundedLayout.Config(
+        return cast(Any, BoundedLayout).Config(
             max_width=max_w,
             max_height=max_h,
             tag=tag,
@@ -208,12 +214,12 @@ def make_machina_procedural_map_builder(
         biome_fill_count = max(1, int(biome_count * 0.6))
         # Wrap RandomScene in a clamped Layout so no single biome fills its entire zone
         biome_layer = ChildrenAction(
-            scene=BSPLayout.Config(
+            scene=cast(Any, BSPLayout).Config(
                 area_count=biome_count,
                 children=[
                     ChildrenAction(
                         scene=_wrap_in_layout(
-                            RandomScene.Config(candidates=biome_cands),
+                            cast(Any, RandomScene).Config(candidates=biome_cands),
                             tag="biome.zone",
                             max_w=biome_max_w,
                             max_h=biome_max_h,
@@ -236,12 +242,12 @@ def make_machina_procedural_map_builder(
         dungeon_fill_count = max(1, int(dungeon_count * 0.5))
         # Wrap RandomScene in a clamped Layout so no single dungeon fills its entire zone
         dungeon_layer = ChildrenAction(
-            scene=BSPLayout.Config(
+            scene=cast(Any, BSPLayout).Config(
                 area_count=dungeon_count,
                 children=[
                     ChildrenAction(
                         scene=_wrap_in_layout(
-                            RandomScene.Config(candidates=dungeon_cands),
+                            cast(Any, RandomScene).Config(candidates=dungeon_cands),
                             tag="dungeon.zone",
                             max_w=dungeon_max_w,
                             max_h=dungeon_max_h,
@@ -268,7 +274,7 @@ def make_machina_procedural_map_builder(
         *([dungeon_layer] if dungeon_layer is not None else []),
         # Resources first so connectors will tunnel between them
         ChildrenAction(
-            scene=UniformExtractorScene.Config(
+            scene=cast(Any, UniformExtractorScene).Config(
                 target_coverage=extractor_coverage,
                 extractor_names=extractor_names_final,
                 extractor_weights=extractor_weights_final,
@@ -281,7 +287,7 @@ def make_machina_procedural_map_builder(
         ),
         # Ensure connectivity after resources to connect resource pockets
         ChildrenAction(
-            scene=MakeConnected.Config(),
+            scene=cast(Any, MakeConnected).Config(),
             where="full",
             order_by="last",
             lock="arena.connect",
@@ -289,7 +295,7 @@ def make_machina_procedural_map_builder(
         ),
         # Place hub last to keep spawns intact; it self-centers and sizes internally
         ChildrenAction(
-            scene=BaseHub.Config(
+            scene=cast(Any, BaseHub).Config(
                 spawn_count=num_cogs,
                 hub_width=21,
                 hub_height=21,
@@ -303,7 +309,7 @@ def make_machina_procedural_map_builder(
         ),
         # Final connectivity sweep to ensure all empty regions are connected end-to-end
         ChildrenAction(
-            scene=MakeConnected.Config(),
+            scene=cast(Any, MakeConnected).Config(),
             where="full",
             order_by="last",
             lock="arena.connect.final",
@@ -364,14 +370,15 @@ def make_hub_only_map_builder(
         base_kwargs["cross_objects"] = list(cross_objects)
 
     candidates = [
-        RandomSceneCandidate(scene=BaseHub.Config(**base_kwargs, transform=t), weight=1.0) for t in transform_set
+        RandomSceneCandidate(scene=cast(Any, BaseHub).Config(**base_kwargs, transform=t), weight=1.0)
+        for t in transform_set
     ]
 
-    return MapGen.Config(
+    return cast(Any, MapGen).Config(
         width=width,
         height=height,
         seed=seed,
-        instance=RandomScene.Config(candidates=candidates),
+        instance=cast(Any, RandomScene).Config(candidates=candidates),
     )
 
 
@@ -393,16 +400,16 @@ def apply_hub_overrides_to_builder(
         height = getattr(builder, "height", None) or 21
 
         inst = getattr(builder, "instance", None)
-        if isinstance(inst, RandomScene.Config):
+        if isinstance(inst, cast(Any, RandomScene).Config):
             # Verify candidates are BaseHub configs; extract transforms
             transforms: list[GridTransform] = []
             basehub_seen = False
             existing_corner_bundle: HubBundle | None = None
             existing_cross_bundle: HubBundle | None = None
             existing_cross_distance: int | None = None
-            for cand in inst.candidates:
+            for cand in cast(Any, inst).candidates:
                 scn = cand.scene
-                if isinstance(scn, BaseHub.Config):
+                if isinstance(scn, cast(Any, BaseHub).Config):
                     basehub_seen = True
                     transforms.append(getattr(scn, "transform", GridTransform.IDENTITY))
                     # Capture existing hub settings from the first BaseHub config we see
@@ -469,8 +476,8 @@ def apply_procedural_overrides_to_builder(
             return builder
 
         base_inst = getattr(builder, "instance", None)
-        biome_bases = (BiomeCaves.Config, BiomeForest.Config, BiomeDesert.Config, BiomeCity.Config)
-        if isinstance(base_inst, biome_bases):
+        biome_bases = (BiomeCavesConfig, BiomeForestConfig, BiomeDesertConfig, BiomeCityConfig)
+        if isinstance(base_inst, biome_bases) or isinstance(base_inst, cast(Any, biome_bases)):
             width = int(ov.get("width", getattr(builder, "width", 100) or 100))
             height = int(ov.get("height", getattr(builder, "height", 100) or 100))
             seed = ov.get("seed", getattr(builder, "seed", None))
