@@ -35,7 +35,6 @@ import shutil
 import sys
 import time
 from collections import defaultdict, deque
-from collections.abc import Mapping
 from threading import Thread
 
 import numpy as np
@@ -698,22 +697,10 @@ class PuffeRL:
         print("\033[0;0H" + capture.get())
 
     def _reorder_stats_for_dashboard(self) -> list[tuple[str, float]]:
-        priority_metrics = [
-            "agent/avg_reward_per_agent",
-            "agent/energy.amount",
-            "agent/status.max_steps_without_motion",
-            "environment/heart.gained",
-            "environment/inventory.diversity",
-        ]
+        priority_metrics = ["agent/avg_reward_per_agent", "agent/energy.amount", "agent/status.max_steps_without_motion"]
         new_stats = []
 
-        stats_source = self.stats if len(self.stats) > 0 else self.last_stats
-        if not stats_source:
-            return []
-
-        stats = self._filter_stats_for_debug(stats_source)
-        if not stats:
-            return []
+        stats = self.stats if len(self.stats) > 0 else self.last_stats
 
         for name in priority_metrics:
             if name in stats:
@@ -724,13 +711,6 @@ class PuffeRL:
                 new_stats.append((name, stats[name]))
 
         return new_stats
-
-    def _filter_stats_for_debug(self, stats: Mapping[str, float]) -> dict[str, float]:
-        return {name: value for name, value in stats.items() if self._should_display_metric(name)}
-
-    def _should_display_metric(self, name: str) -> bool:
-        lowered = name.lower()
-        return "heart" in lowered or lowered.startswith("agent/")
 
 
 def compute_puff_advantage(
