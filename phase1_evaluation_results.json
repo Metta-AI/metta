@@ -1,0 +1,542 @@
+[
+  {
+    "experiment": "exp1",
+    "config_name": "baseline",
+    "total_reward": 2.0,
+    "hearts_assembled": 2,
+    "steps_taken": 1000,
+    "final_energy": 100,
+    "extractors_used": {
+      "carbon": 10,
+      "oxygen": 2,
+      "germanium": 5,
+      "silicon": 6
+    },
+    "success": true
+  },
+  {
+    "experiment": "exp1",
+    "config_name": "conservative",
+    "total_reward": 2.0,
+    "hearts_assembled": 2,
+    "steps_taken": 1000,
+    "final_energy": 100,
+    "extractors_used": {
+      "carbon": 10,
+      "oxygen": 2,
+      "germanium": 5,
+      "silicon": 6
+    },
+    "success": true
+  },
+  {
+    "experiment": "exp1",
+    "config_name": "aggressive",
+    "total_reward": 2.0,
+    "hearts_assembled": 2,
+    "steps_taken": 1000,
+    "final_energy": 100,
+    "extractors_used": {
+      "carbon": 10,
+      "oxygen": 2,
+      "germanium": 5,
+      "silicon": 6
+    },
+    "success": true
+  },
+  {
+    "experiment": "exp1",
+    "config_name": "silicon_focused",
+    "total_reward": 2.0,
+    "hearts_assembled": 2,
+    "steps_taken": 1000,
+    "final_energy": 100,
+    "extractors_used": {
+      "carbon": 10,
+      "oxygen": 2,
+      "germanium": 5,
+      "silicon": 6
+    },
+    "success": true
+  },
+  {
+    "experiment": "exp2",
+    "config_name": "baseline",
+    "total_reward": 1.0,
+    "hearts_assembled": 1,
+    "steps_taken": 2500,
+    "final_energy": 100,
+    "extractors_used": {
+      "carbon": 5,
+      "oxygen": 2,
+      "germanium": 3,
+      "silicon": 2
+    },
+    "success": true
+  },
+  {
+    "experiment": "exp2",
+    "config_name": "conservative",
+    "total_reward": 1.0,
+    "hearts_assembled": 1,
+    "steps_taken": 2500,
+    "final_energy": 100,
+    "extractors_used": {
+      "carbon": 5,
+      "oxygen": 2,
+      "germanium": 3,
+      "silicon": 2
+    },
+    "success": true
+  },
+  {
+    "experiment": "exp2",
+    "config_name": "aggressive",
+    "total_reward": 1.0,
+    "hearts_assembled": 1,
+    "steps_taken": 2500,
+    "final_energy": 100,
+    "extractors_used": {
+      "carbon": 5,
+      "oxygen": 2,
+      "germanium": 3,
+      "silicon": 2
+    },
+    "success": true
+  },
+  {
+    "experiment": "exp2",
+    "config_name": "silicon_focused",
+    "total_reward": 1.0,
+    "hearts_assembled": 1,
+    "steps_taken": 2500,
+    "final_energy": 100,
+    "extractors_used": {
+      "carbon": 5,
+      "oxygen": 2,
+      "germanium": 3,
+      "silicon": 2
+    },
+    "success": true
+  },
+  {
+    "experiment": "exp4",
+    "config_name": "baseline",
+    "total_reward": 1.0,
+    "hearts_assembled": 1,
+    "steps_taken": 2500,
+    "final_energy": 100,
+    "extractors_used": {
+      "carbon": 10,
+      "oxygen": 2,
+      "germanium": 5,
+      "silicon": 2
+    },
+    "success": true
+  },
+  {
+    "experiment": "exp4",
+    "config_name": "conservative",
+    "total_reward": 1.0,
+    "hearts_assembled": 1,
+    "steps_taken": 2500,
+    "final_energy": 100,
+    "extractors_used": {
+      "carbon": 10,
+      "oxygen": 2,
+      "germanium": 5,
+      "silicon": 2
+    },
+    "success": true
+  },
+  {
+    "experiment": "exp4",
+    "config_name": "aggressive",
+    "total_reward": 1.0,
+    "hearts_assembled": 1,
+    "steps_taken": 2500,
+    "final_energy": 100,
+    "extractors_used": {
+      "carbon": 10,
+      "oxygen": 2,
+      "germanium": 5,
+      "silicon": 2
+    },
+    "success": true
+  },
+  {
+    "experiment": "exp4",
+    "config_name": "silicon_focused",
+    "total_reward": 1.0,
+    "hearts_assembled": 1,
+    "steps_taken": 2500,
+    "final_energy": 100,
+    "extractors_used": {
+      "carbon": 10,
+      "oxygen": 2,
+      "germanium": 5,
+      "silicon": 2
+    },
+    "success": true
+  },
+  {
+    "experiment": "exp5",
+    "config_name": "baseline",
+    "total_reward": 2.0,
+    "hearts_assembled": 2,
+    "steps_taken": 2500,
+    "final_energy": 100,
+    "extractors_used": {
+      "carbon": 10,
+      "oxygen": 3,
+      "germanium": 7,
+      "silicon": 4
+    },
+    "success": true
+  },
+  {
+    "experiment": "exp5",
+    "config_name": "conservative",
+    "total_reward": 2.0,
+    "hearts_assembled": 2,
+    "steps_taken": 2500,
+    "final_energy": 100,
+    "extractors_used": {
+      "carbon": 10,
+      "oxygen": 3,
+      "germanium": 7,
+      "silicon": 4
+    },
+    "success": true
+  },
+  {
+    "experiment": "exp5",
+    "config_name": "aggressive",
+    "total_reward": 2.0,
+    "hearts_assembled": 2,
+    "steps_taken": 2500,
+    "final_energy": 100,
+    "extractors_used": {
+      "carbon": 10,
+      "oxygen": 3,
+      "germanium": 7,
+      "silicon": 4
+    },
+    "success": true
+  },
+  {
+    "experiment": "exp5",
+    "config_name": "silicon_focused",
+    "total_reward": 2.0,
+    "hearts_assembled": 2,
+    "steps_taken": 2500,
+    "final_energy": 100,
+    "extractors_used": {
+      "carbon": 10,
+      "oxygen": 3,
+      "germanium": 7,
+      "silicon": 4
+    },
+    "success": true
+  },
+  {
+    "experiment": "exp6",
+    "config_name": "baseline",
+    "total_reward": 1.0,
+    "hearts_assembled": 1,
+    "steps_taken": 3000,
+    "final_energy": 100,
+    "extractors_used": {
+      "carbon": 10,
+      "oxygen": 2,
+      "germanium": 3,
+      "silicon": 2
+    },
+    "success": true
+  },
+  {
+    "experiment": "exp6",
+    "config_name": "conservative",
+    "total_reward": 1.0,
+    "hearts_assembled": 1,
+    "steps_taken": 3000,
+    "final_energy": 100,
+    "extractors_used": {
+      "carbon": 10,
+      "oxygen": 2,
+      "germanium": 3,
+      "silicon": 2
+    },
+    "success": true
+  },
+  {
+    "experiment": "exp6",
+    "config_name": "aggressive",
+    "total_reward": 1.0,
+    "hearts_assembled": 1,
+    "steps_taken": 3000,
+    "final_energy": 100,
+    "extractors_used": {
+      "carbon": 10,
+      "oxygen": 2,
+      "germanium": 3,
+      "silicon": 2
+    },
+    "success": true
+  },
+  {
+    "experiment": "exp6",
+    "config_name": "silicon_focused",
+    "total_reward": 1.0,
+    "hearts_assembled": 1,
+    "steps_taken": 3000,
+    "final_energy": 100,
+    "extractors_used": {
+      "carbon": 10,
+      "oxygen": 2,
+      "germanium": 3,
+      "silicon": 2
+    },
+    "success": true
+  },
+  {
+    "experiment": "exp7",
+    "config_name": "baseline",
+    "total_reward": 1.0,
+    "hearts_assembled": 1,
+    "steps_taken": 3000,
+    "final_energy": 100,
+    "extractors_used": {
+      "carbon": 5,
+      "oxygen": 2,
+      "germanium": 2,
+      "silicon": 2
+    },
+    "success": true
+  },
+  {
+    "experiment": "exp7",
+    "config_name": "conservative",
+    "total_reward": 1.0,
+    "hearts_assembled": 1,
+    "steps_taken": 3000,
+    "final_energy": 100,
+    "extractors_used": {
+      "carbon": 5,
+      "oxygen": 2,
+      "germanium": 2,
+      "silicon": 2
+    },
+    "success": true
+  },
+  {
+    "experiment": "exp7",
+    "config_name": "aggressive",
+    "total_reward": 1.0,
+    "hearts_assembled": 1,
+    "steps_taken": 3000,
+    "final_energy": 100,
+    "extractors_used": {
+      "carbon": 5,
+      "oxygen": 2,
+      "germanium": 2,
+      "silicon": 2
+    },
+    "success": true
+  },
+  {
+    "experiment": "exp7",
+    "config_name": "silicon_focused",
+    "total_reward": 1.0,
+    "hearts_assembled": 1,
+    "steps_taken": 3000,
+    "final_energy": 100,
+    "extractors_used": {
+      "carbon": 5,
+      "oxygen": 2,
+      "germanium": 2,
+      "silicon": 2
+    },
+    "success": true
+  },
+  {
+    "experiment": "exp8",
+    "config_name": "baseline",
+    "total_reward": 1.0,
+    "hearts_assembled": 1,
+    "steps_taken": 3000,
+    "final_energy": 100,
+    "extractors_used": {
+      "carbon": 5,
+      "oxygen": 1,
+      "germanium": 3,
+      "silicon": 2
+    },
+    "success": true
+  },
+  {
+    "experiment": "exp8",
+    "config_name": "conservative",
+    "total_reward": 1.0,
+    "hearts_assembled": 1,
+    "steps_taken": 3000,
+    "final_energy": 100,
+    "extractors_used": {
+      "carbon": 5,
+      "oxygen": 1,
+      "germanium": 3,
+      "silicon": 2
+    },
+    "success": true
+  },
+  {
+    "experiment": "exp8",
+    "config_name": "aggressive",
+    "total_reward": 1.0,
+    "hearts_assembled": 1,
+    "steps_taken": 3000,
+    "final_energy": 100,
+    "extractors_used": {
+      "carbon": 5,
+      "oxygen": 1,
+      "germanium": 3,
+      "silicon": 2
+    },
+    "success": true
+  },
+  {
+    "experiment": "exp8",
+    "config_name": "silicon_focused",
+    "total_reward": 1.0,
+    "hearts_assembled": 1,
+    "steps_taken": 3000,
+    "final_energy": 100,
+    "extractors_used": {
+      "carbon": 5,
+      "oxygen": 1,
+      "germanium": 3,
+      "silicon": 2
+    },
+    "success": true
+  },
+  {
+    "experiment": "exp9",
+    "config_name": "baseline",
+    "total_reward": 1.0,
+    "hearts_assembled": 1,
+    "steps_taken": 3000,
+    "final_energy": 100,
+    "extractors_used": {
+      "carbon": 5,
+      "oxygen": 1,
+      "germanium": 3,
+      "silicon": 2
+    },
+    "success": true
+  },
+  {
+    "experiment": "exp9",
+    "config_name": "conservative",
+    "total_reward": 1.0,
+    "hearts_assembled": 1,
+    "steps_taken": 3000,
+    "final_energy": 100,
+    "extractors_used": {
+      "carbon": 5,
+      "oxygen": 1,
+      "germanium": 3,
+      "silicon": 2
+    },
+    "success": true
+  },
+  {
+    "experiment": "exp9",
+    "config_name": "aggressive",
+    "total_reward": 1.0,
+    "hearts_assembled": 1,
+    "steps_taken": 3000,
+    "final_energy": 100,
+    "extractors_used": {
+      "carbon": 5,
+      "oxygen": 1,
+      "germanium": 3,
+      "silicon": 2
+    },
+    "success": true
+  },
+  {
+    "experiment": "exp9",
+    "config_name": "silicon_focused",
+    "total_reward": 1.0,
+    "hearts_assembled": 1,
+    "steps_taken": 3000,
+    "final_energy": 100,
+    "extractors_used": {
+      "carbon": 5,
+      "oxygen": 1,
+      "germanium": 3,
+      "silicon": 2
+    },
+    "success": true
+  },
+  {
+    "experiment": "exp10",
+    "config_name": "baseline",
+    "total_reward": 0.0,
+    "hearts_assembled": 0,
+    "steps_taken": 2500,
+    "final_energy": 100,
+    "extractors_used": {
+      "carbon": 4,
+      "oxygen": 1,
+      "germanium": 2,
+      "silicon": 2
+    },
+    "success": false
+  },
+  {
+    "experiment": "exp10",
+    "config_name": "conservative",
+    "total_reward": 0.0,
+    "hearts_assembled": 0,
+    "steps_taken": 2500,
+    "final_energy": 100,
+    "extractors_used": {
+      "carbon": 4,
+      "oxygen": 1,
+      "germanium": 2,
+      "silicon": 2
+    },
+    "success": false
+  },
+  {
+    "experiment": "exp10",
+    "config_name": "aggressive",
+    "total_reward": 0.0,
+    "hearts_assembled": 0,
+    "steps_taken": 2500,
+    "final_energy": 100,
+    "extractors_used": {
+      "carbon": 4,
+      "oxygen": 1,
+      "germanium": 2,
+      "silicon": 2
+    },
+    "success": false
+  },
+  {
+    "experiment": "exp10",
+    "config_name": "silicon_focused",
+    "total_reward": 0.0,
+    "hearts_assembled": 0,
+    "steps_taken": 2500,
+    "final_energy": 100,
+    "extractors_used": {
+      "carbon": 4,
+      "oxygen": 1,
+      "germanium": 2,
+      "silicon": 2
+    },
+    "success": false
+  }
+]
