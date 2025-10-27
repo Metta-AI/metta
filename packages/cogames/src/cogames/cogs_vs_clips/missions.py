@@ -453,7 +453,24 @@ class MachinaProceduralExploreMission(ProceduralMissionBase):
             "hub_corner_bundle": "chests",
             "hub_cross_bundle": "none",
             "hub_cross_distance": 7,
-            #be able to define parameters for distributions per building type here
+            # Distribution examples:
+            # Use uniform distribution (default):
+            # "distribution": {"type": "uniform"},
+            # Use normal/Gaussian distribution (cluster around center):
+            # "distribution": {"type": "normal", "mean_x": 0.5, "mean_y": 0.5, "std_x": 0.2, "std_y": 0.2},
+            # Use exponential distribution (heavy on one side):
+            # "distribution": {"type": "exponential", "decay_rate": 2.0, "origin_x": 0.0, "origin_y": 0.0},
+            # Use poisson distribution (natural clumping):
+            # "distribution": {"type": "poisson"},
+            # Use power law distribution (extreme concentration):
+            # "distribution": {"type": "power_law", "alpha": 2.5},
+            # Use bimodal distribution (two clusters):
+            # "distribution": {"type": "bimodal", "center1_x": 0.25, "center1_y": 0.25, "center2_x": 0.75, "center2_y": 0.75, "cluster_std": 0.15},
+            # Per-building-type distributions:
+            # "building_distributions": {
+            #     "chest": {"type": "normal", "mean_x": 0.5, "mean_y": 0.5, "std_x": 0.2, "std_y": 0.2},
+            #     "charger": {"type": "uniform"},
+            # }
         }
 
     def make_env(self) -> MettaGridConfig:

@@ -14,11 +14,11 @@ from mettagrid.mapgen.scenes.biome_desert import BiomeDesert, BiomeDesertConfig
 from mettagrid.mapgen.scenes.biome_forest import BiomeForest, BiomeForestConfig
 from mettagrid.mapgen.scenes.bounded_layout import BoundedLayout
 from mettagrid.mapgen.scenes.bsp import BSP, BSPLayout
+from mettagrid.mapgen.scenes.building_distributions import DistributionConfig, UniformExtractorScene
 from mettagrid.mapgen.scenes.make_connected import MakeConnected
 from mettagrid.mapgen.scenes.maze import Maze
 from mettagrid.mapgen.scenes.radial_maze import RadialMaze
 from mettagrid.mapgen.scenes.random_scene import RandomScene, RandomSceneCandidate
-from mettagrid.mapgen.scenes.uniform_extractors import UniformExtractorScene
 
 HubBundle = Literal["chests", "extractors", "none", "custom"]
 
@@ -51,6 +51,8 @@ def make_machina_procedural_map_builder(
     density_scale: float = 1.0,
     max_biome_zone_fraction: float = 0.35,
     max_dungeon_zone_fraction: float = 0.25,
+    distribution: dict[str, Any] | DistributionConfig | None = None,
+    building_distributions: dict[str, dict[str, Any] | DistributionConfig] | None = None,
 ) -> MapBuilderConfig:
     def _autoscale_zone_counts(
         w: int,
@@ -92,7 +94,7 @@ def make_machina_procedural_map_builder(
         "silicon_extractor": 0.3,
         "oxygen_extractor": 0.3,
         "carbon_extractor": 0.3,
-        #TO DO: these are the default weights, can add distribution preset here
+        # TO DO: these are the default weights, can add distribution preset here
     }
 
     # Legacy "extractors" dict takes precedence if provided
@@ -263,6 +265,20 @@ def make_machina_procedural_map_builder(
 
     cross_distance = hub_cross_distance if hub_cross_distance is not None else 7
 
+    # Process distribution configurations
+    dist_config = (
+        distribution if isinstance(distribution, DistributionConfig) else DistributionConfig(**(distribution or {}))
+    )
+
+    building_dist_configs: dict[str, DistributionConfig] | None = None
+    if building_distributions:
+        building_dist_configs = {}
+        for name, config in building_distributions.items():
+            if isinstance(config, DistributionConfig):
+                building_dist_configs[name] = config
+            else:
+                building_dist_configs[name] = DistributionConfig(**config)
+
     base_cfg.children = [
         # Optional biome/dungeon layers over the base shell
         *([biome_layer] if biome_layer is not None else []),
@@ -274,6 +290,8 @@ def make_machina_procedural_map_builder(
                 extractor_names=extractor_names_final,
                 extractor_weights=extractor_weights_final,
                 clear_existing=False,
+                distribution=dist_config,
+                building_distributions=building_dist_configs,
             ),
             where="full",
             order_by="last",
@@ -493,6 +511,8 @@ def apply_procedural_overrides_to_builder(
                 "density_scale",
                 "max_biome_zone_fraction",
                 "max_dungeon_zone_fraction",
+                "distribution",
+                "building_distributions",
             }
             kwargs = {k: v for k, v in ov.items() if k in allowed_keys}
             return make_machina_procedural_map_builder(
