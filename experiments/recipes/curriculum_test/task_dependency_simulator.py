@@ -50,8 +50,8 @@ class CurriculumLPConfig(BaseModel):
     slow_timescale_factor: float = 0.2
     exploration_bonus: float = 0.1
     progress_smoothing: float = 0.0
-    lp_score_temperature: float = 0.0  #0.0 is z-score normalization
-    early_progress_amplification: float = 0.5  #0.5 is no amplification
+    lp_score_temperature: float = 0.0  # 0.0 is z-score normalization
+    early_progress_amplification: float = 0.5  # 0.5 is no amplification
     max_slice_axes: int = 3
     num_active_tasks: int = 1000
     rand_task_rate: float = 0.01
@@ -900,6 +900,14 @@ def simulate_task_dependencies(config: SimulationConfig) -> Dict[str, Any]:
         # Add accumulated rollout stats (from info dicts)
         # Process them the same way as real training (matching stats.py:121-127)
         for key, values in rollout_stats.items():
+            # Skip dict-valued or complex structure stats that can't be averaged
+            # These include: per_label_lp_scores, pool_composition_fraction, etc.
+            if values and isinstance(values[0], (dict, list)):
+                # For dict/list stats, just take the last value from the last environment
+                # (these are typically per-label breakdowns that we log separately)
+                epoch_metrics[key] = values[-1]
+                continue
+
             # Per-label samples and tracked task completions should be summed (exact match)
             if (
                 "per_label_samples_this_epoch" in key
