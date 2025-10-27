@@ -5,6 +5,7 @@ import
   pathfinding, tilemap, pixelatlas
 
 const TS = 1.0 / 64.0 # Tile scale.
+const TILE_SIZE = 64
 
 var terrainMap*: TileMap
 var px*: Pixalator
@@ -217,23 +218,21 @@ proc drawObjects*() =
         else:
           echo "Unknown orientation: ", agent.orientation.at
           "agents/agent.n"
-      bxy.drawImage(
+      px.drawSprite(
         agentImage,
-        pos.vec2,
-        angle = 0,
-        scale = TS
+        pos * TILE_SIZE
       )
     else:
-      # bxy.drawImage(
-      #   replay.typeImages.getOrDefault(thing.typeName, "objects/unknown"),
-      #   pos.vec2,
-      #   angle = 0,
-      #   scale = TS
-      # )
       px.drawSprite(
         replay.typeImages.getOrDefault(thing.typeName, "objects/unknown"),
-        pos * 64,
+        pos * TILE_SIZE,
       )
+      if thing.isClipped.at:
+        let image = thing.typeName & ".clipped"
+        px.drawSprite(
+          image,
+          pos * TILE_SIZE
+        )
 
 proc drawVisualRanges*(alpha = 0.2) =
   ## Draw the visual ranges of the selected agent.
@@ -384,17 +383,6 @@ proc drawAgentDecorations*() =
       bxy.drawImage(
         "agents/frozen",
         agent.location.at.xy.vec2,
-        angle = 0,
-        scale = TS
-      )
-
-proc drawClippedStatus*() =
-  # Draw the clipped status of the selected agent.
-  for obj in replay.objects:
-    if obj.isClipped.at:
-      bxy.drawImage(
-        "agents/frozen",
-        obj.location.at.xy.vec2,
         angle = 0,
         scale = TS
       )
@@ -635,11 +623,6 @@ proc drawTerrain*() =
 
   terrainMap.draw(mvp, 2.0f, 1.5f)
 
-  for x in 0 ..< 10:
-    for y in 0 ..< 10:
-      px.drawSprite("objects/carbon_extractor", x.uint16 * 64 * 2, y.uint16 * 64 * 2)
-
-
   bxy.exitRawOpenGLMode()
 
 proc drawWorldMini*() =
@@ -687,20 +670,6 @@ proc drawWorldMain*() =
   drawTerrain()
   drawTrajectory()
   drawObjects()
-  drawActions()
-  drawAgentDecorations()
-  drawClippedStatus()
-  drawSelection()
-  drawPlannedPath()
-
-  if settings.showVisualRange:
-    drawVisualRanges()
-  if settings.showFogOfWar:
-    drawFogOfWar()
-  if settings.showGrid:
-    drawGrid()
-
-  drawThoughtBubbles()
 
   bxy.enterRawOpenGLMode()
   let m = bxy.getTransform()
@@ -721,6 +690,22 @@ proc drawWorldMain*() =
     ))
   px.flush(mvp2)
   bxy.exitRawOpenGLMode()
+
+  drawActions()
+  drawAgentDecorations()
+  drawSelection()
+  drawPlannedPath()
+
+  if settings.showVisualRange:
+    drawVisualRanges()
+  if settings.showFogOfWar:
+    drawFogOfWar()
+  if settings.showGrid:
+    drawGrid()
+
+  drawThoughtBubbles()
+
+
 
 proc fitFullMap*(panel: Panel) =
   ## Set zoom and pan so the full map fits in the panel.

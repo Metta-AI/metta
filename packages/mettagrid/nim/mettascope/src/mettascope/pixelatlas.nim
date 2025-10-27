@@ -94,7 +94,7 @@ proc newPixalator*(
 // location 0: aPos = (x, y)
 // location 1: aUv  = (uvx, uvy, uvw, uvh)
 layout (location = 0) in uvec2 aPos;
-layout (location = 1) in uvec4 aUv;
+layout (location = 1) in vec4 aUv;
 
 out vec2 vUv;
 
