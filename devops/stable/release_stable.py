@@ -49,7 +49,9 @@ from devops.stable.state import (
     save_state,
 )
 from devops.stable.tasks import get_all_tasks
+from metta.common.util.fs import get_repo_root
 from metta.common.util.text_styles import bold, cyan, green, yellow
+from metta.jobs.job_manager import JobManager
 
 # ============================================================================
 # Constants
@@ -121,6 +123,17 @@ def verify_on_rc_commit(version: str, step_name: str) -> str:
 
 # ============================================================================
 # Release Pipeline Steps
+# ============================================================================
+# State management:
+# - Each step checks if already completed via state.gates
+# - Steps append gate dict on success: {"step": "name", "passed": True, "timestamp": "..."}
+# - State persisted to devops/stable/state/{version}.json
+# - Allows resuming after interruption or failure
+#
+# RC tag workflow:
+# - prepare_tag creates v{version}-rc tag
+# - All subsequent steps verify on RC commit (ensures validation consistency)
+# - release creates final v{version} tag pointing to same commit
 # ============================================================================
 
 
@@ -256,11 +269,14 @@ def step_task_validation(
     retry_failed: bool = False,
     **_kwargs,
 ) -> None:
-    """Step 3: Run validation tasks.
+    """Step 3: Run validation tasks via JobManager.
+
+    Tasks are submitted to JobManager which handles execution and state persistence.
+    Results are queried on-demand from JobManager's SQLite DB, not cached in ReleaseState.
 
     Args:
         version: Release version
-        task_filter: Task name to run (metta_ci, arena_local_smoke, arena_single_gpu_100m, etc.)
+        task_filter: Task name to run (python_ci, arena_local_smoke, arena_single_gpu_100m, etc.)
                     or None to run all tasks
         retry_failed: If True, retry failed tasks; if False, skip them (default: False)
     """
@@ -291,20 +307,28 @@ def step_task_validation(
         tasks = all_tasks
         print("Running all tasks\n")
 
-    # Initialize JobManager
-    from metta.common.util.fs import get_repo_root
-    from metta.jobs.manager import JobManager
-
+    # Initialize JobManager (shared DB, uses groups to filter by version)
     base_dir = get_repo_root() / "devops/stable"
     job_manager = JobManager(base_dir=base_dir, max_local_jobs=1, max_remote_jobs=4)
 
     # Create runner and run all tasks
-    runner = TaskRunner(state=state, job_manager=job_manager, interactive=True, retry_failed=retry_failed)
+    runner = TaskRunner(state=state, job_manager=job_manager, retry_failed=retry_failed)
     runner.run_all(tasks)
 
-    # Print summary
-    passed = sum(1 for r in state.results.values() if r.outcome == "passed")
-    failed = sum(1 for r in state.results.values() if r.outcome == "failed")
+    # Print summary by querying JobManager
+    passed = 0
+    failed = 0
+    job_states = []
+
+    for task in tasks:
+        job_name = f"{state_version}_{task.name}"
+        job_state = job_manager.get_job_state(job_name)
+        if job_state:
+            job_states.append((task, job_state))
+            if job_state.exit_code == 0 and runner._passed(job_name, task):
+                passed += 1
+            else:
+                failed += 1
 
     print("\n" + "=" * 80)
     print("Task Summary")
@@ -314,16 +338,20 @@ def step_task_validation(
     print(f"  ❌ Failed:  {failed}")
 
     print("\nDetailed Results:")
-    for result in state.results.values():
-        icon = {"passed": "✅", "failed": "❌", "skipped": "⏸️"}.get(result.outcome or "", "❓")
-        print(f"  {icon} {result.name:24} exit={result.exit_code:>3}")
-        if result.metrics:
-            metrics_str = "  ".join(f"{k}={v:.1f}" for k, v in result.metrics.items())
+    for task, job_state in job_states:
+        job_name = f"{state_version}_{task.name}"
+        if runner._passed(job_name, task):
+            icon = "✅"
+        else:
+            icon = "❌"
+        print(f"  {icon} {task.name:24} exit={job_state.exit_code or 0:>3}")
+        if job_state.metrics:
+            metrics_str = "  ".join(f"{k}={v:.1f}" for k, v in job_state.metrics.items())
             print(f"       Metrics: {metrics_str}")
-        if result.logs_path:
-            print(f"       Logs: {result.logs_path}")
-        if result.job_id:
-            print(f"       Job ID: {result.job_id}")
+        if job_state.logs_path:
+            print(f"       Logs: {job_state.logs_path}")
+        if job_state.job_id:
+            print(f"       Job ID: {job_state.job_id}")
 
     print("=" * 80)
 
@@ -337,7 +365,10 @@ def step_task_validation(
 
 
 def step_summary(version: str, **_kwargs) -> None:
-    """Step 4: Print validation summary and release notes template."""
+    """Step 4: Print validation summary and release notes template.
+
+    Queries JobManager for task outcomes and metrics (not cached in ReleaseState).
+    """
     print("\n" + "=" * 60)
     print(bold("STEP 4: Release Summary"))
     print("=" * 60 + "\n")
@@ -346,7 +377,7 @@ def step_summary(version: str, **_kwargs) -> None:
     rc_commit = verify_on_rc_commit(version, "summary")
     print(f"✅ Verified on RC commit: {rc_commit}\n")
 
-    # Load state to extract metrics
+    # Load state and JobManager
     state_version = f"v{version}"
     state = load_state(state_version)
 
@@ -355,14 +386,24 @@ def step_summary(version: str, **_kwargs) -> None:
         print("Run task-validation first")
         sys.exit(1)
 
-    # Extract training metrics from TRAIN tasks
+    # Initialize JobManager to query results
+    from metta.common.util.fs import get_repo_root
+    from metta.jobs.job_manager import JobManager
+
+    base_dir = get_repo_root() / "devops/stable"
+    db_path = base_dir / "jobs" / f"{state_version}.db"
+    job_manager = JobManager(base_dir=base_dir, db_path=str(db_path), max_local_jobs=1, max_remote_jobs=4)
+
+    # Query JobManager for training metrics
     training_metrics = {}
     training_job_id = None
-    for name, result in state.results.items():
-        if "train" in name.lower() and result.metrics:
-            training_metrics.update(result.metrics)
-            if result.job_id:
-                training_job_id = result.job_id
+    for job_name in state.submitted_jobs:
+        if "train" in job_name.lower():
+            job_state = job_manager.get_job_state(job_name)
+            if job_state:
+                training_metrics.update(job_state.metrics or {})
+                if job_state.job_id:
+                    training_job_id = job_state.job_id
 
     # Format metrics for display
     sps = training_metrics.get("overview/sps", "N/A")
@@ -370,14 +411,26 @@ def step_summary(version: str, **_kwargs) -> None:
     # Get git log since last stable release
     git_log = git.git_log_since("origin/stable")
 
+    # Get all tasks to display results
+    from devops.stable.tasks import get_all_tasks
+
+    all_tasks = get_all_tasks()
+    runner = TaskRunner(state=state, job_manager=job_manager, enable_monitor=False)
+
     # Print task results summary
     print("Task Results:")
-    for name, result in state.results.items():
-        icon = {"passed": "✅", "failed": "❌", "skipped": "⏸️"}.get(result.outcome or "", "❓")
-        print(f"  {icon} {name}")
-        if result.metrics:
-            metrics_str = ", ".join(f"{k}={v:.1f}" for k, v in result.metrics.items())
-            print(f"       Metrics: {metrics_str}")
+    for task in all_tasks:
+        job_name = f"{state_version}_{task.name}"
+        job_state = job_manager.get_job_state(job_name)
+        if job_state:
+            if runner._passed(job_name, task):
+                icon = "✅"
+            else:
+                icon = "❌"
+            print(f"  {icon} {task.name}")
+            if job_state.metrics:
+                metrics_str = ", ".join(f"{k}={v:.1f}" for k, v in job_state.metrics.items())
+                print(f"       Metrics: {metrics_str}")
 
     # Print release notes template
     print("\n" + "=" * 60)
@@ -412,16 +465,19 @@ def step_summary(version: str, **_kwargs) -> None:
 
 
 def step_release(version: str, **_kwargs) -> None:
-    """Step 5: Automatically create release tag and release notes."""
+    """Create release tag and release notes.
+
+    Verifies all validation tasks passed by querying JobManager before creating release.
+    """
     print("\n" + "=" * 60)
-    print(bold("STEP 5: Create Release"))
+    print(bold("Create Release"))
     print("=" * 60 + "\n")
 
     # Verify we're on the RC commit
     rc_commit = verify_on_rc_commit(version, "release")
     print(f"✅ Verified on RC commit: {rc_commit}\n")
 
-    # Load state to get validation results
+    # Load state and JobManager
     state_version = f"v{version}"
     state = load_state(state_version)
 
@@ -430,22 +486,45 @@ def step_release(version: str, **_kwargs) -> None:
         print("Run task-validation first")
         sys.exit(1)
 
-    # Verify all tasks passed
-    failed = [name for name, result in state.results.items() if result.outcome == "failed"]
-    if failed:
-        print("Cannot release with failed tasks:")
-        for name in failed:
+    # Initialize JobManager to query results
+    from metta.common.util.fs import get_repo_root
+    from metta.jobs.job_manager import JobManager
+
+    base_dir = get_repo_root() / "devops/stable"
+    db_path = base_dir / "jobs" / f"{state_version}.db"
+    job_manager = JobManager(base_dir=base_dir, db_path=str(db_path), max_local_jobs=1, max_remote_jobs=4)
+
+    # Verify all tasks passed by querying JobManager
+    from devops.stable.tasks import get_all_tasks
+
+    all_tasks = get_all_tasks()
+    runner = TaskRunner(state=state, job_manager=job_manager, enable_monitor=False)
+
+    failed_tasks = []
+    for task in all_tasks:
+        job_name = f"{state_version}_{task.name}"
+        job_state = job_manager.get_job_state(job_name)
+        if not job_state:
+            failed_tasks.append(f"{task.name} (not run)")
+        elif not runner._passed(job_name, task):
+            failed_tasks.append(task.name)
+
+    if failed_tasks:
+        print("❌ Cannot release with failed/incomplete tasks:")
+        for name in failed_tasks:
             print(f"  ❌ {name}")
         sys.exit(1)
 
     # Extract metrics for release notes
     training_metrics = {}
     training_job_id = None
-    for name, result in state.results.items():
-        if "train" in name.lower() and result.metrics:
-            training_metrics.update(result.metrics)
-            if result.job_id:
-                training_job_id = result.job_id
+    for job_name in state.submitted_jobs:
+        if "train" in job_name.lower():
+            job_state = job_manager.get_job_state(job_name)
+            if job_state:
+                training_metrics.update(job_state.metrics or {})
+                if job_state.job_id:
+                    training_job_id = job_state.job_id
 
     git_log = git.git_log_since("origin/stable")
 

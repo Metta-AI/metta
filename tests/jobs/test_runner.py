@@ -4,8 +4,8 @@ import io
 
 import pytest
 
-from metta.jobs.models import JobConfig
-from metta.jobs.runner import JobResult, LocalJob, RemoteJob
+from metta.jobs.job_config import JobConfig
+from metta.jobs.job_runner import JobResult, LocalJob, RemoteJob
 
 
 class FakePopen:
@@ -181,7 +181,7 @@ def test_localjob_writes_logs(tmp_path, monkeypatch, fake_popen):
 
 def test_remotejob_initialization(tmp_path):
     """Test that RemoteJob can be initialized with module and args."""
-    from metta.jobs.models import RemoteConfig
+    from metta.jobs.job_config import RemoteConfig
 
     config = JobConfig(
         name="remote_test",
@@ -230,7 +230,7 @@ def test_remotejob_resume_with_job_id(tmp_path):
 
 def test_remotejob_log_path_includes_job_id(tmp_path):
     """Test that log path includes job ID for differentiation."""
-    from metta.jobs.models import RemoteConfig
+    from metta.jobs.job_config import RemoteConfig
 
     config = JobConfig(
         name="test_job",

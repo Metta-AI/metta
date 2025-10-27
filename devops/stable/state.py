@@ -13,7 +13,6 @@ from typing import Optional
 
 from pydantic import BaseModel, Field
 
-from devops.stable.tasks import TaskResult
 from metta.common.util.fs import get_repo_root
 
 # ============================================================================
@@ -56,12 +55,17 @@ def get_log_dir(version: str, job_type: str) -> Path:
 
 
 class ReleaseState(BaseModel):
-    """State of a release qualification run."""
+    """State of a release qualification run.
+
+    Simplified to just track version/timestamp/commit - TaskRunner queries
+    JobManager directly for job outcomes instead of caching in results dict.
+    """
 
     version: str
     created_at: str
     commit_sha: Optional[str] = None
-    results: dict[str, "TaskResult"] = Field(default_factory=dict)
+    # Track which jobs have been submitted (for filtering stale tasks)
+    submitted_jobs: set[str] = Field(default_factory=set)
     gates: list[dict] = Field(default_factory=list)
     released: bool = False
 
@@ -171,14 +175,3 @@ def save_state(state: ReleaseState) -> Path:
     path.write_text(state.model_dump_json(indent=2))
 
     return path
-
-
-# Rebuild model after TaskResult is imported to resolve forward references
-def _rebuild_models():
-    """Rebuild Pydantic models to resolve forward references."""
-    from devops.stable.tasks import TaskResult  # noqa: F401
-
-    ReleaseState.model_rebuild()
-
-
-_rebuild_models()

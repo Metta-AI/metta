@@ -1,10 +1,9 @@
 # Experiment System Technical Design
 
-**Author:** Jack & Claude
-**Date:** 2025-10-13
-**Status:** Implementation Ready
+**Author:** Jack & Claude **Date:** 2025-10-13 **Status:** Implementation Ready
 
 ## Table of Contents
+
 1. [Overview](#overview)
 2. [File Structure](#file-structure)
 3. [Core Data Structures](#core-data-structures)
@@ -17,9 +16,12 @@
 
 ## Overview
 
-The experiment system allows users to define and manage groups of 2-20 related training/evaluation jobs. It differs from sweeps (adaptive scheduling) and release validation (sequential gates) by being **declarative** - all jobs are defined upfront as parameter variations.
+The experiment system allows users to define and manage groups of 2-20 related training/evaluation jobs. It differs from
+sweeps (adaptive scheduling) and release validation (sequential gates) by being **declarative** - all jobs are defined
+upfront as parameter variations.
 
 **Core Principles:**
+
 - **Module paths are the serialization format** - No intermediate YAML configs
 - **Maximum code reuse** - Share infrastructure with release system and job_runner
 - **Instance-based tracking** - Each experiment run gets unique ID
@@ -82,6 +84,7 @@ devops/job_runner.py
 **Location:** `metta/jobs/models.py`
 
 This is THE fundamental data structure. It replaces:
+
 - Old PR's `TrainingJobConfig`
 - `adaptive.JobDefinition`
 - Arguments to `release.Task` constructors
@@ -853,6 +856,7 @@ class ExperimentMonitor:
 ```
 
 **What happens:**
+
 - Generates instance ID: `my_experiment_20251013_1430`
 - Creates state file: `experiments/state/my_experiment_20251013_1430.json`
 - Launches all jobs to Skypilot in parallel
@@ -860,6 +864,7 @@ class ExperimentMonitor:
 - Prints job IDs and monitoring command
 
 **Output:**
+
 ```
 ================================================================================
 Launching Experiment: my_experiment_20251013_1430
@@ -902,12 +907,14 @@ Monitor: ./tools/run.py experiments.user.my_experiment.my_experiment_maker mode=
 ```
 
 **What happens:**
+
 - Loads state from disk
 - Polls Skypilot for job statuses
 - Refreshes display every 10s
 - Auto-exits when all jobs complete
 
 **Output:**
+
 ```
 ================================================================================
 Experiment: my_experiment_20251013_1430
@@ -932,6 +939,7 @@ Refreshing every 10s (Ctrl+C to stop)
 ```
 
 **What happens:**
+
 - Finds first running job in experiment
 - Attaches to it via RemoteJob
 - Streams logs to console
@@ -948,6 +956,7 @@ Refreshing every 10s (Ctrl+C to stop)
 ```
 
 **What happens:**
+
 - Loads state
 - Calls `sky jobs cancel` for each running job
 - Updates state to mark jobs as cancelled
@@ -1007,6 +1016,7 @@ def lr_sweep() -> ExperimentTool:
 ```
 
 **Usage:**
+
 ```bash
 # 1. Launch all training jobs (evals will fail initially)
 ./tools/run.py experiments.user.lr_sweep.lr_sweep
@@ -1054,6 +1064,7 @@ def reward_shaping_ab() -> ExperimentTool:
 ```
 
 **Usage:**
+
 ```bash
 # 1. Launch
 ./tools/run.py experiments.user.reward_shaping_ab.reward_shaping_ab
@@ -1150,6 +1161,7 @@ def iterative_training() -> ExperimentTool:
 #### Phase 3: Tool Registration & Examples
 
 10. **Create `metta/tools/experiment.py`**
+
     ```python
     # Just a thin wrapper for tool registration
     from metta.experiment.tool import ExperimentTool
@@ -1158,6 +1170,7 @@ def iterative_training() -> ExperimentTool:
     ```
 
 11. **Update `metta/common/tool/tool_registry.py`**
+
     ```python
     from metta.tools.experiment import ExperimentTool
 
@@ -1240,11 +1253,13 @@ except Exception as e:
 ### From devops/job_runner.py
 
 **Reuse as-is:**
+
 - `RemoteJob` class (move to `metta/jobs/runner.py`)
 - `LocalJob` class (move to `metta/jobs/runner.py`)
 - `JobResult` dataclass (already perfect)
 
 **Back-compat strategy:**
+
 ```python
 # devops/job_runner.py (after moving code)
 """Job runner - back-compat imports."""
@@ -1256,6 +1271,7 @@ __all__ = ["RemoteJob", "LocalJob", "JobResult", "Job"]
 ### From devops/stable/metrics.py
 
 **Extract and generalize:**
+
 ```python
 # metta/jobs/metrics.py
 import re
@@ -1291,6 +1307,7 @@ def extract_wandb_info_from_logs(log_path: str) -> dict[str, str] | None:
 ### From metta/adaptive/utils.py
 
 **Reuse table formatting:**
+
 ```python
 # metta/jobs/monitor.py
 def format_job_table(jobs: list[JobState]) -> str:
@@ -1312,6 +1329,7 @@ def format_job_table(jobs: list[JobState]) -> str:
 ### Skypilot Status Polling
 
 **New utility:**
+
 ```python
 # metta/jobs/monitor.py
 def poll_job_status(job_id: str) -> str | None:
@@ -1342,31 +1360,31 @@ def poll_job_status(job_id: str) -> str | None:
 
 ### New Files (14 total)
 
-| File | Purpose | Lines (est) |
-|------|---------|-------------|
-| `metta/jobs/__init__.py` | Package init | 10 |
-| `metta/jobs/models.py` | JobSpec dataclass | 150 |
-| `metta/jobs/runner.py` | RemoteJob, LocalJob (moved) | 500 |
-| `metta/jobs/state.py` | StateStore protocol | 50 |
-| `metta/jobs/monitor.py` | Monitoring utilities | 100 |
-| `metta/jobs/metrics.py` | WandB extraction | 50 |
-| `metta/experiment/__init__.py` | Package init | 10 |
-| `metta/experiment/tool.py` | ExperimentTool class | 200 |
-| `metta/experiment/state.py` | State management | 200 |
-| `metta/experiment/launcher.py` | Job launching | 250 |
-| `metta/experiment/monitor.py` | Live monitoring | 200 |
-| `metta/experiment/manager.py` | Cancel/management | 100 |
-| `metta/tools/experiment.py` | Tool registration | 10 |
-| `experiments/user/example_experiment.py` | Example | 100 |
+| File                                     | Purpose                     | Lines (est) |
+| ---------------------------------------- | --------------------------- | ----------- |
+| `metta/jobs/__init__.py`                 | Package init                | 10          |
+| `metta/jobs/models.py`                   | JobSpec dataclass           | 150         |
+| `metta/jobs/runner.py`                   | RemoteJob, LocalJob (moved) | 500         |
+| `metta/jobs/state.py`                    | StateStore protocol         | 50          |
+| `metta/jobs/monitor.py`                  | Monitoring utilities        | 100         |
+| `metta/jobs/metrics.py`                  | WandB extraction            | 50          |
+| `metta/experiment/__init__.py`           | Package init                | 10          |
+| `metta/experiment/tool.py`               | ExperimentTool class        | 200         |
+| `metta/experiment/state.py`              | State management            | 200         |
+| `metta/experiment/launcher.py`           | Job launching               | 250         |
+| `metta/experiment/monitor.py`            | Live monitoring             | 200         |
+| `metta/experiment/manager.py`            | Cancel/management           | 100         |
+| `metta/tools/experiment.py`              | Tool registration           | 10          |
+| `experiments/user/example_experiment.py` | Example                     | 100         |
 
 **Total: ~2,000 lines of new code**
 
 ### Modified Files (2 total)
 
-| File | Change | Lines |
-|------|--------|-------|
-| `devops/job_runner.py` | Add back-compat imports | +5 |
-| `.gitignore` | Add experiments/ dirs | +3 |
+| File                   | Change                  | Lines |
+| ---------------------- | ----------------------- | ----- |
+| `devops/job_runner.py` | Add back-compat imports | +5    |
+| `.gitignore`           | Add experiments/ dirs   | +3    |
 
 ---
 
@@ -1433,4 +1451,5 @@ print(f"Job 12345 status: {status}")
 
 **End of Technical Design Document**
 
-This document provides all necessary information to implement the experiment system from scratch. Implementation should follow the phase order and reuse existing code where indicated.
+This document provides all necessary information to implement the experiment system from scratch. Implementation should
+follow the phase order and reuse existing code where indicated.
