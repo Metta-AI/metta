@@ -539,6 +539,10 @@ void MettaGrid::_apply_supervisor_overrides(Actions& actions) {
 
 void MettaGrid::_step(Actions actions) {
   _actions = actions;
+
+  // Apply supervisor overrides before processing actions
+  _apply_supervisor_overrides(actions);
+
   auto actions_view = actions.unchecked<2>();
 
   // Reset rewards and observations
@@ -556,9 +560,6 @@ void MettaGrid::_step(Actions actions) {
   // Increment timestep and process events
   current_step++;
   _event_manager->process_events(current_step);
-
-  // Apply supervisor overrides before processing actions
-  _apply_supervisor_overrides(actions);
 
   // Create and shuffle agent indices for randomized action order
   std::vector<size_t> agent_indices(_agents.size());
