@@ -39,7 +39,7 @@ from rich.table import Table
 from rich.text import Text
 
 from metta.common.util.constants import METTA_WANDB_ENTITY, METTA_WANDB_PROJECT
-from metta.jobs.display import format_cost
+from metta.jobs.job_monitor import format_cost
 
 if TYPE_CHECKING:
     from metta.adaptive.models import JobStatus, RunInfo
