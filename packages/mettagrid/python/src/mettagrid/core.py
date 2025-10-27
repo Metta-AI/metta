@@ -120,12 +120,23 @@ class MettaGridCore:
     def _create_c_env(self) -> MettaGridCpp:
         game_map = self._map_builder.build()
 
-        # Validate number of agents
-        level_agents = np.count_nonzero(np.char.startswith(game_map.grid, "agent"))
-        assert self.__mg_config.game.num_agents == level_agents, (
-            f"Number of agents {self.__mg_config.game.num_agents} does not match number of agents in map {level_agents}"
-            f". This may be because your map, after removing border width, is too small to fit the number of agents."
-        )
+        # Handle spawn points: treat them as potential spawn locations
+        # If there are more spawn points than agents, replace the excess with empty spaces
+        spawn_mask = np.char.startswith(game_map.grid, "agent")
+        level_agents = np.count_nonzero(spawn_mask)
+        num_agents = self.__mg_config.game.num_agents
+
+        if level_agents < num_agents:
+            raise ValueError(
+                f"Number of agents {num_agents} exceeds available spawn points {level_agents} in map. "
+                f"This may be because your map, after removing border width, is too small to fit the number of agents."
+            )
+        elif level_agents > num_agents:
+            # Replace excess spawn points with empty spaces
+            spawn_indices = np.argwhere(spawn_mask)
+            # Keep first num_agents spawn points, replace the rest with empty
+            for idx in spawn_indices[num_agents:]:
+                game_map.grid[tuple(idx)] = "empty"
         game_config_dict = self.__mg_config.game.model_dump()
 
         # Create C++ config

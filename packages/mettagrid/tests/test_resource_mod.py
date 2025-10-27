@@ -86,7 +86,7 @@ def test_resource_mod_consumption():
                 inventory_config=CppInventoryConfig(limits=[[[0], 100], [[1], 100]]),
                 initial_inventory={0: 10, 1: 50},
             ),
-            "wall": CppWallConfig(type_id=1, type_name="wall", swappable=False),
+            "wall": CppWallConfig(type_id=1, type_name="wall"),
         },
         global_obs=CppGlobalObsConfig(),
     )
@@ -107,7 +107,7 @@ def test_resource_mod_consumption():
     objects = env.grid_objects()
     agent_id = None
     for oid, obj in objects.items():
-        if obj.get("type") == 0:  # Agent type
+        if obj.get("type_name") == "agent":  # Agent type
             agent_id = oid
             break
 
@@ -195,7 +195,7 @@ def test_resource_mod_aoe_agents():
                 inventory_config=CppInventoryConfig(limits=[[[0], 100], [[1], 100]]),
                 initial_inventory={0: 50, 1: 10},
             ),
-            "wall": CppWallConfig(type_id=1, type_name="wall", swappable=False),
+            "wall": CppWallConfig(type_id=1, type_name="wall"),
         },
         global_obs=CppGlobalObsConfig(),
     )
@@ -217,7 +217,7 @@ def test_resource_mod_aoe_agents():
     red_energy_before = None
 
     for oid, obj in objects.items():
-        if obj.get("type") == 0:
+        if obj.get("type_name") == "agent":
             agent_healths_before[oid] = obj.get("inventory", {}).get(1, 0)
             if obj["c"] == 1:  # Red agent
                 red_energy_before = obj.get("inventory", {}).get(0, 0)
@@ -235,7 +235,7 @@ def test_resource_mod_aoe_agents():
     red_energy_after = None
 
     for oid, obj in objects.items():
-        if obj.get("type") == 0:
+        if obj.get("type_name") == "agent":
             agent_healths_after[oid] = obj.get("inventory", {}).get(1, 0)
             if obj["c"] == 1:  # Red agent
                 red_energy_after = obj.get("inventory", {}).get(0, 0)
@@ -327,7 +327,7 @@ def test_resource_mod_converters():
                 initial_resource_count=0,
                 recipe_details_obs=False,
             ),
-            "wall": CppWallConfig(type_id=1, type_name="wall", swappable=False),
+            "wall": CppWallConfig(type_id=1, type_name="wall"),
         },
         global_obs=CppGlobalObsConfig(),
     )
@@ -347,7 +347,7 @@ def test_resource_mod_converters():
     objects = env.grid_objects()
     converter_energies_before = {}
     for oid, obj in objects.items():
-        if obj.get("type") in [100, 101, 102]:  # Converter types
+        if obj.get("type_name") == "converter":  # Converter types
             converter_energies_before[oid] = obj.get("inventory", {}).get(0, 0)
 
     # Agent uses resource_mod
@@ -430,7 +430,7 @@ def test_resource_mod_negative():
                 inventory_config=CppInventoryConfig(limits=[[[0], 100], [[1], 100]]),
                 initial_inventory={0: 50, 1: 20},
             ),
-            "wall": CppWallConfig(type_id=1, type_name="wall", swappable=False),
+            "wall": CppWallConfig(type_id=1, type_name="wall"),
         },
         global_obs=CppGlobalObsConfig(),
     )
@@ -448,7 +448,7 @@ def test_resource_mod_negative():
     objects = env.grid_objects()
     agent_healths_before = {}
     for oid, obj in objects.items():
-        if obj.get("type") == 0:
+        if obj.get("type_name") == "agent":
             agent_healths_before[oid] = obj.get("inventory", {}).get(1, 0)
 
     # Red uses AoE damage
@@ -530,7 +530,7 @@ def test_resource_mod_scaling_vs_no_scaling():
                 inventory_config=CppInventoryConfig(limits=[[[0], 100], [[1], 100]]),
                 initial_inventory={0: 50, 1: 10},
             ),
-            "wall": CppWallConfig(type_id=1, type_name="wall", swappable=False),
+            "wall": CppWallConfig(type_id=1, type_name="wall"),
         },
         global_obs=CppGlobalObsConfig(),
     )
@@ -570,7 +570,7 @@ def test_resource_mod_scaling_vs_no_scaling():
                 inventory_config=CppInventoryConfig(limits=[[[0], 100], [[1], 100]]),
                 initial_inventory={0: 50, 1: 10},
             ),
-            "wall": CppWallConfig(type_id=1, type_name="wall", swappable=False),
+            "wall": CppWallConfig(type_id=1, type_name="wall"),
         },
         global_obs=CppGlobalObsConfig(),
     )
@@ -592,7 +592,7 @@ def test_resource_mod_scaling_vs_no_scaling():
     # Check scaled results (10 divided by 2 agents = 5 each)
     objects_scale = env_scale.grid_objects()
     for _oid, obj in objects_scale.items():
-        if obj.get("type") == 0:
+        if obj.get("type_name") == "agent":
             health = obj.get("inventory", {}).get(1, 0)
             assert health == 15  # Initial 10 + scaled 5
 
@@ -608,7 +608,7 @@ def test_resource_mod_scaling_vs_no_scaling():
     # Check non-scaled results (each gets full 10)
     objects_no_scale = env_no_scale.grid_objects()
     for _oid, obj in objects_no_scale.items():
-        if obj.get("type") == 0:
+        if obj.get("type_name") == "agent":
             health = obj.get("inventory", {}).get(1, 0)
             assert health == 20  # Initial 10 + full 10
 

@@ -201,7 +201,7 @@ Examples:
 
     # check that the parsed args.git_ref provides a valid commit hash
     if args.git_ref:
-        commit_hash = git.validate_git_ref(args.git_ref)
+        commit_hash = git.resolve_git_ref(args.git_ref)
         if not commit_hash:
             print(red(f"❌ Invalid git reference: '{args.git_ref}'"))
             sys.exit(1)

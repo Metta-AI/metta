@@ -62,22 +62,28 @@ export function usePaginator<T>(initialPage: Paginated<T>): FullPaginated<T> {
     loadNext: loadMore
       ? (limit: number) => {
           setLoading(true);
-          loadMore(limit).then(({ items: newItems, loadMore: newLoadMore }) => {
-            // Deduplicate items by ID to prevent React key conflicts
-            setPage(({ items }) => {
-              const existingIds = new Set(items.map(item => (item as any).id));
-              const uniqueNewItems = newItems.filter(item => !existingIds.has((item as any).id));
-              const updatedItems = [...items, ...uniqueNewItems];
-              return {
-                items: updatedItems,
-                loadMore: newLoadMore,
-              };
+          loadMore(limit)
+            .then(({ items: newItems, loadMore: newLoadMore }) => {
+              // Deduplicate items by ID to prevent React key conflicts
+              setPage(({ items }) => {
+                const existingIds = new Set(
+                  items.map((item) => (item as any).id)
+                );
+                const uniqueNewItems = newItems.filter(
+                  (item) => !existingIds.has((item as any).id)
+                );
+                const updatedItems = [...items, ...uniqueNewItems];
+                return {
+                  items: updatedItems,
+                  loadMore: newLoadMore,
+                };
+              });
+              setLoading(false);
+            })
+            .catch((error) => {
+              console.error("Failed to load more items:", error);
+              setLoading(false);
             });
-            setLoading(false);
-          }).catch((error) => {
-            console.error('Failed to load more items:', error);
-            setLoading(false);
-          });
         }
       : undefined,
     append,

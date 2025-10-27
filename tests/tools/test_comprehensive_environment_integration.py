@@ -35,7 +35,7 @@ class TestComprehensiveEnvironmentIntegration:
                     max_steps=100,
                     objects={
                         "wall": building.wall,
-                        "altar": building.altar,
+                        "altar": building.assembler_altar,
                     },
                     actions=ActionsConfig(
                         move=ActionConfig(),
@@ -95,8 +95,8 @@ class TestComprehensiveEnvironmentIntegration:
                     max_steps=100,
                     objects={
                         "wall": building.wall,
-                        "mine_red": building.mine_red,
-                        "generator_red": building.generator_red,
+                        "mine_red": building.assembler_mine_red,
+                        "generator_red": building.assembler_generator_red,
                     },
                     actions=ActionsConfig(
                         move=ActionConfig(),
@@ -129,9 +129,9 @@ class TestComprehensiveEnvironmentIntegration:
                     max_steps=100,
                     objects={
                         "wall": building.wall,
-                        "altar": building.altar,
-                        "mine_red": building.mine_red,
-                        "generator_red": building.generator_red,
+                        "altar": building.assembler_altar,
+                        "mine_red": building.assembler_mine_red,
+                        "generator_red": building.assembler_generator_red,
                     },
                     actions=ActionsConfig(
                         move=ActionConfig(),
