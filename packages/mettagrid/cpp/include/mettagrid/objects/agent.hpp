@@ -152,10 +152,9 @@ public:
       } else if (delta < 0) {
         this->stats.add(this->stats.resource_name(item) + ".lost", -delta);
       }
-      const auto resource_name = this->stats.resource_name(item);
-      const auto amount_key = resource_name + ".amount";
+      const std::string& resource_name = this->stats.resource_name(item);
       const auto amount = this->inventory.amount(item);
-      this->stats.set(amount_key, amount);
+      this->stats.set(resource_name + ".amount", amount);
       update_inventory_diversity_stats(resource_name, amount);
     }
 
@@ -165,19 +164,12 @@ public:
   void update_inventory_diversity_stats(const std::string& resource_name, InventoryQuantity amount) {
     static constexpr std::array<std::string_view, 5> tracked_resources = {
         "energy", "carbon", "oxygen", "germanium", "silicon"};
-
-    std::size_t index = tracked_resources.size();
-    for (std::size_t i = 0; i < tracked_resources.size(); ++i) {
-      if (resource_name == tracked_resources[i]) {
-        index = i;
-        break;
-      }
-    }
-
-    if (index == tracked_resources.size()) {
+    const auto it = std::find(tracked_resources.begin(), tracked_resources.end(), resource_name);
+    if (it == tracked_resources.end()) {
       return;
     }
 
+    const std::size_t index = static_cast<std::size_t>(std::distance(tracked_resources.begin(), it));
     const bool currently_present = tracked_resource_presence_[index];
     const bool now_present = amount > 0;
     if (currently_present == now_present) {
@@ -185,16 +177,16 @@ public:
     }
 
     const float prev_diversity = static_cast<float>(tracked_resource_diversity_);
-    tracked_resource_presence_[index] = now_present;
     tracked_resource_diversity_ += now_present ? 1 : -1;
+    tracked_resource_presence_[index] = now_present;
 
     const float new_diversity = static_cast<float>(tracked_resource_diversity_);
     this->stats.set("inventory.diversity", new_diversity);
 
-    for (std::size_t threshold = 2; threshold <= 5; ++threshold) {
+    static constexpr std::array<int, 4> thresholds = {2, 3, 4, 5};
+    for (int threshold : thresholds) {
       if (prev_diversity < static_cast<float>(threshold) && new_diversity >= static_cast<float>(threshold)) {
-        const std::string key = "inventory.diversity.ge." + std::to_string(threshold);
-        this->stats.set(key, 1.0f);
+        this->stats.set("inventory.diversity.ge." + std::to_string(threshold), 1.0f);
       }
     }
   }
