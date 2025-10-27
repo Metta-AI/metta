@@ -22,13 +22,14 @@ type
 
 proc generatePixelAtlas*(
   size: int,
+  margin: int,
   dirsToScan: seq[string],
   outputImagePath: string,
   outputJsonPath: string
 ) =
   let atlasImage = newImage(size, size)
   let atlas = PixelAtlas(size: size)
-  let allocator = newSkylineAllocator(size, 0)
+  let allocator = newSkylineAllocator(size, margin)
 
   for dir in dirsToScan:
     for file in walkDir(dir):

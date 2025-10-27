@@ -639,15 +639,6 @@ proc drawTerrain*() =
     for y in 0 ..< 10:
       px.drawSprite("objects/carbon_extractor", x.uint16 * 64 * 2, y.uint16 * 64 * 2)
 
-  let mvp2 = projection *
-    boxyView *
-    translate(vec3(-0.5, -0.5, 0)) *
-    scale(vec3(
-      1/64f,
-      1/64f,
-      1.0f
-    ))
-  px.flush(mvp2)
 
   bxy.exitRawOpenGLMode()
 
@@ -710,6 +701,26 @@ proc drawWorldMain*() =
     drawGrid()
 
   drawThoughtBubbles()
+
+  bxy.enterRawOpenGLMode()
+  let m = bxy.getTransform()
+  let boxyView = mat4(
+    m[0, 0], m[0, 1], m[0, 2], 0,
+    m[1, 0], m[1, 1], m[1, 2], 0,
+    0, 0, 0, 1,
+    m[2, 0], m[2, 1], m[2, 2], 1
+  )
+  let projection = ortho(0.0f, window.size.x.float32, window.size.y.float32, 0.0f, -1.0f, 1.0f)
+  let mvp2 = projection *
+    boxyView *
+    translate(vec3(-0.5, -0.5, 0)) *
+    scale(vec3(
+      1/64f,
+      1/64f,
+      1.0f
+    ))
+  px.flush(mvp2)
+  bxy.exitRawOpenGLMode()
 
 proc fitFullMap*(panel: Panel) =
   ## Set zoom and pan so the full map fits in the panel.
