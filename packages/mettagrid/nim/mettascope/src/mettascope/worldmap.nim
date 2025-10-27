@@ -1,11 +1,14 @@
 import
   std/[math, os, strutils, tables, strformat, random],
   boxy, vmath, windy, fidget2/[hybridrender, common],
-  common, panels, actions, utils, replays, objectinfo, pathfinding, tilemap
+  common, panels, actions, utils, replays, objectinfo,
+  pathfinding, tilemap, pixelator
 
 const TS = 1.0 / 64.0 # Tile scale.
+const TILE_SIZE = 64
 
 var terrainMap*: TileMap
+var px*: Pixelator
 
 proc weightedRandomInt*(weights: seq[int]): int =
   ## Return a random integer between 0 and 7, with a weighted distribution.
@@ -208,19 +211,21 @@ proc drawObjects*() =
         else:
           echo "Unknown orientation: ", agent.orientation.at
           "agents/agent.n"
-      bxy.drawImage(
+      px.drawSprite(
         agentImage,
-        pos.vec2,
-        angle = 0,
-        scale = TS
+        pos * TILE_SIZE
       )
     else:
-      bxy.drawImage(
+      px.drawSprite(
         replay.typeImages.getOrDefault(thing.typeName, "objects/unknown"),
-        pos.vec2,
-        angle = 0,
-        scale = TS
+        pos * TILE_SIZE,
       )
+      if thing.isClipped.at:
+        let image = thing.typeName & ".clipped"
+        px.drawSprite(
+          image,
+          pos * TILE_SIZE
+        )
 
 proc drawVisualRanges*(alpha = 0.2) =
   ## Draw the visual ranges of the selected agent.
@@ -371,17 +376,6 @@ proc drawAgentDecorations*() =
       bxy.drawImage(
         "agents/frozen",
         agent.location.at.xy.vec2,
-        angle = 0,
-        scale = TS
-      )
-
-proc drawClippedStatus*() =
-  # Draw the clipped status of the selected agent.
-  for obj in replay.objects:
-    if obj.isClipped.at:
-      bxy.drawImage(
-        "agents/frozen",
-        obj.location.at.xy.vec2,
         angle = 0,
         scale = TS
       )
@@ -598,6 +592,10 @@ proc drawTerrain*() =
   bxy.enterRawOpenGLMode()
   if terrainMap == nil:
     terrainMap = generateTileMap()
+    px = newPixelator(
+      dataDir & "/atlas.png",
+      dataDir & "/atlas.json"
+    )
 
   let m = bxy.getTransform()
   let boxyView = mat4(
@@ -617,6 +615,7 @@ proc drawTerrain*() =
     ))
 
   terrainMap.draw(mvp, 2.0f, 1.5f)
+
   bxy.exitRawOpenGLMode()
 
 proc drawWorldMini*() =
@@ -635,8 +634,16 @@ proc drawWorldMini*() =
       continue
 
     let loc = obj.location.at(step).xy
-    bxy.drawImage("minimapPip", rect((loc.x.float32) / scale - 0.5, (
-        loc.y.float32) / scale - 0.5, 1, 1), color(1, 1, 1, 1))
+    bxy.drawImage(
+      "minimapPip",
+      rect(
+        (loc.x.float32) / scale - 0.5,
+        (loc.y.float32) / scale - 0.5,
+        1,
+        1
+      ),
+      color(1, 1, 1, 1)
+    )
 
   bxy.restoreTransform()
 
@@ -656,9 +663,28 @@ proc drawWorldMain*() =
   drawTerrain()
   drawTrajectory()
   drawObjects()
+
+  bxy.enterRawOpenGLMode()
+  let m = bxy.getTransform()
+  let boxyView = mat4(
+    m[0, 0], m[0, 1], m[0, 2], 0,
+    m[1, 0], m[1, 1], m[1, 2], 0,
+    0, 0, 0, 1,
+    m[2, 0], m[2, 1], m[2, 2], 1
+  )
+  let projection = ortho(0.0f, window.size.x.float32, window.size.y.float32, 0.0f, -1.0f, 1.0f)
+  let mvp2 = projection *
+    boxyView *
+    scale(vec3(
+      TS,
+      TS,
+      1.0f
+    ))
+  px.flush(mvp2)
+  bxy.exitRawOpenGLMode()
+
   drawActions()
   drawAgentDecorations()
-  drawClippedStatus()
   drawSelection()
   drawPlannedPath()
 

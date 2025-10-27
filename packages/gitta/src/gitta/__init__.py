@@ -58,6 +58,14 @@ from .github import (
     run_gh,
 )
 
+# Secrets management (optional AWS support)
+from .secrets import (
+    clear_cache,
+    get_anthropic_api_key,
+    get_github_token,
+    get_secret,
+)
+
 # PR splitting functionality
 from .split import PRSplitter, split_pr
 
@@ -108,6 +116,11 @@ __all__ = [
     "list_all_workflow_runs",
     # Filter
     "filter_repo",
+    # Secrets
+    "get_secret",
+    "get_github_token",
+    "get_anthropic_api_key",
+    "clear_cache",
     # Split
     "split_pr",
     "PRSplitter",
