@@ -214,12 +214,13 @@ class HealthFomCollector(BaseCollector):
             Most recent metric value, or None if not available
         """
         try:
-            # Query Datadog for metric value from last 30 minutes (reduced from 1 hour)
-            # This reduces the amount of data returned and speeds up queries
+            # Query Datadog for metric value from last 4 hours
+            # This ensures we get metrics from previous cronjob runs (every 15 min)
+            # rather than trying to query metrics submitted seconds ago (indexing delay)
             value = self._dd_client.query_metric(
                 metric_name,
                 aggregation=aggregation,
-                lookback_seconds=1800,  # 30 minutes
+                lookback_seconds=14400,  # 4 hours
             )
             return value
         except Exception as e:
