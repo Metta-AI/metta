@@ -7,7 +7,7 @@ from typing import Any
 import torch
 
 from metta.agent.policies.fast import FastConfig
-from metta.cogworks.curriculum import env_curriculum
+from metta.cogworks.curriculum import CurriculumConfig, SingleTaskGenerator, env_curriculum
 from metta.rl.system_config import SystemConfig, seed_everything
 from metta.rl.training.training_environment import TrainingEnvironmentConfig, VectorizedTrainingEnvironment
 from mettagrid.builder.envs import make_arena
@@ -67,3 +67,35 @@ def test_same_seed_gives_same_policy_and_environment(tmp_path: Path) -> None:
     assert first_metadata == second_metadata
     for name, tensor in first_state.items():
         assert torch.equal(tensor, second_state[name]), f"Parameter {name} differed despite identical seeds"
+
+
+def test_training_environment_seed_propagates_to_curriculum() -> None:
+    base_env_cfg = make_arena(num_agents=12)
+
+    def sample_rng_sequence(seed: int) -> tuple[float, ...]:
+        curriculum_cfg = CurriculumConfig(
+            task_generator=SingleTaskGenerator.Config(env=base_env_cfg.model_copy(deep=True)),
+            num_active_tasks=8,
+            max_task_id=128,
+        )
+        env_cfg = TrainingEnvironmentConfig(
+            curriculum=curriculum_cfg,
+            num_workers=1,
+            async_factor=1,
+            forward_pass_minibatch_target_size=8,
+            vectorization="serial",
+            seed=seed,
+        )
+        env = VectorizedTrainingEnvironment(env_cfg)
+        try:
+            # Inspect curriculum RNG directly to verify the seed wiring.
+            return tuple(env._curriculum._rng.random() for _ in range(5))
+        finally:
+            env.close()
+
+    first = sample_rng_sequence(101)
+    second = sample_rng_sequence(101)
+    third = sample_rng_sequence(202)
+
+    assert first == second
+    assert first != third
