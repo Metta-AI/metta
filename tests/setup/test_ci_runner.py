@@ -6,6 +6,9 @@ import subprocess
 import sys
 
 import pytest
+import typer
+
+from metta.setup.tools.ci_runner import ALLOWED_SKIP_PACKAGES, _normalize_python_stage_args
 
 pytestmark = pytest.mark.setup
 
@@ -68,6 +71,29 @@ def test_ci_python_tests_stage_runs() -> None:
     assert result.returncode == 0
 
 
+def test_ci_python_tests_stage_rejects_unknown_args() -> None:
+    """Unsupported arguments should be rejected before running tests."""
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "metta.setup.metta_cli",
+            "ci",
+            "--stage",
+            "python-tests",
+            "--",
+            "--bogus",
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 1
+    combined = result.stdout + result.stderr
+    assert "not supported" in combined
+
+
 def test_ci_python_benchmarks_stage_exists() -> None:
     """Test that python-benchmarks stage is recognized."""
     result = subprocess.run(
@@ -125,3 +151,60 @@ def test_ci_stages_are_separate() -> None:
     assert "C++ Tests" in output or "C++ unit tests" in output
     # Benchmarks should not be mentioned in the stage name
     assert "C++ Benchmarks" not in output or "benchmark" not in output.lower().split("tests")[0]
+
+
+def test_ci_requires_stage_for_extra_args() -> None:
+    """Extra args without --stage should fail fast."""
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "metta.setup.metta_cli",
+            "ci",
+            "--",
+            "--skip-package",
+            "tests",
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 1
+    combined = result.stdout + result.stderr
+    assert "Extra arguments require specifying a --stage" in combined
+
+
+def test_ci_non_python_stage_rejects_extra_args() -> None:
+    """Stages that do not accept extra args should error."""
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "metta.setup.metta_cli",
+            "ci",
+            "--stage",
+            "lint",
+            "--",
+            "--skip-package",
+            "tests",
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 1
+    combined = result.stdout + result.stderr
+    assert "does not accept extra arguments" in combined
+
+
+def test_normalize_python_stage_args_allows_known_package() -> None:
+    package = next(iter(ALLOWED_SKIP_PACKAGES))
+    result = _normalize_python_stage_args(["--skip-package", package])
+    assert result == ["--skip-package", package]
+
+
+def test_normalize_python_stage_args_rejects_unknown_package() -> None:
+    with pytest.raises(typer.Exit):
+        _normalize_python_stage_args(["--skip-package", "does-not-exist"])
