@@ -298,9 +298,9 @@ def launch_ray_sweep(
 
     backend = CloudVmRayBackend()
 
-    print("[RAY] Launching Ray cluster and starting sweep...")
-    print(f"[RAY] Head node will run: {controller_cmd}")
-    print(f"[RAY] Worker nodes will stay alive serving Ray tasks")
+    print("[RAY] Launching Ray cluster...")
+    print(f"[RAY] Cluster name: {run_id}")
+    print(f"[RAY] Controller command: {controller_cmd}")
     sky.launch(
         ray_task,
         cluster_name=run_id,
@@ -308,8 +308,17 @@ def launch_ray_sweep(
         retry_until_up=True,
     )
 
-    print("[RAY] Sweep complete! Cluster will remain up until manually stopped.")
-    print(f"[RAY] To stop cluster: sky down {run_id}")
+    print()
+    print("[RAY] ✓ Cluster launched successfully!")
+    print("[RAY] The sweep is now running on the cluster in the background.")
+    print()
+    print("[RAY] To monitor progress:")
+    print(f"[RAY]   - SSH into cluster: sky ssh {run_id}")
+    print(f"[RAY]   - View logs: sky logs {run_id}")
+    print(f"[RAY]   - Check status: sky status {run_id}")
+    print()
+    print("[RAY] When complete, stop the cluster:")
+    print(f"[RAY]   sky down {run_id}")
 
 
 def main():
