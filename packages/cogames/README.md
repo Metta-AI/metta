@@ -12,7 +12,7 @@ interacting with a "station". Many such interactions will require multiple cogs 
 Your Cogs' efforts may be thwarted by Clips: NPC agents that disable stations or otherwise impede progress.
 
 <p align="middle">
-<img src="assets/showoff.gif" alt="Example Cogs vs Clips video">
+<img src="src/cogames/assets/showoff.gif" alt="Example Cogs vs Clips video">
 <br>
 
 There are many mission configurations available, with different map sizes, resource and station layouts, and game rules.
@@ -32,6 +32,8 @@ Cogs should refer to their [MISSION.md](MISSION.md) for a thorough description o
 ```bash
 # Install
 uv pip install cogames
+# Or install alongside PufferLib's integration extras
+pip install "pufferlib[cogames]" --no-build-isolation
 
 # List available missions
 cogames missions

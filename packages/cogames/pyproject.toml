@@ -2,9 +2,6 @@
 requires = ["setuptools==80.9.0", "wheel==0.45.1", "setuptools_scm==8.1.0"]
 build-backend = "setuptools.build_meta"
 
-[tool.setuptools]
-include-package-data = true
-
 [project]
 name = "cogames"
 description = "Multi-agent cooperative games"
@@ -35,15 +32,7 @@ where = ["src"]
 include = ["cogames", "cogames.*"]
 
 [tool.setuptools.package-data]
-cogames = [
-  "py.typed",
-  "maps/*.map",
-  "maps/**/*.map",
-  "assets/**/*.json",
-  "assets/**/*.yaml",
-  "assets/**/*.yml",
-  "assets/**/*.txt",
-]
+cogames = ["py.typed"]
 
 [tool.setuptools_scm]
 tag_regex = "^cogames-v(?P<version>\\d+\\.\\d+\\.\\d+(?:\\.\\d+)?)$"

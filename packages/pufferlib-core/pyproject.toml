@@ -45,9 +45,6 @@ dependencies = [
 ]
 dynamic = ["version"]
 
-[project.optional-dependencies]
-cogames = ["cogames"]
-
 [project.urls]
 Homepage = "https://github.com/PufferAI/PufferLib"
 Documentation = "https://puffer.ai"
