@@ -9,8 +9,10 @@ The runner handles:
 
 from __future__ import annotations
 
+import io
 import sys
 import time
+from contextlib import redirect_stdout
 
 from devops.stable.state import ReleaseState
 from devops.stable.tasks import AcceptanceRule, Task
@@ -29,6 +31,7 @@ class TaskRunner:
         job_manager: JobManager,
         retry_failed: bool = False,
         enable_monitor: bool = True,
+        show_individual_results: bool = False,
     ):
         """Initialize runner.
 
@@ -37,15 +40,18 @@ class TaskRunner:
             job_manager: JobManager for executing jobs
             retry_failed: If True, retry failed tasks; if False, skip them (default: False)
             enable_monitor: If True, display live status updates (default: True)
+            show_individual_results: If True, print detailed results when each job completes (default: False)
         """
         self.state = state
         self.job_manager = job_manager
         self.retry_failed = retry_failed
+        self.show_individual_results = show_individual_results
 
         # Create monitor for live status display (optional, for tests)
         self.monitor = JobMonitor(job_manager, group=state.version) if enable_monitor else None
         self._last_display_update = 0.0
         self._display_interval = 2.0  # Update display every 2 seconds
+        self._monitor_line_count = 0  # Track how many lines monitor has printed
 
     def _get_job_name(self, task: Task) -> str:
         """Generate globally unique job name for JobManager.
@@ -54,6 +60,44 @@ class TaskRunner:
         Example: "v2025.10.22_metta_ci"
         """
         return f"{self.state.version}_{task.name}"
+
+    def _update_monitor_display(self) -> None:
+        """Update monitor display in-place without clearing screen.
+
+        Uses ANSI escape codes to move cursor up and rewrite status lines,
+        preserving step headers and other output above the monitor.
+        """
+        if not self.monitor:
+            return
+
+        # If this is the first update, just print normally
+        if self._monitor_line_count == 0:
+            # Capture output to count lines
+            buffer = io.StringIO()
+            with redirect_stdout(buffer):
+                self.monitor.display_status(
+                    clear_screen=False,
+                    title=f"Release Validation: {self.state.version}",
+                    highlight_failures=True,
+                )
+            output = buffer.getvalue()
+            print(output, end="")
+            self._monitor_line_count = output.count("\n")
+        else:
+            # Move cursor up by the number of lines we printed last time
+            print(f"\033[{self._monitor_line_count}A", end="", flush=True)
+
+            # Print updated status (will overwrite previous lines)
+            buffer = io.StringIO()
+            with redirect_stdout(buffer):
+                self.monitor.display_status(
+                    clear_screen=False,
+                    title=f"Release Validation: {self.state.version}",
+                    highlight_failures=True,
+                )
+            output = buffer.getvalue()
+            print(output, end="", flush=True)
+            self._monitor_line_count = output.count("\n")
 
     def _evaluate_acceptance(self, job_state: JobState, rules: list[AcceptanceRule]) -> tuple[bool, str | None]:
         """Evaluate acceptance criteria against job metrics.
@@ -267,8 +311,9 @@ class TaskRunner:
                         # Find the task with this job name
                         task = next((t for t in submitted if self._get_job_name(t) == job_name), None)
                         if task:
-                            # Display result
-                            self._display_result(job_name, task)
+                            # Display result only if requested (otherwise monitor shows status)
+                            if self.show_individual_results:
+                                self._display_result(job_name, task)
                             completed.add(task)
                             submitted.remove(task)
 
@@ -276,11 +321,9 @@ class TaskRunner:
                 if self.monitor:
                     now = time.time()
                     if now - self._last_display_update >= self._display_interval:
-                        self.monitor.display_status(
-                            clear_screen=True,
-                            title=f"Release Validation: {self.state.version}",
-                            highlight_failures=True,
-                        )
+                        # Don't clear screen during execution - update in place
+                        # This preserves step headers and previous output
+                        self._update_monitor_display()
                         self._last_display_update = now
 
                 # Small sleep to avoid tight polling loop
@@ -288,10 +331,12 @@ class TaskRunner:
                     time.sleep(0.1)
 
         except KeyboardInterrupt:
-            print(yellow("\n\n⚠️  Interrupted by user - cancelling all jobs..."))
-            cancelled = self.job_manager.cancel_group(self.state.version)
-            print(yellow(f"Cancelled {cancelled} job(s)"))
-            print(yellow("State has been saved. Re-run to resume from last completed task."))
+            print(yellow("\n\n⚠️  Interrupted by user (Ctrl+C)"))
+            print(yellow("   • Killing local jobs..."))
+            print(yellow("   • Leaving remote jobs running (they will continue on cluster)"))
+            cancelled = self.job_manager.cancel_group(self.state.version, local_only=True)
+            print(yellow(f"   • Killed {cancelled} local job(s)"))
+            print(yellow("\n💡 On restart: stale local jobs will be retried, running remote jobs will be reattached"))
             sys.exit(130)  # Standard exit code for Ctrl+C
 
         # Display final summary
@@ -316,11 +361,16 @@ class TaskRunner:
         existing_state = self.job_manager.get_job_state(job_name)
         if existing_state and existing_state.status == "completed":
             # Check if we should retry
-            if not self.retry_failed or (existing_state.exit_code == 0 and self._passed(job_name, task)):
+            # Exit codes: 0=success, >0=error, -1=abnormal termination, 130=cancelled
+            # Auto-retry abnormal terminations (stale local jobs from Ctrl+C)
+            # Otherwise respect retry_failed flag
+            if existing_state.exit_code == -1:
+                print(yellow(f"🔄 {task.name} - retrying after abnormal termination"))
+            elif not self.retry_failed or (existing_state.exit_code == 0 and self._passed(job_name, task)):
                 print(f"⏭️  {task.name} - already completed (use --retry-failed to retry)")
                 return False
-
-            print(yellow(f"🔄 {task.name} - retrying previous run"))
+            else:
+                print(yellow(f"🔄 {task.name} - retrying previous run"))
 
         # Check if job is already running
         if existing_state and existing_state.status in ("pending", "running"):
