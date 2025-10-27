@@ -23,24 +23,12 @@ def get_map(site: str) -> MapBuilderConfig:
     return MapBuilderConfig.from_uri(str(map_path))
 
 
-def _replace_heart_recipes(
-    cfg: MettaGridConfig,
-    input_resources: dict[str, int],
-    *,
-    cooldown: int = 1,
-    vibe_tokens: list[str] | None = None,
-) -> None:
+def _replace_heart_recipes(cfg: MettaGridConfig, input_resources: dict[str, int]) -> None:
     assembler = cfg.game.objects.get("assembler")
     if assembler is None:
         return
 
-    # Replace existing heart recipes with a single simplified one.
-
-    heart_recipe = ProtocolConfig(
-        input_resources=dict(input_resources),
-        output_resources={"heart": 1},
-        cooldown=max(cooldown, 1),
-    )
+    heart_recipe = ProtocolConfig(input_resources=dict(input_resources), output_resources={"heart": 1}, cooldown=1)
 
     non_heart_recipes = [
         (existing_vibe_tokens, recipe)
@@ -48,7 +36,7 @@ def _replace_heart_recipes(
         if recipe.output_resources.get("heart", 0) == 0
     ]
 
-    assembler.recipes = [(list(vibe_tokens) if vibe_tokens else ["default"], heart_recipe), *non_heart_recipes]
+    assembler.recipes = [(["default"], heart_recipe), *non_heart_recipes]
 
 
 class MinedOutVariant(MissionVariant):
@@ -82,7 +70,7 @@ class LonelyHeartVariant(MissionVariant):
         def modifier(cfg: MettaGridConfig) -> None:
             simplified_inputs = {"carbon": 1, "oxygen": 1, "germanium": 1, "silicon": 1, "energy": 1}
 
-            _replace_heart_recipes(cfg, simplified_inputs, cooldown=1)
+            _replace_heart_recipes(cfg, simplified_inputs)
 
             if germanium := cfg.game.objects.get("germanium_extractor"):
                 germanium.max_uses = 0
