@@ -12,15 +12,15 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Dict, Optional, Tuple
 
-from .scripted_agent_outpost import (
+from .scripted_agent import (
     MettaGridEnv,
     MettaGridObservation,
     StatefulAgentPolicy,
 )
-from .scripted_agent_outpost import (
+from .scripted_agent import (
     ScriptedAgentPolicy as BasePolicy,
 )
-from .scripted_agent_outpost import (
+from .scripted_agent import (
     ScriptedAgentPolicyImpl as BaseImpl,
 )
 
