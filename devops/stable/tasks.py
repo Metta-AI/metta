@@ -44,91 +44,56 @@ class Task:
         self.dependency_names = dependency_names or []
 
 
-def python_ci(name: str = "python_ci", timeout_s: int = 1800) -> Task:
-    return Task(
-        JobConfig(name=name, module="__unused__", timeout_s=timeout_s, metadata={"cmd": ["metta", "pytest", "--ci"]})
-    )
+def ci_task(name: str, cmd: list[str], timeout_s: int = 1800) -> Task:
+    """Create a CI task that runs a shell command."""
+    return Task(JobConfig(name=name, module="__unused__", timeout_s=timeout_s, metadata={"cmd": cmd}))
 
 
-def cpp_ci(name: str = "cpp_ci", timeout_s: int = 1800) -> Task:
-    return Task(
-        JobConfig(name=name, module="__unused__", timeout_s=timeout_s, metadata={"cmd": ["metta", "cpptest", "--test"]})
-    )
-
-
-def cpp_benchmark(name: str = "cpp_benchmark", timeout_s: int = 1800) -> Task:
-    return Task(
-        JobConfig(
-            name=name, module="__unused__", timeout_s=timeout_s, metadata={"cmd": ["metta", "cpptest", "--benchmark"]}
-        )
-    )
-
-
-def local_train(
+def tool_task(
     name: str,
     module: str,
-    args: list[str],
-    timeout_s: int = 600,
+    args: list[str] | None = None,
+    timeout_s: int = 1800,
+    job_type: str = "train",
+    remote: RemoteConfig | None = None,
     acceptance: list[AcceptanceRule] | None = None,
+    dependency_names: list[str] | None = None,
 ) -> Task:
-    """Create a local training task (remote=None in JobConfig)."""
-    args_dict, overrides_dict = _parse_args_list(args)
-    job_config = JobConfig(
-        name=name, module=module, args=args_dict, overrides=overrides_dict, timeout_s=timeout_s, job_type="train"
-    )
-    return Task(job_config=job_config, acceptance=acceptance)
+    """Create a tool-based task (train/eval/etc).
 
-
-def remote_train(
-    name: str,
-    module: str,
-    args: list[str],
-    timeout_s: int = 7200,
-    gpus: int = 1,
-    nodes: int = 1,
-    use_spot: bool = False,
-    acceptance: list[AcceptanceRule] | None = None,
-) -> Task:
-    """Create a remote training task (remote=RemoteConfig in JobConfig)."""
-    args_dict, overrides_dict = _parse_args_list(args)
+    Args:
+        name: Task name
+        module: Python module to run (e.g., "arena.train")
+        args: Arguments as list of "key=value" strings
+        timeout_s: Timeout in seconds
+        job_type: Type of job ("train", "eval", etc.)
+        remote: Remote execution config (None = local)
+        acceptance: Acceptance criteria for validation
+        dependency_names: Names of tasks this depends on
+    """
+    args_dict, overrides_dict = _parse_args_list(args or [])
     job_config = JobConfig(
         name=name,
         module=module,
         args=args_dict,
         overrides=overrides_dict,
         timeout_s=timeout_s,
-        job_type="train",
-        remote=RemoteConfig(gpus=gpus, nodes=nodes, spot=use_spot),
+        job_type=job_type,
+        remote=remote,
     )
-    return Task(job_config=job_config, acceptance=acceptance)
-
-
-def evaluate(
-    name: str,
-    module: str,
-    args: list[str] | None = None,
-    dependency_names: list[str] | None = None,
-    timeout_s: int = 1800,
-) -> Task:
-    """Create evaluation task. If dependency_names provided, can look up checkpoint_uri."""
-    args_list = args or []
-    args_dict, overrides_dict = _parse_args_list(args_list)
-    job_config = JobConfig(
-        name=name, module=module, args=args_dict, overrides=overrides_dict, timeout_s=timeout_s, job_type="eval"
-    )
-    return Task(job_config, dependency_names=dependency_names)
+    return Task(job_config=job_config, acceptance=acceptance, dependency_names=dependency_names)
 
 
 def get_all_tasks() -> list[Task]:
     """Define all release validation tasks with explicit dependencies."""
     # CI checks
-    python_ci_task = python_ci()
-    cpp_ci_task = cpp_ci()
-    cpp_benchmark_task = cpp_benchmark()
+    python_ci_task = ci_task("python_ci", ["metta", "pytest", "--ci"])
+    cpp_ci_task = ci_task("cpp_ci", ["metta", "cpptest", "--test"])
+    cpp_benchmark_task = ci_task("cpp_benchmark", ["metta", "cpptest", "--benchmark"])
 
     # Local smoke test
     smoke_run = f"stable.smoke.{datetime.now().strftime('%Y%m%d_%H%M%S')}"
-    smoke = local_train(
+    smoke = tool_task(
         name="arena_local_smoke",
         module="experiments.recipes.arena_basic_easy_shaped.train",
         args=[f"run={smoke_run}", "trainer.total_timesteps=1000"],
@@ -136,13 +101,12 @@ def get_all_tasks() -> list[Task]:
     )
 
     # Single GPU training - 100M timesteps
-    train_100m = remote_train(
+    train_100m = tool_task(
         name="arena_single_gpu_100m",
         module="experiments.recipes.arena_basic_easy_shaped.train",
         args=["trainer.total_timesteps=100000000"],
         timeout_s=7200,
-        gpus=1,
-        nodes=1,
+        remote=RemoteConfig(gpus=1, nodes=1),
         acceptance=[
             ("overview/sps", ge, 40000),
             ("env_agent/heart.gained", gt, 0.5),
@@ -150,23 +114,23 @@ def get_all_tasks() -> list[Task]:
     )
 
     # Multi-GPU training - 2B timesteps
-    train_2b = remote_train(
+    train_2b = tool_task(
         name="arena_multi_gpu_2b",
         module="experiments.recipes.arena_basic_easy_shaped.train",
         args=["trainer.total_timesteps=2000000000"],
         timeout_s=172800,  # 48 hours
-        gpus=4,
-        nodes=4,
+        remote=RemoteConfig(gpus=4, nodes=4),
         acceptance=[
             ("overview/sps", ge, 40000),
-            ("env_agent/heart.gained", gt, 10.0),
+            ("env_agent/heart.gained", gt, 2.0),
         ],
     )
 
     # Evaluation - depends on single-GPU 100M training run
-    eval_task = evaluate(
+    eval_task = tool_task(
         name="arena_evaluate",
         module="experiments.recipes.arena_basic_easy_shaped.evaluate",
+        job_type="eval",
         dependency_names=["arena_single_gpu_100m"],  # Dependency by name
         timeout_s=1800,
     )

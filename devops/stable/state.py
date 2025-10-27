@@ -57,15 +57,13 @@ def get_log_dir(version: str, job_type: str) -> Path:
 class ReleaseState(BaseModel):
     """State of a release qualification run.
 
-    Simplified to just track version/timestamp/commit - TaskRunner queries
-    JobManager directly for job outcomes instead of caching in results dict.
+    Simplified to just track version/timestamp/commit/gates - TaskRunner queries
+    JobManager directly for job outcomes and submitted jobs.
     """
 
     version: str
     created_at: str
     commit_sha: Optional[str] = None
-    # Track which jobs have been submitted (for filtering stale tasks)
-    submitted_jobs: set[str] = Field(default_factory=set)
     gates: list[dict] = Field(default_factory=list)
     released: bool = False
 
