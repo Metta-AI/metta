@@ -29,19 +29,19 @@ var
   zoom: Uniform[float32]
   zoomThreshold: Uniform[float32]
 
-proc tileMapVert*(aPos: Vec2, aTexCoord: Vec2, TextCoord: var Vec2) =
+proc tileMapVert*(aPos: Vec2, vertexUv: Vec2, fragmentUv: var Vec2) =
   gl_Position = mvp * vec4(aPos.x, aPos.y, 0.0, 1.0)
-  TextCoord = aTexCoord
+  fragmentUv = vertexUv
 
-proc tileMapFrag*(TextCoord: Vec2, FragColor: var Vec4) =
+proc tileMapFrag*(fragmentUv: Vec2, fragColor: var Vec4) =
   if zoom < zoomThreshold:
     # Use the overworld texture with mipmapping for higher zoom levels
-    let mapUV = TextCoord
-    FragColor = texture(overworld, vec2(mapUV.x, 1.0 - mapUV.y))
+    let mapUV = fragmentUv
+    fragColor = texture(overworld, vec2(mapUV.x, 1.0 - mapUV.y))
   else:
     let
       # Compute the map cell coordinates.
-      mapPos = TextCoord * mapSize
+      mapPos = fragmentUv * mapSize
       mapTexel0 = ivec2(mapPos.x.floor.int32, mapPos.y.floor.int32)
       mapTexel = ivec2(mapTexel0.x, mapSize.y.int32 - mapTexel0.y - 1)
 
@@ -52,7 +52,7 @@ proc tileMapFrag*(TextCoord: Vec2, FragColor: var Vec4) =
       # Local coordinates inside the tile, continuous and fractional.
       tilePos01 = fract(mapPos)
       localTexel = tilePos01 * tileSize
-      contTexel = TextCoord * (mapSize * tileSize)
+      contTexel = fragmentUv * (mapSize * tileSize)
 
       # Anti-aliasing the nearest snap in the tile space.
       fw = max(fwidth(contTexel), vec2(1e-5))
@@ -70,7 +70,7 @@ proc tileMapFrag*(TextCoord: Vec2, FragColor: var Vec4) =
       dUVdx = (dFdx(contTexel) / tileSize) * vec2(1.0, -1.0)
       dUVdy = (dFdy(contTexel) / tileSize) * vec2(1.0, -1.0)
 
-    FragColor = textureGrad(
+    fragColor = textureGrad(
       tileArray,
       vec3(layerUV.x, layerUV.y, float(tileIndex)),
       dUVdx,
