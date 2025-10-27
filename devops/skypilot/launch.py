@@ -214,6 +214,11 @@ def _build_ray_launch_task(
             "RAY_PORT": str(ray_port),
         }
     )
+
+    # Add WandB project if specified
+    if args.wandb_project:
+        env_updates["WANDB_PROJECT"] = args.wandb_project
+
     ray_task = ray_task.update_envs(env_updates)
     return ray_task
 
@@ -396,6 +401,12 @@ Examples:
         type=int,
         default=None,
         help="Number of Ray Tune samples to run (defaults to sweep_config.max_trials).",
+    )
+    parser.add_argument(
+        "--wandb-project",
+        type=str,
+        default=None,
+        help="WandB project name for Ray sweep (sets WANDB_PROJECT env var on cluster).",
     )
 
     # Use parse_known_args to handle both launch flags and tool args
