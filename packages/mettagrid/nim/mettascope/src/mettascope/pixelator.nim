@@ -7,7 +7,6 @@ import
 # It is used to draw the objects in the mettascope.
 
 type
-
   Entry* = object
     x*: int
     y*: int
@@ -18,6 +17,16 @@ type
     size*: int
     entries*: Table[string, Entry]
 
+  Pixelator* = ref object
+    atlas: PixelAtlas
+    image: Image
+    shader: Shader
+    vao: GLuint              ## Vertex array object
+    instanceVbo: GLuint      ## Per-instance buffer (uint16 * 6): aPos(x,y), aUv(x,y,w,h)
+    atlasTexture: GLuint     ## GL texture for the atlas image
+    instanceData: seq[uint16]
+    instanceCount: int
+
 proc generatePixelAtlas*(
   size: int,
   margin: int,
@@ -25,6 +34,7 @@ proc generatePixelAtlas*(
   outputImagePath: string,
   outputJsonPath: string
 ) =
+  ## Generates a pixel atlas from the given directories.
   let atlasImage = newImage(size, size)
   let atlas = PixelAtlas(size: size)
   let allocator = newSkylineAllocator(size, margin)
@@ -58,32 +68,15 @@ proc generatePixelAtlas*(
   atlasImage.writeFile(outputImagePath)
   writeFile(outputJsonPath, atlas.toJson())
 
-type
-  Pixelator* = ref object
-    atlas: PixelAtlas
-    image: Image
-    shader: Shader
-    vao: GLuint              ## Vertex array object
-    instanceVbo: GLuint      ## Per-instance buffer (uint16 * 6): aPos(x,y), aUv(x,y,w,h)
-    atlasTexture: GLuint     ## GL texture for the atlas image
-    instanceData: seq[uint16]
-    instanceCount: int
-
-var
-  # kept to avoid breaking imports if referenced elsewhere
-  gl_Position*: Vec4
-
-proc newPixalator*(
-  imagePath: string,
-  jsonPath: string
-): Pixelator =
+proc newPixelator*(imagePath, jsonPath: string): Pixelator =
+  ## Creates a new pixelator.
   result = Pixelator()
   result.image = readImage(imagePath)
   result.atlas = readFile(jsonPath).fromJson(PixelAtlas)
   result.instanceData = @[]
   result.instanceCount = 0
 
-  # GLSL 410 core, integer instanced attribute expands to a quad via gl_VertexID
+  # Integer instanced attribute expands to a quad via gl_VertexID
   let vertexShaderSource = """
 #version 410 core
 
@@ -116,6 +109,7 @@ void main() {
 }
   """
 
+  # Fragment does the pixel art anti-aliasing algorithm.
   let fragmentShaderSource = """
 #version 410 core
 
@@ -134,7 +128,10 @@ void main() {
 }
   """
 
-  result.shader = newShader(("vertex", vertexShaderSource), ("fragment", fragmentShaderSource))
+  result.shader = newShader(
+    ("vertex", vertexShaderSource),
+    ("fragment", fragmentShaderSource)
+  )
 
   # Upload atlas image to GL texture
   glGenTextures(1, result.atlasTexture.addr)
@@ -157,25 +154,24 @@ void main() {
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE.GLint)
   glGenerateMipmap(GL_TEXTURE_2D)
 
-  # Set up VAO and instance buffer (aRect)
+  # Set up VAO and instance buffer.
   glGenVertexArrays(1, result.vao.addr)
   glBindVertexArray(result.vao)
-
   glGenBuffers(1, result.instanceVbo.addr)
   glBindBuffer(GL_ARRAY_BUFFER, result.instanceVbo)
   glBufferData(GL_ARRAY_BUFFER, 0, nil, GL_STREAM_DRAW)  # will resize each frame
 
-  # Two integer attributes with divisor = 1, interleaved stride of 12 bytes (6 * uint16)
-  # location 0: aPos (2 x uint16) at offset 0
+  # Interleaved attributes of 12 bytes (6 * uint16).
+  # Location 0: aPos (2 x uint16) at offset 0.
   glEnableVertexAttribArray(0)
   glVertexAttribIPointer(0, 2, GL_UNSIGNED_SHORT, 6 * sizeof(uint16), cast[pointer](0))
   glVertexAttribDivisor(0, 1)
-  # location 1: aUv (4 x uint16) at offset 2 * uint16
+  # Location 1: aUv (4 x uint16) at offset 2 * uint16.
   glEnableVertexAttribArray(1)
   glVertexAttribIPointer(1, 4, GL_UNSIGNED_SHORT, 6 * sizeof(uint16), cast[pointer](2 * sizeof(uint16)))
   glVertexAttribDivisor(1, 1)
 
-  # Unbind
+  # Unbind the buffers.
   glBindBuffer(GL_ARRAY_BUFFER, 0)
   glBindVertexArray(0)
 
@@ -184,8 +180,10 @@ proc drawSprite*(
   name: string,
   x, y: uint16
 ) =
+  ## Draws a sprite at the given position.
   if name notin px.atlas.entries:
-    raise newException(ValueError, "Sprite not found in atlas: " & name)
+    echo "[Warning] Sprite not found in atlas: " & name
+    return
   let uv = px.atlas.entries[name]
   px.instanceData.add(x.uint16)
   px.instanceData.add(y.uint16)
@@ -200,6 +198,7 @@ proc drawSprite*(
   name: string,
   pos: IVec2
 ) =
+  ## Draws a sprite at the given position.
   px.drawSprite(name, pos.x.uint16, pos.y.uint16)
 
 proc clear*(px: Pixelator) =
@@ -215,12 +214,12 @@ proc flush*(
   if px.instanceCount == 0:
     return
 
-  # Upload instance buffer
+  # Upload instance buffer.
   glBindBuffer(GL_ARRAY_BUFFER, px.instanceVbo)
   let byteLen = px.instanceData.len * sizeof(uint16)
   glBufferData(GL_ARRAY_BUFFER, byteLen, px.instanceData[0].addr, GL_STREAM_DRAW)
 
-  # Bind state
+  # Bind the shader and the atlas texture.
   glUseProgram(px.shader.programId)
   px.shader.setUniform("uMVP", mvp)
   px.shader.setUniform("uAtlasSize", vec2(px.image.width.float32, px.image.height.float32))
@@ -228,7 +227,6 @@ proc flush*(
   glBindTexture(GL_TEXTURE_2D, px.atlasTexture)
   px.shader.setUniform("uAtlas", 0)
   px.shader.bindUniforms()
-
   glBindVertexArray(px.vao)
 
   # Draw 4-vertex triangle strip per instance (expanded in vertex shader)
@@ -239,5 +237,5 @@ proc flush*(
   glUseProgram(0)
   glBindTexture(GL_TEXTURE_2D, 0)
 
-  # Reset queue for next frame if desired
+  # Reset the data for the next frame.
   px.clear()

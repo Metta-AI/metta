@@ -16,7 +16,7 @@ var
   zoomVel: float32
   frame: int
 
-let px = newPixalator("data/atlas.png", "data/atlas.json")
+let px = newPixelator("data/atlas.png", "data/atlas.json")
 
 let spriteNames = @[
   "agents/agent.n",
@@ -38,7 +38,7 @@ window.onFrame = proc() =
   glClear(GL_COLOR_BUFFER_BIT)
 
   # Panning with middle mouse, inertial feel.
-  if window.buttonDown[MouseMiddle]:
+  if window.buttonDown[MouseMiddle] or window.buttonDown[MouseLeft]:
     vel = window.mouseDelta.vec2 + vel * 0.1
   else:
     vel *= 0.99
