@@ -156,7 +156,7 @@ def _build_ray_launch_task(
             ray stop --force >/dev/null 2>&1 || true
 
             if ! ray start --head --port {ray_port} --disable-usage-stats --dashboard-host=0.0.0.0 \
-                --object-store-memory=2000000000 \
+                --object-store-memory=100000000 \
                 --num-cpus=0; then
                 echo "[Ray Sweep] ERROR: Failed to start Ray head node"
                 exit 1
@@ -184,7 +184,7 @@ def _build_ray_launch_task(
             ray stop --force >/dev/null 2>&1 || true
 
             if ! ray start --address "$HEAD_IP:{ray_port}" --disable-usage-stats \
-                --object-store-memory=2000000000 \
+                --object-store-memory=100000000 \
                 --block; then
                 echo "[Ray Sweep] ERROR: Failed to start Ray worker node"
                 exit 1
