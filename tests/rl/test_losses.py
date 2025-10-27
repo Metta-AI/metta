@@ -76,6 +76,12 @@ def test_zero_loss_tracker_clears_values() -> None:
     assert all(len(values) == 0 for values in loss.loss_tracker.values())
 
 
+@pytest.fixture
+def stable_latent_loss() -> Loss:
+    cfg = StableLatentStateConfig(target_key="core", loss_coef=1.0)
+    return cfg.create(DummyPolicy(), SimpleNamespace(), SimpleNamespace(), torch.device("cpu"), "stable", cfg)
+
+
 def _build_shared_td(latent: torch.Tensor, dones: torch.Tensor | None = None) -> TensorDict:
     """Helper to construct shared loss data structures."""
     segments, horizon, _ = latent.shape
@@ -90,26 +96,20 @@ def _build_shared_td(latent: torch.Tensor, dones: torch.Tensor | None = None) ->
     return TensorDict({"policy_td": policy_td, "sampled_mb": minibatch}, batch_size=[])
 
 
-def test_stable_latent_state_loss_basic_penalty() -> None:
-    cfg = StableLatentStateConfig(target_key="core", loss_coef=1.0)
-    loss = cfg.create(DummyPolicy(), SimpleNamespace(), SimpleNamespace(), torch.device("cpu"), "stable", cfg)
-
+def test_stable_latent_state_loss_basic_penalty(stable_latent_loss: Loss) -> None:
     time_axis = torch.arange(4, dtype=torch.float32).view(1, 4, 1)
     latent = time_axis.repeat(2, 1, 3)
     shared = _build_shared_td(latent)
 
-    value, *_ = loss.run_train(shared, SimpleNamespace(epoch=0), 0)
+    value, *_ = stable_latent_loss.run_train(shared, SimpleNamespace(epoch=0), 0)
 
     assert value.item() == pytest.approx(1.0, rel=1e-5)
-    assert loss.loss_tracker["stable_latent_loss"][-1] == pytest.approx(1.0, rel=1e-5)
+    assert stable_latent_loss.loss_tracker["stable_latent_loss"][-1] == pytest.approx(1.0, rel=1e-5)
     expected_delta = torch.sqrt(torch.tensor(3.0)).item()
-    assert loss.loss_tracker["stable_latent_delta_l2"][-1] == pytest.approx(expected_delta, rel=1e-5)
+    assert stable_latent_loss.loss_tracker["stable_latent_delta_l2"][-1] == pytest.approx(expected_delta, rel=1e-5)
 
 
-def test_stable_latent_masks_episode_boundaries() -> None:
-    cfg = StableLatentStateConfig(target_key="core", loss_coef=1.0)
-    loss = cfg.create(DummyPolicy(), SimpleNamespace(), SimpleNamespace(), torch.device("cpu"), "stable", cfg)
-
+def test_stable_latent_masks_episode_boundaries(stable_latent_loss: Loss) -> None:
     latent = torch.tensor(
         [
             [
@@ -125,9 +125,9 @@ def test_stable_latent_masks_episode_boundaries() -> None:
 
     shared = _build_shared_td(latent, dones=dones)
 
-    value, *_ = loss.run_train(shared, SimpleNamespace(epoch=0), 0)
+    value, *_ = stable_latent_loss.run_train(shared, SimpleNamespace(epoch=0), 0)
 
     assert value.item() == pytest.approx(1.0, rel=1e-5)
     # Delta magnitude should ignore the large jump over the done boundary (sqrt(2) average).
     expected_delta = torch.sqrt(torch.tensor(2.0)).item()
-    assert loss.loss_tracker["stable_latent_delta_l2"][-1] == pytest.approx(expected_delta, rel=1e-5)
+    assert stable_latent_loss.loss_tracker["stable_latent_delta_l2"][-1] == pytest.approx(expected_delta, rel=1e-5)

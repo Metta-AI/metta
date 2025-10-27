@@ -96,21 +96,27 @@ class StableLatentStateLoss(Loss):
         latent = self._reshape_latent(latent.to(dtype=torch.float32), segments, horizon)
 
         if horizon < 2:
-            return self._record_zero(shared_loss_data)
+            return self._record(self._zero(), 0.0, shared_loss_data)
 
         deltas = latent.diff(dim=1)
-        mask = self._valid_transition_mask(minibatch, segments, horizon)
-        denom, squared_deltas = self._masked_squared_deltas(deltas, mask)
-        if denom <= self.loss_cfg.epsilon:
-            return self._record_zero(shared_loss_data)
+        mask = self._valid_transition_mask(minibatch)
+        squared = deltas.square()
 
-        loss = squared_deltas.sum() / denom
+        if mask is not None:
+            weights = mask.to(device=squared.device, dtype=squared.dtype).unsqueeze(-1)
+            squared = squared * weights
+            denom = weights.sum() * squared.shape[-1]
+        else:
+            denom = torch.tensor(squared.numel(), device=squared.device, dtype=squared.dtype)
+
+        if denom <= self.loss_cfg.epsilon:
+            return self._record(self._zero(), 0.0, shared_loss_data)
+
+        loss = squared.sum() / denom
         loss = loss * self.loss_cfg.loss_coef
 
         mean_delta = self._mean_delta_norm(deltas, mask)
-        self._record_loss(loss, mean_delta)
-
-        return loss, shared_loss_data, False
+        return self._record(loss, mean_delta, shared_loss_data)
 
     def _reshape_latent(self, latent: Tensor, segments: int, horizon: int) -> Tensor:
         if latent.dim() == 2:
@@ -122,10 +128,11 @@ class StableLatentStateLoss(Loss):
             f"expected ({segments}, {horizon}, *), received {tuple(latent.shape)}."
         )
 
-    def _valid_transition_mask(self, minibatch: TensorDict, segments: int, horizon: int) -> Tensor | None:
+    def _valid_transition_mask(self, minibatch: TensorDict) -> Tensor | None:
         if not self.loss_cfg.exclude_done_transitions:
             return None
 
+        segments, horizon = map(int, minibatch.batch_size)
         mask: Tensor | None = None
         for key in ("dones", "truncateds"):
             flags = minibatch.get(key)
@@ -140,20 +147,6 @@ class StableLatentStateLoss(Loss):
             mask = current if mask is None else mask & current
         return mask
 
-    def _masked_squared_deltas(self, deltas: Tensor, mask: Tensor | None) -> tuple[Tensor, Tensor]:
-        feature_dim = deltas.shape[-1]
-        if mask is not None:
-            mask = mask.to(device=deltas.device, dtype=deltas.dtype)
-            # Broadcast mask to feature dimension so we keep per-feature scaling.
-            deltas = deltas * mask.unsqueeze(-1)
-            valid_transitions = mask.sum()
-        else:
-            valid_transitions = torch.tensor(
-                deltas.shape[0] * deltas.shape[1], device=deltas.device, dtype=deltas.dtype
-            )
-        denom = valid_transitions * feature_dim
-        return denom, deltas.square()
-
     def _mean_delta_norm(self, deltas: Tensor, mask: Tensor | None) -> float:
         with torch.no_grad():
             norm = deltas.norm(dim=-1)
@@ -165,12 +158,7 @@ class StableLatentStateLoss(Loss):
                 return 0.0
             return float((norm * mask).sum().item() / denom.item())
 
-    def _record_loss(self, loss: Tensor, mean_delta: float) -> None:
+    def _record(self, loss: Tensor, mean_delta: float, shared_loss_data: TensorDict) -> tuple[Tensor, TensorDict, bool]:
         self.loss_tracker["stable_latent_loss"].append(float(loss.item()))
         self.loss_tracker["stable_latent_delta_l2"].append(mean_delta)
-
-    def _record_zero(self, shared_loss_data: TensorDict) -> tuple[Tensor, TensorDict, bool]:
-        zero_loss = self._zero()
-        self.loss_tracker["stable_latent_loss"].append(float(zero_loss.item()))
-        self.loss_tracker["stable_latent_delta_l2"].append(0.0)
-        return zero_loss, shared_loss_data, False
+        return loss, shared_loss_data, False
