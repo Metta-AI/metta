@@ -52,11 +52,13 @@ proc generatePixelAtlas*(
           height: image.height,
           animationFrames: 1
         )
-        atlas.entries[file.path] = entry
+        var key = file.path
+        key.removePrefix("data/")
+        key.removeSuffix(".png")
+        atlas.entries[key] = entry
 
   atlasImage.writeFile(outputImagePath)
   writeFile(outputJsonPath, atlas.toJson())
-
 
 type
   Pixalator* = ref object
@@ -64,11 +66,10 @@ type
     image: Image
     shader: Shader
     vao: GLuint              ## Vertex array object
-    instanceVbo: GLuint      ## Per-instance x,y,w,h buffer (uint16 * 4)
+    instanceVbo: GLuint      ## Per-instance buffer (uint16 * 6): aPos(x,y), aUv(x,y,w,h)
     atlasTexture: GLuint     ## GL texture for the atlas image
     instanceData: seq[uint16]
     instanceCount: int
-    currentUvRect: array[4, float32]  ## sx, sy, sw, sh in atlas pixels
 
 var
   # kept to avoid breaking imports if referenced elsewhere
@@ -83,20 +84,21 @@ proc newPixalator*(
   result.atlas = readFile(jsonPath).fromJson(PixelAtlas)
   result.instanceData = @[]
   result.instanceCount = 0
-  result.currentUvRect = [0f, 0f, 0f, 0f]
 
   # GLSL 410 core, integer instanced attribute expands to a quad via gl_VertexID
   let vertexShaderSource = """
 #version 410 core
 
-// Per-instance rectangle in pixels: x, y, w, h
-layout (location = 0) in uvec4 aRect;
+// Per-instance payload (uint16):
+// location 0: aPos = (x, y)
+// location 1: aUv  = (uvx, uvy, uvw, uvh)
+layout (location = 0) in uvec2 aPos;
+layout (location = 1) in uvec4 aUv;
 
 out vec2 vUv;
 
-uniform mat4 uProj;
+uniform mat4 uMVP;
 uniform vec2 uAtlasSize;            // in pixels
-uniform vec4 uUvRect;               // sx, sy, sw, sh in pixels
 
 void main() {
     // Corner from gl_VertexID for triangle strip (0..3):
@@ -104,14 +106,14 @@ void main() {
     uvec2 corner = uvec2(gl_VertexID & 1, gl_VertexID >> 1);
 
     // Destination position in pixels
-    float dx = float(aRect.x) + float(corner.x) * float(aRect.z);
-    float dy = float(aRect.y) + float(corner.y) * float(aRect.w);
+    float dx = float(aPos.x) + float(corner.x) * float(aUv.z);
+    float dy = float(aPos.y) + float(corner.y) * float(aUv.w);
 
-    gl_Position = uProj * vec4(dx, dy, 0.0, 1.0);
+    gl_Position = uMVP * vec4(dx, dy, 0.0, 1.0);
 
     // Source UVs from atlas rect, convert to [0,1]
-    float sx = uUvRect.x + float(corner.x) * uUvRect.z;
-    float sy = uUvRect.y + float(corner.y) * uUvRect.w;
+    float sx = float(aUv.x) + float(corner.x) * float(aUv.z);
+    float sy = float(aUv.y) + float(corner.y) * float(aUv.w);
     vUv = vec2(sx, sy) / uAtlasSize;
 }
   """
@@ -123,9 +125,14 @@ in vec2 vUv;
 out vec4 FragColor;
 
 uniform sampler2D uAtlas;
+uniform vec2 uAtlasSize;
 
 void main() {
-    FragColor = texture(uAtlas, vUv);
+  // Apply pixel art anti-aliasing algorithm.
+  vec2 pixCoord = vUv * uAtlasSize;
+  vec2 pixAA = floor(pixCoord) + min(fract(pixCoord) / fwidth(pixCoord), 1.0) - 0.5;
+  vec2 pix = pixAA / uAtlasSize;
+  FragColor = texture(uAtlas, pix);
 }
   """
 
@@ -146,10 +153,11 @@ void main() {
     GL_UNSIGNED_BYTE,
     cast[pointer](result.image.data[0].addr)
   )
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST.GLint)
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST.GLint)
+  glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR.GLint)
+  glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MAG_FILTER, GL_LINEAR.GLint)
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE.GLint)
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE.GLint)
+  glGenerateMipmap(GL_TEXTURE_2D)
 
   # Set up VAO and instance buffer (aRect)
   glGenVertexArrays(1, result.vao.addr)
@@ -159,15 +167,19 @@ void main() {
   glBindBuffer(GL_ARRAY_BUFFER, result.instanceVbo)
   glBufferData(GL_ARRAY_BUFFER, 0, nil, GL_STREAM_DRAW)  # will resize each frame
 
-  # location = 0, 4 components of unsigned short, integer attribute, divisor = 1
+  # Two integer attributes with divisor = 1, interleaved stride of 12 bytes (6 * uint16)
+  # location 0: aPos (2 x uint16) at offset 0
   glEnableVertexAttribArray(0)
-  glVertexAttribIPointer(0, 4, GL_UNSIGNED_SHORT, 4 * sizeof(uint16), cast[pointer](0))
+  glVertexAttribIPointer(0, 2, GL_UNSIGNED_SHORT, 6 * sizeof(uint16), cast[pointer](0))
   glVertexAttribDivisor(0, 1)
+  # location 1: aUv (4 x uint16) at offset 2 * uint16
+  glEnableVertexAttribArray(1)
+  glVertexAttribIPointer(1, 4, GL_UNSIGNED_SHORT, 6 * sizeof(uint16), cast[pointer](2 * sizeof(uint16)))
+  glVertexAttribDivisor(1, 1)
 
   # Unbind
   glBindBuffer(GL_ARRAY_BUFFER, 0)
   glBindVertexArray(0)
-
 
 proc drawSprite*(
   pixalator: Pixalator,
@@ -185,14 +197,21 @@ proc drawSprite*(
   pixalator.instanceData.add(uv.height.uint16)
   inc pixalator.instanceCount
 
+proc drawSprite*(
+  pixalator: Pixalator,
+  name: string,
+  pos: IVec2
+) =
+  pixalator.drawSprite(name, pos.x.uint16, pos.y.uint16)
+
 proc clear*(pixalator: Pixalator) =
   ## Clears the current instance queue.
   pixalator.instanceData.setLen(0)
   pixalator.instanceCount = 0
 
-proc draw*(
+proc flush*(
   pixalator: Pixalator,
-  proj: Mat4
+  mvp: Mat4
 ) =
   ## Draw all queued instances for the current sprite.
   if pixalator.instanceCount == 0:
@@ -205,9 +224,8 @@ proc draw*(
 
   # Bind state
   glUseProgram(pixalator.shader.programId)
-  pixalator.shader.setUniform("uProj", proj)
+  pixalator.shader.setUniform("uMVP", mvp)
   pixalator.shader.setUniform("uAtlasSize", vec2(pixalator.image.width.float32, pixalator.image.height.float32))
-  pixalator.shader.setUniform("uUvRect", vec4(pixalator.currentUvRect[0], pixalator.currentUvRect[1], pixalator.currentUvRect[2], pixalator.currentUvRect[3]))
   glActiveTexture(GL_TEXTURE0)
   glBindTexture(GL_TEXTURE_2D, pixalator.atlasTexture)
   pixalator.shader.setUniform("uAtlas", 0)

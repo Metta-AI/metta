@@ -224,11 +224,15 @@ proc drawObjects*() =
         scale = TS
       )
     else:
-      bxy.drawImage(
+      # bxy.drawImage(
+      #   replay.typeImages.getOrDefault(thing.typeName, "objects/unknown"),
+      #   pos.vec2,
+      #   angle = 0,
+      #   scale = TS
+      # )
+      px.drawSprite(
         replay.typeImages.getOrDefault(thing.typeName, "objects/unknown"),
-        pos.vec2,
-        angle = 0,
-        scale = TS
+        pos * 64,
       )
 
 proc drawVisualRanges*(alpha = 0.2) =
@@ -630,7 +634,21 @@ proc drawTerrain*() =
     ))
 
   terrainMap.draw(mvp, 2.0f, 1.5f)
-  px.draw(mvp)
+
+  for x in 0 ..< 10:
+    for y in 0 ..< 10:
+      px.drawSprite("objects/carbon_extractor", x.uint16 * 64 * 2, y.uint16 * 64 * 2)
+
+  let mvp2 = projection *
+    boxyView *
+    translate(vec3(-0.5, -0.5, 0)) *
+    scale(vec3(
+      1/64f,
+      1/64f,
+      1.0f
+    ))
+  px.flush(mvp2)
+
   bxy.exitRawOpenGLMode()
 
 proc drawWorldMini*() =
@@ -649,8 +667,16 @@ proc drawWorldMini*() =
       continue
 
     let loc = obj.location.at(step).xy
-    bxy.drawImage("minimapPip", rect((loc.x.float32) / scale - 0.5, (
-        loc.y.float32) / scale - 0.5, 1, 1), color(1, 1, 1, 1))
+    bxy.drawImage(
+      "minimapPip",
+      rect(
+        (loc.x.float32) / scale - 0.5,
+        (loc.y.float32) / scale - 0.5,
+        1,
+        1
+      ),
+      color(1, 1, 1, 1)
+    )
 
   bxy.restoreTransform()
 
