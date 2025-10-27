@@ -43,7 +43,7 @@ def base_config() -> GameConfig:
             rotate=ActionConfig(enabled=True),
         ),
         objects={
-            "wall": WallConfig(type_id=1),
+            "wall": WallConfig(),
         },
         allow_diagonals=True,
     )
@@ -147,7 +147,7 @@ def test_8way_movement_all_directions():
     env = MettaGridCore(cfg)
     env.reset()
     objects = env.grid_objects()
-    agent_id = next(id for id, obj in objects.items() if obj["type_id"] == 0)  # type_id 0 is agent
+    agent_id = next(id for id, obj in objects.items() if obj["type_name"] == "agent")
     initial_pos = (objects[agent_id]["r"], objects[agent_id]["c"])
     assert initial_pos == (2, 2)
 
@@ -192,7 +192,7 @@ def test_8way_movement_obstacles():
                 rotate=ActionConfig(),
                 noop=ActionConfig(),
             ),
-            objects={"wall": WallConfig(type_id=1)},
+            objects={"wall": WallConfig()},
             map_builder=AsciiMapBuilder.Config(
                 map_data=[
                     ["#", "#", "#", "#", "#"],
@@ -210,7 +210,7 @@ def test_8way_movement_obstacles():
     env.reset()
 
     objects = env.grid_objects()
-    agent_id = next(id for id, obj in objects.items() if obj["type_id"] == 0)
+    agent_id = next(id for id, obj in objects.items() if obj["type_name"] == "agent")
 
     # Test diagonal movements near corners
     actions = np.zeros((1,), dtype=dtype_actions)
@@ -258,7 +258,7 @@ def test_orientation_changes_with_8way():
     env.reset()
 
     objects = env.grid_objects()
-    agent_id = next(id for id, obj in objects.items() if obj["type_id"] == 0)
+    agent_id = next(id for id, obj in objects.items() if obj["type_name"] == "agent")
 
     # First rotate to face right
     actions = np.zeros((1,), dtype=dtype_actions)
@@ -347,7 +347,7 @@ def test_8way_movement_with_simple_environment():
     env.reset()
 
     objects = env.grid_objects()
-    agent_id = next(id for id, obj in objects.items() if obj["type_id"] == 0)
+    agent_id = next(id for id, obj in objects.items() if obj["type_name"] == "agent")
 
     # Verify agent is at expected position
     assert (objects[agent_id]["r"], objects[agent_id]["c"]) == (4, 4)
@@ -406,7 +406,7 @@ def test_8way_movement_boundary_check():
     env.reset()
 
     objects = env.grid_objects()
-    agent_id = next(id for id, obj in objects.items() if obj["type_id"] == 0)
+    agent_id = next(id for id, obj in objects.items() if obj["type_name"] == "agent")
 
     # Move to top-left corner
     actions = np.zeros((1,), dtype=dtype_actions)
@@ -450,7 +450,7 @@ def test_orientation_changes_on_failed_8way_movement():
                 rotate=ActionConfig(),
                 move=ActionConfig(),
             ),
-            objects={"wall": WallConfig(type_id=1)},
+            objects={"wall": WallConfig()},
             map_builder=AsciiMapBuilder.Config(
                 map_data=[
                     ["#", "#", "#"],
@@ -465,7 +465,7 @@ def test_orientation_changes_on_failed_8way_movement():
     env.reset()
 
     objects = env.grid_objects()
-    agent_id = next(id for id, obj in objects.items() if obj["type_id"] == 0)
+    agent_id = next(id for id, obj in objects.items() if obj["type_name"] == "agent")
 
     # Check initial orientation
     assert objects[agent_id]["orientation"] == 0  # Up

@@ -175,9 +175,11 @@ public:
     size_t selected_idx = dist(rng);
     std::shared_ptr<Recipe> selected_recipe = unclipping_recipes[selected_idx];
 
-    // Create a vector of 256 copies of the selected recipe
-    std::vector<std::shared_ptr<Recipe>> unclip_recipes;
-    unclip_recipes.assign(256, selected_recipe);
+    // Create a map with the selected recipe for all possible vibes
+    // For now, we'll just map vibe 0 to the recipe (no glyphs case)
+    // TODO: This might need adjustment based on how unclipping should work with glyphs
+    std::unordered_map<uint64_t, std::shared_ptr<Recipe>> unclip_recipes;
+    unclip_recipes[0] = selected_recipe;
     to_infect.become_clipped(unclip_recipes, this);
   }
 

@@ -146,6 +146,9 @@ class TokenPolicy(TrainablePolicy):
     def agent_policy(self, agent_id: int) -> AgentPolicy:
         return TokenAgentPolicyImpl(self._net, self._device, self._num_actions)
 
+    def is_recurrent(self) -> bool:
+        return False
+
     def load_policy_data(self, checkpoint_path: str) -> None:
         state_dict = torch.load(checkpoint_path, map_location=self._device)
         self._net.load_state_dict(state_dict)

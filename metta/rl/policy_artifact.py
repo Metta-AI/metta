@@ -174,12 +174,22 @@ def _to_safetensors_state_dict(
     """
 
     ordered: MutableMapping[str, torch.Tensor] = OrderedDict()
+    seen_storage: dict[int, str] = {}
     for key, tensor in state_dict.items():
         if not isinstance(tensor, torch.Tensor):
             msg = f"State dict entry '{key}' is not a torch.Tensor"
             raise TypeError(msg)
         value = tensor.detach() if detach_buffers else tensor
-        ordered[key] = value.cpu()
+        value_cpu = value.cpu()
+        data_ptr = value_cpu.data_ptr()
+        if data_ptr in seen_storage:
+            # safetensors forbids tensors that alias the same storage. Clone to materialize
+            # an independent copy while preserving dtype/shape metadata.
+            value_cpu = value_cpu.clone()
+        else:
+            seen_storage[data_ptr] = key
+
+        ordered[key] = value_cpu
     return ordered
 
 

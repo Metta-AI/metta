@@ -6,6 +6,8 @@ from typing import Tuple
 
 import torch as pt
 
+from cortex.kernels.triton.slstm.torch import slstm_tr_fwbw
+
 
 def slstm_sequence_triton(
     *,
@@ -31,8 +33,6 @@ def slstm_sequence_triton(
         all_states: (T, 4, B, NH, DH)
         last_state: (4, B, NH, DH)
     """
-    from cortex.kernels.triton.slstm.torch import slstm_tr_fwbw
-
     assert Wx.dim() == 5 and Wx.shape[2] == 4, f"Wx must be (B,T,4,NH,DH), got {Wx.shape}"
     assert R.shape[0] == 4, f"R must be (4,NH,DH,DH), got {R.shape}"
     assert b.shape[0] == 4, f"b must be (4,NH,DH), got {b.shape}"

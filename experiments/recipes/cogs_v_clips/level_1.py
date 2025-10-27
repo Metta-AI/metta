@@ -48,8 +48,8 @@ from metta.tools.train import TrainTool
 from mettagrid.config.mettagrid_config import (
     ChestConfig,
     Field,
+    FixedPosition,
     MettaGridConfig,
-    Position,
 )
 from mettagrid.mapgen.mapgen import MapGen
 
@@ -65,12 +65,6 @@ from mettagrid.mapgen.mapgen import MapGen
 curriculum_args = {
     "multi_agent_singles": {
         "num_cogs": [2, 4, 8, 12, 24],
-        "assembler_positions": [["Any"]],
-        "charger_positions": [["Any"]],
-        "carbon_extractor_positions": [["Any"]],
-        "oxygen_extractor_positions": [["Any"]],
-        "germanium_extractor_positions": [["Any"]],
-        "silicon_extractor_positions": [["Any"]],
         "num_obj_distribution": [2, 4, 8, 12, 20],
         "chest_positions": [["N"]],
         "regeneration_rate": [1, 2, 3, 4],
@@ -80,12 +74,6 @@ curriculum_args = {
     },
     "multi_agent_pairs": {
         "num_cogs": [2, 4, 8, 12, 24],
-        "assembler_positions": [["Any", "Any"]],
-        "charger_positions": [["Any", "Any"]],
-        "carbon_extractor_positions": [["Any", "Any"]],
-        "oxygen_extractor_positions": [["Any", "Any"]],
-        "germanium_extractor_positions": [["Any", "Any"]],
-        "silicon_extractor_positions": [["Any", "Any"]],
         "num_obj_distribution": [2, 4, 8, 12, 20],
         "chest_positions": [["N", "S"]],
         "regeneration_rate": [1, 2, 3, 4],
@@ -95,13 +83,7 @@ curriculum_args = {
     },
     "multi_agent_triplets": {
         "num_cogs": [2, 4, 8, 12, 24],
-        "assembler_positions": [["Any", "Any"]],
-        "charger_positions": [["Any", "Any", "Any"]],
-        "carbon_extractor_positions": [["Any", "Any", "Any"]],
-        "oxygen_extractor_positions": [["Any", "Any", "Any"]],
         "num_germanium_extractors": [0, 0, 0, 5, 10],
-        "germanium_extractor_positions": [["Any", "Any", "Any"]],
-        "silicon_extractor_positions": [["Any", "Any", "Any"]],
         "num_obj_distribution": [2, 4, 8, 12, 20],
         "chest_positions": [["N", "S", "E"]],
         "regeneration_rate": [1, 2, 3, 4],
@@ -112,13 +94,7 @@ curriculum_args = {
     # "test":
     #     {
     #     "num_cogs": [2],
-    #     "assembler_positions": [["Any", "Any"]],
     #     "num_chargers": [3],
-    #     "charger_positions": [["Any"]],
-    #     "carbon_extractor_positions": [["Any"]],
-    #     "oxygen_extractor_positions": [["Any"]],
-    #     "germanium_extractor_positions": [["Any"]],
-    #     "silicon_extractor_positions": [["Any"]],
     #     "num_chests": [1],
     #     "chest_positions": [["N"]],
     #     "regeneration_rate": [5],
@@ -138,13 +114,7 @@ curriculum_args = {
 evals = {
     "single_agent_no_terrain": {
         "num_cogs": 1,
-        "assembler_positions": ["Any"],
         "num_obj_distribution": 3,
-        "charger_positions": ["Any"],
-        "carbon_extractor_positions": ["Any"],
-        "oxygen_extractor_positions": ["Any"],
-        "germanium_extractor_positions": ["Any"],
-        "silicon_extractor_positions": ["Any"],
         "chest_positions": ["N"],
         "regeneration_rate": 10,
         "shareable_energy": False,
@@ -152,13 +122,7 @@ evals = {
     },
     "two_agent_pairs_no_terrain": {
         "num_cogs": 2,
-        "assembler_positions": ["Any", "Any"],
         "num_obj_distribution": 3,
-        "charger_positions": ["Any", "Any"],
-        "carbon_extractor_positions": ["Any", "Any"],
-        "oxygen_extractor_positions": ["Any", "Any"],
-        "germanium_extractor_positions": ["Any", "Any"],
-        "silicon_extractor_positions": ["Any", "Any"],
         "chest_positions": ["N", "S"],
         "regeneration_rate": 10,
         "shareable_energy": True,
@@ -166,13 +130,7 @@ evals = {
     },
     "three_agent_triplets_no_terrain": {
         "num_cogs": 3,
-        "assembler_positions": ["Any", "Any", "Any"],
         "num_obj_distribution": 5,
-        "charger_positions": ["Any", "Any", "Any"],
-        "carbon_extractor_positions": ["Any", "Any", "Any"],
-        "oxygen_extractor_positions": ["Any", "Any", "Any"],
-        "germanium_extractor_positions": ["Any", "Any", "Any"],
-        "silicon_extractor_positions": ["Any", "Any", "Any"],
         "chest_positions": ["N", "S", "E"],
         "regeneration_rate": 10,
         "shareable_energy": True,
@@ -180,13 +138,7 @@ evals = {
     },
     "many_agent_triplets_no_terrain": {
         "num_cogs": 12,
-        "assembler_positions": ["Any", "Any"],
         "num_obj_distribution": 5,
-        "charger_positions": ["Any", "Any", "Any"],
-        "carbon_extractor_positions": ["Any", "Any", "Any"],
-        "oxygen_extractor_positions": ["Any", "Any", "Any"],
-        "germanium_extractor_positions": ["Any", "Any", "Any"],
-        "silicon_extractor_positions": ["Any", "Any", "Any"],
         "chest_positions": ["N", "S", "E"],
         "regeneration_rate": 10,
         "shareable_energy": True,
@@ -194,13 +146,7 @@ evals = {
     },
     "single_agent_terrain_small": {
         "num_cogs": 1,
-        "assembler_positions": ["Any"],
         "num_obj_distribution": 5,
-        "charger_positions": ["Any"],
-        "carbon_extractor_positions": ["Any"],
-        "oxygen_extractor_positions": ["Any"],
-        "germanium_extractor_positions": ["Any"],
-        "silicon_extractor_positions": ["Any"],
         "chest_positions": ["N"],
         "regeneration_rate": 10,
         "shareable_energy": False,
@@ -208,13 +154,7 @@ evals = {
     },
     "two_agent_pairs_terrain_small": {
         "num_cogs": 2,
-        "assembler_positions": ["Any", "Any"],
         "num_obj_distribution": 5,
-        "charger_positions": ["Any", "Any"],
-        "carbon_extractor_positions": ["Any", "Any"],
-        "oxygen_extractor_positions": ["Any", "Any"],
-        "germanium_extractor_positions": ["Any", "Any"],
-        "silicon_extractor_positions": ["Any", "Any"],
         "chest_positions": ["N", "S"],
         "regeneration_rate": 10,
         "shareable_energy": True,
@@ -222,13 +162,7 @@ evals = {
     },
     "three_agent_triplets_terrain_small": {
         "num_cogs": 3,
-        "assembler_positions": ["Any", "Any", "Any"],
         "num_obj_distribution": 5,
-        "charger_positions": ["Any", "Any", "Any"],
-        "carbon_extractor_positions": ["Any", "Any", "Any"],
-        "oxygen_extractor_positions": ["Any", "Any", "Any"],
-        "germanium_extractor_positions": ["Any", "Any", "Any"],
-        "silicon_extractor_positions": ["Any", "Any", "Any"],
         "chest_positions": ["N", "S", "E"],
         "regeneration_rate": 10,
         "shareable_energy": True,
@@ -236,13 +170,7 @@ evals = {
     },
     "many_agent_triplets_terrain_small": {
         "num_cogs": 12,
-        "assembler_positions": ["Any", "Any", "Any"],
         "num_obj_distribution": 5,
-        "charger_positions": ["Any", "Any", "Any"],
-        "carbon_extractor_positions": ["Any", "Any", "Any"],
-        "oxygen_extractor_positions": ["Any", "Any", "Any"],
-        "germanium_extractor_positions": ["Any", "Any", "Any"],
-        "silicon_extractor_positions": ["Any", "Any", "Any"],
         "chest_positions": ["N", "S", "E"],
         "regeneration_rate": 10,
         "shareable_energy": True,
@@ -255,17 +183,11 @@ class CogsVsClippiesTaskGenerator(TaskGenerator):
     class Config(TaskGeneratorConfig["CogsVsClippiesTaskGenerator"]):
         num_cogs: list[int] = Field(default=[1])
         num_obj_distribution: list[int] = Field(default=[10])
-        assembler_positions: list[list[Position]] = Field(default=[["Any"]])
-        charger_positions: list[list[Position]] = Field(default=[["Any"]])
         num_carbon_extractors: list[int] = Field(default=[0])
-        carbon_extractor_positions: list[list[Position]] = Field(default=[["Any"]])
         num_oxygen_extractors: list[int] = Field(default=[0])
-        oxygen_extractor_positions: list[list[Position]] = Field(default=[["Any"]])
         num_germanium_extractors: list[int] = Field(default=[0])
-        germanium_extractor_positions: list[list[Position]] = Field(default=[["Any"]])
         num_silicon_extractors: list[int] = Field(default=[0])
-        silicon_extractor_positions: list[list[Position]] = Field(default=[["Any"]])
-        chest_positions: list[list[Position]] = Field(default=[["N"]])
+        chest_positions: list[list[FixedPosition]] = Field(default=[["N"]])
         regeneration_rate: list[int] = Field(default=[5])
         shareable_energy: list[bool] = Field(default=[True])
         use_terrain: list[bool] = Field(default=[False])
@@ -285,13 +207,6 @@ class CogsVsClippiesTaskGenerator(TaskGenerator):
         num_cogs = rng.choice(self.config.num_cogs)
         regeneration_rate = rng.choice(self.config.regeneration_rate)
         include_extractors = rng.choice([True, False])
-        charger_position = rng.choice(self.config.charger_positions)
-        assembler_position = rng.choice(self.config.assembler_positions)
-        carbon_extractor_position = rng.choice(self.config.carbon_extractor_positions)
-        oxygen_extractor_position = rng.choice(self.config.oxygen_extractor_positions)
-        germanium_extractor_position = rng.choice(
-            self.config.germanium_extractor_positions
-        )
         use_terrain = rng.choice(self.config.use_terrain)
 
         if use_terrain:
@@ -312,7 +227,6 @@ class CogsVsClippiesTaskGenerator(TaskGenerator):
         num_chests = rng.choice(num_obj_distribution)
         num_chests = max(4, num_chests)
 
-        silicon_extractor_position = rng.choice(self.config.silicon_extractor_positions)
         if include_extractors:
             num_carbon_extractors = rng.choice([0] + num_obj_distribution)
             num_oxygen_extractors = rng.choice([0] + num_obj_distribution)
@@ -351,20 +265,6 @@ class CogsVsClippiesTaskGenerator(TaskGenerator):
             num_germanium_extractors=num_germanium_extractors,
             num_silicon_extractors=num_silicon_extractors,
             num_chests=num_chests,
-        )
-        self._overwrite_positions(env.game.objects["assembler"], assembler_position)
-        self._overwrite_positions(env.game.objects["charger"], charger_position)
-        self._overwrite_positions(
-            env.game.objects["carbon_extractor"], carbon_extractor_position
-        )
-        self._overwrite_positions(
-            env.game.objects["oxygen_extractor"], oxygen_extractor_position
-        )
-        self._overwrite_positions(
-            env.game.objects["germanium_extractor"], germanium_extractor_position
-        )
-        self._overwrite_positions(
-            env.game.objects["silicon_extractor"], silicon_extractor_position
         )
 
         env.game.objects["chest"] = ChestConfig(
@@ -413,10 +313,6 @@ class CogsVsClippiesTaskGenerator(TaskGenerator):
             f"Generated env with {num_cogs} cogs, {num_instances} instances, {num_assemblers} assemblers, {num_chargers} chargers, {num_carbon_extractors} carbon extractors, {num_oxygen_extractors} oxygen extractors, {num_germanium_extractors} germanium extractors, {num_silicon_extractors} silicon extractors, {num_chests} chests"
         )
         return env
-
-    def _overwrite_positions(self, object, positions):
-        for i, recipe in enumerate(object.recipes):
-            object.recipes[i] = (positions, recipe[1])
 
     def _generate_task(self, task_id: int, rng: random.Random) -> MettaGridConfig:
         env = self._make_env_cfg(rng)
@@ -494,12 +390,6 @@ def make_env(
     num_germanium_extractors=1,
     num_silicon_extractors=1,
     chest_positions=["N"],
-    assembler_positions=["Any"],
-    charger_positions=["Any"],
-    carbon_extractor_positions=["Any"],
-    oxygen_extractor_positions=["Any"],
-    germanium_extractor_positions=["Any"],
-    silicon_extractor_positions=["Any"],
     regeneration_rate=10,
     shareable_energy=False,
     use_terrain=False,
@@ -512,13 +402,7 @@ def make_env(
             num_germanium_extractors=[num_germanium_extractors],
             num_silicon_extractors=[num_silicon_extractors],
             chest_positions=[chest_positions],
-            assembler_positions=[assembler_positions],
             num_obj_distribution=[num_obj_distribution],
-            charger_positions=[charger_positions],
-            carbon_extractor_positions=[carbon_extractor_positions],
-            oxygen_extractor_positions=[oxygen_extractor_positions],
-            germanium_extractor_positions=[germanium_extractor_positions],
-            silicon_extractor_positions=[silicon_extractor_positions],
             regeneration_rate=[regeneration_rate],
             shareable_energy=[shareable_energy],
             use_terrain=[use_terrain],
