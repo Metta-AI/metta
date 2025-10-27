@@ -121,7 +121,7 @@ proc setupGPU*(tileMap: TileMap) =
   glGetIntegerv(GL_MAX_ARRAY_TEXTURE_LAYERS, maxLayers.addr)
   doAssert maxLayers >= 256, "Layer count must be at least 256 for tile atlas."
 
-  # Create OpenGL texture for tile indices
+  # Create OpenGL texture for tile indices.
   glGenTextures(1, tileMap.indexTexture.addr)
   glBindTexture(GL_TEXTURE_2D, tileMap.indexTexture)
   glTexImage2D(
@@ -141,7 +141,7 @@ proc setupGPU*(tileMap: TileMap) =
   # Create tile atlas texture array, mipmapped.
   glGenTextures(1, tileMap.tileAtlasTextureArray.addr)
   glBindTexture(GL_TEXTURE_2D_ARRAY, tileMap.tileAtlasTextureArray)
-  # Determine tile array geometry and mip levels
+  # Determine tile array geometry and mip levels.
   let tilesPerRow = tileMap.tileAtlas.width div tileMap.tileSize
   let tilesPerCol = tileMap.tileAtlas.height div tileMap.tileSize
   let layerCount = tilesPerRow * tilesPerCol
@@ -230,24 +230,24 @@ proc setupGPU*(tileMap: TileMap) =
   )
   glGenerateMipmap(GL_TEXTURE_2D)
 
-  # Compile shader via shady
+  # Compile shader via shady.
   tileMap.shader = newShader(
     ("tileMapVert", toGLSL(tileMapVert, "410", "")),
     ("tileMapFrag", toGLSL(tileMapFrag, "410", ""))
   )
 
-  # Quad vertices (position + texture coordinates)
+  # Quad vertices (position + texture coordinates).
   tileMap.quadVertices = @[
-    # positions    # texture coords
-    0.0f,  1.0f,   0.0f, 0.0f,  # top left
-    0.0f,  0.0f,   0.0f, 1.0f,  # bottom left
-    1.0f,  0.0f,   1.0f, 1.0f,  # bottom right
-    1.0f,  1.0f,   1.0f, 0.0f   # top right
+    # Positions    # Texture coords
+    0.0f,  1.0f,   0.0f, 0.0f,  # Top left.
+    0.0f,  0.0f,   0.0f, 1.0f,  # Bottom left.
+    1.0f,  0.0f,   1.0f, 1.0f,  # Bottom right.
+    1.0f,  1.0f,   1.0f, 0.0f   # Top right.
   ]
 
   tileMap.quadIndices = @[
-    0u32, 1u32, 2u32,  # first triangle
-    0u32, 2u32, 3u32   # second triangle
+    0u32, 1u32, 2u32,  # First triangle.
+    0u32, 2u32, 3u32   # Second triangle.
   ]
 
   # Create VAO, VBO, EBO
@@ -263,7 +263,7 @@ proc setupGPU*(tileMap: TileMap) =
   glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, tileMap.EBO)
   glBufferData(GL_ELEMENT_ARRAY_BUFFER, tileMap.quadIndices.len * sizeof(uint32), tileMap.quadIndices[0].addr, GL_STATIC_DRAW)
 
-  # Position attribute
+  # Position attribute.
   glVertexAttribPointer(
     0,
     2,
@@ -274,7 +274,7 @@ proc setupGPU*(tileMap: TileMap) =
   )
   glEnableVertexAttribArray(0)
 
-  # Texture coordinate attribute
+  # Texture coordinate attribute.
   glVertexAttribPointer(
     1,
     2,
@@ -304,7 +304,7 @@ proc draw*(
   tileMap.shader.setUniform("zoomThreshold", zoomThreshold)
   tileMap.shader.bindUniforms()
 
-  # Bind textures
+  # Bind textures.
   glActiveTexture(GL_TEXTURE0)
   glBindTexture(GL_TEXTURE_2D, tileMap.indexTexture)
   tileMap.shader.setUniform("indexTexture", 0)
@@ -319,10 +319,10 @@ proc draw*(
 
   tileMap.shader.bindUniforms()
 
-  # Bind our VAO (encapsulates attrib pointers and EBO)
+  # Bind our VAO (encapsulates attrib pointers and EBO).
   glBindVertexArray(tileMap.VAO)
 
-  # Draw the quad
+  # Draw the quad.
   glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, nil)
 
   # Restore minimal GL state so Boxy continues to work after exitRawOpenGLMode.
@@ -334,8 +334,8 @@ proc draw*(
   glActiveTexture(GL_TEXTURE0)
   glBindTexture(GL_TEXTURE_2D, 0)
 
-  # Unbind VAO (Boxy will restore its own in exitRawOpenGLMode)
+  # Unbind VAO (Boxy will restore its own in exitRawOpenGLMode).
   glBindVertexArray(0)
 
-  # Unbind our shader program (Boxy will bind its own when needed)
+  # Unbind our shader program (Boxy will bind its own when needed).
   glUseProgram(0)
