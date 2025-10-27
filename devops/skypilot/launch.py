@@ -142,16 +142,33 @@ def _build_ray_launch_task(
             . .venv/bin/activate
         fi
 
+        # Verify Ray is installed
+        if ! command -v ray &> /dev/null; then
+            echo "[Ray Sweep] ERROR: ray command not found! Check setup.sh"
+            exit 1
+        fi
+        echo "[Ray Sweep] Ray version: $(ray --version)"
+
         HEAD_IP=$(echo "$SKYPILOT_NODE_IPS" | head -n1)
 
         if [[ "${{SKYPILOT_NODE_RANK:-0}}" == "0" ]]; then
             echo "[Ray Sweep] Starting head node on port {ray_port}"
             ray stop --force >/dev/null 2>&1 || true
-            ray start --head --port {ray_port} --disable-usage-stats --dashboard-host=0.0.0.0
+
+            if ! ray start --head --port {ray_port} --disable-usage-stats --dashboard-host=0.0.0.0; then
+                echo "[Ray Sweep] ERROR: Failed to start Ray head node"
+                exit 1
+            fi
+
+            echo "[Ray Sweep] Ray head started successfully"
+            ray status
 
             # Wait for worker nodes to connect
             echo "[Ray Sweep] Waiting for worker nodes to join..."
             sleep 15
+
+            echo "[Ray Sweep] Current cluster state:"
+            ray status
 
             # Run sweep controller on head node
             echo "[Ray Sweep] Running controller: {controller_cmd}"
@@ -163,7 +180,11 @@ def _build_ray_launch_task(
         else
             echo "[Ray Sweep] Starting worker node ${{SKYPILOT_NODE_RANK}} -> $HEAD_IP:{ray_port}"
             ray stop --force >/dev/null 2>&1 || true
-            ray start --address "$HEAD_IP:{ray_port}" --disable-usage-stats --block
+
+            if ! ray start --address "$HEAD_IP:{ray_port}" --disable-usage-stats --block; then
+                echo "[Ray Sweep] ERROR: Failed to start Ray worker node"
+                exit 1
+            fi
         fi
         """
     ).strip()
