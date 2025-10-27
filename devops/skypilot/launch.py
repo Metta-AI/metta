@@ -246,7 +246,22 @@ def launch_ray_sweep(
         controller_args.extend(["--module-path", args.module_path])
     if args.ray_num_samples is not None:
         controller_args.extend(["--num-samples", str(args.ray_num_samples)])
-    controller_args.extend(ray_args)
+
+    # Filter ray_args to remove flags we're already handling
+    # This prevents duplicate --module-path, --num-samples, etc.
+    filtered_ray_args = []
+    skip_next = False
+    skip_flags = {"--module-path", "--num-samples", "--ray-address", "--experiment-id"}
+    for i, arg in enumerate(ray_args):
+        if skip_next:
+            skip_next = False
+            continue
+        if arg in skip_flags:
+            skip_next = True  # Skip this flag and its value
+            continue
+        filtered_ray_args.append(arg)
+
+    controller_args.extend(filtered_ray_args)
 
     controller_cmd_parts = ["uv", "run", "python", "metta/sweep/ray/ray_controller.py", *controller_args]
     controller_cmd = shlex.join(controller_cmd_parts)
