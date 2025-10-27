@@ -3,63 +3,21 @@
 The runner handles:
 - Running tasks in dependency order via JobManager
 - Parallel execution of independent tasks
-- Caching task results
-- Retrying failed tasks
 - Skipping tasks when dependencies fail
-- State persistence
-- Interactive verification of task results
+- State persistence for cleanup tracking
 """
 
 from __future__ import annotations
 
 import sys
 import time
-from datetime import datetime
 
 from devops.stable.state import ReleaseState, save_state
-from devops.stable.tasks import Task, TaskResult
-from metta.common.util.text_styles import blue, green, red, yellow
-from metta.jobs.manager import JobManager
-
-
-def _prompt_user_verification(result: TaskResult) -> bool:
-    """Prompt user to verify task result.
-
-    Returns:
-        True if user accepts the result, False if user wants to mark as failed
-    """
-    print(f"\n{'─' * 80}")
-
-    if result.outcome == "passed":
-        prompt = blue("Accept this result? [Y/n/f(ail)] ")
-    else:
-        prompt = yellow("Override to pass? [y/N/a(ccept as-is)] ")
-
-    while True:
-        try:
-            response = input(prompt).strip().lower()
-        except (EOFError, KeyboardInterrupt):
-            print("\n\nInterrupted by user")
-            sys.exit(1)
-
-        # Handle empty response
-        if not response:
-            if result.outcome == "passed":
-                return True  # Default accept for passed tasks
-            else:
-                return False  # Default reject for failed tasks
-
-        # Handle responses
-        if response in ("y", "yes"):
-            return True
-        elif response in ("n", "no"):
-            return False
-        elif response in ("f", "fail"):
-            return False
-        elif response in ("a", "accept"):
-            return True
-        else:
-            print(yellow("Please enter 'y' (yes), 'n' (no), 'f' (fail), or 'a' (accept)"))
+from devops.stable.tasks import AcceptanceRule, Task
+from metta.common.util.text_styles import blue, cyan, green, magenta, red, yellow
+from metta.jobs.job_manager import JobManager
+from metta.jobs.job_monitor import JobMonitor
+from metta.jobs.job_state import JobState
 
 
 class TaskRunner:
@@ -69,22 +27,25 @@ class TaskRunner:
         self,
         state: ReleaseState,
         job_manager: JobManager,
-        interactive: bool = True,
         retry_failed: bool = False,
+        enable_monitor: bool = True,
     ):
         """Initialize runner.
 
         Args:
-            state: Release state to track results
+            state: Release state to track metadata
             job_manager: JobManager for executing jobs
-            interactive: If True, prompt for user verification after each task (default: True)
             retry_failed: If True, retry failed tasks; if False, skip them (default: False)
+            enable_monitor: If True, display live status updates (default: True)
         """
         self.state = state
         self.job_manager = job_manager
-        self.interactive = interactive
         self.retry_failed = retry_failed
-        self._current_task_names: set[str] = set()
+
+        # Create monitor for live status display (optional, for tests)
+        self.monitor = JobMonitor(job_manager, group=state.version) if enable_monitor else None
+        self._last_display_update = 0.0
+        self._display_interval = 2.0  # Update display every 2 seconds
 
     def _get_job_name(self, task: Task) -> str:
         """Generate globally unique job name for JobManager.
@@ -94,67 +55,231 @@ class TaskRunner:
         """
         return f"{self.state.version}_{task.name}"
 
+    def _evaluate_acceptance(self, job_state: JobState, rules: list[AcceptanceRule]) -> tuple[bool, str | None]:
+        """Evaluate acceptance criteria against job metrics.
+
+        Returns:
+            (passed, error_message)
+        """
+        if not rules:
+            return (True, None)
+
+        failures: list[str] = []
+        for key, op, expected in rules:
+            if key not in job_state.metrics:
+                failures.append(f"{key}: metric missing (expected {op.__name__} {expected})")
+                continue
+            if not op(job_state.metrics[key], expected):
+                failures.append(f"{key}: expected {op.__name__} {expected}, saw {job_state.metrics[key]}")
+
+        if failures:
+            return (False, "; ".join(failures))
+        return (True, None)
+
+    def _passed(self, job_name: str, task: Task) -> bool:
+        """Check if job passed (exit_code 0 + acceptance criteria)."""
+        job_state = self.job_manager.get_job_state(job_name)
+        if not job_state or job_state.exit_code != 0:
+            return False
+
+        # Check acceptance criteria
+        passed, _ = self._evaluate_acceptance(job_state, task.acceptance)
+        return passed
+
+    def _dependencies_satisfied(self, task: Task, task_by_name: dict[str, Task]) -> bool:
+        """Check if all dependencies are resolved (completed with any outcome)."""
+        for dep_name in task.dependency_names:
+            dep_task = task_by_name.get(dep_name)
+            if not dep_task:
+                return False  # Dependency not found in task list
+
+            dep_job_name = self._get_job_name(dep_task)
+            dep_state = self.job_manager.get_job_state(dep_job_name)
+            if not dep_state or dep_state.status != "completed":
+                return False
+
+        return True
+
+    def _should_skip_due_to_failed_dependency(
+        self, task: Task, task_by_name: dict[str, Task]
+    ) -> tuple[bool, str | None]:
+        """Check if task should be skipped due to failed dependency.
+
+        Returns:
+            (should_skip, reason)
+        """
+        for dep_name in task.dependency_names:
+            dep_task = task_by_name.get(dep_name)
+            if not dep_task:
+                return (True, f"Dependency {dep_name} not found")
+
+            dep_job_name = self._get_job_name(dep_task)
+            if not self._passed(dep_job_name, dep_task):
+                return (True, f"Dependency {dep_name} did not pass")
+
+        return (False, None)
+
+    def _inject_checkpoint_uri(self, task: Task, task_by_name: dict[str, Task]) -> None:
+        """Inject checkpoint_uri from dependencies if needed."""
+        if not task.dependency_names or "policy_uri" in task.job_config.args:
+            return
+
+        # Look for checkpoint_uri in dependency results
+        for dep_name in task.dependency_names:
+            dep_task = task_by_name.get(dep_name)
+            if not dep_task:
+                continue
+
+            dep_job_name = self._get_job_name(dep_task)
+            dep_state = self.job_manager.get_job_state(dep_job_name)
+            if dep_state and dep_state.checkpoint_uri:
+                task.job_config.args["policy_uri"] = dep_state.checkpoint_uri
+                break
+
+    def _display_result(self, job_name: str, task: Task) -> None:
+        """Display detailed result for a completed job."""
+        job_state = self.job_manager.get_job_state(job_name)
+        if not job_state:
+            return
+
+        print(f"\n{'=' * 80}")
+        print(blue(f"📋 TASK RESULT: {task.name}"))
+        print(f"{'=' * 80}\n")
+
+        # Outcome
+        passed = self._passed(job_name, task)
+        if passed:
+            print(green("✅ Outcome: PASSED"))
+        else:
+            print(red("❌ Outcome: FAILED"))
+
+        # Exit code
+        if job_state.exit_code != 0:
+            print(red(f"⚠️  Exit Code: {job_state.exit_code}"))
+        else:
+            print(green(f"✓ Exit Code: {job_state.exit_code}"))
+
+        # Acceptance check
+        if task.acceptance:
+            acceptance_passed, error = self._evaluate_acceptance(job_state, task.acceptance)
+            if not acceptance_passed:
+                print(red(f"\n❗ Acceptance Criteria Failed: {error}"))
+
+        # Metrics
+        if job_state.metrics:
+            print("\n📊 Metrics:")
+            for key, value in job_state.metrics.items():
+                print(f"   • {key}: {value:.4f}")
+
+        # Artifacts with highlighting
+        artifacts = {}
+        if job_state.wandb_run_id:
+            artifacts["wandb_run_id"] = job_state.wandb_run_id
+        if job_state.wandb_url:
+            artifacts["wandb_url"] = job_state.wandb_url
+        if job_state.checkpoint_uri:
+            artifacts["checkpoint_uri"] = job_state.checkpoint_uri
+
+        if artifacts:
+            print("\n📦 Artifacts:")
+            for key, value in artifacts.items():
+                highlighted = self._highlight_artifact(value)
+                print(f"   • {key}: {highlighted}")
+
+        # Job ID and logs path
+        if job_state.job_id:
+            print(f"\n🆔 Job ID: {job_state.job_id}")
+
+        if job_state.logs_path:
+            print(f"📝 Logs: {job_state.logs_path}")
+
+    def _highlight_artifact(self, value: str) -> str:
+        if value.startswith("wandb://"):
+            return magenta(f"📦 {value}")
+        elif value.startswith("s3://"):
+            return magenta(f"📦 {value}")
+        elif value.startswith("file://"):
+            return magenta(f"📦 {value}")
+        elif value.startswith("http"):
+            return cyan(f"🔗 {value}")
+        return value
+
     def run_all(self, tasks: list[Task]) -> None:
         """Run all tasks in parallel, respecting dependencies.
 
-        Submits all ready tasks to JobManager and polls for completions.
-        When a task completes, newly-ready tasks are submitted.
-        State is saved after each task completion.
+        Execution flow:
+        1. Filter stale submitted jobs from previous runs
+        2. Submit-poll loop:
+           a. Check dependencies satisfied (query JobManager)
+           b. Submit ready tasks to JobManager (or skip if cached/failed dep)
+           c. Poll JobManager for completions
+           d. On completion: display result, save state
+        3. Handle Ctrl+C: cancel all jobs in group, save state, exit
+
+        Key behaviors:
+        - Tasks with failed dependencies are skipped
+        - Completed jobs are reused unless retry_failed=True
+        - JobManager handles all parallelism and rate limiting
+        - State saved after each completion for cleanup tracking
         """
-        # Build set of current task names for filtering
-        self._current_task_names = {task.name for task in tasks}
-
-        # Filter out stale results from state (tasks that no longer exist in current run)
-        stale_tasks = [name for name in self.state.results if name not in self._current_task_names]
-        if stale_tasks:
-            print(
-                yellow(
-                    f"🧹 Filtering out {len(stale_tasks)} stale task(s) from previous runs: {', '.join(stale_tasks)}"
-                )
-            )
-            for name in stale_tasks:
-                del self.state.results[name]
-            save_state(self.state)
-
         # Build task lookup
         task_by_name = {task.name: task for task in tasks}
+        current_task_names = set(task_by_name.keys())
+
+        # Filter out stale jobs from state (tasks that no longer exist in current run)
+        stale_jobs = [name for name in self.state.submitted_jobs if name not in current_task_names]
+        if stale_jobs:
+            print(
+                yellow(f"🧹 Filtering out {len(stale_jobs)} stale job(s) from previous runs: {', '.join(stale_jobs)}")
+            )
+            for name in stale_jobs:
+                self.state.submitted_jobs.discard(name)
+            save_state(self.state)
 
         # Track task states
         pending = set(tasks)  # Not yet submitted
         submitted = set()  # Submitted to JobManager but not complete
-        completed = {}  # name -> TaskResult
+        completed = set()  # Completed (any outcome)
 
         # Submit-poll loop with interrupt handling
         try:
             while pending or submitted:
                 # Submit all tasks with satisfied dependencies
-                ready_to_submit = [
-                    task for task in pending if self._dependencies_satisfied(task, completed, task_by_name)
-                ]
+                ready_to_submit = [task for task in pending if self._dependencies_satisfied(task, task_by_name)]
 
                 for task in ready_to_submit:
-                    submit_result = self._submit_task(task, completed)
+                    submit_result = self._submit_task(task, task_by_name)
                     if submit_result:  # Task was actually submitted (not skipped/cached)
                         pending.remove(task)
                         submitted.add(task)
+                        self.state.submitted_jobs.add(task.name)
+                        save_state(self.state)
                     else:  # Task was skipped or cached
-                        result = self.state.results[task.name]
-                        completed[task.name] = result
+                        completed.add(task)
                         pending.remove(task)
 
                 # Poll for completions
                 if submitted:
-                    completed_jobs = self.job_manager.poll()
-                    for job_name in completed_jobs:
+                    completed_job_names = self.job_manager.poll()
+                    for job_name in completed_job_names:
                         # Find the task with this job name
                         task = next((t for t in submitted if self._get_job_name(t) == job_name), None)
                         if task:
-                            # Complete the task
-                            result = self._complete_task(task)
-                            completed[task.name] = result
-                            self.state.results[task.name] = result
+                            # Display result
+                            self._display_result(job_name, task)
+                            completed.add(task)
                             submitted.remove(task)
-                            save_state(self.state)
+
+                # Display status periodically (throttled)
+                if self.monitor:
+                    now = time.time()
+                    if now - self._last_display_update >= self._display_interval:
+                        self.monitor.display_status(
+                            clear_screen=True,
+                            title=f"Release Validation: {self.state.version}",
+                            highlight_failures=True,
+                        )
+                        self._last_display_update = now
 
                 # Small sleep to avoid tight polling loop
                 if pending or submitted:
@@ -167,131 +292,51 @@ class TaskRunner:
             print(yellow("State has been saved. Re-run to resume from last completed task."))
             sys.exit(130)  # Standard exit code for Ctrl+C
 
-    def _verify_result(self, result: TaskResult) -> TaskResult:
-        """Verify task result with user interaction.
+        # Display final summary
+        if self.monitor:
+            print("\n")
+            self.monitor.display_status(
+                clear_screen=False,
+                title=f"Release Validation Complete: {self.state.version}",
+                highlight_failures=True,
+                show_artifacts=True,
+            )
 
-        Displays detailed task information and prompts user to accept/reject.
-        User can override the outcome if needed (e.g., mark passed task as failed,
-        or accept a failed task that's actually okay).
-
-        Returns:
-            Modified TaskResult if user overrides, otherwise original result
-        """
-        # Display detailed verification info
-        result.display_detailed()
-
-        # Prompt user
-        accepted = _prompt_user_verification(result)
-
-        # Handle user decision
-        if result.outcome == "passed" and not accepted:
-            # User rejected a passing task - mark as failed
-            print(red("\n❌ User rejected result - marking as FAILED"))
-            result.outcome = "failed"
-            result.error = (result.error or "") + " [User verification failed]"
-        elif result.outcome == "failed" and accepted:
-            # User accepted a failing task - mark as passed
-            print(green("\n✅ User accepted result - marking as PASSED"))
-            result.outcome = "passed"
-            result.error = None
-
-        return result
-
-    def _dependencies_satisfied(
-        self, task: Task, completed: dict[str, TaskResult], task_by_name: dict[str, Task]
-    ) -> bool:
-        """Check if all dependencies are resolved (ready to process).
-
-        A dependency is resolved if it's completed or cached, regardless of outcome.
-        Tasks with failed dependencies will be skipped in _submit_task().
-        """
-        for dep in task.dependencies:
-            # Check completed dict first
-            if dep.name in completed:
-                # Dependency is resolved, continue
-                continue
-
-            # Check cached results
-            if dep.name in self.state.results:
-                cached = self.state.results[dep.name]
-                # Update completed dict with cached result
-                completed[dep.name] = cached
-                dep.result = cached
-                continue
-
-            # Dependency not resolved yet
-            return False
-
-        return True
-
-    def _submit_task(self, task: Task, completed: dict[str, TaskResult]) -> bool:
-        """Submit task to JobManager if not already cached.
+    def _submit_task(self, task: Task, task_by_name: dict[str, Task]) -> bool:
+        """Submit task to JobManager if not already completed.
 
         Returns:
             True if task was submitted to JobManager, False if cached/skipped
         """
-        # Check cache first
-        if task.name in self.state.results:
-            cached = self.state.results[task.name]
-            # Skip if already passed or explicitly skipped
-            if cached.outcome in ("passed", "skipped"):
-                print(f"⏭️  {task.name} - cached ({cached.outcome})")
-                task.result = cached
+        job_name = self._get_job_name(task)
+
+        # Check if job already completed
+        existing_state = self.job_manager.get_job_state(job_name)
+        if existing_state and existing_state.status == "completed":
+            # Check if we should retry
+            if not self.retry_failed or (existing_state.exit_code == 0 and self._passed(job_name, task)):
+                print(f"⏭️  {task.name} - already completed (use --retry-failed to retry)")
                 return False
-            # Retry if failed or inconclusive (only if retry_failed=True)
-            if cached.outcome in ("failed", "inconclusive"):
-                if self.retry_failed:
-                    print(yellow(f"🔄 {task.name} - retrying previous {cached.outcome}"))
-                else:
-                    print(yellow(f"⏭️  {task.name} - skipping (previous {cached.outcome}, use --retry-failed to retry)"))
-                    task.result = cached
-                    return False
+
+            print(yellow(f"🔄 {task.name} - retrying previous run"))
+
+        # Check if job is already running
+        if existing_state and existing_state.status in ("pending", "running"):
+            print(f"⏭️  {task.name} - already running (status: {existing_state.status}), attaching")
+            return True  # Mark as submitted so we track it
 
         # Check if any dependency failed
-        for dep in task.dependencies:
-            dep_result = completed.get(dep.name) or self.state.results.get(dep.name)
-            if dep_result and dep_result.outcome != "passed":
-                # Skip this task
-                result = TaskResult(
-                    name=task.name,
-                    started_at=datetime.utcnow().isoformat(timespec="seconds"),
-                    ended_at=datetime.utcnow().isoformat(timespec="seconds"),
-                    exit_code=0,
-                    outcome="skipped",
-                    error=f"Dependency {dep.name} did not pass",
-                )
-                print(yellow(f"⏭️  {task.name} - SKIPPED (dependency {dep.name} failed)"))
-                self.state.results[task.name] = result
-                return False
+        should_skip, reason = self._should_skip_due_to_failed_dependency(task, task_by_name)
+        if should_skip:
+            print(yellow(f"⏭️  {task.name} - SKIPPED ({reason})"))
+            return False
 
         # Inject checkpoint_uri from dependencies if needed
-        job_config = task.job_config
-        if task.dependencies and "policy_uri" not in job_config.args:
-            # Look for checkpoint_uri in dependency results
-            for dep in task.dependencies:
-                dep_result = completed.get(dep.name) or self.state.results.get(dep.name)
-                if dep_result and "checkpoint_uri" in dep_result.artifacts:
-                    job_config.args["policy_uri"] = dep_result.artifacts["checkpoint_uri"]
-                    break
+        self._inject_checkpoint_uri(task, task_by_name)
 
         # Set unique job name and group for JobManager
-        job_name = self._get_job_name(task)
-        job_config.name = job_name
-        job_config.group = self.state.version
-
-        # Check if job already exists in JobManager (for resumption after interrupt)
-        existing_state = self.job_manager.get_job_state(job_name)
-        if existing_state:
-            # Job already exists - either running or completed
-            if existing_state.status in ("pending", "running"):
-                print(
-                    f"⏭️  {task.name} - already submitted (status: {existing_state.status}), attaching to existing job"
-                )
-                return True  # Mark as submitted so we track it
-            else:
-                # Completed/failed/cancelled - should not happen since we checked state.results earlier
-                print(yellow(f"⚠️  {task.name} - found stale job in JobManager with status {existing_state.status}"))
-                return False
+        task.job_config.name = job_name
+        task.job_config.group = self.state.version
 
         # Submit to JobManager
         print(f"\n{'=' * 80}")
@@ -299,45 +344,9 @@ class TaskRunner:
         print(f"{'=' * 80}")
 
         try:
-            self.job_manager.submit(job_config)
+            self.job_manager.submit(task.job_config)
             return True
         except ValueError as e:
             # This shouldn't happen since we checked above, but handle it gracefully
             print(yellow(f"⚠️  {task.name} - failed to submit: {e}"))
             return False
-
-    def _complete_task(self, task: Task) -> TaskResult:
-        """Complete a task by getting its result from JobManager and evaluating it."""
-        try:
-            # Get job state from JobManager
-            job_name = self._get_job_name(task)
-            job_state = self.job_manager.get_job_state(job_name)
-            if not job_state:
-                raise RuntimeError(f"Job state not found for {task.name}")
-
-            # Evaluate result (business logic)
-            result = task.evaluate_result(job_state)
-            task.result = result  # Cache for downstream dependencies
-
-            # Interactive verification
-            if self.interactive:
-                result = self._verify_result(result)
-
-            return result
-
-        except Exception as e:
-            result = TaskResult(
-                name=task.name,
-                started_at=datetime.utcnow().isoformat(timespec="seconds"),
-                ended_at=datetime.utcnow().isoformat(timespec="seconds"),
-                exit_code=1,
-                outcome="failed",
-                error=f"Exception: {e}",
-            )
-            print(red(f"❌ {task.name} - ERROR: {e}"))
-            import traceback
-
-            traceback.print_exc()
-            if self.interactive:
-                result = self._verify_result(result)
-            return result
