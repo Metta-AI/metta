@@ -78,7 +78,8 @@ public:
 private:
   unsigned int get_visitation_count(GridCoord r, GridCoord c) const;
   void update_inventory_diversity_stats(InventoryItem item, InventoryQuantity amount);
-  std::array<bool, 5> tracked_resource_presence_{};
+  std::vector<char> diversity_tracked_mask_;
+  std::vector<char> tracked_resource_presence_;
   std::size_t tracked_resource_diversity_{0};
 };
 

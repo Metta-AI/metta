@@ -28,20 +28,21 @@ def _replace_heart_recipes(
     input_resources: dict[str, int],
     *,
     cooldown: int | None = None,
-    vibe: list[str] | None = None,
+    vibe_tokens: list[str] | None = None,
 ) -> None:
     assembler = cfg.game.objects.get("assembler")
     if assembler is None:
         return
 
-    desired_cooldown = max(
-        cooldown or 0,
-        max(
-            (recipe.cooldown for _, recipe in assembler.recipes if recipe.output_resources.get("heart")),
-            default=1,
-        ),
+    existing_cooldown = next(
+        (recipe.cooldown for _, recipe in assembler.recipes if recipe.output_resources.get("heart", 0) > 0),
         1,
     )
+
+    # Preserve the slowest existing heart protocol unless the caller explicitly opts in to a faster recipe.
+    desired_cooldown = existing_cooldown
+    if cooldown is not None:
+        desired_cooldown = max(cooldown, existing_cooldown, 1)
 
     heart_recipe = ProtocolConfig(
         input_resources=dict(input_resources),
@@ -50,12 +51,12 @@ def _replace_heart_recipes(
     )
 
     non_heart_recipes = [
-        (token_requirements, recipe)
-        for token_requirements, recipe in assembler.recipes
+        (existing_vibe_tokens, recipe)
+        for existing_vibe_tokens, recipe in assembler.recipes
         if recipe.output_resources.get("heart", 0) == 0
     ]
 
-    assembler.recipes = [(list(vibe) if vibe else ["default"], heart_recipe), *non_heart_recipes]
+    assembler.recipes = [(list(vibe_tokens) if vibe_tokens else ["default"], heart_recipe), *non_heart_recipes]
 
 
 class MinedOutVariant(MissionVariant):
@@ -137,7 +138,7 @@ class SolarFlareVariant(MissionVariant):
 
 class PackRatVariant(MissionVariant):
     name: str = "pack_rat"
-    description: str = "Boost heart inventory limits so agents can haul more at once."
+    description: str = "Raise heart, cargo, and energy caps to 255 so agents can haul more at once."
 
     def apply(self, mission: Mission) -> Mission:
         mission.heart_capacity = max(mission.heart_capacity, 255)
@@ -183,6 +184,8 @@ class HeartChorusVariant(MissionVariant):
 
     def apply(self, mission: Mission) -> Mission:
         def modifier(cfg: MettaGridConfig) -> None:
+            # Reward hearts at full value, penalize hoarding them, and add diversity bonuses tuned from the Oct 2025
+            # playtests so agents seek mixed inventories instead of camping chargers.
             cfg.game.agent.rewards.stats = {
                 "heart.gained": 1.0,
                 "chest.heart.deposited": 1.0,

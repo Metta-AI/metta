@@ -3,17 +3,6 @@
 #include <algorithm>
 #include <cassert>
 
-namespace {
-int tracked_resource_index(const std::string& resource_name) {
-  if (resource_name == "energy") return 0;
-  if (resource_name == "carbon") return 1;
-  if (resource_name == "oxygen") return 2;
-  if (resource_name == "germanium") return 3;
-  if (resource_name == "silicon") return 4;
-  return -1;
-}
-}  // namespace
-
 Agent::Agent(GridCoord r, GridCoord c, const AgentConfig& config, const std::vector<std::string>* resource_names)
     : GridObject(),
       HasInventory(config.inventory_config),
@@ -36,8 +25,16 @@ Agent::Agent(GridCoord r, GridCoord c, const AgentConfig& config, const std::vec
       prev_action_name(""),
       steps_without_motion(0),
       inventory_regen_amounts(config.inventory_regen_amounts),
-      tracked_resource_presence_{},
+      diversity_tracked_mask_(resource_names != nullptr ? resource_names->size() : 0, 0),
+      tracked_resource_presence_(resource_names != nullptr ? resource_names->size() : 0, 0),
       tracked_resource_diversity_(0) {
+  for (InventoryItem item : config.diversity_tracked_resources) {
+    const size_t index = static_cast<size_t>(item);
+    if (index < diversity_tracked_mask_.size()) {
+      diversity_tracked_mask_[index] = 1;
+    }
+  }
+
   populate_initial_inventory(config.initial_inventory);
   GridObject::init(config.type_id, config.type_name, GridLocation(r, c, GridLayer::AgentLayer), config.tag_ids);
 }
@@ -212,20 +209,19 @@ unsigned int Agent::get_visitation_count(GridCoord r, GridCoord c) const {
 }
 
 void Agent::update_inventory_diversity_stats(InventoryItem item, InventoryQuantity amount) {
-  const std::string& resource_name = this->stats.resource_name(item);
-  const int index = tracked_resource_index(resource_name);
-  if (index < 0) {
+  const size_t index = static_cast<size_t>(item);
+  if (index >= diversity_tracked_mask_.size() || !diversity_tracked_mask_[index]) {
     return;
   }
 
   const bool now_present = amount > 0;
-  const bool currently_present = tracked_resource_presence_[index];
+  const bool currently_present = tracked_resource_presence_[index] != 0;
   if (currently_present == now_present) {
     return;
   }
 
   const float prev_diversity = static_cast<float>(tracked_resource_diversity_);
-  tracked_resource_presence_[index] = now_present;
+  tracked_resource_presence_[index] = now_present ? 1 : 0;
   tracked_resource_diversity_ += now_present ? 1 : -1;
 
   const float new_diversity = static_cast<float>(tracked_resource_diversity_);
