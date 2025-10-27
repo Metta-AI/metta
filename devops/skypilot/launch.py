@@ -4,11 +4,15 @@ import copy
 import json
 import logging
 import re
+import shlex
 import subprocess
 import sys
+import textwrap
 
 import sky
 import yaml
+from sky import clouds as sky_clouds
+from sky.backends import CloudVmRayBackend
 
 import gitta as git
 from devops.skypilot.utils.job_helpers import (
@@ -110,6 +114,163 @@ def patch_task(
     return task
 
 
+def _build_ray_launch_task(
+    *,
+    base_task: sky.Task,
+    run_id: str,
+    commit_hash: str,
+    args: argparse.Namespace,
+    controller_cmd: str,
+) -> sky.Task:
+    """Create a Ray-ready Sky task that starts Ray cluster and runs controller on head node."""
+    ray_task = sky.Task(
+        setup=base_task.setup,
+        envs=base_task.envs,
+        secrets=base_task.secrets,
+        file_mounts=base_task.file_mounts,
+        storage_mounts=base_task.storage_mounts,
+        workdir=base_task.workdir,
+    )
+
+    # Combined script: start Ray + run controller on head, just Ray on workers
+    ray_port = args.ray_port
+    combined_script = textwrap.dedent(
+        f"""
+        set -euo pipefail
+        cd /workspace/metta
+        if [ -f .venv/bin/activate ]; then
+            . .venv/bin/activate
+        fi
+
+        HEAD_IP=$(echo "$SKYPILOT_NODE_IPS" | head -n1)
+
+        if [[ "${{SKYPILOT_NODE_RANK:-0}}" == "0" ]]; then
+            echo "[Ray Sweep] Starting head node on port {ray_port}"
+            ray stop --force >/dev/null 2>&1 || true
+            ray start --head --port {ray_port} --disable-usage-stats --dashboard-host=0.0.0.0
+
+            # Wait for worker nodes to connect
+            echo "[Ray Sweep] Waiting for worker nodes to join..."
+            sleep 15
+
+            # Run sweep controller on head node
+            echo "[Ray Sweep] Running controller: {controller_cmd}"
+            {controller_cmd}
+
+            # After sweep completes, stop Ray on head
+            echo "[Ray Sweep] Sweep complete, stopping Ray head"
+            ray stop
+        else
+            echo "[Ray Sweep] Starting worker node ${{SKYPILOT_NODE_RANK}} -> $HEAD_IP:{ray_port}"
+            ray stop --force >/dev/null 2>&1 || true
+            ray start --address "$HEAD_IP:{ray_port}" --disable-usage-stats --block
+        fi
+        """
+    ).strip()
+    ray_task.run = combined_script
+    ray_task.num_nodes = args.ray_num_nodes
+    ray_task.name = run_id
+    ray_task.validate_name()
+
+    accelerator = args.ray_accelerator
+    resources = sky.Resources(
+        cloud=sky_clouds.AWS(),
+        accelerators={accelerator: args.ray_gpus_per_node},
+        cpus=args.ray_cpus_per_node,
+        use_spot=not args.no_spot,
+        image_id="docker:metta:latest",
+        job_recovery={"strategy": "EAGER_NEXT_REGION", "max_restarts_on_errors": 20},
+    )
+    ray_task.set_resources(resources)
+
+    env_updates = dict(base_task.envs or {})
+    env_updates.update(
+        {
+            "METTA_RUN_ID": run_id,
+            "METTA_GIT_REF": commit_hash,
+            "METTA_MODULE_PATH": args.module_path or "",
+            "METTA_ARGS": "",
+            "RAY_PORT": str(ray_port),
+        }
+    )
+    ray_task = ray_task.update_envs(env_updates)
+    return ray_task
+
+
+def launch_ray_sweep(
+    *,
+    args: argparse.Namespace,
+    run_id: str,
+    commit_hash: str,
+    ray_args: list[str],
+) -> None:
+    """Launch a Ray cluster and execute the sweep controller in a single stage."""
+    if args.copies != 1:
+        print(red("Ray sweeps do not support --copies; launch one sweep per command."))
+        sys.exit(1)
+
+    # Build controller command first (needed for task construction)
+    controller_args: list[str] = [
+        "--ray-address",
+        f"ray://127.0.0.1:{args.ray_port}",
+        "--experiment-id",
+        run_id,
+    ]
+    if args.module_path:
+        controller_args.extend(["--module-path", args.module_path])
+    if args.ray_num_samples is not None:
+        controller_args.extend(["--num-samples", str(args.ray_num_samples)])
+    controller_args.extend(ray_args)
+
+    controller_cmd_parts = ["uv", "run", "python", "metta/sweep/ray/ray_controller.py", *controller_args]
+    controller_cmd = shlex.join(controller_cmd_parts)
+
+    # Build Ray task with combined bootstrap + controller execution
+    base_task = sky.Task.from_yaml("./devops/skypilot/config/skypilot_run.yaml")
+    ray_task = _build_ray_launch_task(
+        base_task=base_task,
+        run_id=run_id,
+        commit_hash=commit_hash,
+        args=args,
+        controller_cmd=controller_cmd,
+    )
+    set_task_secrets(ray_task)
+
+    display_job_summary(
+        job_name=run_id,
+        cmd=f"Ray sweep controller: {controller_cmd}",
+        task_args=ray_args,
+        commit_hash=commit_hash,
+        git_ref=args.git_ref,
+        timeout_hours=args.max_runtime_hours,
+        task=ray_task,
+        nodes=args.ray_num_nodes,
+        gpus_per_node=args.ray_gpus_per_node,
+    )
+
+    if args.dry_run:
+        print(red("Dry run: exiting"))
+        sys.exit(0)
+
+    if args.confirm and not get_user_confirmation("Should we launch this Ray sweep?"):
+        sys.exit(0)
+
+    backend = CloudVmRayBackend()
+
+    print("[RAY] Launching Ray cluster and starting sweep...")
+    print(f"[RAY] Head node will run: {controller_cmd}")
+    print(f"[RAY] Worker nodes will stay alive serving Ray tasks")
+    sky.launch(
+        ray_task,
+        cluster_name=run_id,
+        backend=backend,
+        retry_until_up=True,
+    )
+
+    print("[RAY] Sweep complete! Cluster will remain up until manually stopped.")
+    print(f"[RAY] To stop cluster: sky down {run_id}")
+
+
 def main():
     parser = argparse.ArgumentParser(
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -127,6 +288,8 @@ Examples:
     # We'll parse known args only, allowing unknown ones to be passed as tool args
     parser.add_argument(
         "module_path",
+        nargs="?",
+        default=None,
         help="Module path to run (e.g., arena.train or experiments.recipes.arena.train). "
         "Any arguments following the module path will be passed to the tool.",
     )
@@ -172,6 +335,47 @@ Examples:
         action="store_true",
         help="Run NCCL and job restart tests",
     )
+    parser.add_argument(
+        "--ray-sweep",
+        action="store_true",
+        help="Launch a Ray sweep instead of a single run.",
+    )
+    parser.add_argument(
+        "--ray-num-nodes",
+        type=int,
+        default=4,
+        help="Number of Ray nodes (default: 4).",
+    )
+    parser.add_argument(
+        "--ray-gpus-per-node",
+        type=int,
+        default=4,
+        help="GPUs per node for Ray sweep (default: 4).",
+    )
+    parser.add_argument(
+        "--ray-accelerator",
+        type=str,
+        default="A10G",
+        help="GPU accelerator type for Ray nodes (default: A10G).",
+    )
+    parser.add_argument(
+        "--ray-cpus-per-node",
+        type=int,
+        default=32,
+        help="CPUs per node for Ray sweep (default: 32).",
+    )
+    parser.add_argument(
+        "--ray-port",
+        type=int,
+        default=6379,
+        help="Port used for the Ray head node (default: 6379).",
+    )
+    parser.add_argument(
+        "--ray-num-samples",
+        type=int,
+        default=None,
+        help="Number of Ray Tune samples to run (defaults to sweep_config.max_trials).",
+    )
 
     # Use parse_known_args to handle both launch flags and tool args
     args, tool_args = parser.parse_known_args()
@@ -195,7 +399,10 @@ Examples:
         logger.info(f"Using auto-generated run ID: {run_id}")
         logger.info("To specify a run ID pass run=foo")
 
-    filtered_args.append(f"run={run_id}")
+    ray_args = filtered_args.copy()
+
+    if not args.ray_sweep:
+        filtered_args.append(f"run={run_id}")
 
     cd_repo_root()
 
@@ -216,6 +423,23 @@ Examples:
                 print("  - Skip check: add --skip-git-check flag")
                 sys.exit(1)
 
+    if not _validate_sky_cluster_name(run_id):
+        sys.exit(1)
+
+    if args.ray_sweep:
+        if args.module_path and not validate_module_path(args.module_path):
+            sys.exit(1)
+        launch_ray_sweep(
+            args=args,
+            run_id=run_id,
+            commit_hash=commit_hash,
+            ray_args=ray_args,
+        )
+        return
+
+    if not args.module_path:
+        parser.error("module_path is required unless --ray-sweep is specified.")
+
     # Validate module path (supports shorthand like 'arena.train')
     if not validate_module_path(args.module_path):
         sys.exit(1)
@@ -224,10 +448,6 @@ Examples:
 
     # Validate the run.py tool configuration early to catch errors before setting up the task
     _validate_run_tool(args.module_path, run_id, filtered_args)
-
-    # Validate the provided run name
-    if not _validate_sky_cluster_name(run_id):
-        sys.exit(1)
 
     task = sky.Task.from_yaml("./devops/skypilot/config/skypilot_run.yaml")
 
@@ -315,7 +535,6 @@ Examples:
             copy_task.name = run_id
             copy_task.validate_name()
             launch_task(copy_task)
-
 
 if __name__ == "__main__":
     main()
