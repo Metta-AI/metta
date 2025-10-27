@@ -387,12 +387,8 @@ def step_summary(version: str, **_kwargs) -> None:
         sys.exit(1)
 
     # Initialize JobManager to query results
-    from metta.common.util.fs import get_repo_root
-    from metta.jobs.job_manager import JobManager
-
     base_dir = get_repo_root() / "devops/stable"
-    db_path = base_dir / "jobs" / f"{state_version}.db"
-    job_manager = JobManager(base_dir=base_dir, db_path=str(db_path), max_local_jobs=1, max_remote_jobs=4)
+    job_manager = JobManager(base_dir=base_dir, max_local_jobs=1, max_remote_jobs=4)
 
     # Query JobManager for training metrics
     training_metrics = {}
@@ -412,8 +408,6 @@ def step_summary(version: str, **_kwargs) -> None:
     git_log = git.git_log_since("origin/stable")
 
     # Get all tasks to display results
-    from devops.stable.tasks import get_all_tasks
-
     all_tasks = get_all_tasks()
     runner = TaskRunner(state=state, job_manager=job_manager, enable_monitor=False)
 
@@ -487,12 +481,8 @@ def step_release(version: str, **_kwargs) -> None:
         sys.exit(1)
 
     # Initialize JobManager to query results
-    from metta.common.util.fs import get_repo_root
-    from metta.jobs.job_manager import JobManager
-
     base_dir = get_repo_root() / "devops/stable"
-    db_path = base_dir / "jobs" / f"{state_version}.db"
-    job_manager = JobManager(base_dir=base_dir, db_path=str(db_path), max_local_jobs=1, max_remote_jobs=4)
+    job_manager = JobManager(base_dir=base_dir, max_local_jobs=1, max_remote_jobs=4)
 
     # Verify all tasks passed by querying JobManager
     from devops.stable.tasks import get_all_tasks
@@ -538,12 +528,22 @@ def step_release(version: str, **_kwargs) -> None:
 ## Task Results Summary
 
 """
-    for name, result in state.results.items():
-        icon = {"passed": "✅", "failed": "❌", "skipped": "⏸️"}.get(result.outcome or "", "❓")
-        release_notes_content += f"- {icon} {name}\n"
-        if result.metrics:
-            metrics_str = ", ".join(f"{k}={v:.1f}" for k, v in result.metrics.items())
-            release_notes_content += f"  - Metrics: {metrics_str}\n"
+    # Query JobManager for task results
+    all_tasks = get_all_tasks()
+    runner = TaskRunner(state=state, job_manager=job_manager, enable_monitor=False)
+
+    for task in all_tasks:
+        job_name = f"{state_version}_{task.name}"
+        job_state = job_manager.get_job_state(job_name)
+        if job_state:
+            if runner._passed(job_name, task):
+                icon = "✅"
+            else:
+                icon = "❌"
+            release_notes_content += f"- {icon} {task.name}\n"
+            if job_state.metrics:
+                metrics_str = ", ".join(f"{k}={v:.1f}" for k, v in job_state.metrics.items())
+                release_notes_content += f"  - Metrics: {metrics_str}\n"
 
     release_notes_content += f"""
 ## Changes Since Last Stable Release
