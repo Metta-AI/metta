@@ -29,13 +29,6 @@ proc generateTileMap(): TileMap =
   echo "Real map size: ", replay.mapSize[0], "x", replay.mapSize[1]
   echo "Tile map size: ", width, "x", height, " (multiples of 32)"
 
-  let
-    width = ceil(replay.mapSize[0].float32 / 32.0f).int * 32
-    height = ceil(replay.mapSize[1].float32 / 32.0f).int * 32
-
-  echo "Real map size: ", replay.mapSize[0], "x", replay.mapSize[1]
-  echo "Tile map size: ", width, "x", height, " (multiples of 32)"
-
   var terrainMap = newTileMap(
     width = width,
     height = height,
@@ -704,8 +697,6 @@ proc drawWorldMain*() =
     drawGrid()
 
   drawThoughtBubbles()
-
-
 
 proc fitFullMap*(panel: Panel) =
   ## Set zoom and pan so the full map fits in the panel.
