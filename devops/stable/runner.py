@@ -12,7 +12,7 @@ from __future__ import annotations
 import sys
 import time
 
-from devops.stable.state import ReleaseState, save_state
+from devops.stable.state import ReleaseState
 from devops.stable.tasks import AcceptanceRule, Task
 from metta.common.util.text_styles import blue, cyan, green, magenta, red, yellow
 from metta.jobs.job_manager import JobManager
@@ -226,15 +226,19 @@ class TaskRunner:
         task_by_name = {task.name: task for task in tasks}
         current_task_names = set(task_by_name.keys())
 
-        # Filter out stale jobs from state (tasks that no longer exist in current run)
-        stale_jobs = [name for name in self.state.submitted_jobs if name not in current_task_names]
-        if stale_jobs:
+        # Filter out stale jobs from previous runs (query JobManager for all jobs in this group)
+        all_jobs_in_group = self.job_manager.get_group_jobs(self.state.version)
+        stale_job_names = []
+        for job_name in all_jobs_in_group:
+            # Extract task name from job name (format: {version}_{task_name})
+            task_name = job_name.split("_", 1)[1] if "_" in job_name else job_name
+            if task_name not in current_task_names:
+                stale_job_names.append(job_name)
+
+        if stale_job_names:
             print(
-                yellow(f"🧹 Filtering out {len(stale_jobs)} stale job(s) from previous runs: {', '.join(stale_jobs)}")
+                yellow(f"🧹 Found {len(stale_job_names)} stale job(s) from previous runs: {', '.join(stale_job_names)}")
             )
-            for name in stale_jobs:
-                self.state.submitted_jobs.discard(name)
-            save_state(self.state)
 
         # Track task states
         pending = set(tasks)  # Not yet submitted
@@ -252,8 +256,6 @@ class TaskRunner:
                     if submit_result:  # Task was actually submitted (not skipped/cached)
                         pending.remove(task)
                         submitted.add(task)
-                        self.state.submitted_jobs.add(task.name)
-                        save_state(self.state)
                     else:  # Task was skipped or cached
                         completed.add(task)
                         pending.remove(task)
