@@ -67,7 +67,9 @@ class ActionTestPolicy(Policy):
         self.components = nn.ModuleDict({"action_embedding": ActionEmbedding(config)})
         self._device = torch.device("cpu")
 
-    def forward(self, td: TensorDict, action: torch.Tensor | None = None) -> TensorDict:  # pragma: no cover - simple passthrough
+    def forward(
+        self, td: TensorDict, action: torch.Tensor | None = None
+    ) -> TensorDict:  # pragma: no cover - simple passthrough
         return td
 
     def initialize_to_environment(self, game_rules: GameRules, device: torch.device):
