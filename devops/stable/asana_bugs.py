@@ -9,6 +9,8 @@ from __future__ import annotations
 import os
 from typing import Optional
 
+import asana as asana_sdk
+
 
 def check_blockers() -> Optional[bool]:
     """Check for blocking bugs in Asana Active section.
@@ -18,11 +20,6 @@ def check_blockers() -> Optional[bool]:
         False if blockers exist
         None if check is inconclusive (Asana unavailable or SDK missing)
     """
-    # Lazy import - fail gracefully if asana SDK not installed
-    try:
-        import asana as asana_sdk
-    except Exception:
-        return None
 
     token = os.getenv("ASANA_TOKEN")
     project_id = os.getenv("ASANA_PROJECT_ID")

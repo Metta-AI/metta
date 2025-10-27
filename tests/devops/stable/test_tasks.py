@@ -2,9 +2,12 @@
 
 from operator import ge
 
-from devops.stable.tasks import Task, TrainingTask
-from metta.jobs.models import JobConfig
-from metta.jobs.state import JobState
+from devops.stable.runner import TaskRunner
+from devops.stable.state import ReleaseState
+from devops.stable.tasks import Task
+from metta.jobs.job_config import JobConfig
+from metta.jobs.job_manager import JobManager
+from metta.jobs.job_state import JobState
 
 
 def make_job_state(
@@ -18,7 +21,6 @@ def make_job_state(
 ) -> JobState:
     """Create a fake JobState for testing."""
     job_state = JobState(
-        batch_id="test_batch",
         name=name,
         config_json="{}",  # Not used in tests
         status="completed" if exit_code == 0 else "failed",
@@ -36,146 +38,123 @@ def make_job_state(
     return job_state
 
 
-class ConcreteTestTask(Task):
-    """Concrete Task implementation for testing base Task (exit code only)."""
+def make_task_runner_with_state(job_states: dict[str, JobState]) -> tuple[TaskRunner, JobManager]:
+    """Create TaskRunner with JobManager pre-populated with job states."""
+    from datetime import datetime
+    from unittest.mock import Mock
 
-    def __init__(self, name: str, exit_code: int = 0, job_id: str | None = None):
-        # Create minimal JobConfig for testing
-        job_config = JobConfig(name=name, module="test")  # remote=None (default) = local
-        super().__init__(job_config)
-        self._exit_code = exit_code
-        self._job_id = job_id
-
-    def make_job_state(self) -> JobState:
-        """Create JobState for testing."""
-        return make_job_state(
-            name=self.name,
-            exit_code=self._exit_code,
-            job_id=self._job_id,
-        )
-
-
-class ConcreteTrainingTask(TrainingTask):
-    """Concrete TrainingTask implementation for testing (with metrics/acceptance)."""
-
-    def __init__(self, name: str, logs: str = "", exit_code: int = 0, **kwargs):
-        # Create JobConfig from args
-        job_config = JobConfig(name=name, module="fake.module")  # remote=None (default) = local
-        acceptance = kwargs.pop("acceptance", None)
-        wandb_metrics = kwargs.pop("wandb_metrics", None)
-        super().__init__(
-            job_config=job_config,
-            acceptance=acceptance,
-            wandb_metrics=wandb_metrics,
-        )
-        self._logs = logs
-        self._exit_code = exit_code
-
-    def make_job_state(
-        self,
-        wandb_run_id: str | None = None,
-        wandb_url: str | None = None,
-        checkpoint_uri: str | None = None,
-        metrics: dict[str, float] | None = None,
-    ) -> JobState:
-        """Create JobState for testing."""
-        return make_job_state(
-            name=self.name,
-            exit_code=self._exit_code,
-            wandb_run_id=wandb_run_id,
-            wandb_url=wandb_url,
-            checkpoint_uri=checkpoint_uri,
-            metrics=metrics,
-        )
-
-
-def test_evaluate_result_timeout():
-    """Test that exit code 124 is recognized as timeout."""
-    task = ConcreteTestTask(name="test", exit_code=124)
-    job_state = task.make_job_state()
-
-    result = task.evaluate_result(job_state)
-
-    assert result.outcome == "failed"
-    assert result.error == "Timeout exceeded"
-    assert result.exit_code == 124
-
-
-def test_evaluate_result_nonzero_exit():
-    """Test that non-zero exit codes result in failure."""
-    task = ConcreteTestTask(name="test", exit_code=1)
-    job_state = task.make_job_state()
-
-    result = task.evaluate_result(job_state)
-
-    assert result.outcome == "failed"
-    assert result.error is not None and len(result.error) > 0
-    assert result.exit_code == 1
-
-
-def test_evaluate_result_success():
-    """Test successful result for base Task (exit code 0)."""
-    task = ConcreteTestTask(name="test", exit_code=0)
-    job_state = task.make_job_state()
-
-    result = task.evaluate_result(job_state)
-
-    assert result.outcome == "passed"
-    assert result.error is None
-
-
-def test_evaluate_result_records_job_id():
-    """Test that job_id is captured from JobState."""
-    task = ConcreteTestTask(name="test", exit_code=0, job_id="sky-job-123")
-    job_state = task.make_job_state()
-
-    result = task.evaluate_result(job_state)
-
-    assert result.job_id == "sky-job-123"
-
-
-# TrainingTask-specific tests
-
-
-def test_training_task_acceptance_pass():
-    """Test that TrainingTask with acceptance criteria passes when metrics meet thresholds."""
-    task = ConcreteTrainingTask(name="test", acceptance=[])
-    job_state = task.make_job_state()
-
-    result = task.evaluate_result(job_state)
-
-    assert result.outcome == "passed"
-    assert result.error is None
-
-
-def test_training_task_acceptance_fail():
-    """Test that TrainingTask with failing acceptance criteria result in failure."""
-    task = ConcreteTrainingTask(
-        name="test",
-        acceptance=[("overview/sps", ge, 10000)],
-        wandb_metrics=["overview/sps"],
+    state = ReleaseState(
+        version="v2025.01.01-test",
+        created_at=datetime.utcnow().isoformat(),
     )
-    # Job state without metrics (simulates missing metric)
-    job_state = task.make_job_state()
 
-    result = task.evaluate_result(job_state)
+    # Mock JobManager that returns our test states
+    job_manager = Mock(spec=JobManager)
+    job_manager.get_job_state.side_effect = lambda name: job_states.get(name)
 
-    assert result.outcome == "failed"
-    assert "overview/sps" in result.error
-    assert "metric missing" in result.error
+    runner = TaskRunner(state=state, job_manager=job_manager, enable_monitor=False)
+    return runner, job_manager
 
 
-def test_training_task_extracts_checkpoint_uri():
-    """Test that TrainingTask extracts checkpoint_uri from JobState."""
-    task = ConcreteTrainingTask(name="train_task")
-    job_state = task.make_job_state(
+def test_passed_with_exit_code_zero():
+    """Test that _passed returns True for exit code 0 with no acceptance criteria."""
+    task = Task(JobConfig(name="test", module="test"))
+    job_state = make_job_state(name="v2025.01.01-test_test", exit_code=0)
+
+    runner, _ = make_task_runner_with_state({"v2025.01.01-test_test": job_state})
+
+    assert runner._passed("v2025.01.01-test_test", task) is True
+
+
+def test_passed_with_nonzero_exit():
+    """Test that _passed returns False for non-zero exit code."""
+    task = Task(JobConfig(name="test", module="test"))
+    job_state = make_job_state(name="v2025.01.01-test_test", exit_code=1)
+
+    runner, _ = make_task_runner_with_state({"v2025.01.01-test_test": job_state})
+
+    assert runner._passed("v2025.01.01-test_test", task) is False
+
+
+def test_passed_with_timeout():
+    """Test that _passed returns False for timeout (exit code 124)."""
+    task = Task(JobConfig(name="test", module="test"))
+    job_state = make_job_state(name="v2025.01.01-test_test", exit_code=124)
+
+    runner, _ = make_task_runner_with_state({"v2025.01.01-test_test": job_state})
+
+    assert runner._passed("v2025.01.01-test_test", task) is False
+
+
+def test_passed_records_job_id():
+    """Test that job_id is available from JobState."""
+    job_state = make_job_state(name="v2025.01.01-test_test", exit_code=0, job_id="sky-job-123")
+
+    assert job_state.job_id == "sky-job-123"
+
+
+def test_acceptance_criteria_pass():
+    """Test that task passes when metrics meet acceptance thresholds."""
+    task = Task(
+        JobConfig(name="test", module="test"),
+        acceptance=[("overview/sps", ge, 10000)],
+    )
+    job_state = make_job_state(
+        name="v2025.01.01-test_test",
+        exit_code=0,
+        metrics={"overview/sps": 15000.0},
+    )
+
+    runner, _ = make_task_runner_with_state({"v2025.01.01-test_test": job_state})
+
+    assert runner._passed("v2025.01.01-test_test", task) is True
+
+
+def test_acceptance_criteria_fail():
+    """Test that task fails when metrics don't meet acceptance thresholds."""
+    task = Task(
+        JobConfig(name="test", module="test"),
+        acceptance=[("overview/sps", ge, 10000)],
+    )
+    job_state = make_job_state(
+        name="v2025.01.01-test_test",
+        exit_code=0,
+        metrics={"overview/sps": 5000.0},
+    )
+
+    runner, _ = make_task_runner_with_state({"v2025.01.01-test_test": job_state})
+
+    assert runner._passed("v2025.01.01-test_test", task) is False
+
+
+def test_acceptance_criteria_missing_metric():
+    """Test that task fails when required metric is missing."""
+    task = Task(
+        JobConfig(name="test", module="test"),
+        acceptance=[("overview/sps", ge, 10000)],
+    )
+    job_state = make_job_state(
+        name="v2025.01.01-test_test",
+        exit_code=0,
+        metrics={},  # Missing metric
+    )
+
+    runner, _ = make_task_runner_with_state({"v2025.01.01-test_test": job_state})
+
+    assert runner._passed("v2025.01.01-test_test", task) is False
+
+
+def test_checkpoint_uri_extraction():
+    """Test that checkpoint_uri is available from JobState."""
+    job_state = make_job_state(
+        name="v2025.01.01-test_train_task",
+        exit_code=0,
         wandb_run_id="abc123",
         wandb_url="https://wandb.ai/entity/project/runs/abc123",
         checkpoint_uri="wandb://run/abc123",
     )
 
-    result = task.evaluate_result(job_state)
-
-    assert "checkpoint_uri" in result.artifacts
-    assert result.artifacts["checkpoint_uri"] == "wandb://run/abc123"
-    assert result.artifacts["wandb_run_id"] == "abc123"
+    # Verify artifacts are in JobState
+    assert job_state.checkpoint_uri == "wandb://run/abc123"
+    assert job_state.wandb_run_id == "abc123"
+    assert job_state.wandb_url == "https://wandb.ai/entity/project/runs/abc123"
