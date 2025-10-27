@@ -225,7 +225,8 @@ class PolicyArtifact:
             policy = self.policy_architecture.make_policy(game_rules)
             policy = policy.to(device)
 
-            if hasattr(policy, "initialize_to_environment"):
+            needs_env_init = hasattr(policy, "initialize_to_environment")
+            if needs_env_init:
                 policy.initialize_to_environment(game_rules, device)
 
             ordered_state = OrderedDict(self.state_dict.items())
@@ -233,6 +234,8 @@ class PolicyArtifact:
             if strict and (missing or unexpected):
                 msg = f"Strict loading failed. Missing: {missing}, Unexpected: {unexpected}"
                 raise RuntimeError(msg)
+            if needs_env_init:
+                policy.initialize_to_environment(game_rules, device)
             self.policy = policy
             self.state_dict = None
             return policy
