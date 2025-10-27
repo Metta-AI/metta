@@ -12,54 +12,63 @@
 
 
 ### EXP1
+**Play:** `cogames play -m exp1.baseline -p scripted`
   ✅ baseline       : Reward=2.0, Hearts=2, Steps=1000
   ✅ conservative   : Reward=2.0, Hearts=2, Steps=1000
   ✅ aggressive     : Reward=2.0, Hearts=2, Steps=1000
   ✅ silicon_focused: Reward=2.0, Hearts=2, Steps=1000
 
 ### EXP10
+**Play:** `cogames play -m exp10.complex_mixed -p scripted`
   ❌ baseline       : Reward=0.0, Hearts=0, Steps=2500
   ❌ conservative   : Reward=0.0, Hearts=0, Steps=2500
   ❌ aggressive     : Reward=0.0, Hearts=0, Steps=2500
   ❌ silicon_focused: Reward=0.0, Hearts=0, Steps=2500
 
 ### EXP2
+**Play:** `cogames play -m exp2.oxygen_abundance -p scripted`
   ✅ baseline       : Reward=1.0, Hearts=1, Steps=2500
   ✅ conservative   : Reward=1.0, Hearts=1, Steps=2500
   ✅ aggressive     : Reward=1.0, Hearts=1, Steps=2500
   ✅ silicon_focused: Reward=1.0, Hearts=1, Steps=2500
 
 ### EXP4
+**Play:** `cogames play -m exp4.fast_depletion -p scripted`
   ✅ baseline       : Reward=1.0, Hearts=1, Steps=2500
   ✅ conservative   : Reward=1.0, Hearts=1, Steps=2500
   ✅ aggressive     : Reward=1.0, Hearts=1, Steps=2500
   ✅ silicon_focused: Reward=1.0, Hearts=1, Steps=2500
 
 ### EXP5
+**Play:** `cogames play -m exp5.energy_abundance -p scripted`
   ✅ baseline       : Reward=2.0, Hearts=2, Steps=2500
   ✅ conservative   : Reward=2.0, Hearts=2, Steps=2500
   ✅ aggressive     : Reward=2.0, Hearts=2, Steps=2500
   ✅ silicon_focused: Reward=2.0, Hearts=2, Steps=2500
 
 ### EXP6
+**Play:** `cogames play -m exp6.energy_scarcity -p scripted`
   ✅ baseline       : Reward=1.0, Hearts=1, Steps=3000
   ✅ conservative   : Reward=1.0, Hearts=1, Steps=3000
   ✅ aggressive     : Reward=1.0, Hearts=1, Steps=3000
   ✅ silicon_focused: Reward=1.0, Hearts=1, Steps=3000
 
 ### EXP7
+**Play:** `cogames play -m exp7.high_efficiency -p scripted`
   ✅ baseline       : Reward=1.0, Hearts=1, Steps=3000
   ✅ conservative   : Reward=1.0, Hearts=1, Steps=3000
   ✅ aggressive     : Reward=1.0, Hearts=1, Steps=3000
   ✅ silicon_focused: Reward=1.0, Hearts=1, Steps=3000
 
 ### EXP8
+**Play:** `cogames play -m exp8.zoned_resources -p scripted`
   ✅ baseline       : Reward=1.0, Hearts=1, Steps=3000
   ✅ conservative   : Reward=1.0, Hearts=1, Steps=3000
   ✅ aggressive     : Reward=1.0, Hearts=1, Steps=3000
   ✅ silicon_focused: Reward=1.0, Hearts=1, Steps=3000
 
 ### EXP9
+**Play:** `cogames play -m exp9.resource_abundance -p scripted`
   ✅ baseline       : Reward=1.0, Hearts=1, Steps=3000
   ✅ conservative   : Reward=1.0, Hearts=1, Steps=3000
   ✅ aggressive     : Reward=1.0, Hearts=1, Steps=3000
@@ -77,60 +86,70 @@
 
 
 ### CARBON_DESERT
+**Play:** `cogames play -m machina_eval.carbon_desert -p scripted`
   ✅ baseline       : Reward=2.0, Hearts=2, Steps=1000
   ✅ conservative   : Reward=2.0, Hearts=2, Steps=1000
   ✅ aggressive     : Reward=2.0, Hearts=2, Steps=1000
   ✅ silicon_focused: Reward=2.0, Hearts=2, Steps=1000
 
 ### ENERGY_STARVED
+**Play:** `cogames play -m machina_eval.energy_starved -p scripted`
   ✅ baseline       : Reward=2.0, Hearts=2, Steps=1000
   ✅ conservative   : Reward=2.0, Hearts=2, Steps=1000
   ✅ aggressive     : Reward=2.0, Hearts=2, Steps=1000
   ✅ silicon_focused: Reward=2.0, Hearts=2, Steps=1000
 
 ### GERMANIUM_CLUTCH
+**Play:** `cogames play -m machina_eval.germanium_clutch -p scripted`
   ❌ baseline       : Reward=0.0, Hearts=0, Steps=1000
   ❌ conservative   : Reward=0.0, Hearts=0, Steps=1000
   ❌ aggressive     : Reward=0.0, Hearts=0, Steps=1000
   ❌ silicon_focused: Reward=0.0, Hearts=0, Steps=1000
 
 ### GERMANIUM_RUSH
+**Play:** `cogames play -m machina_eval.germanium_rush -p scripted`
   ✅ baseline       : Reward=2.0, Hearts=2, Steps=1000
   ✅ conservative   : Reward=2.0, Hearts=2, Steps=1000
   ✅ aggressive     : Reward=2.0, Hearts=2, Steps=1000
   ✅ silicon_focused: Reward=2.0, Hearts=2, Steps=1000
 
 ### HIGH_REGEN_SPRINT
+**Play:** `cogames play -m machina_eval.high_regen_sprint -p scripted`
   ✅ baseline       : Reward=2.0, Hearts=2, Steps=1000
   ✅ conservative   : Reward=2.0, Hearts=2, Steps=1000
   ✅ aggressive     : Reward=2.0, Hearts=2, Steps=1000
   ✅ silicon_focused: Reward=2.0, Hearts=2, Steps=1000
 
 ### OXYGEN_BOTTLENECK
+**Play:** `cogames play -m machina_eval.oxygen_bottleneck -p scripted`
   ✅ baseline       : Reward=2.0, Hearts=2, Steps=1000
   ✅ conservative   : Reward=2.0, Hearts=2, Steps=1000
   ✅ aggressive     : Reward=2.0, Hearts=2, Steps=1000
   ✅ silicon_focused: Reward=2.0, Hearts=2, Steps=1000
 
 ### SILICON_WORKBENCH
+**Play:** `cogames play -m machina_eval.silicon_workbench -p scripted`
   ❌ baseline       : Reward=0.0, Hearts=0, Steps=1000
   ❌ conservative   : Reward=0.0, Hearts=0, Steps=1000
   ❌ aggressive     : Reward=0.0, Hearts=0, Steps=1000
   ❌ silicon_focused: Reward=0.0, Hearts=0, Steps=1000
 
 ### SINGLE_USE_WORLD
+**Play:** `cogames play -m machina_eval.single_use_world -p scripted`
   ❌ baseline       : Reward=0.0, Hearts=0, Steps=1000
   ❌ conservative   : Reward=0.0, Hearts=0, Steps=1000
   ❌ aggressive     : Reward=0.0, Hearts=0, Steps=1000
   ❌ silicon_focused: Reward=0.0, Hearts=0, Steps=1000
 
 ### SLOW_OXYGEN
+**Play:** `cogames play -m machina_eval.slow_oxygen -p scripted`
   ✅ baseline       : Reward=2.0, Hearts=2, Steps=1000
   ✅ conservative   : Reward=2.0, Hearts=2, Steps=1000
   ✅ aggressive     : Reward=2.0, Hearts=2, Steps=1000
   ✅ silicon_focused: Reward=2.0, Hearts=2, Steps=1000
 
 ### SPARSE_BALANCED
+**Play:** `cogames play -m machina_eval.sparse_balanced -p scripted`
   ✅ baseline       : Reward=2.0, Hearts=2, Steps=1000
   ✅ conservative   : Reward=2.0, Hearts=2, Steps=1000
   ✅ aggressive     : Reward=2.0, Hearts=2, Steps=1000
@@ -182,59 +201,21 @@
 
 **Note**: All 4 tested configs (baseline, conservative, aggressive, silicon_focused) perform identically. The **baseline config** is used by default when running cogames and is recommended.
 
+
 ---
 
-## How to Run & Test
+## How to Run Evaluations
 
-### Watch Agent Play Individual Missions
-
-**Exploration Experiments:**
-```bash
-# Exp1 (40x40, basic)
-cogames play packages/cogames/src/cogames/cogs_vs_clips/exploration_experiments.py::Experiment1Mission --policy scripted
-
-# Exp2 (50x50)
-cogames play packages/cogames/src/cogames/cogs_vs_clips/exploration_experiments.py::Experiment2Mission --policy scripted
-
-# Exp4-10
-cogames play packages/cogames/src/cogames/cogs_vs_clips/exploration_experiments.py::Experiment4Mission --policy scripted
-cogames play packages/cogames/src/cogames/cogs_vs_clips/exploration_experiments.py::Experiment5Mission --policy scripted
-cogames play packages/cogames/src/cogames/cogs_vs_clips/exploration_experiments.py::Experiment6Mission --policy scripted
-cogames play packages/cogames/src/cogames/cogs_vs_clips/exploration_experiments.py::Experiment7Mission --policy scripted
-cogames play packages/cogames/src/cogames/cogs_vs_clips/exploration_experiments.py::Experiment8Mission --policy scripted
-cogames play packages/cogames/src/cogames/cogs_vs_clips/exploration_experiments.py::Experiment9Mission --policy scripted
-cogames play packages/cogames/src/cogames/cogs_vs_clips/exploration_experiments.py::Experiment10Mission --policy scripted
-```
-
-**Eval Missions:**
-```bash
-# Passing missions (70% success rate)
-cogames play packages/cogames/src/cogames/cogs_vs_clips/eval_missions.py::EnergyStarvedMission --policy scripted
-cogames play packages/cogames/src/cogames/cogs_vs_clips/eval_missions.py::OxygenBottleneckMission --policy scripted
-cogames play packages/cogames/src/cogames/cogs_vs_clips/eval_missions.py::GermaniumRushMission --policy scripted
-cogames play packages/cogames/src/cogames/cogs_vs_clips/eval_missions.py::CarbonDesertMission --policy scripted
-cogames play packages/cogames/src/cogames/cogs_vs_clips/eval_missions.py::SlowOxygenMission --policy scripted
-cogames play packages/cogames/src/cogames/cogs_vs_clips/eval_missions.py::HighRegenSprintMission --policy scripted
-cogames play packages/cogames/src/cogames/cogs_vs_clips/eval_missions.py::SparseBalancedMission --policy scripted
-
-# Failing missions (need investigation)
-cogames play packages/cogames/src/cogames/cogs_vs_clips/eval_missions.py::SiliconWorkbenchMission --policy scripted
-cogames play packages/cogames/src/cogames/cogs_vs_clips/eval_missions.py::SingleUseWorldMission --policy scripted
-cogames play packages/cogames/src/cogames/cogs_vs_clips/eval_missions.py::GermaniumClutchMission --policy scripted
-```
-
-### Run Full Evaluations
-
-**Exploration Experiments (9 experiments × 4 configs = 36 tests):**
+**Full exploration experiments evaluation (9 experiments × 4 configs = 36 tests):**
 ```bash
 python packages/cogames/scripts/evaluate_outpost_all_experiments.py
 ```
 
-**Eval Missions (10 missions × 4 configs = 40 tests):**
+**Full eval missions evaluation (10 missions × 4 configs = 40 tests):**
 ```bash
 python packages/cogames/scripts/evaluate_eval_missions.py
 ```
 
-### Output Files
-- Exploration results: `phase1_evaluation_results.json`
-- Eval missions results: `eval_missions_results.json`
+**Output files:**
+- `phase1_evaluation_results.json` - Exploration experiments
+- `eval_missions_results.json` - Eval missions
