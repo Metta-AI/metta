@@ -453,6 +453,7 @@ class MachinaProceduralExploreMission(ProceduralMissionBase):
             "hub_corner_bundle": "chests",
             "hub_cross_bundle": "none",
             "hub_cross_distance": 7,
+            #be able to define parameters for distributions per building type here
         }
 
     def make_env(self) -> MettaGridConfig:

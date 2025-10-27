@@ -92,6 +92,7 @@ def make_machina_procedural_map_builder(
         "silicon_extractor": 0.3,
         "oxygen_extractor": 0.3,
         "carbon_extractor": 0.3,
+        #TO DO: these are the default weights, can add distribution preset here
     }
 
     # Legacy "extractors" dict takes precedence if provided
