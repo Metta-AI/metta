@@ -102,16 +102,17 @@ def _format_rerun_command(targets: Sequence[str]) -> str:
 
 
 def _format_copy_button(command: str) -> str:
-    digest = hashlib.md5(command.encode("utf-8")).hexdigest()[:8]
-    element_id = f"pytest-rerun-{digest}"
-    escaped_value = html.escape(command)
+    clipboard_key = hashlib.md5(command.encode("utf-8")).hexdigest()
+    escaped_command = html.escape(command)
     return (
-        '<clipboard-copy class="btn btn-sm" '
-        f'for="{element_id}" '
-        'aria-label="Copy pytest command">'
+        '<div class="code-example">'
+        '<button class="js-btn-copy btn btn-sm tooltipped tooltipped-nw" '
+        'aria-label="Copy pytest command" '
+        f'data-clipboard="{clipboard_key}">'
         "Copy command"
-        "</clipboard-copy>"
-        f'<pre id="{element_id}" hidden>{escaped_value}</pre>'
+        "</button>"
+        f'<pre hidden data-clipboard="{clipboard_key}">{escaped_command}</pre>'
+        "</div>"
     )
 
 
@@ -246,7 +247,7 @@ def report_failures(summaries: Sequence[PackageSummary]) -> dict[str, list[TestF
         command_text = _format_rerun_command(unique_targets)
         info("Re-run locally:", indent=4)
         for line in command_text.splitlines():
-            info(escape(line), indent=6, no_wrap=True, overflow="ignore")
+            info(escape(line), indent=6)
     return failure_map
 
 
@@ -256,10 +257,12 @@ def write_github_summary(summaries: Sequence[PackageSummary]) -> None:
         return
 
     lines: list[str] = []
-    lines.append("### Python test results")
-    lines.append("")
-    lines.append("| Package | Status | Rerun command |")
-    lines.append("| --- | --- | --- |")
+    lines.append("<h3>Python test results</h3>")
+    lines.append("<table>")
+    lines.append("  <thead>")
+    lines.append("    <tr><th>Package</th><th>Status</th><th>Rerun command</th></tr>")
+    lines.append("  </thead>")
+    lines.append("  <tbody>")
 
     for summary in summaries:
         failures = summary.failures
@@ -267,17 +270,21 @@ def write_github_summary(summaries: Sequence[PackageSummary]) -> None:
             status = f"❌ {len(failures)} failing"
             targets = list(dict.fromkeys(failure.nodeid for failure in failures))
             command_text = _format_rerun_command(targets)
-            rerun = _format_copy_button(command_text)
+            rerun_html = _format_copy_button(command_text)
         elif summary.returncode != 0:
             status = f"⚠️ exit {summary.returncode}"
             command_text = f"metta pytest {summary.target}"
-            rerun = _format_copy_button(command_text)
+            rerun_html = _format_copy_button(command_text)
         else:
             total = summary.total or 0
             status = f"✅ {total} passed" if total else "✅ no tests"
-            rerun = "—"
-        lines.append(f"| {summary.package_name} | {status} | {rerun} |")
+            rerun_html = "—"
+        package_html = html.escape(summary.package_name)
+        status_html = html.escape(status)
+        lines.append(f"    <tr><td>{package_html}</td><td>{status_html}</td><td>{rerun_html}</td></tr>")
 
+    lines.append("  </tbody>")
+    lines.append("</table>")
     lines.append("")
 
     with open(summary_path, "a", encoding="utf-8") as handle:
