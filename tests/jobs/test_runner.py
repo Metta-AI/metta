@@ -280,7 +280,13 @@ def test_localjob_cancel_terminates_process(tmp_path, monkeypatch, fake_popen):
     monkeypatch.setattr("os.getpgid", fake_getpgid)
     monkeypatch.setattr("os.killpg", fake_killpg)
 
-    job = LocalJob(name="cancel_test", cmd=["sleep", "100"], timeout_s=10, log_dir=str(tmp_path), cwd=str(tmp_path))
+    config = JobConfig(
+        name="cancel_test",
+        module="test",
+        timeout_s=10,
+        metadata={"cmd": ["sleep", "100"]},
+    )
+    job = LocalJob(config, log_dir=str(tmp_path), cwd=str(tmp_path))
 
     # Submit the job (in real code this happens in wait(), but we need the process)
     job.submit()
