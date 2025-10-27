@@ -5,12 +5,14 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "gitta"
 version = "0.2.0"
-description = "Git utilities library with PR splitting and optional AWS Secrets Manager support"
+description = "Git utilities library with PR splitting and AWS Secrets Manager support"
 requires-python = ">=3.9"
-dependencies = ["httpx>=0.24.0", "anthropic>=0.18.0", "git-filter-repo>=2.38.0"]
-
-[project.optional-dependencies]
-aws = ["boto3>=1.26.0"]
+dependencies = [
+    "httpx>=0.24.0",
+    "anthropic>=0.18.0",
+    "git-filter-repo>=2.38.0",
+    "boto3>=1.26.0",
+]
 
 [dependency-groups]
 dev = [
