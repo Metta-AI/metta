@@ -78,6 +78,8 @@ class TaskRunner:
                 clear_screen=False,
                 title=f"Release Validation: {self.state.version}",
                 highlight_failures=True,
+                show_running_logs=True,
+                log_tail_lines=5,
             )
         output = buffer.getvalue()
         new_line_count = output.count("\n")
