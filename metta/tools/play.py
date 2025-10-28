@@ -19,46 +19,6 @@ from mettagrid import MettaGridEnv, RenderMode, dtype_actions
 
 logger = logging.getLogger(__name__)
 
-DIRECTION_ACTION_NAMES: dict[int, str] = {
-    0: "move_north",
-    1: "move_south",
-    2: "move_west",
-    3: "move_east",
-    4: "move_northwest",
-    5: "move_northeast",
-    6: "move_southwest",
-    7: "move_southeast",
-}
-
-
-def _flatten_action_request(
-    action_request: SimpleNamespace,
-    *,
-    total_actions: int,
-    noop_action_id: int,
-    move_action_lookup: dict[int, int],
-) -> int:
-    """Translate a MettaScope ActionRequest into a flattened action index."""
-
-    raw_action_id = int(getattr(action_request, "action_id", -1))
-    if 0 <= raw_action_id < total_actions:
-        return raw_action_id
-
-    argument_value = getattr(action_request, "argument", None)
-    if argument_value is not None:
-        orientation_idx = int(argument_value)
-        flattened_move = move_action_lookup.get(orientation_idx)
-        if flattened_move is not None:
-            return flattened_move
-
-    logger.debug(
-        "Received unrecognized manual action; defaulting to noop",
-        extra={
-            "action_id": raw_action_id,
-            "argument": getattr(action_request, "argument", None),
-        },
-    )
-    return noop_action_id
 
 
 class PlayTool(Tool):
@@ -119,15 +79,6 @@ class PlayTool(Tool):
             logger.info("No policy specified, using random actions")
             policy = None
 
-        # Build action lookup tables
-        action_lookup = {name: idx for idx, name in enumerate(env.action_names)}
-        noop_action_id = action_lookup.get("noop", 0)
-        move_action_lookup = {
-            orientation: action_lookup[name]
-            for orientation, name in DIRECTION_ACTION_NAMES.items()
-            if name in action_lookup
-        }
-
         # Reset environment
         obs, _ = env.reset(seed=self.seed)
 
@@ -153,14 +104,7 @@ class PlayTool(Tool):
             for agent_id in range(num_agents):
                 if agent_id in user_actions:
                     # User provided action for this agent
-                    action_id, action_param = user_actions[agent_id]
-                    # Flatten the action using the helper function
-                    actions[agent_id] = _flatten_action_request(
-                        SimpleNamespace(action_id=action_id, argument=action_param),
-                        total_actions=len(env.action_names),
-                        noop_action_id=noop_action_id,
-                        move_action_lookup=move_action_lookup,
-                    )
+                    actions[agent_id] = user_actions[agent_id]
                 else:
                     # Use policy action
                     if policy is not None:
