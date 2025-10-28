@@ -477,6 +477,16 @@ class Curriculum(StatsLogger):
             return self._algorithm.get_task_postzscored_lp_score(task_id)
         return 0.0
 
+    def get_and_reset_evictions_this_epoch(self) -> Dict[str, int]:
+        """Get per-epoch evictions and reset the counter.
+
+        Returns:
+            Dictionary mapping label -> eviction count this epoch
+        """
+        if self._algorithm is not None and hasattr(self._algorithm, "get_and_reset_evictions_this_epoch"):
+            return self._algorithm.get_and_reset_evictions_this_epoch()
+        return {}
+
     def get_base_stats(self) -> Dict[str, float]:
         """Get basic curriculum statistics."""
         # Get global completion count from algorithm's task tracker if available

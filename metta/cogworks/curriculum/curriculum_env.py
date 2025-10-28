@@ -100,6 +100,17 @@ class CurriculumEnv(PufferEnv):
             # Get per-environment rewards for completed episodes
             episode_rewards = self._env.get_episode_rewards()
 
+            # Get per-epoch evictions and add to info dict (for gini calculation)
+            # This is called once per step when any environment completes
+            evictions_this_epoch = self._curriculum.get_and_reset_evictions_this_epoch()
+            if evictions_this_epoch:
+                if "env_curriculum_stats/per_label_evictions_this_epoch" not in infos:
+                    infos["env_curriculum_stats/per_label_evictions_this_epoch"] = {}
+                for label, count in evictions_this_epoch.items():
+                    infos["env_curriculum_stats/per_label_evictions_this_epoch"][label] = (
+                        infos["env_curriculum_stats/per_label_evictions_this_epoch"].get(label, 0) + count
+                    )
+
             # Update curriculum for each completed environment
             for env_idx, (term, trunc) in enumerate(zip(terminals, truncations, strict=True)):
                 if term or trunc:

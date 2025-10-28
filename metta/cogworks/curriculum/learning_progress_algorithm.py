@@ -139,6 +139,9 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         else:
             self._label_eviction_counts = None
 
+        # Per-epoch eviction tracking (ALWAYS enabled for gini calculation)
+        self._label_evictions_this_epoch: Dict[str, int] = {}  # label -> evictions this epoch
+
         # Track which labels are currently active (have tasks in pool)
         self._active_labels: set[str] = set()
 
@@ -239,17 +242,19 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         # Remove from label tracking and clean up inactive labels
         evicted_label = self._task_labels.pop(task_id, None)
         if evicted_label:
-            # Track eviction count for this label (only if troubleshooting logging enabled)
+            # Track cumulative eviction count for this label (only if troubleshooting logging enabled)
             if self._label_eviction_counts is not None:
                 self._label_eviction_counts[evicted_label] = self._label_eviction_counts.get(evicted_label, 0) + 1
+
+            # Track per-epoch eviction count (ALWAYS enabled for gini calculation)
+            self._label_evictions_this_epoch[evicted_label] = self._label_evictions_this_epoch.get(evicted_label, 0) + 1
 
             # Check if this label still has any active tasks
             if evicted_label not in self._task_labels.values():
                 # No more tasks with this label - remove from active set
                 self._active_labels.discard(evicted_label)
-                # Clean up sampling and completion counts for inactive labels to prevent unbounded growth
-                self._label_sampling_counts.pop(evicted_label, None)
-                self._label_completion_counts.pop(evicted_label, None)
+                # DO NOT clean up sampling/completion counts - these are cumulative stats that should persist!
+                # We keep these counts for historical accuracy, just like eviction counts
                 # Note: We keep eviction counts even for inactive labels to maintain historical data (when enabled)
 
         # Remove from slice analyzer to prevent memory leak
@@ -272,6 +277,16 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         if task_id in self._task_labels:
             label = self._task_labels[task_id]
             self._label_sampling_counts[label] = self._label_sampling_counts.get(label, 0) + 1
+
+    def get_and_reset_evictions_this_epoch(self) -> Dict[str, int]:
+        """Get per-epoch evictions and reset the counter.
+
+        Returns:
+            Dictionary mapping label -> eviction count this epoch
+        """
+        evictions = self._label_evictions_this_epoch.copy()
+        self._label_evictions_this_epoch.clear()
+        return evictions
 
     def update_task_performance(self, task_id: int, score: float) -> None:
         """Update task performance using the scorer strategy."""
@@ -429,6 +444,12 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         all_task_ids = self.task_tracker.get_all_tracked_tasks()
         completion_counts = []
         lp_scores = []
+
+        import logging
+
+        logger = logging.getLogger(__name__)
+        logger.info(f"Processing {len(all_task_ids)} tracked tasks for Gini calculations")
+
         for task_id in all_task_ids:
             task_stats = self.task_tracker.get_task_stats(task_id)
             if task_stats:
@@ -440,6 +461,8 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
                     stats[f"lp_scores/{task_id}"] = lp_score
                 completion_counts.append(completion_count)
                 lp_scores.append(lp_score)
+
+        logger.info(f"Built arrays: completion_counts={len(completion_counts)}, lp_scores={len(lp_scores)}")
 
         # Calculate Gini coefficients for pool occupancy and LP scores
         if completion_counts:
@@ -532,6 +555,9 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
 
         Returns:
             Dict mapping label -> {raw, postzscored, prob}
+            - raw: average raw LP score for tasks in this label
+            - postzscored: average post-z-scored LP for tasks in this label
+            - prob: total sampling probability for this label (sum of task probs)
         """
         if not self.hypers.show_curriculum_troubleshooting_logging:
             return {}
@@ -545,19 +571,30 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
             if label not in per_label:
                 per_label[label] = {"raw": 0.0, "postzscored": 0.0, "prob": 0.0, "count": 0}
 
-            # Accumulate scores (will average later)
+            # Accumulate scores
+            # - raw and postzscored are averaged (diagnostic metrics)
+            # - prob is summed (represents total sampling probability for this label)
             per_label[label]["raw"] += self.get_task_raw_lp_score(task_id)
             per_label[label]["postzscored"] += self.get_task_postzscored_lp_score(task_id)
-            per_label[label]["prob"] += self.get_task_lp_score(task_id)
+            per_label[label]["prob"] += self.get_task_lp_score(task_id)  # Sum for sampling probability
             per_label[label]["count"] += 1
 
-        # Average scores per label
+        # Process scores per label
+        # First, calculate total sum of all LP scores for normalization
+        total_prob_sum = sum(scores["prob"] for scores in per_label.values())
+
         for _label, scores in per_label.items():
             count = scores.pop("count")
             if count > 0:
+                # Average raw and postzscored (diagnostic metrics)
                 scores["raw"] /= count
                 scores["postzscored"] /= count
-                scores["prob"] /= count
+                # Normalize prob to get true sampling probability
+                # (sum of label probs / total sum = probability of sampling this label)
+                if total_prob_sum > 0:
+                    scores["prob"] /= total_prob_sum
+                else:
+                    scores["prob"] = 0.0
 
         return per_label
 
