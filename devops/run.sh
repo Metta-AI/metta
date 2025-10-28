@@ -1,7 +1,29 @@
 #!/bin/bash
 set -euo pipefail
 
-NUM_GPUS=${NUM_GPUS:-$(command -v nvidia-smi > /dev/null && nvidia-smi --list-gpus | wc -l || echo 1)}
+detect_visible_gpus() {
+  local value="${CUDA_VISIBLE_DEVICES:-}"
+  if [[ -n "$value" ]]; then
+    value="${value// /}"
+    value="${value%,}"
+    if [[ -n "$value" ]]; then
+      IFS=',' read -r -a ids <<< "$value"
+      echo "${#ids[@]}"
+      return
+    fi
+  fi
+  if [[ -n "${RAY_NUM_GPUS:-}" ]]; then
+    echo "${RAY_NUM_GPUS}"
+    return
+  fi
+  if command -v nvidia-smi > /dev/null 2>&1; then
+    nvidia-smi --list-gpus | wc -l
+  else
+    echo 1
+  fi
+}
+
+NUM_GPUS=${NUM_GPUS:-$(detect_visible_gpus)}
 NUM_NODES=${NUM_NODES:-1}
 MASTER_ADDR=${MASTER_ADDR:-localhost}
 MASTER_PORT=${MASTER_PORT:-12345}

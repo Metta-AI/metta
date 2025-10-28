@@ -16,10 +16,11 @@ logger = logging.getLogger(__name__)
 class LocalDispatcher:
     """Runs jobs as local subprocesses."""
 
-    def __init__(self, capture_output: bool = True):
+    def __init__(self, capture_output: bool = True, use_torchrun: bool = False):
         self._processes: dict[str, subprocess.Popen] = {}  # pid -> process
         self._run_to_pid: dict[str, str] = {}  # run_id -> pid for debugging
         self._capture_output = capture_output
+        self._use_torchrun = use_torchrun
         self._output_threads: dict[str, threading.Thread] = {}  # pid -> output thread
         self._project_root = Path(__file__).resolve().parents[3]
         self._common_src = self._project_root / "common" / "src"
@@ -87,7 +88,10 @@ class LocalDispatcher:
         self._reap_finished_processes()
 
         # Build command
-        cmd_parts = ["uv", "run", "./tools/run.py", job.cmd]
+        if self._use_torchrun:
+            cmd_parts = ["./devops/run.sh", job.cmd]
+        else:
+            cmd_parts = ["uv", "run", "./tools/run.py", job.cmd]
 
         # Add all arguments directly (no --args or --overrides flags)
         # First add job args, then overrides
@@ -115,6 +119,12 @@ class LocalDispatcher:
                     if current_pythonpath:
                         new_parts.append(current_pythonpath)
                     env["PYTHONPATH"] = os.pathsep.join(new_parts)
+
+            if self._use_torchrun:
+                if job.gpus:
+                    env.setdefault("NUM_GPUS", str(job.gpus))
+                if job.nodes:
+                    env.setdefault("NUM_NODES", str(job.nodes))
 
             # Configure subprocess output handling
             if self._capture_output:

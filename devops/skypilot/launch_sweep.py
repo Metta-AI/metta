@@ -51,6 +51,21 @@ def _infer_gpus_per_node(task: sky.Task) -> int | None:
     return None
 
 
+def _infer_accelerator_resource(task: sky.Task) -> str | None:
+    """Derive the Ray custom resource name for the accelerator type, if available."""
+    try:
+        resources = list(task.resources)
+    except TypeError:
+        resources = [task.resources]
+
+    for res in resources:
+        accelerators: Any = getattr(res, "accelerators", None)
+        if isinstance(accelerators, dict) and accelerators:
+            gpu_type = next(iter(accelerators))
+            return f"accelerator_type:{gpu_type}"
+    return None
+
+
 def main():
     parser = argparse.ArgumentParser(
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -212,6 +227,10 @@ Examples:
     if task.num_nodes is not None:
         task = task.update_envs({"RAY_EXPECTED_NODES": task.num_nodes})
 
+    accelerator_resource = _infer_accelerator_resource(task)
+    if accelerator_resource:
+        task = task.update_envs({"RAY_ACCELERATOR_RESOURCE": accelerator_resource})
+
     set_task_secrets(task)
 
     if args.dump_config:
@@ -235,6 +254,7 @@ Examples:
     if args.copies > 1:
         extra_details["copies"] = args.copies
     extra_details["ray_head_port"] = args.ray_head_port
+    extra_details["ray_client_port"] = args.ray_client_port
     extra_details["ray_client_port"] = args.ray_client_port
 
     display_job_summary(

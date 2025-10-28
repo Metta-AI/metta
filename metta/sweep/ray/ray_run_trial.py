@@ -16,13 +16,13 @@ from metta.adaptive.utils import create_training_job
 def _fallback_run_id() -> str:
     return f"local-{datetime.now().strftime('%Y%m%d-%H%M%S')}"
 
-def metta_train_fn(config: dict[str, Any]) -> None:
 
+def metta_train_fn(config: dict[str, Any]) -> None:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
     """
     Train function for the metta model
     """
-    dispatcher = LocalDispatcher(capture_output=True)
+    dispatcher = LocalDispatcher(capture_output=True, use_torchrun=True)
 
     # Ray config should provide a dict payload under "serialized_job_definition".
     sweep_config = config["sweep_config"]
