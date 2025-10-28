@@ -18,9 +18,8 @@ class NotAuthenticatedError(Exception):
 class ObservatoryAuthenticator(BaseCLIAuthenticator):
     """Authenticator for Observatory, matching the login script configuration."""
 
-    def __init__(self, auth_server_url: str):
+    def __init__(self):
         super().__init__(
-            auth_server_url=auth_server_url,
             token_file_name="config.yaml",
             token_storage_key="observatory_tokens",
         )
@@ -39,8 +38,8 @@ def get_machine_token(stats_server_uri: str | None = None) -> str | None:
         return None
 
     # Use the same authenticator pattern as the login script
-    authenticator = ObservatoryAuthenticator(stats_server_uri)
-    token = authenticator.load_token()
+    authenticator = ObservatoryAuthenticator()
+    token = authenticator.load_token(stats_server_uri)
 
     if not token or token.lower() == "none":
         return None
