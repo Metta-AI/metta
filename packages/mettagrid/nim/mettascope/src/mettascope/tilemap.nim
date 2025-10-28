@@ -57,8 +57,7 @@ proc tileMapFrag*(fragmentUv: Vec2, fragColor: var Vec4) =
       tileIndex = tileIndexU.int32
 
       # Local coordinates inside the tile, continuous and fractional.
-      tilePos01 = fract(mapPos)
-      localTexel = tilePos01 * tileSize
+      localTexel = fract(mapPos) * (tileSize) - 1.0
       contTexel = fragmentUv * (mapSize * tileSize)
 
       # Anti-aliasing the nearest snap in the tile space.
