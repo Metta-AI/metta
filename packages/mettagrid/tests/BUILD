@@ -83,6 +83,18 @@ cc_binary(
     ],
 )
 
+cc_binary(
+    name="test_ci_failure_marker_bin",
+    srcs=["test_ci_failure_marker.cpp"],
+    copts=COPTS + ["-Icpp/include/mettagrid", "-Itests"],
+    linkstatic=True,
+    deps=[
+        "//:mettagrid_lib",
+        "@googletest//:gtest_main",
+        "@rules_python//python/cc:current_py_cc_libs",
+    ],
+)
+
 # Python test wrappers
 py_test(
     name="test_stats_tracker",
@@ -129,6 +141,15 @@ py_test(
     size="small",
 )
 
+py_test(
+    name="test_ci_failure_marker",
+    srcs=["run_test.py"],
+    main="run_test.py",
+    args=["--bin=test_ci_failure_marker_bin"],
+    data=[":test_ci_failure_marker_bin"],
+    size="small",
+)
+
 # Test suite that runs all tests
 test_suite(
     name="tests_all",
@@ -138,5 +159,6 @@ test_suite(
         ":test_mettagrid",
         ":test_observations",
         ":test_clipper",
+        ":test_ci_failure_marker",
     ],
 )
