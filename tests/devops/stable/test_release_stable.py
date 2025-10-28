@@ -93,6 +93,49 @@ def make_mock_job_manager(tmp_path: Path, existing_states: dict[str, JobState] |
                 cancelled += 1
         return cancelled
 
+    def mock_get_status_summary(group: str | None = None):
+        # Return aggregated status summary
+        jobs_to_summarize = {}
+        if group:
+            for name, state in job_states.items():
+                if state.config.group == group:
+                    jobs_to_summarize[name] = state
+        else:
+            jobs_to_summarize = job_states
+
+        completed = sum(1 for js in jobs_to_summarize.values() if js.status == "completed")
+        running = sum(1 for js in jobs_to_summarize.values() if js.status == "running")
+        pending = sum(1 for js in jobs_to_summarize.values() if js.status == "pending")
+        succeeded = sum(1 for js in jobs_to_summarize.values() if js.status == "completed" and js.exit_code == 0)
+        failed = sum(1 for js in jobs_to_summarize.values() if js.status == "completed" and js.exit_code != 0)
+
+        job_list = []
+        for name, job_state in jobs_to_summarize.items():
+            job_dict = {
+                "name": name,
+                "status": job_state.status,
+                "exit_code": job_state.exit_code if job_state.status == "completed" else None,
+                "job_id": job_state.job_id,
+                "request_id": job_state.request_id,
+                "logs_path": job_state.logs_path,
+                "metrics": job_state.metrics or {},
+                "wandb_url": job_state.wandb_url,
+                "checkpoint_uri": job_state.checkpoint_uri,
+                "started_at": job_state.started_at,
+                "completed_at": job_state.completed_at,
+            }
+            job_list.append(job_dict)
+
+        return {
+            "total": len(jobs_to_summarize),
+            "completed": completed,
+            "running": running,
+            "pending": pending,
+            "succeeded": succeeded,
+            "failed": failed,
+            "jobs": job_list,
+        }
+
     job_manager = Mock(spec=JobManager)
     job_manager.submit.side_effect = mock_submit
     job_manager.poll.side_effect = mock_poll
@@ -101,6 +144,7 @@ def make_mock_job_manager(tmp_path: Path, existing_states: dict[str, JobState] |
     job_manager.get_group_jobs.side_effect = mock_get_group_jobs
     job_manager.get_all_jobs.side_effect = mock_get_all_jobs
     job_manager.cancel_group.side_effect = mock_cancel_group
+    job_manager.get_status_summary.side_effect = mock_get_status_summary
 
     return job_manager
 
