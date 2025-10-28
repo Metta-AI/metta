@@ -123,20 +123,28 @@ class JobManager:
         )
 
         try:
-            metrics = fetch_wandb_metrics(
+            metrics_data = fetch_wandb_metrics(
                 entity=METTA_WANDB_ENTITY,
                 project=METTA_WANDB_PROJECT,
                 run_name=job_state.wandb_run_id,
                 metric_keys=job_state.config.metrics_to_track,
             )
-            if metrics:
+            if metrics_data:
+                # Extract just the values for storage (backward compatible with display)
+                metrics_values = {key: data["value"] for key, data in metrics_data.items()}
+
                 with Session(self._engine) as session:
                     job_state = session.get(JobState, job_name)
                     if job_state:
-                        job_state.metrics = metrics
+                        job_state.metrics = metrics_values
                         session.add(job_state)
                         session.commit()
-                        logger.info(f"Fetched metrics for {job_name}: {list(metrics.keys())}")
+
+                        # Log with value and count
+                        metrics_info = ", ".join(
+                            f"{key}={data['value']:.2f} (n={int(data['count'])})" for key, data in metrics_data.items()
+                        )
+                        logger.info(f"Fetched metrics for {job_name}: {metrics_info}")
             else:
                 logger.warning(f"No metrics returned for {job_name} (run may not have data yet)")
         except Exception as e:

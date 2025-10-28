@@ -28,7 +28,7 @@ def fetch_wandb_metrics(
     run_name: str,
     metric_keys: list[str],
     last_n_percent: float = 0.25,
-) -> dict[str, float]:
+) -> dict[str, dict[str, float]]:
     """Fetch metrics from WandB API and average over last N% of samples.
 
     Args:
@@ -39,9 +39,10 @@ def fetch_wandb_metrics(
         last_n_percent: Fraction of samples to average over (default: 0.25 = last 25%)
 
     Returns:
-        Dictionary mapping metric names to their averaged values
+        Dictionary mapping metric names to dicts with 'value' and 'count' keys
+        Example: {"overview/sps": {"value": 42000.0, "count": 100}}
     """
-    metrics: dict[str, float] = {}
+    metrics: dict[str, dict[str, float]] = {}
 
     try:
         api = wandb.Api()
@@ -73,7 +74,7 @@ def fetch_wandb_metrics(
                 avg = sum(last_values) / len(last_values)
 
                 print(f"     WandB metric {metric_key}: {avg:.2f} (avg of last {len(last_values)} samples)")
-                metrics[metric_key] = avg
+                metrics[metric_key] = {"value": avg, "count": len(last_values)}
 
             except Exception as e:
                 print(f"     Warning: Failed to fetch metric {metric_key}: {e}")
