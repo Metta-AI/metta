@@ -1,8 +1,7 @@
-"""Column block with a global router over experts."""
+"""Column block with pluggable router modules."""
 
 from __future__ import annotations
 
-import math
 from typing import Optional, Tuple
 
 import torch
@@ -10,6 +9,7 @@ import torch.nn as nn
 from tensordict import TensorDict
 
 from cortex.blocks.base import BaseBlock
+from cortex.blocks.column.routers import GlobalContextDotRouter
 from cortex.blocks.registry import build_block, register_block
 from cortex.cells import build_cell
 from cortex.cells.base import MemoryCell
@@ -19,30 +19,14 @@ from cortex.types import MaybeState, ResetMask, Tensor
 
 @register_block(ColumnBlockConfig)
 class ColumnBlock(BaseBlock):
+    """Mix multiple experts using a router that outputs a global gate."""
+
     def __init__(self, config: ColumnBlockConfig, d_hidden: int, cell: MemoryCell | None = None) -> None:
         super().__init__(d_hidden=d_hidden, cell=self._make_placeholder_cell(d_hidden))
-
         self.config = config
         self.d_hidden = d_hidden
-
         self.experts = nn.ModuleList(self._build_experts(config.experts, d_hidden))
-
-        d_key = int(config.router.d_key or d_hidden)
-        self.d_key = d_key
-        self.temperature = float(config.router.temperature)
-        self.top_k = int(config.router.top_k) if config.router.top_k is not None else None
-        self.use_sqrt_scale = bool(config.router.use_sqrt_scale)
-
-        self.context = nn.Parameter(torch.zeros(d_hidden))
-        self.keys = nn.Parameter(torch.zeros(len(self.experts), d_key))
-
-        self.Wq = nn.Linear(d_hidden, d_key, bias=False)
-        self.Wk = nn.Linear(d_key, d_key, bias=False)
-
-        nn.init.uniform_(self.context, a=-1e-3, b=1e-3)
-        nn.init.uniform_(self.keys, a=-1e-3, b=1e-3)
-        nn.init.uniform_(self.Wq.weight, a=-config.router.init_scale_wq, b=config.router.init_scale_wq)
-        nn.init.uniform_(self.Wk.weight, a=-config.router.init_scale_wk, b=config.router.init_scale_wk)
+        self.router = GlobalContextDotRouter(d_hidden, len(self.experts), config.router)
 
     @staticmethod
     def _make_placeholder_cell(hidden_size: int) -> MemoryCell:
@@ -100,10 +84,9 @@ class ColumnBlock(BaseBlock):
         *,
         resets: Optional[ResetMask] = None,
     ) -> Tuple[Tensor, MaybeState]:
-        gate = self._compute_gate(x)
         is_step = x.dim() == 2
         B = x.shape[0]
-        expert_outs = []
+        expert_outs: list[Tensor] = []
         next_state = TensorDict({}, batch_size=[B], device=x.device)
 
         for i, expert in enumerate(self.experts):
@@ -113,6 +96,7 @@ class ColumnBlock(BaseBlock):
             expert_outs.append(y_i)
             next_state[key] = s_i if isinstance(s_i, TensorDict) else TensorDict({}, batch_size=[B])
 
+        gate = self.router(expert_outs)
         if is_step:
             Y = torch.stack(expert_outs, dim=0)
             mixed = torch.einsum("k,kbh->bh", gate, Y)
@@ -121,33 +105,6 @@ class ColumnBlock(BaseBlock):
             mixed = torch.einsum("k,kbth->bth", gate, Y)
         y = x + mixed
         return y, next_state
-
-    @torch.no_grad()
-    def _topk_mask_(self, scores: Tensor) -> Tensor:
-        if self.top_k is None or self.top_k >= scores.numel():
-            return scores
-        k = self.top_k
-        topk_vals, topk_idx = torch.topk(scores, k)
-        mask = torch.full_like(scores, float("-inf"))
-        mask[topk_idx] = topk_vals
-        return mask
-
-    def _compute_gate(self, x: Tensor) -> Tensor:
-        q = self.Wq(self.context)
-        k_proj = self.Wk(self.keys)
-        if self.use_sqrt_scale:
-            scale = 1.0 / math.sqrt(self.d_key)
-        else:
-            scale = 1.0 / float(self.d_key)
-
-        scores = torch.einsum("kd,d->k", k_proj, q)
-        scores = scores * scale
-        if self.top_k is not None:
-            with torch.no_grad():
-                scores = self._topk_mask_(scores)
-        logits = scores / max(self.temperature, 1e-6)
-        gate = torch.softmax(logits, dim=-1)
-        return gate
 
     @staticmethod
     def _expert_state_key(i: int, expert: nn.Module) -> str:

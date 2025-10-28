@@ -69,8 +69,16 @@ def test_router_uniform_init():
     d_hidden = 16
     k = 4
     stack = _stack_with_column(d_hidden=d_hidden, k=k)
-    col = next(b for b in stack.blocks if hasattr(b, "keys"))
-    gate = col._compute_gate(torch.zeros(1, d_hidden))  # type: ignore[attr-defined]
+    from cortex import ColumnBlock as _ColumnBlock
+
+    col = next(b for b in stack.blocks if isinstance(b, _ColumnBlock))
+    B2, T2 = 2, 3
+    x = torch.randn(B2, T2, d_hidden)
+    expert_outs = []
+    for expert in col.experts:
+        y_i, _ = expert(x, None)
+        expert_outs.append(y_i)
+    gate = col.router(expert_outs)
     assert gate.shape[0] == k
     diff = torch.abs(gate - (1.0 / k)).max().item()
     assert diff < 0.25, f"Gate not near-uniform at init: max diff {diff}"
