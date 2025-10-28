@@ -115,7 +115,7 @@ def test_step_prepare_tag_skips_when_gate_passed(monkeypatch, tmp_path, capsys):
             step_prepare_tag(version="2025.10.09-1430", state=state)
 
     captured = capsys.readouterr()
-    assert "already completed (skipping)" in captured.out
+    assert "Step already completed" in captured.out
     assert "Creating staging tag" not in captured.out
 
 
@@ -145,7 +145,7 @@ def test_step_bug_check_skips_when_gate_passed(monkeypatch, tmp_path, capsys):
             step_bug_check(version="2025.10.09-1430", state=state)
 
     captured = capsys.readouterr()
-    assert "already completed (skipping)" in captured.out
+    assert "Step already completed" in captured.out
 
 
 def test_step_prepare_tag_marks_gate_when_complete(monkeypatch, tmp_path):
@@ -210,7 +210,7 @@ def test_cmd_validate_runs_validation_pipeline(monkeypatch, tmp_path):
             with patch("devops.stable.release_stable.step_summary") as mock_summary:
                 with patch("devops.stable.release_stable._VERSION", "2025.10.09-1430"):
                     with patch("gitta.get_current_commit", return_value="abc123"):
-                        cmd_validate(task=None, retry_failed=False)
+                        cmd_validate(task=None, retry=False)
 
     # Verify validation pipeline steps were called
     assert mock_prepare.called
@@ -231,15 +231,15 @@ def test_cmd_hotfix_skips_validation(monkeypatch, tmp_path):
     # Mock all the step functions
     with patch("devops.stable.release_stable.step_prepare_tag") as mock_prepare:
         with patch("devops.stable.release_stable.step_task_validation") as mock_task:
-            with patch("devops.stable.release_stable.step_summary") as mock_summary:
+            with patch("devops.stable.release_stable.step_release") as mock_release:
                 with patch("devops.stable.release_stable._VERSION", "2025.10.09-1430"):
                     with patch("gitta.get_current_commit", return_value="abc123"):
                         cmd_hotfix()
 
-    # Verify hotfix pipeline: prepare-tag and summary, NO validation
+    # Verify hotfix pipeline: prepare-tag and release, NO validation
     assert mock_prepare.called
     assert not mock_task.called  # Validation should be skipped
-    assert mock_summary.called
+    assert mock_release.called
 
 
 def test_cmd_release_runs_bug_check_and_release(monkeypatch, tmp_path):
@@ -290,4 +290,4 @@ def test_continuation_skips_completed_steps(monkeypatch, tmp_path, capsys):
 
     # Verify both steps reported they were skipped
     output = capsys.readouterr().out
-    assert output.count("already completed (skipping)") == 2
+    assert output.count("Step already completed") == 2

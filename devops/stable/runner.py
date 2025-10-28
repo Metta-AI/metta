@@ -49,9 +49,14 @@ class TaskRunner:
         self.show_individual_results = show_individual_results
 
         # Create monitor for live status display (optional, for tests)
-        # Only show training artifacts (WandB, checkpoints) for jobs with "train" in the name
+        # Only show training artifacts (WandB, checkpoints) for training jobs
+        # Training jobs are: arena_single_gpu_100m, arena_multi_gpu_2b, etc.
+        def is_training_job(name: str) -> bool:
+            name_lower = name.lower()
+            return "arena" in name_lower and ("gpu" in name_lower or any(c.isdigit() for c in name))
+
         self.monitor = (
-            JobMonitor(job_manager, group=state.version, show_training_artifacts=lambda name: "train" in name.lower())
+            JobMonitor(job_manager, group=state.version, show_training_artifacts=is_training_job)
             if enable_monitor
             else None
         )
@@ -437,13 +442,20 @@ class TaskRunner:
             # Exit codes: 0=success, >0=error, -1=abnormal termination, 130=cancelled
             # Auto-retry abnormal terminations (stale local jobs from Ctrl+C)
             # Otherwise respect retry_failed flag
+            should_retry = False
             if existing_state.exit_code == -1:
                 print(yellow(f"🔄 {task.name} - retrying after abnormal termination"))
+                should_retry = True
             elif not self.retry_failed or (existing_state.exit_code == 0 and self._passed(job_name, task)):
                 print(f"⏭️  {task.name} - already completed (use --retry to retry)")
                 return False
             else:
                 print(yellow(f"🔄 {task.name} - retrying previous run"))
+                should_retry = True
+
+            # Delete old job state so we can submit a fresh one
+            if should_retry:
+                self.job_manager.delete_job(job_name)
 
         # Check if job is already running
         if existing_state and existing_state.status in ("pending", "running"):

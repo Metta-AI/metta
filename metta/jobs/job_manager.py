@@ -497,3 +497,28 @@ class JobManager:
 
             session.commit()
         return count
+
+    def delete_job(self, name: str) -> bool:
+        """Delete a job from the database.
+
+        Useful for retrying failed jobs - deletes the old state so a new job can be submitted.
+        Can delete pending jobs (not started yet) or completed jobs.
+
+        Args:
+            name: Name of job to delete
+
+        Returns:
+            True if job was deleted, False if job didn't exist
+        """
+        with Session(self._engine) as session:
+            job_state = session.get(JobState, name)
+            if not job_state:
+                return False
+
+            # Don't allow deleting running jobs - they need to be cancelled first
+            if job_state.status == "running":
+                raise ValueError(f"Cannot delete job '{name}' with status 'running'. Cancel it first.")
+
+            session.delete(job_state)
+            session.commit()
+            return True
