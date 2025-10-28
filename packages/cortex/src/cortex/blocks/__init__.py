@@ -1,8 +1,8 @@
-"""Block components for composing memory cells with projections and adapters."""
+"""Block components for composable memory cells."""
 
-# Import blocks to register them
 from cortex.blocks.adapter import AdapterBlock
 from cortex.blocks.base import BaseBlock
+from cortex.blocks.column import ColumnBlock
 from cortex.blocks.passthrough import PassThroughBlock
 from cortex.blocks.postup import PostUpBlock
 from cortex.blocks.preup import PreUpBlock
@@ -14,6 +14,7 @@ __all__ = [
     "PassThroughBlock",
     "PreUpBlock",
     "PostUpBlock",
+    "ColumnBlock",
     "register_block",
     "build_block",
     "get_block_class",

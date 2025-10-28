@@ -265,3 +265,58 @@ __all__ = [
     "AdapterBlockConfig",
     "CortexStackConfig",
 ]
+
+
+class RouterConfig(BaseModel):
+    """Router settings for Column experts."""
+
+    d_key: int | None = Field(default=None, ge=1)
+    temperature: float = Field(default=1.0, gt=0.0)
+    top_k: int | None = Field(default=None, ge=1)
+    use_sqrt_scale: bool = Field(default=True)
+    init_scale_wq: float = Field(default=0.0)  # 0 → near-uniform at init
+    init_scale_wk: float = Field(default=0.0)
+
+    class Config:
+        extra = "allow"
+
+
+class ColumnBlockConfig(BlockConfig):
+    """Column of experts with a shared router."""
+
+    block_type: str = "column"
+    experts: list[SerializeAsAny[BlockConfig]]
+    router: RouterConfig = Field(default_factory=RouterConfig)
+
+    class Config:
+        extra = "allow"
+
+    def get_cell_hidden_size(self, d_hidden: int) -> int:  # type: ignore[override]
+        return d_hidden
+
+    @field_validator("experts", mode="before")
+    @classmethod
+    def _coerce_experts(cls, value):
+        if not isinstance(value, list):
+            return value
+        out: list[BlockConfig] = []
+        for item in value:
+            if isinstance(item, BlockConfig):
+                out.append(item)
+                continue
+            if isinstance(item, Mapping):
+                tag = item.get("block_type")
+                if isinstance(tag, str) and tag:
+                    from cortex.blocks.registry import get_block_config_class
+
+                    cfg_cls = get_block_config_class(tag)
+                    out.append(cfg_cls.model_validate(item))
+                    continue
+            out.append(item)
+        return out
+
+
+__all__ += [
+    "RouterConfig",
+    "ColumnBlockConfig",
+]

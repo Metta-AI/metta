@@ -3,6 +3,7 @@
 from cortex.blocks import (
     AdapterBlock,
     BaseBlock,
+    ColumnBlock,
     PassThroughBlock,
     PostUpBlock,
     PreUpBlock,
@@ -26,11 +27,13 @@ from cortex.config import (
     BlockConfig,
     CausalConv1dConfig,
     CellConfig,
+    ColumnBlockConfig,
     CortexStackConfig,
     LSTMCellConfig,
     PassThroughBlockConfig,
     PostUpBlockConfig,
     PreUpBlockConfig,
+    RouterConfig,
     mLSTMCellConfig,
     sLSTMCellConfig,
 )
@@ -43,9 +46,11 @@ __all__ = [
     # Configuration
     "BlockConfig",
     "AdapterBlockConfig",
+    "ColumnBlockConfig",
     "PassThroughBlockConfig",
     "PreUpBlockConfig",
     "PostUpBlockConfig",
+    "RouterConfig",
     "CortexStackConfig",
     "CellConfig",
     "AxonConfig",
@@ -68,6 +73,7 @@ __all__ = [
     # Blocks
     "BaseBlock",
     "AdapterBlock",
+    "ColumnBlock",
     "PassThroughBlock",
     "PreUpBlock",
     "PostUpBlock",
