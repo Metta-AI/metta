@@ -7,8 +7,11 @@ import
 const TS = 1.0 / 64.0 # Tile scale.
 const TILE_SIZE = 64
 
-var terrainMap*: TileMap
-var px*: Pixelator
+var
+  terrainMap*: TileMap
+  visibilityMapStep*: int = -1
+  visibilityMap*: TileMap
+  px*: Pixelator
 
 proc weightedRandomInt*(weights: seq[int]): int =
   ## Return a random integer between 0 and 7, with a weighted distribution.
@@ -20,7 +23,23 @@ proc weightedRandomInt*(weights: seq[int]): int =
       return i
   doAssert false, "should not happen"
 
-proc generateTileMap(): TileMap =
+const patternToTile = @[
+  18, 17, 4, 4, 12, 22, 4, 4, 30, 13, 41, 41, 30, 13, 41, 41, 19, 23, 5, 5, 37,
+  9, 5, 5, 30, 13, 41, 41, 30, 13, 41, 41, 24, 43, 39, 39, 44, 45, 39, 39, 48,
+  32, 46, 46, 48, 32, 46, 46, 24, 43, 39, 39, 44, 45, 39, 39, 48, 32, 46, 46,
+  48, 32, 46, 46, 36, 10, 3, 3, 16, 40, 3, 3, 20, 27, 6, 6, 20, 27, 6, 6, 25,
+  15, 2, 2, 26, 38, 2, 2, 20, 27, 6, 6, 20, 27, 6, 6, 24, 43, 39, 39, 44, 45,
+  39, 39, 48, 32, 46, 46, 48, 32, 46, 46, 24, 43, 39, 39, 44, 45, 39, 39, 48,
+  32, 46, 46, 48, 32, 46, 46, 28, 28, 8, 8, 21, 21, 8, 8, 33, 33, 7, 7, 33, 33,
+  7, 7, 35, 35, 31, 31, 14, 14, 31, 31, 33, 33, 7, 7, 33, 33, 7, 7, 47, 47, 1,
+  1, 42, 42, 1, 1, 34, 34, 0, 0, 34, 34, 0, 0, 47, 47, 1, 1, 42, 42, 1, 1,
+  34, 34, 0, 0, 34, 34, 0, 0, 28, 28, 8, 8, 21, 21, 8, 8, 33, 33, 7, 7, 33,
+  33, 7, 7, 35, 35, 31, 31, 14, 14, 31, 31, 33, 33, 7, 7, 33, 33, 7, 7, 47, 47,
+  1, 1, 42, 42, 1, 1, 34, 34, 0, 0, 34, 34, 0, 0, 47, 47, 1, 1, 42, 42, 1,
+  1, 34, 34, 0, 0, 34, 34, 0, 0
+]
+
+proc generateTerrainMap(): TileMap =
   ## Generate a 1024x1024 texture where each pixel is a byte index into the 16x16 tile map.
   let
     width = ceil(replay.mapSize[0].float32 / 32.0f).int * 32
@@ -49,21 +68,6 @@ proc generateTileMap(): TileMap =
       asteroidMap[pos.y * width + pos.x] = false
 
   # Generate the tile edges.
-  let patternToTile = @[
-    18, 17, 4, 4, 12, 22, 4, 4, 30, 13, 41, 41, 30, 13, 41, 41, 19, 23, 5, 5, 37,
-    9, 5, 5, 30, 13, 41, 41, 30, 13, 41, 41, 24, 43, 39, 39, 44, 45, 39, 39, 48,
-    32, 46, 46, 48, 32, 46, 46, 24, 43, 39, 39, 44, 45, 39, 39, 48, 32, 46, 46,
-    48, 32, 46, 46, 36, 10, 3, 3, 16, 40, 3, 3, 20, 27, 6, 6, 20, 27, 6, 6, 25,
-    15, 2, 2, 26, 38, 2, 2, 20, 27, 6, 6, 20, 27, 6, 6, 24, 43, 39, 39, 44, 45,
-    39, 39, 48, 32, 46, 46, 48, 32, 46, 46, 24, 43, 39, 39, 44, 45, 39, 39, 48,
-    32, 46, 46, 48, 32, 46, 46, 28, 28, 8, 8, 21, 21, 8, 8, 33, 33, 7, 7, 33, 33,
-    7, 7, 35, 35, 31, 31, 14, 14, 31, 31, 33, 33, 7, 7, 33, 33, 7, 7, 47, 47, 1,
-    1, 42, 42, 1, 1, 34, 34, 0, 0, 34, 34, 0, 0, 47, 47, 1, 1, 42, 42, 1, 1,
-    34, 34, 0, 0, 34, 34, 0, 0, 28, 28, 8, 8, 21, 21, 8, 8, 33, 33, 7, 7, 33,
-    33, 7, 7, 35, 35, 31, 31, 14, 14, 31, 31, 33, 33, 7, 7, 33, 33, 7, 7, 47, 47,
-    1, 1, 42, 42, 1, 1, 34, 34, 0, 0, 34, 34, 0, 0, 47, 47, 1, 1, 42, 42, 1,
-    1, 34, 34, 0, 0, 34, 34, 0, 0
-  ]
   for i in 0 ..< terrainMap.indexData.len:
     let x = i mod width
     let y = i div width
@@ -96,12 +100,101 @@ proc generateTileMap(): TileMap =
   terrainMap.setupGPU()
   return terrainMap
 
+proc rebuildVisibilityMap*(visibilityMap: TileMap) =
+  ## Rebuild the visibility map.
+  let
+    width = visibilityMap.width
+    height = visibilityMap.height
+
+  var fogOfWarMap: seq[bool] = newSeq[bool](width * height)
+  for y in 0 ..< replay.mapSize[1]:
+    for x in 0 ..< replay.mapSize[0]:
+      fogOfWarMap[y * width + x] = true
+
+  # Walk the agents and clear the visibility map.
+  for obj in replay.objects:
+    let center = ivec2(int32(obj.visionSize div 2), int32(obj.visionSize div 2))
+    if obj.typeName == "agent":
+      let pos = obj.location.at
+      for i in 0 ..< obj.visionSize:
+        for j in 0 ..< obj.visionSize:
+          let gridPos = pos.xy + ivec2(int32(i), int32(j)) - center
+          if gridPos.x >= 0 and gridPos.x < width and
+            gridPos.y >= 0 and gridPos.y < height:
+            fogOfWarMap[gridPos.y * width + gridPos.x] = false
+
+  # Generate the tile edges.
+  for i in 0 ..< visibilityMap.indexData.len:
+    let x = i mod width
+    let y = i div width
+
+    proc get(map: seq[bool], x: int, y: int): int =
+      if x < 0 or y < 0 or x >= width or y >= height:
+        return 0
+      if map[y * width + x]:
+        return 1
+      return 0
+
+    var tile: uint8 = 0
+    if fogOfWarMap[y * width + x]:
+      tile = 49
+    else:
+      let
+        pattern = (
+          1 * fogOfWarMap.get(x-1, y-1) + # NW
+          2 * fogOfWarMap.get(x, y-1) + # N
+          4 * fogOfWarMap.get(x+1, y-1) + # NE
+          8 * fogOfWarMap.get(x+1, y) + # E
+          16 * fogOfWarMap.get(x+1, y+1) + # SE
+          32 * fogOfWarMap.get(x, y+1) + # S
+          64 * fogOfWarMap.get(x-1, y+1) + # SW
+          128 * fogOfWarMap.get(x-1, y) # W
+        )
+      tile = patternToTile[pattern].uint8
+    visibilityMap.indexData[i] = tile
+
+proc generateVisibilityMap(): TileMap =
+  ## Generate a 1024x1024 texture where each pixel is a byte index into the 16x16 tile map.
+  let
+    width = ceil(replay.mapSize[0].float32 / 32.0f).int * 32
+    height = ceil(replay.mapSize[1].float32 / 32.0f).int * 32
+
+  echo "Real map size: ", replay.mapSize[0], "x", replay.mapSize[1]
+  echo "Tile map size: ", width, "x", height, " (multiples of 32)"
+
+  var visibilityMap = newTileMap(
+    width = width,
+    height = height,
+    tileSize = 64,
+    atlasPath = dataDir & "/fog7x8.png"
+  )
+  visibilityMap.rebuildVisibilityMap()
+  visibilityMap.setupGPU()
+  return visibilityMap
+
+proc updateVisibilityMap*(visibilityMap: TileMap) =
+  ## Update the visibility map.
+  visibilityMap.rebuildVisibilityMap()
+  visibilityMap.updateGPU()
+
 proc buildAtlas*() =
   ## Build the atlas.
   for path in walkDirRec(dataDir):
     if path.endsWith(".png") and "fidget" notin path:
       let name = path.replace(dataDir & "/", "").replace(".png", "")
       bxy.addImage(name, readImage(path))
+
+proc getProjectionView*(): Mat4 =
+  ## Get the projection and view matrix.
+  let m = bxy.getTransform()
+  let view = mat4(
+    m[0, 0], m[0, 1], m[0, 2], 0,
+    m[1, 0], m[1, 1], m[1, 2], 0,
+    0, 0, 0, 1,
+    m[2, 0], m[2, 1], m[2, 2], 1
+  )
+  let projection = ortho(0.0f, window.size.x.float32, window.size.y.float32, 0.0f, -1.0f, 1.0f)
+  projection * view
 
 proc useSelections*(panel: Panel) =
   ## Reads the mouse position and selects the thing under it.
@@ -227,37 +320,28 @@ proc drawObjects*() =
           pos * TILE_SIZE
         )
 
-proc drawVisualRanges*(alpha = 0.2) =
+proc drawVisualRanges*(alpha = 0.5) =
   ## Draw the visual ranges of the selected agent.
-  var visibility = newSeq2D[bool](replay.mapSize[0], replay.mapSize[1])
-  let agentTypeName = "agent"
-  for obj in replay.objects:
-    if obj.typeName == agentTypeName:
-      if selection != nil and
-        selection.typeName == agentTypeName and
-        selection.agentId != obj.agentId:
-        continue
-      let agent = obj
-      for i in 0 ..< agent.visionSize:
-        for j in 0 ..< agent.visionSize:
-          let
-            center = ivec2(
-              (agent.visionSize div 2).int32,
-              (agent.visionSize div 2).int32
-            )
-            gridPos = agent.location.at.xy - center + ivec2(i.int32, j.int32)
 
-          if gridPos.x >= 0 and gridPos.x < replay.mapSize[0] and
-            gridPos.y >= 0 and gridPos.y < replay.mapSize[1]:
-            visibility[gridPos.x][gridPos.y] = true
+  bxy.enterRawOpenGLMode()
 
-  for x in 0 ..< replay.mapSize[0]:
-    for y in 0 ..< replay.mapSize[1]:
-      if not visibility[x][y]:
-        bxy.drawRect(
-          rect(x.float32 - 0.5, y.float32 - 0.5, 1, 1),
-          color(0, 0, 0, alpha)
-        )
+  if visibilityMap == nil:
+    visibilityMapStep = step
+    visibilityMap = generateVisibilityMap()
+
+  if visibilityMapStep != step:
+    visibilityMapStep = step
+    visibilityMap.updateVisibilityMap()
+
+  visibilityMap.draw(
+    getProjectionView(),
+    zoom = 2.0f,
+    zoomThreshold = 1.5f,
+    tint = color(0, 0, 0, alpha)
+  )
+
+  bxy.exitRawOpenGLMode()
+
 
 proc drawFogOfWar*() =
   ## Draw the fog of war.
@@ -590,31 +674,15 @@ proc drawThoughtBubbles*() =
 proc drawTerrain*() =
   ## Draw the terrain, space and asteroid tiles using the terrainMap tilemap.
   bxy.enterRawOpenGLMode()
+
   if terrainMap == nil:
-    terrainMap = generateTileMap()
+    terrainMap = generateTerrainMap()
     px = newPixelator(
       dataDir & "/atlas.png",
       dataDir & "/atlas.json"
     )
 
-  let m = bxy.getTransform()
-  let boxyView = mat4(
-    m[0, 0], m[0, 1], m[0, 2], 0,
-    m[1, 0], m[1, 1], m[1, 2], 0,
-    0, 0, 0, 1,
-    m[2, 0], m[2, 1], m[2, 2], 1
-  )
-  let projection = ortho(0.0f, window.size.x.float32, window.size.y.float32, 0.0f, -1.0f, 1.0f)
-  let mvp = projection *
-    boxyView *
-    translate(vec3(-0.5, -0.5, 0)) *
-    scale(vec3(
-      terrainMap.width.float32,
-      terrainMap.height.float32,
-      1.0f
-    ))
-
-  terrainMap.draw(mvp, 2.0f, 1.5f)
+  terrainMap.draw(getProjectionView(), 2.0f, 1.5f)
 
   bxy.exitRawOpenGLMode()
 
@@ -665,22 +733,7 @@ proc drawWorldMain*() =
   drawObjects()
 
   bxy.enterRawOpenGLMode()
-  let m = bxy.getTransform()
-  let boxyView = mat4(
-    m[0, 0], m[0, 1], m[0, 2], 0,
-    m[1, 0], m[1, 1], m[1, 2], 0,
-    0, 0, 0, 1,
-    m[2, 0], m[2, 1], m[2, 2], 1
-  )
-  let projection = ortho(0.0f, window.size.x.float32, window.size.y.float32, 0.0f, -1.0f, 1.0f)
-  let mvp2 = projection *
-    boxyView *
-    scale(vec3(
-      TS,
-      TS,
-      1.0f
-    ))
-  px.flush(mvp2)
+  px.flush(getProjectionView() * scale(vec3(TS, TS, 1.0f)))
   bxy.exitRawOpenGLMode()
 
   drawActions()
