@@ -83,7 +83,6 @@ class LocalDispatcher:
         """Get process by PID."""
         return self._processes.get(pid)
 
-
     def dispatch(self, job: JobDefinition) -> str:
         """Dispatch job locally as subprocess."""
         # Reap any finished processes first to prevent zombie accumulation

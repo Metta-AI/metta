@@ -10,6 +10,9 @@ if [ -n "${VIRTUAL_ENV:-}" ]; then
 fi
 . .venv/bin/activate
 
+echo "Setting up Python environment..."
+uv sync
+
 echo "[SIMPLE] Configuring environment..."
 bash ./devops/skypilot/config/lifecycle/configure_environment.sh
 
