@@ -72,5 +72,7 @@ def test_fetch_metrics_with_mocked_wandb(monkeypatch):
     assert "overview/sps" in metrics
     assert "env_agent/heart.get" in metrics
     # Should average last 50% (last 2 values)
-    assert metrics["overview/sps"] == pytest.approx(50500.0)  # avg(50000, 51000)
-    assert metrics["env_agent/heart.get"] == pytest.approx(1.4)  # avg(1.5, 1.3)
+    assert metrics["overview/sps"]["value"] == pytest.approx(50500.0)  # avg(50000, 51000)
+    assert metrics["overview/sps"]["count"] == 2
+    assert metrics["env_agent/heart.get"]["value"] == pytest.approx(1.4)  # avg(1.5, 1.3)
+    assert metrics["env_agent/heart.get"]["count"] == 2
