@@ -11,12 +11,7 @@ from sqlmodel import Session, SQLModel, create_engine, select
 
 from devops.skypilot.utils.job_helpers import check_job_statuses
 from metta.jobs.job_config import JobConfig
-from metta.jobs.job_metrics import (
-    extract_checkpoint_path,
-    extract_final_metrics,
-    extract_skypilot_job_id,
-    extract_wandb_info,
-)
+from metta.jobs.job_metrics import extract_skypilot_job_id
 from metta.jobs.job_runner import LocalJob, RemoteJob
 from metta.jobs.job_state import JobState, JobStatus
 
@@ -122,41 +117,6 @@ class JobManager:
             )
             thread.start()
 
-    def _extract_artifacts_from_logs(self, job_state: JobState) -> None:
-        """Extract WandB info and checkpoint URI from job logs.
-
-        Updates job_state in-place with extracted artifacts.
-        Should be called whenever logs are updated (during monitoring or completion).
-
-        Args:
-            job_state: Job state to update with extracted artifacts
-        """
-        if not job_state.logs_path:
-            return
-
-        try:
-            logs = Path(job_state.logs_path).read_text(errors="ignore")
-        except Exception:
-            return
-
-        if not logs:
-            return
-
-        # Extract WandB info (only once)
-        if not job_state.wandb_url:
-            wandb_info = extract_wandb_info(logs)
-            if wandb_info:
-                job_state.wandb_run_id = wandb_info.run_id
-                job_state.wandb_url = wandb_info.url
-
-        # Always update checkpoint URI to get most recent
-        checkpoint = extract_checkpoint_path(logs)
-        if checkpoint:
-            job_state.checkpoint_uri = checkpoint
-        elif job_state.wandb_run_id and not job_state.checkpoint_uri:
-            # Set default wandb URI only if no explicit checkpoint found
-            job_state.checkpoint_uri = f"wandb://run/{job_state.wandb_run_id}"
-
     def _start_remote_monitor(self, job_name: str, job_id: int) -> None:
         """Start background monitoring thread for a remote job.
 
@@ -189,12 +149,11 @@ class JobManager:
                                 except Exception:
                                     pass  # Don't fail monitoring if log fetch fails
 
-                        # Update database with current status and extract artifacts from logs
+                        # Update database with current status
                         with Session(self._engine) as session:
                             job_state = session.get(JobState, job_name)
                             if job_state:
                                 job_state.skypilot_status = status
-                                self._extract_artifacts_from_logs(job_state)
                                 session.add(job_state)
                                 session.commit()
 
@@ -294,6 +253,8 @@ class JobManager:
 
     def submit(self, config: JobConfig) -> None:
         """Submit job to queue, starting immediately if worker slot available."""
+        from metta.common.util.constants import METTA_WANDB_ENTITY, METTA_WANDB_PROJECT
+
         with Session(self._engine) as session:
             existing = session.get(JobState, config.name)
             if existing:
@@ -302,6 +263,12 @@ class JobManager:
                     f"Use get_job_state() to check status before submitting."
                 )
             job_state = JobState(name=config.name, config=config, status="pending")
+
+            # Always compute training artifacts - display layer decides if/when to show them
+            job_state.wandb_run_id = config.name
+            job_state.wandb_url = f"https://wandb.ai/{METTA_WANDB_ENTITY}/{METTA_WANDB_PROJECT}/runs/{config.name}"
+            job_state.checkpoint_uri = f"s3://softmax-public/policies/{config.name}"
+
             session.add(job_state)
             session.commit()
 
@@ -423,28 +390,15 @@ class JobManager:
                         job_state.logs_path = job_result.logs_path
                         job_state.job_id = str(job_result.job_id) if job_result.job_id else None
 
-                        # Extract artifacts from completed job logs for downstream tasks
-                        # Priority order: wandb info -> checkpoint URI -> job ID -> metrics
-                        if job_state.logs_path:
-                            # Extract WandB and checkpoint info
-                            self._extract_artifacts_from_logs(job_state)
-
-                            # Extract additional completion-specific info
+                        # Extract job ID from logs if not already set
+                        if job_state.logs_path and not job_state.job_id:
                             try:
                                 logs = Path(job_state.logs_path).read_text(errors="ignore")
+                                skypilot_id = extract_skypilot_job_id(logs)
+                                if skypilot_id:
+                                    job_state.job_id = skypilot_id
                             except Exception:
-                                logs = ""
-
-                            if logs:
-                                if not job_state.job_id:
-                                    skypilot_id = extract_skypilot_job_id(logs)
-                                    if skypilot_id:
-                                        job_state.job_id = skypilot_id
-
-                                parsed_metrics = extract_final_metrics(logs)
-                                if parsed_metrics:
-                                    current_metrics = job_state.metrics
-                                    job_state.metrics = {**current_metrics, **parsed_metrics}
+                                pass
 
                         session.add(job_state)
                         session.commit()
