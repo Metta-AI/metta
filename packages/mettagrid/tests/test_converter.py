@@ -19,6 +19,7 @@ from mettagrid.config.mettagrid_config import (
     ChangeGlyphActionConfig,
     ConverterConfig,
     GameConfig,
+    ObsConfig,
     WallConfig,
 )
 from mettagrid.mettagrid_c import MettaGrid, PackedCoordinate, dtype_actions
@@ -32,9 +33,7 @@ class TestConverterObservations:
         game_config = GameConfig(
             max_steps=50,
             num_agents=1,
-            obs_width=5,
-            obs_height=5,
-            num_observation_tokens=100,
+            obs=ObsConfig(width=5, height=5, num_tokens=100),
             resource_names=["ore_red", "ore_blue", "battery_red", "heart"],
             recipe_details_obs=recipe_details_obs,
             actions=ActionsConfig(
@@ -185,9 +184,7 @@ def _build_converter_env(
     game_config = GameConfig(
         max_steps=200,
         num_agents=1,
-        obs_width=3,
-        obs_height=3,
-        num_observation_tokens=32,
+        obs=ObsConfig(width=3, height=3, num_tokens=32),
         resource_names=["battery"],
         actions=ActionsConfig(
             noop=ActionConfig(enabled=True),

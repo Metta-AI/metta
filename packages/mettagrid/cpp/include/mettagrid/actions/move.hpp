@@ -19,8 +19,22 @@ public:
   explicit Move(const ActionConfig& cfg, const GameConfig* game_config)
       : ActionHandler(cfg, "move"), _game_config(game_config) {}
 
-  unsigned char max_arg() const override {
-    return _game_config->allow_diagonals ? 7 : 3;  // 8 directions if diagonals, 4 otherwise
+  std::vector<Action> create_actions() override {
+    std::vector<Action> actions;
+    // Always create the 4 cardinal directions
+    actions.emplace_back(this, "move_north", static_cast<ActionArg>(Orientation::North));
+    actions.emplace_back(this, "move_south", static_cast<ActionArg>(Orientation::South));
+    actions.emplace_back(this, "move_west", static_cast<ActionArg>(Orientation::West));
+    actions.emplace_back(this, "move_east", static_cast<ActionArg>(Orientation::East));
+
+    // Add diagonal directions if enabled
+    if (_game_config->allow_diagonals) {
+      actions.emplace_back(this, "move_northwest", static_cast<ActionArg>(Orientation::Northwest));
+      actions.emplace_back(this, "move_northeast", static_cast<ActionArg>(Orientation::Northeast));
+      actions.emplace_back(this, "move_southwest", static_cast<ActionArg>(Orientation::Southwest));
+      actions.emplace_back(this, "move_southeast", static_cast<ActionArg>(Orientation::Southeast));
+    }
+    return actions;
   }
 
 protected:
@@ -49,9 +63,6 @@ protected:
     // for performance.
     target_location.r = static_cast<GridCoord>(static_cast<int>(target_location.r) + dr);
     target_location.c = static_cast<GridCoord>(static_cast<int>(target_location.c) + dc);
-
-    // Update orientation to face the movement direction (even if movement fails)
-    actor.orientation = move_direction;
 
     if (!_grid->is_valid_location(target_location)) {
       return false;

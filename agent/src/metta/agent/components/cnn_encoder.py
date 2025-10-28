@@ -8,6 +8,7 @@ from tensordict import TensorDict
 
 import pufferlib.pytorch
 from metta.agent.components.component_config import ComponentConfig
+from metta.rl.training import PolicyEnvInterface
 
 
 class CNNEncoderConfig(ComponentConfig):
@@ -21,19 +22,19 @@ class CNNEncoderConfig(ComponentConfig):
     fc1_cfg: dict = Field(default_factory=lambda: {"out_features": 128})
     encoded_obs_cfg: dict = Field(default_factory=lambda: {"out_features": 128})
 
-    def make_component(self, env=None):
-        return CNNEncoder(config=self, env=env)
+    def make_component(self, policy_env_interface: PolicyEnvInterface):
+        return CNNEncoder(config=self, policy_env_interface=policy_env_interface)
 
 
 class CNNEncoder(nn.Module):
-    def __init__(self, config: CNNEncoderConfig, env=None):
+    def __init__(self, config: CNNEncoderConfig, policy_env_interface: PolicyEnvInterface):
         super().__init__()
         self.config = config
 
-        num_layers = max(env.feature_normalizations.keys()) + 1
+        num_inputs = policy_env_interface.observation_space.shape[0]
 
         self.cnn1 = pufferlib.pytorch.layer_init(
-            nn.Conv2d(num_layers, **self.config.cnn1_cfg),
+            nn.Conv2d(num_inputs, **self.config.cnn1_cfg),
             std=1.0,  # Match YAML orthogonal gain=1
         )
 
@@ -47,7 +48,7 @@ class CNNEncoder(nn.Module):
         # Match YAML: Linear layers use orthogonal with gain=1. Avoid LazyLinear so modules
         # materialize before DistributedDataParallel wrapping.
         flattened_size = self._compute_flattened_size(
-            (env.obs_height, env.obs_width),
+            (policy_env_interface.obs_height, policy_env_interface.obs_width),
             self.config.cnn1_cfg,
             self.config.cnn2_cfg,
         )

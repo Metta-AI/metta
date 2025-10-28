@@ -26,10 +26,10 @@ type
   Panel* = ref object
     panelType*: PanelType
     rect*: IRect
-    name*: string            ## The name of the panel.
-    header*: Node            ## The header of the panel.
-    node*: Node              ## The node of the panel.
-    parentArea*: Area        ## The parent area of the panel.
+    name*: string     ## The name of the panel.
+    header*: Node     ## The header of the panel.
+    node*: Node       ## The node of the panel.
+    parentArea*: Area ## The parent area of the panel.
 
     pos*: Vec2
     vel*: Vec2
@@ -45,12 +45,12 @@ type
     Vertical
 
   Area* = ref object
-    node*: Node              ## The node of the area.
-    layout*: AreaLayout      ## The layout of the area.
-    areas*: seq[Area]        ## The subareas in the area (0 or 2)
-    panels*: seq[Panel]      ## The panels in the area.
-    split*: float32          ## The split percentage of the area.
-    selectedPanelNum*: int   ## The index of the selected panel in the area.
+    node*: Node            ## The node of the area.
+    layout*: AreaLayout    ## The layout of the area.
+    areas*: seq[Area]      ## The subareas in the area (0 or 2)
+    panels*: seq[Panel]    ## The panels in the area.
+    split*: float32        ## The split percentage of the area.
+    selectedPanelNum*: int ## The index of the selected panel in the area.
 
   Settings* = object
     showFogOfWar* = false
@@ -100,7 +100,7 @@ var
 type
   ActionRequest* = object
     agentId*: int
-    actionId*: int
+    actionName*: cstring
 
   ObjectiveKind* = enum
     Move # Move to a specific position.

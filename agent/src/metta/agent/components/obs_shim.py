@@ -11,6 +11,8 @@ from metta.agent.components.component_config import ComponentConfig
 # The two nn.Module-based classes below are composed into ObsShaperTokens. You can simply call that class in your policy
 # for token-based observation shaping. Or you can manipulate the two classes below directly in your policy.
 
+# xcxc
+
 
 class ObsTokenPadStrip(nn.Module):
     """
@@ -26,7 +28,7 @@ class ObsTokenPadStrip(nn.Module):
 
     def __init__(
         self,
-        env,
+        policy_env_info,
         in_key: str = "env_obs",
         out_key: str = "obs_token_pad_strip",
         max_tokens: int | None = None,
@@ -150,12 +152,14 @@ class ObsTokenPadStrip(nn.Module):
 class ObsAttrValNorm(nn.Module):
     """Normalizes attr values based on the attr index."""
 
-    def __init__(self, env, in_key: str = "obs_token_pad_strip", out_key: str = "obs_attr_val_norm") -> None:
+    def __init__(
+        self, policy_env_info, in_key: str = "obs_token_pad_strip", out_key: str = "obs_attr_val_norm"
+    ) -> None:
         super().__init__()
         self.in_key = in_key
         self.out_key = out_key
         self._max_embeds = 256
-        self._set_feature_normalizations(env)
+        self._set_feature_normalizations(policy_env_info)
 
     def initialize_to_environment(
         self,
@@ -164,8 +168,13 @@ class ObsAttrValNorm(nn.Module):
     ) -> None:
         self._set_feature_normalizations(env, device)
 
-    def _set_feature_normalizations(self, env, device: Optional[torch.device] = None):
-        features = env.feature_normalizations
+    def _set_feature_normalizations(self, env_or_policy_env_info, device: Optional[torch.device] = None):
+        # Handle both env (with feature_normalizations) and policy_env_info (with obs_features)
+        if hasattr(env_or_policy_env_info, "feature_normalizations"):
+            features = env_or_policy_env_info.feature_normalizations
+        else:
+            # It's policy_env_info, compute from obs_features
+            features = {feat.id: feat.normalization for feat in env_or_policy_env_info.obs_features}
         self._feature_normalizations = features
         self._update_norm_factors(device)
         return None
@@ -209,12 +218,12 @@ class ObsShimTokensConfig(ComponentConfig):
 
 
 class ObsShimTokens(nn.Module):
-    def __init__(self, env, config: ObsShimTokensConfig) -> None:
+    def __init__(self, policy_env_info, config: ObsShimTokensConfig) -> None:
         super().__init__()
         self.in_key = config.in_key
         self.out_key = config.out_key
-        self.token_pad_striper = ObsTokenPadStrip(env, in_key=self.in_key, max_tokens=config.max_tokens)
-        self.attr_val_normer = ObsAttrValNorm(env, out_key=self.out_key)
+        self.token_pad_striper = ObsTokenPadStrip(policy_env_info, in_key=self.in_key, max_tokens=config.max_tokens)
+        self.attr_val_normer = ObsAttrValNorm(policy_env_info, out_key=self.out_key)
 
     def initialize_to_environment(
         self,
@@ -254,13 +263,25 @@ class ObsTokenToBoxShim(nn.Module):
     new information.
     """
 
-    def __init__(self, env, in_key="env_obs", out_key="box_obs"):
+    def __init__(self, policy_env_info, in_key="env_obs", out_key="box_obs"):
         super().__init__()
         self.in_key = in_key
         self.out_key = out_key
-        self.out_width = env.obs_width
-        self.out_height = env.obs_height
-        self.num_layers = max(env.feature_normalizations.keys()) + 1
+        self.out_width = policy_env_info.obs_width
+        self.out_height = policy_env_info.obs_height
+
+        # Determine num_layers from either obs_features or feature_normalizations
+        if hasattr(policy_env_info, "obs_features"):
+            self.num_layers = (
+                max(feat.id for feat in policy_env_info.obs_features) + 1 if policy_env_info.obs_features else 1
+            )
+        elif hasattr(policy_env_info, "feature_normalizations"):
+            # Legacy format - use feature_normalizations
+            self.num_layers = (
+                max(policy_env_info.feature_normalizations.keys()) + 1 if policy_env_info.feature_normalizations else 1
+            )
+        else:
+            self.num_layers = 1
 
     def forward(self, td: TensorDict):
         token_observations = td[self.in_key]
@@ -333,11 +354,13 @@ class ObservationNormalizer(nn.Module):
     magnitudes from dominating the learning process.
     """
 
-    def __init__(self, env, in_key="box_obs", out_key="obs_normalizer"):
+    def __init__(self, policy_env_info, in_key="box_obs", out_key="obs_normalizer"):
         super().__init__()
         self.in_key = in_key
         self.out_key = out_key
-        self._initialize_to_environment(env.feature_normalizations)
+        # Compute feature_normalizations from policy_env_info.obs_features
+        feature_normalizations = {feat.id: feat.normalization for feat in policy_env_info.obs_features}
+        self._initialize_to_environment(feature_normalizations)
 
     def forward(self, td: TensorDict):
         td[self.out_key] = td[self.in_key] / self.obs_norm
@@ -348,14 +371,24 @@ class ObservationNormalizer(nn.Module):
         env,
         device,
     ) -> None:
-        self._initialize_to_environment(env.feature_normalizations, device)
+        # Handle both env (with feature_normalizations) and policy_env_info (with obs_features)
+        if hasattr(env, "feature_normalizations"):
+            features = env.feature_normalizations
+        else:
+            # It's policy_env_info, compute from obs_features
+            features = {feat.id: feat.normalization for feat in env.obs_features}
+        self._initialize_to_environment(features, device)
 
     def _initialize_to_environment(self, features: dict[str, dict], device: Optional[torch.device] = None):
         self.feature_normalizations = features
-        obs_norm = torch.ones(max(self.feature_normalizations.keys()) + 1, dtype=torch.float32)
-        for i, val in self.feature_normalizations.items():
-            obs_norm[i] = val
-        obs_norm = obs_norm.view(1, len(self.feature_normalizations), 1, 1)
+        if not features:
+            # No features case - create a minimal tensor
+            obs_norm = torch.ones(1, 1, 1, 1, dtype=torch.float32)
+        else:
+            obs_norm = torch.ones(max(self.feature_normalizations.keys()) + 1, dtype=torch.float32)
+            for i, val in self.feature_normalizations.items():
+                obs_norm[i] = val
+            obs_norm = obs_norm.view(1, len(self.feature_normalizations), 1, 1)
 
         self.register_buffer("obs_norm", obs_norm)
         if device:
@@ -372,12 +405,12 @@ class ObsShimBoxConfig(ComponentConfig):
 
 
 class ObsShimBox(nn.Module):
-    def __init__(self, env, config: ObsShimBoxConfig) -> None:
+    def __init__(self, policy_env_info, config: ObsShimBoxConfig) -> None:
         super().__init__()
         self.in_key = config.in_key
         self.out_key = config.out_key
-        self.token_to_box_shim = ObsTokenToBoxShim(env, in_key=self.in_key)
-        self.observation_normalizer = ObservationNormalizer(env, out_key=self.out_key)
+        self.token_to_box_shim = ObsTokenToBoxShim(policy_env_info, in_key=self.in_key)
+        self.observation_normalizer = ObservationNormalizer(policy_env_info, out_key=self.out_key)
 
     def initialize_to_environment(
         self,
