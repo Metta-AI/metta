@@ -109,8 +109,18 @@ class JobManager:
 
     def _fetch_metrics(self, job_name: str, job_state: JobState) -> None:
         """Fetch and update metrics for a training job."""
-        if not job_state.config.metrics_to_track or not job_state.wandb_run_id:
+        if not job_state.config.metrics_to_track:
+            logger.debug(f"Skipping metrics fetch for {job_name}: no metrics_to_track configured")
             return
+
+        if not job_state.wandb_run_id:
+            logger.warning(f"Cannot fetch metrics for {job_name}: no wandb_run_id set")
+            return
+
+        logger.debug(
+            f"Fetching metrics for {job_name}: run={job_state.wandb_run_id}, "
+            f"metrics={job_state.config.metrics_to_track}"
+        )
 
         try:
             metrics = fetch_wandb_metrics(
@@ -126,7 +136,9 @@ class JobManager:
                         job_state.metrics = metrics
                         session.add(job_state)
                         session.commit()
-                        logger.debug(f"Fetched metrics for {job_name}: {list(metrics.keys())}")
+                        logger.info(f"Fetched metrics for {job_name}: {list(metrics.keys())}")
+            else:
+                logger.warning(f"No metrics returned for {job_name} (run may not have data yet)")
         except Exception as e:
             logger.warning(f"Failed to fetch metrics for {job_name}: {e}")
 
@@ -167,8 +179,14 @@ class JobManager:
                                     job_state.exit_code = job_result.exit_code
                                     job_state.logs_path = job_result.logs_path
 
+                                    logger.info(
+                                        f"Job completed: {job_name} (exit_code={job_result.exit_code}, "
+                                        f"logs={job_result.logs_path})"
+                                    )
+
                                     # Fetch final metrics
                                     if job_state.config.metrics_to_track:
+                                        logger.debug(f"Fetching final metrics for {job_name}")
                                         self._fetch_metrics(job_name, job_state)
 
                                     session.add(job_state)
@@ -197,7 +215,7 @@ class JobManager:
         thread = threading.Thread(target=monitor_loop, daemon=True, name=f"monitor-{job_name}")
         thread.start()
         self._monitor_threads[job_name] = thread
-        logger.debug(f"Started monitoring thread for local job {job_name}")
+        logger.info(f"Started monitoring thread for local job: {job_name}")
 
     def _start_remote_monitor(self, job_name: str, job_id: int) -> None:
         """Start background monitoring thread for a remote job.
@@ -279,6 +297,11 @@ class JobManager:
                                             job_state.logs_path = job_result.logs_path
                                             job_state.job_id = str(job_result.job_id) if job_result.job_id else None
 
+                                            logger.info(
+                                                f"Job completed: {job_name} (skypilot_status={status}, "
+                                                f"exit_code={job_result.exit_code}, job_id={job_id})"
+                                            )
+
                                             # Extract job ID from logs if not set
                                             if job_state.logs_path and not job_state.job_id:
                                                 try:
@@ -291,6 +314,7 @@ class JobManager:
 
                                             # Fetch final metrics
                                             if job_state.config.metrics_to_track:
+                                                logger.debug(f"Fetching final metrics for {job_name}")
                                                 self._fetch_metrics(job_name, job_state)
 
                                             session.add(job_state)
@@ -312,7 +336,7 @@ class JobManager:
         thread = threading.Thread(target=monitor_loop, daemon=True, name=f"monitor-{job_name}")
         thread.start()
         self._monitor_threads[job_name] = thread
-        logger.debug(f"Started monitoring thread for remote job {job_name} (Job ID: {job_id})")
+        logger.info(f"Started monitoring thread for remote job: {job_name} (job_id={job_id})")
 
     def submit(self, config: JobConfig) -> None:
         """Submit job to queue, starting immediately if worker slot available."""
@@ -333,6 +357,12 @@ class JobManager:
             session.add(job_state)
             session.commit()
 
+        job_type = "remote" if config.remote else "local"
+        logger.info(
+            f"Job submitted: {config.name} | type={job_type} | module={config.module} | "
+            f"is_training={config.is_training_job} | metrics={config.metrics_to_track}"
+        )
+
         self._try_start_job(config.name)
 
     def _try_start_job(self, name: str) -> bool:
@@ -343,6 +373,8 @@ class JobManager:
 
             is_remote = job_state.config.remote is not None
             if not self._has_available_slot(is_remote):
+                job_type = "remote" if is_remote else "local"
+                logger.debug(f"Job waiting for slot: {name} (type={job_type}, no slots available)")
                 return False
 
             job = self._spawn_job(job_state)
@@ -351,6 +383,9 @@ class JobManager:
             job_state.started_at = datetime.now().isoformat(timespec="seconds")
             session.add(job_state)
             session.commit()
+
+            job_type = "remote" if is_remote else "local"
+            logger.info(f"Job started: {name} (type={job_type})")
 
             # Start background monitoring thread
             if is_remote:
@@ -429,13 +464,15 @@ class JobManager:
                         session.add(job_state)
                         session.commit()
 
+                        logger.info(f"Remote job ID available: {name} (job_id={job.job_id})")
+
                         # Start monitoring thread if not already running
                         if name not in self._monitor_threads:
                             try:
                                 job_id_int = int(job.job_id)
                                 self._start_remote_monitor(name, job_id_int)
                             except ValueError:
-                                pass
+                                logger.warning(f"Invalid job ID for {name}: {job.job_id}")
 
         # Check for jobs that monitoring threads marked as completed
         with Session(self._engine) as session:
