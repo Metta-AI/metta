@@ -679,9 +679,9 @@ def cmd_validate(
         "--task",
         help="Filter validation tasks by name",
     ),
-    retry_failed: bool = typer.Option(
+    retry: bool = typer.Option(
         False,
-        "--retry-failed",
+        "--retry",
         help="Retry previously failed tasks (default: skip failed tasks)",
     ),
 ):
@@ -693,7 +693,7 @@ def cmd_validate(
     step_prepare_tag(version=_VERSION, state=state)
 
     # Step 2: Run validation
-    step_task_validation(version=_VERSION, task_filter=task, retry_failed=retry_failed)
+    step_task_validation(version=_VERSION, task=task, retry=retry)
 
     # Step 3: Show summary
     step_summary(version=_VERSION)
