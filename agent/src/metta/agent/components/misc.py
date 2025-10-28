@@ -24,7 +24,7 @@ class MLPConfig(ComponentConfig):
     nonlinearity: Optional[str] = "ReLU"  # e.g., "ReLU", "Tanh"; Name of a torch.nn module
     output_nonlinearity: Optional[str] = None  # e.g., "ReLU", "Tanh"; Name of a torch.nn module
     layer_init_std: float = 1.0
-    dropout_p: float = 0.25
+    dropout_p: float = 0.5
     is_dropout: bool = True
 
     def make_component(self, env=None):
