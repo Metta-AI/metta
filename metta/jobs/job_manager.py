@@ -158,6 +158,9 @@ class JobManager:
                     if not job_state or job_state.status != "running":
                         continue
 
+                    # Store SkyPilot status for monitoring
+                    job_state.skypilot_status = status
+
                     # Update based on SkyPilot status
                     if status in ("SUCCEEDED", "FAILED", "CANCELLED"):
                         job_state.status = "completed"
@@ -170,7 +173,9 @@ class JobManager:
                         job_state.completed_at = datetime.now().isoformat(timespec="seconds")
                         session.add(job_state)
                         logger.info(f"Remote job {job_name} updated: {status}")
-                    # If RUNNING or PENDING, leave as-is in DB
+                    else:
+                        # RUNNING or PENDING - just update the status field
+                        session.add(job_state)
 
                 session.commit()
 
@@ -252,13 +257,18 @@ class JobManager:
         """Check running jobs for completion, start pending jobs, return completed names."""
         completed = []
 
-        # Update job_id for remote jobs as they become available
+        # Update job_id and skypilot_status for remote jobs as they become available
         with Session(self._engine) as session:
             for name, job in list(self._active_jobs.items()):
                 if isinstance(job, RemoteJob):
                     job_state = session.get(JobState, name)
-                    if job_state and job.job_id and not job_state.job_id:
-                        job_state.job_id = job.job_id
+                    if job_state:
+                        # Update job_id if available
+                        if job.job_id and not job_state.job_id:
+                            job_state.job_id = job.job_id
+                        # Update SkyPilot status if available
+                        if hasattr(job, "_job_status") and job._job_status:
+                            job_state.skypilot_status = job._job_status
                         session.add(job_state)
             session.commit()
 
