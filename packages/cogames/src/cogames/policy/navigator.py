@@ -58,8 +58,9 @@ class Navigator:
         # Calculate Manhattan distance
         dist = abs(tr - sr) + abs(tc - sc)
 
-        # Adjacent - ready to use station
+        # Adjacent - ready to move into target (extractors/stations require moving INTO them)
         if dist == 1:
+            logger.info(f"[Navigator] Distance=1: {start}→{target}, returning is_adjacent=True")
             return NavigationResult(next_step=target, is_adjacent=True, method="adjacent")
 
         # If target is a wall (station/extractor), pathfind to adjacent cells instead
