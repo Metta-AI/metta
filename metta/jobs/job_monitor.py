@@ -279,6 +279,7 @@ class JobMonitor:
                     if request_id and skypilot_status == "PENDING":
                         print("│    🕐 Job queued on cluster, waiting to start...")
                     else:
+                        print(f"│    📝 {job_status['logs_path']}")
                         print("│    📜 Live output:")
                         has_logs = self._display_log_tail(job_status["logs_path"], log_tail_lines)
                         if not has_logs and request_id:
@@ -286,6 +287,7 @@ class JobMonitor:
                             print("│      │ 🕐 Starting...")
                 elif status_str == "completed" and job_status.get("success"):
                     # Show last few lines for succeeded jobs too
+                    print(f"│    📝 {job_status['logs_path']}")
                     print("│    📜 Output:")
                     self._display_log_tail(job_status["logs_path"], log_tail_lines)
 
