@@ -80,9 +80,9 @@ class Mission(Config):
     gear_capacity: int = Field(default=5)
     move_energy_cost: int = Field(default=2)
     heart_capacity: int = Field(default=1)
-    # Control glyph swapping in variants
+    # Control vibe swapping in variants
     enable_vibe_change: bool = Field(default=True)
-    glyph_count: int | None = Field(default=None)
+    vibe_count: int | None = Field(default=None)
 
     def configure(self):
         pass

@@ -135,7 +135,7 @@ class EnergizedVariant(MissionVariant):
 
 class NeutralFacedVariant(MissionVariant):
     name: str = "neutral_faced"
-    description: str = "Disable glyph swapping; keep neutral face."
+    description: str = "Disable vibe swapping; keep neutral face."
 
     def apply(self, mission: Mission) -> Mission:
         mission.enable_vibe_change = False
