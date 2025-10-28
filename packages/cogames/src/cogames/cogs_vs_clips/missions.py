@@ -4,10 +4,7 @@ from typing import Any, cast
 from pydantic import Field
 
 from cogames.cogs_vs_clips.mission import Mission, MissionVariant, Site
-from cogames.cogs_vs_clips.procedural import (
-    make_hub_only_map_builder,
-    make_machina_procedural_map_builder,
-)
+from cogames.cogs_vs_clips.procedural import make_hub_only_map_builder, MachinaArenaConfig
 from cogames.cogs_vs_clips.stations import (
     CarbonExtractorConfig,
     ChargerConfig,
@@ -25,6 +22,7 @@ from mettagrid.config.mettagrid_config import (
     MettaGridConfig,
 )
 from mettagrid.map_builder.map_builder import MapBuilderConfig
+from mettagrid.mapgen.mapgen import MapGen
 
 
 def get_map(site: str) -> MapBuilderConfig:
@@ -33,7 +31,7 @@ def get_map(site: str) -> MapBuilderConfig:
     return MapBuilderConfig.from_uri(str(map_path))
 
 
-PROCEDURAL_BASE_BUILDER = make_machina_procedural_map_builder(num_cogs=4)
+PROCEDURAL_BASE_BUILDER = MapGen.Config(width=100, height=100, instance=MachinaArenaConfig(spawn_count=4))
 
 
 class MinedOutVariant(MissionVariant):
@@ -285,11 +283,7 @@ TRAINING_FACILITY = Site(
 HELLO_WORLD = Site(
     name="hello_world",
     description="Welcome to space..",
-    map_builder=make_machina_procedural_map_builder(
-        num_cogs=4,
-        width=100,
-        height=100,
-    ),
+    map_builder=MapGen.Config(width=100, height=100, instance=MachinaArenaConfig(spawn_count=4)),
     min_cogs=1,
     max_cogs=20,
 )
@@ -298,11 +292,7 @@ MACHINA_1 = Site(
     name="machina_1",
     description="Your first mission. Collect resources and assemble HEARTs.",
     # Originally was get_map("machina_200_stations.map"), but that was hard to make missions from
-    map_builder=make_machina_procedural_map_builder(
-        num_cogs=4,
-        width=200,
-        height=200,
-    ),
+    map_builder=MapGen.Config(width=200, height=200, instance=MachinaArenaConfig(spawn_count=4)),
     min_cogs=1,
     max_cogs=20,
 )
@@ -634,14 +624,15 @@ class ProceduralMissionBase(Mission):
 
         filtered_overrides = {k: v for k, v in overrides.items() if k in allowed_keys}
 
-        procedural_builder = make_machina_procedural_map_builder(
-            num_cogs=num_cogs,
+        mission.map = MapGen.Config(
             width=width,
             height=height,
             seed=seed,
-            **filtered_overrides,
+            instance=MachinaArenaConfig(
+                spawn_count=num_cogs,
+                **filtered_overrides,
+            ),
         )
-        mission.map = procedural_builder
 
         return mission
 
