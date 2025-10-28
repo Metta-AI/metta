@@ -49,7 +49,12 @@ class TaskRunner:
         self.show_individual_results = show_individual_results
 
         # Create monitor for live status display (optional, for tests)
-        self.monitor = JobMonitor(job_manager, group=state.version) if enable_monitor else None
+        # Only show training artifacts (WandB, checkpoints) for jobs with "train" in the name
+        self.monitor = (
+            JobMonitor(job_manager, group=state.version, show_training_artifacts=lambda name: "train" in name.lower())
+            if enable_monitor
+            else None
+        )
         self._last_display_update = 0.0
         self._display_interval = 3.0  # Update display every 3 seconds
         self._monitor_line_count = 0  # Track how many lines monitor has printed
