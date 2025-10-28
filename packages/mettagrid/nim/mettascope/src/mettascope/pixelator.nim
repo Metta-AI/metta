@@ -35,24 +35,24 @@ var
   atlasSize: Uniform[Vec2]
   atlas: Uniform[Sampler2D]
 
-proc pixelatorVert*(aPos: UVec2, aUv: UVec4, vUv: var Vec2) =
+proc pixelatorVert*(vertexPos: UVec2, uv: UVec4, fragmentUv: var Vec2) =
   # Compute the corner of the quad based on the vertex ID.
   # 0:(0,0), 1:(1,0), 2:(0,1), 3:(1,1)
   let corner = uvec2(gl_VertexID mod 2, gl_VertexID div 2)
 
   # Compute the position of the vertex in the atlas.
-  let dx = float(aPos.x) + (float(corner.x) - 0.5) * float(aUv.z)
-  let dy = float(aPos.y) + (float(corner.y) - 0.5) * float(aUv.w)
+  let dx = float(vertexPos.x) + (float(corner.x) - 0.5) * float(uv.z)
+  let dy = float(vertexPos.y) + (float(corner.y) - 0.5) * float(uv.w)
   gl_Position = mvp * vec4(dx, dy, 0.0, 1.0)
 
   # Compute the texture coordinates of the vertex.
-  let sx = float(aUv.x) + float(corner.x) * float(aUv.z)
-  let sy = float(aUv.y) + float(corner.y) * float(aUv.w)
-  vUv = vec2(sx, sy) / atlasSize
+  let sx = float(uv.x) + float(corner.x) * float(uv.z)
+  let sy = float(uv.y) + float(corner.y) * float(uv.w)
+  fragmentUv = vec2(sx, sy) / atlasSize
 
-proc pixelatorFrag*(vUv: Vec2, FragColor: var Vec4) =
+proc pixelatorFrag*(fragmentUv: Vec2, FragColor: var Vec4) =
   # Compute the texture coordinates of the pixel.
-  let pixCoord = vUv * atlasSize
+  let pixCoord = fragmentUv * atlasSize
   # Compute the AA pixel coordinates.
   let pixAA = floor(pixCoord) + min(fract(pixCoord) / fwidth(pixCoord), 1.0) - 0.5
   FragColor = texture(atlas, pixAA / atlasSize)
