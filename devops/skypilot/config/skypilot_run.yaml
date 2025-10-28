@@ -56,8 +56,7 @@ envs:
   GITHUB_PAT: ""
 
   METTA_RUN_ID: ""
-  METTA_MODULE_PATH: ""
-  METTA_ARGS: ""
+  METTA_CMD: ""
   METTA_GIT_REF: main
   HEARTBEAT_TIMEOUT: 600
 

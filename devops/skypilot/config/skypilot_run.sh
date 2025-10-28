@@ -31,8 +31,7 @@ echo "  - METTA_RUN_ID: ${METTA_RUN_ID:-}"
 echo "  - SKYPILOT_TASK_ID: ${SKYPILOT_TASK_ID:-}"
 echo "  - HEARTBEAT_TIMEOUT: ${HEARTBEAT_TIMEOUT:-'NOT SET'}"
 echo "  - MAX_RUNTIME_HOURS: ${MAX_RUNTIME_HOURS:-'NOT SET'}"
-echo "  - METTA_MODULE_PATH: ${METTA_MODULE_PATH:-'NOT SET'}"
-echo "  - METTA_ARGS: ${METTA_ARGS:-'NOT SET'}"
+echo "  - METTA_CMD: ${METTA_CMD:-'NOT SET'}"
 [ "$DEBUG" = "1" ] && echo "  - DEBUG: ENABLED"
 
 # Master-only: Collect SkyPilot latency
@@ -212,15 +211,32 @@ run_cmd() {
 
   export START_TIME=$(date +%s)
 
-  # Build the command as an array
-  local cmd=(./devops/run.sh "${METTA_MODULE_PATH:?missing METTA_MODULE_PATH}")
+  # Extract command from environment
+  local full_cmd="${METTA_CMD:?missing METTA_CMD}"
 
-  # Add args if METTA_ARGS is not empty
-  if [ -n "${METTA_ARGS:-}" ]; then
-    cmd+=(${METTA_ARGS}) # split on spaces
+  # Check if command uses tools/run.py (needs torchrun wrapper)
+  # Match patterns like: "uv run ./tools/run.py module args..." or "tools/run.py module args..."
+  if [[ "$full_cmd" =~ (uv[[:space:]]+run[[:space:]]+)?(\./)?tools/run\.py[[:space:]]+(.+) ]]; then
+    # Extract everything after tools/run.py (module + args)
+    local module_and_args="${BASH_REMATCH[3]}"
+    echo "[INFO] Detected tools/run.py command, wrapping with devops/run.sh for torchrun setup"
+    echo "[INFO] Module and args: $module_and_args"
+
+    # Build command with devops/run.sh wrapper (will add torchrun)
+    local cmd=(./devops/run.sh)
+    # Carefully split module_and_args into array while preserving quoted strings
+    eval "cmd+=($module_and_args)"
+  else
+    # Arbitrary command - run directly without torchrun wrapper
+    echo "[INFO] Running arbitrary command directly (no torchrun wrapper)"
+    echo "[INFO] Command: $full_cmd"
+
+    # Build command array from full_cmd, preserving quotes
+    local cmd=()
+    eval "cmd=($full_cmd)"
   fi
 
-  echo "[INFO] Running command: ${cmd[*]}"
+  echo "[INFO] Executing: ${cmd[*]}"
 
   # Use process substitution so $! is the trainer (not tee)
   setsid "${cmd[@]}" &

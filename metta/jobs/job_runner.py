@@ -378,17 +378,31 @@ class RemoteJob(Job):
         Args:
             run_name: WandB run name (only passed for training jobs, None otherwise)
         """
-        cmd = [
-            "devops/skypilot/launch.py",
-            *self.base_args,
-            self.module,
-        ]
+        # Build launch.py command
+        if "cmd" in self.config.metadata:
+            # Use arbitrary command directly from metadata (quoted string)
+            cmd = [
+                "devops/skypilot/launch.py",
+                self.config.metadata["cmd"],
+                *self.base_args,
+            ]
+        else:
+            # Build command for module-based execution using --tool flag
+            cmd = [
+                "devops/skypilot/launch.py",
+                "--tool",
+                self.module,
+            ]
 
-        # Only pass run= for training jobs (they use WandB for experiment tracking)
-        if run_name:
-            cmd.append(f"run={run_name}")
+            # Add run= for training jobs
+            if run_name:
+                cmd.append(f"run={run_name}")
 
-        cmd.extend(self.args)
+            # Add other args
+            cmd.extend(self.args)
+
+            # Add launch flags
+            cmd.extend(self.base_args)  # --gpus, --nodes, --no-spot
 
         if self.skip_git_check:
             cmd.append("--skip-git-check")
