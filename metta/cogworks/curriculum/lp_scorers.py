@@ -466,9 +466,13 @@ class BidirectionalLPScorer(LPScorer):
             # This captures the "floor" performance - the starting-point skill level
             new_tasks_mask = self._update_mask & ~self._baseline_initialized
             if np.any(new_tasks_mask):
-                # Capture first observation as baseline, capped at 0.75 to prevent division by zero
+                # Capture FIRST observation as baseline, capped at 0.75 to prevent division by zero
                 # and ensure there's room for improvement (1.0 - B_i > 0)
-                self._random_baseline[new_tasks_mask] = np.minimum(task_success_rates[new_tasks_mask], 0.75)
+                # Use the first outcome value, not the current TSR (which is the mean)
+                for i, task_id in enumerate(task_ids):
+                    if new_tasks_mask[i] and task_id in self._outcomes and len(self._outcomes[task_id]) > 0:
+                        first_observation = self._outcomes[task_id][0]
+                        self._random_baseline[i] = min(first_observation, 0.75)
                 self._baseline_initialized[new_tasks_mask] = True
 
             # Calculate normalized "mastery" score: p_i = (TSR_i - B_i) / (1.0 - B_i)
@@ -623,6 +627,10 @@ class BidirectionalLPScorer(LPScorer):
 
     def _calculate_task_distribution(self) -> None:
         """Calculate task sampling distribution from learning progress."""
+        import logging
+
+        logger = logging.getLogger(__name__)
+
         if not self._outcomes:
             self._task_dist = None
             self._raw_lp_scores = None
@@ -637,6 +645,12 @@ class BidirectionalLPScorer(LPScorer):
             self._postzscored_lp_scores = None
             self._stale_dist = False
             return
+
+        # DEBUG: Log LP calculation details
+        logger.info(
+            f"LP calculation: num_tasks={len(learning_progress)}, raw_LP={learning_progress}, "
+            f"fast_ema={self._p_fast}, slow_ema={self._p_slow}"
+        )
 
         # Apply smoothing to all tasks (even those with negative/zero learning progress)
         # This ensures all tasks get non-zero probability

@@ -297,8 +297,14 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         # NEW: Update scorer's internal state
         self.scorer.update_with_score(task_id, score)
 
-        # NEW: Calculate LP score from scorer
-        lp_score = self.scorer.score_task(task_id, self.task_tracker)
+        # Calculate RAW LP score for storage (before sigmoid/normalization)
+        # This is used for Gini coefficient calculation to measure true inequality
+        # in learning progress, not just the normalized sampling distribution
+        if hasattr(self.scorer, "get_raw_lp_score"):
+            lp_score = self.scorer.get_raw_lp_score(task_id, self.task_tracker)
+        else:
+            # Fallback for scorers without raw LP (e.g., BasicLPScorer)
+            lp_score = self.scorer.score_task(task_id, self.task_tracker)
 
         # Single atomic update to task tracker with both score and LP score
         # This ensures consistency and avoids multiple writes to shared memory
@@ -435,58 +441,14 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         for label, count in composition_data["sampling_counts"].items():
             stats[f"sampling_counts/{label}"] = float(count)
 
-        # Add eviction counts (number of times each label was evicted) - only if tracking enabled
+        # Add eviction counts (number of times each label was evicted)
         if self._label_eviction_counts is not None:
             for label, count in self._label_eviction_counts.items():
                 stats[f"eviction_counts/{label}"] = float(count)
 
-        # Add per-task completion counts and LP scores for pool tasks
-        all_task_ids = self.task_tracker.get_all_tracked_tasks()
-        completion_counts = []
-        lp_scores = []
-
-        import logging
-
-        logger = logging.getLogger(__name__)
-        logger.info(f"Processing {len(all_task_ids)} tracked tasks for Gini calculations")
-
-        for task_id in all_task_ids:
-            task_stats = self.task_tracker.get_task_stats(task_id)
-            if task_stats:
-                completion_count = float(task_stats["completion_count"])
-                lp_score = float(task_stats.get("lp_score", 0.0))
-                # Only log per-task metrics if troubleshooting logging is enabled
-                if self.hypers.show_curriculum_troubleshooting_logging:
-                    stats[f"completion_counts/{task_id}"] = completion_count
-                    stats[f"lp_scores/{task_id}"] = lp_score
-                completion_counts.append(completion_count)
-                lp_scores.append(lp_score)
-
-        logger.info(f"Built arrays: completion_counts={len(completion_counts)}, lp_scores={len(lp_scores)}")
-
-        # Calculate Gini coefficients for pool occupancy and LP scores
-        if completion_counts:
-            stats["pool_occupancy_gini"] = self._calculate_gini_coefficient(completion_counts)
-            # Debug: Log array summary
-            import logging
-
-            logger = logging.getLogger(__name__)
-            logger.info(
-                f"pool_occupancy_gini calculation: {len(completion_counts)} tasks, "
-                f"range=[{min(completion_counts):.1f}, {max(completion_counts):.1f}], "
-                f"sum={sum(completion_counts):.1f}, gini={stats['pool_occupancy_gini']:.3f}"
-            )
-        if lp_scores:
-            stats["pool_lp_gini"] = self._calculate_gini_coefficient(lp_scores)
-            # Debug: Log array summary
-            import logging
-
-            logger = logging.getLogger(__name__)
-            logger.info(
-                f"pool_lp_gini calculation: {len(lp_scores)} tasks, "
-                f"range=[{min(lp_scores):.4f}, {max(lp_scores):.4f}], "
-                f"sum={sum(lp_scores):.4f}, gini={stats['pool_lp_gini']:.3f}"
-            )
+        # Calculate comprehensive Gini coefficients (replaces old pool_occupancy_gini and pool_lp_gini)
+        gini_stats = self._calculate_comprehensive_gini_coefficients()
+        stats.update(gini_stats)
 
         return stats
 
@@ -494,8 +456,8 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         """Calculate Gini coefficient for a distribution.
 
         Measures inequality in sampling/distribution:
-        - 0 = perfect equality
-        - 1 = perfect inequality
+        - 0 = perfect equality (all values equal)
+        - 1 = perfect inequality (one value has everything)
 
         Args:
             values: List of counts/frequencies
@@ -524,6 +486,169 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         gini = (2.0 * cumsum) / (n * total) - (n + 1.0) / n
 
         return gini
+
+    def _calculate_comprehensive_gini_coefficients(self) -> Dict[str, float]:
+        """Calculate Gini coefficients at each stage of the LP calculation pipeline.
+
+        This helps diagnose where selectivity is lost in the chain:
+        1. Raw LP scores (task-level)
+        2. Raw LP scores aggregated by label
+        3. Z-scored LP scores (task-level)
+        4. Final sampling probabilities (task-level)
+        5. Sampling counts aggregated by label
+        6. Eviction counts aggregated by label
+        7. Pool composition aggregated by label
+
+        Returns:
+            Dictionary of Gini coefficients at each pipeline stage
+        """
+        import logging
+
+        logger = logging.getLogger(__name__)
+        gini_stats = {}
+
+        # Get all tracked tasks
+        all_task_ids = self.task_tracker.get_all_tracked_tasks()
+        logger.info(f"Calculating comprehensive Gini for {len(all_task_ids)} tasks")
+
+        if not all_task_ids:
+            return gini_stats
+
+        # Collect task-level data
+        completion_counts = []
+        raw_lp_scores = []
+        z_scored_lp_scores = []
+        sampling_probs = []
+        task_labels_list = []
+
+        for task_id in all_task_ids:
+            task_stats = self.task_tracker.get_task_stats(task_id)
+            if task_stats:
+                # 1. Completion counts (for pool occupancy Gini)
+                completion_count = float(task_stats["completion_count"])
+                completion_counts.append(completion_count)
+
+                # 2. Raw LP scores (stored in tracker after our fix)
+                raw_lp = float(task_stats.get("lp_score", 0.0))
+                raw_lp_scores.append(raw_lp)
+
+                # 3. Z-scored LP scores (if bidirectional scorer available)
+                if hasattr(self.scorer, "get_postzscored_lp_score"):
+                    z_scored = self.scorer.get_postzscored_lp_score(task_id, self.task_tracker)
+                    z_scored_lp_scores.append(float(z_scored))
+
+                # 4. Final sampling probabilities
+                sampling_prob = self.scorer.score_task(task_id, self.task_tracker)
+                sampling_probs.append(float(sampling_prob))
+
+                # Track label for aggregations
+                if task_id in self._task_labels:
+                    task_labels_list.append(self._task_labels[task_id])
+                else:
+                    task_labels_list.append("unknown")
+
+                # Log per-task metrics if troubleshooting enabled
+                if self.hypers.show_curriculum_troubleshooting_logging:
+                    gini_stats[f"task_metrics/{task_id}/completion_count"] = completion_count
+                    gini_stats[f"task_metrics/{task_id}/raw_lp"] = raw_lp
+                    gini_stats[f"task_metrics/{task_id}/sampling_prob"] = sampling_prob
+
+        # === 1. Pool Occupancy Gini (task-level completion counts) ===
+        if completion_counts:
+            gini_stats["curriculum_gini/pool_occupancy"] = self._calculate_gini_coefficient(completion_counts)
+            logger.info(
+                f"Gini - Pool Occupancy: {gini_stats['curriculum_gini/pool_occupancy']:.3f} "
+                f"(tasks={len(completion_counts)}, range=[{min(completion_counts):.1f}, {max(completion_counts):.1f}])"
+            )
+
+        # === 2. Raw LP Scores Gini (task-level) ===
+        if raw_lp_scores:
+            gini_stats["curriculum_gini/raw_lp_scores"] = self._calculate_gini_coefficient(raw_lp_scores)
+            logger.info(
+                f"Gini - Raw LP Scores: {gini_stats['curriculum_gini/raw_lp_scores']:.3f} "
+                f"(tasks={len(raw_lp_scores)}, range=[{min(raw_lp_scores):.4f}, {max(raw_lp_scores):.4f}])"
+            )
+
+        # === 3. Raw LP Scores by Label (aggregated) ===
+        if raw_lp_scores and task_labels_list:
+            label_lp_sums = {}
+            for label, lp in zip(task_labels_list, raw_lp_scores, strict=True):
+                label_lp_sums[label] = label_lp_sums.get(label, 0.0) + lp
+
+            if label_lp_sums:
+                label_lp_values = list(label_lp_sums.values())
+                gini_stats["curriculum_gini/raw_lp_by_label"] = self._calculate_gini_coefficient(label_lp_values)
+                logger.info(
+                    f"Gini - Raw LP by Label: {gini_stats['curriculum_gini/raw_lp_by_label']:.3f} "
+                    f"(labels={len(label_lp_values)}, range=[{min(label_lp_values):.4f}, {max(label_lp_values):.4f}])"
+                )
+
+        # === 4. Z-Scored LP Scores Gini (task-level) ===
+        if z_scored_lp_scores:
+            gini_stats["curriculum_gini/zscored_lp_scores"] = self._calculate_gini_coefficient(
+                [abs(z) for z in z_scored_lp_scores]  # Use absolute values for Gini
+            )
+            z_min, z_max = min(z_scored_lp_scores), max(z_scored_lp_scores)
+            logger.info(
+                f"Gini - Z-Scored LP: {gini_stats['curriculum_gini/zscored_lp_scores']:.3f} "
+                f"(tasks={len(z_scored_lp_scores)}, range=[{z_min:.4f}, {z_max:.4f}])"
+            )
+
+        # === 5. Final Sampling Probabilities Gini (task-level) ===
+        if sampling_probs:
+            gini_stats["curriculum_gini/sampling_probs"] = self._calculate_gini_coefficient(sampling_probs)
+            logger.info(
+                f"Gini - Sampling Probs: {gini_stats['curriculum_gini/sampling_probs']:.3f} "
+                f"(tasks={len(sampling_probs)}, sum={sum(sampling_probs):.2f})"
+            )
+
+        # === 6. Sampling Counts by Label ===
+        if self._label_sampling_counts:
+            label_sampling_values = list(self._label_sampling_counts.values())
+            gini_stats["curriculum_gini/sampling_by_label"] = self._calculate_gini_coefficient(label_sampling_values)
+            logger.info(
+                f"Gini - Sampling by Label: {gini_stats['curriculum_gini/sampling_by_label']:.3f} "
+                f"(labels={len(label_sampling_values)}, total_samples={sum(label_sampling_values)})"
+            )
+
+        # === 7. Eviction Counts by Label ===
+        if self._label_eviction_counts:
+            label_eviction_values = list(self._label_eviction_counts.values())
+            if label_eviction_values and sum(label_eviction_values) > 0:
+                gini_stats["curriculum_gini/evictions_by_label"] = self._calculate_gini_coefficient(
+                    label_eviction_values
+                )
+                logger.info(
+                    f"Gini - Evictions by Label: {gini_stats['curriculum_gini/evictions_by_label']:.3f} "
+                    f"(labels={len(label_eviction_values)}, total_evictions={sum(label_eviction_values)})"
+                )
+
+        # === 8. Pool Composition by Label ===
+        composition_data = self.get_pool_composition_stats()
+        if composition_data["pool_composition"]:
+            pool_comp_values = list(composition_data["pool_composition"].values())
+            gini_stats["curriculum_gini/pool_composition_by_label"] = self._calculate_gini_coefficient(pool_comp_values)
+            logger.info(
+                f"Gini - Pool Composition by Label: {gini_stats['curriculum_gini/pool_composition_by_label']:.3f} "
+                f"(labels={len(pool_comp_values)}, total_tasks={sum(pool_comp_values)})"
+            )
+
+        # Calculate "selectivity loss" metrics (how much Gini decreases at each stage)
+        if "curriculum_gini/raw_lp_scores" in gini_stats and "curriculum_gini/sampling_probs" in gini_stats:
+            selectivity_loss = (
+                gini_stats["curriculum_gini/raw_lp_scores"] - gini_stats["curriculum_gini/sampling_probs"]
+            )
+            gini_stats["curriculum_gini/selectivity_loss_lp_to_prob"] = selectivity_loss
+            logger.info(f"Selectivity Loss (LP->Prob): {selectivity_loss:.3f}")
+
+        if "curriculum_gini/raw_lp_by_label" in gini_stats and "curriculum_gini/sampling_by_label" in gini_stats:
+            label_selectivity_loss = (
+                gini_stats["curriculum_gini/raw_lp_by_label"] - gini_stats["curriculum_gini/sampling_by_label"]
+            )
+            gini_stats["curriculum_gini/selectivity_loss_lp_label_to_sampling_label"] = label_selectivity_loss
+            logger.info(f"Selectivity Loss (LP Label->Sampling Label): {label_selectivity_loss:.3f}")
+
+        return gini_stats
 
     def get_detailed_stats(self) -> Dict[str, float]:
         """Get detailed stats including learning progress and slice distribution analysis."""
