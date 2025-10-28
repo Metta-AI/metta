@@ -333,6 +333,7 @@ proc updateGPU*(tileMap: TileMap) =
     for x in 0 ..< tileMap.width:
       let tileIndex = tileMap.indexData[y * tileMap.width + x].int
       tileMap.overworldImage.unsafe[x, y] = tileMap.avgColors[tileIndex]
+  glBindTexture(GL_TEXTURE_2D, tileMap.overworldTexture)
   glTexSubImage2D(
     GL_TEXTURE_2D,
     0,
