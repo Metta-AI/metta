@@ -106,17 +106,21 @@ def setup_logging(log_file: Path) -> None:
     """
     log_file.parent.mkdir(parents=True, exist_ok=True)
 
-    # Configure root logger to write to file
+    # Create file handler for all logs
     file_handler = logging.FileHandler(log_file, mode="a")
     file_handler.setLevel(logging.DEBUG)
     file_handler.setFormatter(
         logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s", datefmt="%Y-%m-%d %H:%M:%S")
     )
 
-    # Configure root logger (captures all loggers)
+    # Configure root logger: remove all handlers and add only file handler
     root_logger = logging.getLogger()
-    root_logger.setLevel(logging.DEBUG)
-    root_logger.addHandler(file_handler)
+    root_logger.handlers = [file_handler]  # Replace all handlers (removes console output)
+
+    # Set metta logger to DEBUG (captures all metta.* logs in detail)
+    # Other loggers will use their default levels (typically WARNING)
+    metta_logger = logging.getLogger("metta")
+    metta_logger.setLevel(logging.DEBUG)
 
 
 def get_job_manager() -> JobManager:
