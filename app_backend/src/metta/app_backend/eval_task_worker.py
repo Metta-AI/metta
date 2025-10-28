@@ -23,7 +23,6 @@ from datetime import datetime
 
 import boto3
 
-from devops.observatory_login import CLIAuthenticator
 from metta.app_backend.clients.eval_task_client import EvalTaskClient
 from metta.app_backend.routes.eval_task_routes import (
     EvalTaskResponse,
@@ -31,6 +30,7 @@ from metta.app_backend.routes.eval_task_routes import (
     TaskStatusUpdate,
     TaskUpdateRequest,
 )
+from metta.common.auth.auth_config_reader_writer import observatory_auth_config
 from metta.common.datadog.tracing import init_tracing, trace
 from metta.common.util.collections import remove_none_values
 from metta.common.util.constants import SOFTMAX_S3_BASE, SOFTMAX_S3_BUCKET
@@ -341,7 +341,7 @@ async def main() -> None:
     backend_url = os.environ["BACKEND_URL"]
     assignee = os.environ["WORKER_ASSIGNEE"]
     machine_token = os.environ["MACHINE_TOKEN"]
-    CLIAuthenticator().save_token(machine_token, backend_url)
+    observatory_auth_config.save_token(machine_token, backend_url)
     client = EvalTaskClient(backend_url)
     task_executor = SimTaskExecutor(backend_url)
     logger.info(
