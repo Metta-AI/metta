@@ -29,12 +29,15 @@ class JobMonitor:
         self.group = group
         self._start_time = time.time()
 
-    def _display_log_tail(self, logs_path: str, num_lines: int) -> None:
+    def _display_log_tail(self, logs_path: str, num_lines: int) -> bool:
         """Display last N lines of a log file.
 
         Args:
             logs_path: Path to log file
             num_lines: Number of lines to show
+
+        Returns:
+            True if logs were displayed, False if no logs available
         """
         try:
             from pathlib import Path
@@ -49,8 +52,10 @@ class JobMonitor:
                         for line in relevant_lines:
                             # Truncate and indent with border
                             print(f"│      │ {line[:95]}")
+                        return True
         except Exception:
             pass  # Silently fail if we can't read logs
+        return False
 
     def get_status(self) -> dict[str, Any]:
         """Get current status snapshot (non-blocking).
@@ -94,6 +99,7 @@ class JobMonitor:
                 "status": job_state.status,
                 "request_id": job_state.request_id,
                 "job_id": job_state.job_id,
+                "skypilot_status": job_state.skypilot_status,
             }
 
             # Add logs path for all jobs (if available)
@@ -265,10 +271,22 @@ class JobMonitor:
                     if job_status.get("success") and "logs_path" in job_status:
                         print(f"│    📝 Logs: {job_status['logs_path']}")
 
-            # Show live logs for running jobs
-            elif status_str == "running" and show_running_logs:
-                if "logs_path" in job_status:
-                    print("│    📜 Live output:")
+            # Show live logs for running or succeeded jobs
+            if show_running_logs and "logs_path" in job_status:
+                if status_str == "running":
+                    skypilot_status = job_status.get("skypilot_status")
+                    # Check if job is actually running on SkyPilot or just pending
+                    if request_id and skypilot_status == "PENDING":
+                        print("│    🕐 Job queued on cluster, waiting to start...")
+                    else:
+                        print("│    📜 Live output:")
+                        has_logs = self._display_log_tail(job_status["logs_path"], log_tail_lines)
+                        if not has_logs and request_id:
+                            # Remote job running but no logs yet - just started
+                            print("│      │ 🕐 Starting...")
+                elif status_str == "completed" and job_status.get("success"):
+                    # Show last few lines for succeeded jobs too
+                    print("│    📜 Output:")
                     self._display_log_tail(job_status["logs_path"], log_tail_lines)
 
             # Add blank line between jobs for readability
