@@ -247,16 +247,59 @@ class JobMonitor:
             # Show metrics for training jobs (if available)
             metrics = job_status.get("metrics", {})
             if metrics and self._should_show_training_artifacts(name):
-                print("│    📊 Metrics:")
+                # Check for progress info
+                progress_info = metrics.get("_progress")
+
+                # Show progress bar if available
+                if progress_info and isinstance(progress_info, dict):
+                    current = progress_info.get("current_step")
+                    total = progress_info.get("total_steps")
+                    if current is not None and total is not None:
+                        progress_str = format_progress_bar(current, total)
+                        print(f"│    🎯 Progress: {progress_str}")
+
+                # Get acceptance criteria from job config
+                job_state = self.job_manager.get_job_state(name)
+                acceptance_criteria = job_state.config.acceptance_criteria if job_state else None
+
+                # Show other metrics
+                has_metrics = False
                 for metric_key, metric_value in metrics.items():
+                    if metric_key == "_progress":  # Skip progress info (already displayed)
+                        continue
+                    if not has_metrics:
+                        print("│    📊 Metrics:")
+                        has_metrics = True
+
                     # Format metric value appropriately
                     if isinstance(metric_value, float):
                         if metric_value >= 1000:
-                            print(f"│      • {metric_key}: {metric_value:.0f}")
+                            value_str = f"{metric_value:.0f}"
                         else:
-                            print(f"│      • {metric_key}: {metric_value:.4f}")
+                            value_str = f"{metric_value:.4f}"
                     else:
-                        print(f"│      • {metric_key}: {metric_value}")
+                        value_str = str(metric_value)
+
+                    # Add acceptance criteria if available
+                    criteria_str = ""
+                    passed_indicator = ""
+                    if acceptance_criteria and metric_key in acceptance_criteria:
+                        op, threshold = acceptance_criteria[metric_key]
+                        criteria_str = f" (target: {op} {threshold:.0f if threshold >= 1000 else threshold})"
+                        # Check if criterion is met for completed jobs
+                        if status_str == "completed" and job_status.get("success"):
+                            if op == ">=" and metric_value >= threshold:
+                                passed_indicator = " ✓"
+                            elif op == ">" and metric_value > threshold:
+                                passed_indicator = " ✓"
+                            elif op == "<=" and metric_value <= threshold:
+                                passed_indicator = " ✓"
+                            elif op == "<" and metric_value < threshold:
+                                passed_indicator = " ✓"
+                            elif op == "==" and metric_value == threshold:
+                                passed_indicator = " ✓"
+
+                    print(f"│      • {metric_key}: {value_str}{criteria_str}{passed_indicator}")
 
             # Show live logs for running or succeeded jobs
             if show_running_logs and "logs_path" in job_status:
@@ -309,6 +352,27 @@ def get_status_symbol(status: str) -> str:
     return symbols.get(status.lower(), "○")
 
 
+def format_progress_bar(current: int, total: int, bar_width: int = 30) -> str:
+    """Format a progress bar with percentage and step counts.
+
+    Args:
+        current: Current step count
+        total: Total step count
+        bar_width: Width of the progress bar in characters (default: 30)
+
+    Returns:
+        Formatted progress string like "42.5% │████████████░░░░░░░░░░░░░░░░░░│ (42,500/100,000 steps)"
+    """
+    if total == 0:
+        bar = "░" * bar_width
+        return f"0.0% │{bar}│ (0/0 steps)"
+
+    progress_pct = (current / total) * 100
+    filled = int((current / total) * bar_width)
+    bar = "█" * filled + "░" * (bar_width - filled)
+    return f"{progress_pct:.1f}% │{bar}│ ({current:,}/{total:,} steps)"
+
+
 def format_duration(seconds: float) -> str:
     """Format duration in human-readable format.
 
@@ -335,23 +399,6 @@ def format_duration(seconds: float) -> str:
         parts.append(f"{secs}s")
 
     return " ".join(parts)
-
-
-def format_progress_bar(completed: int, total: int, width: int = 30) -> str:
-    """Format progress bar for display.
-
-    Args:
-        completed: Number of completed items
-        total: Total number of items
-        width: Width of progress bar in characters
-
-    Returns:
-        Progress bar string like "█████████░░░░░"
-    """
-    if total == 0:
-        return "░" * width
-    filled = int(width * completed / total)
-    return "█" * filled + "░" * (width - filled)
 
 
 def extract_log_tail(logs_path: str, num_lines: int = 5) -> list[str]:
