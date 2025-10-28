@@ -1,6 +1,5 @@
-from typing import Optional, Sequence, Tuple, TypeAlias, TypedDict
+from typing import Optional, Sequence, TypeAlias, TypedDict
 
-import gymnasium as gym
 import numpy as np
 
 # Type alias for clarity
@@ -40,7 +39,7 @@ class PackedCoordinate:
         ...
 
     @staticmethod
-    def unpack(packed: int) -> Optional[Tuple[int, int]]:
+    def unpack(packed: int) -> Optional[tuple[int, int]]:
         """Unpack byte into (row, col) tuple or None if empty.
         Args:
             packed: Packed coordinate byte
@@ -212,6 +211,7 @@ class GameConfig:
         obs_width: int,
         obs_height: int,
         resource_names: list[str],
+        vibe_names: list[str],
         num_observation_tokens: int,
         global_obs: GlobalObsConfig,
         actions: dict[str, ActionConfig],
@@ -232,6 +232,7 @@ class GameConfig:
     obs_width: int
     obs_height: int
     resource_names: list[str]
+    vibe_names: list[str]
     num_observation_tokens: int
     global_obs: GlobalObsConfig
     resource_loss_prob: float
@@ -253,15 +254,17 @@ class MettaGrid:
     map_width: int
     map_height: int
     num_agents: int
-    action_space: gym.spaces.Discrete
-    observation_space: gym.spaces.Box
     initial_grid_hash: int
 
     def __init__(self, env_cfg: GameConfig, map: list, seed: int) -> None: ...
-    def reset(self) -> Tuple[np.ndarray, dict]: ...
-    def step(self, actions: np.ndarray) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, dict]: ...
+    def step(self) -> None: ...
     def set_buffers(
-        self, observations: np.ndarray, terminals: np.ndarray, truncations: np.ndarray, rewards: np.ndarray
+        self,
+        observations: np.ndarray,
+        terminals: np.ndarray,
+        truncations: np.ndarray,
+        rewards: np.ndarray,
+        actions: np.ndarray,
     ) -> None: ...
     def grid_objects(
         self,
@@ -271,8 +274,13 @@ class MettaGrid:
         max_col: int = -1,
         ignore_types: list[str] = [],
     ) -> dict[int, dict]: ...
+    def observations(self) -> np.ndarray: ...
+    def terminals(self) -> np.ndarray: ...
+    def truncations(self) -> np.ndarray: ...
+    def rewards(self) -> np.ndarray: ...
+    def masks(self) -> np.ndarray: ...
+    def actions(self) -> np.ndarray: ...
     def action_names(self) -> list[str]: ...
-    def action_catalog(self) -> list[dict[str, int | str]]: ...
     def get_episode_rewards(self) -> np.ndarray: ...
     def get_episode_stats(self) -> EpisodeStats: ...
     def action_success(self) -> list[bool]: ...

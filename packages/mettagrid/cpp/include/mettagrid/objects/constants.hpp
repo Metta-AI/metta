@@ -69,7 +69,6 @@ inline const std::unordered_map<ObservationType, std::string>& GetFeatureNames()
       {ObservationFeature::Swappable, "swappable"},
       {ObservationFeature::EpisodeCompletionPct, "episode_completion_pct"},
       {ObservationFeature::LastAction, "last_action"},
-      {ObservationFeature::LastActionArg, "last_action_arg"},
       {ObservationFeature::LastReward, "last_reward"},
       {ObservationFeature::Glyph, "agent:glyph"},
       {ObservationFeature::VisitationCounts, "agent:visitation_counts"},

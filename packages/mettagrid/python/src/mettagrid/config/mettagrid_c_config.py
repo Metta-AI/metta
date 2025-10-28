@@ -10,6 +10,7 @@ from mettagrid.config.mettagrid_config import (
     GameConfig,
     WallConfig,
 )
+from mettagrid.config.vibes import VIBES
 from mettagrid.mettagrid_c import ActionConfig as CppActionConfig
 from mettagrid.mettagrid_c import AgentConfig as CppAgentConfig
 from mettagrid.mettagrid_c import AssemblerConfig as CppAssemblerConfig
@@ -52,8 +53,10 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
     resource_names = list(game_config.resource_names)
     resource_name_to_id = {name: i for i, name in enumerate(resource_names)}
 
-    # Set up vibe mappings
-    vibe_names = list(game_config.vibe_names)
+    # Set up vibe mappings from the change_glyph action config
+
+    num_glyphs = game_config.actions.change_glyph.number_of_glyphs
+    vibe_names = [vibe.name for vibe in VIBES[:num_glyphs]]
     vibe_name_to_id = {name: i for i, name in enumerate(vibe_names)}
 
     objects_cpp_params = {}  # params for CppConverterConfig or CppWallConfig
@@ -313,8 +316,6 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
         del game_cpp_params["params"]
     if "map_builder" in game_cpp_params:
         del game_cpp_params["map_builder"]
-    if "vibe_names" in game_cpp_params:
-        del game_cpp_params["vibe_names"]
 
     # Convert global_obs configuration
     global_obs_config = game_config.global_obs
@@ -326,14 +327,23 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
     )
     game_cpp_params["global_obs"] = global_obs_cpp
 
+    # Process actions using new typed config structure
+    actions_config = game_config.actions
     actions_cpp_params = {}
-    for action_name, action_config in game_cpp_params["actions"].items():
-        if not action_config["enabled"]:
-            continue
 
+    # Helper function to process common action config fields
+    def process_action_config(action_name: str, action_config):
+        # If disabled, return empty config (C++ code checks enabled status)
+        if not action_config.enabled:
+            return {
+                "consumed_resources": {},
+                "required_resources": {},
+            }
+
+        # Only validate resources for enabled actions
         # Check if any consumed resources are not in resource_names
         missing_consumed = []
-        for resource in action_config["consumed_resources"].keys():
+        for resource in action_config.consumed_resources.keys():
             if resource not in resource_name_to_id:
                 missing_consumed.append(resource)
 
@@ -344,64 +354,64 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
                 f"Either add these resources to resource_names or disable the action."
             )
 
-        consumed_resources = {resource_name_to_id[k]: float(v) for k, v in action_config["consumed_resources"].items()}
+        consumed_resources = {resource_name_to_id[k]: float(v) for k, v in action_config.consumed_resources.items()}
 
-        required_source = action_config.get("required_resources")
+        required_source = action_config.required_resources
         if not required_source:
-            required_source = {k: math.ceil(v) for k, v in action_config["consumed_resources"].items()}
+            required_source = {k: math.ceil(v) for k, v in action_config.consumed_resources.items()}
 
         required_resources = {resource_name_to_id[k]: int(math.ceil(v)) for k, v in required_source.items()}
 
-        action_cpp_params = {
+        return {
             "consumed_resources": consumed_resources,
             "required_resources": required_resources,
         }
 
-        if action_name == "attack":
-            action_cpp_params["defense_resources"] = {
-                resource_name_to_id[k]: v for k, v in action_config["defense_resources"].items()
-            }
-            actions_cpp_params[action_name] = CppAttackActionConfig(**action_cpp_params)
-        elif action_name == "change_glyph":
-            # Extract the specific parameters needed for ChangeGlyphActionConfig
-            change_glyph_params = {
-                "required_resources": action_cpp_params.get("required_resources", {}),
-                "consumed_resources": action_cpp_params.get("consumed_resources", {}),
-                "number_of_glyphs": action_config["number_of_glyphs"],
-            }
-            actions_cpp_params[action_name] = CppChangeGlyphActionConfig(**change_glyph_params)
-        elif action_name == "resource_mod":
-            # Extract the specific parameters needed for ResourceModConfig
-            modifies_dict = action_config.get("modifies", {})
-            unknown_modifies = set(modifies_dict.keys()) - set(resource_name_to_id.keys())
-            if unknown_modifies:
-                unknown_list = sorted(unknown_modifies)
-                raise ValueError(f"Unknown resource names in modifies for action '{action_name}': {unknown_list}")
+    # Process noop - always add to map
+    action_params = process_action_config("noop", actions_config.noop)
+    actions_cpp_params["noop"] = CppActionConfig(**action_params)
 
-            resource_mod_params = {
-                "required_resources": action_cpp_params.get("required_resources", {}),
-                "consumed_resources": action_cpp_params.get("consumed_resources", {}),
-                "modifies": {resource_name_to_id[k]: float(v) for k, v in modifies_dict.items()},
-                "agent_radius": action_config.get("agent_radius", 0),
-                "converter_radius": action_config.get("converter_radius", 0),
-                "scales": action_config.get("scales", False),
-            }
-            actions_cpp_params[action_name] = CppResourceModConfig(**resource_mod_params)
-        else:
-            actions_cpp_params[action_name] = CppActionConfig(**action_cpp_params)
+    # Process move - always add to map
+    action_params = process_action_config("move", actions_config.move)
+    actions_cpp_params["move"] = CppActionConfig(**action_params)
 
-    # Convert actions_cpp_params dict to an ordered list of (name, config) pairs
-    # Ensure "noop" is always at index 0 if present
-    action_pairs = []
-    if "noop" in actions_cpp_params:
-        action_pairs.append(("noop", actions_cpp_params["noop"]))
+    # Process attack - always add to map
+    action_params = process_action_config("attack", actions_config.attack)
+    if actions_config.attack.enabled:
+        action_params["defense_resources"] = {
+            resource_name_to_id[k]: v for k, v in actions_config.attack.defense_resources.items()
+        }
+    else:
+        action_params["defense_resources"] = {}
+    actions_cpp_params["attack"] = CppAttackActionConfig(**action_params)
 
-    # Add remaining actions in their original order
-    for action_name, action_config in actions_cpp_params.items():
-        if action_name != "noop":
-            action_pairs.append((action_name, action_config))
+    # Process change_glyph - always add to map
+    action_params = process_action_config("change_glyph", actions_config.change_glyph)
+    action_params["number_of_glyphs"] = (
+        actions_config.change_glyph.number_of_glyphs if actions_config.change_glyph.enabled else 0
+    )
+    actions_cpp_params["change_glyph"] = CppChangeGlyphActionConfig(**action_params)
 
-    game_cpp_params["actions"] = action_pairs
+    # Process resource_mod - always add to map (required by C++)
+    action_params = process_action_config("resource_mod", actions_config.resource_mod)
+    if actions_config.resource_mod.enabled:
+        modifies_dict = actions_config.resource_mod.modifies
+        unknown_modifies = set(modifies_dict.keys()) - set(resource_name_to_id.keys())
+        if unknown_modifies:
+            unknown_list = sorted(unknown_modifies)
+            raise ValueError(f"Unknown resource names in modifies for action 'resource_mod': {unknown_list}")
+        action_params["modifies"] = {resource_name_to_id[k]: float(v) for k, v in modifies_dict.items()}
+        action_params["agent_radius"] = actions_config.resource_mod.agent_radius
+        action_params["converter_radius"] = actions_config.resource_mod.converter_radius
+        action_params["scales"] = actions_config.resource_mod.scales
+    else:
+        action_params["modifies"] = {}
+        action_params["agent_radius"] = 0
+        action_params["converter_radius"] = 0
+        action_params["scales"] = False
+    actions_cpp_params["resource_mod"] = CppResourceModConfig(**action_params)
+
+    game_cpp_params["actions"] = actions_cpp_params
     game_cpp_params["objects"] = objects_cpp_params
 
     # Add resource_loss_prob
