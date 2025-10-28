@@ -50,10 +50,10 @@ class TaskRunner:
 
         # Create monitor for live status display (optional, for tests)
         # Only show training artifacts (WandB, checkpoints) for training jobs
-        # Training jobs are: arena_single_gpu_100m, arena_multi_gpu_2b, etc.
         def is_training_job(name: str) -> bool:
-            name_lower = name.lower()
-            return "arena" in name_lower and ("gpu" in name_lower or any(c.isdigit() for c in name))
+            """Check if job is a training job by looking up its config."""
+            job_state = job_manager.get_job_state(name)
+            return job_state.config.is_training_job if job_state else False
 
         self.monitor = (
             JobMonitor(job_manager, group=state.version, show_training_artifacts=is_training_job)
