@@ -165,6 +165,8 @@ class WandBCollector(BaseCollector):
             "wandb.push_to_main.timing_cumulative.sps": None,
             "wandb.push_to_main.timing_per_epoch.sps": None,
             "wandb.push_to_main.avg_duration_hours": None,
+            "wandb.push_to_main.heart.gained": None,
+            "wandb.push_to_main.skypilot.queue_latency_s": None,
         }
 
         if not runs:
@@ -181,6 +183,9 @@ class WandBCollector(BaseCollector):
             timing_cumulative_sps_values = []
             timing_per_epoch_sps_values = []
             durations = []
+            # Track heart and latency metrics
+            heart_gained_values = []
+            queue_latency_values = []
 
             for run in runs:
                 # Count by state
@@ -218,6 +223,12 @@ class WandBCollector(BaseCollector):
                         if "timing_per_epoch/sps" in summary_dict:
                             timing_per_epoch_sps_values.append(summary_dict["timing_per_epoch/sps"])
 
+                        # Collect heart and latency metrics
+                        if "env_agent/heart.gained" in summary_dict:
+                            heart_gained_values.append(summary_dict["env_agent/heart.gained"])
+                        if "skypilot/queue_latency_s" in summary_dict:
+                            queue_latency_values.append(summary_dict["skypilot/queue_latency_s"])
+
                     except (TypeError, ValueError, AttributeError, json.JSONDecodeError):
                         continue
 
@@ -253,6 +264,12 @@ class WandBCollector(BaseCollector):
 
             if durations:
                 metrics["wandb.push_to_main.avg_duration_hours"] = sum(durations) / len(durations)
+
+            # Heart and latency metrics (use latest value from most recent run)
+            if heart_gained_values:
+                metrics["wandb.push_to_main.heart.gained"] = heart_gained_values[-1]
+            if queue_latency_values:
+                metrics["wandb.push_to_main.skypilot.queue_latency_s"] = queue_latency_values[-1]
 
             self.logger.info(f"Push-to-main: {len(runs)} runs ({completed} completed, {failed} failed)")
 

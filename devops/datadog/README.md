@@ -16,6 +16,7 @@ Complete Datadog integration for Metta, including:
 ### Dashboards
 
 - **[Quick Start Guide](docs/QUICK_START.md)** - Get started in 10 minutes
+- **[Dashboard UI Workflow](docs/DASHBOARD_UI_WORKFLOW.md)** - Edit in Datadog UI, sync to version control
 - **[Jsonnet Design](docs/JSONNET_DESIGN.md)** - Architecture and patterns
 - **[Widget Reference](docs/DATADOG_WIDGET_REFERENCE.md)** - Available widgets
 
