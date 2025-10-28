@@ -2467,7 +2467,6 @@ name = "metta-common"
 version = "0.1.0"
 source = { editable = "common" }
 dependencies = [
-    { name = "cogames" },
     { name = "rich" },
     { name = "wandb" },
 ]
@@ -2484,7 +2483,6 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "cogames", editable = "packages/cogames" },
     { name = "rich", specifier = ">=14.1" },
     { name = "wandb", specifier = ">=0.21.2" },
 ]
