@@ -124,14 +124,14 @@ def setup_logging(log_file: Path) -> None:
 
 
 def get_job_manager() -> JobManager:
-    """Get JobManager instance for release validation."""
+    """Get JobManager instance for release validation (uses JobManager defaults)."""
     base_dir = get_repo_root() / "devops/stable/state"
     log_file = base_dir / "job_manager.log"
 
     # Set up file logging
     setup_logging(log_file)
 
-    return JobManager(base_dir=base_dir, max_local_jobs=1, max_remote_jobs=4)
+    return JobManager(base_dir=base_dir)
 
 
 def load_state_or_exit(version: str, step_name: str) -> ReleaseState:
