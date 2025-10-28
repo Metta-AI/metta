@@ -26,7 +26,7 @@ class SweepConfig(Config):
     # We can get rid of the train_overrids I think now
     train_overrides: dict[str, Any] = Field(default_factory=dict)
     eval_overrides: dict[str, Any] = Field(default_factory=dict)
-    num_samples: int = Field(default=1)
+    num_samples: int = Field(default=12)
 
     # TODO: Obviously not this
     sweep_id: str = Field(default='sweep_id_unset')
