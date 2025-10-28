@@ -37,7 +37,7 @@ Examples:
     parser.add_argument("--ray-client-port", type=int, default=10001, help="Ray client port")
     parser.add_argument("--skip-git-check", action="store_true", help="Skip clean git tree check")
     parser.add_argument("--dry-run", action="store_true", help="Show summary and exit")
-
+    parser.add_argument("--wandb-project", type=str, default="sweep-prototyping", help="WandB project name")
     return parser.parse_known_args()
 
 
@@ -59,6 +59,7 @@ def build_task(
         "METTA_RUN_ID": run_id,
         "METTA_MODULE_PATH": args.module_path,
         "METTA_ARGS": " ".join(tool_args),
+        "WANDB_PROJECT": args.wandb_project,
     }
     task = task.update_envs(env_updates)
 
