@@ -599,14 +599,17 @@ class StatsReporter(TrainerComponent):
         This replaces the batched per-environment logging approach with
         centralized collection, providing smooth and consistent logging.
         """
-        if not self.context.curriculum:
+        if not self.context or not hasattr(self.context, "curriculum") or not self.context.curriculum:
+            logger.info("No curriculum found in context, skipping curriculum stats collection")
             return {}
 
         curriculum = self.context.curriculum
+        logger.info(f"Collecting curriculum stats from curriculum: {type(curriculum).__name__}")
         stats = {}
 
         # Get base curriculum stats
         curriculum_stats = curriculum.stats()
+        logger.info(f"Got {len(curriculum_stats)} base curriculum stats")
 
         # ===== GROUP A: Global Curriculum Stats =====
         if "num_completed" in curriculum_stats:
@@ -650,8 +653,11 @@ class StatsReporter(TrainerComponent):
 
         # ===== GROUP C & D: Troubleshooting Stats (if enabled) =====
         if self._should_enable_curriculum_troubleshooting():
-            stats.update(self._collect_curriculum_troubleshooting_stats(curriculum, curriculum_stats))
+            troubleshooting_stats = self._collect_curriculum_troubleshooting_stats(curriculum, curriculum_stats)
+            logger.info(f"Collected {len(troubleshooting_stats)} troubleshooting stats")
+            stats.update(troubleshooting_stats)
 
+        logger.info(f"Total curriculum stats collected: {len(stats)}")
         return stats
 
     def _should_enable_curriculum_troubleshooting(self) -> bool:
@@ -663,6 +669,9 @@ class StatsReporter(TrainerComponent):
         Context Access: self.context.curriculum is set in trainer from env._curriculum
         Flag Location: LearningProgressAlgorithmHypers.show_curriculum_troubleshooting_logging
         """
+        if not self.context or not hasattr(self.context, "curriculum"):
+            return False
+
         curriculum = self.context.curriculum
         if not curriculum or not hasattr(curriculum, "_algorithm"):
             return False
