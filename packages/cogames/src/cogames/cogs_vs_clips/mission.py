@@ -12,14 +12,14 @@ from cogames.cogs_vs_clips.stations import (
     SiliconExtractorConfig,
     resources,
 )
-from mettagrid.base_config import Config
 from mettagrid.builder.envs import ActionConfig
-from mettagrid.config.mettagrid_config import (
+from mettagrid.config import (
     ActionsConfig,
     AgentConfig,
     AgentRewards,
     ChangeGlyphActionConfig,
     ClipperConfig,
+    Config,
     GameConfig,
     MettaGridConfig,
     ProtocolConfig,

@@ -13,7 +13,7 @@ from pydantic import (
     model_validator,
 )
 
-from mettagrid.base_config import Config
+from mettagrid.config import Config
 from mettagrid.map_builder.ascii import AsciiMapBuilder
 from mettagrid.map_builder.map_builder import AnyMapBuilderConfig
 from mettagrid.map_builder.random import RandomMapBuilder
