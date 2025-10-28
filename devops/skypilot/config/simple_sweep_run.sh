@@ -18,6 +18,32 @@ bash ./devops/skypilot/config/lifecycle/configure_environment.sh
 METTA_ENV_FILE="$(uv run ./common/src/metta/common/util/constants.py METTA_ENV_FILE)"
 source "$METTA_ENV_FILE"
 
+echo "[SIMPLE] Running CUDA diagnostics..."
+if command -v nvidia-smi >/dev/null 2>&1; then
+  if ! nvidia-smi; then
+    echo "[SIMPLE] nvidia-smi command failed (above)."
+  fi
+else
+  echo "[SIMPLE] nvidia-smi not found on PATH."
+fi
+
+python <<'PY_EOF' || true
+import os
+try:
+    import torch
+except Exception as exc:  # pragma: no cover - diagnostic output
+    print("[SIMPLE] torch import failed:", exc)
+else:
+    print(f"[SIMPLE] torch.__version__ = {torch.__version__}")
+    print(f"[SIMPLE] torch.version.cuda = {torch.version.cuda!r}")
+    print(f"[SIMPLE] torch.cuda.is_available() = {torch.cuda.is_available()}")
+    print(f"[SIMPLE] torch.cuda.device_count() = {torch.cuda.device_count()}")
+    if torch.cuda.is_available():
+        print(f"[SIMPLE] torch.cuda.get_device_name(0) = {torch.cuda.get_device_name(0)}")
+print(f"[SIMPLE] CUDA_VISIBLE_DEVICES = {os.environ.get('CUDA_VISIBLE_DEVICES')!r}")
+print(f"[SIMPLE] LD_LIBRARY_PATH = {os.environ.get('LD_LIBRARY_PATH')!r}")
+PY_EOF
+
 export RANK=${SKYPILOT_NODE_RANK:-0}
 export IS_HEAD=$([[ "$RANK" == "0" ]] && echo "true" || echo "false")
 HEAD_IP=$(echo "${SKYPILOT_NODE_IPS:-127.0.0.1}" | head -n1)
