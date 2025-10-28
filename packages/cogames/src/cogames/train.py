@@ -87,6 +87,7 @@ def train(
     vector_batch_size: Optional[int] = None,
     vector_num_workers: Optional[int] = None,
     env_cfg_supplier: Optional[Callable[[], MettaGridConfig]] = None,
+    output_evaluation: bool = False,
 ) -> None:
     import pufferlib.pytorch  # noqa: F401 - ensure modules register with torch
 
@@ -308,13 +309,19 @@ def train(
     )
 
     trainer = pufferl.PuffeRL(train_args, vecenv, policy.network())
+    if output_evaluation:
+        console.clear()
+        console.print("[dim]Evaluation stats will stream below; disabling Rich dashboard.[/dim]")
+        trainer.print_dashboard = lambda *_, **__: None  # type: ignore[assignment]
 
     training_diverged = False
 
     with DeferSigintContextManager():
         try:
             while trainer.global_step < num_steps:
-                trainer.evaluate()
+                eval_stats = trainer.evaluate()
+                if output_evaluation and eval_stats:
+                    console.log(dict(eval_stats))
                 trainer.train()
                 # Check for NaN in network parameters after each training step
                 network = policy.network()

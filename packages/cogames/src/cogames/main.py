@@ -257,6 +257,11 @@ def train_cmd(
         help="Override vectorized environment batch size",
         min=1,
     ),
+    output_evaluation: bool = typer.Option(
+        False,
+        "--output-evaluation",
+        help="Output evaluation statistics to console",
+    ),
 ) -> None:
     selected_missions = get_mission_names_and_configs(ctx, missions, variants_arg=variant, cogs=cogs)
     if len(selected_missions) == 1:
@@ -290,6 +295,7 @@ def train_cmd(
             vector_batch_size=vector_batch_size,
             env_cfg_supplier=supplier,
             missions_arg=missions,
+            output_evaluation=output_evaluation,
         )
 
     except ValueError as exc:  # pragma: no cover - user input
