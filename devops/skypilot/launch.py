@@ -136,29 +136,37 @@ def _build_ray_launch_task(
     ray_port = args.ray_port
     combined_script = textwrap.dedent(
         f"""
-        set -euo pipefail
-        set -x  # Print every command for debugging
-        cd /workspace/metta
-        if [ -f .venv/bin/activate ]; then
-            . .venv/bin/activate
-        fi
+        echo "=========================================="
+        echo "[STEP 1] Minimal Ray Sweep Test Starting"
+        echo "=========================================="
+        echo "Hostname: $(hostname)"
+        echo "Date: $(date)"
+        echo "PWD: $PWD"
+        echo "USER: $USER"
+        echo "SKYPILOT_NODE_RANK: ${{SKYPILOT_NODE_RANK:-0}}"
+        echo "SKYPILOT_NODE_IPS: ${{SKYPILOT_NODE_IPS:-NOT SET}}"
 
-        # Verify Ray is installed
-        if ! command -v ray &> /dev/null; then
-            echo "[Ray Sweep] ERROR: ray command not found! Check setup.sh"
-            exit 1
-        fi
-        echo "[Ray Sweep] Ray version: $(ray --version)"
+        echo ""
+        echo "[STEP 2] Sleeping for 5 minutes to allow SSH access..."
+        echo "You can SSH in now with: sky ssh <cluster-name>"
+        echo "Sleeping until: $(date -d '+5 minutes' 2>/dev/null || date)"
+        echo ""
 
-        # Ensure SKYPILOT_NODE_IPS is set
-        if [ -z "${{SKYPILOT_NODE_IPS:-}}" ]; then
-            echo "[Ray Sweep] ERROR: SKYPILOT_NODE_IPS environment variable is not set!"
-            echo "[Ray Sweep] This variable should be set by Skypilot during cluster launch."
-            exit 1
-        fi
+        sleep 300
 
-        HEAD_IP=$(echo "$SKYPILOT_NODE_IPS" | head -n1)
-        echo "[Ray Sweep] HEAD_IP=$HEAD_IP (from SKYPILOT_NODE_IPS: $SKYPILOT_NODE_IPS)"
+        echo ""
+        echo "[STEP 3] Sleep complete, exiting successfully"
+        echo "==========================================="
+        exit 0
+
+        # ORIGINAL CODE COMMENTED OUT FOR INCREMENTAL TESTING:
+        # set -euo pipefail
+        # set -x
+        # cd /workspace/metta
+        # if [ -f .venv/bin/activate ]; then
+        #     . .venv/bin/activate
+        # fi
+        # ...etc
 
         if [[ "${{SKYPILOT_NODE_RANK:-0}}" == "0" ]]; then
             echo "[Ray Sweep] Starting head node on port {ray_port}"
