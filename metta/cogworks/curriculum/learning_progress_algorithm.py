@@ -275,6 +275,10 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
 
     def update_task_performance(self, task_id: int, score: float) -> None:
         """Update task performance using the scorer strategy."""
+        import logging
+
+        logger = logging.getLogger(__name__)
+
         # NEW: Update scorer's internal state
         self.scorer.update_with_score(task_id, score)
 
@@ -288,7 +292,15 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         # Track completion counts by label
         if task_id in self._task_labels:
             label = self._task_labels[task_id]
-            self._label_completion_counts[label] = self._label_completion_counts.get(label, 0) + 1
+            old_count = self._label_completion_counts.get(label, 0)
+            self._label_completion_counts[label] = old_count + 1
+
+            # Debug: Log first 3 tasks to verify updates are happening
+            if task_id in list(self._task_labels.keys())[:3]:
+                logger.info(
+                    f"Task {task_id} ({label}) update: score={score:.3f}, lp_score={lp_score:.4f}, "
+                    f"label_completions: {old_count}->{old_count + 1}"
+                )
 
         # Invalidate stats cache when task performance changes
         self.cache_coordinator.invalidate_stats_cache()
@@ -378,6 +390,16 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         for label in self._task_labels.values():
             pool_composition[label] = pool_composition.get(label, 0) + 1
 
+        # Debug: Log sampling counts population
+        import logging
+
+        logger = logging.getLogger(__name__)
+        logger.info(
+            f"Sampling counts dict: {len(self._label_sampling_counts)} labels, "
+            f"total_samples={sum(self._label_sampling_counts.values())}, "
+            f"labels={list(self._label_sampling_counts.keys())[:5]}"
+        )
+
         return {
             "pool_composition": pool_composition,
             "sampling_counts": self._label_sampling_counts.copy(),  # Use sampling counts, not completion counts
@@ -422,8 +444,26 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         # Calculate Gini coefficients for pool occupancy and LP scores
         if completion_counts:
             stats["pool_occupancy_gini"] = self._calculate_gini_coefficient(completion_counts)
+            # Debug: Log array summary
+            import logging
+
+            logger = logging.getLogger(__name__)
+            logger.info(
+                f"pool_occupancy_gini calculation: {len(completion_counts)} tasks, "
+                f"range=[{min(completion_counts):.1f}, {max(completion_counts):.1f}], "
+                f"sum={sum(completion_counts):.1f}, gini={stats['pool_occupancy_gini']:.3f}"
+            )
         if lp_scores:
             stats["pool_lp_gini"] = self._calculate_gini_coefficient(lp_scores)
+            # Debug: Log array summary
+            import logging
+
+            logger = logging.getLogger(__name__)
+            logger.info(
+                f"pool_lp_gini calculation: {len(lp_scores)} tasks, "
+                f"range=[{min(lp_scores):.4f}, {max(lp_scores):.4f}], "
+                f"sum={sum(lp_scores):.4f}, gini={stats['pool_lp_gini']:.3f}"
+            )
 
         return stats
 
