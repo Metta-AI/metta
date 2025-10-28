@@ -47,8 +47,8 @@ class JobMonitor:
                     relevant_lines = [line for line in lines if line.strip()][-num_lines:]
                     if relevant_lines:
                         for line in relevant_lines:
-                            # Truncate and indent
-                            print(f"      │ {line[:100]}")
+                            # Truncate and indent with border
+                            print(f"│      │ {line[:95]}")
         except Exception:
             pass  # Silently fail if we can't read logs
 
@@ -163,33 +163,32 @@ class JobMonitor:
             print("=" * len(title))
 
         # Print summary with progress percentage
-        print("\nJob Status:")
-        print(f"  Total: {status['total']}")
+        print("\n┌─ Summary " + "─" * 50)
+        print(f"│  Total: {status['total']}")
 
         # Calculate and display progress
         if status["total"] > 0:
             progress_pct = (status["completed"] / status["total"]) * 100
-            print(f"  Progress: {progress_pct:.0f}% ({status['completed']}/{status['total']})")
+            # Create simple progress bar
+            bar_width = 30
+            filled = int(bar_width * progress_pct / 100)
+            bar = "█" * filled + "░" * (bar_width - filled)
+            print(f"│  Progress: {progress_pct:.0f}% │{bar}│ ({status['completed']}/{status['total']})")
 
-        print(f"  Running: {status['running']}")
-        print(f"  Pending: {status['pending']}")
+        print(f"│  Running: {status['running']}  •  Pending: {status['pending']}")
 
-        # Color-code success/failure counts
-        if status["succeeded"] > 0:
-            print(f"  Succeeded: \033[92m{status['succeeded']}\033[0m")  # Green
-        else:
-            print(f"  Succeeded: {status['succeeded']}")
+        # Color-code success/failure counts on same line
+        success_str = f"\033[92m{status['succeeded']}\033[0m" if status["succeeded"] > 0 else f"{status['succeeded']}"
+        fail_str = f"\033[91m{status['failed']}\033[0m" if status["failed"] > 0 else f"{status['failed']}"
+        print(f"│  Succeeded: {success_str}  •  Failed: {fail_str}")
 
-        if status["failed"] > 0:
-            print(f"  Failed: \033[91m{status['failed']}\033[0m")  # Red
-        else:
-            print(f"  Failed: {status['failed']}")
-
-        print(f"  Elapsed: {format_duration(status['elapsed_s'])}")
+        print(f"│  Elapsed: {format_duration(status['elapsed_s'])}")
+        print("└" + "─" * 60)
         print()
 
         # Print individual job statuses
-        print("Jobs:")
+        print("┌─ Jobs " + "─" * 53)
+        print("│")
         for job_status in status["jobs"]:
             name = job_status["name"]
             # Strip version prefix for cleaner display (e.g., "v2025.10.27-1726_cpp_ci" → "cpp_ci")
@@ -220,8 +219,8 @@ class JobMonitor:
             else:
                 status_display = f"{symbol} {status_str}"
 
-            # Build line with display name
-            line = f"  {display_name:30s} {status_display:20s}"
+            # Build line with display name and indentation
+            line = f"│  {display_name:30s} {status_display:20s}"
 
             # Show request_id → job_id progression for remote jobs
             request_id = job_status.get("request_id")
@@ -249,27 +248,34 @@ class JobMonitor:
                 # For failures, always show exit code and logs
                 if not job_status.get("success"):
                     exit_code = job_status.get("exit_code", "unknown")
-                    print(f"    ⚠️  Exit code: {exit_code}")
+                    print(f"│    ⚠️  Exit code: {exit_code}")
 
                     # Show log path if available
                     if "logs_path" in job_status:
-                        print(f"    📝 Logs: {job_status['logs_path']}")
+                        print(f"│    📝 Logs: {job_status['logs_path']}")
 
                 # Show artifacts if requested
                 if show_artifacts:
                     if "wandb_url" in job_status:
-                        print(f"    📊 WandB: {job_status['wandb_url']}")
+                        print(f"│    📊 WandB: {job_status['wandb_url']}")
                     if "checkpoint_uri" in job_status:
-                        print(f"    💾 Checkpoint: {job_status['checkpoint_uri']}")
+                        print(f"│    💾 Checkpoint: {job_status['checkpoint_uri']}")
 
                     # Show logs for successful jobs too when showing artifacts
                     if job_status.get("success") and "logs_path" in job_status:
-                        print(f"    📝 Logs: {job_status['logs_path']}")
+                        print(f"│    📝 Logs: {job_status['logs_path']}")
 
             # Show live logs for running jobs
             elif status_str == "running" and show_running_logs:
                 if "logs_path" in job_status:
+                    print("│    📜 Live output:")
                     self._display_log_tail(job_status["logs_path"], log_tail_lines)
+
+            # Add blank line between jobs for readability
+            print("│")
+
+        # Close the jobs section
+        print("└" + "─" * 60)
 
 
 def get_status_symbol(status: str) -> str:
