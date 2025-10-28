@@ -46,6 +46,25 @@ export DATA_DIR=${DATA_DIR:-./train_dir}
 
 echo "[INFO] Starting training..."
 
+echo "[DIAG] torch + CUDA visibility before torchrun:"
+uv run python <<'PY_EOF' || true
+import os
+try:
+    import torch
+except Exception as exc:
+    print("[DIAG] torch import failed:", exc)
+else:
+    print(f"[DIAG] torch.__version__ = {torch.__version__}")
+    print(f"[DIAG] torch.version.cuda = {torch.version.cuda!r}")
+    print(f"[DIAG] torch.cuda.is_available() = {torch.cuda.is_available()}")
+    print(f"[DIAG] torch.cuda.device_count() = {torch.cuda.device_count()}")
+    if torch.cuda.is_available():
+        print(f"[DIAG] torch.cuda.current_device() = {torch.cuda.current_device()}")
+        print(f"[DIAG] torch.cuda.get_device_name(0) = {torch.cuda.get_device_name(0)}")
+print(f"[DIAG] CUDA_VISIBLE_DEVICES = {os.environ.get('CUDA_VISIBLE_DEVICES')!r}")
+print(f"[DIAG] LD_LIBRARY_PATH = {os.environ.get('LD_LIBRARY_PATH')!r}")
+PY_EOF
+
 # run torchrun; preserve exit code and print a friendly line
 set +e
 uv run torchrun \
