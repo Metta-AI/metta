@@ -184,7 +184,24 @@ def _build_ray_launch_task(
             echo "[Ray Sweep] Worker node ${{SKYPILOT_NODE_RANK}} waiting for head node to be ready..."
 
             # Wait for head node to start Ray and be reachable
-            sleep 30
+            # Poll until Ray head is accepting connections (max 2 minutes)
+            max_attempts=24  # 24 * 5s = 120s timeout
+            attempt=0
+            while [ $attempt -lt $max_attempts ]; do
+                if nc -z -w 5 $HEAD_IP {ray_port} 2>/dev/null; then
+                    echo "[Ray Sweep] Head node is reachable on port {ray_port}"
+                    sleep 5  # Extra grace period for Ray to fully initialize
+                    break
+                fi
+                attempt=$((attempt + 1))
+                echo "[Ray Sweep] Waiting for head node... (attempt $attempt/$max_attempts)"
+                sleep 5
+            done
+
+            if [ $attempt -eq $max_attempts ]; then
+                echo "[Ray Sweep] ERROR: Head node did not become reachable within 120 seconds"
+                exit 1
+            fi
 
             echo "[Ray Sweep] Starting worker node ${{SKYPILOT_NODE_RANK}} -> $HEAD_IP:{ray_port}"
             ray stop --force >/dev/null 2>&1 || true
