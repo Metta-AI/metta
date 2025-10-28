@@ -918,9 +918,16 @@ def simulate_task_dependencies(config: SimulationConfig) -> Dict[str, Any]:
 
         # Log progress
         if epoch % 10 == 0:
-            # Get Gini coefficients for logging
-            gini_lp = epoch_metrics.get("curriculum_gini/raw_lp_scores", 0.0)
-            gini_sampling = epoch_metrics.get("curriculum_gini/sampling_by_label", 0.0)
+            # Debug: Print all curriculum_gini keys to see what's available
+            if epoch == 0:
+                gini_keys = [k for k in epoch_metrics.keys() if "gini" in k.lower()]
+                logger.info(f"Available Gini metric keys: {gini_keys}")
+
+            # Get Gini coefficients for logging (with algorithm/ prefix)
+            gini_lp = epoch_metrics.get("algorithm/curriculum_gini/raw_lp_scores", 0.0)
+            gini_sampling = epoch_metrics.get(
+                "algorithm/curriculum_gini/sampling_by_label", 0.0
+            )
             logger.info(
                 f"Epoch {epoch}: Mean performance = {epoch_metrics['task_dependency/mean_performance']:.3f}, "
                 f"Gini LP = {gini_lp:.3f}, Gini sampling = {gini_sampling:.3f}"
