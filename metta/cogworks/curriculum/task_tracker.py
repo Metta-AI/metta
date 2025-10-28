@@ -75,7 +75,8 @@ class TaskTracker:
         """Rebuild task ID to array index mapping by scanning backend memory."""
         with self._backend.acquire_lock():
             self._task_id_to_index.clear()
-            self._next_free_index = 0
+            self._next_free_index = self._backend.max_tasks  # Default to end
+            first_free_index = None
 
             for i in range(self._backend.max_tasks):
                 task_data = self._backend.get_task_data(i)
@@ -84,12 +85,13 @@ class TaskTracker:
 
                 if is_active and task_id > 0:
                     self._task_id_to_index[task_id] = i
+                elif task_id == 0 and first_free_index is None:
+                    # Track first free slot but keep scanning for active tasks
+                    first_free_index = i
 
-                if task_id == 0:
-                    self._next_free_index = i
-                    break
-            else:
-                self._next_free_index = self._backend.max_tasks
+            # Use first free slot if found, otherwise pool is full
+            if first_free_index is not None:
+                self._next_free_index = first_free_index
 
     def track_task_creation(
         self,
@@ -135,7 +137,13 @@ class TaskTracker:
             task_data[11] = 0.0  # ema_squared (for variance calculation)
             task_data[12] = 1.0  # is_active
 
-            self._next_free_index += 1
+            # Find next free slot after this one
+            self._next_free_index = index + 1
+            while self._next_free_index < self._backend.max_tasks:
+                next_task_data = self._backend.get_task_data(self._next_free_index)
+                if next_task_data[0] == 0.0:  # Slot is free (task_id == 0)
+                    break
+                self._next_free_index += 1
 
     def update_task_performance(
         self,
@@ -288,8 +296,14 @@ class TaskTracker:
             if task_id in self._task_id_to_index:
                 index = self._task_id_to_index[task_id]
                 task_data = self._backend.get_task_data(index)
+                task_data[0] = 0.0  # Clear task_id to mark slot as free
                 task_data[12] = 0.0  # is_active = False
                 del self._task_id_to_index[task_id]
+
+                # Update _next_free_index to enable slot reuse
+                # If we just freed a slot before the current free index, update it
+                if index < self._next_free_index:
+                    self._next_free_index = index
 
     def get_global_stats(self) -> Dict[str, float]:
         """Get global performance statistics.

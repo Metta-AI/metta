@@ -499,12 +499,27 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         Returns:
             Dictionary of Gini coefficients at each pipeline stage
         """
+        import logging
+
+        logger = logging.getLogger(__name__)
+
         gini_stats = {}
 
         # Get all tracked tasks
         all_task_ids = self.task_tracker.get_all_tracked_tasks()
 
+        # Debug: Log task tracking status
+        gini_stats["debug/num_tracked_tasks"] = float(len(all_task_ids)) if all_task_ids else 0.0
+
+        # Also check task_id_to_index mapping
+        if hasattr(self.task_tracker, "_task_id_to_index"):
+            gini_stats["debug/task_id_mapping_size"] = float(len(self.task_tracker._task_id_to_index))
+
         if not all_task_ids:
+            mapping_size = (
+                len(self.task_tracker._task_id_to_index) if hasattr(self.task_tracker, "_task_id_to_index") else "N/A"
+            )
+            logger.warning(f"No tracked tasks! task_id_to_index size: {mapping_size}")
             return gini_stats
 
         # Collect task-level data
@@ -514,9 +529,11 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         sampling_probs = []
         task_labels_list = []
 
+        num_tasks_with_stats = 0
         for task_id in all_task_ids:
             task_stats = self.task_tracker.get_task_stats(task_id)
             if task_stats:
+                num_tasks_with_stats += 1
                 # 1. Completion counts (for pool occupancy Gini)
                 completion_count = float(task_stats["completion_count"])
                 completion_counts.append(completion_count)
@@ -545,10 +562,17 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
                     gini_stats[f"task_metrics/{task_id}/completion_count"] = completion_count
                     gini_stats[f"task_metrics/{task_id}/raw_lp"] = raw_lp
                     gini_stats[f"task_metrics/{task_id}/sampling_prob"] = sampling_prob
+            else:
+                logger.warning(f"No stats found for task {task_id}")
+
+        # Debug: Log collection results
+        gini_stats["debug/num_tasks_with_stats"] = float(num_tasks_with_stats)
 
         # === 1. Pool Occupancy Gini (task-level completion counts) ===
         if completion_counts:
             gini_stats["curriculum_gini/pool_occupancy"] = self._calculate_gini_coefficient(completion_counts)
+        else:
+            logger.warning("No completion counts collected for Gini calculation!")
 
         # === 2. Raw LP Scores Gini (task-level) ===
         if raw_lp_scores:

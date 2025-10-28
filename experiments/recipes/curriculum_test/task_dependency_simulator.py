@@ -7,6 +7,7 @@ for curriculum learning and stats reporting.
 """
 
 import logging
+import platform
 import random
 import time
 from collections import defaultdict
@@ -936,10 +937,19 @@ def simulate_task_dependencies(config: SimulationConfig) -> Dict[str, Any]:
             lp_total = epoch_metrics.get(
                 "env_curriculum_stats/debug/raw_lp_total_count", 0.0
             )
+            num_tracked = epoch_metrics.get(
+                "env_curriculum_stats/debug/num_tracked_tasks", 0.0
+            )
+            num_with_stats = epoch_metrics.get(
+                "env_curriculum_stats/debug/num_tasks_with_stats", 0.0
+            )
 
             logger.info(
                 f"Epoch {epoch}: Mean perf = {epoch_metrics['task_dependency/mean_performance']:.3f}, "
                 f"Gini LP = {gini_lp:.3f}, Gini sampling = {gini_sampling:.3f}"
+            )
+            logger.info(
+                f"  Tracked tasks: {num_tracked:.0f}, with stats: {num_with_stats:.0f}"
             )
             logger.info(
                 f"  LP scores: mean={lp_mean:.4f}, min={lp_min:.4f}, max={lp_max:.4f}, "
