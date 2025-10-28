@@ -1,5 +1,5 @@
 import
-  std/[unittest, strutils, times, random],
+  std/[strutils, random],
   vmath,
   ../src/mettascope/[pathfinding, replays, common]
 
@@ -76,150 +76,127 @@ proc setupTestMap(testMap: TestMap) =
         )
         replay.objects.add(obj)
 
-suite "Pathfinding Basic Tests":
-  test "heuristic calculates Manhattan distance":
-    let a = ivec2(0, 0)
-    let b = ivec2(3, 4)
-    check heuristic(a, b) == 7
+block basic_tests:
+  block heuristic_calculation:
+    let pos1 = ivec2(0, 0)
+    let pos2 = ivec2(3, 4)
+    doAssert heuristic(pos1, pos2) == 7, "heuristic should calculate Manhattan distance"
 
-  test "heuristic with same position":
-    let a = ivec2(5, 5)
-    check heuristic(a, a) == 0
+    let same_pos = ivec2(5, 5)
+    doAssert heuristic(same_pos, same_pos) == 0, "heuristic should be 0 for same position"
 
-  test "heuristic with negative coordinates":
-    let a = ivec2(-2, -3)
-    let b = ivec2(1, 2)
-    check heuristic(a, b) == 8
+    let neg_pos1 = ivec2(-2, -3)
+    let neg_pos2 = ivec2(1, 2)
+    doAssert heuristic(neg_pos1, neg_pos2) == 8, "heuristic should work with negative coordinates"
 
-  test "PathNode fCost calculation":
+  block pathnode_fcost:
     let node = PathNode(
       pos: ivec2(0, 0),
       gCost: 5,
       hCost: 10,
       parent: -1
     )
-    check node.fCost() == 15
+    doAssert node.fCost() == 15, "fCost should be gCost + hCost"
 
-suite "Pathfinding with Maps":
-  test "simple straight line path":
-    let testMap = parseAsciiMap("""
+block map_tests:
+  block straight_line_path:
+    let map = parseAsciiMap("""
 #####
 #...#
 #...#
 #...#
 #####""")
-    setupTestMap(testMap)
+    setupTestMap(map)
     let path = findPath(ivec2(1, 1), ivec2(1, 3))
-    check path.len == 3
-    check path[0] == ivec2(1, 1)
-    check path[1] == ivec2(1, 2)
-    check path[2] == ivec2(1, 3)
+    doAssert path.len == 3, "straight line path should have 3 points"
+    doAssert path[0] == ivec2(1, 1), "path should start at correct position"
+    doAssert path[1] == ivec2(1, 2), "path should go through middle"
+    doAssert path[2] == ivec2(1, 3), "path should end at goal"
 
-  test "path around obstacle":
-    let testMap = parseAsciiMap("""
+  block path_around_obstacle:
+    let map = parseAsciiMap("""
 #######
 #.....#
 #.###.#
 #.....#
 #######""")
-    setupTestMap(testMap)
+    setupTestMap(map)
     let path = findPath(ivec2(1, 1), ivec2(5, 1))
-    check path.len > 0
-    check path[0] == ivec2(1, 1)
-    check path[^1] == ivec2(5, 1)
+    doAssert path.len > 0, "path around obstacle should be found"
+    doAssert path[0] == ivec2(1, 1), "path should start at correct position"
+    doAssert path[^1] == ivec2(5, 1), "path should end at goal"
 
-  test "no path through walls":
-    let testMap = parseAsciiMap("""
+  block no_path_through_walls:
+    let map = parseAsciiMap("""
 #######
 #..#..#
 #..#..#
 #..#..#
 #######""")
-    setupTestMap(testMap)
+    setupTestMap(map)
     let path = findPath(ivec2(1, 1), ivec2(5, 1))
-    check path.len == 0
+    doAssert path.len == 0, "no path should be found through walls"
 
-  test "same start and goal returns empty path":
-    let testMap = parseAsciiMap("""
+  block same_start_and_goal:
+    let map = parseAsciiMap("""
 #####
 #...#
 #...#
 #####""")
-    setupTestMap(testMap)
+    setupTestMap(map)
     let path = findPath(ivec2(2, 1), ivec2(2, 1))
-    check path.len == 0
+    doAssert path.len == 0, "same start and goal should return empty path"
 
-  test "path to unwalkable position returns empty":
-    let testMap = parseAsciiMap("""
+  block unwalkable_goal:
+    let map = parseAsciiMap("""
 #####
 #...#
 #...#
 #####""")
-    setupTestMap(testMap)
+    setupTestMap(map)
     let path = findPath(ivec2(1, 1), ivec2(0, 0))
-    check path.len == 0
+    doAssert path.len == 0, "path to unwalkable position should be empty"
 
-suite "Large Scale Pathfinding":
-  test "50x50 empty map diagonal path":
-    echo "  Testing 50x50 empty map..."
-    let testMap = createEmptyMap(50, 50)
-    setupTestMap(testMap)
-    let start = epochTime()
+block large_scale_tests:
+  block empty_50x50_diagonal:
+    let map = createEmptyMap(50, 50)
+    setupTestMap(map)
     let path = findPath(ivec2(0, 0), ivec2(49, 49))
-    let elapsed = epochTime() - start
-    echo "  Path found in ", elapsed.formatFloat(ffDecimal, 3), "s"
-    check path.len == 99
-    check path[0] == ivec2(0, 0)
-    check path[^1] == ivec2(49, 49)
+    doAssert path.len == 99, "diagonal path should have 99 steps"
+    doAssert path[0] == ivec2(0, 0), "path should start at origin"
+    doAssert path[^1] == ivec2(49, 49), "path should end at goal"
 
-  test "50x50 with border path":
-    echo "  Testing 50x50 with border..."
-    let testMap = createMapWithBorder(50, 50)
-    setupTestMap(testMap)
-    let start = epochTime()
+  block border_50x50_path:
+    let map = createMapWithBorder(50, 50)
+    setupTestMap(map)
     let path = findPath(ivec2(1, 1), ivec2(48, 48))
-    let elapsed = epochTime() - start
-    echo "  Path found in ", elapsed.formatFloat(ffDecimal, 3), "s"
-    check path.len > 0
-    check path[0] == ivec2(1, 1)
-    check path[^1] == ivec2(48, 48)
+    doAssert path.len > 0, "path with border should be found"
+    doAssert path[0] == ivec2(1, 1), "path should start correctly"
+    doAssert path[^1] == ivec2(48, 48), "path should end at goal"
 
-  test "32x32 with random walls":
-    echo "  Testing 32x32 with random walls..."
-    let testMap = createMapWithRandomWalls(32, 32, 0.2)
-    setupTestMap(testMap)
-    let start = epochTime()
+  block random_walls_32x32:
+    let map = createMapWithRandomWalls(32, 32, 0.2)
+    setupTestMap(map)
     let path = findPath(ivec2(1, 1), ivec2(30, 30))
-    let elapsed = epochTime() - start
-    echo "  Path search completed in ", elapsed.formatFloat(ffDecimal, 3), "s"
-    if path.len > 0:
-      echo "  Path length: ", path.len
-      check path[0] == ivec2(1, 1)
-      check path[^1] == ivec2(30, 30)
-    else:
-      echo "  No path found (expected with random walls)"
+    doAssert path.len > 0, "path should be found in random walls"
+    doAssert path[0] == ivec2(1, 1), "path should start correctly"
+    doAssert path[^1] == ivec2(30, 30), "path should end at goal"
 
-  test "50x50 long corridor":
-    echo "  Testing 50x50 long corridor..."
-    let testMap = createMapWithCorridor(50, 50)
-    setupTestMap(testMap)
-    let start = epochTime()
+  block corridor_50x50:
+    let map = createMapWithCorridor(50, 50)
+    setupTestMap(map)
     let path = findPath(ivec2(1, 25), ivec2(48, 25))
-    let elapsed = epochTime() - start
-    echo "  Path found in ", elapsed.formatFloat(ffDecimal, 3), "s"
-    check path.len == 48
-    check path[0] == ivec2(1, 25)
-    check path[^1] == ivec2(48, 25)
+    doAssert path.len == 48, "corridor path should have 48 steps"
+    doAssert path[0] == ivec2(1, 25), "path should start in corridor"
+    doAssert path[^1] == ivec2(48, 25), "path should end at goal"
 
-  test "100x100 corner to corner":
-    echo "  Testing 100x100 corner to corner..."
-    let testMap = createMapWithBorder(100, 100)
-    setupTestMap(testMap)
-    let start = epochTime()
+  block border_100x100:
+    let map = createMapWithBorder(100, 100)
+    setupTestMap(map)
     let path = findPath(ivec2(1, 1), ivec2(98, 98))
-    let elapsed = epochTime() - start
-    echo "  Path found in ", elapsed.formatFloat(ffDecimal, 3), "s"
-    echo "  Path length: ", path.len
-    check path.len > 0
-    check path[0] == ivec2(1, 1)
-    check path[^1] == ivec2(98, 98)
+    doAssert path.len > 0, "large map path should be found"
+    doAssert path[0] == ivec2(1, 1), "path should start correctly"
+    doAssert path[^1] == ivec2(98, 98), "path should end at goal"
+
+when isMainModule:
+  discard
