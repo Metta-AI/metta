@@ -145,6 +145,15 @@ class JobManager:
                             # Job info not available, exit thread
                             break
 
+                        # Fetch logs if job is running (so monitor can display them)
+                        if status == "RUNNING" and job_name in self._active_jobs:
+                            job = self._active_jobs[job_name]
+                            if isinstance(job, RemoteJob):
+                                try:
+                                    job.get_logs()  # Fetch and update log file
+                                except Exception:
+                                    pass  # Don't fail monitoring if log fetch fails
+
                         # Update database with current status
                         with Session(self._engine) as session:
                             job_state = session.get(JobState, job_name)
