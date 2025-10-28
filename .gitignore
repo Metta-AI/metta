@@ -41,6 +41,7 @@ build-coverage/
 **/bazel-*
 **/.bazel_output/
 **/bazel-mettagrid/*
+**/.bazel_output/*
 
 # Node.js / Frontend
 node_modules/
