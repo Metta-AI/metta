@@ -71,7 +71,6 @@ class MettaGridEnv(MettaGridPufferBase):
         self._is_training = is_training
         self._label_completions = {"completed_tasks": [], "completion_rates": {}}
         self.per_label_rewards = {}
-        self._visited_positions: Dict[int, set[tuple[int, int]]] = {}  # Track unique (r, c) per agent
 
         # DesyncEpisodes - when training we want to stagger experience. The first episode
         # will end early so that the next episode can begin at a different time on each worker.
@@ -114,7 +113,6 @@ class MettaGridEnv(MettaGridPufferBase):
 
         # Set up episode tracking
         self._last_reset_ts = datetime.datetime.now()
-        self._visited_positions = {}  # Reset pixels explored tracking
 
         # Start replay recording if enabled
         self._renderer.on_episode_start(self)
@@ -136,15 +134,6 @@ class MettaGridEnv(MettaGridPufferBase):
 
         with self.timer("_renderer.log_step"):
             self._renderer.on_step(self._steps, observations, actions, rewards, infos)
-
-        # Track pixels explored
-        with self.timer("_track_pixels_explored"):
-            grid_objects = self.grid_objects()
-            for obj_data in grid_objects.values():
-                if obj_data["type"] == 0:  # Agent type
-                    agent_id = obj_data["agent_id"]
-                    pos = (obj_data["r"], obj_data["c"])
-                    self._visited_positions.setdefault(agent_id, set()).add(pos)
 
         # Handle early reset for #DesyncEpisodes
         if self._early_reset is not None and self._steps >= self._early_reset:
@@ -194,9 +183,6 @@ class MettaGridEnv(MettaGridPufferBase):
         with self.timer("_c_env.get_episode_stats"):
             stats = self.get_episode_stats()
 
-        # add the average reward per agent to the infos so we can show it in the pufferlib dashboard
-        infos["agent/avg_reward_per_agent"] = episode_rewards.mean()
-
         # Process agent stats
         infos["game"] = stats["game"]
         infos["agent"] = {}
@@ -205,11 +191,6 @@ class MettaGridEnv(MettaGridPufferBase):
                 infos["agent"][n] = infos["agent"].get(n, 0) + v
         for n, v in infos["agent"].items():
             infos["agent"][n] = v / self.num_agents
-
-        # Add pixels explored metric
-        total_pixels_explored = sum(len(positions) for positions in self._visited_positions.values())
-        avg_pixels_explored = total_pixels_explored / self.num_agents if self.num_agents > 0 else 0
-        infos["agent"]["pixels_explored"] = avg_pixels_explored
 
         # If reward estimates are set, plot them compared to the mean reward
         if self.mg_config.game.reward_estimates:
@@ -278,7 +259,7 @@ class MettaGridEnv(MettaGridPufferBase):
         # Get agent groups
         grid_objects = self.grid_objects()
         agent_groups: Dict[int, int] = {
-            v["agent_id"]: v["agent:group"] for v in grid_objects.values() if v["type_name"] == "agent"
+            v["agent_id"]: v["agent:group"] for v in grid_objects.values() if v["type"] == 0
         }
 
         # Record episode
