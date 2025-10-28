@@ -32,6 +32,7 @@ echo "  - SKYPILOT_TASK_ID: ${SKYPILOT_TASK_ID:-}"
 echo "  - HEARTBEAT_TIMEOUT: ${HEARTBEAT_TIMEOUT:-'NOT SET'}"
 echo "  - MAX_RUNTIME_HOURS: ${MAX_RUNTIME_HOURS:-'NOT SET'}"
 echo "  - METTA_CMD: ${METTA_CMD:-'NOT SET'}"
+echo "  - METTA_USE_TORCHRUN: ${METTA_USE_TORCHRUN:-'false'}"
 [ "$DEBUG" = "1" ] && echo "  - DEBUG: ENABLED"
 
 # Master-only: Collect SkyPilot latency
@@ -212,28 +213,23 @@ run_cmd() {
   export START_TIME=$(date +%s)
 
   # Extract command from environment
-  local full_cmd="${METTA_CMD:?missing METTA_CMD}"
+  local metta_cmd="${METTA_CMD:?missing METTA_CMD}"
+  local use_torchrun="${METTA_USE_TORCHRUN:-false}"
 
-  # Check if command uses tools/run.py (needs torchrun wrapper)
-  # Match patterns like: "uv run ./tools/run.py module args..." or "tools/run.py module args..."
-  if [[ "$full_cmd" =~ (uv[[:space:]]+run[[:space:]]+)?(\./)?tools/run\.py[[:space:]]+(.+) ]]; then
-    # Extract everything after tools/run.py (module + args)
-    local module_and_args="${BASH_REMATCH[3]}"
-    echo "[INFO] Detected tools/run.py command, wrapping with devops/run.sh for torchrun setup"
-    echo "[INFO] Module and args: $module_and_args"
+  echo "[INFO] METTA_CMD: $metta_cmd"
+  echo "[INFO] METTA_USE_TORCHRUN: $use_torchrun"
 
-    # Build command with devops/run.sh wrapper (will add torchrun)
-    local cmd=(./devops/run.sh)
-    # Carefully split module_and_args into array while preserving quoted strings
-    eval "cmd+=($module_and_args)"
+  # Build command based on whether we need torchrun wrapper
+  local cmd=()
+  if [[ "$use_torchrun" == "true" ]]; then
+    # Wrap with devops/run.sh for torchrun setup
+    echo "[INFO] Using devops/run.sh wrapper for torchrun setup"
+    cmd=(./devops/run.sh)
+    eval "cmd+=($metta_cmd)"
   else
-    # Arbitrary command - run directly without torchrun wrapper
-    echo "[INFO] Running arbitrary command directly (no torchrun wrapper)"
-    echo "[INFO] Command: $full_cmd"
-
-    # Build command array from full_cmd, preserving quotes
-    local cmd=()
-    eval "cmd=($full_cmd)"
+    # Run command directly without torchrun
+    echo "[INFO] Running command directly (no torchrun wrapper)"
+    eval "cmd=($metta_cmd)"
   fi
 
   echo "[INFO] Executing: ${cmd[*]}"
