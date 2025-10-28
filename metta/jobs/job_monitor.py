@@ -16,18 +16,34 @@ class JobMonitor:
     from JobManager and formats it for display.
     """
 
-    def __init__(self, job_manager, group: str | None = None):
+    def __init__(self, job_manager, group: str | None = None, show_training_artifacts=None):
         """Initialize monitor.
 
         Args:
             job_manager: JobManager instance to query
             group: Optional group filter (only show jobs in this group)
+            show_training_artifacts: Optional function(job_name: str) -> bool to determine
+                                    if training artifacts (WandB, checkpoints) should be shown
         """
         from metta.jobs.job_manager import JobManager
 
         self.job_manager: JobManager = job_manager
         self.group = group
+        self.show_training_artifacts = show_training_artifacts
         self._start_time = time.time()
+
+    def _should_show_training_artifacts(self, job_name: str) -> bool:
+        """Check if training artifacts should be shown for this job.
+
+        Args:
+            job_name: Name of the job
+
+        Returns:
+            True if training artifacts (WandB, checkpoints) should be shown
+        """
+        if self.show_training_artifacts is None:
+            return True  # Default: show for all jobs
+        return self.show_training_artifacts(job_name)
 
     def _display_log_tail(self, logs_path: str, num_lines: int) -> bool:
         """Display last N lines of a log file.
@@ -279,8 +295,8 @@ class JobMonitor:
                     if request_id and skypilot_status == "PENDING":
                         print("│    🕐 Job queued on cluster, waiting to start...")
                     else:
-                        # Show WandB URL as soon as it's available
-                        if "wandb_url" in job_status:
+                        # Show WandB URL if this is a training job
+                        if "wandb_url" in job_status and self._should_show_training_artifacts(name):
                             print(f"│    📊 WandB: {job_status['wandb_url']}")
                         print(f"│    📝 {job_status['logs_path']}")
                         print("│    📜 Live output:")
@@ -290,7 +306,7 @@ class JobMonitor:
                             print("│      │ 🕐 Starting...")
                 elif status_str == "completed" and job_status.get("success"):
                     # Show last few lines for succeeded jobs too
-                    if "wandb_url" in job_status:
+                    if "wandb_url" in job_status and self._should_show_training_artifacts(name):
                         print(f"│    📊 WandB: {job_status['wandb_url']}")
                     print(f"│    📝 {job_status['logs_path']}")
                     print("│    📜 Output:")
