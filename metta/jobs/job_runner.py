@@ -347,6 +347,7 @@ class RemoteJob(Job):
         else:
             base_args = ["--no-spot", "--gpus=4", "--nodes", "1"]
 
+        self.config = config
         self.module = config.module
         self.args = arg_list
         self.base_args = base_args
@@ -359,14 +360,14 @@ class RemoteJob(Job):
         self._exit_code: Optional[int] = None
         self._timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
         self._full_logs_fetched = False
-        self._run_name: Optional[str] = None  # WandB run name used for this job
+        self._run_name: Optional[str] = None  # WandB run name (only for training jobs)
 
     def _generate_run_name(self) -> str:
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         safe_name = self.name.replace("/", "_")
         return f"job_{safe_name}_{timestamp}"
 
-    def _launch_via_script(self, run_name: str) -> tuple[Optional[str], Optional[int], str]:
+    def _launch_via_script(self, run_name: str | None) -> tuple[Optional[str], Optional[int], str]:
         """Launch job via launch.py script, returning (request_id, job_id, output).
 
         SkyPilot launch flow:
@@ -374,14 +375,21 @@ class RemoteJob(Job):
         2. Extract request_id from output (required for all operations)
         3. Poll for job_id (may not be immediately available)
         4. Job_id=None is OK - we'll fetch it later via is_complete()
+
+        Args:
+            run_name: WandB run name (only passed for training jobs, None otherwise)
         """
         cmd = [
             "devops/skypilot/launch.py",
             *self.base_args,
             self.module,
-            f"run={run_name}",
-            *self.args,
         ]
+
+        # Only pass run= for training jobs (they use WandB for experiment tracking)
+        if run_name:
+            cmd.append(f"run={run_name}")
+
+        cmd.extend(self.args)
 
         if self.skip_git_check:
             cmd.append("--skip-git-check")
@@ -439,8 +447,9 @@ class RemoteJob(Job):
         log_path.parent.mkdir(parents=True, exist_ok=True)
 
         try:
-            run_name = self._generate_run_name()
-            self._run_name = run_name  # Store for WandB URL construction
+            # Only generate run_name for training jobs (they use WandB)
+            run_name = self._generate_run_name() if self.config.is_training_job else None
+            self._run_name = run_name  # Store for WandB URL construction (None for non-training)
             request_id, job_id, _ = retry_function(
                 lambda: self._launch_via_script(run_name),
                 max_retries=max_attempts - 1,
