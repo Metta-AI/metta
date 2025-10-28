@@ -31,7 +31,7 @@ def base_config() -> GameConfig:
             rotate=ActionConfig(enabled=True),
         ),
         objects={
-            "wall": WallConfig(type_id=1),
+            "wall": WallConfig(),
         },
         allow_diagonals=True,
     )

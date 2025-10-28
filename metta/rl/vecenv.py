@@ -1,4 +1,5 @@
 import logging
+import uuid
 from pathlib import Path
 from typing import Any, Optional
 
@@ -22,6 +23,7 @@ def make_env_func(
     render_mode: RenderMode = "none",
     stats_writer: Optional[StatsWriter] = None,
     replay_writer: Optional[ReplayLogRenderer] = None,
+    replay_directory: str | None = None,
     is_training: bool = False,
     run_dir: str | None = None,
     buf: Optional[Any] = None,
@@ -30,11 +32,19 @@ def make_env_func(
     if run_dir is not None:
         init_logging(run_dir=Path(run_dir))
 
+    renderer = replay_writer
+    if replay_directory is not None:
+        base_path = Path(replay_directory)
+        base_path.mkdir(parents=True, exist_ok=True)
+        env_path = base_path / uuid.uuid4().hex[:12]
+        env_path.mkdir(parents=True, exist_ok=True)
+        renderer = ReplayLogRenderer(str(env_path))
+
     env = MettaGridEnv(
         curriculum.get_task().get_env_cfg(),
         render_mode=render_mode,
         stats_writer=stats_writer,
-        renderer=replay_writer,
+        renderer=renderer,
         is_training=is_training,
     )
     set_buffers(env, buf)
@@ -53,6 +63,7 @@ def make_vecenv(
     render_mode: RenderMode = "none",
     stats_writer: StatsWriter | None = None,
     replay_writer: ReplayLogRenderer | None = None,
+    replay_directory: str | None = None,
     is_training: bool = False,
     run_dir: str | None = None,
     **kwargs,
@@ -76,6 +87,7 @@ def make_vecenv(
         "render_mode": render_mode,
         "stats_writer": stats_writer,
         "replay_writer": replay_writer,
+        "replay_directory": replay_directory,
         "is_training": is_training,
         "run_dir": run_dir,
     }

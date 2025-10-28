@@ -104,12 +104,12 @@ private:
 
   // Give output resources to agents
   void give_output_for_recipe(const Recipe& recipe, const std::vector<Agent*>& surrounding_agents) {
-    std::vector<Inventory*> inventories;
+    std::vector<HasInventory*> agents_as_inventory_havers;
     for (Agent* agent : surrounding_agents) {
-      inventories.push_back(&agent->inventory);
+      agents_as_inventory_havers.push_back(static_cast<HasInventory*>(agent));
     }
     for (const auto& [item, amount] : recipe.output_resources) {
-      Inventory::shared_update(inventories, item, amount);
+      HasInventory::shared_update(agents_as_inventory_havers, item, amount);
     }
   }
 
@@ -127,12 +127,12 @@ public:
   // Consume resources from surrounding agents for the given recipe
   // Intended to be private, but made public for testing. We couldn't get `friend` to work as expected.
   void consume_resources_for_recipe(const Recipe& recipe, const std::vector<Agent*>& surrounding_agents) {
-    std::vector<Inventory*> inventories;
+    std::vector<HasInventory*> agents_as_inventory_havers;
     for (Agent* agent : surrounding_agents) {
-      inventories.push_back(&agent->inventory);
+      agents_as_inventory_havers.push_back(static_cast<HasInventory*>(agent));
     }
     for (const auto& [item, required_amount] : recipe.input_resources) {
-      InventoryDelta consumed = Inventory::shared_update(inventories, item, -required_amount);
+      InventoryDelta consumed = HasInventory::shared_update(agents_as_inventory_havers, item, -required_amount);
       assert(consumed == -required_amount && "Expected all required resources to be consumed");
     }
   }

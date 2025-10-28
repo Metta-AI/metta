@@ -3,7 +3,7 @@
 from cogames.auth import BaseCLIAuthenticator
 
 # Default CoGames server URL
-DEFAULT_COGAMES_SERVER = "https://beta.softmax.com/api"
+DEFAULT_COGAMES_SERVER = "https://softmax.com/api"
 
 
 class CoGamesAuthenticator(BaseCLIAuthenticator):
@@ -14,7 +14,6 @@ class CoGamesAuthenticator(BaseCLIAuthenticator):
             auth_server_url=auth_server_url,
             token_file_name="cogames.yaml",
             token_storage_key="login_tokens",  # Nested under 'login_tokens' key
-            extra_uris={},  # No extra URIs for CoGames
         )
 
 

@@ -67,9 +67,26 @@ class PlayTool(Tool):
     wandb: WandbConfig = auto_wandb_config()
     sim: SimulationConfig
     policy_uri: str | None = None
+    replay_dir: str | None = None
+    stats_dir: str | None = None
+    open_browser_on_start: bool = True
     max_steps: Optional[int] = None
     seed: int = 42
     render: RenderMode = "gui"
+
+    @property
+    def effective_replay_dir(self) -> str:
+        """Return configured replay directory or default under system data_dir."""
+        if self.replay_dir is not None:
+            return self.replay_dir
+        return str(self.system.data_dir / "replays")
+
+    @property
+    def effective_stats_dir(self) -> str:
+        """Return configured stats directory or default under system data_dir."""
+        if self.stats_dir is not None:
+            return self.stats_dir
+        return str(self.system.data_dir / "stats")
 
     def invoke(self, args: dict[str, str]) -> int | None:
         """Run an interactive play session with the configured simulation."""

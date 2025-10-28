@@ -279,7 +279,7 @@ def attack(env: MettaGrid, target_arg: int = 0, agent_idx: int = 0) -> dict[str,
 
         # Find which agent was affected
         for obj_id, obj_data in objects_after.items():
-            if obj_data.get("type") == 0:  # Agent type
+            if obj_data.get("type_name") == "agent":
                 obj_before = objects_before.get(obj_id, {})
 
                 # Check if this agent was frozen

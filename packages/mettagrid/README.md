@@ -4,6 +4,12 @@ MettaGrid is a multi-agent gridworld environment for studying the emergence of c
 reinforcement learning agents. The environment features a variety of objects and actions that agents can interact with
 to manage resources, engage in combat, share with others, and optimize their rewards.
 
+## Requirements
+
+- Bazel 7.0.0 or newer (the project uses Bzlmod and modern Bazel features)
+- Python 3.11 or newer
+- C++ compiler with C++20 support
+
 ## Overview
 
 In MettaGrid, agents navigate a gridworld and interact with various objects to manage their energy, harvest resources,
@@ -38,9 +44,8 @@ when near it. The altar has a cooldown period between uses.
 
 - Using the heart altar costs `altar.use_cost energy`. So, no matter how much energy you have, you are always dumping
   the same amount of energy in it and getting the same amount of reward.
-- After the heart altar is used, it is unable to be used for the next value in
-  `altar.cooldown` (defaults to a single delay) timesteps. The cooldown field
-  accepts either an integer or a list of integers; when a list is provided the
+- After the heart altar is used, it is unable to be used for the next value in `altar.cooldown` (defaults to a single
+  delay) timesteps. The cooldown field accepts either an integer or a list of integers; when a list is provided the
   altar cycles through those delays.
 - A single use of the heart altar gives you a single unit of reward: if
   `target._type_id == ObjectType.AltarT: self.env._rewards[actor_id] += 1`
@@ -58,9 +63,8 @@ cooldown period.
   - see `this.output_energy = cfg[b"energy_output.r1"]` in the Converter cppclass
 - Using the converter increments resource 2 by one and decrements resource 1 by 1
 - There is currently no use for `converter.energy_output.r2` and `converter.energy_output.r3`
-- After the converter is used, it waits for the next value in `converter.cooldown`
-  before it can be used again. Supplying a list of integers causes the converter
-  to cycle through the provided schedule.
+- After the converter is used, it waits for the next value in `converter.cooldown` before it can be used again.
+  Supplying a list of integers causes the converter to cycle through the provided schedule.
 
 ### Generator
 
@@ -70,8 +74,7 @@ The `Generator` object produces resources that agents can harvest. Agents can ga
 to them and taking the `use` action. Generators have a specified capacity and replenish resources over time.
 
 - Using the generator once gives one resource 1
-- After the generator is used, it is unable to be used for the next value in
-  `generator.cooldown` timesteps
+- After the generator is used, it is unable to be used for the next value in `generator.cooldown` timesteps
 
 ### Wall
 
@@ -81,9 +84,8 @@ The `Wall` object acts as an impassable barrier in the environment, restricting 
 
 ### Cooldown
 
-The `cooldown` property holds one or more delays that determine how long
-objects wait before they can be used again. When provided as a list, the delays
-are applied cyclically.
+The `cooldown` property holds one or more delays that determine how long objects wait before they can be used again.
+When provided as a list, the delays are applied cyclically.
 
 ## Actions
 

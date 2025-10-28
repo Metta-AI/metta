@@ -1098,7 +1098,8 @@ TEST_F(MettaGridCppTest, EventManager) {
 // ==================== Assembler Tests ====================
 
 TEST_F(MettaGridCppTest, AssemblerBasicObservationFeatures) {
-  AssemblerConfig config(1, "test_assembler", std::vector<int>{1, 2});
+  AssemblerConfig config(1, "test_assembler");
+  config.tag_ids = {1, 2};
   Assembler assembler(5, 5, config);
 
   unsigned int current_timestep = 0;
@@ -1133,7 +1134,8 @@ TEST_F(MettaGridCppTest, AssemblerBasicObservationFeatures) {
 }
 
 TEST_F(MettaGridCppTest, AssemblerNoCooldownObservation) {
-  AssemblerConfig config(1, "test_assembler", std::vector<int>{1, 2});
+  AssemblerConfig config(1, "test_assembler");
+  config.tag_ids = {1, 2};
   Assembler assembler(5, 5, config);
 
   unsigned int current_timestep = 0;
@@ -1154,7 +1156,7 @@ TEST_F(MettaGridCppTest, AssemblerNoCooldownObservation) {
 }
 
 TEST_F(MettaGridCppTest, AssemblerCooldownRemainingCalculation) {
-  AssemblerConfig config(1, "test_assembler", std::vector<int>{1, 2});
+  AssemblerConfig config(1, "test_assembler");
   Assembler assembler(5, 5, config);
 
   unsigned int current_timestep = 0;
@@ -1186,7 +1188,7 @@ TEST_F(MettaGridCppTest, AssemblerCooldownRemainingCalculation) {
 }
 
 TEST_F(MettaGridCppTest, AssemblerCooldownObservationWithRemainingTime) {
-  AssemblerConfig config(1, "test_assembler", std::vector<int>{1, 2});
+  AssemblerConfig config(1, "test_assembler");
   Assembler assembler(5, 5, config);
 
   unsigned int current_timestep = 0;
@@ -1211,7 +1213,7 @@ TEST_F(MettaGridCppTest, AssemblerCooldownObservationWithRemainingTime) {
 }
 
 TEST_F(MettaGridCppTest, AssemblerCooldownObservationCappedAt255) {
-  AssemblerConfig config(1, "test_assembler", std::vector<int>{1, 2});
+  AssemblerConfig config(1, "test_assembler");
   Assembler assembler(5, 5, config);
 
   unsigned int current_timestep = 0;
@@ -1238,7 +1240,8 @@ TEST_F(MettaGridCppTest, AssemblerGetCurrentRecipe) {
   // Create a grid to test with
   Grid grid(10, 10);
 
-  AssemblerConfig config(1, "test_assembler", std::vector<int>{1, 2});
+  AssemblerConfig config(1, "test_assembler");
+  config.tag_ids = {1, 2};
 
   // Create test recipes
   auto recipe0 = std::make_shared<Recipe>();
@@ -1283,7 +1286,7 @@ TEST_F(MettaGridCppTest, AssemblerRecipeObservationsEnabled) {
   // Create a grid to test with
   Grid grid(10, 10);
 
-  AssemblerConfig config(1, "test_assembler", std::vector<int>{1, 2});
+  AssemblerConfig config(1, "test_assembler");
   config.recipe_details_obs = true;
   config.input_recipe_offset = 100;
   config.output_recipe_offset = 200;
@@ -1347,7 +1350,7 @@ TEST_F(MettaGridCppTest, AssemblerBalancedConsumptionAmpleResources) {
   auto recipe = std::make_shared<Recipe>(input_resources, output_resources, 0);
 
   // Create assembler with the recipe
-  AssemblerConfig config(1, "test_assembler", std::vector<int>{});
+  AssemblerConfig config(1, "test_assembler");
   config.recipes[0] = recipe;
   Assembler assembler(5, 5, config);
 
@@ -1400,7 +1403,7 @@ TEST_F(MettaGridCppTest, AssemblerBalancedConsumptionMixedResources) {
   auto recipe = std::make_shared<Recipe>(input_resources, output_resources, 0);
 
   // Create assembler with the recipe
-  AssemblerConfig config(1, "test_assembler", std::vector<int>{});
+  AssemblerConfig config(1, "test_assembler");
   config.recipes[0] = recipe;
   Assembler assembler(5, 5, config);
 
@@ -1450,7 +1453,7 @@ TEST_F(MettaGridCppTest, AssemblerClippingAndUnclipping) {
   unsigned int current_timestep = 0;
 
   // Create an assembler with normal recipes
-  AssemblerConfig config(1, "test_assembler", std::vector<int>{1, 2});
+  AssemblerConfig config(1, "test_assembler");
 
   // Create normal recipes (pattern 0: no agents needed)
   auto normal_recipe = std::make_shared<Recipe>();
@@ -1542,7 +1545,7 @@ TEST_F(MettaGridCppTest, AssemblerMaxUses) {
   unsigned int current_timestep = 0;
 
   // Create an assembler with max_uses set to 3
-  AssemblerConfig config(1, "test_assembler", std::vector<int>{1, 2});
+  AssemblerConfig config(1, "test_assembler");
   config.max_uses = 3;  // Limit to 3 uses
 
   // Create simple recipe
@@ -1634,7 +1637,7 @@ TEST_F(MettaGridCppTest, AssemblerExhaustion) {
   unsigned int current_timestep = 0;
 
   // Create an assembler with exhaustion enabled
-  AssemblerConfig config(1, "test_assembler", std::vector<int>{1, 2});
+  AssemblerConfig config(1, "test_assembler");
   config.exhaustion = 0.5f;  // 50% exhaustion rate - multiplier grows by 1.5x each use
 
   // Create recipe with cooldown
@@ -1952,218 +1955,260 @@ TEST_F(MettaGridCppTest, ConverterRespectsMaxConversionsLimit) {
   EXPECT_EQ(converter->inventory.amount(TestItems::ORE), 2);
 }
 
-// Tests for Inventory::shared_update function
+// Tests for HasInventory::shared_update function
 TEST_F(MettaGridCppTest, SharedUpdate_PositiveDelta_EvenDistribution) {
-  // Test that positive delta is evenly distributed among inventories
-  InventoryConfig cfg;
-  cfg.limits = {{{TestItems::ORE}, 100}};
+  // Test that positive delta is evenly distributed among agents
+  InventoryConfig inv_cfg;
+  inv_cfg.limits = {{{TestItems::ORE}, 100}};
 
-  Inventory inv1(cfg);
-  Inventory inv2(cfg);
-  Inventory inv3(cfg);
+  AgentConfig agent_cfg(1, "test_agent", 1, "test_group");
+  agent_cfg.inventory_config = inv_cfg;
 
-  std::vector<Inventory*> inventories = {&inv1, &inv2, &inv3};
+  auto resource_names = create_test_resource_names();
+  Agent agent1(0, 0, agent_cfg, &resource_names);
+  Agent agent2(1, 0, agent_cfg, &resource_names);
+  Agent agent3(2, 0, agent_cfg, &resource_names);
+
+  std::vector<HasInventory*> inventory_havers = {&agent1, &agent2, &agent3};
 
   // Add 30 ore, should be distributed as 10 each
-  InventoryDelta consumed = Inventory::shared_update(inventories, TestItems::ORE, 30);
+  InventoryDelta consumed = HasInventory::shared_update(inventory_havers, TestItems::ORE, 30);
 
   EXPECT_EQ(consumed, 30);
-  EXPECT_EQ(inv1.amount(TestItems::ORE), 10);
-  EXPECT_EQ(inv2.amount(TestItems::ORE), 10);
-  EXPECT_EQ(inv3.amount(TestItems::ORE), 10);
+  EXPECT_EQ(agent1.inventory.amount(TestItems::ORE), 10);
+  EXPECT_EQ(agent2.inventory.amount(TestItems::ORE), 10);
+  EXPECT_EQ(agent3.inventory.amount(TestItems::ORE), 10);
 }
 
 TEST_F(MettaGridCppTest, SharedUpdate_PositiveDelta_UnevenDistribution) {
-  // Test that when delta doesn't divide evenly, earlier inventories get more
-  InventoryConfig cfg;
-  cfg.limits = {{{TestItems::ORE}, 100}};
+  // Test that when delta doesn't divide evenly, earlier agents get more
+  InventoryConfig inv_cfg;
+  inv_cfg.limits = {{{TestItems::ORE}, 100}};
 
-  Inventory inv1(cfg);
-  Inventory inv2(cfg);
-  Inventory inv3(cfg);
+  AgentConfig agent_cfg(1, "test_agent", 1, "test_group");
+  agent_cfg.inventory_config = inv_cfg;
 
-  std::vector<Inventory*> inventories = {&inv1, &inv2, &inv3};
+  auto resource_names = create_test_resource_names();
+  Agent agent1(0, 0, agent_cfg, &resource_names);
+  Agent agent2(1, 0, agent_cfg, &resource_names);
+  Agent agent3(2, 0, agent_cfg, &resource_names);
 
-  // Add 31 ore, should be distributed as 11, 10, 10 (earlier inventories get more)
-  InventoryDelta consumed = Inventory::shared_update(inventories, TestItems::ORE, 31);
+  std::vector<HasInventory*> inventory_havers = {&agent1, &agent2, &agent3};
+
+  // Add 31 ore, should be distributed as 11, 10, 10 (earlier agents get more)
+  InventoryDelta consumed = HasInventory::shared_update(inventory_havers, TestItems::ORE, 31);
 
   EXPECT_EQ(consumed, 31);
-  EXPECT_EQ(inv1.amount(TestItems::ORE), 11);
-  EXPECT_EQ(inv2.amount(TestItems::ORE), 10);
-  EXPECT_EQ(inv3.amount(TestItems::ORE), 10);
+  EXPECT_EQ(agent1.inventory.amount(TestItems::ORE), 11);
+  EXPECT_EQ(agent2.inventory.amount(TestItems::ORE), 10);
+  EXPECT_EQ(agent3.inventory.amount(TestItems::ORE), 10);
 }
 
 TEST_F(MettaGridCppTest, SharedUpdate_PositiveDelta_WithLimits) {
-  // Test that inventories that hit their limit drop out of distribution
-  InventoryConfig cfg;
-  cfg.limits = {{{TestItems::ORE}, 10}};  // Low limit of 10
+  // Test that agents that hit their inventory limit drop out of distribution
+  InventoryConfig inv_cfg;
+  inv_cfg.limits = {{{TestItems::ORE}, 10}};  // Low limit of 10
 
-  Inventory inv1(cfg);
-  Inventory inv2(cfg);
-  Inventory inv3(cfg);
+  AgentConfig agent_cfg(1, "test_agent", 1, "test_group");
+  agent_cfg.inventory_config = inv_cfg;
 
-  // Pre-fill inv1 with 5 ore
-  inv1.update(TestItems::ORE, 5);
+  auto resource_names = create_test_resource_names();
+  Agent agent1(0, 0, agent_cfg, &resource_names);
+  Agent agent2(1, 0, agent_cfg, &resource_names);
+  Agent agent3(2, 0, agent_cfg, &resource_names);
 
-  std::vector<Inventory*> inventories = {&inv1, &inv2, &inv3};
+  // Pre-fill agent1 with 5 ore
+  agent1.update_inventory(TestItems::ORE, 5);
+
+  std::vector<HasInventory*> inventory_havers = {&agent1, &agent2, &agent3};
 
   // Try to add 30 ore
-  // inv1 can only take 5 more (to reach limit of 10)
-  // inv2 and inv3 can each take 10 (to reach their limits)
+  // agent1 can only take 5 more (to reach limit of 10)
+  // agent2 and agent3 can each take 10 (to reach their limits)
   // Total consumed will be 5 + 10 + 10 = 25, not the full 30
-  InventoryDelta consumed = Inventory::shared_update(inventories, TestItems::ORE, 30);
+  InventoryDelta consumed = HasInventory::shared_update(inventory_havers, TestItems::ORE, 30);
 
-  EXPECT_EQ(consumed, 25);                     // Only 25 can be consumed due to limits
-  EXPECT_EQ(inv1.amount(TestItems::ORE), 10);  // Hit limit
-  EXPECT_EQ(inv2.amount(TestItems::ORE), 10);  // Hit limit
-  EXPECT_EQ(inv3.amount(TestItems::ORE), 10);  // Hit limit
+  EXPECT_EQ(consumed, 25);                                 // Only 25 can be consumed due to limits
+  EXPECT_EQ(agent1.inventory.amount(TestItems::ORE), 10);  // Hit limit
+  EXPECT_EQ(agent2.inventory.amount(TestItems::ORE), 10);  // Hit limit
+  EXPECT_EQ(agent3.inventory.amount(TestItems::ORE), 10);  // Hit limit
 }
 
 TEST_F(MettaGridCppTest, SharedUpdate_NegativeDelta_EvenDistribution) {
-  // Test that negative delta is evenly distributed among inventories
-  InventoryConfig cfg;
-  cfg.limits = {{{TestItems::ORE}, 100}};
+  // Test that negative delta is evenly distributed among agents
+  InventoryConfig inv_cfg;
+  inv_cfg.limits = {{{TestItems::ORE}, 100}};
 
-  Inventory inv1(cfg);
-  Inventory inv2(cfg);
-  Inventory inv3(cfg);
+  AgentConfig agent_cfg(1, "test_agent", 1, "test_group");
+  agent_cfg.inventory_config = inv_cfg;
 
-  // Pre-fill inventories with 20 ore each
-  inv1.update(TestItems::ORE, 20);
-  inv2.update(TestItems::ORE, 20);
-  inv3.update(TestItems::ORE, 20);
+  auto resource_names = create_test_resource_names();
+  Agent agent1(0, 0, agent_cfg, &resource_names);
+  Agent agent2(1, 0, agent_cfg, &resource_names);
+  Agent agent3(2, 0, agent_cfg, &resource_names);
 
-  std::vector<Inventory*> inventories = {&inv1, &inv2, &inv3};
+  // Pre-fill agent inventories with 20 ore each
+  agent1.update_inventory(TestItems::ORE, 20);
+  agent2.update_inventory(TestItems::ORE, 20);
+  agent3.update_inventory(TestItems::ORE, 20);
+
+  std::vector<HasInventory*> inventory_havers = {&agent1, &agent2, &agent3};
 
   // Remove 30 ore, should remove 10 from each
-  InventoryDelta consumed = Inventory::shared_update(inventories, TestItems::ORE, -30);
+  InventoryDelta consumed = HasInventory::shared_update(inventory_havers, TestItems::ORE, -30);
 
   EXPECT_EQ(consumed, -30);
-  EXPECT_EQ(inv1.amount(TestItems::ORE), 10);
-  EXPECT_EQ(inv2.amount(TestItems::ORE), 10);
-  EXPECT_EQ(inv3.amount(TestItems::ORE), 10);
+  EXPECT_EQ(agent1.inventory.amount(TestItems::ORE), 10);
+  EXPECT_EQ(agent2.inventory.amount(TestItems::ORE), 10);
+  EXPECT_EQ(agent3.inventory.amount(TestItems::ORE), 10);
 }
 
 TEST_F(MettaGridCppTest, SharedUpdate_NegativeDelta_InsufficientResources) {
-  // Test behavior when some inventories don't have enough to contribute their share
-  InventoryConfig cfg;
-  cfg.limits = {{{TestItems::ORE}, 100}};
+  // Test behavior when some agents don't have enough to contribute their share
+  InventoryConfig inv_cfg;
+  inv_cfg.limits = {{{TestItems::ORE}, 100}};
 
-  Inventory inv1(cfg);
-  Inventory inv2(cfg);
-  Inventory inv3(cfg);
+  AgentConfig agent_cfg(1, "test_agent", 1, "test_group");
+  agent_cfg.inventory_config = inv_cfg;
 
-  // Pre-fill inventories with different amounts
-  inv1.update(TestItems::ORE, 5);   // Only has 5
-  inv2.update(TestItems::ORE, 20);  // Has plenty
-  inv3.update(TestItems::ORE, 20);  // Has plenty
+  auto resource_names = create_test_resource_names();
+  Agent agent1(0, 0, agent_cfg, &resource_names);
+  Agent agent2(1, 0, agent_cfg, &resource_names);
+  Agent agent3(2, 0, agent_cfg, &resource_names);
 
-  std::vector<Inventory*> inventories = {&inv1, &inv2, &inv3};
+  // Pre-fill agent inventories with different amounts
+  agent1.update_inventory(TestItems::ORE, 5);   // Only has 5
+  agent2.update_inventory(TestItems::ORE, 20);  // Has plenty
+  agent3.update_inventory(TestItems::ORE, 20);  // Has plenty
+
+  std::vector<HasInventory*> inventory_havers = {&agent1, &agent2, &agent3};
 
   // Try to remove 30 ore
-  // inv1 can only contribute 5, remaining 25 split between inv2 and inv3 as 13, 12
-  InventoryDelta consumed = Inventory::shared_update(inventories, TestItems::ORE, -30);
+  // agent1 can only contribute 5, remaining 25 split between agent2 and agent3 as 13, 12
+  InventoryDelta consumed = HasInventory::shared_update(inventory_havers, TestItems::ORE, -30);
 
   EXPECT_EQ(consumed, -30);
-  EXPECT_EQ(inv1.amount(TestItems::ORE), 0);  // Depleted
-  EXPECT_EQ(inv2.amount(TestItems::ORE), 7);  // 20 - 13
-  EXPECT_EQ(inv3.amount(TestItems::ORE), 8);  // 20 - 12
+  EXPECT_EQ(agent1.inventory.amount(TestItems::ORE), 0);  // Depleted
+  EXPECT_EQ(agent2.inventory.amount(TestItems::ORE), 7);  // 20 - 13
+  EXPECT_EQ(agent3.inventory.amount(TestItems::ORE), 8);  // 20 - 12
 }
 
 TEST_F(MettaGridCppTest, SharedUpdate_NegativeDelta_UnevenDistribution) {
-  // Test that when negative delta doesn't divide evenly, earlier inventories lose more
-  InventoryConfig cfg;
-  cfg.limits = {{{TestItems::ORE}, 100}};
+  // Test that when negative delta doesn't divide evenly, earlier agents lose more
+  InventoryConfig inv_cfg;
+  inv_cfg.limits = {{{TestItems::ORE}, 100}};
 
-  Inventory inv1(cfg);
-  Inventory inv2(cfg);
-  Inventory inv3(cfg);
+  AgentConfig agent_cfg(1, "test_agent", 1, "test_group");
+  agent_cfg.inventory_config = inv_cfg;
 
-  // Pre-fill inventories with 20 ore each
-  inv1.update(TestItems::ORE, 20);
-  inv2.update(TestItems::ORE, 20);
-  inv3.update(TestItems::ORE, 20);
+  auto resource_names = create_test_resource_names();
+  Agent agent1(0, 0, agent_cfg, &resource_names);
+  Agent agent2(1, 0, agent_cfg, &resource_names);
+  Agent agent3(2, 0, agent_cfg, &resource_names);
 
-  std::vector<Inventory*> inventories = {&inv1, &inv2, &inv3};
+  // Pre-fill agent inventories with 20 ore each
+  agent1.update_inventory(TestItems::ORE, 20);
+  agent2.update_inventory(TestItems::ORE, 20);
+  agent3.update_inventory(TestItems::ORE, 20);
 
-  // Remove 31 ore, should remove 11, 10, 10 (earlier inventories lose more)
-  InventoryDelta consumed = Inventory::shared_update(inventories, TestItems::ORE, -31);
+  std::vector<HasInventory*> inventory_havers = {&agent1, &agent2, &agent3};
+
+  // Remove 31 ore, should remove 11, 10, 10 (earlier agents lose more)
+  InventoryDelta consumed = HasInventory::shared_update(inventory_havers, TestItems::ORE, -31);
 
   EXPECT_EQ(consumed, -31);
-  EXPECT_EQ(inv1.amount(TestItems::ORE), 9);   // 20 - 11
-  EXPECT_EQ(inv2.amount(TestItems::ORE), 10);  // 20 - 10
-  EXPECT_EQ(inv3.amount(TestItems::ORE), 10);  // 20 - 10
+  EXPECT_EQ(agent1.inventory.amount(TestItems::ORE), 9);   // 20 - 11
+  EXPECT_EQ(agent2.inventory.amount(TestItems::ORE), 10);  // 20 - 10
+  EXPECT_EQ(agent3.inventory.amount(TestItems::ORE), 10);  // 20 - 10
 }
 
 TEST_F(MettaGridCppTest, SharedUpdate_EmptyInventoriesList) {
-  // Test with empty inventories list
-  std::vector<Inventory*> inventories;
+  // Test with empty inventory havers list
+  std::vector<HasInventory*> inventory_havers;
 
-  InventoryDelta consumed = Inventory::shared_update(inventories, TestItems::ORE, 10);
+  InventoryDelta consumed = HasInventory::shared_update(inventory_havers, TestItems::ORE, 10);
 
-  EXPECT_EQ(consumed, 0);  // Nothing consumed since no inventories
+  EXPECT_EQ(consumed, 0);  // Nothing consumed since no inventory havers
 }
 
 TEST_F(MettaGridCppTest, SharedUpdate_SingleInventory) {
-  // Test with single inventory
-  InventoryConfig cfg;
-  cfg.limits = {{{TestItems::ORE}, 100}};
+  // Test with single agent
+  InventoryConfig inv_cfg;
+  inv_cfg.limits = {{{TestItems::ORE}, 100}};
 
-  Inventory inv1(cfg);
-  std::vector<Inventory*> inventories = {&inv1};
+  AgentConfig agent_cfg(1, "test_agent", 1, "test_group");
+  agent_cfg.inventory_config = inv_cfg;
 
-  // All delta should go to the single inventory
-  InventoryDelta consumed = Inventory::shared_update(inventories, TestItems::ORE, 25);
+  auto resource_names = create_test_resource_names();
+  Agent agent1(0, 0, agent_cfg, &resource_names);
+  std::vector<HasInventory*> inventory_havers = {&agent1};
+
+  // All delta should go to the single agent
+  InventoryDelta consumed = HasInventory::shared_update(inventory_havers, TestItems::ORE, 25);
 
   EXPECT_EQ(consumed, 25);
-  EXPECT_EQ(inv1.amount(TestItems::ORE), 25);
+  EXPECT_EQ(agent1.inventory.amount(TestItems::ORE), 25);
 }
 
 TEST_F(MettaGridCppTest, SharedUpdate_AllInventoriesAtLimit) {
-  // Test when all inventories are at their limit
-  InventoryConfig cfg;
-  cfg.limits = {{{TestItems::ORE}, 10}};
+  // Test when all agent inventories are at their limit
+  InventoryConfig inv_cfg;
+  inv_cfg.limits = {{{TestItems::ORE}, 10}};
 
-  Inventory inv1(cfg);
-  Inventory inv2(cfg);
+  AgentConfig agent_cfg(1, "test_agent", 1, "test_group");
+  agent_cfg.inventory_config = inv_cfg;
+
+  auto resource_names = create_test_resource_names();
+  Agent agent1(0, 0, agent_cfg, &resource_names);
+  Agent agent2(1, 0, agent_cfg, &resource_names);
 
   // Fill both to limit
-  inv1.update(TestItems::ORE, 10);
-  inv2.update(TestItems::ORE, 10);
+  agent1.update_inventory(TestItems::ORE, 10);
+  agent2.update_inventory(TestItems::ORE, 10);
 
-  std::vector<Inventory*> inventories = {&inv1, &inv2};
+  std::vector<HasInventory*> inventory_havers = {&agent1, &agent2};
 
   // Try to add more
-  InventoryDelta consumed = Inventory::shared_update(inventories, TestItems::ORE, 20);
+  InventoryDelta consumed = HasInventory::shared_update(inventory_havers, TestItems::ORE, 20);
 
   EXPECT_EQ(consumed, 0);  // Nothing consumed since all at limit
-  EXPECT_EQ(inv1.amount(TestItems::ORE), 10);
-  EXPECT_EQ(inv2.amount(TestItems::ORE), 10);
+  EXPECT_EQ(agent1.inventory.amount(TestItems::ORE), 10);
+  EXPECT_EQ(agent2.inventory.amount(TestItems::ORE), 10);
 }
 
 TEST_F(MettaGridCppTest, SharedUpdate_MixedLimits) {
-  // Test with inventories having different limits
-  InventoryConfig cfg1;
-  cfg1.limits = {{{TestItems::ORE}, 10}};
+  // Test with agents having different inventory limits
+  InventoryConfig inv_cfg1;
+  inv_cfg1.limits = {{{TestItems::ORE}, 10}};
 
-  InventoryConfig cfg2;
-  cfg2.limits = {{{TestItems::ORE}, 20}};
+  InventoryConfig inv_cfg2;
+  inv_cfg2.limits = {{{TestItems::ORE}, 20}};
 
-  InventoryConfig cfg3;
-  cfg3.limits = {{{TestItems::ORE}, 30}};
+  InventoryConfig inv_cfg3;
+  inv_cfg3.limits = {{{TestItems::ORE}, 30}};
 
-  Inventory inv1(cfg1);  // Limit 10
-  Inventory inv2(cfg2);  // Limit 20
-  Inventory inv3(cfg3);  // Limit 30
+  AgentConfig agent_cfg1(1, "test_agent1", 1, "test_group");
+  agent_cfg1.inventory_config = inv_cfg1;
 
-  std::vector<Inventory*> inventories = {&inv1, &inv2, &inv3};
+  AgentConfig agent_cfg2(2, "test_agent2", 1, "test_group");
+  agent_cfg2.inventory_config = inv_cfg2;
+
+  AgentConfig agent_cfg3(3, "test_agent3", 1, "test_group");
+  agent_cfg3.inventory_config = inv_cfg3;
+
+  auto resource_names = create_test_resource_names();
+  Agent agent1(0, 0, agent_cfg1, &resource_names);  // Limit 10
+  Agent agent2(1, 0, agent_cfg2, &resource_names);  // Limit 20
+  Agent agent3(2, 0, agent_cfg3, &resource_names);  // Limit 30
+
+  std::vector<HasInventory*> inventory_havers = {&agent1, &agent2, &agent3};
 
   // Try to add 45 ore
-  // inv1 takes 10 (hits limit), inv2 takes 18, inv3 takes 17
-  InventoryDelta consumed = Inventory::shared_update(inventories, TestItems::ORE, 45);
+  // agent1 takes 10 (hits limit), agent2 takes 18, agent3 takes 17
+  InventoryDelta consumed = HasInventory::shared_update(inventory_havers, TestItems::ORE, 45);
 
   EXPECT_EQ(consumed, 45);
-  EXPECT_EQ(inv1.amount(TestItems::ORE), 10);  // Hit limit
-  EXPECT_EQ(inv2.amount(TestItems::ORE), 18);  // Gets more due to being earlier
-  EXPECT_EQ(inv3.amount(TestItems::ORE), 17);
+  EXPECT_EQ(agent1.inventory.amount(TestItems::ORE), 10);  // Hit limit
+  EXPECT_EQ(agent2.inventory.amount(TestItems::ORE), 18);  // Gets more due to being earlier
+  EXPECT_EQ(agent3.inventory.amount(TestItems::ORE), 17);
 }

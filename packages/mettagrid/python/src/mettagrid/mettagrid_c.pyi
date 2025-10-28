@@ -57,7 +57,7 @@ class PackedCoordinate:
 class GridObjectConfig: ...
 
 class WallConfig(GridObjectConfig):
-    def __init__(self, type_id: int, type_name: str, swappable: bool = False): ...
+    def __init__(self, type_id: int, type_name: str): ...
     type_id: int
     type_name: str
     swappable: bool
@@ -76,9 +76,14 @@ class AgentConfig(GridObjectConfig):
         stat_reward_max: dict[str, float] = {},
         group_reward_pct: float = 0,
         initial_inventory: dict[int, int] = {},
+        soul_bound_resources: list[int] | None = None,
+        shareable_resources: list[int] | None = None,
+        inventory_regen_amounts: dict[int, int] | None = None,
+        diversity_tracked_resources: list[int] | None = None,
     ) -> None: ...
     type_id: int
     type_name: str
+    tag_ids: list[int]
     group_id: int
     group_name: str
     freeze_duration: int
@@ -88,6 +93,10 @@ class AgentConfig(GridObjectConfig):
     stat_reward_max: dict[str, float]  # Added this
     group_reward_pct: float
     initial_inventory: dict[int, int]
+    soul_bound_resources: list[int]
+    shareable_resources: list[int]
+    inventory_regen_amounts: dict[int, int]
+    diversity_tracked_resources: list[int]
 
 class ConverterConfig(GridObjectConfig):
     def __init__(
@@ -105,6 +114,7 @@ class ConverterConfig(GridObjectConfig):
     ) -> None: ...
     type_id: int
     type_name: str
+    tag_ids: list[int]
     input_resources: dict[int, int]
     output_resources: dict[int, int]
     max_output: int

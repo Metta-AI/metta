@@ -5,13 +5,45 @@ import NextAuth, { NextAuthConfig, NextAuthResult, Session } from "next-auth";
 import { Provider } from "next-auth/providers";
 import Google from "next-auth/providers/google";
 import { redirect } from "next/navigation";
+import type { Adapter, AdapterSession } from "next-auth/adapters";
 
 import { prisma } from "./db/prisma";
+import { config } from "./config";
+import { Logger } from "./logging/logger";
+
+/**
+ * Wrap Prisma adapter to handle missing session deletion gracefully.
+ * This prevents errors when trying to delete a non-existent session during magic link login.
+ */
+function createSafeAdapter(): Adapter {
+  const baseAdapter = PrismaAdapter(prisma);
+
+  return {
+    ...baseAdapter,
+    async deleteSession(
+      sessionToken: string
+    ): Promise<AdapterSession | null | undefined> {
+      try {
+        const result = await baseAdapter.deleteSession!(sessionToken);
+        return result === undefined ? null : result;
+      } catch (error: any) {
+        // Ignore "record not found" errors when deleting sessions
+        if (error?.code === "P2025") {
+          Logger.debug("Session not found for deletion (safe to ignore)", {
+            sessionToken,
+          });
+          return null;
+        }
+        throw error;
+      }
+    },
+  };
+}
 
 function buildAuthConfig(): NextAuthConfig {
   const providers: Provider[] = [];
 
-  if (process.env.DEV_MODE === "true") {
+  if (config.features.devMode) {
     // Fake email provider. For local development only!
     providers.push({
       id: "fake-email",
@@ -19,52 +51,76 @@ function buildAuthConfig(): NextAuthConfig {
       name: "Log magic link to console (dev)",
       async sendVerificationRequest(params) {
         const { url } = params;
-        console.log({ url });
+        Logger.info(`Magic login link: ${url}`);
       },
     });
   } else {
     // Google OAuth provider for production
-    if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
+    if (config.google.clientId && config.google.clientSecret) {
       providers.push(
         Google({
-          clientId: process.env.GOOGLE_CLIENT_ID,
-          clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+          clientId: config.google.clientId,
+          clientSecret: config.google.clientSecret,
         })
       );
     }
   }
 
-  const allowedEmailDomains = process.env.ALLOWED_EMAIL_DOMAINS
-    ? process.env.ALLOWED_EMAIL_DOMAINS.split(",")
-    : ["stem.ai", "softmax.com"];
+  const allowedEmailDomains =
+    config.auth.allowedDomains.length > 0
+      ? config.auth.allowedDomains
+      : ["stem.ai", "softmax.com"];
 
-  const config: NextAuthConfig = {
-    adapter: PrismaAdapter(prisma),
+  const authConfig: NextAuthConfig = {
+    adapter: createSafeAdapter(),
     providers,
     callbacks: {
-      async signIn({ account, profile }) {
-        // adapted from https://authjs.dev/getting-started/providers/google#email-verified
-        if (
-          process.env.DEV_MODE !== "false" &&
-          account?.provider === "google"
-        ) {
-          return Boolean(
+      async signIn({ account, profile, user }) {
+        // Check domain restrictions for Google OAuth
+        if (config.features.devMode && account?.provider === "google") {
+          const domainCheck = Boolean(
             profile?.email_verified &&
               allowedEmailDomains.some((domain) =>
                 profile?.email?.endsWith(`@${domain}`)
               )
           );
+          if (!domainCheck) return false;
         }
+
+        // Check if user is banned (prevent banned users from logging in)
+        if (user?.id) {
+          const userData = await prisma.user.findUnique({
+            where: { id: user.id },
+            select: {
+              isBanned: true,
+              banReason: true,
+            },
+          });
+
+          if (userData?.isBanned) {
+            Logger.info(`Banned user attempted login: ${user.email}`);
+            // Prevent login by returning false
+            return false;
+          }
+        }
+
         return true;
+      },
+      async session({ session, user }) {
+        if (session?.user && user?.id) {
+          // Add user ID to session for convenience
+          session.user.id = user.id;
+        }
+        return session;
       },
     },
     session: {
       strategy: "database",
     },
-    secret: process.env.NEXTAUTH_SECRET,
+    secret: config.auth.secret,
   };
 
-  return config;
+  return authConfig;
 }
 
 function makeAuth(): NextAuthResult {

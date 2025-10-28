@@ -6,6 +6,7 @@ A Recipe represents a module that defines tool makers - functions that return to
 from __future__ import annotations
 
 import importlib
+import importlib.util
 from types import ModuleType
 from typing import Any, Callable, Optional
 
@@ -73,11 +74,10 @@ class Recipe:
     @classmethod
     def load(cls, module_path: str) -> Optional["Recipe"]:
         """Try to load a recipe from a module path. e.g. 'experiments.recipes.arena'"""
-        try:
+        if importlib.util.find_spec(module_path) is not None:
             module = importlib.import_module(module_path)
             return cls(module)
-        except ImportError:
-            return None
+        return None
 
     def get_explicit_tool_makers(self) -> dict[str, ToolMaker]:
         """Returns only tool makers explicitly defined in this recipe."""
