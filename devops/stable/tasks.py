@@ -44,9 +44,9 @@ class Task:
         self.dependency_names = dependency_names or []
 
 
-def ci_task(name: str, cmd: list[str], timeout_s: int = 1800) -> Task:
+def ci_task(name: str, cmd: str, timeout_s: int = 1800) -> Task:
     """Create a CI task that runs a shell command."""
-    return Task(JobConfig(name=name, module="__unused__", timeout_s=timeout_s, metadata={"cmd": cmd}))
+    return Task(JobConfig(name=name, cmd=cmd, timeout_s=timeout_s))
 
 
 def tool_task(
@@ -107,9 +107,9 @@ def tool_task(
 def get_all_tasks() -> list[Task]:
     """Define all release validation tasks with explicit dependencies."""
     # CI checks
-    python_ci_task = ci_task("python_ci", ["metta", "pytest", "--ci"])
-    cpp_ci_task = ci_task("cpp_ci", ["metta", "cpptest", "--test"])
-    cpp_benchmark_task = ci_task("cpp_benchmark", ["metta", "cpptest", "--benchmark"])
+    python_ci_task = ci_task("python_ci", "metta pytest --ci")
+    cpp_ci_task = ci_task("cpp_ci", "metta cpptest --test")
+    cpp_benchmark_task = ci_task("cpp_benchmark", "metta cpptest --benchmark")
 
     # Local smoke test
     smoke_run = f"stable.smoke.{datetime.now().strftime('%Y%m%d_%H%M%S')}"
