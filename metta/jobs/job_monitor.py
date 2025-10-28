@@ -11,6 +11,8 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
 
+from sky.server.common import get_server_url
+
 from metta.jobs.job_manager import JobManager
 
 
@@ -229,6 +231,10 @@ class JobMonitor:
 
                 # Show artifacts if requested
                 if show_artifacts:
+                    # Show SkyPilot dashboard link for remote jobs
+                    if request_id and job_id:
+                        dashboard_url = f"{get_server_url()}/dashboard/jobs/{job_id}"
+                        print(f"│    🚀 SkyPilot: {dashboard_url}")
                     if "wandb_url" in job_status:
                         print(f"│    📊 WandB: {job_status['wandb_url']}")
                     if "checkpoint_uri" in job_status:
@@ -260,6 +266,10 @@ class JobMonitor:
                     if request_id and skypilot_status == "PENDING":
                         print("│    🕐 Job queued on cluster, waiting to start...")
                     else:
+                        # Show SkyPilot dashboard link for remote jobs
+                        if request_id and job_id:
+                            dashboard_url = f"{get_server_url()}/dashboard/jobs/{job_id}"
+                            print(f"│    🚀 SkyPilot: {dashboard_url}")
                         # Show WandB URL if this is a training job
                         if "wandb_url" in job_status and self._should_show_training_artifacts(name):
                             print(f"│    📊 WandB: {job_status['wandb_url']}")
@@ -271,6 +281,10 @@ class JobMonitor:
                             print("│      │ 🕐 Starting...")
                 elif status_str == "completed" and job_status.get("success"):
                     # Show last few lines for succeeded jobs too
+                    # Show SkyPilot dashboard link for remote jobs
+                    if request_id and job_id:
+                        dashboard_url = f"{get_server_url()}/dashboard/jobs/{job_id}"
+                        print(f"│    🚀 SkyPilot: {dashboard_url}")
                     if "wandb_url" in job_status and self._should_show_training_artifacts(name):
                         print(f"│    📊 WandB: {job_status['wandb_url']}")
                     print(f"│    📝 {job_status['logs_path']}")
