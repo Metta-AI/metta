@@ -1,190 +1,366 @@
-## Cogs vs Clips: Procedural Map Generation and Missions
+## Cogs vs Clips: Procedural Map Generation, Variants, and Missions
 
-This guide shows how to build procedural maps, define Sites, create Missions and Variants, and run them via the CLI.
+This guide explains how the procedural map system is wired together and how to extend it safely.
 
-### Key files
+---
 
-- `packages/cogames/src/cogames/cogs_vs_clips/procedural.py` (procedural map builders and overrides)
-- `packages/cogames/src/cogames/cogs_vs_clips/mission.py` (base `Site`, `Mission`, `MissionVariant` types and
-  instantiation flow)
-- `packages/cogames/src/cogames/cogs_vs_clips/missions.py` (catalog of Sites, Missions, and Variants)
-- `packages/cogames/src/cogames/cli/mission.py` (CLI glue; `--mission`, `--variant`, `--cogs`)
+### Core Modules
 
-### Concepts
+- `cogs_vs_clips/procedural.py`
+  - Procedural map builders (`make_machina_procedural_map_builder`, `make_hub_only_map_builder`)
+  - Runtime override helpers (`apply_hub_overrides_to_builder`, `apply_procedural_overrides_to_builder`)
+- `mettagrid/mapgen/scenes/building_distributions.py`
+  - `UniformExtractorScene` and `DistributionConfig` for building placement
+- `cogs_vs_clips/mission.py`
+  - Base `Site`, `Mission`, `MissionVariant` types and the instantiate → make_env flow
+- `cogs_vs_clips/missions.py`
+  - Catalog of sites, missions, and variants; examples of procedural overrides and hub tuning
+- `cogs_vs_clips/cli/mission.py`
+  - CLI glue (`cogames play`, `cogames missions`, `cogames train`) and variant composition
 
-- **Site**: A location with a `map_builder` and min/max cogs. A mission selects a Site.
-- **Mission**: A template that becomes an instantiated mission with a concrete map and number of cogs.
-- **Variant**: A small modifier that updates a mission (e.g., resource efficiencies, biome mix, hub contents).
-- **Procedural builder**: Functions that return a `MapBuilderConfig` (e.g., `make_machina_procedural_map_builder`).
+Everything ultimately produces a `MapBuilderConfig` that feeds into a `MettaGridConfig`. Missions coordinate map
+building, agent setup, and post-processing such as assembler rewrites.
 
-### Procedural builders
+---
 
-Use `make_machina_procedural_map_builder` for an asteroid arena with hub and resource pockets.
+### Procedural Builders
 
-Parameters you can set:
+#### `make_machina_procedural_map_builder`
 
-- **Size**: `width`, `height`
-- **Seed**: `seed`
-- **Biomes**: `base_biome` in {`caves`,`forest`,`desert`,`city`}; `biome_weights`, `biome_count`, `density_scale`
-- **Dungeons**: `dungeon_weights`, `dungeon_count`
-- **Hub**: `hub_corner_bundle` in {`chests`,`extractors`,`none`}, `hub_cross_bundle` in {`chests`,`extractors`,`none`},
-  `hub_cross_distance`
-- **Resources**: `extractor_names`, `extractor_weights`, `extractor_coverage`
+Creates an asteroid arena with hub + biome/dungeon layers and dense resource pockets.
 
-Example (as a Site map builder):
+Key parameters (all keyword-only):
+
+| Category                | Parameters                                                                                      |
+| ----------------------- | ----------------------------------------------------------------------------------------------- |
+| Size                    | `width`, `height`                                                                               |
+| Randomness              | `seed`                                                                                          |
+| Base biome              | `base_biome` (`"caves"`, `"forest"`, `"desert"`, `"city"`), `base_biome_config`                 |
+| Biome overlays          | `biome_weights`, `biome_count`, `density_scale`, `max_biome_zone_fraction`                      |
+| Dungeon overlays        | `dungeon_weights`, `dungeon_count`, `max_dungeon_zone_fraction`                                 |
+| Buildings               | `building_names`, `building_weights`, `building_coverage`                                       |
+| Placement distributions | `distribution` (global `DistributionConfig`), `building_distributions` (per-building overrides) |
+| Hub layout              | `hub_corner_bundle`, `hub_cross_bundle`, `hub_cross_distance`                                   |
+
+Important details:
+
+- Building parameters are expressed in terms of “buildings” (stations). Legacy extractor fields are deprecated but still
+  accepted via overrides for backward compatibility.
+- The resulting `MapGen.Config` carries the provided `seed`. All child scenes use RNGs spawned from this root, so the
+  same seed reproduces terrain and resource placement exactly.
+- Hub defaults place chests in the corners, but variants commonly override the bundles and cross spacing.
+
+#### Example: site-level builder
 
 ```python
 from cogames.cogs_vs_clips.procedural import make_machina_procedural_map_builder
 
 MACHINA_PROCEDURAL_200 = Site(
     name="machina_procedural_200",
-    description="Large procedural map",
+    description="Large procedural arena",
     map_builder=make_machina_procedural_map_builder(
-        num_cogs=4, width=200, height=200, base_biome="caves",
-        hub_corner_bundle="chests", hub_cross_bundle="extractors", hub_cross_distance=7,
-        extractor_names=["chest","charger","carbon_extractor","oxygen_extractor"],
-        extractor_weights={"chest": 0.2, "charger": 0.6, "carbon_extractor": 0.3, "oxygen_extractor": 0.3},
-        extractor_coverage=0.01,
+        num_cogs=4,
+        width=200,
+        height=200,
+        seed=12345,
+        base_biome="caves",
+        hub_corner_bundle="chests",
+        hub_cross_bundle="extractors",
+        hub_cross_distance=7,
+        building_names=[
+            "chest",
+            "charger",
+            "carbon_extractor",
+            "oxygen_extractor",
+            "germanium_extractor",
+            "silicon_extractor",
+        ],
+        building_weights={
+            "chest": 0.2,
+            "charger": 0.6,
+            "carbon_extractor": 0.3,
+            "oxygen_extractor": 0.3,
+            "germanium_extractor": 0.3,
+            "silicon_extractor": 0.3,
+        },
+        building_coverage=0.01,
+        distribution={"type": "bimodal", "cluster_std": 0.15},
+        building_distributions={
+            "chest": {"type": "exponential", "decay_rate": 5.0, "origin_x": 0.0, "origin_y": 0.0},
+            "charger": {"type": "poisson"},
+        },
     ),
     min_cogs=1,
     max_cogs=20,
 )
 ```
 
-### Sites: fixed vs procedural
+#### `make_hub_only_map_builder`
 
-You can use either:
+Produces a hub-only `MapGen.Config` (typically 21×21) used for the training facility or as a base for variants.
+Parameters include `seed`, `corner_bundle`, `cross_bundle`, `cross_distance`, and a transform set that rotates/flips the
+hub.
 
-- A fixed map file via `get_map("name.map")`
-- A procedural builder (recommended for flexibility)
+---
 
-See `HELLO_WORLD` and `MACHINA_1` in `missions.py` for procedural 100x100 and 200x200 examples.
+### Placement Distributions (`building_distributions.py`)
 
-### Variants (MissionVariant)
+`UniformExtractorScene` handles actual placement of buildings. It works in two modes:
 
-Variants are small modifiers applied during `Mission.instantiate`. They typically update `mission.procedural_overrides`
-or station parameters.
+1. **Coverage-driven**: If `target_coverage` is set, it samples enough center points to hit the requested coverage using
+   the supplied distributions.
+2. **Grid-driven**: Without coverage, it places objects on a jittered grid defined by `rows`, `cols`, and `padding`.
 
-Example variant that forces a city biome with dense coverage and no dungeons:
+Every random sample uses `self.rng`, which comes from the parent scene. Because `SceneConfig.seed` defaults to the
+parent’s RNG when unset, the top-level `MapGen.Config(seed=...)` ensures deterministic results.
 
-```python
-class CityBiomeVariant(MissionVariant):
-    name: str = "city"
-    description: str = "Ancient city grid"
+`DistributionConfig` supports:
 
-    def apply(self, mission: Mission) -> Mission:
-        mission.procedural_overrides.update({
-            "base_biome": "city",
-            "biome_weights": {"city": 1.0, "caves": 0.0, "desert": 0.0, "forest": 0.0},
-            "biome_count": 1,
-            "max_biome_zone_fraction": 0.95,
-            "dungeon_weights": {"bsp": 0.0, "maze": 0.0, "radial": 0.0},
-            "max_dungeon_zone_fraction": 0.0,
-        })
-        return mission
-```
+- `type`: `"uniform"`, `"normal"`, `"exponential"`, `"poisson"`, `"bimodal"`
+- Additional parameters per distribution (means, standard deviations, decay rates, cluster centers, etc.)
 
-Common hub variants set:
+Per-building overrides live in `building_distributions` and accept the same schema. Omitted buildings fall back to the
+global `distribution`.
 
-- `hub_corner_bundle`: `"chests" | "extractors" | "none"`
-- `hub_cross_bundle`: `"chests" | "extractors" | "none"`
-- `hub_cross_distance`: distance from center for cross placements
+---
 
-### How overrides are applied
+### Missions and Variants
 
-`Mission.instantiate` (see `mission.py`) will:
+#### Sites (`missions.py`)
 
-1. Copy and configure the mission
-2. Set `map` and `num_cogs`
-3. Apply the selected Variant
-4. Apply `procedural_overrides` to the builder when possible
+Sites describe reusable environments. They point to either a static map (`get_map("name.map")`) or a procedural builder.
+Examples:
 
-For procedural missions that must rebuild the map builder, see `ProceduralMissionBase` in `missions.py` which
-regenerates the builder after variants using accumulated overrides.
+- `TRAINING_FACILITY`: hub-only builder, 21×21
+- `HELLO_WORLD`: 100×100 procedural arena
+- `MACHINA_1`: 200×200 procedural arena
+- `MACHINA_PROCEDURAL`: shared base builder reused by procedural missions
 
-### Missions
+Each site defines `min_cogs`/`max_cogs`. CLI calls (`--cogs`) override the default during mission instantiation.
 
-Create a `Mission` subclass, pick a `site`, optionally set `procedural_overrides` in `configure()`, and customize in
-`make_env()` after the map is built.
+#### Mission lifecycle (`mission.py`)
 
-Example: chest-only explore procedural mission (from `missions.py`):
+1. `Mission.configure()` (optional) tweaks defaults before instantiation.
+2. `Mission.instantiate(map_builder, num_cogs, variant)`
+   - Clones the mission, runs `configure()`, applies the selected variant, and sets `map` + `num_cogs`.
+   - Applies procedural overrides to the builder (`apply_procedural_overrides_to_builder`). Overrides can include seeds,
+     building distributions, hub bundles, etc.
+3. `Mission.make_env()` finalizes the `MettaGridConfig` and allows post-processing (e.g., assembler recipe adjustments).
 
-```python
-class MachinaProceduralExploreMission(ProceduralMissionBase):
-    name: str = "explore"
-    description: str = "There are HEARTs scattered around the map. Collect them all."
+`ProceduralMissionBase` rebuilds the map after variant application, ensuring mission-specific `procedural_overrides`
+drive a fresh call to `make_machina_procedural_map_builder`.
 
-    def configure(self):
-        self.heart_capacity = 99
-        self.procedural_overrides = {
-            "extractor_names": ["chest"],
-            "extractor_weights": {"chest": 1.0},
-            "extractor_coverage": 0.004,
-            "hub_corner_bundle": "chests",
-            "hub_cross_bundle": "none",
-            "hub_cross_distance": 7,
-        }
+#### Procedural overrides cheat sheet
 
-    def make_env(self) -> MettaGridConfig:
-        env = super().make_env()
-        # Example: ensure chest template starts with a heart
-        chest_cfg = env.game.objects.get("chest")
-        if isinstance(chest_cfg, ChestConfig):
-            chest_cfg.initial_inventory = 1
-        return env
-```
-
-### Agent counts (cogs)
-
-Agent count is set when calling `Mission.instantiate(map_builder, num_cogs, variant)`. The CLI passes `--cogs` into this
-path.
-
-If a mission needs a default (e.g., VibeCheck requires 4 agents) but should still respect `--cogs`, override
-`instantiate` minimally:
+`Mission.procedural_overrides` is a plain `dict[str, Any]`. After variants run, we feed it directly into
+`make_machina_procedural_map_builder(**overrides)` (and also respect legacy extractor keys for backward compatibility).
+Typical keys include:
 
 ```python
-def instantiate(self, map_builder: MapBuilderConfig, num_cogs: int, variant: MissionVariant | None = None) -> "Mission":
-    desired = 4 if (self.site and num_cogs == self.site.min_cogs) else num_cogs
-    return super().instantiate(map_builder, desired, variant)
+self.procedural_overrides = {
+    # Map size + randomness
+    "width": 120,
+    "height": 120,
+    # normally this is set by the CLI --seed flag
+    "seed": 24601,
+
+    # Biome / dungeon structure
+    "base_biome": "forest",
+    "biome_weights": {"forest": 1.0, "caves": 0.25},
+    "biome_count": 6,
+    "dungeon_weights": {"maze": 0.75, "radial": 0.5},
+    "density_scale": 1.2,
+
+    # Resource placement (building-based API)
+    # Defines the set of buildings that can be placed on the map
+    "building_names": [
+        "chest",
+        "charger",
+        "carbon_extractor",
+        "oxygen_extractor",
+        "germanium_extractor",
+        "silicon_extractor",
+    ],
+    # What proportion of buildings are of a type, falls back to default if not set
+    "building_weights": {
+        "chest": 1.0,
+        "charger": 0.7,
+        "carbon_extractor": 0.4,
+        "oxygen_extractor": 0.4,
+        "germanium_extractor": 0.4,
+        "silicon_extractor": 0.4,
+    },
+    # How much of the map is covered by buildings
+    "building_coverage": 0.012,
+    # How buildings are distributed on the map
+    "distribution": {"type": "exponential", "decay_rate": 4.5, "origin_x": 0.0, "origin_y": 1.0},
+    # How buildings are distributed on the map per building type, falls back to global distribution if not set
+    "building_distributions": {
+        "chest": {"type": "normal", "mean_x": 0.5, "mean_y": 0.65, "std_x": 0.12, "std_y": 0.12},
+        "charger": {"type": "poisson"},
+    },
+
+    # Hub controls
+    "hub_corner_bundle": "chests",
+    "hub_cross_bundle": "extractors",
+    "hub_cross_distance": 7,
+}
 ```
 
-### Using the CLI
+You can add or remove keys as needed—anything not provided falls back to `make_machina_procedural_map_builder` defaults.
+Because overrides accept `seed`, variants or missions can pin a layout for reproducibility.
 
-List missions and variants:
+---
 
-```bash
-cogames missions
+#### Variants
+
+Variants inherit from `MissionVariant` and override `apply(self, mission)`. Common patterns:
+
+- Update resource/tuning parameters:
+
+  ```python
+  class MinedOutVariant(MissionVariant):
+      name = "mined_out"
+      description = "Some resources are depleted."
+
+      def apply(self, mission: Mission) -> Mission:
+          mission.carbon_extractor.efficiency -= 50
+          mission.oxygen_extractor.efficiency -= 50
+          mission.germanium_extractor.efficiency -= 50
+          mission.silicon_extractor.efficiency -= 50
+          return mission
+  ```
+
+- Switch biomes or hub contents via `procedural_overrides`:
+
+  ```python
+  class CityBiomeVariant(MissionVariant):
+      name = "city"
+      description = "Ancient city ruins provide structured pathways."
+
+      def apply(self, mission: Mission) -> Mission:
+          mission.procedural_overrides.update(
+              {
+                  "base_biome": "city",
+                  "biome_weights": {"city": 1.0, "caves": 0.0, "desert": 0.0, "forest": 0.0},
+                  "density_scale": 1.0,
+                  "biome_count": 1,
+                  "max_biome_zone_fraction": 0.95,
+                  "dungeon_weights": {"bsp": 0.0, "maze": 0.0, "radial": 0.0},
+                  "max_dungeon_zone_fraction": 0.0,
+              }
+          )
+          return mission
+  ```
+
+- Adjust hub bundles:
+
+  ```python
+  class BothBaseVariant(MissionVariant):
+      name = "both_base"
+      description = "Chests on corners, extractors on cross arms."
+
+      def apply(self, mission: Mission) -> Mission:
+          mission.procedural_overrides.update(
+              {
+                  "hub_corner_bundle": "chests",
+                  "hub_cross_bundle": "extractors",
+                  "hub_cross_distance": 7,
+              }
+          )
+          return mission
+  ```
+
+CLI variants are composed in order, so `cogames play -m machina_procedural.open_world -v city -v both_base` applies
+`city`, then `both_base`.
+
+---
+
+### Seeds and Reproducibility
+
+- Passing `seed` into a procedural builder guarantees deterministic terrain and building placement.
+- Variants or missions can inject `procedural_overrides["seed"]` so the same CLI command reproduces runs.
+- Hub-only builders preserve the original seed unless an override provides a new one (`apply_hub_overrides_to_builder`).
+- CLI `--seed` flags (e.g., `cogames train --seed`) currently only seed the RL training loop; they do **not** inject a
+  procedural seed. Add a mission/variant override if you need deterministic maps from the CLI today.
+
+Example override from a mission:
+
+```python
+self.procedural_overrides = {
+    "seed": 9876,
+    "building_distributions": {
+        "chest": {"type": "normal", "mean_x": 0.5, "mean_y": 0.5, "std_x": 0.15, "std_y": 0.15},
+    },
+}
 ```
 
-Run a mission:
+---
 
-```bash
-# Site.Mission with variants and cogs
-cogames play --mission machina_procedural.open_world --variant city --variant both_base --cogs 8
+### Building New Missions
 
-# Training facility explore
-cogames play --mission hello_world.explore --cogs 4
-```
+1. **Define or reuse a Site** with the desired map builder.
+2. **Create a Mission subclass**:
+   - Set `site` to the site you want
+   - Override `configure()` to set mission defaults (e.g., procedural overrides, reward tuning)
+   - Optionally override `make_env()` for post-processing (e.g., seed chests, adjust assembler recipes)
+3. **Add the mission class to `MISSIONS`** so the CLI picks it up.
+4. (Optional) **Create variants** for common modifiers and append them to `VARIANTS`.
 
-Tips:
+`ProceduralMissionBase` is a convenient base for missions that always rebuild a procedural map using
+`procedural_overrides`.
 
-- Combine multiple `--variant` flags; they apply in order.
-- If you omit `--cogs`, the CLI uses the Site’s `min_cogs`. Per-mission overrides (like the VibeCheck default to 4) can
-  be implemented as above while still allowing `--cogs` to override.
+---
 
-### Common patterns
+### CLI Reference
 
-- Tight hub vs default hub: controlled by `BaseHub` config via `make_hub_only_map_builder` or via procedural hub
-  bundles.
-- Resource density: tune `extractor_coverage` and `extractor_weights`.
-- Biome vs dungeon structure: set `biome_weights/dungeon_weights` and counts; use `density_scale` for autoscaling.
+- List missions/variants:
 
-### Where to start
+  ```bash
+  cogames missions
+  ```
 
-1. Duplicate an existing Site in `missions.py` and point it to a procedural builder with your dimensions.
-2. Add a new `MissionVariant` to flip biomes/hub layout as needed.
-3. Add a new `Mission` (optionally using `ProceduralMissionBase`) to set mission-specific overrides.
-4. Run with the CLI using your `site.mission` and any `--variant`/`--cogs` you want.
+- Play with variants and overrides:
 
-That’s it—this flow lets you iterate quickly on arenas, content density, and mission rules without touching engine
-internals.
+  ```bash
+  cogames play --mission machina_procedural.open_world \
+               --variant city \
+               --variant both_base \
+               --cogs 8 \
+               --policy random
+  ```
+
+- Train on one or more missions (default policy `lstm`):
+
+  ```bash
+  # Single mission
+  uv run cogames train -m machina_1.open_world --steps 200000 --seed 12345
+
+  # Multiple missions
+  uv run cogames train \
+      -m machina_1.open_world \
+      -m machina_procedural.explore \
+      -m training_facility.harvest \
+      --steps 200000 \
+      --seed 12345
+  ```
+
+- Reproduce a procedural seed:
+  ```bash
+  cogames play -m machina_procedural.open_world --variant city --seed 24601
+  ```
+  (Assuming the mission/variant combination sets or respects `procedural_overrides["seed"]`.)
+
+---
+
+### Recommended Workflow
+
+1. Start with an existing Site + Mission pair (e.g., `HELLO_WORLD`, `ExploreMission`).
+2. Copy the mission, adjust `procedural_overrides` or hub settings, and add it to `MISSIONS`.
+3. Define variants for reusable tweaks.
+4. Use CLI commands (`missions`, `play`, `train`) to iterate quickly.
+5. When training, consider reducing `--parallel-envs`/`--num-workers` on macOS to avoid long startup times while
+   generating large maps.
+
+This structure keeps procedural content declarative, supports deterministic reproduction, and allows incremental
+extension without touching engine internals.
