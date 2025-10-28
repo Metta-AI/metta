@@ -423,6 +423,11 @@ def apply_hub_overrides_to_builder(
         if not isinstance(builder, MapGen.Config):
             return builder
 
+        # Preserve existing top-level seed unless explicitly overridden
+        existing_seed = getattr(builder, "seed", None)
+        override_seed = (overrides or {}).get("seed", None)
+        final_seed = override_seed if override_seed is not None else existing_seed
+
         width = getattr(builder, "width", None) or 21
         height = getattr(builder, "height", None) or 21
 
@@ -467,6 +472,7 @@ def apply_hub_overrides_to_builder(
                     num_cogs=num_cogs,
                     width=width,
                     height=height,
+                    seed=final_seed,
                     corner_bundle=corner_bundle,
                     cross_bundle=cross_bundle,
                     cross_distance=cross_distance,

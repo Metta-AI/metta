@@ -60,30 +60,30 @@ class DarkSideVariant(MissionVariant):
 class LonelyHeartVariant(MissionVariant):
     name: str = "lonely_heart"
     description: str = "Making hearts for one agent is easy."
+    # TODO: Fix this when Richard remakes the _make_env_modifier
+    # def apply(self, mission: Mission) -> Mission:
+    #     mission.assembler.heart_cost = 1
 
-    def apply(self, mission: Mission) -> Mission:
-        mission.assembler.heart_cost = 1
+    #     def modifier(cfg: MettaGridConfig) -> None:
+    #         simplified_inputs = {"carbon": 1, "oxygen": 1, "germanium": 1, "silicon": 1, "energy": 1}
 
-        def modifier(cfg: MettaGridConfig) -> None:
-            simplified_inputs = {"carbon": 1, "oxygen": 1, "germanium": 1, "silicon": 1, "energy": 1}
+    #         assembler = cfg.game.objects.get("assembler")
+    #         if assembler is None:
+    #             return
 
-            assembler = cfg.game.objects.get("assembler")
-            if assembler is None:
-                return
+    #         heart_recipe = ProtocolConfig(
+    #             input_resources=dict(input_resources), output_resources={"heart": 1}, cooldown=1
+    #         )
 
-            heart_recipe = ProtocolConfig(
-                input_resources=dict(input_resources), output_resources={"heart": 1}, cooldown=1
-            )
+    #         non_heart_recipes = [
+    #             (existing_vibe_tokens, recipe)
+    #             for existing_vibe_tokens, recipe in assembler.recipes
+    #             if recipe.output_resources.get("heart", 0) == 0
+    #         ]
 
-            non_heart_recipes = [
-                (existing_vibe_tokens, recipe)
-                for existing_vibe_tokens, recipe in assembler.recipes
-                if recipe.output_resources.get("heart", 0) == 0
-            ]
+    #         assembler.recipes = [(["default"], heart_recipe), *non_heart_recipes]
 
-            assembler.recipes = [(["default"], heart_recipe), *non_heart_recipes]
-
-        return _add_make_env_modifier(mission, modifier)
+    #     return _add_make_env_modifier(mission, modifier)
 
 
 class BrightSideVariant(MissionVariant):
