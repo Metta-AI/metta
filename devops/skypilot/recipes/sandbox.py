@@ -185,20 +185,40 @@ def get_gpu_instance_info(num_gpus: int, gpu_type: str = "L4", region: str = "us
     return instance_type, region, hourly_cost
 
 
-def print_cost_info(hourly_cost, num_gpus):
+def print_cost_info(hourly_cost, num_gpus, num_nodes: int = 1):
     """Print cost information in a consistent format."""
     if hourly_cost is not None:
-        print(f"Approximate cost: {green(f'~${hourly_cost:.2f}/hour')} (on-demand pricing)")
+        per_node = hourly_cost
+        total = per_node * max(num_nodes, 1)
+        if num_nodes > 1:
+            print(f"Approximate cost per node: {green(f'~${per_node:.2f}/hour')} (on-demand pricing)")
+            print(f"Approximate cluster cost: {green(f'~${total:.2f}/hour')} ({num_nodes} nodes)")
+        else:
+            print(f"Approximate cost: {green(f'~${per_node:.2f}/hour')} (on-demand pricing)")
     else:
         # Provide a rough estimate when we can't calculate exact cost
         gpu_cost_estimates = {
-            1: "~$0.70-0.90/hour",
-            2: "~$1.40-1.80/hour",
-            4: "~$2.80-3.60/hour",
-            8: "~$5.60-7.20/hour",
+            1: (0.70, 0.90),
+            2: (1.40, 1.80),
+            4: (2.80, 3.60),
+            8: (5.60, 7.20),
         }
-        estimate = gpu_cost_estimates.get(num_gpus, f"~${0.70 * num_gpus:.2f}-{0.90 * num_gpus:.2f}/hour")
-        print(f"Approximate cost: {yellow(estimate)} (estimated for {num_gpus} L4 GPU{'s' if num_gpus > 1 else ''})")
+        low, high = gpu_cost_estimates.get(num_gpus, (0.70 * num_gpus, 0.90 * num_gpus))
+        per_node_estimate = f"~${low:.2f}-${high:.2f}/hour"
+        if num_nodes > 1:
+            total_low = low * num_nodes
+            total_high = high * num_nodes
+            total_estimate = f"~${total_low:.2f}-${total_high:.2f}/hour"
+            print(
+                f"Approximate cost per node: {yellow(per_node_estimate)} "
+                f"(estimated for {num_gpus} L4 GPU{'s' if num_gpus > 1 else ''})"
+            )
+            print(f"Approximate cluster cost: {yellow(total_estimate)} ({num_nodes} nodes)")
+        else:
+            print(
+                f"Approximate cost: {yellow(per_node_estimate)} "
+                f"(estimated for {num_gpus} L4 GPU{'s' if num_gpus > 1 else ''})"
+            )
 
 
 def check_cluster_status(cluster_name: str) -> str:
@@ -312,6 +332,7 @@ Examples:
   %(prog)s --check      # Check for active sandboxes and exit
   %(prog)s --new        # Launch a new sandbox with 1 GPU
   %(prog)s --new --gpus 4  # Launch a new sandbox with 4 GPUs
+  %(prog)s --new --nodes 2 --gpus 2  # Launch 2 nodes with 2 GPUs each
   %(prog)s --new --sweep-controller  # Launch a CPU-only sandbox (uses config instance_type)
   %(prog)s --new --git-ref feature-branch  # Launch with specific git branch
   %(prog)s --new --wait-timeout 600  # Wait up to 10 minutes for cluster to be ready
@@ -333,6 +354,7 @@ Common management commands:
     parser.add_argument("--new", action="store_true", help="Launch a new sandbox cluster")
     parser.add_argument("--check", action="store_true", help="Check for existing sandboxes and exit")
     parser.add_argument("--gpus", type=int, default=1, help="Number of GPUs to use (default: 1)")
+    parser.add_argument("--nodes", type=int, default=1, help="Number of nodes to use (default: 1)")
     parser.add_argument(
         "--retry-until-up", action="store_true", help="Keep retrying until cluster is successfully launched"
     )
@@ -354,6 +376,9 @@ Common management commands:
     if args.sweep_controller and args.gpus > 1:
         print(f"{red('✗')} Error: --sweep-controller mode is CPU-only and cannot use GPUs.")
         print(f"  Either use --sweep-controller without --gpus, or use regular mode with --gpus {args.gpus}")
+        return 1
+    if args.nodes < 1:
+        print(f"{red('✗')} Error: --nodes must be at least 1 (received {args.nodes}).")
         return 1
 
     # Get git ref - use current branch/commit if not specified
@@ -380,11 +405,13 @@ Common management commands:
     cluster_name = get_next_sandbox_name(existing_clusters)
 
     # Determine configuration based on --sweep-controller flag
+    node_suffix = f" across {bold(str(args.nodes))} node{'s' if args.nodes > 1 else ''}" if args.nodes > 1 else ""
     if args.sweep_controller:
-        print(f"\n🚀 Launching {blue(cluster_name)} in {bold('CPU-ONLY MODE')}")
+        print(f"\n🚀 Launching {blue(cluster_name)} in {bold('CPU-ONLY MODE')}{node_suffix}")
         config_path = "./devops/skypilot/config/sandbox_cheap.yaml"
     else:
-        print(f"\n🚀 Launching {blue(cluster_name)} with {bold(str(args.gpus))} L4 GPU(s)")
+        gpu_summary = f"{bold(str(args.gpus))} L4 GPU{'s' if args.gpus != 1 else ''} per node"
+        print(f"\n🚀 Launching {blue(cluster_name)} with {gpu_summary}{node_suffix}")
         config_path = "./devops/skypilot/config/sandbox.yaml"
 
     print(f"🔌 Git ref: {cyan(git_ref)}")
@@ -401,6 +428,8 @@ Common management commands:
         # For CPU-only mode, read the instance type from config
         instance_type = resources.get("instance_type", "m6i.2xlarge")
         print(f"Instance type: {bold(instance_type)} in {bold(region)}")
+        if args.nodes > 1:
+            print(f"Nodes: {bold(str(args.nodes))}")
 
         # Try to calculate on-demand cost dynamically
         hourly_cost = None
@@ -411,11 +440,23 @@ Common management commands:
             hourly_cost = None
 
         if hourly_cost is not None:
-            print(f"Approximate cost: {green(f'~${hourly_cost:.3f}/hour')} (on-demand pricing)")
+            per_node_cost = hourly_cost
+            if args.nodes > 1:
+                total_cost = per_node_cost * args.nodes
+                print(f"Approximate cost per node: {green(f'~${per_node_cost:.3f}/hour')} (on-demand pricing)")
+                print(f"Approximate cluster cost: {green(f'~${total_cost:.3f}/hour')} ({args.nodes} nodes)")
+            else:
+                print(f"Approximate cost: {green(f'~${per_node_cost:.3f}/hour')} (on-demand pricing)")
         else:
             # Fallback hint when cost API is unavailable
             if instance_type == "m6i.2xlarge":
-                print(f"Approximate cost: {green('~$0.384/hour')} (on-demand pricing, us-east-1)")
+                per_node_estimate = "~$0.384/hour"
+                if args.nodes > 1:
+                    total_estimate = f"~${0.384 * args.nodes:.3f}/hour"
+                    print(f"Approximate cost per node: {green(per_node_estimate)} (on-demand pricing, us-east-1)")
+                    print(f"Approximate cluster cost: {green(total_estimate)} ({args.nodes} nodes)")
+                else:
+                    print(f"Approximate cost: {green(per_node_estimate)} (on-demand pricing, us-east-1)")
             else:
                 print("Approximate cost: (unavailable) – check AWS pricing for your region.")
     else:
@@ -428,8 +469,10 @@ Common management commands:
 
         if instance_type:
             print(f"Instance type: {bold(instance_type)} in {bold(region)}")
+        if args.nodes > 1:
+            print(f"Nodes: {bold(str(args.nodes))}")
 
-        print_cost_info(hourly_cost, args.gpus)
+        print_cost_info(hourly_cost, args.gpus, args.nodes)
 
     autostop_hours = 48
 
@@ -438,11 +481,16 @@ Common management commands:
         task = sky.Task.from_yaml(config_path)
         set_task_secrets(task)
 
+        task.num_nodes = args.nodes
+
         if not args.sweep_controller:
             # Only override GPU resources for non-cheap mode
             task.set_resources_override({"accelerators": f"{gpu_type}:{args.gpus}"})
 
-        task.update_envs({"METTA_GIT_REF": git_ref})
+        env_updates: dict[str, str] = {"METTA_GIT_REF": git_ref, "RAY_EXPECTED_NODES": str(args.nodes)}
+        if not args.sweep_controller:
+            env_updates["RAY_GPUS_PER_NODE"] = str(args.gpus)
+        task.update_envs(env_updates)
         time.sleep(1)
 
     print("\n⏳ This will take a few minutes...")
