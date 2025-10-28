@@ -131,6 +131,92 @@ else
   export ENABLE_GITHUB_STATUS=false
 fi
 
+get_ray_head_ip() {
+  if [[ -n "${RAY_HEAD_IP_OVERRIDE:-}" ]]; then
+    echo "${RAY_HEAD_IP_OVERRIDE}"
+    return
+  fi
+  if [[ -n "${SKYPILOT_HEAD_IP:-}" ]]; then
+    echo "${SKYPILOT_HEAD_IP}"
+    return
+  fi
+  if [[ -n "${SKYPILOT_NODE_IPS:-}" ]]; then
+    echo "${SKYPILOT_NODE_IPS}" | head -n1
+    return
+  fi
+  hostname -I 2> /dev/null | awk '{print $1}'
+}
+
+maybe_start_ray_cluster() {
+  if [[ "${METTA_CLUSTER_MODE:-}" != "ray_sweep" ]]; then
+    return
+  fi
+
+  local head_port="${RAY_HEAD_PORT:-6379}"
+  local dashboard_port="${RAY_DASHBOARD_PORT:-}"
+  local gpus_per_node="${RAY_GPUS_PER_NODE:-}"
+
+  if [[ -z "$gpus_per_node" ]]; then
+    if command -v nvidia-smi > /dev/null 2>&1; then
+      gpus_per_node=$(nvidia-smi --list-gpus | wc -l | tr -d ' ')
+    else
+      gpus_per_node=0
+    fi
+  fi
+
+  local head_ip
+  head_ip=$(get_ray_head_ip)
+  export RAY_HEAD_IP="$head_ip"
+  export RAY_PORT="$head_port"
+  export RAY_ADDRESS="ray://${head_ip}:${head_port}"
+
+  echo "[RAY] Preparing Ray cluster (rank=${RANK}, head_ip=${head_ip}, port=${head_port}, gpus_per_node=${gpus_per_node})"
+
+  local -a common_args=("--disable-usage-stats")
+  if [[ "$gpus_per_node" =~ ^[0-9]+$ ]] && [[ "$gpus_per_node" -gt 0 ]]; then
+    common_args+=("--num-gpus" "$gpus_per_node")
+  fi
+
+  if [[ "$IS_MASTER" == "true" ]]; then
+    local -a head_args=("--head" "--port" "$head_port" "--dashboard-host" "0.0.0.0")
+    if [[ -n "$dashboard_port" ]]; then
+      head_args+=("--dashboard-port" "$dashboard_port")
+    fi
+    echo "[RAY] Starting head node..."
+    if ! ray start "${head_args[@]}" "${common_args[@]}"; then
+      echo "[RAY] Failed to start Ray head node" >&2
+      exit 1
+    fi
+    sleep 5
+    export METTA_RAY_STARTED_HEAD=true
+  else
+    local -a worker_args=("--address" "${head_ip}:${head_port}")
+    local attempt=0
+    until ray start "${worker_args[@]}" "${common_args[@]}"; do
+      attempt=$((attempt + 1))
+      if (( attempt >= 10 )); then
+        echo "[RAY] Failed to start Ray worker after ${attempt} attempts" >&2
+        exit 1
+      fi
+      echo "[RAY] Head not ready yet (attempt ${attempt}); retrying in 5s..."
+      sleep 5
+    done
+    sleep 5
+    export METTA_RAY_STARTED_WORKER=true
+  fi
+}
+
+maybe_stop_ray_cluster() {
+  if [[ "${METTA_CLUSTER_MODE:-}" != "ray_sweep" ]]; then
+    return
+  fi
+
+  if [[ "${METTA_RAY_STARTED_HEAD:-false}" == "true" || "${METTA_RAY_STARTED_WORKER:-false}" == "true" ]]; then
+    echo "[RAY] Stopping Ray services on node rank ${RANK}"
+    ray stop --force > /dev/null 2>&1 || true
+  fi
+}
+
 shutdown() {
   # Disable the trap to prevent re-entry
   trap '' INT TERM HUP
@@ -182,6 +268,8 @@ shutdown() {
     kill -KILL -"${CMD_PGID}" 2> /dev/null || true
   fi
 
+  maybe_stop_ray_cluster
+
   # shutdown now calls the cleanup_handler
   exit 0
 }
@@ -212,12 +300,22 @@ run_cmd() {
 
   export START_TIME=$(date +%s)
 
-  # Build the command as an array
-  local cmd=(./devops/run.sh "${METTA_MODULE_PATH:?missing METTA_MODULE_PATH}")
-
-  # Add args if METTA_ARGS is not empty
-  if [ -n "${METTA_ARGS:-}" ]; then
-    cmd+=(${METTA_ARGS}) # split on spaces
+  local cmd=()
+  if [[ "${METTA_CLUSTER_MODE:-}" == "ray_sweep" ]]; then
+    if [[ "$IS_MASTER" == "true" ]]; then
+      cmd=(uv run tools/run.py "${METTA_MODULE_PATH:?missing METTA_MODULE_PATH}")
+      if [ -n "${METTA_ARGS:-}" ]; then
+        cmd+=(${METTA_ARGS})
+      fi
+    else
+      echo "[RAY] Worker node entering idle loop; Ray tasks will keep this node busy"
+      cmd=(python -c "import time; time.sleep(10**9)")
+    fi
+  else
+    cmd=(./devops/run.sh "${METTA_MODULE_PATH:?missing METTA_MODULE_PATH}")
+    if [ -n "${METTA_ARGS:-}" ]; then
+      cmd+=(${METTA_ARGS})
+    fi
   fi
 
   echo "[INFO] Running command: ${cmd[*]}"
@@ -277,6 +375,8 @@ else
     echo "[SUCCESS] NCCL tests passed"
   fi
 fi
+
+maybe_start_ray_cluster
 
 run_cmd
 shutdown
