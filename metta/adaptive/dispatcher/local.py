@@ -122,9 +122,15 @@ class LocalDispatcher:
 
             if self._use_torchrun:
                 if job.gpus:
-                    env.setdefault("NUM_GPUS", str(job.gpus))
+                    env["NUM_GPUS"] = str(job.gpus)
                 if job.nodes:
-                    env.setdefault("NUM_NODES", str(job.nodes))
+                    env["NUM_NODES"] = str(job.nodes)
+                if "MASTER_ADDR" not in env:
+                    env["MASTER_ADDR"] = os.environ.get("MASTER_ADDR", "localhost")
+                if "MASTER_PORT" not in env:
+                    env["MASTER_PORT"] = os.environ.get("MASTER_PORT", "12345")
+                if "NODE_INDEX" not in env and "RAY_RANK" in env:
+                    env["NODE_INDEX"] = env["RAY_RANK"]
 
             # Configure subprocess output handling
             if self._capture_output:

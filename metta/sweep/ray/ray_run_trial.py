@@ -34,11 +34,16 @@ def metta_train_fn(config: dict[str, Any]) -> None:
     merged_overrides = dict(sweep_config.get("train_overrides", {}))
     merged_overrides.update(config["params"])
 
+    gpus_per_trial = int(sweep_config.get("gpus_per_trial", 0) or 0)
+    nodes_per_trial = int(sweep_config.get("nodes_per_trial", 1) or 1)
+
     job = create_training_job(
         run_id=trial_name,
         experiment_id=sweep_config.get("sweep_id"),
         recipe_module=sweep_config.get("recipe_module"),
         train_entrypoint=sweep_config.get("train_entrypoint"),
+        gpus=gpus_per_trial if gpus_per_trial > 0 else 0,
+        nodes=nodes_per_trial if nodes_per_trial > 0 else 1,
         stats_server_uri=sweep_config.get("stats_server_uri"),
         train_overrides=merged_overrides,
     )
