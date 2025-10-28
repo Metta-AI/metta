@@ -4,13 +4,14 @@ import pytest
 
 from mettagrid.config.mettagrid_c_config import from_mettagrid_config
 from mettagrid.config.mettagrid_config import (
-    ActionConfig,
     ActionsConfig,
     AgentConfig,
     AgentRewards,
     AttackActionConfig,
     ChangeGlyphActionConfig,
     GameConfig,
+    MoveActionConfig,
+    NoopActionConfig,
     WallConfig,
 )
 from mettagrid.mettagrid_c import MettaGrid
@@ -33,16 +34,13 @@ def test_exception_when_laser_not_in_inventory():
         # Note: laser is NOT in resource_names
         resource_names=["armor", "heart"],
         actions=ActionsConfig(
-            noop=ActionConfig(enabled=True),
-            move=ActionConfig(enabled=True),
+            noop=NoopActionConfig(enabled=True),
+            move=MoveActionConfig(enabled=True),
             attack=AttackActionConfig(
                 enabled=True,
                 consumed_resources={"laser": 1},  # This should trigger an exception!
                 defense_resources={"armor": 1},
             ),
-            put_items=ActionConfig(enabled=True),
-            get_items=ActionConfig(enabled=True),
-            swap=ActionConfig(enabled=True),
             change_glyph=ChangeGlyphActionConfig(enabled=False, number_of_glyphs=4),
         ),
         objects={"wall": WallConfig()},
@@ -82,16 +80,9 @@ def test_no_exception_when_resources_in_inventory():
         # Laser IS in resource_names
         resource_names=["laser", "armor", "heart"],
         actions=ActionsConfig(
-            noop=ActionConfig(enabled=True),
-            move=ActionConfig(enabled=True),
-            attack=AttackActionConfig(
-                enabled=True,
-                consumed_resources={"laser": 1},
-                defense_resources={"armor": 1},
-            ),
-            put_items=ActionConfig(enabled=True),
-            get_items=ActionConfig(enabled=True),
-            swap=ActionConfig(enabled=True),
+            noop=NoopActionConfig(enabled=True),
+            move=MoveActionConfig(enabled=True),
+            attack=AttackActionConfig(enabled=True, consumed_resources={"laser": 1}, defense_resources={"armor": 1}),
             change_glyph=ChangeGlyphActionConfig(enabled=False, number_of_glyphs=4),
         ),
         objects={"wall": WallConfig()},

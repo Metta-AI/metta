@@ -58,8 +58,10 @@ public:
         _converter_radius(cfg.converter_radius),
         _scales(cfg.scales) {}
 
-  unsigned char max_arg() const override {
-    return 0;
+  std::vector<Action> create_actions() override {
+    std::vector<Action> actions;
+    actions.emplace_back(this, action_name(), 0);
+    return actions;
   }
 
 protected:

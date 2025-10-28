@@ -66,11 +66,7 @@ class EvaluateRemoteJobTool(RemoteJobTool):
             if self.stats_server_uri is not None:
                 stats_client = HttpStatsClient.create(self.stats_server_uri)
 
-            device = torch.device(self.system.device)
-
-            eval_results = eval_tool.eval_policy(
-                normalized_uri=normalized_uri, device=device, stats_client=stats_client
-            )
+            eval_results = eval_tool.eval_policy(normalized_uri=normalized_uri, stats_client=stats_client)
             if len(eval_results.scores.simulation_scores) == 0:
                 return JobResult(result="failure", error="No simulations were run")
             elif len(eval_results.scores.simulation_scores) != len(self.simulations):
@@ -182,10 +178,11 @@ class EvaluateTool(Tool):
                 except Exception as e2:
                     logger.error("Fallback WandB logging failed: %s", e2)
 
-    def eval_policy(self, normalized_uri: str, device: torch.device, stats_client: StatsClient | None) -> EvalResults:
+    def eval_policy(self, normalized_uri: str, stats_client: StatsClient | None) -> EvalResults:
         game_rules = self._build_game_rules()
 
-        # Verify the checkpoint exists
+        # Verify the checkpoint exists (always use CPU for simulations)
+        device = torch.device("cpu")
         try:
             agent = CheckpointManager.load_from_uri(normalized_uri, game_rules, device)
             metadata = CheckpointManager.get_policy_metadata(normalized_uri)
@@ -210,8 +207,6 @@ class EvaluateTool(Tool):
                 if self.enable_replays
                 else None
             ),
-            device=device,
-            vectorization=self.system.vectorization,
             export_stats_db_uri=self.stats_db_uri,
             stats_client=stats_client,
             eval_task_id=eval_task_id,
@@ -241,7 +236,6 @@ class EvaluateTool(Tool):
             stats_client = HttpStatsClient.create(self.stats_server_uri)
 
         all_results = {"simulations": [sim.full_name for sim in self.simulations], "policies": []}
-        device = torch.device(self.system.device)
 
         for policy_uri in self.policy_uris:
             normalized_uri = CheckpointManager.normalize_uri(policy_uri)
@@ -256,7 +250,7 @@ class EvaluateTool(Tool):
                 continue
 
             results = {"policy_uri": normalized_uri, "checkpoints": []}
-            eval_results = self.eval_policy(normalized_uri, device, stats_client)
+            eval_results = self.eval_policy(normalized_uri, stats_client)
             metadata = CheckpointManager.get_policy_metadata(normalized_uri)
             results["checkpoints"].append(
                 {

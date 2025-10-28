@@ -7,7 +7,7 @@ from torch import nn
 
 from metta.agent.policy import ExternalPolicyWrapper
 from metta.rl.training import GameRules
-from mettagrid import dtype_actions
+from mettagrid.mettagrid_c import dtype_actions
 
 
 class _DummyPolicy(nn.Module):

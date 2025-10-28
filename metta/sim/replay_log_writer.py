@@ -11,17 +11,16 @@ from typing import TYPE_CHECKING, Any, Dict
 import numpy as np
 
 from metta.utils.file import http_url, write_data
-from mettagrid.renderer.renderer import Renderer
-from mettagrid.util.action_catalog import build_action_mapping, make_decode_fn
+from mettagrid.simulator import SimulatorEventHandler
 from mettagrid.util.grid_object_formatter import format_grid_object
 
 if TYPE_CHECKING:
     from mettagrid import MettaGridEnv
 
-logger = logging.getLogger("ReplayLogRenderer")
+logger = logging.getLogger("ReplayLogWriter")
 
 
-class ReplayLogRenderer(Renderer):
+class ReplayLogWriter(SimulatorEventHandler):
     """Renderer that writes replay logs to storage (S3 or local files)."""
 
     def __init__(self, replay_dir: str):
@@ -38,10 +37,12 @@ class ReplayLogRenderer(Renderer):
         self._should_continue = True
         self.episodes: Dict[str, EpisodeReplay] = {}
 
-    def on_episode_start(self, env: MettaGridEnv) -> None:
+    def on_episode_start(self) -> None:
         """Start recording a new episode."""
+        if self._sim is None:
+            raise RuntimeError("Simulation not set. Call set_simulation() first.")
         self._episode_id = str(uuid.uuid4())
-        self._episode_replay = EpisodeReplay(env)
+        self._episode_replay = EpisodeReplay(self._sim)
         self.episodes[self._episode_id] = self._episode_replay
         logger.info("Started recording episode %s", self._episode_id)
 
@@ -83,21 +84,19 @@ class EpisodeReplay:
         self.step = 0
         self.objects = []
         self.total_rewards = np.zeros(env.num_agents)
-        self._flat_action_mapping, self._base_action_names = build_action_mapping(env)
-        self._decode_flat_action = make_decode_fn(self._flat_action_mapping)
 
         self._validate_non_empty_string_list(env.action_names, "action_names")
         self._validate_non_empty_string_list(env.resource_names, "item_names")
 
         self.replay_data = {
             "version": 2,
-            "action_names": self._base_action_names,
+            "action_names": env.action_names,
             "item_names": env.resource_names,
             "type_names": env.object_type_names,
             "map_size": [env.map_width, env.map_height],
             "num_agents": env.num_agents,
-            "max_steps": env.max_steps,
-            "mg_config": env.mg_config.model_dump(mode="json"),
+            "max_steps": env.config.game.max_steps,
+            "mg_config": env.config.model_dump(mode="json"),
             "objects": self.objects,
         }
 
@@ -114,7 +113,6 @@ class EpisodeReplay:
                 self.env.action_success,
                 rewards,
                 self.total_rewards,
-                decode_flat_action=self._decode_flat_action,
             )
 
             self._seq_key_merge(self.objects[i], self.step, update_object)

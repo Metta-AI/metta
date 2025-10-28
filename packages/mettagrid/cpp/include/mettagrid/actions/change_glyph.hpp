@@ -19,18 +19,32 @@ struct ChangeGlyphActionConfig : public ActionConfig {
       : ActionConfig(required_resources, consumed_resources), number_of_glyphs(number_of_glyphs) {}
 };
 
+// Forward declaration
+struct GameConfig;
+
 class ChangeGlyph : public ActionHandler {
 public:
-  explicit ChangeGlyph(const ChangeGlyphActionConfig& cfg)
-      : ActionHandler(cfg, "change_glyph"), _number_of_glyphs(cfg.number_of_glyphs) {}
+  explicit ChangeGlyph(const ChangeGlyphActionConfig& cfg, const GameConfig* game_config)
+      : ActionHandler(cfg, "change_glyph"), _number_of_glyphs(cfg.number_of_glyphs), _game_config(game_config) {}
 
-  unsigned char max_arg() const override {
-    // Return number_of_glyphs - 1 since args are 0-indexed
-    return _number_of_glyphs > 0 ? _number_of_glyphs - 1 : 0;
+  std::vector<Action> create_actions() override {
+    std::vector<Action> actions;
+    unsigned char max_arg = _number_of_glyphs > 0 ? _number_of_glyphs - 1 : 0;
+    for (unsigned char i = 0; i <= max_arg; ++i) {
+      std::string action_name;
+      if (_game_config && i < _game_config->vibe_names.size()) {
+        action_name = "change_glyph_" + _game_config->vibe_names[i];
+      } else {
+        action_name = "change_glyph_" + std::to_string(i);
+      }
+      actions.emplace_back(this, action_name, static_cast<ActionArg>(i));
+    }
+    return actions;
   }
 
 protected:
   const ObservationType _number_of_glyphs;
+  const GameConfig* _game_config;
 
   bool _handle_action(Agent& actor, ActionArg arg) override {
     actor.glyph = static_cast<ObservationType>(arg);  // ActionArg is int32 for puffer compatibility

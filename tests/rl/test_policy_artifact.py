@@ -22,7 +22,7 @@ from metta.rl.policy_artifact import (
     save_policy_artifact_safetensors,
 )
 from metta.rl.training import GameRules
-from mettagrid.base_config import Config
+from mettagrid.config import Config
 
 
 class DummyActionComponentConfig(Config):

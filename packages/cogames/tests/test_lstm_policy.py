@@ -4,7 +4,8 @@ import numpy as np
 import torch
 from gymnasium.spaces import Box, Discrete
 
-from cogames.policy.lstm import LSTMPolicyNet
+from mettagrid.config.mettagrid_config import ActionsConfig
+from mettagrid.policy.lstm import LSTMPolicyNet
 
 
 class MockEnv:
@@ -15,6 +16,25 @@ class MockEnv:
         self.single_action_space = Discrete(8)
 
 
+def create_mock_actions_cfg():
+    """Create a mock ActionsConfig with 8 actions."""
+    from mettagrid.config.mettagrid_config import (
+        AttackActionConfig,
+        ChangeGlyphActionConfig,
+        MoveActionConfig,
+        NoopActionConfig,
+        ResourceModActionConfig,
+    )
+
+    return ActionsConfig(
+        noop=NoopActionConfig(enabled=True),
+        move=MoveActionConfig(enabled=True),
+        attack=AttackActionConfig(enabled=True),
+        change_glyph=ChangeGlyphActionConfig(enabled=True),
+        resource_mod=ResourceModActionConfig(enabled=True),
+    )
+
+
 def test_forward_return_signature():
     """Test that forward_eval returns exactly 2 values (not 3).
 
@@ -22,7 +42,8 @@ def test_forward_return_signature():
     The state is managed externally via in-place dict updates.
     """
     env = MockEnv()
-    net = LSTMPolicyNet(env)
+    actions_cfg = create_mock_actions_cfg()
+    net = LSTMPolicyNet(actions_cfg, env.single_observation_space.shape)
     obs = torch.randint(0, 256, (4, 7, 7, 3))
 
     # This should return exactly 2 values (logits, values)
@@ -32,7 +53,8 @@ def test_forward_return_signature():
 
     logits, values = result
     assert isinstance(logits, torch.Tensor)
-    assert logits.shape == (4, MockEnv().single_action_space.n)
+    assert logits.shape[0] == 4  # Batch size
+    assert logits.shape[1] == net._num_actions  # Number of actions
     assert values.shape == (4, 1)  # Batch of 4, single value per obs
 
 
@@ -43,7 +65,8 @@ def test_forward_with_dict_state():
     and expects it to be updated in-place with the same shape.
     """
     env = MockEnv()
-    net = LSTMPolicyNet(env)
+    actions_cfg = create_mock_actions_cfg()
+    net = LSTMPolicyNet(actions_cfg, env.single_observation_space.shape)
     batch_size = 4
     obs = torch.randint(0, 256, (batch_size, 7, 7, 3))
 
@@ -74,7 +97,8 @@ def test_forward_with_empty_dict_state():
     Empty dict means no LSTM state, so the dict should remain empty.
     """
     env = MockEnv()
-    net = LSTMPolicyNet(env)
+    actions_cfg = create_mock_actions_cfg()
+    net = LSTMPolicyNet(actions_cfg, env.single_observation_space.shape)
     obs = torch.randint(0, 256, (4, 7, 7, 3))
 
     # Empty dict - should be treated as no state
@@ -89,7 +113,8 @@ def test_forward_with_empty_dict_state():
 def test_forward_with_none_state():
     """Test that forward_eval works with None state (no LSTM state)."""
     env = MockEnv()
-    net = LSTMPolicyNet(env)
+    actions_cfg = create_mock_actions_cfg()
+    net = LSTMPolicyNet(actions_cfg, env.single_observation_space.shape)
     obs = torch.randint(0, 256, (4, 7, 7, 3))
 
     # None state means no LSTM state
@@ -97,14 +122,16 @@ def test_forward_with_none_state():
 
     # Should still work and return valid outputs
     assert isinstance(logits, torch.Tensor)
-    assert logits.shape == (4, MockEnv().single_action_space.n)
+    assert logits.shape[0] == 4  # Batch size
+    assert logits.shape[1] == net._num_actions  # Number of actions
     assert values.shape == (4, 1)
 
 
 def test_forward_method_matches_forward_eval():
     """Test that forward() method returns same signature as forward_eval()."""
     env = MockEnv()
-    net = LSTMPolicyNet(env)
+    actions_cfg = create_mock_actions_cfg()
+    net = LSTMPolicyNet(actions_cfg, env.single_observation_space.shape)
     obs = torch.randint(0, 256, (4, 7, 7, 3))
 
     # Both should return (logits, values)

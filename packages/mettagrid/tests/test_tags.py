@@ -3,24 +3,26 @@ import pytest
 
 from mettagrid.config.mettagrid_c_config import convert_to_cpp_game_config
 from mettagrid.config.mettagrid_config import (
-    ActionConfig,
     ActionsConfig,
     AgentConfig,
-    ConverterConfig,
+    AssemblerConfig,
     GameConfig,
     MettaGridConfig,
+    MoveActionConfig,
+    NoopActionConfig,
+    ProtocolConfig,
     WallConfig,
 )
-from mettagrid.core import MettaGridCore
 from mettagrid.map_builder.ascii import AsciiMapBuilder
 from mettagrid.mapgen.utils.ascii_grid import DEFAULT_CHAR_TO_NAME
+from mettagrid.simulator import Simulation
 from mettagrid.test_support import TokenTypes
 
 NUM_OBS_TOKENS = 200
 
 
 @pytest.fixture
-def env_with_tags() -> MettaGridCore:
+def sim_with_tags() -> Simulation:
     """Create an environment with objects that have tags."""
     cfg = MettaGridConfig(
         game=GameConfig(
@@ -29,10 +31,7 @@ def env_with_tags() -> MettaGridCore:
             obs_width=5,
             obs_height=5,
             num_observation_tokens=NUM_OBS_TOKENS,
-            actions=ActionsConfig(
-                noop=ActionConfig(),
-                move=ActionConfig(),
-            ),
+            actions=ActionsConfig(noop=NoopActionConfig(), move=MoveActionConfig()),
             objects={
                 "wall": WallConfig(type_id=TokenTypes.WALL_TYPE_ID, tags=["solid", "blocking"]),
             },
@@ -51,11 +50,11 @@ def env_with_tags() -> MettaGridCore:
         )
     )
 
-    return MettaGridCore(cfg)
+    return Simulation(cfg)
 
 
 @pytest.fixture
-def env_with_duplicate_tags() -> MettaGridCore:
+def sim_with_duplicate_tags() -> Simulation:
     """Create an environment where multiple objects share tags."""
     cfg = MettaGridConfig(
         game=GameConfig(
@@ -64,10 +63,7 @@ def env_with_duplicate_tags() -> MettaGridCore:
             obs_width=3,
             obs_height=3,
             num_observation_tokens=NUM_OBS_TOKENS,
-            actions=ActionsConfig(
-                noop=ActionConfig(),
-                move=ActionConfig(),
-            ),
+            actions=ActionsConfig(noop=NoopActionConfig(), move=MoveActionConfig()),
             agents=[
                 AgentConfig(tags=["mobile", "shared_tag"]),
             ],
@@ -88,15 +84,16 @@ def env_with_duplicate_tags() -> MettaGridCore:
         )
     )
 
-    return MettaGridCore(cfg)
+    return Simulation(cfg)
 
 
 class TestTags:
     """Test tag system functionality."""
 
-    def test_tags_in_config(self, env_with_tags):
+    def test_tags_in_config(self, sim_with_tags):
         """Test that tags are properly configured in the game config."""
-        obs, _ = env_with_tags.reset()
+        sim = sim_with_tags
+        obs = sim._c_sim.observations()
 
         # Verify environment creates successfully with tags
         assert obs is not None
@@ -119,7 +116,7 @@ class TestTags:
         assert len(wall_locations) > 0, "Should find walls in observation"
 
         # Get tag feature ID from environment
-        tag_feature_id = env_with_tags.c_env.feature_spec()["tag"]["id"]
+        tag_feature_id = sim._c_sim.feature_spec()["tag"]["id"]
 
         # Check for tag features at wall locations
         tag_features = []
@@ -130,9 +127,10 @@ class TestTags:
         # Walls should have tag features
         assert len(tag_features) > 0, "Walls should have tag features"
 
-    def test_tags_in_observations(self, env_with_tags):
+    def test_tags_in_observations(self, sim_with_tags):
         """Test that tags appear in observations with correct IDs."""
-        obs, _ = env_with_tags.reset()
+        sim = sim_with_tags
+        obs = sim._c_sim.observations()
         agent0_obs = obs[0]
 
         # Wall has tags ["solid", "blocking"] which should be sorted alphabetically
@@ -147,7 +145,7 @@ class TestTags:
                 wall_locations.add(token[0])
 
         # Get tag feature ID from environment
-        tag_feature_id = env_with_tags.c_env.feature_spec()["tag"]["id"]
+        tag_feature_id = sim._c_sim.feature_spec()["tag"]["id"]
 
         # Find tag features at wall locations
         found_tags = set()
@@ -171,7 +169,7 @@ class TestTags:
                 obs_width=3,
                 obs_height=3,
                 num_observation_tokens=NUM_OBS_TOKENS,
-                actions=ActionsConfig(noop=ActionConfig()),
+                actions=ActionsConfig(noop=NoopActionConfig()),
                 objects={
                     "wall": WallConfig(
                         type_id=TokenTypes.WALL_TYPE_ID,
@@ -190,8 +188,8 @@ class TestTags:
             )
         )
 
-        env = MettaGridCore(cfg)
-        obs, _ = env.reset()
+        env = Simulation(cfg)
+        obs = env._c_sim.observations()
 
         # Environment should work fine with objects that have no tags
         assert obs is not None
@@ -199,7 +197,7 @@ class TestTags:
         agent_obs = obs[0]
 
         # Get tag feature ID from environment
-        tag_feature_id = env.c_env.feature_spec()["tag"]["id"]
+        tag_feature_id = env._c_sim.feature_spec()["tag"]["id"]
 
         # Find wall locations
         wall_locations = set()
@@ -212,9 +210,10 @@ class TestTags:
             if token[0] in wall_locations and token[1] == tag_feature_id:
                 raise AssertionError(f"Wall without tags should not have tag tokens, found tag ID {token[2]}")
 
-    def test_duplicate_tags_across_objects(self, env_with_duplicate_tags):
+    def test_duplicate_tags_across_objects(self, sim_with_duplicate_tags):
         """Test that multiple objects can share the same tags."""
-        obs, _ = env_with_duplicate_tags.reset()
+        sim = sim_with_duplicate_tags
+        obs = sim._c_sim.observations()
         assert obs is not None
 
         agent_obs = obs[0]
@@ -227,7 +226,7 @@ class TestTags:
         shared_tag_id = 1  # "shared_tag" should be ID 1
 
         # Get tag feature ID from environment
-        tag_feature_id = env_with_duplicate_tags.c_env.feature_spec()["tag"]["id"]
+        tag_feature_id = sim._c_sim.feature_spec()["tag"]["id"]
 
         # Find wall and agent locations
         wall_locations = set()
@@ -265,7 +264,7 @@ class TestTags:
                 obs_width=3,
                 obs_height=3,
                 num_observation_tokens=NUM_OBS_TOKENS,
-                actions=ActionsConfig(noop=ActionConfig()),
+                actions=ActionsConfig(noop=NoopActionConfig()),
                 objects={
                     "wall": WallConfig(type_id=TokenTypes.WALL_TYPE_ID, tags=tags),
                 },
@@ -281,8 +280,8 @@ class TestTags:
             )
         )
 
-        env = MettaGridCore(cfg)
-        obs, _ = env.reset()
+        env = Simulation(cfg)
+        obs = env._c_sim.observations()
 
         # Should handle many tags without issues
         assert obs is not None
@@ -290,7 +289,7 @@ class TestTags:
         agent_obs = obs[0]
 
         # Get tag feature ID from environment
-        tag_feature_id = env.c_env.feature_spec()["tag"]["id"]
+        tag_feature_id = env._c_sim.feature_spec()["tag"]["id"]
 
         # Find wall locations
         wall_locations = set()
@@ -320,7 +319,7 @@ class TestTags:
                 obs_width=3,
                 obs_height=3,
                 num_observation_tokens=200,
-                actions=ActionsConfig(noop=ActionConfig()),
+                actions=ActionsConfig(noop=NoopActionConfig()),
                 objects={
                     "wall": WallConfig(type_id=TokenTypes.WALL_TYPE_ID, tags=["alpha", "beta"]),
                 },
@@ -343,7 +342,7 @@ class TestTags:
                 obs_width=3,
                 obs_height=3,
                 num_observation_tokens=200,
-                actions=ActionsConfig(noop=ActionConfig()),
+                actions=ActionsConfig(noop=NoopActionConfig()),
                 objects={
                     "wall": WallConfig(
                         type_id=TokenTypes.WALL_TYPE_ID,
@@ -363,17 +362,17 @@ class TestTags:
         )
 
         # Both configs should work and map tags consistently
-        env1 = MettaGridCore(cfg1)
-        env2 = MettaGridCore(cfg2)
+        env1 = Simulation(cfg1)
+        env2 = Simulation(cfg2)
 
-        obs1, _ = env1.reset()
-        obs2, _ = env2.reset()
+        obs1 = env1._c_sim.observations()
+        obs2 = env2._c_sim.observations()
 
         assert obs1 is not None
         assert obs2 is not None
 
         # Get tag feature ID from environment
-        tag_feature_id = env1.c_env.feature_spec()["tag"]["id"]
+        tag_feature_id = env1._c_sim.feature_spec()["tag"]["id"]
 
         # Extract tag IDs from both environments
         def get_wall_tag_ids(obs):
@@ -401,10 +400,8 @@ class TestTags:
         # "alpha" < "beta" alphabetically, so alpha=0, beta=1
         assert tags1 == {0, 1}, f"Expected tag IDs {{0, 1}}, got {tags1}"
 
-    def test_converter_with_tags(self):
-        """Test that converter objects can have tags."""
-        # Since converters can't be placed via ASCII maps easily,
-        # we'll test that the ConverterConfig accepts tags without errors
+    def test_assembler_with_tags(self):
+        """Test that assembler objects can have tags."""
         cfg = MettaGridConfig(
             game=GameConfig(
                 num_agents=1,
@@ -412,17 +409,15 @@ class TestTags:
                 obs_width=3,
                 obs_height=3,
                 num_observation_tokens=200,
-                actions=ActionsConfig(noop=ActionConfig()),
+                actions=ActionsConfig(noop=NoopActionConfig()),
                 objects={
-                    "converter": ConverterConfig(
+                    "assembler": AssemblerConfig(
                         type_id=2,
-                        input_resources={"wood": 1},
-                        output_resources={"coal": 1},
-                        max_output=10,
-                        max_conversions=5,
-                        conversion_ticks=10,
-                        cooldown=[5],
-                        tags=["machine", "converter", "industrial"],
+                        recipes=[
+                            ([], ProtocolConfig(input_resources={"wood": 1}, output_resources={"coal": 1}, cooldown=5))
+                        ],
+                        max_uses=10,
+                        tags=["machine", "industrial"],
                     ),
                     "wall": WallConfig(type_id=TokenTypes.WALL_TYPE_ID, tags=["solid"]),
                 },
@@ -438,12 +433,12 @@ class TestTags:
             )
         )
 
-        # The test verifies that converter config accepts tags without errors
-        env = MettaGridCore(cfg)
-        obs, _ = env.reset()
+        # The test verifies that assembler config accepts tags without errors
+        sim = Simulation(cfg)
+        obs = sim._c_sim.observations()
 
         # Get tag feature ID from environment
-        tag_feature_id = env.c_env.feature_spec()["tag"]["id"]
+        tag_feature_id = sim._c_sim.feature_spec()["tag"]["id"]
 
         assert obs is not None
 
@@ -462,8 +457,8 @@ class TestTags:
             if token[0] in wall_locations and token[1] == tag_feature_id:
                 wall_tag_ids.add(token[2])  # token[2] contains the tag ID
 
-        # Walls should have the "solid" tag (plus converter and machine tags in the system)
-        # All unique tags: ["converter", "industrial", "machine", "solid", "wood", "coal"] (resources might add tags)
+        # Walls should have the "solid" tag
+        # All unique tags: ["industrial", "machine", "solid"] (alphabetically sorted)
         # We should find at least the solid tag
         assert len(wall_tag_ids) >= 1, f"Walls should have at least 1 tag, found {wall_tag_ids}"
 
@@ -476,7 +471,7 @@ class TestTags:
                 obs_width=3,
                 obs_height=3,
                 num_observation_tokens=200,
-                actions=ActionsConfig(noop=ActionConfig()),
+                actions=ActionsConfig(noop=NoopActionConfig()),
                 agents=[
                     AgentConfig(team_id=0, tags=["player", "team_red"]),
                     AgentConfig(team_id=1, tags=["player", "team_blue"]),
@@ -493,11 +488,11 @@ class TestTags:
             )
         )
 
-        env = MettaGridCore(cfg)
-        obs, _ = env.reset()
+        env = Simulation(cfg)
+        obs = env._c_sim.observations()
 
         # Get tag feature ID from environment
-        tag_feature_id = env.c_env.feature_spec()["tag"]["id"]
+        tag_feature_id = env._c_sim.feature_spec()["tag"]["id"]
 
         assert obs is not None
         assert len(obs) == 2  # Two agents
@@ -645,7 +640,7 @@ def test_default_agent_tags_preserved():
             obs_width=3,
             obs_height=3,
             num_observation_tokens=NUM_OBS_TOKENS,
-            actions=ActionsConfig(noop=ActionConfig()),
+            actions=ActionsConfig(noop=NoopActionConfig()),
             agent=AgentConfig(
                 tags=["default_tag1", "default_tag2"]  # Tags for default agents
             ),
@@ -663,14 +658,14 @@ def test_default_agent_tags_preserved():
     )
 
     # Create environment - this will trigger convert_to_cpp_game_config
-    env = MettaGridCore(cfg)
-    obs, _ = env.reset()
+    env = Simulation(cfg)
+    obs = env._c_sim.observations()
 
     assert obs is not None
     assert len(obs) == 2  # Two default agents
 
     # Get tag feature ID from environment
-    tag_feature_id = env.c_env.feature_spec()["tag"]["id"]
+    tag_feature_id = env._c_sim.feature_spec()["tag"]["id"]
 
     # Check both agents have the default tags
     for agent_idx in range(2):
@@ -724,17 +719,15 @@ def test_tag_mapping_in_feature_spec():
             obs_width=3,
             obs_height=3,
             num_observation_tokens=NUM_OBS_TOKENS,
-            actions=ActionsConfig(noop=ActionConfig()),
+            actions=ActionsConfig(noop=NoopActionConfig()),
             objects={
                 "wall": WallConfig(type_id=TokenTypes.WALL_TYPE_ID, tags=["solid", "blocking"]),
-                "converter": ConverterConfig(
+                "assembler": AssemblerConfig(
                     type_id=2,
-                    input_resources={"wood": 1},
-                    output_resources={"coal": 1},
-                    max_output=10,
-                    max_conversions=5,
-                    conversion_ticks=10,
-                    cooldown=[5],
+                    recipes=[
+                        ([], ProtocolConfig(input_resources={"wood": 1}, output_resources={"coal": 1}, cooldown=5))
+                    ],
+                    max_uses=10,
                     tags=["machine", "industrial"],
                 ),
             },
@@ -753,8 +746,8 @@ def test_tag_mapping_in_feature_spec():
         )
     )
 
-    env = MettaGridCore(cfg)
-    feature_spec = env.c_env.feature_spec()
+    env = Simulation(cfg)
+    feature_spec = env._c_sim.feature_spec()
 
     # Check that tag feature exists
     assert "tag" in feature_spec, "tag feature should be in feature_spec"
@@ -790,7 +783,7 @@ def test_tag_mapping_empty_tags():
             obs_width=3,
             obs_height=3,
             num_observation_tokens=NUM_OBS_TOKENS,
-            actions=ActionsConfig(noop=ActionConfig()),
+            actions=ActionsConfig(noop=NoopActionConfig()),
             objects={
                 "wall": WallConfig(type_id=TokenTypes.WALL_TYPE_ID, tags=[]),
             },
@@ -809,8 +802,8 @@ def test_tag_mapping_empty_tags():
         )
     )
 
-    env = MettaGridCore(cfg)
-    feature_spec = env.c_env.feature_spec()
+    env = Simulation(cfg)
+    feature_spec = env._c_sim.feature_spec()
 
     # Check that tag feature exists
     assert "tag" in feature_spec, "tag feature should be in feature_spec even with no tags"

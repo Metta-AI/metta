@@ -7,30 +7,31 @@ import torch.nn as nn
 from einops import rearrange
 
 import pufferlib.pytorch
-from cogames.policy.interfaces import AgentPolicy, StatefulAgentPolicy, TrainablePolicy
-from cogames.policy.utils import LSTMState, LSTMStateDict
-from mettagrid import MettaGridAction, MettaGridEnv, MettaGridObservation, dtype_actions
+from mettagrid.config.mettagrid_config import ActionsConfig
+from mettagrid.mettagrid_c import dtype_actions
+from mettagrid.policy.policy import AgentPolicy, StatefulAgentPolicy, TrainablePolicy
+from mettagrid.policy.utils import LSTMState, LSTMStateDict
+from mettagrid.simulator import Action as MettaGridAction
+from mettagrid.simulator import AgentObservation as MettaGridObservation
 
-logger = logging.getLogger("cogames.policies.lstm_policy")
+logger = logging.getLogger("mettagrid.policy.lstm_policy")
 
 
 class LSTMPolicyNet(torch.nn.Module):
-    def __init__(self, env):
+    def __init__(self, actions_cfg: ActionsConfig, obs_shape: tuple):
         super().__init__()
         # Public: Required by PufferLib for RNN state management
         self.hidden_size = 128
 
         self._net = torch.nn.Sequential(
-            pufferlib.pytorch.layer_init(
-                torch.nn.Linear(np.prod(env.single_observation_space.shape), self.hidden_size)
-            ),
+            pufferlib.pytorch.layer_init(torch.nn.Linear(np.prod(obs_shape).item(), self.hidden_size)),
             torch.nn.ReLU(),
             pufferlib.pytorch.layer_init(torch.nn.Linear(self.hidden_size, self.hidden_size)),
         )
 
         self._rnn = torch.nn.LSTM(self.hidden_size, self.hidden_size, batch_first=True)
 
-        self._num_actions = int(env.single_action_space.n)
+        self._num_actions = len(actions_cfg.actions())
 
         self._action_head = torch.nn.Linear(self.hidden_size, self._num_actions)
         self._value_head = torch.nn.Linear(self.hidden_size, 1)
@@ -219,11 +220,11 @@ class LSTMAgentPolicy(StatefulAgentPolicy[LSTMState]):
 class LSTMPolicy(TrainablePolicy):
     """LSTM-based policy that creates StatefulPolicy wrappers for each agent."""
 
-    def __init__(self, env: MettaGridEnv, device: torch.device):
-        super().__init__()
-        self._net = LSTMPolicyNet(env).to(device)
+    def __init__(self, actions_cfg: ActionsConfig, obs_shape: tuple, device: torch.device):
+        super().__init__(actions_cfg)
+        self._net = LSTMPolicyNet(actions_cfg, obs_shape).to(device)
         self._device = device
-        self._num_actions = int(env.single_action_space.n)
+        self._num_actions = len(actions_cfg.actions())
         self._agent_policy = LSTMAgentPolicy(self._net, device, self._num_actions)
 
     def network(self) -> nn.Module:
