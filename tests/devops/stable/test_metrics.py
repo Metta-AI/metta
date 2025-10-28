@@ -2,44 +2,36 @@
 
 import pytest
 
-from metta.jobs.job_metrics import extract_wandb_info, fetch_wandb_metrics
+from metta.jobs.job_metrics import extract_skypilot_job_id, fetch_wandb_metrics
 
 
-def test_extract_wandb_url():
-    """Test extraction of wandb run information from URL."""
+def test_extract_skypilot_job_id_pattern1():
+    """Test extraction of SkyPilot job ID from launcher logs."""
     log_text = """
-    Training started
-    wandb: View run at https://wandb.ai/myteam/myproject/runs/abc123xyz
-    Training complete
+    Launching job...
+    Job submitted with ID: 12345
+    Job is running
     """
-    info = extract_wandb_info(log_text)
-
-    assert info is not None
-    assert info.entity == "myteam"
-    assert info.project == "myproject"
-    assert info.run_id == "abc123xyz"
-    assert info.url == "https://wandb.ai/myteam/myproject/runs/abc123xyz"
+    job_id = extract_skypilot_job_id(log_text)
+    assert job_id == "12345"
 
 
-def test_extract_wandb_no_url():
-    """Test that missing wandb URL returns None."""
-    log_text = "Training logs without wandb URL"
-    info = extract_wandb_info(log_text)
+def test_extract_skypilot_job_id_pattern2():
+    """Test extraction using alternative pattern."""
+    log_text = "Submitted job 67890"
+    job_id = extract_skypilot_job_id(log_text)
+    assert job_id == "67890"
 
-    assert info is None
+
+def test_extract_skypilot_job_id_no_match():
+    """Test that missing job ID returns None."""
+    log_text = "Training logs without job ID"
+    job_id = extract_skypilot_job_id(log_text)
+    assert job_id is None
 
 
 def test_fetch_metrics_with_mocked_wandb(monkeypatch):
     """Test wandb metric fetching with mocked wandb API."""
-    from metta.jobs.job_metrics import WandBInfo
-
-    wandb_info = WandBInfo(
-        project="proj",
-        entity="team",
-        run_id="abc123",
-        run_name="test_run",
-        url="https://wandb.ai/team/proj/runs/abc123",
-    )
 
     # Mock wandb API
     class FakeRun:
@@ -61,14 +53,21 @@ def test_fetch_metrics_with_mocked_wandb(monkeypatch):
             return []
 
     class FakeApi:
-        def run(self, path):
-            return FakeRun()
+        def runs(self, path, filters=None):
+            # Return an iterator with our fake run
+            return iter([FakeRun()])
 
     import metta.jobs.job_metrics as metrics_module
 
     monkeypatch.setattr(metrics_module.wandb, "Api", FakeApi)
 
-    metrics = fetch_wandb_metrics(wandb_info, ["overview/sps", "env_agent/heart.get"], last_n_percent=0.5)
+    metrics = fetch_wandb_metrics(
+        entity="team",
+        project="proj",
+        run_name="test_run",
+        metric_keys=["overview/sps", "env_agent/heart.get"],
+        last_n_percent=0.5,
+    )
 
     assert "overview/sps" in metrics
     assert "env_agent/heart.get" in metrics
