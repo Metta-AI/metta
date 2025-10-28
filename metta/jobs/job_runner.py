@@ -146,6 +146,16 @@ class Job(ABC):
     def _get_log_path(self) -> Path:
         pass
 
+    @property
+    def log_path(self) -> str:
+        """Public property to get the log file path."""
+        return str(self._get_log_path())
+
+    @property
+    def job_id(self) -> str | None:
+        """Public property to get the job ID (PID for local, SkyPilot ID for remote)."""
+        return None
+
 
 class LocalJob(Job):
     """Job that runs locally via subprocess."""
@@ -271,6 +281,13 @@ class LocalJob(Job):
 
     def _get_log_path(self) -> Path:
         return self.log_dir / f"{self.name}.log"
+
+    @property
+    def job_id(self) -> str | None:
+        """Return PID of local process if available."""
+        if self._proc:
+            return str(self._proc.pid)
+        return None
 
     def _handle_interrupt(self) -> None:
         self.cancel()
@@ -637,6 +654,18 @@ class RemoteJob(Job):
     def _get_log_path(self) -> Path:
         job_id_str = str(self._job_id) if self._job_id else self._timestamp
         return self.log_dir / f"{self.name}.{job_id_str}.log"
+
+    @property
+    def job_id(self) -> str | None:
+        """Return SkyPilot job ID if available."""
+        if self._job_id:
+            return str(self._job_id)
+        return None
+
+    @property
+    def request_id(self) -> str | None:
+        """Return SkyPilot request ID if available."""
+        return self._request_id
 
     def _handle_interrupt(self) -> None:
         if self._job_id:

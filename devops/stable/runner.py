@@ -285,6 +285,7 @@ class TaskRunner:
         completed = set()  # Completed (any outcome)
 
         # Submit-poll loop with interrupt handling
+        first_submission = True
         try:
             while pending or submitted:
                 # Submit all tasks with satisfied dependencies
@@ -298,6 +299,35 @@ class TaskRunner:
                     else:  # Task was skipped or cached
                         completed.add(task)
                         pending.remove(task)
+
+                # Show initial status immediately after first batch of submissions
+                if first_submission and submitted and self.monitor:
+                    first_submission = False
+                    # Display monitor for the first time (don't update in-place yet
+                    # since we have submission messages above)
+                    # Just print normally, then subsequent updates will be in-place
+                    self.monitor.display_status(
+                        clear_screen=False,
+                        title=f"Release Validation: {self.state.version}",
+                        highlight_failures=True,
+                        show_running_logs=True,
+                        log_tail_lines=3,
+                    )
+                    # Count lines for future in-place updates
+                    import io
+                    from contextlib import redirect_stdout
+
+                    buffer = io.StringIO()
+                    with redirect_stdout(buffer):
+                        self.monitor.display_status(
+                            clear_screen=False,
+                            title=f"Release Validation: {self.state.version}",
+                            highlight_failures=True,
+                            show_running_logs=True,
+                            log_tail_lines=3,
+                        )
+                    self._monitor_line_count = buffer.getvalue().count("\n")
+                    self._last_display_update = time.time()
 
                 # Poll for completions
                 if submitted:
@@ -401,7 +431,7 @@ class TaskRunner:
             if existing_state.exit_code == -1:
                 print(yellow(f"🔄 {task.name} - retrying after abnormal termination"))
             elif not self.retry_failed or (existing_state.exit_code == 0 and self._passed(job_name, task)):
-                print(f"⏭️  {task.name} - already completed (use --retry-failed to retry)")
+                print(f"⏭️  {task.name} - already completed (use --retry to retry)")
                 return False
             else:
                 print(yellow(f"🔄 {task.name} - retrying previous run"))
@@ -427,6 +457,8 @@ class TaskRunner:
         # Submit to JobManager (monitor will show status)
         try:
             self.job_manager.submit(task.job_config)
+            # Print quick feedback during submission
+            print(f"  • Submitted {task.name}")
             return True
         except ValueError as e:
             # This shouldn't happen since we checked above, but handle it gracefully
