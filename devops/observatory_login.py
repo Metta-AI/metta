@@ -6,7 +6,7 @@ import argparse
 import sys
 from urllib.parse import urlparse
 
-from cogames.auth import BaseCLIAuthenticator
+from metta.common.auth import BaseCLIAuthenticator
 from metta.common.util.constants import (
     DEV_STATS_SERVER_URI,
     PROD_STATS_SERVER_URI,
@@ -19,8 +19,8 @@ class CLIAuthenticator(BaseCLIAuthenticator):
     def __init__(self, auth_server_url: str):
         super().__init__(
             auth_server_url=auth_server_url,
-            token_file_name="observatory_tokens.yaml",
-            token_storage_key=None,  # Top-level storage
+            token_file_name="config.yaml",
+            token_storage_key="observatory_tokens",
         )
 
 

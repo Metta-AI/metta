@@ -12,8 +12,7 @@ from metta.setup.utils import error, info, success, warning
 @register_module
 class ObservatoryKeySetup(SetupModule):
     install_once = True
-    server_url: str = "https://observatory.softmax-research.net/api"
-    extra_server_urls: list[str] = [PROD_STATS_SERVER_URI]
+    server_url: str = PROD_STATS_SERVER_URI
 
     @property
     def name(self) -> str:
@@ -29,11 +28,7 @@ class ObservatoryKeySetup(SetupModule):
 
     def check_installed(self) -> bool:
         # Check if we have a token for this server
-        server_urls = [self.server_url] + self.extra_server_urls
-        for server_url in server_urls:
-            if get_machine_token(server_url) is None:
-                return False
-        return True
+        return get_machine_token(self.server_url) is not None
 
     def install(self, non_interactive: bool = False, force: bool = False) -> None:
         info(f"Setting up Observatory authentication for {self.server_url}...")

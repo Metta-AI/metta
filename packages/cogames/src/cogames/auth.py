@@ -36,8 +36,6 @@ class BaseCLIAuthenticator:
             token_file_name: Name of the YAML file to store tokens (e.g., 'observatory_tokens.yaml')
             token_storage_key: Optional key to nest tokens under in YAML (e.g., 'login_tokens').
                              If None, tokens are stored at the top level.
-            extra_uris: Optional dict mapping auth server URLs to lists of additional URIs
-                       that should receive the same token
         """
         self.auth_url = auth_server_url + "/tokens/cli"
         self.auth_server_url = auth_server_url
