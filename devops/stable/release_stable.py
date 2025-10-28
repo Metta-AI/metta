@@ -299,8 +299,8 @@ def step_bug_check(version: str, state: Optional[ReleaseState] = None, **_kwargs
 
 def step_task_validation(
     version: str,
-    task_filter: Optional[str] = None,
-    retry_failed: bool = False,
+    task: Optional[str] = None,
+    retry: bool = False,
     **_kwargs,
 ) -> None:
     """Run validation tasks via JobManager.
@@ -319,20 +319,20 @@ def step_task_validation(
     state = load_or_create_state(state_version, git.get_current_commit())
     all_tasks = get_all_tasks()
 
-    if task_filter:
-        tasks = [t for t in all_tasks if task_filter in t.name]
+    if task:
+        tasks = [t for t in all_tasks if task in t.name]
         if not tasks:
-            print(f"❌ No tasks matching '{task_filter}'")
+            print(f"❌ No tasks matching '{task}'")
             print(f"Available: {', '.join(t.name for t in all_tasks)}")
             sys.exit(1)
-        print(f"Running: {len(tasks)} task(s) matching '{task_filter}'\n")
+        print(f"Running: {len(tasks)} task(s) matching '{task}'\n")
     else:
         tasks = all_tasks
         print(f"Running: {len(tasks)} task(s)\n")
 
     # Run tasks via JobManager
     job_manager = get_job_manager()
-    runner = TaskRunner(state=state, job_manager=job_manager, retry_failed=retry_failed)
+    runner = TaskRunner(state=state, job_manager=job_manager, retry_failed=retry)
     runner.run_all(tasks)
 
     # Count results
