@@ -182,6 +182,7 @@ self.procedural_overrides = {
         "silicon_extractor",
     ],
     # What proportion of buildings are of a type, falls back to default if not set
+    # If building_names is not set, this is used to determine the buildings
     "building_weights": {
         "chest": 1.0,
         "charger": 0.7,
