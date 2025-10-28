@@ -74,6 +74,8 @@ dependencies = [
   "uvicorn[standard]>=0.34.2",
   "wandb>=0.19.11",
   "wandb-core>=0.17.0b11",
+  "ray[tune]>=2.50.1",
+  "optuna>=4.5.0",
 ]
 name = "metta"
 version = "0.1"
