@@ -536,6 +536,7 @@ class JobManager:
                 "exit_code": job_state.exit_code if job_state.status == "completed" else None,
                 "job_id": job_state.job_id,
                 "request_id": job_state.request_id,
+                "skypilot_status": job_state.skypilot_status,
                 "logs_path": job_state.logs_path,
                 "metrics": job_state.metrics or {},
                 "wandb_url": job_state.wandb_url,
@@ -543,6 +544,22 @@ class JobManager:
                 "started_at": job_state.started_at,
                 "completed_at": job_state.completed_at,
             }
+
+            # Add display-friendly fields for completed jobs
+            if job_state.status == "completed":
+                job_dict["success"] = job_state.exit_code == 0
+
+                # Calculate duration
+                if job_state.started_at and job_state.completed_at:
+                    try:
+                        from datetime import datetime
+
+                        started = datetime.fromisoformat(job_state.started_at)
+                        completed_at = datetime.fromisoformat(job_state.completed_at)
+                        job_dict["duration_s"] = (completed_at - started).total_seconds()
+                    except Exception:
+                        pass
+
             job_list.append(job_dict)
 
         return {
