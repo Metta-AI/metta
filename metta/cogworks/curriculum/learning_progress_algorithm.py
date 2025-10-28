@@ -447,11 +447,22 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         Returns:
             Gini coefficient between 0 and 1
         """
+        import logging
+        import math
+
+        logger = logging.getLogger(__name__)
+
         if not values or len(values) == 0:
             return 0.0
 
         # Handle case with all zeros
-        if sum(values) == 0:
+        total = sum(values)
+        if total == 0:
+            return 0.0
+
+        # Check for NaN or inf
+        if any(math.isnan(v) or math.isinf(v) for v in values):
+            logger.warning(f"Gini calculation received NaN or Inf values: {values[:10]}...")
             return 0.0
 
         # Sort values in ascending order
@@ -464,8 +475,12 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         for i, value in enumerate(sorted_values, start=1):
             cumsum += i * value
 
-        total = sum(sorted_values)
         gini = (2.0 * cumsum) / (n * total) - (n + 1.0) / n
+
+        # Sanity check result
+        if math.isnan(gini) or math.isinf(gini):
+            logger.error(f"Gini calculation produced NaN/Inf! cumsum={cumsum}, n={n}, total={total}")
+            return 0.0
 
         return gini
 
@@ -537,7 +552,14 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
 
         # === 2. Raw LP Scores Gini (task-level) ===
         if raw_lp_scores:
+            # Debug: Log LP score distribution to diagnose Gini=0
             gini_stats["curriculum_gini/raw_lp_scores"] = self._calculate_gini_coefficient(raw_lp_scores)
+            # Add diagnostic stats
+            gini_stats["debug/raw_lp_min"] = float(min(raw_lp_scores))
+            gini_stats["debug/raw_lp_max"] = float(max(raw_lp_scores))
+            gini_stats["debug/raw_lp_mean"] = float(sum(raw_lp_scores) / len(raw_lp_scores))
+            gini_stats["debug/raw_lp_nonzero_count"] = float(sum(1 for x in raw_lp_scores if x != 0))
+            gini_stats["debug/raw_lp_total_count"] = float(len(raw_lp_scores))
 
         # === 3. Raw LP Scores by Label (aggregated) ===
         if raw_lp_scores and task_labels_list:

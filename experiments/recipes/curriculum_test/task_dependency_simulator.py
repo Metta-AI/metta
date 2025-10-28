@@ -918,19 +918,32 @@ def simulate_task_dependencies(config: SimulationConfig) -> Dict[str, Any]:
 
         # Log progress
         if epoch % 10 == 0:
-            # Debug: Print all curriculum_gini keys to see what's available
-            if epoch == 0:
-                gini_keys = [k for k in epoch_metrics.keys() if "gini" in k.lower()]
-                logger.info(f"Available Gini metric keys: {gini_keys}")
-
-            # Get Gini coefficients for logging (with algorithm/ prefix)
-            gini_lp = epoch_metrics.get("algorithm/curriculum_gini/raw_lp_scores", 0.0)
+            # Get Gini coefficients for logging (correct path: env_curriculum_stats/)
+            gini_lp = epoch_metrics.get(
+                "env_curriculum_stats/curriculum_gini/raw_lp_scores", 0.0
+            )
             gini_sampling = epoch_metrics.get(
-                "algorithm/curriculum_gini/sampling_by_label", 0.0
+                "env_curriculum_stats/curriculum_gini/sampling_by_label", 0.0
+            )
+
+            # Debug diagnostics for LP scores
+            lp_min = epoch_metrics.get("env_curriculum_stats/debug/raw_lp_min", 0.0)
+            lp_max = epoch_metrics.get("env_curriculum_stats/debug/raw_lp_max", 0.0)
+            lp_mean = epoch_metrics.get("env_curriculum_stats/debug/raw_lp_mean", 0.0)
+            lp_nonzero = epoch_metrics.get(
+                "env_curriculum_stats/debug/raw_lp_nonzero_count", 0.0
+            )
+            lp_total = epoch_metrics.get(
+                "env_curriculum_stats/debug/raw_lp_total_count", 0.0
+            )
+
+            logger.info(
+                f"Epoch {epoch}: Mean perf = {epoch_metrics['task_dependency/mean_performance']:.3f}, "
+                f"Gini LP = {gini_lp:.3f}, Gini sampling = {gini_sampling:.3f}"
             )
             logger.info(
-                f"Epoch {epoch}: Mean performance = {epoch_metrics['task_dependency/mean_performance']:.3f}, "
-                f"Gini LP = {gini_lp:.3f}, Gini sampling = {gini_sampling:.3f}"
+                f"  LP scores: mean={lp_mean:.4f}, min={lp_min:.4f}, max={lp_max:.4f}, "
+                f"nonzero={lp_nonzero:.0f}/{lp_total:.0f}"
             )
 
     # Get final summary
