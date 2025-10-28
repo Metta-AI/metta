@@ -12,9 +12,6 @@ fi
 
 export WRAPPER_PID=$BASHPID
 
-echo "Setting up Python environment..."
-uv sync --force-reinstall
-
 echo "[SIMPLE] Configuring environment..."
 bash ./devops/skypilot/config/lifecycle/configure_environment.sh
 
@@ -38,13 +35,15 @@ start_ray_head() {
     --port "$RAY_PORT" \
     --ray-client-server-port "$RAY_CLIENT_PORT" \
     --dashboard-host "0.0.0.0" \
-    --disable-usage-stats
+    --disable-usage-stats \
+    --num-gpus 1 \
+    --num-cpus 4
   sleep 5
 }
 
 start_ray_worker() {
   echo "[SIMPLE] Starting Ray worker..."
-  until ray start --address "${HEAD_IP}:${RAY_PORT}" --disable-usage-stats; do
+  until ray start --address "${HEAD_IP}:${RAY_PORT}" --disable-usage-stats --num-gpus 1 --num-cpus 4; do
     echo "[SIMPLE] Worker waiting for head..."
     sleep 5
   done
