@@ -1,5 +1,6 @@
 """Local dispatcher implementation for running jobs as subprocesses."""
 
+import hashlib
 import logging
 import os
 import subprocess
@@ -87,8 +88,10 @@ class LocalDispatcher:
         # Reap any finished processes first to prevent zombie accumulation
         self._reap_finished_processes()
 
+        use_torchrun = self._use_torchrun and job.gpus and job.gpus > 0
+
         # Build command
-        if self._use_torchrun:
+        if use_torchrun:
             cmd_parts = ["./devops/run.sh", job.cmd]
         else:
             cmd_parts = ["uv", "run", "./tools/run.py", job.cmd]
@@ -120,17 +123,17 @@ class LocalDispatcher:
                         new_parts.append(current_pythonpath)
                     env["PYTHONPATH"] = os.pathsep.join(new_parts)
 
-            if self._use_torchrun:
-                if job.gpus:
-                    env["NUM_GPUS"] = str(job.gpus)
-                if job.nodes:
-                    env["NUM_NODES"] = str(job.nodes)
-                if "MASTER_ADDR" not in env:
-                    env["MASTER_ADDR"] = os.environ.get("MASTER_ADDR", "localhost")
+            if use_torchrun:
+                env["NUM_GPUS"] = str(job.gpus)
+                env["NUM_NODES"] = str(job.nodes or 1)
+                # Keep rendezvous local to the worker node
+                env["MASTER_ADDR"] = "127.0.0.1"
                 if "MASTER_PORT" not in env:
-                    env["MASTER_PORT"] = os.environ.get("MASTER_PORT", "12345")
-                if "NODE_INDEX" not in env and "RAY_RANK" in env:
-                    env["NODE_INDEX"] = env["RAY_RANK"]
+                    seed = int(hashlib.sha256(job.run_id.encode("utf-8")).hexdigest(), 16)
+                    env["MASTER_PORT"] = str(29500 + (seed % 1000))
+                # Torchrun will set the distributed rank information; clear leftovers
+                for var in ("RANK", "WORLD_SIZE", "LOCAL_RANK", "NODE_RANK"):
+                    env.pop(var, None)
 
             # Configure subprocess output handling
             if self._capture_output:

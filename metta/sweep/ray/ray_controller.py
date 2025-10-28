@@ -106,8 +106,6 @@ def ray_sweep(
         trial_resources["cpu"] = float(sweep_config.cpus_per_trial)
     if sweep_config.gpus_per_trial:
         trial_resources["gpu"] = float(sweep_config.gpus_per_trial)
-        if accelerator_resource:
-            trial_resources[accelerator_resource] = float(sweep_config.gpus_per_trial)
 
     effective_max_concurrent = max(int(sweep_config.max_concurrent_trials), 1)
 
