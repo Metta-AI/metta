@@ -16,34 +16,32 @@ class JobMonitor:
     from JobManager and formats it for display.
     """
 
-    def __init__(self, job_manager, group: str | None = None, show_training_artifacts=None):
+    def __init__(self, job_manager, group: str | None = None):
         """Initialize monitor.
 
         Args:
             job_manager: JobManager instance to query
             group: Optional group filter (only show jobs in this group)
-            show_training_artifacts: Optional function(job_name: str) -> bool to determine
-                                    if training artifacts (WandB, checkpoints) should be shown
         """
         from metta.jobs.job_manager import JobManager
 
         self.job_manager: JobManager = job_manager
         self.group = group
-        self.show_training_artifacts = show_training_artifacts
         self._start_time = time.time()
 
     def _should_show_training_artifacts(self, job_name: str) -> bool:
         """Check if training artifacts should be shown for this job.
 
+        Only training jobs have WandB URLs and checkpoint URIs.
+
         Args:
             job_name: Name of the job
 
         Returns:
-            True if training artifacts (WandB, checkpoints) should be shown
+            True if this is a training job (determined by JobConfig.is_training_job)
         """
-        if self.show_training_artifacts is None:
-            return True  # Default: show for all jobs
-        return self.show_training_artifacts(job_name)
+        job_state = self.job_manager.get_job_state(job_name)
+        return job_state.config.is_training_job if job_state else False
 
     def _extract_failure_summary(self, logs_path: str) -> list[str]:
         """Extract failure summary from logs if available.
@@ -420,96 +418,106 @@ def format_duration(seconds: float) -> str:
     return " ".join(parts)
 
 
-def format_timestamp(dt: datetime) -> str:
-    """Format timestamp for display.
-
-    Example: "2024-01-15 14:30:22"
-    """
-    return dt.strftime("%Y-%m-%d %H:%M:%S")
-
-
-def format_cost(cost: float) -> str:
-    """Format cost in USD.
+def format_progress_bar(completed: int, total: int, width: int = 30) -> str:
+    """Format progress bar for display.
 
     Args:
-        cost: Cost in dollars
+        completed: Number of completed items
+        total: Total number of items
+        width: Width of progress bar in characters
 
     Returns:
-        Formatted string like "$12.34"
+        Progress bar string like "█████████░░░░░"
     """
-    return f"${cost:.2f}"
+    if total == 0:
+        return "░" * width
+    filled = int(width * completed / total)
+    return "█" * filled + "░" * (width - filled)
 
 
-def print_status_table(status: dict[str, Any], title: str | None = None) -> None:
-    """Print job status as a formatted table.
+def extract_log_tail(logs_path: str, num_lines: int = 5) -> list[str]:
+    """Extract last N non-empty lines from log file.
 
     Args:
-        status: Status dict from JobMonitor.get_status()
-        title: Optional title to display above status
+        logs_path: Path to log file
+        num_lines: Number of lines to extract
+
+    Returns:
+        List of log lines (empty if file doesn't exist or can't be read)
     """
-    if title:
-        print(f"\n{title}")
-        print("=" * len(title))
+    try:
+        from pathlib import Path
 
-    print("\nJob Status:")
-    print(f"  Total: {status['total']}")
+        log_file = Path(logs_path)
+        if not log_file.exists():
+            return []
 
-    # Calculate and display progress
-    if status["total"] > 0:
-        progress_pct = (status["completed"] / status["total"]) * 100
-        print(f"  Progress: {progress_pct:.0f}% ({status['completed']}/{status['total']})")
+        lines = log_file.read_text(errors="ignore").splitlines()
+        # Get last N non-empty lines
+        relevant_lines = [line for line in lines if line.strip()][-num_lines:]
+        # Truncate long lines
+        return [line[:100] for line in relevant_lines]
+    except Exception:
+        return []
 
-    print(f"  Running: {status['running']}")
-    print(f"  Pending: {status['pending']}")
 
-    # Color-code success/failure counts
-    if status["succeeded"] > 0:
-        print(f"  Succeeded: \033[92m{status['succeeded']}\033[0m")  # Green
+def format_artifact_link(uri: str) -> str:
+    """Format artifact URI with appropriate icon and styling.
+
+    Args:
+        uri: Artifact URI (wandb://, s3://, file://, http://)
+
+    Returns:
+        Formatted string with icon
+    """
+    if uri.startswith("wandb://"):
+        return f"📦 {uri}"
+    elif uri.startswith("s3://"):
+        return f"📦 {uri}"
+    elif uri.startswith("file://"):
+        return f"📦 {uri}"
+    elif uri.startswith("http"):
+        return f"🔗 {uri}"
+    return uri
+
+
+def format_job_status_line(job_dict: dict, show_duration: bool = True) -> str:
+    """Format a single job status line.
+
+    Args:
+        job_dict: Job dict from get_status_summary()
+        show_duration: Whether to show duration for completed jobs
+
+    Returns:
+        Formatted status line like "✓ job_name succeeded [2m 30s]"
+    """
+    name = job_dict["name"]
+    status = job_dict["status"]
+
+    # Get status symbol and text
+    symbol = get_status_symbol(status)
+    if status == "completed":
+        success = job_dict.get("exit_code") == 0
+        status_text = "succeeded" if success else "failed"
+        symbol = "✓" if success else "✗"
     else:
-        print(f"  Succeeded: {status['succeeded']}")
+        status_text = status
 
-    if status["failed"] > 0:
-        print(f"  Failed: \033[91m{status['failed']}\033[0m")  # Red
-    else:
-        print(f"  Failed: {status['failed']}")
+    line = f"{symbol} {name} {status_text}"
 
-    print(f"  Elapsed: {format_duration(status['elapsed_s'])}")
-    print()
+    # Add duration for completed jobs
+    if show_duration and status == "completed":
+        started = job_dict.get("started_at")
+        completed = job_dict.get("completed_at")
+        if started and completed:
+            try:
+                from datetime import datetime
 
-    # Print individual job statuses
-    print("Jobs:")
-    for job_status in status["jobs"]:
-        name = job_status["name"]
-        status_str = job_status["status"]
-        job_id = job_status.get("job_id")
+                start_dt = datetime.fromisoformat(started)
+                end_dt = datetime.fromisoformat(completed)
+                duration = (end_dt - start_dt).total_seconds()
+                line += f" [{format_duration(duration)}]"
+            except Exception:
+                pass
 
-        # Format status with symbol and color
-        symbol = get_status_symbol(status_str)
-        if status_str == "completed":
-            # Use success/failure for completed jobs
-            if job_status.get("success"):
-                symbol = "✓"
-                status_display = f"\033[92m{symbol} succeeded\033[0m"  # Green
-            else:
-                symbol = "✗"
-                status_display = f"\033[91m{symbol} failed\033[0m"  # Red
-        elif status_str == "running":
-            status_display = f"\033[93m{symbol} {status_str}\033[0m"  # Yellow
-        elif status_str == "pending":
-            status_display = f"\033[90m{symbol} {status_str}\033[0m"  # Gray
-        else:
-            status_display = f"{symbol} {status_str}"
-
-        # Build line
-        line = f"  {name:30s} {status_display:20s}"
-
-        # Add job ID if available
-        if job_id:
-            line += f" (ID: {job_id})"
-
-        # Add duration if completed
-        if "duration_s" in job_status:
-            duration = format_duration(job_status["duration_s"])
-            line += f" [{duration}]"
-
-        print(line)
+    return line
