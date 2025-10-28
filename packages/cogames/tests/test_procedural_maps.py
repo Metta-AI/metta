@@ -2,7 +2,7 @@ import math
 
 import pytest
 
-from cogames.cogs_vs_clips.procedural import make_machina_procedural_map_builder
+from cogames.cogs_vs_clips.procedural import MachinaArenaConfig
 from mettagrid.mapgen.mapgen import MapGen
 from mettagrid.mapgen.scenes.base_hub import DEFAULT_CORNER_CHESTS, DEFAULT_EXTRACTORS, BaseHub
 
@@ -46,19 +46,21 @@ def test_procedural_builder_builds_and_has_expected_layers(
     width: int, height: int, density_scale: float, max_biome_frac: float, max_dungeon_frac: float
 ):
     for seed in [0, 1, 2]:
-        cfg = make_machina_procedural_map_builder(
-            num_cogs=3,
+        cfg = MapGen.Config(
             width=width,
             height=height,
             seed=seed,
-            base_biome="caves",
-            building_coverage=0.01,
-            building_weights={"chest": 1.0, "charger": 0.5},
-            biome_weights={"caves": 0.5, "forest": 0.5, "city": 0.5, "desert": 0.5},
-            dungeon_weights={"bsp": 0.6, "maze": 0.2, "radial": 0.2},
-            density_scale=density_scale,
-            max_biome_zone_fraction=max_biome_frac,
-            max_dungeon_zone_fraction=max_dungeon_frac,
+            instance=MachinaArenaConfig(
+                spawn_count=3,
+                base_biome="caves",
+                building_coverage=0.01,
+                building_weights={"chest": 1.0, "charger": 0.5},
+                biome_weights={"caves": 0.5, "forest": 0.5, "city": 0.5, "desert": 0.5},
+                dungeon_weights={"bsp": 0.6, "maze": 0.2, "radial": 0.2},
+                density_scale=density_scale,
+                max_biome_zone_fraction=max_biome_frac,
+                max_dungeon_zone_fraction=max_dungeon_frac,
+            ),
         )
         builder = cfg.create()
         game_map = builder.build()
@@ -85,15 +87,17 @@ def test_procedural_builder_builds_and_has_expected_layers(
     ],
 )
 def test_zone_counts_respect_max_zone_fraction(width: int, height: int, max_biome_frac: float, max_dungeon_frac: float):
-    cfg = make_machina_procedural_map_builder(
-        num_cogs=2,
+    cfg = MapGen.Config(
         width=width,
         height=height,
-        base_biome="caves",
-        biome_weights={"caves": 1.0, "forest": 1.0},
-        dungeon_weights={"bsp": 1.0, "maze": 1.0},
-        max_biome_zone_fraction=max_biome_frac,
-        max_dungeon_zone_fraction=max_dungeon_frac,
+        instance=MachinaArenaConfig(
+            spawn_count=2,
+            base_biome="caves",
+            biome_weights={"caves": 1.0, "forest": 1.0},
+            dungeon_weights={"bsp": 1.0, "maze": 1.0},
+            max_biome_zone_fraction=max_biome_frac,
+            max_dungeon_zone_fraction=max_dungeon_frac,
+        ),
     )
 
     builder = cfg.create()
@@ -121,11 +125,15 @@ def test_zone_counts_respect_max_zone_fraction(width: int, height: int, max_biom
 
 def test_uniform_extractors_configuration_pass_through():
     buildings = {"chest": 1.0, "charger": 0.3, "carbon_extractor": 0.7}
-    cfg = make_machina_procedural_map_builder(
-        num_cogs=2,
+    cfg = MapGen.Config(
+        width=100,
+        height=100,
         seed=123,
-        building_weights=buildings,
-        building_coverage=0.0125,
+        instance=MachinaArenaConfig(
+            spawn_count=2,
+            building_weights=buildings,
+            building_coverage=0.0125,
+        ),
     )
     builder = cfg.create()
     builder.build()
@@ -190,8 +198,8 @@ def test_base_hub_grid_matches_bundles(
 
 
 def test_procedural_builder_deterministic_with_seed():
-    cfg1 = make_machina_procedural_map_builder(num_cogs=2, width=50, height=50, seed=42)
-    cfg2 = make_machina_procedural_map_builder(num_cogs=2, width=50, height=50, seed=42)
+    cfg1 = MapGen.Config(width=50, height=50, seed=42, instance=MachinaArenaConfig(spawn_count=2))
+    cfg2 = MapGen.Config(width=50, height=50, seed=42, instance=MachinaArenaConfig(spawn_count=2))
 
     b1 = cfg1.create()
     b2 = cfg2.create()
