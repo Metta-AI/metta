@@ -178,14 +178,14 @@ def test_autostack_compile_cpu(pattern: str) -> None:
     eager = build_cortex_auto_stack(
         d_hidden=d_hidden,
         num_layers=len(pattern),
-        block_pattern=pattern,
+        pattern=pattern,
         compile_blocks=False,
         post_norm=True,
     )
     compiled = build_cortex_auto_stack(
         d_hidden=d_hidden,
         num_layers=len(pattern),
-        block_pattern=pattern,
+        pattern=pattern,
         compile_blocks=True,
         post_norm=True,
     )
@@ -222,14 +222,14 @@ def test_autostack_compile_cuda() -> None:
     eager = build_cortex_auto_stack(
         d_hidden=d_hidden,
         num_layers=len(pattern),
-        block_pattern=pattern,
+        pattern=pattern,
         compile_blocks=False,
         post_norm=True,
     ).to(device)
     compiled = build_cortex_auto_stack(
         d_hidden=d_hidden,
         num_layers=len(pattern),
-        block_pattern=pattern,
+        pattern=pattern,
         compile_blocks=True,
         post_norm=True,
     ).to(device)
