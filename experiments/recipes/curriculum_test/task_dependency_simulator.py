@@ -7,7 +7,6 @@ for curriculum learning and stats reporting.
 """
 
 import logging
-import platform
 import random
 import time
 from collections import defaultdict
@@ -47,7 +46,7 @@ class CurriculumLPConfig(BaseModel):
     """Configuration for learning progress curriculum settings."""
 
     use_bidirectional: bool = True
-    ema_timescale: float = 0.1
+    ema_timescale: float = 0.02
     slow_timescale_factor: float = 0.2
     exploration_bonus: float = 0.1
     progress_smoothing: float = 0.0
@@ -919,42 +918,17 @@ def simulate_task_dependencies(config: SimulationConfig) -> Dict[str, Any]:
 
         # Log progress
         if epoch % 10 == 0:
-            # Get Gini coefficients for logging (correct path: env_curriculum_stats/)
-            gini_lp = epoch_metrics.get(
-                "env_curriculum_stats/curriculum_gini/raw_lp_scores", 0.0
-            )
-            gini_sampling = epoch_metrics.get(
-                "env_curriculum_stats/curriculum_gini/sampling_by_label", 0.0
-            )
+            # Get Gini coefficients for logging (from curriculum.stats())
+            gini_lp = epoch_metrics.get("algorithm/curriculum_gini/raw_lp_scores", 0.0)
+            gini_sampling = epoch_metrics.get("algorithm/curriculum_gini/sampling_by_label", 0.0)
 
             # Debug diagnostics for LP scores
-            lp_min = epoch_metrics.get("env_curriculum_stats/debug/raw_lp_min", 0.0)
-            lp_max = epoch_metrics.get("env_curriculum_stats/debug/raw_lp_max", 0.0)
-            lp_mean = epoch_metrics.get("env_curriculum_stats/debug/raw_lp_mean", 0.0)
-            lp_nonzero = epoch_metrics.get(
-                "env_curriculum_stats/debug/raw_lp_nonzero_count", 0.0
-            )
-            lp_total = epoch_metrics.get(
-                "env_curriculum_stats/debug/raw_lp_total_count", 0.0
-            )
-            num_tracked = epoch_metrics.get(
-                "env_curriculum_stats/debug/num_tracked_tasks", 0.0
-            )
-            num_with_stats = epoch_metrics.get(
-                "env_curriculum_stats/debug/num_tasks_with_stats", 0.0
-            )
 
             logger.info(
                 f"Epoch {epoch}: Mean perf = {epoch_metrics['task_dependency/mean_performance']:.3f}, "
                 f"Gini LP = {gini_lp:.3f}, Gini sampling = {gini_sampling:.3f}"
             )
-            logger.info(
-                f"  Tracked tasks: {num_tracked:.0f}, with stats: {num_with_stats:.0f}"
-            )
-            logger.info(
-                f"  LP scores: mean={lp_mean:.4f}, min={lp_min:.4f}, max={lp_max:.4f}, "
-                f"nonzero={lp_nonzero:.0f}/{lp_total:.0f}"
-            )
+
 
     # Get final summary
     results = simulator.get_summary()
