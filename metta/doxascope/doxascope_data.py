@@ -67,6 +67,47 @@ def class_id_to_pos(class_id: int, d: int) -> Tuple[int, int]:
     return mapping[class_id]
 
 
+def get_num_classes_for_quadrant_granularity(k: int) -> int:
+    """Returns the number of classes for quadrant-based prediction."""
+    return 5 if abs(k) == 1 else 9
+
+
+def pos_to_quadrant_class_id(dr: int, dc: int) -> int:
+    """Converts a relative position (dr, dc) to a quadrant class ID."""
+    if dr == 0 and dc == 0:
+        return 0  # Still
+    if dr < 0 and dc == 0:
+        return 1  # North
+    if dr > 0 and dc == 0:
+        return 2  # South
+    if dr == 0 and dc < 0:
+        return 3  # West
+    if dr == 0 and dc > 0:
+        return 4  # East
+    if dr < 0 and dc < 0:
+        return 5  # NW
+    if dr < 0 and dc > 0:
+        return 6  # NE
+    if dr > 0 and dc < 0:
+        return 7  # SW
+    if dr > 0 and dc > 0:
+        return 8  # SE
+    raise ValueError(f"Invalid relative position for quadrant classification: ({dr}, {dc})")
+
+
+QUADRANT_CLASS_NAMES = {
+    0: "Still",
+    1: "N",
+    2: "S",
+    3: "W",
+    4: "E",
+    5: "NW",
+    6: "NE",
+    7: "SW",
+    8: "SE",
+}
+
+
 class DoxascopeLogger:
     """Logs memory vectors and position data for training doxascope networks."""
 
@@ -409,14 +450,17 @@ def _extract_agent_trajectories(files: list) -> List[List[Tuple[np.ndarray, Tupl
 
 
 def _create_training_samples(
-    trajectories: List[List[Tuple[np.ndarray, Tuple[int, int]]]], num_future: int, num_past: int
+    trajectories: List[List[Tuple[np.ndarray, Tuple[int, int]]]],
+    num_future: int,
+    num_past: int,
+    granularity: str = "exact",
 ) -> Tuple[List[np.ndarray], List[List[int]]]:
     """Generate training samples (X, y) from per-agent trajectories.
-
     Args:
         trajectories: List of trajectories, each a list of (memory, position)
         num_future: Number of future timesteps to predict
         num_past: Number of past timesteps to predict
+        granularity: The prediction granularity ("exact" or "quadrant")
     """
     all_memory_vectors: List[np.ndarray] = []
     all_labels: List[List[int]] = []
@@ -439,7 +483,17 @@ def _create_training_samples(
                     valid_sample = False
                     break
 
-                label = pos_to_class_id(dr, dc, max_dist)
+                if granularity == "exact":
+                    label = pos_to_class_id(dr, dc, max_dist)
+                elif granularity == "quadrant":
+                    label = pos_to_quadrant_class_id(dr, dc)
+                    # For k=1, agent can't move diagonally, so labels 5-8 are impossible.
+                    if abs(k) == 1 and label > 4:
+                        valid_sample = False
+                        break
+                else:
+                    raise ValueError(f"Unknown granularity: {granularity}")
+
                 timestep_labels.append(label)
 
             if valid_sample:
@@ -455,6 +509,7 @@ def preprocess_doxascope_data(
     output_filename: str = "training_data.npz",
     num_future_timesteps: int = 1,
     num_past_timesteps: int = 0,
+    granularity: str = "exact",
 ) -> Tuple[Optional[np.ndarray], Optional[np.ndarray]]:
     """
     Preprocesses raw doxascope JSON data to create training-ready NPZ files.
@@ -463,14 +518,16 @@ def preprocess_doxascope_data(
         logger.warning("No JSON files provided for preprocessing.")
         return None, None
 
-    logger.info(f"Processing {len(json_files)} simulation log(s)...")
+    logger.info(f"Processing {len(json_files)} simulation log(s) with '{granularity}' granularity...")
 
     trajectories = _extract_agent_trajectories(json_files)
     if not trajectories:
         logger.warning("No valid agent trajectories found in the provided files.")
         return None, None
 
-    all_memory_vectors, all_labels = _create_training_samples(trajectories, num_future_timesteps, num_past_timesteps)
+    all_memory_vectors, all_labels = _create_training_samples(
+        trajectories, num_future_timesteps, num_past_timesteps, granularity=granularity
+    )
 
     if not all_memory_vectors:
         logger.warning("No training samples could be created from the trajectories.")
@@ -482,7 +539,8 @@ def preprocess_doxascope_data(
 
         output_file = preprocessed_dir / output_filename
         preprocessed_dir.mkdir(parents=True, exist_ok=True)
-        np.savez_compressed(output_file, X=X, y=y)
+        # Save granularity along with the data
+        np.savez_compressed(output_file, X=X, y=y, granularity=np.array(granularity))
 
         logger.info(f"Successfully saved {len(X)} samples to {output_file}")
         return X, y
