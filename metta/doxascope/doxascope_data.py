@@ -95,19 +95,6 @@ def pos_to_quadrant_class_id(dr: int, dc: int) -> int:
     raise ValueError(f"Invalid relative position for quadrant classification: ({dr}, {dc})")
 
 
-QUADRANT_CLASS_NAMES = {
-    0: "Still",
-    1: "N",
-    2: "S",
-    3: "W",
-    4: "E",
-    5: "NW",
-    6: "NE",
-    7: "SW",
-    8: "SE",
-}
-
-
 class DoxascopeLogger:
     """Logs memory vectors and position data for training doxascope networks."""
 
