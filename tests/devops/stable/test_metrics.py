@@ -61,7 +61,7 @@ def test_fetch_metrics_with_mocked_wandb(monkeypatch):
 
     monkeypatch.setattr(metrics_module.wandb, "Api", FakeApi)
 
-    metrics = fetch_wandb_metrics(
+    metrics, current_step = fetch_wandb_metrics(
         entity="team",
         project="proj",
         run_name="test_run",
@@ -76,3 +76,4 @@ def test_fetch_metrics_with_mocked_wandb(monkeypatch):
     assert metrics["overview/sps"]["count"] == 2
     assert metrics["env_agent/heart.get"]["value"] == pytest.approx(1.4)  # avg(1.5, 1.3)
     assert metrics["env_agent/heart.get"]["count"] == 2
+    assert current_step is None  # Not requested

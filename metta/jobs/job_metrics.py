@@ -28,7 +28,7 @@ def fetch_wandb_metrics(
     run_name: str,
     metric_keys: list[str],
     last_n_percent: float = 0.25,
-) -> dict[str, dict[str, float]]:
+) -> tuple[dict[str, dict[str, float]], int | None]:
     """Fetch metrics from WandB API and average over last N% of samples.
 
     Args:
@@ -39,10 +39,13 @@ def fetch_wandb_metrics(
         last_n_percent: Fraction of samples to average over (default: 0.25 = last 25%)
 
     Returns:
-        Dictionary mapping metric names to dicts with 'value' and 'count' keys
-        Example: {"overview/sps": {"value": 42000.0, "count": 100}}
+        Tuple of (metrics_dict, current_step):
+        - metrics_dict: Dictionary mapping metric names to dicts with 'value' and 'count' keys
+        - current_step: Current training step (metric/agent_step), or None if not available
+        Example: ({"overview/sps": {"value": 42000.0, "count": 100}}, 50000)
     """
     metrics: dict[str, dict[str, float]] = {}
+    current_step: int | None = None
 
     try:
         api = wandb.Api()
@@ -52,7 +55,7 @@ def fetch_wandb_metrics(
 
         if not run:
             print(f"     Warning: WandB run not found: {run_name}")
-            return metrics
+            return metrics, current_step
 
         for metric_key in metric_keys:
             try:
@@ -80,7 +83,22 @@ def fetch_wandb_metrics(
                 print(f"     Warning: Failed to fetch metric {metric_key}: {e}")
                 continue
 
+        # Always fetch current training step
+        try:
+            step_history = run.history(keys=["metric/agent_step"], pandas=False)
+            if step_history:
+                step_values = [
+                    row.get("metric/agent_step")
+                    for row in step_history
+                    if "metric/agent_step" in row and row["metric/agent_step"] is not None
+                ]
+                if step_values:
+                    current_step = int(step_values[-1])  # Get latest step
+                    print(f"     Current training step: {current_step}")
+        except Exception as e:
+            print(f"     Warning: Failed to fetch current step: {e}")
+
     except Exception as e:
         print(f"     Error fetching from WandB: {e}")
 
-    return metrics
+    return metrics, current_step
