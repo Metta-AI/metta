@@ -1,4 +1,3 @@
-import logging
 from typing import Any, Tuple
 
 import numpy as np
@@ -14,8 +13,6 @@ from metta.rl.loss import Loss
 from metta.rl.training import ComponentContext, TrainingEnvironment
 from metta.utils.batch import calculate_prioritized_sampling_params
 from mettagrid.base_config import Config
-
-logger = logging.getLogger(__name__)
 
 
 class PrioritizedExperienceReplayConfig(Config):
@@ -193,8 +190,6 @@ class PPO(Loss):
                 "is_student_agent",
                 torch.ones(actions.shape, device=actions.device, dtype=torch.float32),
             )
-            if npc_policy is None:
-                logger.warning("Dual policy enabled but no NPC policy available; treating all agents as students")
             return
 
         agents_per_env = npc_mask_per_env.numel()
@@ -203,7 +198,6 @@ class PPO(Loss):
                 "is_student_agent",
                 torch.ones(actions.shape, device=actions.device, dtype=torch.float32),
             )
-            logger.warning("Dual policy mask has zero length; treating all agents as students")
             return
 
         total_agents = actions.shape[0]
@@ -211,11 +205,6 @@ class PPO(Loss):
             rollout_td.set(
                 "is_student_agent",
                 torch.ones(actions.shape, device=actions.device, dtype=torch.float32),
-            )
-            logger.warning(
-                "Dual policy mask (%d agents/env) does not divide total agents (%d); treating all as students",
-                agents_per_env,
-                total_agents,
             )
             return
 
@@ -239,7 +228,6 @@ class PPO(Loss):
             if not isinstance(source, torch.Tensor) or not isinstance(target, torch.Tensor):
                 continue
             if source.shape != target.shape:
-                logger.debug("Skipping key '%s' due to shape mismatch %s vs %s", key, source.shape, target.shape)
                 continue
 
             source = source.to(device=target.device, dtype=target.dtype)
@@ -385,7 +373,6 @@ class PPO(Loss):
                 student_indices = torch.nonzero(student_mask_flat, as_tuple=False).squeeze(-1)
 
                 if student_indices.numel() == 0:
-                    logger.warning("Dual policy minibatch contained no student agents; skipping update")
                     return torch.zeros((), device=self.device, dtype=torch.float32)
 
                 old_logprob_flat = old_logprob.reshape(-1)
