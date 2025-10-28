@@ -219,7 +219,7 @@ class ObsPerceiverLatentConfig(ComponentConfig):
     use_mask: bool = True
     pool: Literal["mean", "first", "none"] = "mean"
     name: str = "obs_perceiver_latent"
-    dropout_p: float = 0.15
+    dropout_p: float = 0.25
     is_dropout: bool = True
 
     def make_component(self, env=None):
