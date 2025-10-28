@@ -761,19 +761,28 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
                     state.resource_progress_tracking[resource_name] = current_amount
                     state.resource_gathering_start[resource_name] = state.step_count
 
-                # Detect oscillation: if we've visited this phase 5+ times with no progress, mark as unobtainable
-                # Lower threshold (was 10) to detect unreachable extractors faster
-                if state.phase_visit_count[resource_name] >= 5:
+                # Detect oscillation: if we've visited this phase N+ times with no progress, mark as unobtainable
+                # Scale threshold with map size: larger maps need more exploration attempts
+                import math
+
+                map_size = self._map_height * self._map_width
+                base_threshold = 5
+                # Scale: 40x40 (1600) = 5 visits, 90x90 (8100) = 11 visits, 100x100 (10000) = 12 visits
+                oscillation_threshold = int(base_threshold * math.sqrt(map_size / 1600.0))
+                oscillation_threshold = max(5, min(oscillation_threshold, 15))  # Clamp to [5, 15]
+
+                if state.phase_visit_count[resource_name] >= oscillation_threshold:
                     initial_amount = state.resource_progress_tracking[resource_name]
                     progress = current_amount - initial_amount
 
-                    # If we've oscillated 5+ times with zero progress, mark as unobtainable
+                    # If we've oscillated N+ times with zero progress, mark as unobtainable
                     if progress == 0 and resource_name not in state.unobtainable_resources:
                         extractors_found = len(self.extractor_memory.get_by_type(resource_name))
                         if extractors_found > 0:
                             visit_count = state.phase_visit_count[resource_name]
                             logger.warning(
                                 f"[PhaseOscillation] Visited GATHER_{resource_name.upper()} {visit_count} times "
+                                f"(threshold={oscillation_threshold} for {self._map_height}x{self._map_width} map) "
                                 f"with ZERO progress. Found {extractors_found} extractors but unreachable. "
                                 f"Marking as unobtainable."
                             )
@@ -866,6 +875,7 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
 
         - If we moved successfully, mark new cell as free
         - If we tried to move but didn't, mark intended target as wall
+        - UNLESS we were trying to USE a station (stay in place is expected)
         """
         if not self._prev_pos or self._last_action_idx not in self._MOVE_SET:
             return
@@ -874,6 +884,12 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
         if cur != self._prev_pos:
             # Moved: mark new cell free
             self._mark_cell(cur[0], cur[1], self.OCC_FREE)
+            return
+
+        # If we were trying to USE a station, staying in place is expected - don't mark as wall
+        if self._last_attempt_was_use:
+            logger.info("[WallKnowledge] Stayed in place while using station - this is expected (resetting flag)")
+            self._last_attempt_was_use = False  # Reset for next action
             return
 
         # Didn't move: intended target is blocked
@@ -1035,7 +1051,11 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
                     # Check if we've made progress recently
                     recent_progress = current_amount - initial_amount
                     # If we have some of the resource but made no progress in 200+ steps, accept it
-                    if recent_progress == 0 and current_amount > 0 and resource_name not in state.unobtainable_resources:
+                    if (
+                        recent_progress == 0
+                        and current_amount > 0
+                        and resource_name not in state.unobtainable_resources
+                    ):
                         logger.warning(
                             f"[Depletion] Stuck gathering {resource_name} for {total_time_trying} steps. "
                             f"Collected {current_amount}, marking as sufficient (unobtainable)."
@@ -1349,8 +1369,13 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
             tr, tc = target_pos
             dr, dc = tr - state.agent_row, tc - state.agent_col
             self._last_attempt_was_use = True
-            logger.debug(f"[Navigation] Adjacent to {target_pos}, using station")
-            return self._step_toward(dr, dc)
+            action = self._step_toward(dr, dc)
+            action_name = self._action_names[action] if action < len(self._action_names) else f"action_{action}"
+            logger.info(
+                f"[Navigation] Adjacent to {target_pos}, USE via {action_name} "
+                f"(G={state.germanium} Si={state.silicon} C={state.carbon} O={state.oxygen} E={state.energy})"
+            )
+            return action
 
         # Navigator found a next step
         if result.next_step:
