@@ -137,6 +137,7 @@ def _build_ray_launch_task(
     combined_script = textwrap.dedent(
         f"""
         set -euo pipefail
+        set -x  # Print every command for debugging
         cd /workspace/metta
         if [ -f .venv/bin/activate ]; then
             . .venv/bin/activate
@@ -156,18 +157,28 @@ def _build_ray_launch_task(
             echo "[Ray Sweep] PWD: $(pwd)"
             echo "[Ray Sweep] USER: $(whoami)"
             echo "[Ray Sweep] Free memory: $(free -h | grep Mem)"
-            ray stop --force >/dev/null 2>&1 || true
 
-            RAY_CMD="ray start --head --port {ray_port} --disable-usage-stats --dashboard-host=0.0.0.0 --object-store-memory=100000000 --num-cpus=0"
-            echo "[Ray Sweep] Executing: $RAY_CMD"
+            echo "[Ray Sweep] Stopping any existing Ray..."
+            ray stop --force || true
+            sleep 2
 
-            if ! $RAY_CMD; then
-                echo "[Ray Sweep] ERROR: Failed to start Ray head node"
+            echo "[Ray Sweep] Starting Ray head with memory limits..."
+            ray start --head \
+              --port {ray_port} \
+              --disable-usage-stats \
+              --dashboard-host=0.0.0.0 \
+              --object-store-memory=100000000 \
+              --num-cpus=0 \
+              --verbose || {{
+                echo "[Ray Sweep] ERROR: Ray start failed with exit code $?"
                 echo "[Ray Sweep] Checking Ray logs..."
-                tail -50 /tmp/ray/session_latest/logs/raylet.err 2>/dev/null || echo "No raylet.err found"
-                tail -50 /tmp/ray/session_latest/logs/raylet.out 2>/dev/null || echo "No raylet.out found"
+                ls -la /tmp/ray/ 2>/dev/null || echo "No /tmp/ray directory"
+                tail -100 /tmp/ray/session_latest/logs/raylet.err 2>/dev/null || echo "No raylet.err"
+                tail -100 /tmp/ray/session_latest/logs/raylet.out 2>/dev/null || echo "No raylet.out"
                 exit 1
-            fi
+            }}
+
+            sleep 5
 
             echo "[Ray Sweep] Ray head started successfully"
             ray status
