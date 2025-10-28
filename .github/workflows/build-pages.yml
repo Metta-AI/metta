@@ -36,6 +36,7 @@ jobs:
           cd ..
           nimby install metta/packages/mettagrid/nim/mettascope/mettascope.nimble
           nimby list
+          cat nim.cfg
 
       - name: Setup Emscripten
         uses: mymindstorm/setup-emsdk@v14
