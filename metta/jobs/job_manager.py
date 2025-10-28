@@ -10,6 +10,7 @@ from pathlib import Path
 from sqlmodel import Session, SQLModel, create_engine, select
 
 from devops.skypilot.utils.job_helpers import check_job_statuses
+from metta.common.util.constants import METTA_WANDB_ENTITY, METTA_WANDB_PROJECT
 from metta.jobs.job_config import JobConfig
 from metta.jobs.job_metrics import extract_skypilot_job_id
 from metta.jobs.job_runner import LocalJob, RemoteJob
@@ -253,7 +254,6 @@ class JobManager:
 
     def submit(self, config: JobConfig) -> None:
         """Submit job to queue, starting immediately if worker slot available."""
-        from metta.common.util.constants import METTA_WANDB_ENTITY, METTA_WANDB_PROJECT
 
         with Session(self._engine) as session:
             existing = session.get(JobState, config.name)
@@ -264,9 +264,8 @@ class JobManager:
                 )
             job_state = JobState(name=config.name, config=config, status="pending")
 
-            # Always compute training artifacts - display layer decides if/when to show them
-            job_state.wandb_run_id = config.name
-            job_state.wandb_url = f"https://wandb.ai/{METTA_WANDB_ENTITY}/{METTA_WANDB_PROJECT}/runs/{config.name}"
+            # Set checkpoint URI (known at submission time)
+            # WandB URL will be extracted from logs once job starts running
             job_state.checkpoint_uri = f"s3://softmax-public/policies/{config.name}"
 
             session.add(job_state)
@@ -328,10 +327,17 @@ class JobManager:
         else:
             job_id = int(job_state.job_id) if job_state.job_id else None
             job = RemoteJob(config, log_dir, job_id=job_id)
-            # Submit remote job and capture request_id
+            # Submit remote job and capture request_id and run_name
             job.submit()
-            if isinstance(job, RemoteJob) and job.request_id:
-                job_state.request_id = job.request_id
+            if isinstance(job, RemoteJob):
+                if job.request_id:
+                    job_state.request_id = job.request_id
+                if job.run_name:
+                    # Store the actual WandB run name and construct URL
+                    job_state.wandb_run_id = job.run_name
+                    job_state.wandb_url = (
+                        f"https://wandb.ai/{METTA_WANDB_ENTITY}/{METTA_WANDB_PROJECT}/runs/{job.run_name}"
+                    )
             if job.job_id:
                 job_state.job_id = job.job_id
             # Set logs_path immediately so monitor can tail logs during execution
