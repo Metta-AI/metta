@@ -70,6 +70,9 @@ def tool_task(
         dependency_names: Names of tasks this depends on
     """
     args_dict, overrides_dict = _parse_args_list(args or [])
+    # Automatically detect training jobs by module path (e.g., "arena.train", "navigation.train")
+    is_training = module.endswith(".train")
+
     job_config = JobConfig(
         name=name,
         module=module,
@@ -77,6 +80,7 @@ def tool_task(
         overrides=overrides_dict,
         timeout_s=timeout_s,
         remote=remote,
+        is_training_job=is_training,
     )
     return Task(job_config=job_config, acceptance=acceptance, dependency_names=dependency_names)
 
