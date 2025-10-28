@@ -25,7 +25,6 @@ class DistributionType(str, Enum):
     NORMAL = "normal"
     EXPONENTIAL = "exponential"
     POISSON = "poisson"
-    POWER_LAW = "power_law"
     BIMODAL = "bimodal"
 
 
@@ -42,8 +41,6 @@ class DistributionConfig(BaseModel):
     decay_rate: float = 2.0  # How quickly density falls off
     origin_x: float = 0.0  # Starting edge (0=left, 1=right)
     origin_y: float = 0.0  # Starting edge (0=top, 1=bottom)
-    # Power law parameters
-    alpha: float = 2.5  # Power law exponent (higher = more concentration)
     # Bimodal parameters
     center1_x: float = 0.25  # First cluster center x
     center1_y: float = 0.25  # First cluster center y
@@ -147,21 +144,6 @@ def _sample_positions_by_distribution(
             positions.append((row, col))
 
         return positions
-
-    elif dist_type == DistributionType.POWER_LAW:
-        # Power law - extreme concentration
-        # Sample from power law distribution
-        samples_x = rng.power(dist_config.alpha, size=count)
-        samples_y = rng.power(dist_config.alpha, size=count)
-
-        # Concentrate near origin (top-left by default)
-        cols = (col_min + samples_x * available_width).astype(int)
-        rows = (row_min + samples_y * available_height).astype(int)
-
-        cols = np.clip(cols, col_min, col_max)
-        rows = np.clip(rows, row_min, row_max)
-
-        return list(zip(rows.tolist(), cols.tolist(), strict=False))
 
     elif dist_type == DistributionType.BIMODAL:
         # Two Gaussian clusters
