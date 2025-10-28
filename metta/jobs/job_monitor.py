@@ -45,6 +45,47 @@ class JobMonitor:
             return True  # Default: show for all jobs
         return self.show_training_artifacts(job_name)
 
+    def _extract_failure_summary(self, logs_path: str) -> list[str]:
+        """Extract failure summary from logs if available.
+
+        Looks for common failure summary patterns like 'Failing tests:' or 'FAILED' sections.
+
+        Args:
+            logs_path: Path to log file
+
+        Returns:
+            List of relevant log lines (empty if no summary found)
+        """
+        try:
+            from pathlib import Path
+
+            log_file = Path(logs_path)
+            if not log_file.exists():
+                return []
+
+            lines = log_file.read_text(errors="ignore").splitlines()
+
+            # Look for "Failing tests:" section (pytest output)
+            for i, line in enumerate(lines):
+                if "Failing tests:" in line:
+                    # Return everything from "Failing tests:" to end of log (or next section)
+                    summary_lines = []
+                    for j in range(i, min(len(lines), i + 50)):  # Limit to 50 lines
+                        summary_lines.append(lines[j])
+                        # Stop at blank line followed by another section
+                        if j > i + 1 and not lines[j].strip() and j + 1 < len(lines):
+                            next_line = lines[j + 1].strip()
+                            if next_line and not next_line.startswith(" "):
+                                break
+                    return summary_lines
+
+            # Look for other failure indicators
+            # If no summary found, return empty
+            return []
+
+        except Exception:
+            return []
+
     def _display_log_tail(self, logs_path: str, num_lines: int) -> bool:
         """Display last N lines of a log file.
 
@@ -267,7 +308,7 @@ class JobMonitor:
 
             # Show additional details for completed jobs
             if status_str == "completed":
-                # For failures, always show exit code and logs
+                # For failures, always show exit code, logs, and failure context
                 if not job_status.get("success"):
                     exit_code = job_status.get("exit_code", "unknown")
                     print(f"│    ⚠️  Exit code: {exit_code}")
@@ -275,6 +316,19 @@ class JobMonitor:
                     # Show log path if available
                     if "logs_path" in job_status:
                         print(f"│    📝 Logs: {job_status['logs_path']}")
+
+                        # Try to extract failure summary first
+                        summary = self._extract_failure_summary(job_status["logs_path"])
+                        if summary:
+                            print("│    📜 Failure summary:")
+                            for line in summary[:20]:  # Limit to 20 lines
+                                print(f"│      │ {line[:95]}")
+                        else:
+                            # Fallback: show last 10 lines
+                            print("│    📜 Failure context:")
+                            has_logs = self._display_log_tail(job_status["logs_path"], 10)
+                            if not has_logs:
+                                print("│      │ (no logs available)")
 
                 # Show artifacts if requested
                 if show_artifacts:
