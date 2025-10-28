@@ -394,12 +394,11 @@ def login_cmd(
     from cogames.auth import BaseCLIAuthenticator
 
     temp_auth = BaseCLIAuthenticator(
-        auth_server_url=server,
         token_file_name="cogames.yaml",
         token_storage_key="login_tokens",
     )
 
-    if temp_auth.has_saved_token() and not force:
+    if temp_auth.has_saved_token(server) and not force:
         console.print(f"[green]Already authenticated with {urlparse(server).hostname}[/green]")
         return
 
