@@ -153,13 +153,19 @@ def _build_ray_launch_task(
 
         if [[ "${{SKYPILOT_NODE_RANK:-0}}" == "0" ]]; then
             echo "[Ray Sweep] Starting head node on port {ray_port}"
+            echo "[Ray Sweep] PWD: $(pwd)"
+            echo "[Ray Sweep] USER: $(whoami)"
+            echo "[Ray Sweep] Free memory: $(free -h | grep Mem)"
             ray stop --force >/dev/null 2>&1 || true
 
-            echo "[Ray Sweep] Executing: ray start --head --port {ray_port} --disable-usage-stats --dashboard-host=0.0.0.0 --object-store-memory=100000000 --num-cpus=0"
-            if ! ray start --head --port {ray_port} --disable-usage-stats --dashboard-host=0.0.0.0 \
-                --object-store-memory=100000000 \
-                --num-cpus=0; then
+            RAY_CMD="ray start --head --port {ray_port} --disable-usage-stats --dashboard-host=0.0.0.0 --object-store-memory=100000000 --num-cpus=0"
+            echo "[Ray Sweep] Executing: $RAY_CMD"
+
+            if ! $RAY_CMD; then
                 echo "[Ray Sweep] ERROR: Failed to start Ray head node"
+                echo "[Ray Sweep] Checking Ray logs..."
+                tail -50 /tmp/ray/session_latest/logs/raylet.err 2>/dev/null || echo "No raylet.err found"
+                tail -50 /tmp/ray/session_latest/logs/raylet.out 2>/dev/null || echo "No raylet.out found"
                 exit 1
             fi
 
