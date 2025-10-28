@@ -10,6 +10,8 @@ import sys
 from pathlib import Path
 from typing import Iterable, List
 
+FAIL_MARKER = "Re-run locally:"
+
 
 def _title_for_stage(stage: str) -> str:
     return stage.replace("-", " ").title()
@@ -32,10 +34,6 @@ def _extract_python_failures(output: str) -> List[str]:
         line = raw.strip()
         if line.startswith("FAILED "):
             failures.append(line[7:].strip())
-        elif line.startswith("• ") or line.startswith("•\u00a0"):
-            payload = line[2:].strip()
-            if payload:
-                failures.append(payload)
     # Deduplicate while preserving order
     seen: set[str] = set()
     ordered: list[str] = []
@@ -63,6 +61,44 @@ def _extract_cpp_failures(output: str) -> List[str]:
     return ordered
 
 
+def _extract_re_run_commands(output: str) -> List[str]:
+    commands: list[str] = []
+    lines = output.splitlines()
+    for idx, raw in enumerate(lines):
+        if raw.strip().startswith(FAIL_MARKER):
+            if idx + 1 < len(lines):
+                cmd = lines[idx + 1].strip()
+                if cmd:
+                    commands.append(cmd)
+    seen: set[str] = set()
+    ordered: list[str] = []
+    for item in commands:
+        if item not in seen:
+            ordered.append(item)
+            seen.add(item)
+    return ordered
+
+
+def _extract_lint_failures(output: str) -> tuple[list[str], list[str]]:
+    formatters: set[str] = set()
+    linters: set[str] = set()
+    for raw in output.splitlines():
+        line = raw.strip()
+        if line.startswith("Formatting failed for:"):
+            payload = line.split(":", 1)[1]
+            for part in payload.split(","):
+                name = part.strip()
+                if name:
+                    formatters.add(name)
+        elif line.startswith("Linting failed for:"):
+            payload = line.split(":", 1)[1]
+            for part in payload.split(","):
+                name = part.strip()
+                if name:
+                    linters.add(name)
+    return sorted(formatters), sorted(linters)
+
+
 def _summarize(stage: str, success: bool, output: str) -> List[str]:
     bullet = "✅" if success else "❌"
     lines: list[str] = [f"- {bullet} Stage `{stage}` {'passed' if success else 'failed'}."]
@@ -71,16 +107,28 @@ def _summarize(stage: str, success: bool, output: str) -> List[str]:
 
     if stage == "python-tests":
         failures = _extract_python_failures(output)
+        commands = _extract_re_run_commands(output)
         if failures:
             lines.append("- Failing tests:")
             for entry in failures:
-                if " - " in entry:
-                    test, detail = entry.split(" - ", 1)
-                    lines.append(f"  - `{test}` — {detail}")
+                entry_norm = entry.strip()
+                if not entry_norm:
+                    continue
+                if " - " in entry_norm:
+                    test, detail = entry_norm.split(" - ", 1)
+                    lines.append(f"  - `{test.strip()}` — {detail.strip()}")
                 else:
-                    lines.append(f"  - `{entry}`")
+                    lines.append(f"  - `{entry_norm}`")
         else:
             lines.append("- Failed tests: see log output above.")
+
+        if commands:
+            if len(commands) == 1:
+                lines.append(f"- Re-run locally: `{commands[0]}`")
+            else:
+                lines.append("- Re-run locally:")
+                for command in commands:
+                    lines.append(f"  - `{command}`")
     elif stage == "cpp-tests":
         failures = _extract_cpp_failures(output)
         if failures:
@@ -89,8 +137,21 @@ def _summarize(stage: str, success: bool, output: str) -> List[str]:
                 lines.append(f"  - `{entry}`")
         else:
             lines.append("- Failing C++ tests: see log output above.")
+        lines.append("- Re-run locally: `metta cpptest --test`")
+    elif stage == "cpp-benchmarks":
+        lines.append("- Re-run locally: `metta cpptest --benchmark`")
+        lines.append("- See log output above for benchmark failures.")
     elif stage == "lint":
-        lines.append("- Inspect lint output above for details.")
+        formatters, linters = _extract_lint_failures(output)
+        if formatters:
+            joined = ", ".join(formatters)
+            lines.append(f"- Failed formatters: {joined}")
+        if linters:
+            joined = ", ".join(linters)
+            lines.append(f"- Failed linters: {joined}")
+        if not formatters and not linters:
+            lines.append("- Inspect lint output above for details.")
+        lines.append("- Re-run locally: `metta lint --fix`")
     else:
         lines.append("- See log output above for details.")
 
