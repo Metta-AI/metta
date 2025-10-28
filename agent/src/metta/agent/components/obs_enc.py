@@ -257,7 +257,7 @@ class ObsPerceiverLatent(nn.Module):
 
         self.layers = nn.ModuleList([])
         self.dropouts = nn.ModuleList([])
-        self.dropout_mask = None
+        self.dropout_masks = []  # One mask per layer
         for _ in range(self._num_layers):
             self.layers.append(
                 nn.ModuleDict(
@@ -276,7 +276,7 @@ class ObsPerceiverLatent(nn.Module):
             )
             if self._is_dropout:
                 self.dropouts.append(ConsistentDropout(p=self._dropout_p))
-                self.dropout_mask = None
+                self.dropout_masks.append(None)  # Initialize mask for this layer
 
         self.final_norm = nn.LayerNorm(self._latent_dim)
 
@@ -310,13 +310,13 @@ class ObsPerceiverLatent(nn.Module):
 
             if self._is_dropout:
                 # Check if mask needs to be reset due to batch size mismatch
-                if self.dropout_mask is not None and self.dropout_mask.shape[0] != mlp_output.shape[0]:
-                    self.dropout_mask = None
-                result = self.dropouts[i](mlp_output, mask=self.dropout_mask)
+                if self.dropout_masks[i] is not None and self.dropout_masks[i].shape[0] != mlp_output.shape[0]:
+                    self.dropout_masks[i] = None
+                result = self.dropouts[i](mlp_output, mask=self.dropout_masks[i])
                 # ConsistentDropout returns (tensor, mask) in train mode, but only tensor in eval mode
                 if isinstance(result, tuple):
                     mlp_output, mask = result
-                    self.dropout_mask = mask
+                    self.dropout_masks[i] = mask
                 else:
                     mlp_output = result
 
