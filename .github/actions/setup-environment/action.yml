@@ -63,10 +63,6 @@ runs:
         nim c -d:release src/nimby.nim
         mv src/nimby "$HOME/.nim_runtime/bin/nimby"
 
-    - name: Print Nimby version
-      shell: bash
-      run: nimby -v
-
     - name: Cache Bazel binary
       if: inputs.install-mode != 'minimal'
       id: cache-bazel
