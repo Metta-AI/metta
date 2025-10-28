@@ -58,6 +58,7 @@ runs:
       run: |
         cd ..
         git clone --depth 1 https://github.com/treeform/nimby.git
+        touch nim.cfg
         cd nimby
         nim c -d:release src/nimby.nim
         mv src/nimby "$HOME/.nim_runtime/bin/nimby"
