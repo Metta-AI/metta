@@ -1,4 +1,4 @@
-"""Cortex auto stack builder mixing Axon, XL, mLSTM, and sLSTM blocks with configurable patterns."""
+"""Auto builder for mixed Axon/XL/mLSTM/sLSTM stacks."""
 
 from __future__ import annotations
 
@@ -27,6 +27,7 @@ def build_cortex_auto_config(
     slstm_postup: PostUpBlockConfig | None = None,
     use_axonlayers: bool = False,
     post_norm: bool = True,
+    compile_blocks: bool = True,
 ) -> CortexStackConfig:
     """Build CortexStackConfig for mixed Axon/XL/mLSTM/sLSTM stack with customizable block configs and patterns."""
 
@@ -89,7 +90,12 @@ def build_cortex_auto_config(
 
         blocks.append(blk)
 
-    cfg = CortexStackConfig(blocks=blocks, d_hidden=d_hidden, post_norm=post_norm)
+    cfg = CortexStackConfig(
+        blocks=blocks,
+        d_hidden=d_hidden,
+        post_norm=post_norm,
+        compile_blocks=bool(compile_blocks),
+    )
     return cfg
 
 
@@ -104,8 +110,9 @@ def build_cortex_auto_stack(
     slstm_postup: PostUpBlockConfig | None = None,
     use_axonlayers: bool = False,
     post_norm: bool = True,
+    compile_blocks: bool = True,
 ) -> CortexStack:
-    """Build a CortexStack using the configuration returned by build_cortex_auto_config."""
+    """Build a CortexStack from auto config; forwards compile flag."""
     cfg = build_cortex_auto_config(
         d_hidden=d_hidden,
         num_layers=num_layers,
@@ -115,6 +122,7 @@ def build_cortex_auto_stack(
         slstm_postup=slstm_postup,
         use_axonlayers=use_axonlayers,
         post_norm=post_norm,
+        compile_blocks=compile_blocks,
     )
     return CortexStack(cfg)
 

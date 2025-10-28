@@ -1,4 +1,4 @@
-"""Sequential stack of blocks with unified state management."""
+"""Sequential stack with optional per-block torch.compile."""
 
 from __future__ import annotations
 
@@ -16,13 +16,17 @@ from cortex.types import MaybeState, ResetMask, Tensor
 
 
 class CortexStack(nn.Module):
-    """Stack of blocks defined by a recipe, preserving external hidden size."""
+    """Stack of blocks that preserves external hidden size."""
 
     def __init__(self, cfg: CortexStackConfig) -> None:
         super().__init__()
         self.cfg = cfg
         self.blocks = nn.ModuleList(self._build_blocks(cfg))
         self.norm = nn.LayerNorm(cfg.d_hidden) if cfg.post_norm else nn.Identity()
+        self._compiled_blocks: list | None = None
+
+        if bool(getattr(cfg, "compile_blocks", False)) and hasattr(torch, "compile"):
+            self._compiled_blocks = [torch.compile(b) for b in self.blocks]
 
     def _build_blocks(self, cfg: CortexStackConfig) -> list[BaseBlock]:
         blocks: list[BaseBlock] = []
@@ -73,7 +77,11 @@ class CortexStack(nn.Module):
         for i, block in enumerate(self.blocks):
             block_key = f"{block.__class__.__name__}_{i}"
             block_state = state.get(block_key) if isinstance(state, TensorDict) else None
-            y, block_next_state = block(y, block_state, resets=resets)
+            if self._compiled_blocks is not None:
+                call = self._compiled_blocks[i]
+            else:
+                call = block
+            y, block_next_state = call(y, block_state, resets=resets)
             next_state[block_key] = (
                 block_next_state
                 if isinstance(block_next_state, TensorDict)

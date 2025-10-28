@@ -219,12 +219,13 @@ class AdapterBlockConfig(BlockConfig):
 
 
 class CortexStackConfig(BaseModel):
-    """Configuration for building a sequential stack of blocks."""
+    """Configuration for a sequential stack of blocks."""
 
     # Preserve subclass fields/tags for each block on dump
     blocks: list[SerializeAsAny[BlockConfig]]  # Accept any BlockConfig subclass
     d_hidden: int = Field(ge=1)
     post_norm: bool = Field(default=True)
+    compile_blocks: bool = Field(default=True)
 
     # Coerce list items into correct BlockConfig subclass using tag
     @field_validator("blocks", mode="before")
