@@ -329,6 +329,12 @@ def _get_default_map_objects() -> dict[str, GridObjectConfig]:
     wall = CvCWallConfig()
     assembler = CvCAssemblerConfig()
 
+    # Clipped variants (start_clipped=True)
+    clipped_carbon = CarbonExtractorConfig(start_clipped=True)
+    clipped_oxygen = OxygenExtractorConfig(start_clipped=True)
+    clipped_germanium = GermaniumExtractorConfig(start_clipped=True)
+    clipped_silicon = SiliconExtractorConfig(start_clipped=True)
+
     return {
         "carbon_extractor": carbon_extractor.station_cfg(),
         "oxygen_extractor": oxygen_extractor.station_cfg(),
@@ -338,6 +344,10 @@ def _get_default_map_objects() -> dict[str, GridObjectConfig]:
         "chest": chest.station_cfg(),
         "wall": wall.station_cfg(),
         "assembler": assembler.station_cfg(),
+        "clipped_carbon_extractor": clipped_carbon.station_cfg(),
+        "clipped_oxygen_extractor": clipped_oxygen.station_cfg(),
+        "clipped_germanium_extractor": clipped_germanium.station_cfg(),
+        "clipped_silicon_extractor": clipped_silicon.station_cfg(),
     }
 
 

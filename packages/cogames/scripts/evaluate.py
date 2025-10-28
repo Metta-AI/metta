@@ -242,7 +242,7 @@ def run_outpost_suite(
     if experiments is None:
         experiments = [name for name, _ in EXPERIMENTS]
     if hyperparams is None:
-        hyperparams = ["adaptive"]  # Default to adaptive preset
+        hyperparams = list(HYPERPARAMETER_PRESETS.keys())  # Use all presets
 
     results = []
     success_count = 0
@@ -377,15 +377,11 @@ def run_difficulty_suite(
         difficulties = ["easy", "medium", "hard", "extreme"]
     if hyperparams is None or hyperparams == ["all"]:
         hyperparams = [
-            "conservative",
-            "aggressive",
-            "efficient",
-            "adaptive",
-            "easy_mode",
-            "hard_mode",
-            "extreme_mode",
-            "oxygen_hunter",
-            "germanium_focused",
+            "explorer",
+            "greedy",
+            "efficiency",
+            "explorer_aggressive",
+            "explorer_conservative",
         ]
 
     print(f"\nExperiments: {len(experiments)}")
