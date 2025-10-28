@@ -91,13 +91,17 @@ class Navigator:
                     next_step = self._astar(start, adj_target, occupancy_map, optimistic)
                     if next_step:
                         return NavigationResult(next_step=next_step, is_adjacent=False, method="astar")
+                    logger.debug(f"[Navigator] A* failed for {start}→{adj_target}")
                 else:
                     logger.debug(f"[Navigator] Using BFS for {start}→{adj_target} (adjacent to {target})")
                     next_step = self._bfs(start, adj_target, occupancy_map, optimistic)
                     if next_step:
                         return NavigationResult(next_step=next_step, is_adjacent=False, method="bfs")
+                    logger.debug(f"[Navigator] BFS failed for {start}→{adj_target}")
 
-            logger.debug(f"[Navigator] BFS/A* failed to all adjacent cells of {target}, trying greedy")
+            logger.warning(
+                f"[Navigator] BFS/A* failed to all {len(adjacent_cells)} adjacent cells of {target}, trying greedy"
+            )
         else:
             # Target is walkable - path directly to it
             if use_astar and dist >= astar_threshold:

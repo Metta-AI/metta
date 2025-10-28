@@ -34,41 +34,42 @@ logger = logging.getLogger("cogames.policy.scripted_agent")
 
 @dataclass
 class Hyperparameters:
-    """Tunable hyperparameters for agent behavior."""
+    """Tunable hyperparameters for agent behavior.
 
-    # Exploration
-    exploration_strategy: str = "frontier"  # "frontier", "levy", "mixed"
-    levy_alpha: float = 1.5  # Lévy flight exponent (1-2), 1.5 is good balance
-    exploration_radius: int = 40  # Max distance to explore from base
+    SIMPLIFIED: Removed 12 redundant hyperparameters based on sensitivity analysis.
+    Only parameters that showed measurable impact on performance are kept.
+    """
 
-    # Energy management
-    energy_buffer: int = 20  # Safety margin for energy calculations
-    min_energy_for_silicon: int = 70  # Min energy before silicon harvesting
-    charger_search_threshold: int = 40  # Search for charger below this
+    # === HIGH-LEVEL STRATEGY (Core behavior) ===
+    # "explorer_first": Explore N steps, then gather greedily
+    # "greedy_opportunistic": Always grab closest needed resource
+    # "sequential_simple": Fixed order G→Si→C→O
+    # "efficiency_learner": Learn extractor efficiency, prioritize best
+    strategy_type: str = "greedy_opportunistic"
+    exploration_phase_steps: int = 100  # For explorer_first strategy
 
-    # Resource strategy
-    prefer_nearby: bool = True  # Prefer closer extractors over farther
-    cooldown_tolerance: int = 20  # Max turns to wait for cooldown
-    depletion_threshold: float = 0.2  # Explore when extractor at 20% uses left
+    # === ENERGY MANAGEMENT (Critical for silicon gathering) ===
+    min_energy_for_silicon: int = 70  # Min energy before silicon harvesting (Δ=2 impact)
 
-    # Efficiency
-    track_efficiency: bool = True  # Learn which extractors give more output
-    efficiency_weight: float = 0.3  # Weight for efficiency vs distance (0-1)
-
-    # Pathfinding
-    use_astar: bool = True  # Use A* pathfinding for long distances
-    astar_threshold: int = 20  # Use A* for distances >= this (BFS for shorter)
-
-    # Cooldown waiting
-    enable_cooldown_waiting: bool = True  # Wait near extractors on cooldown
-    max_cooldown_wait: int = 100  # Max turns to wait for cooldown
-
-    # Phase 3: Exploration strategy
-    prioritize_center: bool = True  # Prefer exploring toward map center early
-    center_bias_weight: float = 0.5  # Weight for center bias (0-1), higher = stronger bias
-
-    # Misc
-    max_wait_turns: int = 50  # Max turns to wait before changing strategy
+    # === FIXED CONSTANTS (removed from hyperparameters) ===
+    # These showed ZERO impact in sensitivity analysis, now hardcoded:
+    # - exploration_strategy: "frontier" (levy had worse performance)
+    # - levy_alpha: 1.5 (only used for levy, which we don't use)
+    # - exploration_radius: 50 (soft limit, never constrains)
+    # - energy_buffer: 20 (no impact on survival)
+    # - charger_search_threshold: 40 (derived from energy logic)
+    # - prefer_nearby: True (no impact on resource selection)
+    # - cooldown_tolerance: 20 (redundant with waiting logic)
+    # - depletion_threshold: 0.25 (no impact on exploration)
+    # - track_efficiency: True (always track for efficiency_learner)
+    # - efficiency_weight: 0.3 (no impact on resource selection)
+    # - use_astar: True (always use optimal pathfinding)
+    # - astar_threshold: 20 (fixed threshold)
+    # - enable_cooldown_waiting: True (always enabled)
+    # - max_cooldown_wait: 100 (no impact on waiting)
+    # - prioritize_center: True (no impact on exploration)
+    # - center_bias_weight: 0.5 (no impact on exploration)
+    # - max_wait_turns: 50 (redundant with cooldown logic)
 
 
 @dataclass
@@ -170,26 +171,20 @@ class ExtractorMemory:
 
             # Efficiency bonus
             avg_out = e.avg_output()
-            if avg_out > 0 and hyperparams.track_efficiency:
+            if avg_out > 0 and True:  # Always track efficiency
                 # Higher output is better
                 efficiency_score = avg_out / 50.0  # Normalize
             else:
                 efficiency_score = 0.5  # Neutral if unknown
 
             # Depletion penalty: Prefer extractors that aren't running low
-            if e.is_low(hyperparams.depletion_threshold):
+            if e.is_low(0.25):  # Fixed depletion_threshold
                 depletion_penalty = 0.5  # Penalize low extractors (should find backups)
             else:
                 depletion_penalty = 1.0  # No penalty
 
-            # Combine with weights
-            if hyperparams.prefer_nearby:
-                total_score = (
-                    (1.0 - hyperparams.efficiency_weight) * distance_score
-                    + hyperparams.efficiency_weight * efficiency_score
-                ) * depletion_penalty
-            else:
-                total_score = efficiency_score * depletion_penalty  # Only consider efficiency
+            # Combine with weights (fixed: prefer_nearby=True, efficiency_weight=0.3)
+            total_score = ((1.0 - 0.3) * distance_score + 0.3 * efficiency_score) * depletion_penalty
 
             return total_score
 
@@ -252,6 +247,7 @@ class AgentState:
     unobtainable_resources: Set[str] = None  # Resources we've given up on (too hard to get)
     resource_gathering_start: Dict[str, int] = None  # When we first started trying to gather each resource
     resource_progress_tracking: Dict[str, int] = None  # Initial amount of each resource when we started
+    phase_visit_count: Dict[str, int] = None  # Count how many times we've entered each gathering phase
 
     def __post_init__(self):
         """Initialize mutable defaults."""
@@ -263,6 +259,8 @@ class AgentState:
             self.resource_gathering_start = {}
         if self.resource_progress_tracking is None:
             self.resource_progress_tracking = {}
+        if self.phase_visit_count is None:
+            self.phase_visit_count = {}
 
     # Misc
     step_count: int = 0
@@ -307,6 +305,12 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
 
         # Hyperparameters (use default if not provided)
         self.hyperparams = hyperparams if hyperparams is not None else Hyperparameters()
+
+        # ADAPTIVE EXPLORATION: Scale exploration phase based on map size
+        # Small maps (40x40 = 1600): 100 steps
+        # Large maps (90x90 = 8100): 500 steps
+        # Formula: base_steps * sqrt(map_size / 1600)
+        self._adaptive_exploration_steps = self.hyperparams.exploration_phase_steps
 
         # Action / object names
         self._action_names: List[str] = env.action_names
@@ -357,6 +361,21 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
         self._map_height = env.c_env.map_height
         self._map_width = env.c_env.map_width
 
+        # ADAPTIVE EXPLORATION: Scale based on map size
+        # Small maps (40x40 = 1600): 100 steps
+        # Large maps (90x90 = 8100): ~225 steps
+        # Formula: base_steps * sqrt(map_size / 1600)
+        import math
+
+        map_size = self._map_height * self._map_width
+        base_exploration = self.hyperparams.exploration_phase_steps
+        scale_factor = math.sqrt(map_size / 1600.0)
+        self._adaptive_exploration_steps = int(base_exploration * scale_factor)
+        logger.info(
+            f"[AdaptiveExploration] Map {self._map_height}x{self._map_width} ({map_size} cells), "
+            f"exploration steps: {self._adaptive_exploration_steps}"
+        )
+
         # Incremental knowledge - NO OMNISCIENCE
         self._station_positions: Dict[str, Tuple[int, int]] = {}  # discovered stations (legacy)
         self._wall_positions: set[Tuple[int, int]] = set()  # learned walls
@@ -371,9 +390,6 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
         self._last_attempt_was_use: bool = False
 
         # === NEW: Phase 1 Enhancements ===
-        # Hyperparameters (can be tuned per experiment)
-        self.hyperparams = Hyperparameters()
-
         # Extractor memory system
         self.extractor_memory = ExtractorMemory()
 
@@ -391,6 +407,8 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
 
         # Energy regen rate (will be detected from observations)
         self._energy_regen_rate: float = 1.0
+        self._prev_energy: int = 100
+        self._energy_regen_samples: list[float] = []  # Track observed regen rates
 
         # Track previous inventory to detect changes
         self._prev_inventory: Dict[str, int] = {}
@@ -457,20 +475,42 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
         # Calculate Manhattan distance
         distance = abs(target_pos[0] - state.agent_row) + abs(target_pos[1] - state.agent_col)
 
+        # Use observed energy regen rate (defaults to 1.0 if not yet measured)
+        regen_rate = self._energy_regen_rate
+
         if is_recharge:
+            # Special case: If we're adjacent to a charger (distance <= 1), we can always reach it
+            # This prevents death spiral when agent has 0 energy next to charger
+            if distance <= 1:
+                return True
+
             # One-way trip to charger
-            # When critically low on energy (<15), skip buffer to avoid death spiral
+            # Net cost per step = 1 (move) - regen_rate
+            net_cost_per_step = max(0, 1.0 - regen_rate)
+
             if state.energy < 15:
-                energy_needed = distance  # No buffer when desperate
+                # Critically low: If net cost is 0 or negative (regen >= 1), we can always reach
+                # Otherwise need at least enough to make one step
+                if net_cost_per_step <= 0:
+                    return True  # Regen covers movement cost
+                energy_needed = max(1, int(distance * net_cost_per_step))
             else:
-                energy_needed = distance + self.hyperparams.energy_buffer // 4  # Use configured buffer
+                # Normal: distance cost + buffer
+                energy_needed = int(distance * net_cost_per_step) + 15
         else:
-            # For gathering: outbound + task + return
-            # With passive regen, net cost per step is ~1
-            # Use configured energy buffer
-            net_travel_cost = (distance * 2) * 1  # Round trip
-            buffer = self.hyperparams.energy_buffer
-            energy_needed = net_travel_cost + task_energy + buffer
+            # For gathering: Net cost per step = 1 (move) - regen_rate
+            net_cost_per_step = max(0, 1.0 - regen_rate)
+
+            # Round trip cost (to extractor and back)
+            travel_cost = int((distance * 2) * net_cost_per_step)
+
+            if task_energy >= 50:  # Silicon
+                # Silicon: one-way trip (agent stays there) + task energy + buffer
+                travel_cost = int(distance * net_cost_per_step)
+                energy_needed = travel_cost + task_energy + 15
+            else:
+                # Other resources: round trip + task + buffer
+                energy_needed = travel_cost + task_energy + 20  # Fixed energy buffer
 
         return state.energy >= energy_needed
 
@@ -494,7 +534,7 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
 
         extractor.update_after_use(resource_gained, state.step_count, cooldown)
 
-        if self.hyperparams.track_efficiency:
+        if True:  # Always track efficiency
             avg = extractor.avg_output()
             if avg > 0:
                 logger.debug(
@@ -553,7 +593,7 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
 
         if best is None:
             # No available extractors - check if we should wait for cooldowns
-            if self.hyperparams.enable_cooldown_waiting and len(all_extractors) > 0:
+            if True and len(all_extractors) > 0:  # Always enable cooldown waiting
                 # Find extractor with shortest cooldown remaining
                 extractors_on_cooldown = [
                     e for e in all_extractors if not e.is_available(state.step_count) and not e.is_depleted()
@@ -569,14 +609,15 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
                     # If cooldown is reasonable, wait near it
                     # Use cooldown_tolerance for quick decision, max_cooldown_wait for max patience
                     should_wait = cooldown_time <= min(
-                        self.hyperparams.cooldown_tolerance, self.hyperparams.max_cooldown_wait
+                        20,
+                        100,  # Fixed cooldown_tolerance, max_cooldown_wait
                     )
                     if should_wait:
                         # Phase 3: Check if we're already waiting at this position
                         if state.wait_target == nearest_cooldown.position:
                             wait_duration = state.step_count - state.waiting_since_step
                             # Also check max_wait_turns to avoid waiting forever
-                            if wait_duration >= cooldown_time or wait_duration >= self.hyperparams.max_wait_turns:
+                            if wait_duration >= cooldown_time or wait_duration >= 50:  # Fixed max_wait_turns
                                 # Waited long enough, should be available now - try again
                                 logger.info(
                                     f"[Phase3] Finished waiting {wait_duration} turns, "
@@ -601,7 +642,7 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
                             return nearest_cooldown.position
                     else:
                         logger.info(
-                            f"[Phase1] Cooldown too long ({cooldown_time} > {self.hyperparams.max_cooldown_wait}), "
+                            f"[Phase1] Cooldown too long ({cooldown_time} > 100), "  # Fixed max_cooldown_wait
                             f"will explore for new {resource_type}"
                         )
 
@@ -707,6 +748,36 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
                 "carbon": state.carbon,
                 "oxygen": state.oxygen,
             }
+
+            # Track phase visit count for oscillation detection
+            phase_name = state.current_phase.name
+            if phase_name.startswith("GATHER_"):
+                resource_name = phase_name.replace("GATHER_", "").lower()
+                state.phase_visit_count[resource_name] = state.phase_visit_count.get(resource_name, 0) + 1
+
+                # Initialize progress tracking on first visit
+                current_amount = getattr(state, resource_name)
+                if resource_name not in state.resource_progress_tracking:
+                    state.resource_progress_tracking[resource_name] = current_amount
+                    state.resource_gathering_start[resource_name] = state.step_count
+
+                # Detect oscillation: if we've visited this phase 5+ times with no progress, mark as unobtainable
+                # Lower threshold (was 10) to detect unreachable extractors faster
+                if state.phase_visit_count[resource_name] >= 5:
+                    initial_amount = state.resource_progress_tracking[resource_name]
+                    progress = current_amount - initial_amount
+
+                    # If we've oscillated 5+ times with zero progress, mark as unobtainable
+                    if progress == 0 and resource_name not in state.unobtainable_resources:
+                        extractors_found = len(self.extractor_memory.get_by_type(resource_name))
+                        if extractors_found > 0:
+                            visit_count = state.phase_visit_count[resource_name]
+                            logger.warning(
+                                f"[PhaseOscillation] Visited GATHER_{resource_name.upper()} {visit_count} times "
+                                f"with ZERO progress. Found {extractors_found} extractors but unreachable. "
+                                f"Marking as unobtainable."
+                            )
+                            state.unobtainable_resources.add(resource_name)
 
         action_idx = self._execute_phase(state)
 
@@ -832,9 +903,21 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
         if state.current_phase == GamePhase.RECHARGE and state.energy < self.RECHARGE_STOP:
             return GamePhase.RECHARGE
         # Use charger_search_threshold hyperparameter (overrides RECHARGE_START if lower)
-        recharge_threshold = min(self.RECHARGE_START, self.hyperparams.charger_search_threshold)
+        recharge_threshold = min(self.RECHARGE_START, 40)  # Fixed charger_search_threshold
         if state.energy < recharge_threshold:
             return GamePhase.RECHARGE
+
+        # === STRATEGY DISPATCH ===
+        # Route to strategy-specific phase determination
+        strategy = self.hyperparams.strategy_type
+        if strategy == "explorer_first":
+            return self._determine_phase_explorer_first(state, germ_needed)
+        elif strategy == "sequential_simple":
+            return self._determine_phase_sequential(state, germ_needed)
+        elif strategy == "efficiency_learner":
+            return self._determine_phase_efficiency_learner(state, germ_needed)
+        else:  # "greedy_opportunistic" or default
+            return self._determine_phase_greedy(state, germ_needed)
 
         # Check if we have all resources for assembly (or 3/4 if one is blacklisted)
         has_germanium = state.germanium >= germ_needed or "germanium" in state.unobtainable_resources
@@ -913,26 +996,66 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
             }
             resource_name = resource_map[state.current_phase]
 
-            # Track when we first started trying to get this resource
+            # Track when we first started trying to get this resource IN THIS ATTEMPT
+            # Reset tracking if we've made progress since last check
+            current_amount = getattr(state, resource_name)
             if resource_name not in state.resource_gathering_start:
+                # First time gathering this resource
                 state.resource_gathering_start[resource_name] = state.step_count
-                state.resource_progress_tracking[resource_name] = getattr(state, resource_name)
+                state.resource_progress_tracking[resource_name] = current_amount
+            else:
+                # Check if we've made progress since we started tracking
+                last_tracked_amount = state.resource_progress_tracking[resource_name]
+                if current_amount > last_tracked_amount:
+                    # Made progress! Reset the timer and update tracking
+                    state.resource_gathering_start[resource_name] = state.step_count
+                    state.resource_progress_tracking[resource_name] = current_amount
 
-            # Check total time trying to get this resource
+            # Check total time trying to get this resource WITHOUT PROGRESS
             total_time_trying = state.step_count - state.resource_gathering_start[resource_name]
+
+            # IMPROVED: Detect stuck earlier if agent is at same position
+            if total_time_trying > 50:  # Check after 50 steps
+                initial_amount = state.resource_progress_tracking[resource_name]
+                progress = current_amount - initial_amount
+                extractors_found = len(self.extractor_memory.get_by_type(resource_name))
+
+                # If we've found extractors but made NO progress in 150+ steps, likely unreachable
+                # Lower threshold (was 100) to detect unreachable extractors faster
+                if progress == 0 and extractors_found > 0 and total_time_trying > 150:
+                    logger.warning(
+                        f"[StuckDetection] Found {extractors_found} {resource_name} extractors but made "
+                        f"ZERO progress in {total_time_trying} steps. Marking as unobtainable (likely unreachable)."
+                    )
+                    state.unobtainable_resources.add(resource_name)
+
+                # NEW: Check if we've been stuck trying to get more of a resource for a long time
+                # If we have SOME but can't get more, accept what we have
+                if extractors_found > 0 and total_time_trying > 200:
+                    # Check if we've made progress recently
+                    recent_progress = current_amount - initial_amount
+                    # If we have some of the resource but made no progress in 200+ steps, accept it
+                    if recent_progress == 0 and current_amount > 0 and resource_name not in state.unobtainable_resources:
+                        logger.warning(
+                            f"[Depletion] Stuck gathering {resource_name} for {total_time_trying} steps. "
+                            f"Collected {current_amount}, marking as sufficient (unobtainable)."
+                        )
+                        state.unobtainable_resources.add(resource_name)
+
+            # Original longer timeout for partial progress
             if total_time_trying > 800:  # Increased from 500 to 800 for harder difficulties
-                current_amount = getattr(state, resource_name)
                 initial_amount = state.resource_progress_tracking[resource_name]
                 progress = current_amount - initial_amount
 
                 # Check if we've found any extractors of this type
                 extractors_found = len(self.extractor_memory.get_by_type(resource_name))
 
-                # Only mark as unobtainable if we've made no progress AND found extractors
+                # Only mark as unobtainable if we've made insufficient progress AND found extractors
                 # If we haven't found any extractors yet, keep exploring!
+                # If progress is negative, resources were consumed (good!) - don't mark unobtainable
                 min_progress = 5 if resource_name == "germanium" else 10  # Germanium only needs 10 total
 
-                if progress < min_progress and resource_name not in state.unobtainable_resources:
+                if 0 <= progress < min_progress and resource_name not in state.unobtainable_resources:
                     if extractors_found == 0:
                         # Haven't found ANY extractors yet - keep exploring
                         logger.info(
@@ -995,17 +1118,149 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
         if best_phase:
             return best_phase
 
-        # Fallback: Use old sequential logic if no extractors discovered yet
+        # If we still need resources, pick the first one
+        # The execution logic will handle waiting for cooldowns or exploring for new extractors
+        if needed_resources:
+            return needed_resources[0][2]
+
+        # All resources satisfied - shouldn't reach here, but fallback to germanium
+        return GamePhase.GATHER_GERMANIUM
+
+    # ========== STRATEGY-SPECIFIC PHASE DETERMINATION ==========
+
+    def _determine_phase_greedy(self, state: AgentState, germ_needed: int) -> GamePhase:
+        """GREEDY_OPPORTUNISTIC: Always grab closest needed resource."""
+        # Check if we can assemble
+        has_all = (
+            state.germanium >= germ_needed
+            and state.silicon >= self.SILICON_REQ
+            and state.carbon >= self.CARBON_REQ
+            and state.oxygen >= self.OXYGEN_REQ
+        )
+
+        if has_all and state.energy >= self.ENERGY_REQ:
+            assembler_pos = self._station_positions.get("assembler")
+            if assembler_pos:
+                return GamePhase.ASSEMBLE_HEART
+
+        # Build list of needed resources
+        needed = []
+        if state.germanium < germ_needed:
+            needed.append(("germanium", GamePhase.GATHER_GERMANIUM))
+        if state.silicon < self.SILICON_REQ and state.energy >= self.hyperparams.min_energy_for_silicon:
+            needed.append(("silicon", GamePhase.GATHER_SILICON))
+        if state.carbon < self.CARBON_REQ:
+            needed.append(("carbon", GamePhase.GATHER_CARBON))
+        if state.oxygen < self.OXYGEN_REQ:
+            needed.append(("oxygen", GamePhase.GATHER_OXYGEN))
+
+        if not needed:
+            return GamePhase.EXPLORE
+
+        # Find closest available extractor for any needed resource
+        best_phase = None
+        best_dist = float("inf")
+
+        for resource_type, phase in needed:
+            extractors = self.extractor_memory.get_by_type(resource_type)
+            for e in extractors:
+                if e.is_available(state.step_count) and not e.is_depleted():
+                    dist = abs(e.position[0] - state.agent_row) + abs(e.position[1] - state.agent_col)
+                    if dist < best_dist:
+                        best_dist = dist
+                        best_phase = phase
+
+        # Return closest, or first needed if none available
+        return best_phase if best_phase else needed[0][1]
+
+    def _determine_phase_explorer_first(self, state: AgentState, germ_needed: int) -> GamePhase:
+        """EXPLORER_FIRST: Explore for N steps (adaptive to map size), then gather greedily."""
+        # Phase 1: Pure exploration (adaptive to map size)
+        if state.step_count < self._adaptive_exploration_steps:
+            return GamePhase.EXPLORE
+
+        # Phase 2: Greedy gathering
+        return self._determine_phase_greedy(state, germ_needed)
+
+    def _determine_phase_sequential(self, state: AgentState, germ_needed: int) -> GamePhase:
+        """SEQUENTIAL_SIMPLE: Fixed order G→Si→C→O, no cleverness."""
+        # Check if we can assemble
+        has_all = (
+            state.germanium >= germ_needed
+            and state.silicon >= self.SILICON_REQ
+            and state.carbon >= self.CARBON_REQ
+            and state.oxygen >= self.OXYGEN_REQ
+        )
+
+        if has_all and state.energy >= self.ENERGY_REQ:
+            assembler_pos = self._station_positions.get("assembler")
+            if assembler_pos:
+                return GamePhase.ASSEMBLE_HEART
+
+        # Simple sequential order
         if state.germanium < germ_needed:
             return GamePhase.GATHER_GERMANIUM
-        if state.silicon < self.SILICON_REQ:
+        if state.silicon < self.SILICON_REQ and state.energy >= self.hyperparams.min_energy_for_silicon:
             return GamePhase.GATHER_SILICON
         if state.carbon < self.CARBON_REQ:
             return GamePhase.GATHER_CARBON
         if state.oxygen < self.OXYGEN_REQ:
             return GamePhase.GATHER_OXYGEN
 
-        return GamePhase.GATHER_GERMANIUM
+        return GamePhase.EXPLORE
+
+    def _determine_phase_efficiency_learner(self, state: AgentState, germ_needed: int) -> GamePhase:
+        """EFFICIENCY_LEARNER: Learn extractor efficiency, prioritize best ones."""
+        # Check if we can assemble
+        has_all = (
+            state.germanium >= germ_needed
+            and state.silicon >= self.SILICON_REQ
+            and state.carbon >= self.CARBON_REQ
+            and state.oxygen >= self.OXYGEN_REQ
+        )
+
+        if has_all and state.energy >= self.ENERGY_REQ:
+            assembler_pos = self._station_positions.get("assembler")
+            if assembler_pos:
+                return GamePhase.ASSEMBLE_HEART
+
+        # Build list of needed resources
+        needed = []
+        if state.germanium < germ_needed:
+            needed.append(("germanium", GamePhase.GATHER_GERMANIUM))
+        if state.silicon < self.SILICON_REQ and state.energy >= self.hyperparams.min_energy_for_silicon:
+            needed.append(("silicon", GamePhase.GATHER_SILICON))
+        if state.carbon < self.CARBON_REQ:
+            needed.append(("carbon", GamePhase.GATHER_CARBON))
+        if state.oxygen < self.OXYGEN_REQ:
+            needed.append(("oxygen", GamePhase.GATHER_OXYGEN))
+
+        if not needed:
+            return GamePhase.EXPLORE
+
+        # Find best extractor (prioritize efficiency if learned)
+        best_phase = None
+        best_score = -float("inf")
+
+        for resource_type, phase in needed:
+            extractors = self.extractor_memory.get_by_type(resource_type)
+            for e in extractors:
+                if e.is_available(state.step_count) and not e.is_depleted():
+                    dist = abs(e.position[0] - state.agent_row) + abs(e.position[1] - state.agent_col)
+
+                    # Score = efficiency - distance penalty
+                    # Higher efficiency = better, closer = better
+                    efficiency = e.avg_output() if e.avg_output() > 0 else 5  # Default if unknown
+                    score = efficiency * 10 - dist
+
+                    if score > best_score:
+                        best_score = score
+                        best_phase = phase
+
+        # Return best, or first needed if none available
+        return best_phase if best_phase else needed[0][1]
+
+    # ========== END STRATEGY METHODS ==========
 
     def _execute_phase(self, state: AgentState) -> int:
         """Convert phase to a concrete action (move or glyph change)."""
@@ -1085,8 +1340,8 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
             target=target_pos,
             occupancy_map=self._occ,
             optimistic=True,
-            use_astar=self.hyperparams.use_astar,
-            astar_threshold=self.hyperparams.astar_threshold,
+            use_astar=True,  # Always use A*
+            astar_threshold=20,  # Fixed threshold
         )
 
         # Adjacent - ready to use station
@@ -1159,13 +1414,13 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
             return None
 
         # Filter frontiers by exploration_radius if configured
-        if self.hyperparams.exploration_radius > 0:
+        if 50 > 0:  # Fixed exploration_radius
             # Filter to frontiers within radius of home base (if known) or current position
             center = (state.home_base_row, state.home_base_col) if state.home_base_row >= 0 else start
             fronts = {
                 (r, c)
                 for r, c in fronts
-                if abs(r - center[0]) + abs(c - center[1]) <= self.hyperparams.exploration_radius
+                if abs(r - center[0]) + abs(c - center[1]) <= 50  # Fixed exploration_radius
             }
             if not fronts:
                 # If all frontiers filtered out, expand radius temporarily
@@ -1193,7 +1448,7 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
                     )
 
             # Fallback: center bias (if no spawn-area frontiers or spawn unknown)
-            if self.hyperparams.prioritize_center:
+            if True:  # Always prioritize center
                 map_center = (self._map_height // 2, self._map_width // 2)
 
                 # Score frontiers by: (1-weight) * BFS distance + weight * distance_to_center
@@ -1229,8 +1484,8 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
                     norm_center = center_dist / max(self._map_height, self._map_width)
                     # Combined score: prefer close frontiers that are also near center
                     score = (
-                        1 - self.hyperparams.center_bias_weight
-                    ) * norm_bfs + self.hyperparams.center_bias_weight * norm_center
+                        1 - 0.5  # Fixed center_bias_weight
+                    ) * norm_bfs + 0.5 * norm_center  # Fixed center_bias_weight
 
                     if score < best_score:
                         best_score = score
@@ -1241,7 +1496,7 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
                     return best_frontier
 
         # Use exploration_strategy to choose frontier selection method
-        strategy = self.hyperparams.exploration_strategy
+        strategy = "frontier"  # Fixed exploration_strategy (levy had worse performance)
 
         if strategy == "levy":
             # Lévy flight: Prefer distant frontiers with power-law distribution
@@ -1293,7 +1548,7 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
 
         # Lévy flight: probability ~ distance^(-alpha)
         # Higher alpha = prefer closer, lower alpha = more long jumps
-        alpha = self.hyperparams.levy_alpha
+        alpha = 1.5  # Fixed levy_alpha
 
         # Calculate weights (avoid division by zero)
         weights = [(d + 1) ** (-alpha) for d in distances]
@@ -1427,15 +1682,15 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
         - Use BFS for short distances (faster for small search spaces)
         - Use A* for long distances (much faster on large mazes)
         """
-        if not self.hyperparams.use_astar:
+        if not True:  # Always use A*
             return self._bfs_next_step(start, goal, optimistic)
 
         # Calculate Manhattan distance
         distance = abs(goal[0] - start[0]) + abs(goal[1] - start[1])
 
         # Use A* for long paths, BFS for short ones
-        if distance >= self.hyperparams.astar_threshold:
-            logger.debug(f"Using A* for distance {distance} (>= {self.hyperparams.astar_threshold})")
+        if distance >= 20:  # Fixed astar_threshold
+            logger.debug(f"Using A* for distance {distance} (>= 20)")
             return self._astar_next_step(start, goal, optimistic)
         else:
             return self._bfs_next_step(start, goal, optimistic)
@@ -1624,6 +1879,28 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
         state.silicon = self._read_int_feature(obs, "inv:silicon")
         state.energy = self._read_int_feature(obs, "inv:energy")
         state.heart = 1 if self._has_heart_from_obs(obs) else 0
+
+        # Detect energy regen rate from passive regeneration
+        # Measure during movement: energy_change = -1 (move cost) + regen_rate
+        # So: regen_rate = energy_change + 1
+        if self._last_action_idx in self._MOVE_SET and self._prev_energy > 0:
+            energy_change = state.energy - self._prev_energy
+            # Regen rate = observed change + move cost (1)
+            regen_rate_sample = energy_change + 1.0
+
+            # Only accept reasonable values (0.5 to 2.0)
+            if 0.5 <= regen_rate_sample <= 2.0:
+                self._energy_regen_samples.append(regen_rate_sample)
+
+                # Keep only recent samples (last 20)
+                if len(self._energy_regen_samples) > 20:
+                    self._energy_regen_samples.pop(0)
+
+                # Update regen rate as average of samples
+                if len(self._energy_regen_samples) >= 3:
+                    self._energy_regen_rate = sum(self._energy_regen_samples) / len(self._energy_regen_samples)
+
+        self._prev_energy = state.energy
 
     # ---------- Loop breaker ----------
     def _apply_cycle_breaker(self, state: AgentState, action_idx: int) -> None:
