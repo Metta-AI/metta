@@ -25,6 +25,7 @@ import typer
 
 import gitta as git
 from devops.stable.asana_bugs import check_blockers
+from devops.stable.display import check_task_passed, format_training_job_section
 from devops.stable.runner import TaskRunner
 from devops.stable.state import (
     ReleaseState,
@@ -299,20 +300,32 @@ def step_task_validation(
     runner = TaskRunner(state=state, job_manager=job_manager, retry_failed=retry)
     runner.run_all(tasks)
 
-    # Count results
-    passed = sum(
-        1
-        for task in tasks
-        if (js := job_manager.get_job_state(f"{state_version}_{task.name}"))
-        and js.exit_code == 0
-        and runner._passed(f"{state_version}_{task.name}", task)
-    )
-    failed = len(tasks) - passed
+    # Count results (distinguish failed vs skipped)
+    passed = 0
+    failed = 0
+    skipped = 0
+
+    for task in tasks:
+        job_state = job_manager.get_job_state(f"{state_version}_{task.name}")
+        if not job_state:
+            skipped += 1
+        elif check_task_passed(job_state, task):
+            passed += 1
+        else:
+            failed += 1
 
     # Print verdict
     print()
-    if failed:
-        print(f"❌ Task validation FAILED ({passed} passed, {failed} failed)")
+    if failed > 0:
+        msg = f"❌ Task validation FAILED ({passed} passed, {failed} failed"
+        if skipped > 0:
+            msg += f", {skipped} skipped"
+        msg += ")"
+        print(msg)
+        sys.exit(1)
+
+    if skipped > 0:
+        print(f"⚠️  Task validation incomplete ({passed} passed, {skipped} skipped)")
         sys.exit(1)
 
     print(f"✅ All task validations PASSED ({passed}/{len(tasks)})")
@@ -329,9 +342,9 @@ def step_summary(version: str, **_kwargs) -> None:
     rc_commit = verify_on_rc_commit(version, "summary")
     print(f"✅ Verified on RC commit: {rc_commit}\n")
 
-    # Load state and JobManager
+    # Load state version and JobManager
     state_version = f"v{version}"
-    state = load_state_or_exit(version, "summary")
+    _ = load_state_or_exit(version, "summary")  # Verify state exists
     job_manager = get_job_manager()
 
     # Get git log since last stable release
@@ -339,7 +352,6 @@ def step_summary(version: str, **_kwargs) -> None:
 
     # Get all tasks to display results and collect training job info
     all_tasks = get_all_tasks()
-    runner = TaskRunner(state=state, job_manager=job_manager, enable_monitor=False)
     training_jobs = []  # Track training jobs separately
 
     # Print task results summary
@@ -348,7 +360,7 @@ def step_summary(version: str, **_kwargs) -> None:
         job_name = f"{state_version}_{task.name}"
         job_state = job_manager.get_job_state(job_name)
         if job_state:
-            if runner._passed(job_name, task):
+            if check_task_passed(job_state, task):
                 icon = "✅"
             else:
                 icon = "❌"
@@ -383,18 +395,8 @@ def step_summary(version: str, **_kwargs) -> None:
     print("")
     if training_jobs:
         for task_name, job_state in training_jobs:
-            print(f"**{task_name}**")
-            if job_state.wandb_url:
-                print(f"- WandB: {job_state.wandb_url}")
-            if job_state.job_id:
-                print(f"- SkyPilot Job ID: {job_state.job_id}")
-                print(f"- View logs: `sky logs {job_state.job_id}`")
-            if job_state.checkpoint_uri:
-                print(f"- Checkpoint: {job_state.checkpoint_uri}")
-            if job_state.metrics:
-                sps = job_state.metrics.get("overview/sps")
-                if sps:
-                    print(f"- Training throughput: {sps:.0f} SPS")
+            formatted = format_training_job_section(task_name, job_state)
+            print(formatted)
             print("")
     else:
         print("- No training jobs in this validation run")
@@ -419,7 +421,6 @@ def step_release(version: str, **_kwargs) -> None:
 
     # Verify all tasks passed
     all_tasks = get_all_tasks()
-    runner = TaskRunner(state=state, job_manager=job_manager, enable_monitor=False)
 
     failed_tasks = []
     for task in all_tasks:
@@ -427,7 +428,7 @@ def step_release(version: str, **_kwargs) -> None:
         job_state = job_manager.get_job_state(job_name)
         if not job_state:
             failed_tasks.append(f"{task.name} (not run)")
-        elif not runner._passed(job_name, task):
+        elif not check_task_passed(job_state, task):
             failed_tasks.append(task.name)
 
     if failed_tasks:
@@ -455,7 +456,7 @@ def step_release(version: str, **_kwargs) -> None:
         job_name = f"{state_version}_{task.name}"
         job_state = job_manager.get_job_state(job_name)
         if job_state:
-            if runner._passed(job_name, task):
+            if check_task_passed(job_state, task):
                 icon = "✅"
             else:
                 icon = "❌"
@@ -478,19 +479,8 @@ def step_release(version: str, **_kwargs) -> None:
 """
     if training_jobs:
         for task_name, job_state in training_jobs:
-            release_notes_content += f"**{task_name}**\n"
-            if job_state.wandb_url:
-                release_notes_content += f"- WandB: {job_state.wandb_url}\n"
-            if job_state.job_id:
-                release_notes_content += f"- SkyPilot Job ID: {job_state.job_id}\n"
-                release_notes_content += f"- View logs: `sky logs {job_state.job_id}`\n"
-            if job_state.checkpoint_uri:
-                release_notes_content += f"- Checkpoint: {job_state.checkpoint_uri}\n"
-            if job_state.metrics:
-                sps = job_state.metrics.get("overview/sps")
-                if sps:
-                    release_notes_content += f"- Training throughput: {sps:.0f} SPS\n"
-            release_notes_content += "\n"
+            formatted = format_training_job_section(task_name, job_state)
+            release_notes_content += formatted + "\n\n"
     else:
         release_notes_content += "- No training jobs in this validation run\n"
 
