@@ -72,7 +72,7 @@ class Mission(Config):
     assembler: CvCAssemblerConfig = Field(default_factory=CvCAssemblerConfig)
 
     clip_rate: float = Field(default=0.0)
-    cargo_capacity: int = Field(default=100)
+    cargo_capacity: int = Field(default=255)
     energy_capacity: int = Field(default=100)
     energy_regen_amount: int = Field(default=1)
     gear_capacity: int = Field(default=5)
@@ -178,6 +178,24 @@ class Mission(Config):
                 "germanium_extractor": self.germanium_extractor.station_cfg(),
                 "depleted_germanium_extractor": self.depleted_germanium_extractor.station_cfg(),
                 "silicon_extractor": self.silicon_extractor.station_cfg(),
+                # Clipped variants
+                "clipped_carbon_extractor": self.carbon_extractor.model_copy(
+                    update={"start_clipped": True}
+                ).station_cfg(),
+                "clipped_oxygen_extractor": self.oxygen_extractor.model_copy(
+                    update={"start_clipped": True}
+                ).station_cfg(),
+                "clipped_germanium_extractor": self.germanium_extractor.model_copy(
+                    update={"start_clipped": True}
+                ).station_cfg(),
+                "clipped_silicon_extractor": self.silicon_extractor.model_copy(
+                    update={"start_clipped": True}
+                ).station_cfg(),
+                # Resource-specific chests
+                "chest_carbon": self.chest.model_copy(update={"default_resource": "carbon"}).station_cfg(),
+                "chest_oxygen": self.chest.model_copy(update={"default_resource": "oxygen"}).station_cfg(),
+                "chest_germanium": self.chest.model_copy(update={"default_resource": "germanium"}).station_cfg(),
+                "chest_silicon": self.chest.model_copy(update={"default_resource": "silicon"}).station_cfg(),
             },
         )
         return MettaGridConfig(game=game)

@@ -120,19 +120,6 @@ class _EvalMissionBase(Mission):
         return _add_make_env_modifier(mission, _post)
 
 
-class EnergyStarved(_EvalMissionBase):
-    name: str = "energy_starved"
-    description: str = "Very low energy regen; plan charger routes."
-    map_name: str = "machina_eval_exp01.map"
-    charger_eff: int = 80
-    energy_regen: int = 0
-    max_uses_charger: int = 0
-    max_uses_carbon: int = 100
-    max_uses_oxygen: int = 30
-    max_uses_germanium: int = 5
-    max_uses_silicon: int = 100
-
-
 class OxygenBottleneck(_EvalMissionBase):
     name: str = "oxygen_bottleneck"
     description: str = "Oxygen paces assembly; batch other resources."
@@ -321,6 +308,7 @@ class ClipCarbon(_EvalMissionBase):
         mission = super().instantiate(map_builder, num_cogs, variant)
         # Ensure carbon is initially clipped; O2/G/Si remain available to craft gear
         mission.carbon_extractor.start_clipped = True
+
         # Deterministic unclipping: require modulator (crafted from oxygen)
         def _filter_unclip(cfg: MettaGridConfig) -> None:
             if cfg.game.clipper is None:
@@ -336,7 +324,9 @@ class ClipCarbon(_EvalMissionBase):
                 return
             recipe = ProtocolConfig(input_resources={"oxygen": 1}, output_resources={"modulator": 1})
             single_gear = (["gear"], recipe)
-            if not any(g == ["gear"] and getattr(p, "output_resources", {}) == {"modulator": 1} for g, p in asm.recipes):
+            if not any(
+                g == ["gear"] and getattr(p, "output_resources", {}) == {"modulator": 1} for g, p in asm.recipes
+            ):
                 asm.recipes = [single_gear, *asm.recipes]
 
         mission = _add_make_env_modifier(mission, _filter_unclip)
@@ -354,6 +344,7 @@ class ClipOxygen(_EvalMissionBase):
     ) -> "Mission":
         mission = super().instantiate(map_builder, num_cogs, variant)
         mission.oxygen_extractor.start_clipped = True
+
         # Deterministic unclipping: require decoder (crafted from carbon)
         def _filter_unclip(cfg: MettaGridConfig) -> None:
             if cfg.game.clipper is None:
@@ -408,6 +399,7 @@ class ClipGermanium(_EvalMissionBase):
     ) -> "Mission":
         mission = super().instantiate(map_builder, num_cogs, variant)
         mission.germanium_extractor.start_clipped = True
+
         # Deterministic unclipping: require resonator (crafted from silicon)
         def _filter_unclip(cfg: MettaGridConfig) -> None:
             if cfg.game.clipper is None:
@@ -423,7 +415,9 @@ class ClipGermanium(_EvalMissionBase):
                 return
             recipe = ProtocolConfig(input_resources={"silicon": 1}, output_resources={"resonator": 1})
             single_gear = (["gear"], recipe)
-            if not any(g == ["gear"] and getattr(p, "output_resources", {}) == {"resonator": 1} for g, p in asm.recipes):
+            if not any(
+                g == ["gear"] and getattr(p, "output_resources", {}) == {"resonator": 1} for g, p in asm.recipes
+            ):
                 asm.recipes = [single_gear, *asm.recipes]
 
         mission = _add_make_env_modifier(mission, _filter_unclip)
@@ -441,6 +435,7 @@ class ClipSilicon(_EvalMissionBase):
     ) -> "Mission":
         mission = super().instantiate(map_builder, num_cogs, variant)
         mission.silicon_extractor.start_clipped = True
+
         # Deterministic unclipping: require scrambler (crafted from germanium)
         def _filter_unclip(cfg: MettaGridConfig) -> None:
             if cfg.game.clipper is None:
@@ -456,7 +451,9 @@ class ClipSilicon(_EvalMissionBase):
                 return
             recipe = ProtocolConfig(input_resources={"germanium": 1}, output_resources={"scrambler": 1})
             single_gear = (["gear"], recipe)
-            if not any(g == ["gear"] and getattr(p, "output_resources", {}) == {"scrambler": 1} for g, p in asm.recipes):
+            if not any(
+                g == ["gear"] and getattr(p, "output_resources", {}) == {"scrambler": 1} for g, p in asm.recipes
+            ):
                 asm.recipes = [single_gear, *asm.recipes]
 
         mission = _add_make_env_modifier(mission, _filter_unclip)
