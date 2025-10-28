@@ -57,18 +57,6 @@ app = typer.Typer(
 )
 
 
-def format_cost(cost: float) -> str:
-    """Format cost in USD.
-
-    Args:
-        cost: Cost in dollars
-
-    Returns:
-        Formatted string like "$12.34"
-    """
-    return f"${cost:.2f}"
-
-
 class RateLimiter:
     """Simple token-bucket limiter for global API RPM.
 
@@ -196,7 +184,7 @@ def make_rich_monitor_table(runs: list["RunInfo"], score_metric: str = "env_agen
             score_str = "N/A"
 
         # Format cost
-        cost_str = format_cost(run.cost) if run.cost else "$0.00"
+        cost_str = f"${run.cost:.2f}" if run.cost else "$0.00"
 
         # Status with color
         status = run.status
@@ -289,7 +277,7 @@ def create_run_banner(
     line1.append("Use --help to change limits.", style="dim")
 
     # Cost line with warning
-    cost_line = RichText(f"💰 Total Cost: {format_cost(total_cost)} ")
+    cost_line = RichText(f"💰 Total Cost: ${total_cost:.2f} ")
 
     banner_lines = [
         line1,
