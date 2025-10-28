@@ -130,7 +130,8 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
 
         # Track task labels for pool composition and sampling stats
         self._task_labels: Dict[int, str] = {}  # task_id -> label
-        self._label_completion_counts: Dict[str, int] = {}  # label -> count
+        self._label_completion_counts: Dict[str, int] = {}  # label -> completion count
+        self._label_sampling_counts: Dict[str, int] = {}  # label -> sampling count (episodes started)
 
         # Per-label tracking (only if troubleshooting logging enabled to prevent memory leaks)
         if hypers.show_curriculum_troubleshooting_logging:
@@ -246,7 +247,8 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
             if evicted_label not in self._task_labels.values():
                 # No more tasks with this label - remove from active set
                 self._active_labels.discard(evicted_label)
-                # Clean up completion counts for inactive labels to prevent unbounded growth
+                # Clean up sampling and completion counts for inactive labels to prevent unbounded growth
+                self._label_sampling_counts.pop(evicted_label, None)
                 self._label_completion_counts.pop(evicted_label, None)
                 # Note: We keep eviction counts even for inactive labels to maintain historical data (when enabled)
 
@@ -259,6 +261,17 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
     def _remove_task_from_scoring(self, task_id: int) -> None:
         """Remove task from scoring system."""
         self.scorer.remove_task(task_id)
+
+    def on_task_sampled(self, task_id: int) -> None:
+        """Track that a task was sampled (selected for an episode).
+
+        Args:
+            task_id: The ID of the task that was sampled
+        """
+        # Track sampling counts per label
+        if task_id in self._task_labels:
+            label = self._task_labels[task_id]
+            self._label_sampling_counts[label] = self._label_sampling_counts.get(label, 0) + 1
 
     def update_task_performance(self, task_id: int, score: float) -> None:
         """Update task performance using the scorer strategy."""
@@ -367,7 +380,7 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
 
         return {
             "pool_composition": pool_composition,
-            "sampling_counts": self._label_completion_counts.copy(),
+            "sampling_counts": self._label_sampling_counts.copy(),  # Use sampling counts, not completion counts
         }
 
     def get_base_stats(self) -> Dict[str, float]:

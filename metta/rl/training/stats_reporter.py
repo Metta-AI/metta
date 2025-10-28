@@ -643,23 +643,52 @@ class StatsReporter(TrainerComponent):
         # NOTE: pool_occupancy_gini and pool_lp_gini are already calculated by the algorithm
         # Just extract them directly from the stats
         if "algorithm/pool_occupancy_gini" in curriculum_stats:
-            stats["curriculum_stats/pool_occupancy_gini"] = float(curriculum_stats["algorithm/pool_occupancy_gini"])
-            logger.info(f"Extracted pool_occupancy_gini: {stats['curriculum_stats/pool_occupancy_gini']}")
+            gini_value = float(curriculum_stats["algorithm/pool_occupancy_gini"])
+            stats["curriculum_stats/pool_occupancy_gini"] = gini_value
+            if gini_value == 0.0:
+                logger.warning(
+                    "pool_occupancy_gini is 0.0 - all tasks may have equal completion counts (early training)"
+                )
+            else:
+                logger.info(f"Extracted pool_occupancy_gini: {gini_value}")
         else:
             logger.warning("algorithm/pool_occupancy_gini not found in curriculum stats")
 
         if "algorithm/pool_lp_gini" in curriculum_stats:
-            stats["curriculum_stats/pool_lp_gini"] = float(curriculum_stats["algorithm/pool_lp_gini"])
-            logger.info(f"Extracted pool_lp_gini: {stats['curriculum_stats/pool_lp_gini']}")
+            gini_value = float(curriculum_stats["algorithm/pool_lp_gini"])
+            stats["curriculum_stats/pool_lp_gini"] = gini_value
+            if gini_value == 0.0:
+                logger.warning("pool_lp_gini is 0.0 - all tasks may have equal LP scores (early training)")
+            else:
+                logger.info(f"Extracted pool_lp_gini: {gini_value}")
         else:
             logger.warning("algorithm/pool_lp_gini not found in curriculum stats")
 
-        # Sampling gini - calculate from per-label sampling counts
-        sampling_counts = [v for k, v in curriculum_stats.items() if k.startswith("algorithm/sampling_counts/")]
-        logger.info(f"Found {len(sampling_counts)} per-label sampling counts for gini calculation")
+        # Sampling gini - calculate from per-label cumulative sampling counts (algorithm tracks these)
+        sampling_count_keys = [k for k in curriculum_stats.keys() if k.startswith("algorithm/sampling_counts/")]
+        logger.info(f"Algorithm sampling count keys found: {sampling_count_keys[:5]}")  # Show first 5
+        sampling_counts = [curriculum_stats[k] for k in sampling_count_keys]
+        logger.info(f"Found {len(sampling_counts)} per-label cumulative sampling counts: {sampling_counts[:5]}")
         if sampling_counts:
             stats["curriculum_stats/sampling_gini"] = self._calculate_gini_coefficient(sampling_counts)
             logger.info(f"Calculated sampling_gini: {stats['curriculum_stats/sampling_gini']}")
+
+        # Per-epoch samples gini - calculate from this epoch's per-label episode completion counts
+        # These come from env_curriculum_stats/per_label_samples_this_epoch in rollout info dicts
+        per_label_samples_key = "env_curriculum_stats/per_label_samples_this_epoch"
+        if per_label_samples_key in self._state.rollout_stats:
+            per_label_samples = self._state.rollout_stats[per_label_samples_key]
+            if isinstance(per_label_samples, dict) and per_label_samples:
+                # Extract just the counts (values) for Gini calculation
+                epoch_sample_counts = list(per_label_samples.values())
+                logger.info(f"Found {len(epoch_sample_counts)} per-label samples this epoch: {epoch_sample_counts[:5]}")
+                stats["curriculum_stats/per_epoch_samples_gini"] = self._calculate_gini_coefficient(epoch_sample_counts)
+                logger.info(f"Calculated per_epoch_samples_gini: {stats['curriculum_stats/per_epoch_samples_gini']}")
+            else:
+                logger.warning(f"per_label_samples_this_epoch is not a dict or is empty: {per_label_samples}")
+        else:
+            sample_keys = list(self._state.rollout_stats.keys())[:10]
+            logger.info(f"No per_label_samples_this_epoch found in rollout_stats (keys: {sample_keys})")
 
         # ===== GROUP C & D: Troubleshooting Stats (if enabled) =====
         if self._should_enable_curriculum_troubleshooting():

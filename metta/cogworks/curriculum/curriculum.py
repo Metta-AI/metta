@@ -357,6 +357,11 @@ class Curriculum(StatsLogger):
                 task = self._choose_task()
 
         task._num_scheduled += 1
+
+        # Notify algorithm that this task was sampled (for sampling statistics)
+        if self._algorithm is not None and hasattr(self._algorithm, "on_task_sampled"):
+            self._algorithm.on_task_sampled(task._task_id)
+
         return task
 
     def _initialize_at_capacity(self) -> None:
