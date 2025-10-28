@@ -1,4 +1,6 @@
-import pixie, opengl, boxy/shaders, shady, vmath
+import
+  std/[strutils],
+  pixie, opengl, boxy/shaders, shady, vmath
 
 type
   TileMap* = ref object
@@ -231,10 +233,24 @@ proc setupGPU*(tileMap: TileMap) =
   glGenerateMipmap(GL_TEXTURE_2D)
 
   # Compile shader via shady.
-  tileMap.shader = newShader(
-    ("tileMapVert", toGLSL(tileMapVert, "410", "")),
-    ("tileMapFrag", toGLSL(tileMapFrag, "410", ""))
-  )
+  when defined(emscripten):
+    tileMap.shader = newShader(
+      (
+        "tileMapVert",
+        toGLSL(tileMapVert, "300 es", "precision highp float;\n")
+      ),
+      (
+        "tileMapFrag",
+        toGLSL(tileMapFrag, "300 es", "precision highp float;\n")
+          .replace("uniform usampler2D", "uniform highp usampler2D")
+          .replace("uniform sampler2DArray", "uniform highp sampler2DArray")
+      )
+    )
+  else:
+    tileMap.shader = newShader(
+      ("tileMapVert", toGLSL(tileMapVert, "410", "")),
+      ("tileMapFrag", toGLSL(tileMapFrag, "410", ""))
+    )
 
   # Quad vertices (position + texture coordinates).
   tileMap.quadVertices = @[
