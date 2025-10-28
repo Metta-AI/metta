@@ -15,6 +15,7 @@ Options:
 
 from __future__ import annotations
 
+import logging
 import subprocess
 import sys
 from datetime import datetime
@@ -97,9 +98,35 @@ def get_user_confirmation(prompt: str) -> bool:
             return False
 
 
+def setup_logging(log_file: Path) -> None:
+    """Configure logging to write to file.
+
+    All log messages (including from background threads) will be written to the log file.
+    User can tail the log file in another terminal to see detailed progress.
+    """
+    log_file.parent.mkdir(parents=True, exist_ok=True)
+
+    # Configure root logger to write to file
+    file_handler = logging.FileHandler(log_file, mode="a")
+    file_handler.setLevel(logging.DEBUG)
+    file_handler.setFormatter(
+        logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s", datefmt="%Y-%m-%d %H:%M:%S")
+    )
+
+    # Configure root logger (captures all loggers)
+    root_logger = logging.getLogger()
+    root_logger.setLevel(logging.DEBUG)
+    root_logger.addHandler(file_handler)
+
+
 def get_job_manager() -> JobManager:
     """Get JobManager instance for release validation."""
     base_dir = get_repo_root() / "devops/stable/state"
+    log_file = base_dir / "job_manager.log"
+
+    # Set up file logging
+    setup_logging(log_file)
+
     return JobManager(base_dir=base_dir, max_local_jobs=1, max_remote_jobs=4)
 
 
@@ -297,6 +324,8 @@ def step_task_validation(
 
     # Run tasks via JobManager
     job_manager = get_job_manager()
+    log_file = get_repo_root() / "devops/stable/state/job_manager.log"
+    print(f"💡 Detailed logs: tail -f {log_file}\n")
     runner = TaskRunner(state=state, job_manager=job_manager, retry_failed=retry)
     runner.run_all(tasks)
 
