@@ -2,13 +2,12 @@
 
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Dict, List, Optional, Set
+from typing import TYPE_CHECKING, Dict, List, Optional, Set
 
 import numpy as np
 
-FOLLOW_MODE_KEY = "f"
-PAN_MODE_KEY = "p"
-SELECT_MODE_KEY = "t"
+if TYPE_CHECKING:
+    from mettagrid.simulator import Action
 
 
 class RenderMode(str, Enum):
@@ -54,7 +53,7 @@ class MiniscopeState:
 
     # Agent control
     manual_agents: Set[int] = field(default_factory=set)
-    user_action: Optional[int] = None
+    user_action: Optional["Action"] = None
     should_step: bool = False
 
     # User input

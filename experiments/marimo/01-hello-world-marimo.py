@@ -93,7 +93,7 @@ def _():
     from metta.rl.training import (
         EvaluatorConfig,
         TrainingEnvironmentConfig,
-        GameRules,
+        PolicyEnvInterface,
     )
 
     from metta.cogworks.curriculum import (
@@ -1005,20 +1005,12 @@ def _(
 
             print(f"Evaluating checkpoint: {latest_ckpt.name}")
 
-            # Create evaluation environment first to get metadata
+            # Create game rules from config
+            game_rules = PolicyEnvInterface.from_mg_cfg(mg_config)
+
+            # Create evaluation environment for rendering
             with contextlib.redirect_stdout(io.StringIO()):
                 eval_env = MettaGridEnv(mg_config, render_mode="human")
-
-            game_rules = GameRules(
-                obs_width=eval_env.obs_width,
-                obs_height=eval_env.obs_height,
-                obs_features=eval_env.observation_features,
-                action_names=eval_env.action_names,
-                num_agents=eval_env.num_agents,
-                observation_space=eval_env.observation_space,
-                action_space=eval_env.single_action_space,
-                feature_normalizations=eval_env.feature_normalizations,
-            )
 
             trained_artifact = CheckpointManager.load_artifact_from_uri(
                 str(latest_ckpt)

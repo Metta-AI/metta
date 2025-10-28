@@ -11,7 +11,6 @@ Agent::Agent(GridCoord r, GridCoord c, const AgentConfig& config, const std::vec
       group(config.group_id),
       frozen(0),
       freeze_duration(config.freeze_duration),
-      orientation(Orientation::North),
       stat_rewards(config.stat_rewards),
       stat_reward_max(config.stat_reward_max),
       action_failure_penalty(config.action_failure_penalty),
@@ -176,7 +175,7 @@ bool Agent::onUse(Agent& actor, ActionArg arg) {
 }
 
 std::vector<PartialObservationToken> Agent::obs_features() const {
-  const size_t num_tokens = this->inventory.get().size() + 5 + (glyph > 0 ? 1 : 0) + this->tag_ids.size();
+  const size_t num_tokens = this->inventory.get().size() + 4 + (glyph > 0 ? 1 : 0) + this->tag_ids.size();
 
   std::vector<PartialObservationToken> features;
   features.reserve(num_tokens);
@@ -184,7 +183,6 @@ std::vector<PartialObservationToken> Agent::obs_features() const {
   features.push_back({ObservationFeature::TypeId, static_cast<ObservationType>(type_id)});
   features.push_back({ObservationFeature::Group, static_cast<ObservationType>(group)});
   features.push_back({ObservationFeature::Frozen, static_cast<ObservationType>(frozen != 0 ? 1 : 0)});
-  features.push_back({ObservationFeature::Orientation, static_cast<ObservationType>(orientation)});
   if (glyph != 0) features.push_back({ObservationFeature::Glyph, static_cast<ObservationType>(glyph)});
 
   for (const auto& [item, amount] : this->inventory.get()) {

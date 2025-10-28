@@ -4,6 +4,7 @@
 import numpy as np
 import pytest
 
+from mettagrid.config.obs_config import ObsConfig
 from mettagrid.mettagrid_c import ActionConfig as CppActionConfig
 from mettagrid.mettagrid_c import AgentConfig as CppAgentConfig
 from mettagrid.mettagrid_c import ConverterConfig as CppConverterConfig
@@ -65,10 +66,8 @@ def test_resource_mod_consumption():
     cpp_config = CppGameConfig(
         max_steps=10,
         num_agents=1,
+        obs=ObsConfig(width=3, height=3, num_tokens=100),
         episode_truncates=False,
-        obs_width=3,
-        obs_height=3,
-        num_observation_tokens=100,
         resource_names=["energy", "health"],
         track_movement_metrics=False,
         actions=[
@@ -154,10 +153,8 @@ def test_resource_mod_aoe_agents():
     cpp_config = CppGameConfig(
         max_steps=10,
         num_agents=3,
+        obs=ObsConfig(width=3, height=3, num_tokens=100),
         episode_truncates=False,
-        obs_width=3,
-        obs_height=3,
-        num_observation_tokens=100,
         resource_names=["energy", "health"],
         track_movement_metrics=False,
         actions=[
@@ -270,10 +267,8 @@ def test_resource_mod_converters():
     cpp_config = CppGameConfig(
         max_steps=10,
         num_agents=1,
+        obs=ObsConfig(width=3, height=3, num_tokens=100),
         episode_truncates=False,
-        obs_width=3,
-        obs_height=3,
-        num_observation_tokens=100,
         resource_names=["energy", "health"],
         track_movement_metrics=False,
         actions=[
@@ -389,10 +384,8 @@ def test_resource_mod_negative():
     cpp_config = CppGameConfig(
         max_steps=10,
         num_agents=3,
+        obs=ObsConfig(width=3, height=3, num_tokens=100),
         episode_truncates=False,
-        obs_width=3,
-        obs_height=3,
-        num_observation_tokens=100,
         resource_names=["energy", "health"],
         track_movement_metrics=False,
         actions=[
@@ -499,10 +492,8 @@ def test_resource_mod_scaling_vs_no_scaling():
     cpp_config_scale = CppGameConfig(
         max_steps=10,
         num_agents=2,
+        obs=ObsConfig(width=3, height=3, num_tokens=100),
         episode_truncates=False,
-        obs_width=3,
-        obs_height=3,
-        num_observation_tokens=100,
         resource_names=["energy", "health"],
         track_movement_metrics=False,
         actions=[
@@ -539,10 +530,8 @@ def test_resource_mod_scaling_vs_no_scaling():
     cpp_config_no_scale = CppGameConfig(
         max_steps=10,
         num_agents=2,
+        obs=ObsConfig(width=3, height=3, num_tokens=100),
         episode_truncates=False,
-        obs_width=3,
-        obs_height=3,
-        num_observation_tokens=100,
         resource_names=["energy", "health"],
         track_movement_metrics=False,
         actions=[

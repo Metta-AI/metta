@@ -21,7 +21,7 @@ class SupportsDiscreteActionSpace(Protocol):
 
 
 try:  # pragma: no cover - optional training env module
-    from metta.rl.training.training_environment import GameRules as _GameRules
+    from metta.rl.training.training_environment import PolicyEnvInterface as _GameRules
 except Exception:  # pragma: no cover - used when training package unavailable
     EnvInfo = SupportsDiscreteActionSpace
 else:

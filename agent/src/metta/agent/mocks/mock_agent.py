@@ -4,7 +4,7 @@ import torch
 from tensordict import TensorDict
 
 from metta.agent.policy import Policy
-from metta.rl.training import GameRules
+from metta.rl.training import PolicyEnvInterface
 
 
 class MockAgent(Policy):
@@ -15,10 +15,15 @@ class MockAgent(Policy):
     minimal functionality for simulation runs.
     """
 
-    def __init__(self) -> None:
-        # Don't call parent __init__ as it requires many parameters we don't have
-        # Instead, manually initialize as nn.Module and set required attributes
-        torch.nn.Module.__init__(self)
+    def __init__(self, actions=None) -> None:
+        from mettagrid.config.mettagrid_config import ActionsConfig
+
+        # Set a placeholder for _actions (will be properly set during initialize_to_environment)
+        if actions is None:
+            actions = ActionsConfig()
+
+        # Call parent __init__ properly
+        super().__init__(actions=actions)
 
         # Initialize required attributes that MettaAgent expects
         self.components_with_memory = []
@@ -94,7 +99,7 @@ class MockAgent(Policy):
 
     def initialize_to_environment(
         self,
-        env: GameRules,
+        env: PolicyEnvInterface,
         device: torch.device,
         *,
         is_training: bool | None = None,

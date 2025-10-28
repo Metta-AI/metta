@@ -4,7 +4,14 @@ import numpy as np
 import pytest
 
 from mettagrid.config.mettagrid_c_config import from_mettagrid_config
-from mettagrid.config.mettagrid_config import ActionConfig, ActionsConfig, AgentConfig, GameConfig, WallConfig
+from mettagrid.config.mettagrid_config import (
+    ActionConfig,
+    ActionsConfig,
+    AgentConfig,
+    GameConfig,
+    ObsConfig,
+    WallConfig,
+)
 from mettagrid.mettagrid_c import (
     MettaGrid,
     dtype_observations,
@@ -22,9 +29,7 @@ def base_config() -> GameConfig:
     return GameConfig(
         max_steps=50,
         num_agents=1,
-        obs_width=3,
-        obs_height=3,
-        num_observation_tokens=100,
+        obs=ObsConfig(width=3, height=3, num_tokens=100),
         resource_names=[],
         actions=ActionsConfig(
             noop=ActionConfig(enabled=True),

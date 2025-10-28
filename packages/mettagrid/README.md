@@ -121,10 +121,6 @@ The `use` action allows agents to interact with objects such as altars, converte
 of the `use` action depend on the target object and can include converting resources to energy, powering the altar for
 rewards, or harvesting resources from generators.
 
-### Swap
-
-The `swap` action allows agents to swap positions with other agents. It is currently not implemented.
-
 ## Configuration
 
 The MettaGrid environment is highly configurable through the use of YAML configuration files. These files specify the

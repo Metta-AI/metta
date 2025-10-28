@@ -10,7 +10,7 @@ from torch.nn.parameter import UninitializedParameter
 from torchrl.data import Composite, UnboundedDiscrete
 
 from metta.agent.policy import Policy
-from metta.rl.training import GameRules
+from metta.rl.training import PolicyEnvInterface
 from mettagrid.config import Config
 
 logger = logging.getLogger("metta_agent")
@@ -24,14 +24,16 @@ def log_on_master(*args, **argv):
 class PolicyAutoBuilder(Policy):
     """Generic policy builder for use with configs."""
 
-    def __init__(self, game_rules: GameRules, config: Config | None = None):
-        super().__init__()
+    def __init__(self, policy_env_info: PolicyEnvInterface, config: Config | None = None):
+        from mettagrid.config.mettagrid_config import ActionsConfig
+
+        super().__init__(actions=ActionsConfig())
         self.config = config
 
         self.components = OrderedDict()
         for component_config in self.config.components:
             name = component_config.name
-            self.components[name] = component_config.make_component(game_rules)
+            self.components[name] = component_config.make_component(policy_env_info)
 
         self.action_probs = self.config.action_probs_config.make_component()
         self.network = TensorDictSequential(self.components, inplace=True)
@@ -53,7 +55,7 @@ class PolicyAutoBuilder(Policy):
 
     def initialize_to_environment(
         self,
-        game_rules: GameRules,
+        policy_env_info: PolicyEnvInterface,
         device: torch.device,
     ):
         self.to(device)
@@ -64,10 +66,10 @@ class PolicyAutoBuilder(Policy):
         logs = []
         for _, value in self.components.items():
             if hasattr(value, "initialize_to_environment"):
-                logs.append(value.initialize_to_environment(game_rules, device))
+                logs.append(value.initialize_to_environment(policy_env_info, device))
         if hasattr(self, "action_probs"):
             if hasattr(self.action_probs, "initialize_to_environment"):
-                self.action_probs.initialize_to_environment(game_rules, device)
+                self.action_probs.initialize_to_environment(policy_env_info, device)
 
         for log in logs:
             if log is not None:

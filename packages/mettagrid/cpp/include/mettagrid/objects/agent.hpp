@@ -7,7 +7,6 @@
 #include <string>
 #include <vector>
 
-#include "actions/orientation.hpp"
 #include "core/types.hpp"
 #include "objects/constants.hpp"
 #include "objects/has_inventory.hpp"
@@ -21,7 +20,6 @@ public:
   ObservationType group;
   short frozen;
   short freeze_duration;
-  Orientation orientation;
   // inventory is a map of item to amount.
   // keys should be deleted when the amount is 0, to keep iteration faster.
   // however, this should not be relied on for correctness.
