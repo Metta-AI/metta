@@ -7,6 +7,7 @@ Supports both sync (wait) and async (submit + poll) execution patterns.
 from __future__ import annotations
 
 import os
+import shlex
 import signal
 import subprocess
 import time
@@ -170,8 +171,6 @@ class LocalJob(Job):
         self.cwd = cwd or get_repo_root()
 
         if "cmd" in config.metadata:
-            import shlex
-
             cmd = config.metadata["cmd"]
             if isinstance(cmd, str):
                 cmd = shlex.split(cmd)
