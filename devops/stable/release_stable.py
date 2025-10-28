@@ -1,31 +1,16 @@
 #!/usr/bin/env python3
 """Stable Release System - CLI
 
-Simple 3-mode interface for release pipeline.
-
 Commands:
-  validate              Run validation (prepare-tag -> validation -> summary)
-  hotfix                Hotfix mode (prepare-tag -> summary, skip validation)
-  release               Create release (bug check -> release tag)
+  validate              Run validation (prepare-tag -> validation -> release)
+  hotfix                Hotfix mode (prepare-tag -> release, skip validation)
+  release               Create release (prepare-tag -> validation -> bug check -> release tag)
 
 Options:
   --version X           Use specific version
   --new                 Force new release (ignore in-progress state)
   --task PATTERN        Filter validation tasks (validate mode only)
   --retry-failed        Retry failed tasks (validate mode only)
-
-Examples:
-  # Normal release workflow
-  ./devops/stable/release_stable.py validate     # 1. Validate
-  ./devops/stable/release_stable.py release      # 2. Release
-
-  # Hotfix workflow
-  ./devops/stable/release_stable.py hotfix       # 1. Skip validation
-  ./devops/stable/release_stable.py release      # 2. Release (still checks bugs)
-
-  # Development
-  ./devops/stable/release_stable.py validate --task ci  # Filter to CI only
-  ./devops/stable/release_stable.py validate --retry-failed  # Retry failures
 """
 
 from __future__ import annotations
@@ -710,8 +695,8 @@ def cmd_hotfix():
     # Step 1: Prepare RC tag
     step_prepare_tag(version=_VERSION, state=state)
 
-    # Step 2: Show summary (no validation)
-    step_summary(version=_VERSION)
+    # Create release
+    step_release(version=_VERSION)
 
 
 @app.command("release")
