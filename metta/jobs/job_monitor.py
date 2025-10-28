@@ -9,55 +9,22 @@ from __future__ import annotations
 import time
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
-if TYPE_CHECKING:
-    from metta.jobs.job_manager import JobManager
+from metta.jobs.job_manager import JobManager
 
 
 class JobMonitor:
-    """Query-based monitor that displays JobManager state.
-
-    Does not manage Job instances or execution - only queries JobState
-    from JobManager and formats it for display.
-    """
-
     def __init__(self, job_manager: JobManager, group: str | None = None):
-        """Initialize monitor.
-
-        Args:
-            job_manager: JobManager instance to query
-            group: Optional group filter (only show jobs in this group)
-        """
         self.job_manager = job_manager
         self.group = group
         self._start_time = time.time()
 
     def _should_show_training_artifacts(self, job_name: str) -> bool:
-        """Check if training artifacts should be shown for this job.
-
-        Only training jobs have WandB URLs and checkpoint URIs.
-
-        Args:
-            job_name: Name of the job
-
-        Returns:
-            True if this is a training job (determined by JobConfig.is_training_job)
-        """
         job_state = self.job_manager.get_job_state(job_name)
         return job_state.config.is_training_job if job_state else False
 
     def _extract_failure_summary(self, logs_path: str) -> list[str]:
-        """Extract failure summary from logs if available.
-
-        Looks for common failure summary patterns like 'Failing tests:' or 'FAILED' sections.
-
-        Args:
-            logs_path: Path to log file
-
-        Returns:
-            List of relevant log lines (empty if no summary found)
-        """
         try:
             log_file = Path(logs_path)
             if not log_file.exists():
@@ -87,15 +54,6 @@ class JobMonitor:
             return []
 
     def _display_log_tail(self, logs_path: str, num_lines: int) -> bool:
-        """Display last N lines of a log file.
-
-        Args:
-            logs_path: Path to log file
-            num_lines: Number of lines to show
-
-        Returns:
-            True if logs were displayed, False if no logs available
-        """
         try:
             log_file = Path(logs_path)
             if log_file.exists():
@@ -114,8 +72,6 @@ class JobMonitor:
 
     def get_status(self) -> dict[str, Any]:
         """Get current status snapshot (non-blocking).
-
-        Delegates to JobManager.get_status_summary() and adds elapsed time.
 
         Returns:
             Dict with keys:
@@ -329,14 +285,6 @@ class JobMonitor:
 
 
 def get_status_symbol(status: str) -> str:
-    """Get symbol for job status.
-
-    Args:
-        status: Status string (completed, running, pending)
-
-    Returns:
-        Unicode symbol representing the status
-    """
     symbols = {
         "completed": "✓",
         "succeeded": "✓",
@@ -393,15 +341,6 @@ def format_progress_bar(completed: int, total: int, width: int = 30) -> str:
 
 
 def extract_log_tail(logs_path: str, num_lines: int = 5) -> list[str]:
-    """Extract last N non-empty lines from log file.
-
-    Args:
-        logs_path: Path to log file
-        num_lines: Number of lines to extract
-
-    Returns:
-        List of log lines (empty if file doesn't exist or can't be read)
-    """
     try:
         log_file = Path(logs_path)
         if not log_file.exists():
@@ -417,14 +356,6 @@ def extract_log_tail(logs_path: str, num_lines: int = 5) -> list[str]:
 
 
 def format_artifact_link(uri: str) -> str:
-    """Format artifact URI with appropriate icon and styling.
-
-    Args:
-        uri: Artifact URI (wandb://, s3://, file://, http://)
-
-    Returns:
-        Formatted string with icon
-    """
     if uri.startswith("wandb://"):
         return f"📦 {uri}"
     elif uri.startswith("s3://"):
@@ -437,15 +368,6 @@ def format_artifact_link(uri: str) -> str:
 
 
 def format_job_status_line(job_dict: dict, show_duration: bool = True) -> str:
-    """Format a single job status line.
-
-    Args:
-        job_dict: Job dict from get_status_summary()
-        show_duration: Whether to show duration for completed jobs
-
-    Returns:
-        Formatted status line like "✓ job_name succeeded [2m 30s]"
-    """
     name = job_dict["name"]
     status = job_dict["status"]
 
