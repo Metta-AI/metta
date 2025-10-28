@@ -106,6 +106,12 @@ class JobMonitor:
             if job_state.logs_path:
                 status_dict["logs_path"] = job_state.logs_path
 
+            # Add artifacts for all jobs (if available) - show as soon as they exist
+            if job_state.wandb_url:
+                status_dict["wandb_url"] = job_state.wandb_url
+            if job_state.checkpoint_uri:
+                status_dict["checkpoint_uri"] = job_state.checkpoint_uri
+
             if job_state.status == "completed":
                 status_dict["exit_code"] = job_state.exit_code
                 status_dict["success"] = job_state.exit_code == 0
@@ -118,12 +124,6 @@ class JobMonitor:
                         status_dict["duration_s"] = (completed_at - started).total_seconds()
                     except Exception:
                         pass
-
-                # Add artifacts
-                if job_state.wandb_url:
-                    status_dict["wandb_url"] = job_state.wandb_url
-                if job_state.checkpoint_uri:
-                    status_dict["checkpoint_uri"] = job_state.checkpoint_uri
 
             job_statuses.append(status_dict)
 
@@ -279,6 +279,9 @@ class JobMonitor:
                     if request_id and skypilot_status == "PENDING":
                         print("│    🕐 Job queued on cluster, waiting to start...")
                     else:
+                        # Show WandB URL as soon as it's available
+                        if "wandb_url" in job_status:
+                            print(f"│    📊 WandB: {job_status['wandb_url']}")
                         print(f"│    📝 {job_status['logs_path']}")
                         print("│    📜 Live output:")
                         has_logs = self._display_log_tail(job_status["logs_path"], log_tail_lines)
@@ -287,6 +290,8 @@ class JobMonitor:
                             print("│      │ 🕐 Starting...")
                 elif status_str == "completed" and job_status.get("success"):
                     # Show last few lines for succeeded jobs too
+                    if "wandb_url" in job_status:
+                        print(f"│    📊 WandB: {job_status['wandb_url']}")
                     print(f"│    📝 {job_status['logs_path']}")
                     print("│    📜 Output:")
                     self._display_log_tail(job_status["logs_path"], log_tail_lines)
