@@ -143,6 +143,11 @@ class PPO(Loss):
                 strict=False,
             ).clone()
 
+            # Preserve rollout metadata required by recurrent policies
+            for meta_key in ("bptt", "batch", "training_env_ids"):
+                if meta_key in td.keys(include_nested=True):
+                    npc_input_td.set(meta_key, td.get(meta_key).clone())
+
         with torch.no_grad():
             self.policy.forward(td)
 

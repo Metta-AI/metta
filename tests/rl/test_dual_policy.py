@@ -49,6 +49,47 @@ class _SimplePolicy(Policy):
         return None
 
 
+class _NorthCheckingPolicy(Policy):
+    """NPC policy that always selects the 'north' action and verifies metadata."""
+
+    def __init__(self, north_action: int = 0) -> None:
+        super().__init__()
+        self._north_action = north_action
+        self._device = torch.device("cpu")
+        self._saw_metadata = False
+        self._spec = _SimplePolicy(offset=0).get_agent_experience_spec()
+
+    def forward(self, td: TensorDict, action: torch.Tensor | None = None) -> TensorDict:  # noqa: D401
+        required = ("bptt", "batch", "training_env_ids")
+        missing = [key for key in required if key not in td.keys(include_nested=True)]
+        if missing:
+            raise KeyError(f"Missing rollout metadata for NPC policy: {missing}")
+
+        self._saw_metadata = True
+
+        batch = td.batch_size.numel()
+        device = td.device
+        td.set("actions", torch.full((batch,), self._north_action, dtype=torch.int64, device=device))
+        td.set("act_log_prob", torch.zeros(batch, device=device))
+        td.set("entropy", torch.zeros(batch, device=device))
+        td.set("values", torch.zeros(batch, device=device))
+        td.set("full_log_probs", torch.zeros(batch, 1, device=device))
+        return td
+
+    def get_agent_experience_spec(self) -> Composite:  # noqa: D401
+        return self._spec
+
+    def initialize_to_environment(self, game_rules, device: torch.device) -> None:  # noqa: D401
+        self._device = device
+
+    @property
+    def device(self) -> torch.device:  # noqa: D401
+        return self._device
+
+    def reset_memory(self) -> None:  # noqa: D401
+        return None
+
+
 def _build_test_ppo() -> PPO:
     policy = _SimplePolicy(offset=0)
     env = SimpleNamespace(single_action_space=spaces.Discrete(4))
@@ -82,15 +123,15 @@ def test_dual_policy_selection_is_non_strict() -> None:
 def test_dual_policy_inject_overwrites_npc_agents() -> None:
     trainer_ppo = _build_test_ppo()
 
-    npc_policy = _SimplePolicy(offset=5)
+    npc_policy = _NorthCheckingPolicy(north_action=7)
     num_agents = 4
     env_obs = torch.zeros(num_agents, 1)
 
     td = TensorDict({"env_obs": env_obs.clone()}, batch_size=[num_agents])
-    npc_input_td = td.select(*trainer_ppo.policy_experience_spec.keys(include_nested=True), strict=False).clone()
 
-    trainer_ppo.policy.forward(td)
-    npc_policy.forward(npc_input_td)
+    td.set("bptt", torch.ones(num_agents, dtype=torch.long))
+    td.set("batch", torch.full((num_agents,), 2, dtype=torch.long))
+    td.set("training_env_ids", torch.arange(num_agents, dtype=torch.long).unsqueeze(1))
 
     student_mask = torch.tensor([False, False, True, True])
     npc_mask = ~student_mask
@@ -100,19 +141,32 @@ def test_dual_policy_inject_overwrites_npc_agents() -> None:
         npc_policy=npc_policy,
         npc_mask_per_env=npc_mask,
         student_mask_per_env=student_mask,
+        training_env_id=slice(0, num_agents),
     )
 
-    student_actions_before = td["actions"].clone()
-    npc_actions_before = npc_input_td["actions"].clone()
+    class _StubReplay:
+        def __init__(self) -> None:
+            self.calls: list[tuple[TensorDict, slice]] = []
 
-    trainer_ppo._inject_dual_policy_outputs(td, npc_input_td, ctx)
+        def store(self, data_td: TensorDict, env_id: slice) -> None:  # noqa: D401
+            self.calls.append((data_td.clone(), env_id))
+
+    trainer_ppo.replay = _StubReplay()
+
+    trainer_ppo.run_rollout(td, ctx)
 
     npc_indices = torch.nonzero(npc_mask, as_tuple=False).flatten()
     student_indices = torch.nonzero(student_mask, as_tuple=False).flatten()
 
-    assert torch.all(td["actions"][npc_indices] == npc_actions_before[npc_indices])
-    assert torch.all(td["actions"][student_indices] == student_actions_before[student_indices])
+    expected_actions = torch.arange(num_agents, dtype=torch.int64)
+    expected_actions[npc_indices] = npc_policy._north_action
+    assert torch.all(td["actions"] == expected_actions)
+    assert torch.all(td["actions"][npc_indices] == npc_policy._north_action)
+    assert torch.all(td["is_student_agent"][npc_indices] == 0.0)
+    assert torch.all(td["is_student_agent"][student_indices] == 1.0)
 
-    mask = td["is_student_agent"].reshape(-1)
-    assert torch.all(mask[npc_indices] == 0.0)
-    assert torch.all(mask[student_indices] == 1.0)
+    assert npc_policy._saw_metadata
+
+    stored_td, stored_env = trainer_ppo.replay.calls[0]
+    assert stored_env == slice(0, num_agents)
+    assert torch.all(stored_td["is_student_agent"][npc_indices] == 0.0)
