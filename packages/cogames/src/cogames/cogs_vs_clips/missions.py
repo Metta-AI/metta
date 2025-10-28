@@ -498,7 +498,50 @@ class ProceduralMissionBase(Mission):
 
         # Build procedural map using mission-specific overrides
         overrides = dict(mission.procedural_overrides)
-        procedural_builder = make_machina_procedural_map_builder(num_cogs=num_cogs, **overrides)
+        # Reuse existing builder dimensions/seed when overrides omit them
+        builder_cfg = mission.map or map_builder
+        width = int(overrides.get("width", getattr(builder_cfg, "width", 100) or 100))
+        height = int(overrides.get("height", getattr(builder_cfg, "height", 100) or 100))
+        seed = overrides.get("seed", getattr(builder_cfg, "seed", None))
+
+        allowed_keys = {
+            "base_biome",
+            "base_biome_config",
+            "building_coverage",
+            "building_weights",
+            "building_names",
+            "extractor_coverage",
+            "extractors",
+            "extractor_names",
+            "extractor_weights",
+            "hub_corner_bundle",
+            "hub_cross_bundle",
+            "hub_cross_distance",
+            "biome_weights",
+            "dungeon_weights",
+            "biome_count",
+            "dungeon_count",
+            "density_scale",
+            "max_biome_zone_fraction",
+            "max_dungeon_zone_fraction",
+            "distribution",
+            "building_distributions",
+        }
+
+        special_keys = {"width", "height", "seed"}
+        unknown_keys = set(overrides.keys()) - allowed_keys - special_keys
+        if unknown_keys:
+            raise ValueError("Unknown procedural override key(s): " + ", ".join(sorted(unknown_keys)))
+
+        filtered_overrides = {k: v for k, v in overrides.items() if k in allowed_keys}
+
+        procedural_builder = make_machina_procedural_map_builder(
+            num_cogs=num_cogs,
+            width=width,
+            height=height,
+            seed=seed,
+            **filtered_overrides,
+        )
         mission.map = procedural_builder
 
         return mission
