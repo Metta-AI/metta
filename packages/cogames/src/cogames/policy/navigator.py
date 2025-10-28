@@ -24,7 +24,7 @@ class Navigator:
     # Occupancy states
     OCC_UNKNOWN = 0
     OCC_FREE = 1
-    OCC_WALL = 2
+    OCC_OBSTACLE = 2  # Any unwalkable object (walls, stations, etc)
 
     def __init__(self, map_height: int, map_width: int):
         self.height = map_height
@@ -44,7 +44,7 @@ class Navigator:
         Args:
             start: Current position (row, col)
             target: Target position (row, col)
-            occupancy_map: 2D list of OCC_UNKNOWN/FREE/WALL
+            occupancy_map: 2D list of OCC_UNKNOWN/FREE/OBSTACLE
             optimistic: Treat unknown cells as free when pathfinding
             use_astar: Use A* for long distances (faster)
             astar_threshold: Distance threshold to switch from BFS to A*
@@ -63,11 +63,11 @@ class Navigator:
             logger.info(f"[Navigator] Distance=1: {start}→{target}, returning is_adjacent=True")
             return NavigationResult(next_step=target, is_adjacent=True, method="adjacent")
 
-        # If target is a wall (station/extractor), pathfind to adjacent cells instead
-        # This is crucial because BFS/A* can't pathfind TO a wall
-        target_is_wall = not self._is_walkable(tr, tc, occupancy_map, optimistic)
+        # If target is an obstacle (station/extractor/wall), pathfind to adjacent cells instead
+        # This is crucial because BFS/A* can't pathfind TO an obstacle
+        target_is_obstacle = not self._is_walkable(tr, tc, occupancy_map, optimistic)
 
-        if target_is_wall:
+        if target_is_obstacle:
             # Find walkable adjacent cells to the target
             adjacent_cells = [
                 (nr, nc) for nr, nc in self._neighbors4(tr, tc) if self._is_walkable(nr, nc, occupancy_map, optimistic)
@@ -79,7 +79,7 @@ class Navigator:
 
             # Check if we're ALREADY at one of the adjacent cells - if so, we're adjacent!
             if start in adjacent_cells:
-                logger.debug(f"[Navigator] Already adjacent to wall target {target}, can use it")
+                logger.debug(f"[Navigator] Already adjacent to obstacle target {target}, can use it")
                 return NavigationResult(next_step=target, is_adjacent=True, method="adjacent")
 
             # Sort by distance from start - try closest first
@@ -129,7 +129,7 @@ class Navigator:
         return NavigationResult(next_step=None, is_adjacent=False, method="stuck")
 
     def _is_walkable(self, r: int, c: int, occupancy_map: list, optimistic: bool) -> bool:
-        """Check if a cell is walkable."""
+        """Check if a cell is walkable (not OBSTACLE)."""
         if not (0 <= r < self.height and 0 <= c < self.width):
             return False
         cell = occupancy_map[r][c]
@@ -137,6 +137,7 @@ class Navigator:
             return True
         if cell == self.OCC_UNKNOWN and optimistic:
             return True
+        # OBSTACLE is not walkable
         return False
 
     def _neighbors4(self, r: int, c: int) -> list[Tuple[int, int]]:
@@ -275,7 +276,7 @@ class Navigator:
 
             cell = occupancy_map[nr][nc]
             new_dist = abs(gr - nr) + abs(gc - nc)
-            cell_name = ["UNK", "FREE", "WALL"][cell]
+            cell_name = ["UNK", "FREE", "OBSTACLE"][cell] if cell <= 2 else f"?{cell}"
 
             # When optimistic, treat unknown cells as walkable (same as free)
             is_walkable = cell == self.OCC_FREE or (cell == self.OCC_UNKNOWN and optimistic)

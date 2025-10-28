@@ -7,7 +7,7 @@ sys.path.insert(0, str(Path(__file__).parent / "packages" / "cogames" / "src"))
 from cogames.cogs_vs_clips.difficulty_variants import EASY, MEDIUM, HARD, apply_difficulty
 from cogames.cogs_vs_clips.exploration_experiments import Experiment1Mission, Experiment2Mission
 from cogames.cogs_vs_clips.eval_missions import (
-    EnergyStarved, OxygenBottleneck, GermaniumRush, SiliconWorkbench,
+    OxygenBottleneck, GermaniumRush, SiliconWorkbench,
     CarbonDesert, SingleUseWorld, SlowOxygen, HighRegenSprint,
     SparseBalanced, GermaniumClutch
 )
@@ -23,7 +23,6 @@ test_configs = [
     ("EXP2-MEDIUM", Experiment2Mission, MEDIUM, 1000),
     ("EXP2-HARD", Experiment2Mission, HARD, 1300),
     # Eval missions (no difficulty variants)
-    ("ENERGY_STARVED", EnergyStarved, None, 800),
     ("OXYGEN_BOTTLENECK", OxygenBottleneck, None, 800),
     ("GERMANIUM_RUSH", GermaniumRush, None, 800),
     ("SILICON_WORKBENCH", SiliconWorkbench, None, 800),

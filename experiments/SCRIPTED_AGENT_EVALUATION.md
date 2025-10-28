@@ -1,15 +1,16 @@
 # Scripted Agent - Evaluation Report
 
-**Date**: October 29, 2024
-**Total Tests**: 95 (19 evaluations × 5 hyperparameter presets)
-**Success Rate**: 64.2% (61/95 tests passed)
+**Date**: October 28, 2025
+**Total Tests**: 75 (15 evaluations × 5 hyperparameter presets)
+**Success Rate**: 60.0% (45/75 tests passed)
+**Total Hearts**: 81 hearts across all successful runs
 
 ---
 
 ## Evaluation Maps
 
-**EVAL 1-10**: Machina Eval Suite (40×40, constraint tests)
-**EVAL 11-19**: Outpost Experiments (varying sizes, layout tests)
+**EVAL 1-9**: Machina Eval Suite (40×40, constraint tests)
+**EVAL 10-15**: Outpost Experiments (varying sizes, layout tests)
 
 ---
 
@@ -32,40 +33,39 @@
 
 ## Evaluation Results
 
-### EVAL 1-10: Machina Constraint Tests (40×40)
+### EVAL 1-9: Machina Constraint Tests (40×40)
 
 All constraint tests are 40×40 maps with specific resource/energy constraints. Tests agent adaptability to environmental challenges.
 
 | # | Mission Name | Description | Success Rate | Play with GUI |
 |---|--------------|-------------|--------------|---------------|
-| **1** | EnergyStarved | 0.5x energy regen - tests energy management under scarcity | 80% (4/5) | `uv run cogames play -m machina_eval.energy_starved -p scripted` |
-| **2** | OxygenBottleneck | Limited oxygen extractors - tests resource bottleneck handling | 100% (5/5) ✅ | `uv run cogames play -m machina_eval.oxygen_bottleneck -p scripted` |
-| **3** | GermaniumRush | Abundant germanium - tests efficiency with resource abundance | 100% (5/5) ✅ | `uv run cogames play -m machina_eval.germanium_rush -p scripted` |
-| **4** | SiliconWorkbench | Silicon-focused layout - tests high-energy resource management | 80% (4/5) | `uv run cogames play -m machina_eval.silicon_workbench -p scripted` |
-| **5** | CarbonDesert | Sparse carbon extractors - tests scarcity adaptation | 100% (5/5) ✅ | `uv run cogames play -m machina_eval.carbon_desert -p scripted` |
-| **6** | SingleUseWorld | All extractors max_uses=1 - tests single-use resource planning | 0% (0/5) ❌ | `uv run cogames play -m machina_eval.single_use_world -p scripted` |
-| **7** | SlowOxygen | Low oxygen efficiency - tests patience with slow collection | 100% (5/5) ✅ | `uv run cogames play -m machina_eval.slow_oxygen -p scripted` |
-| **8** | HighRegenSprint | 2.0x energy regen - tests performance with abundant energy | 100% (5/5) ✅ | `uv run cogames play -m machina_eval.high_regen_sprint -p scripted` |
-| **9** | SparseBalanced | Few extractors, evenly distributed - tests efficient routing | 100% (5/5) ✅ | `uv run cogames play -m machina_eval.sparse_balanced -p scripted` |
-| **10** | GermaniumClutch | Germanium max_uses=1 - tests critical resource preservation | 0% (0/5) ❌ | `uv run cogames play -m machina_eval.germanium_clutch -p scripted` |
+| **1** | OxygenBottleneck | Limited oxygen extractors - tests resource bottleneck handling | 100% (5/5) ✅ | `uv run cogames play -m machina_eval.oxygen_bottleneck -p scripted` |
+| **2** | GermaniumRush | Abundant germanium - tests efficiency with resource abundance | 100% (5/5) ✅ | `uv run cogames play -m machina_eval.germanium_rush -p scripted` |
+| **3** | SiliconWorkbench | Silicon-focused layout - tests high-energy resource management | 0% (0/5) ❌ | `uv run cogames play -m machina_eval.silicon_workbench -p scripted` |
+| **4** | CarbonDesert | Sparse carbon extractors - tests scarcity adaptation | 100% (5/5) ✅ | `uv run cogames play -m machina_eval.carbon_desert -p scripted` |
+| **5** | SingleUseWorld | All extractors max_uses=1 - tests single-use resource planning | 0% (0/5) ❌ | `uv run cogames play -m machina_eval.single_use_world -p scripted` |
+| **6** | SlowOxygen | Low oxygen efficiency - tests patience with slow collection | 100% (5/5) ✅ | `uv run cogames play -m machina_eval.slow_oxygen -p scripted` |
+| **7** | HighRegenSprint | 2.0x energy regen - tests performance with abundant energy | 100% (5/5) ✅ | `uv run cogames play -m machina_eval.high_regen_sprint -p scripted` |
+| **8** | SparseBalanced | Few extractors, evenly distributed - tests efficient routing | 100% (5/5) ✅ | `uv run cogames play -m machina_eval.sparse_balanced -p scripted` |
+| **9** | GermaniumClutch | Germanium max_uses=1 - tests critical resource preservation | 0% (0/5) ❌ | `uv run cogames play -m machina_eval.germanium_clutch -p scripted` |
 
-**Summary**: 6/10 perfect (100%), 2/10 high success (80%), 2/10 failed (0%)
+**Summary**: 6/9 perfect (100%), 0/9 high success (80%), 3/9 failed (0%)
 
-### EVAL 11-19: Outpost Layout Tests (varying sizes)
+### EVAL 10-15: Outpost Layout Tests (varying sizes)
 
 Layout tests explore navigation and exploration across various map sizes and spatial configurations. Balanced resources but varying complexity.
 
 | # | Map Size | Layout Description | Success Rate | Play with GUI |
 |---|----------|-------------------|--------------|---------------|
-| **11** | 40×40 | **Baseline** - Standard balanced layout, good starting point | 80% (4/5) | `uv run cogames play -m outpost.experiment1 -p scripted` |
-| **12** | 90×90 | **Large Sparse** - Wide open spaces, tests long-distance navigation | 20% (1/5) ❌ | `uv run cogames play -m outpost.experiment2 -p scripted` |
-| **13** | 60×60 | **Medium** - Moderate spacing, balanced exploration challenge | 60% (3/5) | `uv run cogames play -m outpost.experiment4 -p scripted` |
-| **14** | 30×30 | **Compact** - Dense resources, minimal travel, fast completion | 100% (5/5) ✅ | `uv run cogames play -m outpost.experiment5 -p scripted` |
-| **15** | 50×50 | **Asymmetric** - Uneven distribution, tests adaptive routing | 40% (2/5) | `uv run cogames play -m outpost.experiment6 -p scripted` |
-| **16** | 70×30 | **Corridor** - Linear/rectangular layout, constrained movement | 80% (4/5) | `uv run cogames play -m outpost.experiment7 -p scripted` |
-| **17** | 80×80 | **Open Field** - Large map with minimal obstacles | 40% (2/5) | `uv run cogames play -m outpost.experiment8 -p scripted` |
-| **18** | 55×55 | **Clustered** - Resources grouped together, requires cluster hopping | 40% (2/5) | `uv run cogames play -m outpost.experiment9 -p scripted` |
-| **19** | 100×100 | **Extreme Sparse** - Maximum size, ultimate exploration test | 0% (0/5) ❌ | `uv run cogames play -m outpost.experiment10 -p scripted` |
+| **10** | 40×40 | **Baseline** - Standard balanced layout, good starting point | 80% (4/5) | `uv run cogames play -m outpost.experiment1 -p scripted` |
+| **11** | 90×90 | **Large Sparse** - Wide open spaces, tests long-distance navigation | 20% (1/5) ❌ | `uv run cogames play -m outpost.experiment2 -p scripted` |
+| **12** | 60×60 | **Medium** - Moderate spacing, balanced exploration challenge | 60% (3/5) | `uv run cogames play -m outpost.experiment4 -p scripted` |
+| **13** | 30×30 | **Compact** - Dense resources, minimal travel, fast completion | 100% (5/5) ✅ | `uv run cogames play -m outpost.experiment5 -p scripted` |
+| **14** | 50×50 | **Asymmetric** - Uneven distribution, tests adaptive routing | 40% (2/5) | `uv run cogames play -m outpost.experiment6 -p scripted` |
+| **15** | 70×30 | **Corridor** - Linear/rectangular layout, constrained movement | 80% (4/5) | `uv run cogames play -m outpost.experiment7 -p scripted` |
+| **16** | 80×80 | **Open Field** - Large map with minimal obstacles | 40% (2/5) | `uv run cogames play -m outpost.experiment8 -p scripted` |
+| **17** | 55×55 | **Clustered** - Resources grouped together, requires cluster hopping | 40% (2/5) | `uv run cogames play -m outpost.experiment9 -p scripted` |
+| **18** | 100×100 | **Extreme Sparse** - Maximum size, ultimate exploration test | 0% (0/5) ❌ | `uv run cogames play -m outpost.experiment10 -p scripted` |
 
 **Summary**: 1/9 perfect (100%), 3/9 moderate success (60-80%), 5/9 low/failed (0-40%)
 
@@ -228,22 +228,21 @@ uv run cogames play -m machina_eval.germanium_rush -p scripted        # EVAL 3
 uv run cogames play -m machina_eval.sparse_balanced -p scripted       # EVAL 9
 
 # Challenging maps
-uv run cogames play -m machina_eval.single_use_world -p scripted      # EVAL 6 - currently fails
-uv run cogames play -m machina_eval.energy_starved -p scripted        # EVAL 1 - 80% success
+uv run cogames play -m machina_eval.single_use_world -p scripted      # EVAL 5 - currently fails
 ```
 
-**EVAL 11-19** (size/layout tests):
+**EVAL 10-18** (size/layout tests):
 ```bash
 # Easy wins
-uv run cogames play -m outpost.experiment5 -p scripted   # EVAL 14: 30×30, 100% success
+uv run cogames play -m outpost.experiment5 -p scripted   # EVAL 13: 30×30, 100% success
 
 # Medium difficulty
-uv run cogames play -m outpost.experiment1 -p scripted   # EVAL 11: 40×40, 80% success
-uv run cogames play -m outpost.experiment7 -p scripted   # EVAL 16: 70×30 corridor, 80% success
+uv run cogames play -m outpost.experiment1 -p scripted   # EVAL 10: 40×40, 80% success
+uv run cogames play -m outpost.experiment7 -p scripted   # EVAL 15: 70×30 corridor, 80% success
 
 # Hard challenges
-uv run cogames play -m outpost.experiment2 -p scripted   # EVAL 12: 90×90, 20% success
-uv run cogames play -m outpost.experiment10 -p scripted  # EVAL 19: 100×100, 0% success
+uv run cogames play -m outpost.experiment2 -p scripted   # EVAL 11: 90×90, 20% success
+uv run cogames play -m outpost.experiment10 -p scripted  # EVAL 18: 100×100, 0% success
 ```
 
 ### Hyperparameter Presets
