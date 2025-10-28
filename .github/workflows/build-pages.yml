@@ -34,7 +34,9 @@ jobs:
       - name: Install Mettascope
         run: |
           cd ..
-          nimby install metta/packages/mettagrid/nim/mettascope/mettascope.nimble
+          nimby install cligen
+          nimby install fidget2
+          nimby install genny
           nimby list
           cat nim.cfg
 
