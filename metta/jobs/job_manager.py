@@ -332,8 +332,8 @@ class JobManager:
             if isinstance(job, RemoteJob):
                 if job.request_id:
                     job_state.request_id = job.request_id
-                if job.run_name:
-                    # Store the actual WandB run name and construct URL
+                # Only set WandB info for training jobs (they use run= param and log to WandB)
+                if job.run_name and config.is_training_job:
                     job_state.wandb_run_id = job.run_name
                     job_state.wandb_url = (
                         f"https://wandb.ai/{METTA_WANDB_ENTITY}/{METTA_WANDB_PROJECT}/runs/{job.run_name}"

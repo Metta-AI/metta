@@ -113,27 +113,6 @@ def load_state_or_exit(version: str, step_name: str) -> ReleaseState:
     return state
 
 
-def get_training_metrics(job_manager: JobManager, state_version: str) -> tuple[dict[str, float], str | None]:
-    """Extract training metrics and job ID from JobManager.
-
-    Returns:
-        (metrics_dict, job_id)
-    """
-    training_metrics = {}
-    training_job_id = None
-    all_jobs = job_manager.get_group_jobs(state_version)
-
-    for job_name in all_jobs:
-        if "train" in job_name.lower():
-            job_state = job_manager.get_job_state(job_name)
-            if job_state:
-                training_metrics.update(job_state.metrics or {})
-                if job_state.job_id:
-                    training_job_id = job_state.job_id
-
-    return (training_metrics, training_job_id)
-
-
 def verify_on_rc_commit(version: str, step_name: str) -> str:
     """Verify we're on the commit that the RC tag points to.
 
@@ -355,16 +334,13 @@ def step_summary(version: str, **_kwargs) -> None:
     state = load_state_or_exit(version, "summary")
     job_manager = get_job_manager()
 
-    # Get training metrics
-    training_metrics, training_job_id = get_training_metrics(job_manager, state_version)
-    sps = training_metrics.get("overview/sps", "N/A")
-
     # Get git log since last stable release
     git_log = git.git_log_since("origin/stable")
 
-    # Get all tasks to display results
+    # Get all tasks to display results and collect training job info
     all_tasks = get_all_tasks()
     runner = TaskRunner(state=state, job_manager=job_manager, enable_monitor=False)
+    training_jobs = []  # Track training jobs separately
 
     # Print task results summary
     print("Task Results:")
@@ -380,6 +356,10 @@ def step_summary(version: str, **_kwargs) -> None:
             if job_state.metrics:
                 metrics_str = ", ".join(f"{k}={v:.1f}" for k, v in job_state.metrics.items())
                 print(f"       Metrics: {metrics_str}")
+
+            # Collect training job info
+            if task.job_config.is_training_job:
+                training_jobs.append((task.name, job_state))
 
     # Print release notes template
     print("\n" + "=" * 60)
@@ -399,17 +379,25 @@ def step_summary(version: str, **_kwargs) -> None:
     print("")
     print("<Add notes from bug-check step>")
     print("")
-    print("### Training Job Links")
+    print("### Training Jobs")
     print("")
-    if training_job_id:
-        print(f"- SkyPilot Job ID: {training_job_id}")
-        print(f"- View logs: sky logs {training_job_id}")
+    if training_jobs:
+        for task_name, job_state in training_jobs:
+            print(f"**{task_name}**")
+            if job_state.wandb_url:
+                print(f"- WandB: {job_state.wandb_url}")
+            if job_state.job_id:
+                print(f"- SkyPilot Job ID: {job_state.job_id}")
+                print(f"- View logs: `sky logs {job_state.job_id}`")
+            if job_state.checkpoint_uri:
+                print(f"- Checkpoint: {job_state.checkpoint_uri}")
+            if job_state.metrics:
+                sps = job_state.metrics.get("overview/sps")
+                if sps:
+                    print(f"- Training throughput: {sps:.0f} SPS")
+            print("")
     else:
-        print("- No remote training jobs")
-    print("")
-    print("### Key Metrics")
-    print("")
-    print(f"- Training throughput (SPS): {sps}")
+        print("- No training jobs in this validation run")
     print("")
 
 
@@ -448,9 +436,9 @@ def step_release(version: str, **_kwargs) -> None:
             print(f"  ❌ {name}")
         sys.exit(1)
 
-    # Extract training metrics for release notes
-    training_metrics, training_job_id = get_training_metrics(job_manager, state_version)
+    # Extract git log and training job info for release notes
     git_log = git.git_log_since("origin/stable")
+    training_jobs = []
 
     # Create release notes
     release_notes_dir = Path("devops/stable/release-notes")
@@ -476,19 +464,35 @@ def step_release(version: str, **_kwargs) -> None:
                 metrics_str = ", ".join(f"{k}={v:.1f}" for k, v in job_state.metrics.items())
                 release_notes_content += f"  - Metrics: {metrics_str}\n"
 
+            # Collect training jobs
+            if task.job_config.is_training_job:
+                training_jobs.append((task.name, job_state))
+
     release_notes_content += f"""
 ## Changes Since Last Stable Release
 
 {git_log if git_log else "No commits found"}
 
-## Training Job Links
+## Training Jobs
 
 """
-    if training_job_id:
-        release_notes_content += f"- SkyPilot Job ID: {training_job_id}\n"
-        release_notes_content += f"- View logs: `sky logs {training_job_id}`\n"
+    if training_jobs:
+        for task_name, job_state in training_jobs:
+            release_notes_content += f"**{task_name}**\n"
+            if job_state.wandb_url:
+                release_notes_content += f"- WandB: {job_state.wandb_url}\n"
+            if job_state.job_id:
+                release_notes_content += f"- SkyPilot Job ID: {job_state.job_id}\n"
+                release_notes_content += f"- View logs: `sky logs {job_state.job_id}`\n"
+            if job_state.checkpoint_uri:
+                release_notes_content += f"- Checkpoint: {job_state.checkpoint_uri}\n"
+            if job_state.metrics:
+                sps = job_state.metrics.get("overview/sps")
+                if sps:
+                    release_notes_content += f"- Training throughput: {sps:.0f} SPS\n"
+            release_notes_content += "\n"
     else:
-        release_notes_content += "- No remote training jobs\n"
+        release_notes_content += "- No training jobs in this validation run\n"
 
     # Write release notes
     release_notes_path.write_text(release_notes_content)
