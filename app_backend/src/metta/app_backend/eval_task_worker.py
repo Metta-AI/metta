@@ -341,7 +341,7 @@ async def main() -> None:
     backend_url = os.environ["BACKEND_URL"]
     assignee = os.environ["WORKER_ASSIGNEE"]
     machine_token = os.environ["MACHINE_TOKEN"]
-    CLIAuthenticator(backend_url).save_token(machine_token)
+    CLIAuthenticator().save_token(machine_token, backend_url)
     client = EvalTaskClient(backend_url)
     task_executor = SimTaskExecutor(backend_url)
     logger.info(
