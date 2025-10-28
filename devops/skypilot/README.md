@@ -19,14 +19,40 @@ sky api info
 
 ## Usage
 
+### Recommended: Using --tool flag
+
 ```bash
-./devops/skypilot/launch.py <COMMAND> run=<RUN_ID> [COMMAND_ARGS...] [OPTIONS]
+./devops/skypilot/launch.py --tool <MODULE> [ARGS...] [OPTIONS]
 ```
 
-### Required Parameters
+The `--tool` flag is the recommended way to launch jobs. It automatically:
+- Prefixes your command with `uv run ./tools/run.py`
+- Validates the module path
+- Wraps execution with torchrun for multi-GPU/multi-node training
 
-- `COMMAND`: The main command to execute (e.g., `train`, `eval`)
-- `run=<RUN_ID>`: Unique identifier for the run (required parameter)
+**Example:**
+```bash
+./devops/skypilot/launch.py --tool arena.train run=my_experiment trainer.steps=1000 --gpus 2
+```
+
+### Alternative: Direct command
+
+```bash
+./devops/skypilot/launch.py "<COMMAND>" [OPTIONS]
+```
+
+For arbitrary commands (non-tools/run.py), pass a quoted command string.
+
+**Example:**
+```bash
+./devops/skypilot/launch.py "pytest tests/rl/" --gpus 1
+```
+
+### Required Elements
+
+- **Module** (with --tool): The tool module to run (e.g., `arena.train`)
+- **Command** (without --tool): The full command to execute (quoted string)
+- **Run ID**: Should be included as `run=<name>` for training jobs (auto-generated if omitted)
 
 ### Optional Parameters
 
@@ -49,12 +75,12 @@ There's a [web dashboard](https://skypilot-api.softmax-research.net/) that displ
 1. **Launch a training run with default parameters:**
 
    ```bash
-   devops/skypilot/launch.py train run=my_experiment_001
+   devops/skypilot/launch.py --tool train run=my_experiment_001
    ```
 
 2. **Launch with custom hyperparameters:**
    ```bash
-   devops/skypilot/launch.py train run=my_experiment_002 trainer.optimizer.learning_rate=0.001 trainer.rollout.batch_size=32
+   devops/skypilot/launch.py --tool train run=my_experiment_002 trainer.optimizer.learning_rate=0.001 trainer.rollout.batch_size=32
    ```
 
 ### Resource Configuration
@@ -62,18 +88,18 @@ There's a [web dashboard](https://skypilot-api.softmax-research.net/) that displ
 3. **Use multiple GPUs:**
 
    ```bash
-   devops/skypilot/launch.py train run=gpu_experiment --gpus 4
+   devops/skypilot/launch.py --tool train run=gpu_experiment --gpus 4
    ```
 
 4. **Multi-node training:**
 
    ```bash
-   devops/skypilot/launch.py train run=distributed_training --nodes 2 --gpus 8
+   devops/skypilot/launch.py --tool train run=distributed_training --nodes 2 --gpus 8
    ```
 
 5. **Use on-demand instances (more reliable but costlier):**
    ```bash
-   devops/skypilot/launch.py train run=critical_experiment --no-spot
+   devops/skypilot/launch.py --tool train run=critical_experiment --no-spot
    ```
 
 ### Time Management
@@ -81,12 +107,12 @@ There's a [web dashboard](https://skypilot-api.softmax-research.net/) that displ
 6. **Quick 30-minute experiment:**
 
    ```bash
-   devops/skypilot/launch.py train run=quick_test --max-runtime-hours 0.5
+   devops/skypilot/launch.py --tool train run=quick_test --max-runtime-hours 0.5
    ```
 
 7. **Long-running job with 8-hour limit:**
    ```bash
-   devops/skypilot/launch.py train run=long_experiment ---max-runtime-hours 8 --gpus 2
+   devops/skypilot/launch.py --tool train run=long_experiment --max-runtime-hours 8 --gpus 2
    ```
 
 ### Advanced Usage
@@ -94,18 +120,18 @@ There's a [web dashboard](https://skypilot-api.softmax-research.net/) that displ
 8. **Launch multiple identical experiments:**
 
    ```bash
-   devops/skypilot/launch.py train run=ablation_study --copies 5 ---max-runtime-hours 2
+   devops/skypilot/launch.py --tool train run=ablation_study --copies 5 --max-runtime-hours 2
    ```
 
 9. **Use specific git commit:**
 
    ```bash
-   devops/skypilot/launch.py train run=reproducible_exp --git-ref abc123def
+   devops/skypilot/launch.py --tool train run=reproducible_exp --git-ref abc123def
    ```
 
 10. **Preview configuration before launching:**
     ```bash
-    devops/skypilot/launch.py train run=test_config --confirm
+    devops/skypilot/launch.py --tool train run=test_config --confirm
     ```
 
 The `--confirm` flag displays a detailed job summary before launching:
@@ -131,7 +157,7 @@ Should we launch this task? (Y/n):
 
 11. **Dry run:**
     ```bash
-    devops/skypilot/launch.py train run=test_config --dry-run
+    devops/skypilot/launch.py --tool train run=test_config --dry-run
     ```
 
 The `--dry-run` flag allows you to preview the configuration that will be used before launching.
@@ -232,7 +258,7 @@ echo "source /path/to/your/project/devops/skypilot/setup_shell.sh" >> ~/.config/
 
 - `lt run=<NAME>` - Quick launch training jobs
   ```bash
-  lt run=my_experiment_001  # Equivalent to: ./devops/skypilot/launch.py train run=my_experiment_001
+  lt run=my_experiment_001  # Equivalent to: ./devops/skypilot/launch.py --tool train run=my_experiment_001
   ```
 
 ## Sandboxes
