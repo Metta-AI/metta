@@ -5,7 +5,7 @@ JobManager owns job execution and state, JobMonitor only queries and displays.
 """
 
 import time
-from datetime import datetime, timedelta
+from datetime import timedelta
 from typing import Any
 
 
@@ -115,7 +115,7 @@ class JobMonitor:
     def get_status(self) -> dict[str, Any]:
         """Get current status snapshot (non-blocking).
 
-        Queries JobManager's database for current state of all jobs.
+        Delegates to JobManager.get_status_summary() and adds elapsed time.
 
         Returns:
             Dict with keys:
@@ -126,72 +126,15 @@ class JobMonitor:
             - succeeded: Number of successful jobs
             - failed: Number of failed jobs
             - elapsed_s: Elapsed time in seconds
-            - jobs: List of job status dicts
+            - jobs: List of job status dicts (includes metrics, artifacts, etc.)
         """
-        # Query jobs from JobManager
-        if self.group:
-            job_states = self.job_manager.get_group_jobs(self.group)
-        else:
-            job_states = self.job_manager.get_all_jobs()
+        # Get status summary from JobManager
+        summary = self.job_manager.get_status_summary(group=self.group)
 
-        # Count statuses
-        total = len(job_states)
-        completed = sum(1 for js in job_states.values() if js.status == "completed")
-        running = sum(1 for js in job_states.values() if js.status == "running")
-        pending = sum(1 for js in job_states.values() if js.status == "pending")
+        # Add monitor-specific elapsed time
+        summary["elapsed_s"] = time.time() - self._start_time
 
-        # Count success/failure
-        succeeded = sum(1 for js in job_states.values() if js.status == "completed" and js.exit_code == 0)
-        failed = sum(1 for js in job_states.values() if js.status == "completed" and js.exit_code != 0)
-
-        elapsed_s = time.time() - self._start_time
-
-        # Build job status list
-        job_statuses = []
-        for name, job_state in job_states.items():
-            status_dict = {
-                "name": name,
-                "status": job_state.status,
-                "request_id": job_state.request_id,
-                "job_id": job_state.job_id,
-                "skypilot_status": job_state.skypilot_status,
-            }
-
-            # Add logs path for all jobs (if available)
-            if job_state.logs_path:
-                status_dict["logs_path"] = job_state.logs_path
-
-            # Add artifacts for all jobs (if available) - show as soon as they exist
-            if job_state.wandb_url:
-                status_dict["wandb_url"] = job_state.wandb_url
-            if job_state.checkpoint_uri:
-                status_dict["checkpoint_uri"] = job_state.checkpoint_uri
-
-            if job_state.status == "completed":
-                status_dict["exit_code"] = job_state.exit_code
-                status_dict["success"] = job_state.exit_code == 0
-
-                # Calculate duration
-                if job_state.started_at and job_state.completed_at:
-                    try:
-                        started = datetime.fromisoformat(job_state.started_at)
-                        completed_at = datetime.fromisoformat(job_state.completed_at)
-                        status_dict["duration_s"] = (completed_at - started).total_seconds()
-                    except Exception:
-                        pass
-
-            job_statuses.append(status_dict)
-
-        return {
-            "total": total,
-            "completed": completed,
-            "running": running,
-            "pending": pending,
-            "succeeded": succeeded,
-            "failed": failed,
-            "elapsed_s": elapsed_s,
-            "jobs": job_statuses,
-        }
+        return summary
 
     def display_status(
         self,
@@ -338,6 +281,20 @@ class JobMonitor:
                     # Show logs for successful jobs too when showing artifacts
                     if job_status.get("success") and "logs_path" in job_status:
                         print(f"│    📝 Logs: {job_status['logs_path']}")
+
+            # Show metrics for training jobs (if available)
+            metrics = job_status.get("metrics", {})
+            if metrics and self._should_show_training_artifacts(name):
+                print("│    📊 Metrics:")
+                for metric_key, metric_value in metrics.items():
+                    # Format metric value appropriately
+                    if isinstance(metric_value, float):
+                        if metric_value >= 1000:
+                            print(f"│      • {metric_key}: {metric_value:.0f}")
+                        else:
+                            print(f"│      • {metric_key}: {metric_value:.4f}")
+                    else:
+                        print(f"│      • {metric_key}: {metric_value}")
 
             # Show live logs for running or succeeded jobs
             if show_running_logs and "logs_path" in job_status:
