@@ -75,6 +75,9 @@ dependencies = [
   "wandb>=0.19.11",
   "wandb-core>=0.17.0b11",
   "sqlmodel>=0.0.27",
+  "ray[client,tune]>=2.50.1",
+  "optuna>=4.5.0",
+  "tensorboard>=2.20.0",
 ]
 name = "metta"
 version = "0.1"
