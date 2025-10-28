@@ -11,6 +11,7 @@ from sqlmodel import Session, SQLModel, create_engine, select
 from devops.skypilot.utils.job_helpers import check_job_statuses
 from metta.common.util.constants import METTA_WANDB_ENTITY, METTA_WANDB_PROJECT
 from metta.jobs.job_config import JobConfig
+from metta.jobs.job_metrics import extract_skypilot_job_id, fetch_wandb_metrics
 from metta.jobs.job_runner import LocalJob, RemoteJob
 from metta.jobs.job_state import JobState, JobStatus
 
@@ -108,8 +109,6 @@ class JobManager:
 
     def _fetch_metrics(self, job_name: str, job_state: JobState) -> None:
         """Fetch and update metrics for a training job."""
-        from metta.jobs.job_metrics import fetch_wandb_metrics
-
         if not job_state.config.metrics_to_track or not job_state.wandb_run_id:
             return
 
@@ -282,8 +281,6 @@ class JobManager:
                                             # Extract job ID from logs if not set
                                             if job_state.logs_path and not job_state.job_id:
                                                 try:
-                                                    from metta.jobs.job_metrics import extract_skypilot_job_id
-
                                                     logs = Path(job_state.logs_path).read_text(errors="ignore")
                                                     skypilot_id = extract_skypilot_job_id(logs)
                                                     if skypilot_id:
@@ -552,8 +549,6 @@ class JobManager:
                 # Calculate duration
                 if job_state.started_at and job_state.completed_at:
                     try:
-                        from datetime import datetime
-
                         started = datetime.fromisoformat(job_state.started_at)
                         completed_at = datetime.fromisoformat(job_state.completed_at)
                         job_dict["duration_s"] = (completed_at - started).total_seconds()
