@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import logging
 from collections import defaultdict, deque
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import Enum
 from typing import Dict, List, Optional, Set, Tuple
 
@@ -237,10 +237,10 @@ class AgentState:
 
     # Phase tracking for stuck detection
     phase_entry_step: int = 0  # When we entered current phase
-    phase_entry_inventory: Dict[str, int] = None  # Inventory when we entered phase
-    unobtainable_resources: Set[str] = None  # Resources we've given up on (too hard to get)
-    resource_gathering_start: Dict[str, int] = None  # When we first started trying to gather each resource
-    resource_progress_tracking: Dict[str, int] = None  # Initial amount of each resource when we started
+    phase_entry_inventory: Dict[str, int] = field(default_factory=dict)  # Inventory when we entered phase
+    unobtainable_resources: Set[str] = field(default_factory=set)  # Resources we've given up on (too hard to get)
+    resource_gathering_start: Dict[str, int] = field(default_factory=dict)  # When we first started trying to gather each resource
+    resource_progress_tracking: Dict[str, int] = field(default_factory=dict)  # Initial amount of each resource when we started
 
     def __post_init__(self):
         """Initialize mutable defaults."""
@@ -1275,8 +1275,9 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
         self, parent: Dict[Tuple[int, int], Optional[Tuple[int, int]]], start: Tuple[int, int], goal: Tuple[int, int]
     ) -> Tuple[int, int]:
         """Reconstruct the first step from start towards goal using parent pointers."""
-        step = goal
-        while parent[step] != start:
+        step: Tuple[int, int] = goal
+        while parent.get(step) is not None and parent[step] != start:
+            # mypy: parent[step] is not None due to guard above
             step = parent[step]  # type: ignore[assignment]
         return step
 
