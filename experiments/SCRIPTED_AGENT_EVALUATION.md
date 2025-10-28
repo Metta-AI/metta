@@ -1,8 +1,15 @@
 # Scripted Agent - Evaluation Report
 
 **Date**: October 29, 2024
-**Total Tests**: 95 (19 experiments × 5 hyperparameter presets)
+**Total Tests**: 95 (19 evaluations × 5 hyperparameter presets)
 **Success Rate**: 64.2% (61/95 tests passed)
+
+---
+
+## Evaluation Maps
+
+**EVAL 1-10**: Machina Eval Suite (40×40, constraint tests)
+**EVAL 11-19**: Outpost Experiments (varying sizes, layout tests)
 
 ---
 
@@ -25,71 +32,77 @@
 
 ## Evaluation Results
 
-### EVAL Missions (Machina Eval Suite)
+### EVAL 1-10: Machina Constraint Tests (40×40)
 
-| Mission | Success Rate | Play Command |
-|---------|--------------|--------------|
-| **EVAL1** EnergyStarved | 80% (4/5) | `cd packages/cogames && uv run cogames play -m machina_eval.energy_starved -p scripted` |
-| **EVAL2** OxygenBottleneck | 100% (5/5) ✅ | `cd packages/cogames && uv run cogames play -m machina_eval.oxygen_bottleneck -p scripted` |
-| **EVAL3** GermaniumRush | 100% (5/5) ✅ | `cd packages/cogames && uv run cogames play -m machina_eval.germanium_rush -p scripted` |
-| **EVAL4** SiliconWorkbench | 80% (4/5) | `cd packages/cogames && uv run cogames play -m machina_eval.silicon_workbench -p scripted` |
-| **EVAL5** CarbonDesert | 100% (5/5) ✅ | `cd packages/cogames && uv run cogames play -m machina_eval.carbon_desert -p scripted` |
-| **EVAL6** SingleUseWorld | 0% (0/5) ❌ | `cd packages/cogames && uv run cogames play -m machina_eval.single_use_world -p scripted` |
-| **EVAL7** SlowOxygen | 100% (5/5) ✅ | `cd packages/cogames && uv run cogames play -m machina_eval.slow_oxygen -p scripted` |
-| **EVAL8** HighRegenSprint | 100% (5/5) ✅ | `cd packages/cogames && uv run cogames play -m machina_eval.high_regen_sprint -p scripted` |
-| **EVAL9** SparseBalanced | 100% (5/5) ✅ | `cd packages/cogames && uv run cogames play -m machina_eval.sparse_balanced -p scripted` |
-| **EVAL10** GermaniumClutch | 0% (0/5) ❌ | `cd packages/cogames && uv run cogames play -m machina_eval.germanium_clutch -p scripted` |
+All constraint tests are 40×40 maps with specific resource/energy constraints. Tests agent adaptability to environmental challenges.
 
-**EVAL Summary**: 6/10 perfect (100%), 2/10 high success (80%), 2/10 failed (0%)
+| # | Mission Name | Description | Success Rate | Play with GUI |
+|---|--------------|-------------|--------------|---------------|
+| **1** | EnergyStarved | 0.5x energy regen - tests energy management under scarcity | 80% (4/5) | `uv run cogames play -m machina_eval.energy_starved -p scripted` |
+| **2** | OxygenBottleneck | Limited oxygen extractors - tests resource bottleneck handling | 100% (5/5) ✅ | `uv run cogames play -m machina_eval.oxygen_bottleneck -p scripted` |
+| **3** | GermaniumRush | Abundant germanium - tests efficiency with resource abundance | 100% (5/5) ✅ | `uv run cogames play -m machina_eval.germanium_rush -p scripted` |
+| **4** | SiliconWorkbench | Silicon-focused layout - tests high-energy resource management | 80% (4/5) | `uv run cogames play -m machina_eval.silicon_workbench -p scripted` |
+| **5** | CarbonDesert | Sparse carbon extractors - tests scarcity adaptation | 100% (5/5) ✅ | `uv run cogames play -m machina_eval.carbon_desert -p scripted` |
+| **6** | SingleUseWorld | All extractors max_uses=1 - tests single-use resource planning | 0% (0/5) ❌ | `uv run cogames play -m machina_eval.single_use_world -p scripted` |
+| **7** | SlowOxygen | Low oxygen efficiency - tests patience with slow collection | 100% (5/5) ✅ | `uv run cogames play -m machina_eval.slow_oxygen -p scripted` |
+| **8** | HighRegenSprint | 2.0x energy regen - tests performance with abundant energy | 100% (5/5) ✅ | `uv run cogames play -m machina_eval.high_regen_sprint -p scripted` |
+| **9** | SparseBalanced | Few extractors, evenly distributed - tests efficient routing | 100% (5/5) ✅ | `uv run cogames play -m machina_eval.sparse_balanced -p scripted` |
+| **10** | GermaniumClutch | Germanium max_uses=1 - tests critical resource preservation | 0% (0/5) ❌ | `uv run cogames play -m machina_eval.germanium_clutch -p scripted` |
 
-### EXP Missions (Outpost Experiments)
+**Summary**: 6/10 perfect (100%), 2/10 high success (80%), 2/10 failed (0%)
 
-| Experiment | Map Size | Success Rate | Play Command |
-|------------|----------|--------------|--------------|
-| **EXP1** | 40×40 | 80% (4/5) | `cd packages/cogames && uv run cogames play -m outpost.experiment1 -p scripted` |
-| **EXP2** | 90×90 | 20% (1/5) ❌ | `cd packages/cogames && uv run cogames play -m outpost.experiment2 -p scripted` |
-| **EXP4** | 60×60 | 60% (3/5) | `cd packages/cogames && uv run cogames play -m outpost.experiment4 -p scripted` |
-| **EXP5** | 30×30 | 100% (5/5) ✅ | `cd packages/cogames && uv run cogames play -m outpost.experiment5 -p scripted` |
-| **EXP6** | 50×50 | 40% (2/5) | `cd packages/cogames && uv run cogames play -m outpost.experiment6 -p scripted` |
-| **EXP7** | 70×30 | 80% (4/5) | `cd packages/cogames && uv run cogames play -m outpost.experiment7 -p scripted` |
-| **EXP8** | 80×80 | 40% (2/5) | `cd packages/cogames && uv run cogames play -m outpost.experiment8 -p scripted` |
-| **EXP9** | 55×55 | 40% (2/5) | `cd packages/cogames && uv run cogames play -m outpost.experiment9 -p scripted` |
-| **EXP10** | 100×100 | 0% (0/5) ❌ | `cd packages/cogames && uv run cogames play -m outpost.experiment10 -p scripted` |
+### EVAL 11-19: Outpost Layout Tests (varying sizes)
 
-**EXP Summary**: 1/9 perfect (100%), 3/9 moderate success (60-80%), 5/9 low/failed (0-40%)
+Layout tests explore navigation and exploration across various map sizes and spatial configurations. Balanced resources but varying complexity.
+
+| # | Map Size | Layout Description | Success Rate | Play with GUI |
+|---|----------|-------------------|--------------|---------------|
+| **11** | 40×40 | **Baseline** - Standard balanced layout, good starting point | 80% (4/5) | `uv run cogames play -m outpost.experiment1 -p scripted` |
+| **12** | 90×90 | **Large Sparse** - Wide open spaces, tests long-distance navigation | 20% (1/5) ❌ | `uv run cogames play -m outpost.experiment2 -p scripted` |
+| **13** | 60×60 | **Medium** - Moderate spacing, balanced exploration challenge | 60% (3/5) | `uv run cogames play -m outpost.experiment4 -p scripted` |
+| **14** | 30×30 | **Compact** - Dense resources, minimal travel, fast completion | 100% (5/5) ✅ | `uv run cogames play -m outpost.experiment5 -p scripted` |
+| **15** | 50×50 | **Asymmetric** - Uneven distribution, tests adaptive routing | 40% (2/5) | `uv run cogames play -m outpost.experiment6 -p scripted` |
+| **16** | 70×30 | **Corridor** - Linear/rectangular layout, constrained movement | 80% (4/5) | `uv run cogames play -m outpost.experiment7 -p scripted` |
+| **17** | 80×80 | **Open Field** - Large map with minimal obstacles | 40% (2/5) | `uv run cogames play -m outpost.experiment8 -p scripted` |
+| **18** | 55×55 | **Clustered** - Resources grouped together, requires cluster hopping | 40% (2/5) | `uv run cogames play -m outpost.experiment9 -p scripted` |
+| **19** | 100×100 | **Extreme Sparse** - Maximum size, ultimate exploration test | 0% (0/5) ❌ | `uv run cogames play -m outpost.experiment10 -p scripted` |
+
+**Summary**: 1/9 perfect (100%), 3/9 moderate success (60-80%), 5/9 low/failed (0-40%)
+
+> **Run from**: `cd packages/cogames` before running play commands
 
 ---
 
 ## Environment Specifications
 
-### EVAL Missions
+### EVAL 1-10: Constraint Tests
 
-| Mission | Map Size | Constraints | Key Challenge |
-|---------|----------|-------------|---------------|
-| EVAL1_EnergyStarved | 40×40 | energy_regen=0.5 | Low energy regeneration |
-| EVAL2_OxygenBottleneck | 40×40 | Limited oxygen extractors | Few oxygen sources |
-| EVAL3_GermaniumRush | 40×40 | Abundant germanium | Resource imbalance |
-| EVAL4_SiliconWorkbench | 40×40 | Silicon-focused | Silicon priority |
-| EVAL5_CarbonDesert | 40×40 | Sparse carbon | Limited carbon |
-| EVAL6_SingleUseWorld | 40×40 | All max_uses=1 | Single-use extractors |
-| EVAL7_SlowOxygen | 40×40 | Low oxygen efficiency | Slow oxygen collection |
-| EVAL8_HighRegenSprint | 40×40 | energy_regen=2.0 | High energy regen |
-| EVAL9_SparseBalanced | 40×40 | Few extractors | Sparse resources |
-| EVAL10_GermaniumClutch | 40×40 | Germanium max_uses=1 | Single-use germanium |
+| # | Mission | Map Size | Constraints | Key Challenge |
+|---|---------|----------|-------------|---------------|
+| 1 | EnergyStarved | 40×40 | energy_regen=0.5 | Low energy regeneration |
+| 2 | OxygenBottleneck | 40×40 | Limited oxygen extractors | Few oxygen sources |
+| 3 | GermaniumRush | 40×40 | Abundant germanium | Resource imbalance |
+| 4 | SiliconWorkbench | 40×40 | Silicon-focused | Silicon priority |
+| 5 | CarbonDesert | 40×40 | Sparse carbon | Limited carbon |
+| 6 | SingleUseWorld | 40×40 | All max_uses=1 | Single-use extractors |
+| 7 | SlowOxygen | 40×40 | Low oxygen efficiency | Slow oxygen collection |
+| 8 | HighRegenSprint | 40×40 | energy_regen=2.0 | High energy regen |
+| 9 | SparseBalanced | 40×40 | Few extractors | Sparse resources |
+| 10 | GermaniumClutch | 40×40 | Germanium max_uses=1 | Single-use germanium |
 
-### EXP Missions
+### EVAL 11-19: Layout Tests
 
-| Mission | Map Size | Layout | Key Features |
-|---------|----------|--------|--------------|
-| EXP1 | 40×40 | Standard | Balanced, baseline |
-| EXP2 | 90×90 | Large sparse | Exploration challenge |
-| EXP4 | 60×60 | Medium | Moderate spacing |
-| EXP5 | 30×30 | Compact | Dense resources |
-| EXP6 | 50×50 | Asymmetric | Uneven distribution |
-| EXP7 | 70×30 | Corridor | Linear layout |
-| EXP8 | 80×80 | Open field | Large, minimal walls |
-| EXP9 | 55×55 | Clustered | Resource clusters |
-| EXP10 | 100×100 | Extreme sparse | Maximum exploration |
+| # | Map Size | Layout | Key Features |
+|---|----------|--------|--------------|
+| 11 | 40×40 | Standard | Balanced, baseline |
+| 12 | 90×90 | Large sparse | Exploration challenge |
+| 13 | 60×60 | Medium | Moderate spacing |
+| 14 | 30×30 | Compact | Dense resources |
+| 15 | 50×50 | Asymmetric | Uneven distribution |
+| 16 | 70×30 | Corridor | Linear layout |
+| 17 | 80×80 | Open field | Large, minimal walls |
+| 18 | 55×55 | Clustered | Resource clusters |
+| 19 | 100×100 | Extreme sparse | Maximum exploration |
 
 ---
 
@@ -97,17 +110,17 @@
 
 ### By Map Size
 
-| Map Size | Experiments | Avg Success Rate | Status |
+| Map Size | Evaluations | Avg Success Rate | Status |
 |----------|-------------|------------------|--------|
-| 30×30 | EXP5 | 100% | ✅ Excellent |
-| 40×40 | EVAL1-10, EXP1 | 75% | ✅ Good |
-| 50×50 | EXP6 | 40% | ⚠️ Mixed |
-| 55×55 | EXP9 | 40% | ⚠️ Mixed |
-| 60×60 | EXP4 | 60% | ⚠️ Mixed |
-| 70×30 | EXP7 | 80% | ✅ Good |
-| 80×80 | EXP8 | 40% | ⚠️ Mixed |
-| 90×90 | EXP2 | 20% | ❌ Poor |
-| 100×100 | EXP10 | 0% | ❌ Failed |
+| 30×30 | EVAL 14 | 100% | ✅ Excellent |
+| 40×40 | EVAL 1-10, 11 | 75% | ✅ Good |
+| 50×50 | EVAL 15 | 40% | ⚠️ Mixed |
+| 55×55 | EVAL 18 | 40% | ⚠️ Mixed |
+| 60×60 | EVAL 13 | 60% | ⚠️ Mixed |
+| 70×30 | EVAL 16 | 80% | ✅ Good |
+| 80×80 | EVAL 17 | 40% | ⚠️ Mixed |
+| 90×90 | EVAL 12 | 20% | ❌ Poor |
+| 100×100 | EVAL 19 | 0% | ❌ Failed |
 
 **Pattern**: Performance degrades significantly on maps larger than 60×60.
 
@@ -127,11 +140,11 @@
 ### Failure Modes
 
 **Zero Hearts (couldn't assemble)** - 21 failures:
-- Large maps: EXP2, EXP8, EXP9, EXP10 (exploration insufficient)
-- Single-use: EVAL6, EVAL10 (depletion before assembly)
+- Large maps: EVAL 12, 17, 18, 19 (exploration insufficient)
+- Single-use: EVAL 6, 10 (depletion before assembly)
 
 **Timeout (assembled but didn't deposit)** - 13 failures:
-- Various experiments running out of time after assembling 1-2 hearts
+- Various evaluations running out of time after assembling 1-2 hearts
 
 ---
 
@@ -188,46 +201,105 @@
 
 ## Running Evaluations
 
-### Full Evaluation
+### Quick Start - Watch Agent in GUI
+
+All commands assume you're in `packages/cogames/`:
+```bash
+cd packages/cogames
+```
+
+**Training Facilities** (basic maps):
+```bash
+# Standard open layout
+uv run cogames play training_facility_open_1.map --policy scripted --cogs 1
+
+# Tight corridors
+uv run cogames play training_facility_tight_4.map --policy scripted --cogs 1
+
+# Clipped extractors (testing unclipping)
+uv run cogames play training_facility_clipped.map --policy scripted --cogs 1
+```
+
+**EVAL 1-10** (40×40 constraint tests):
+```bash
+# Perfect score examples
+uv run cogames play -m machina_eval.oxygen_bottleneck -p scripted     # EVAL 2
+uv run cogames play -m machina_eval.germanium_rush -p scripted        # EVAL 3
+uv run cogames play -m machina_eval.sparse_balanced -p scripted       # EVAL 9
+
+# Challenging maps
+uv run cogames play -m machina_eval.single_use_world -p scripted      # EVAL 6 - currently fails
+uv run cogames play -m machina_eval.energy_starved -p scripted        # EVAL 1 - 80% success
+```
+
+**EVAL 11-19** (size/layout tests):
+```bash
+# Easy wins
+uv run cogames play -m outpost.experiment5 -p scripted   # EVAL 14: 30×30, 100% success
+
+# Medium difficulty
+uv run cogames play -m outpost.experiment1 -p scripted   # EVAL 11: 40×40, 80% success
+uv run cogames play -m outpost.experiment7 -p scripted   # EVAL 16: 70×30 corridor, 80% success
+
+# Hard challenges
+uv run cogames play -m outpost.experiment2 -p scripted   # EVAL 12: 90×90, 20% success
+uv run cogames play -m outpost.experiment10 -p scripted  # EVAL 19: 100×100, 0% success
+```
+
+### Hyperparameter Presets
+
+Test different strategies by adding `--preset <name>`:
+```bash
+# Explorer strategy (default) - explore first, then gather
+uv run cogames play -m outpost.experiment1 -p scripted --preset explorer
+
+# Greedy strategy - gather immediately, explore when stuck (80% success overall!)
+uv run cogames play -m outpost.experiment1 -p scripted --preset greedy
+
+# Efficiency learner - learn which extractors are best, prioritize them
+uv run cogames play -m outpost.experiment1 -p scripted --preset efficiency
+
+# Aggressive explorer - explore with lower energy thresholds
+uv run cogames play -m outpost.experiment1 -p scripted --preset explorer_aggressive
+
+# Conservative explorer - higher energy safety margins (11% success, not recommended)
+uv run cogames play -m outpost.experiment1 -p scripted --preset explorer_conservative
+```
+
+Available presets: `explorer` (default), `greedy`, `efficiency`, `explorer_aggressive`, `explorer_conservative`
+
+### Full Evaluation Suite
+
+Run all 95 tests (19 experiments × 5 presets):
 ```bash
 cd /Users/daphnedemekas/Desktop/metta
 uv run python packages/cogames/scripts/evaluate.py outpost
 ```
 
-### Single Experiment
-```bash
-cd /Users/daphnedemekas/Desktop/metta/packages/cogames
+### Programmatic Usage
 
-# Play specific mission with GUI
-uv run cogames play -m machina_eval.energy_starved -p scripted
-uv run cogames play -m outpost.experiment2 -p scripted
-
-# Run without GUI (for testing)
-uv run python -c "
-from cogames.outpost.missions import Experiment1Mission
+```python
+from cogames.cogs_vs_clips.missions import make_game
 from cogames.policy.scripted_agent import ScriptedAgentPolicy
+from mettagrid import MettaGridEnv
 
-mission = Experiment1Mission()
-env = mission.make_env()
-obs = env.reset()
-policy = ScriptedAgentPolicy(env, preset='efficiency')
+# Create environment
+env_cfg = make_game(num_cogs=1, map_name="training_facility_open_1.map")
+env = MettaGridEnv(env_cfg=env_cfg)
 
+# Create policy with preset
+policy = ScriptedAgentPolicy(env, preset='greedy')
+agents = [policy.agent_policy(i) for i in range(env.num_agents)]
+
+# Run episode
+obs, _ = env.reset()
 for _ in range(1000):
-    action, _ = policy.step(obs)
-    obs, reward, done, truncated, info = env.step(action)
-    if done or truncated:
+    actions = [agents[i].step(obs[i]) for i in range(env.num_agents)]
+    obs, rewards, done, truncated, _ = env.step(actions)
+    if all(done) or all(truncated):
         break
 
-print(f'Reward: {reward}, Hearts: {info.get(\"hearts_assembled\", 0)}')
-"
-```
-
-### Hyperparameter Presets
-
-Default preset is `explorer`. To use a specific preset:
-```python
-policy = ScriptedAgentPolicy(env, preset='efficiency')
-# Options: 'explorer', 'greedy', 'efficiency', 'explorer_aggressive', 'explorer_conservative'
+print(f"Total reward: {rewards.sum()}")
 ```
 
 ---
@@ -239,12 +311,12 @@ policy = ScriptedAgentPolicy(env, preset='efficiency')
 **1. Fix Navigation on Large Maps** (+20-30%)
 - Issue: Extractors found but pathfinding fails to reach them
 - Solution: Better fallback strategies, continue exploring while gathering
-- Impact: Would fix EXP2, EXP8, EXP9, EXP10
+- Impact: Would fix EVAL 12, 17, 18, 19
 
 **2. Single-Use Extractor Tracking** (+10-15%)
 - Issue: Agent revisits extractors, depleting them before assembly
 - Solution: Track `total_harvests` vs `max_uses`, visit each once
-- Impact: Would fix EVAL6, EVAL10
+- Impact: Would fix EVAL 6, 10
 
 ### Medium Priority
 
