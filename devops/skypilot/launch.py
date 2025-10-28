@@ -150,7 +150,15 @@ def _build_ray_launch_task(
         fi
         echo "[Ray Sweep] Ray version: $(ray --version)"
 
+        # Ensure SKYPILOT_NODE_IPS is set
+        if [ -z "${{SKYPILOT_NODE_IPS:-}}" ]; then
+            echo "[Ray Sweep] ERROR: SKYPILOT_NODE_IPS environment variable is not set!"
+            echo "[Ray Sweep] This variable should be set by Skypilot during cluster launch."
+            exit 1
+        fi
+
         HEAD_IP=$(echo "$SKYPILOT_NODE_IPS" | head -n1)
+        echo "[Ray Sweep] HEAD_IP=$HEAD_IP (from SKYPILOT_NODE_IPS: $SKYPILOT_NODE_IPS)"
 
         if [[ "${{SKYPILOT_NODE_RANK:-0}}" == "0" ]]; then
             echo "[Ray Sweep] Starting head node on port {ray_port}"
@@ -158,9 +166,18 @@ def _build_ray_launch_task(
             echo "[Ray Sweep] USER: $(whoami)"
             echo "[Ray Sweep] Free memory: $(free -h | grep Mem)"
 
-            echo "[Ray Sweep] Stopping any existing Ray..."
-            ray stop --force || true
-            sleep 2
+            # Check if Ray is running before attempting to stop
+            echo "[Ray Sweep] Checking for existing Ray processes..."
+            if ray status >/dev/null 2>&1; then
+                echo "[Ray Sweep] Existing Ray cluster found, stopping gracefully first..."
+                ray stop || echo "[Ray Sweep] Graceful stop failed, trying force stop..."
+                sleep 2
+            fi
+
+            # Final cleanup with force flag
+            echo "[Ray Sweep] Ensuring all Ray processes are stopped..."
+            ray stop --force 2>&1 | grep -v "No such file or directory" || true
+            sleep 3
 
             echo "[Ray Sweep] Starting Ray head with memory limits..."
             ray start --head \
