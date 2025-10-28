@@ -7,6 +7,10 @@ from metta.sweep.ray.ray_controller import SweepConfig, ray_sweep
 
 class RaySweepTool(Tool):
 
+    # This run is NOT used anywhere, but skypilot
+    # always passes one. This is fine for development.
+    run: Optional[str] = None
+
     sweep_config: SweepConfig = SweepConfig()
     search_space: dict[str, Any] = Field(default_factory=dict)
 
