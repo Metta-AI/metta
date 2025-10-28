@@ -72,7 +72,7 @@ class Mission(Config):
     assembler: CvCAssemblerConfig = Field(default_factory=CvCAssemblerConfig)
 
     clip_rate: float = Field(default=0.0)
-    cargo_capacity: int = Field(default=100)
+    cargo_capacity: int = Field(default=255)
     energy_capacity: int = Field(default=100)
     energy_regen_amount: int = Field(default=1)
     gear_capacity: int = Field(default=5)
