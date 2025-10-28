@@ -25,6 +25,16 @@ def metta_train_fn(config: dict[str, Any]) -> None:
         - serialized_job_definition,
         - experiment_id
     """
+    # Get Ray's GPU allocation and log it
+    import ray
+    try:
+        gpu_ids = ray.get_gpu_ids()
+        cuda_visible_devices = os.environ.get("CUDA_VISIBLE_DEVICES", "")
+        print(f"[Ray Trial] Ray GPU IDs: {gpu_ids}")
+        print(f"[Ray Trial] CUDA_VISIBLE_DEVICES: {cuda_visible_devices}")
+    except Exception as e:
+        print(f"[Ray Trial] Warning: Could not get Ray GPU allocation: {e}")
+
     dispatcher = LocalDispatcher(capture_output=True)
 
     # Ray config should provide a dict payload under "serialized_job_definition".

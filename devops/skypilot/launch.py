@@ -193,7 +193,7 @@ def _build_ray_launch_task(
               --disable-usage-stats \
               --dashboard-host=0.0.0.0 \
               --object-store-memory=100000000 \
-              --num-cpus=0 \
+              --num-gpus={args.ray_gpus_per_node} \
               --verbose || {{
                 echo "[Ray Sweep] ERROR: Ray start failed with exit code $?"
                 echo "[Ray Sweep] Checking Ray logs..."
@@ -257,9 +257,10 @@ def _build_ray_launch_task(
             ray stop --force 2>&1 | grep -v "No such file or directory" || true
             sleep 2
 
-            echo "[Ray Sweep] Executing: ray start --address $HEAD_IP:{ray_port} --disable-usage-stats --object-store-memory=100000000 --block"
+            echo "[Ray Sweep] Executing: ray start --address $HEAD_IP:{ray_port} --disable-usage-stats --object-store-memory=100000000 --num-gpus={args.ray_gpus_per_node} --block"
             if ! ray start --address "$HEAD_IP:{ray_port}" --disable-usage-stats \
                 --object-store-memory=100000000 \
+                --num-gpus={args.ray_gpus_per_node} \
                 --block; then
                 echo "[Ray Sweep] ERROR: Failed to start Ray worker node"
                 exit 1
