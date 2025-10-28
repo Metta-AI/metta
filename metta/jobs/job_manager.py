@@ -126,8 +126,9 @@ class JobManager:
                         job_state.metrics = metrics
                         session.add(job_state)
                         session.commit()
+                        logger.debug(f"Fetched metrics for {job_name}: {list(metrics.keys())}")
         except Exception as e:
-            logger.debug(f"Failed to fetch metrics for {job_name}: {e}")
+            logger.warning(f"Failed to fetch metrics for {job_name}: {e}")
 
     def _start_local_monitor(self, job_name: str) -> None:
         """Start background monitoring thread for a local job.
