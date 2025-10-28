@@ -373,8 +373,6 @@ class RemoteJob(Job):
         2. Extract request_id from output (required for all operations)
         3. Poll for job_id (may not be immediately available)
         4. Job_id=None is OK - we'll fetch it later via is_complete()
-
-        This matches SkyPilotTestLauncher behavior for compatibility.
         """
         cmd = [
             "devops/skypilot/launch.py",
