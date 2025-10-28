@@ -471,8 +471,11 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         if "scorer" in state:
             self.scorer.load_state(state["scorer"])
 
-    def get_per_label_lp_scores(self) -> dict[str, dict[str, float]]:
+    def get_per_label_lp_scores(self, task_pool: dict) -> dict[str, dict[str, float]]:
         """Get per-label LP scores for troubleshooting.
+
+        Args:
+            task_pool: Dictionary mapping task_id -> CurriculumTask from the curriculum
 
         Returns:
             Dict mapping label -> {raw, postzscored, prob}
@@ -481,7 +484,7 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
             return {}
 
         per_label: dict[str, dict[str, float]] = {}
-        for task_id, task in self._task_pool.items():
+        for task_id, task in task_pool.items():
             label = task.get_label()
             if not label or not isinstance(label, str):
                 continue

@@ -736,9 +736,14 @@ class StatsReporter(TrainerComponent):
         if not algorithm:
             return stats
 
+        # Get task pool from curriculum
+        task_pool = getattr(curriculum, "_task_pool", None)
+        if not task_pool:
+            return stats
+
         # Get per-label aggregated scores from algorithm (Step 5 provides this)
         if hasattr(algorithm, "get_per_label_lp_scores"):
-            per_label_scores = algorithm.get_per_label_lp_scores()
+            per_label_scores = algorithm.get_per_label_lp_scores(task_pool)
             for label, score_dict in per_label_scores.items():
                 stats[f"curriculum_stats/per_label_lp_scores/{label}"] = float(score_dict.get("raw", 0.0))
                 stats[f"curriculum_stats/per_label_postzscored_lp_scores/{label}"] = float(
