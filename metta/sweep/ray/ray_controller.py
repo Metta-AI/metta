@@ -31,8 +31,8 @@ class SweepConfig(Config):
     # TODO: Obviously not this
     sweep_id: str = Field(default='sweep_id_unset')
 
-    cpus_per_trial: float = 1.0
-    gpus_per_trial: float = 0.0
+    cpus_per_trial: int = 48
+    gpus_per_trial: int = 4
     max_concurrent_trials: int = 1
 
 def ray_sweep(
