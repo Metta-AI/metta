@@ -310,9 +310,9 @@ class ObsPerceiverLatent(nn.Module):
 
             if self._is_dropout:
                 # Check if mask needs to be reset due to batch size mismatch
-                if self.dropout_mask.shape[0] != mlp_output.shape[0]:
+                if self.dropout_mask is not None and self.dropout_mask.shape[0] != mlp_output.shape[0]:
                     self.dropout_mask = None
-                result = self.dropouts[i](mlp_output, mask=self.dropout_masks[i])
+                result = self.dropouts[i](mlp_output, mask=self.dropout_mask)
                 # ConsistentDropout returns (tensor, mask) in train mode, but only tensor in eval mode
                 if isinstance(result, tuple):
                     mlp_output, mask = result
