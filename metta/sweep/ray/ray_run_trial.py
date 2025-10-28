@@ -22,8 +22,8 @@ def _report_metrics(trial_name: str) -> dict[str, Any]:
     store = WandbStore(entity="metta-research", project=os.environ.get("WANDB_PROJECT", "metta"))
     try:
         summary = store.get_run_summary(trial_name)
-        current_timestep = summary.get("metric/agent_step")
-        current_reward = summary.get("experience/rewards")
+        current_timestep = summary.get("metric/agent_step", 0)
+        current_reward = summary.get("experience/rewards", 0)
         tune.report({"reward": current_reward, "timestep": current_timestep})
         return {"reward": current_reward, "timestep": current_timestep}
     except Exception as e:
