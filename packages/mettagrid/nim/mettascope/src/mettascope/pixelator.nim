@@ -108,10 +108,24 @@ proc newPixelator*(imagePath, jsonPath: string): Pixelator =
   result.instanceData = @[]
   result.instanceCount = 0
 
-  result.shader = newShader(
-    ("pixelatorVert", toGLSL(pixelatorVert, "410", "")),
-    ("pixelatorFrag", toGLSL(pixelatorFrag, "410", ""))
-  )
+  when defined(emscripten):
+    result.shader = newShader(
+      (
+        "pixelatorVert",
+        toGLSL(pixelatorVert, "300 es", "precision highp float;\n")
+          .replace("uint(2)", "2")
+          .replace("mod(gl_VertexID, 2)", "gl_VertexID % 2")
+      ),
+      (
+        "pixelatorFrag",
+        toGLSL(pixelatorFrag, "300 es", "precision highp float;\n")
+      )
+    )
+  else:
+    result.shader = newShader(
+      ("pixelatorVert", toGLSL(pixelatorVert, "410", "")),
+      ("pixelatorFrag", toGLSL(pixelatorFrag, "410", ""))
+    )
 
   # Upload atlas image to GL texture
   glGenTextures(1, result.atlasTexture.addr)
