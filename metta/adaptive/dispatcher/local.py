@@ -124,39 +124,34 @@ class LocalDispatcher:
                         new_parts.append(current_pythonpath)
                     env["PYTHONPATH"] = os.pathsep.join(new_parts)
 
-        if use_torchrun:
-            env["NUM_GPUS"] = str(job.gpus)
-            env["NUM_NODES"] = str(job.nodes or 1)
-            # Keep rendezvous local to the worker node
-            env["MASTER_ADDR"] = "127.0.0.1"
-            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
-                sock.bind(("", 0))
-                master_port = sock.getsockname()[1]
-            env["MASTER_PORT"] = str(master_port)
-            logger.debug(
-                "Selected torchrun rendezvous port %s for run %s (PID %s)",
-                master_port,
-                job.run_id,
-                job.cmd,
-            )
-            # Torchrun will set the distributed rank information; clear leftovers
-            for var in ("RANK", "WORLD_SIZE", "LOCAL_RANK", "NODE_RANK"):
-                env.pop(var, None)
+            if use_torchrun:
+                env["NUM_GPUS"] = str(job.gpus)
+                env["NUM_NODES"] = str(job.nodes or 1)
+                env["MASTER_ADDR"] = "127.0.0.1"
+                with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+                    sock.bind(("", 0))
+                    master_port = sock.getsockname()[1]
+                env["MASTER_PORT"] = str(master_port)
+                logger.debug(
+                    "Selected torchrun rendezvous port %s for run %s (cmd: %s)",
+                    master_port,
+                    job.run_id,
+                    job.cmd,
+                )
+                for var in ("RANK", "WORLD_SIZE", "LOCAL_RANK", "NODE_RANK"):
+                    env.pop(var, None)
 
-            # Configure subprocess output handling
             if self._capture_output:
-                # Capture output for streaming and logging
                 process = subprocess.Popen(
                     cmd_parts,
                     stdout=subprocess.PIPE,
-                    stderr=subprocess.STDOUT,  # Combine stderr with stdout
+                    stderr=subprocess.STDOUT,
                     text=True,
-                    bufsize=1,  # Line buffered
+                    bufsize=1,
                     cwd=str(self._project_root),
                     env=env,
                 )
             else:
-                # Production mode - discard output to avoid potential deadlock
                 process = subprocess.Popen(
                     cmd_parts,
                     stdout=subprocess.DEVNULL,
@@ -166,17 +161,15 @@ class LocalDispatcher:
                     env=env,
                 )
 
-            # Use PID as the dispatch_id
             pid = str(process.pid)
             self._processes[pid] = process
             self._run_to_pid[job.run_id] = pid
 
-            # Start output streaming thread if capturing output
             if self._capture_output:
                 output_thread = threading.Thread(
                     target=self._stream_output,
                     args=(process, job.run_id, pid),
-                    daemon=True,  # Daemon thread will be killed when main process exits
+                    daemon=True,
                 )
                 output_thread.start()
                 self._output_threads[pid] = output_thread
