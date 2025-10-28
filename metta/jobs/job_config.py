@@ -4,7 +4,7 @@ from typing import Any
 
 from pydantic import Field
 
-from metta.common.config import Config
+from mettagrid.base_config import Config
 
 
 class RemoteConfig(Config):
