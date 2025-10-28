@@ -48,13 +48,16 @@ class JobManager:
         base_dir: Path,
         max_local_jobs: int = 1,
         max_remote_jobs: int = 10,
+        remote_poll_interval_s: float = 5.0,
     ):
         self.base_dir = Path(base_dir)
         self.db_path = self.base_dir / "jobs.sqlite"
         self.log_dir = self.base_dir / "logs"
         self.max_local_jobs = max_local_jobs
         self.max_remote_jobs = max_remote_jobs
+        self.remote_poll_interval_s = remote_poll_interval_s  # How often to poll SkyPilot for remote job status
         self._active_jobs: dict[str, LocalJob | RemoteJob] = {}
+        self._monitor_threads: dict[str, threading.Thread] = {}  # Remote job monitoring threads
         self._init_db()
         self._validate_job_states()
 
@@ -118,6 +121,67 @@ class JobManager:
                 daemon=True,
             )
             thread.start()
+
+    def _start_remote_monitor(self, job_name: str, job_id: int) -> None:
+        """Start background monitoring thread for a remote job.
+
+        The thread polls SkyPilot API at configured interval to update job status in database.
+        Exits when job reaches terminal state or thread is interrupted.
+
+        Args:
+            job_name: Name of job to monitor
+            job_id: SkyPilot job ID
+        """
+
+        def monitor_loop():
+            try:
+                while True:
+                    try:
+                        # Query SkyPilot for current status
+                        statuses = check_job_statuses([job_id])
+                        status = statuses.get(job_id, {}).get("status")
+
+                        if not status:
+                            # Job info not available, exit thread
+                            break
+
+                        # Update database with current status
+                        with Session(self._engine) as session:
+                            job_state = session.get(JobState, job_name)
+                            if job_state:
+                                job_state.skypilot_status = status
+                                session.add(job_state)
+                                session.commit()
+
+                        # Exit if terminal state reached
+                        if status in (
+                            "SUCCEEDED",
+                            "FAILED",
+                            "FAILED_SETUP",
+                            "FAILED_DRIVER",
+                            "CANCELLED",
+                            "UNKNOWN",
+                            "ERROR",
+                        ):
+                            break
+
+                        # Poll at configured interval
+                        time.sleep(self.remote_poll_interval_s)
+
+                    except Exception as e:
+                        logger.warning(f"Remote monitor thread for {job_name} failed: {e}")
+                        time.sleep(self.remote_poll_interval_s)  # Continue trying
+
+            finally:
+                # Clean up thread reference when done
+                if job_name in self._monitor_threads:
+                    del self._monitor_threads[job_name]
+
+        # Start daemon thread (will exit when main program exits)
+        thread = threading.Thread(target=monitor_loop, daemon=True, name=f"monitor-{job_name}")
+        thread.start()
+        self._monitor_threads[job_name] = thread
+        logger.debug(f"Started monitoring thread for remote job {job_name} (Job ID: {job_id})")
 
     def _validate_remote_jobs_async(self, remote_jobs: list[tuple[str, str | None]]) -> None:
         """Validate remote job statuses via SkyPilot API (runs in background thread).
@@ -214,6 +278,15 @@ class JobManager:
             job_state.started_at = datetime.now().isoformat(timespec="seconds")
             session.add(job_state)
             session.commit()
+
+            # Start background monitoring thread for remote jobs
+            if is_remote and job_state.job_id:
+                try:
+                    job_id_int = int(job_state.job_id)
+                    self._start_remote_monitor(name, job_id_int)
+                except ValueError:
+                    pass  # Job ID not available yet, will be monitored when it becomes available
+
             return True
 
     def _has_available_slot(self, is_remote: bool) -> bool:
@@ -263,13 +336,24 @@ class JobManager:
                 if isinstance(job, RemoteJob):
                     job_state = session.get(JobState, name)
                     if job_state:
-                        # Update job_id if available
+                        # Update job_id if available and start monitoring thread
                         if job.job_id and not job_state.job_id:
                             job_state.job_id = job.job_id
-                        # Update SkyPilot status if available
+                            session.add(job_state)
+                            session.commit()  # Commit before starting thread
+
+                            # Start monitoring thread if not already running
+                            if name not in self._monitor_threads:
+                                try:
+                                    job_id_int = int(job.job_id)
+                                    self._start_remote_monitor(name, job_id_int)
+                                except ValueError:
+                                    pass
+
+                        # Update SkyPilot status if available (from RemoteJob's own polling)
                         if hasattr(job, "_job_status") and job._job_status:
                             job_state.skypilot_status = job._job_status
-                        session.add(job_state)
+                            session.add(job_state)
             session.commit()
 
         for name, job in list(self._active_jobs.items()):
