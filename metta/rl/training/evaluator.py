@@ -21,7 +21,7 @@ from metta.rl.training import TrainerComponent
 from metta.rl.training.optimizer import is_schedulefree_optimizer
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.utils.auto_config import auto_replay_dir
-from mettagrid.base_config import Config
+from mettagrid.config import Config
 
 logger = logging.getLogger(__name__)
 
@@ -257,8 +257,6 @@ class Evaluator(TrainerComponent):
         return evaluate_policy(
             checkpoint_uri=policy_uri,
             simulations=simulations,
-            device=self._device,
-            vectorization=self._system_cfg.vectorization,
             replay_dir=self._config.replay_dir,
             stats_epoch_id=stats_epoch_id,
             stats_client=self._stats_client,

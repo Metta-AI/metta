@@ -5,6 +5,7 @@ import torch
 
 from metta.agent.policy import Policy
 from metta.common.util.log_config import getRankAwareLogger
+from metta.rl.system_config import SystemConfig
 from metta.rl.trainer_config import TrainerConfig
 from metta.rl.training import (
     ComponentContext,
@@ -53,7 +54,7 @@ class Trainer:
         self._cfg = cfg
         self._device = device
         if distributed_helper is None:
-            distributed_helper = DistributedHelper(self._device)
+            distributed_helper = DistributedHelper(SystemConfig(device=self._device.type))
         self._distributed_helper = distributed_helper
         self._run_name = run_name
         self._components: list[TrainerComponent] = []
@@ -61,7 +62,7 @@ class Trainer:
         self.timer.start()
 
         self._policy.to(self._device)
-        self._policy.initialize_to_environment(self._env.game_rules, self._device)
+        self._policy.initialize_to_environment(self._env.policy_env_info, self._device)
         self._policy.train()
 
         self._policy = self._distributed_helper.wrap_policy(self._policy, self._device)
@@ -73,7 +74,7 @@ class Trainer:
 
         parallel_agents = getattr(self._env, "total_parallel_agents", None)
         if parallel_agents is None:
-            parallel_agents = batch_info.num_envs * self._env.game_rules.num_agents
+            parallel_agents = batch_info.num_envs * self._env.policy_env_info.num_agents
 
         self._experience = Experience.from_losses(
             total_agents=parallel_agents,
