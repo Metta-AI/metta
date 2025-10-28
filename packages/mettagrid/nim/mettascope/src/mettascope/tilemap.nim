@@ -37,7 +37,12 @@ var
   tint: Uniform[Vec4]
 
 proc tileMapVert*(aPos: Vec2, vertexUv: Vec2, fragmentUv: var Vec2) =
-  gl_Position = mvp * vec4(aPos.x, aPos.y, 0.0, 1.0)
+  gl_Position = mvp * vec4(
+    aPos.x * mapSize.x - 0.5,
+    aPos.y * mapSize.y - 0.5,
+    0.0,
+    1.0
+  )
   fragmentUv = vertexUv
 
 proc tileMapFrag*(fragmentUv: Vec2, fragColor: var Vec4) =

@@ -196,16 +196,6 @@ proc getProjectionView*(): Mat4 =
   let projection = ortho(0.0f, window.size.x.float32, window.size.y.float32, 0.0f, -1.0f, 1.0f)
   projection * view
 
-proc getTileMapMvp*(tileMap: TileMap): Mat4 =
-  ## Get the MVP matrix for the tile map.
-  getProjectionView() *
-    translate(vec3(-0.5, -0.5, 0)) *
-    scale(vec3(
-      tileMap.width.float32,
-      tileMap.height.float32,
-      1.0f
-    ))
-
 proc useSelections*(panel: Panel) =
   ## Reads the mouse position and selects the thing under it.
   let modifierDown = when defined(macosx):
@@ -344,9 +334,9 @@ proc drawVisualRanges*(alpha = 0.5) =
     visibilityMap.updateVisibilityMap()
 
   visibilityMap.draw(
-    visibilityMap.getTileMapMvp(),
-    2.0f,
-    1.5f,
+    getProjectionView(),
+    zoom = 2.0f,
+    zoomThreshold = 1.5f,
     tint = color(0, 0, 0, alpha)
   )
 
@@ -692,7 +682,7 @@ proc drawTerrain*() =
       dataDir & "/atlas.json"
     )
 
-  terrainMap.draw(terrainMap.getTileMapMvp(), 2.0f, 1.5f)
+  terrainMap.draw(getProjectionView(), 2.0f, 1.5f)
 
   bxy.exitRawOpenGLMode()
 
@@ -735,8 +725,6 @@ proc centerAt*(panel: Panel, entity: Entity) =
   ## Center the map on the given entity.
   ## TODO: Implement this.
   discard
-
-
 
 proc drawWorldMain*() =
   ## Draw the world map.
