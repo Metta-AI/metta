@@ -4,9 +4,15 @@ Query-based monitor that observes JobManager state without managing jobs directl
 JobManager owns job execution and state, JobMonitor only queries and displays.
 """
 
+from __future__ import annotations
+
 import time
-from datetime import timedelta
-from typing import Any
+from datetime import datetime, timedelta
+from pathlib import Path
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from metta.jobs.job_manager import JobManager
 
 
 class JobMonitor:
@@ -16,16 +22,14 @@ class JobMonitor:
     from JobManager and formats it for display.
     """
 
-    def __init__(self, job_manager, group: str | None = None):
+    def __init__(self, job_manager: JobManager, group: str | None = None):
         """Initialize monitor.
 
         Args:
             job_manager: JobManager instance to query
             group: Optional group filter (only show jobs in this group)
         """
-        from metta.jobs.job_manager import JobManager
-
-        self.job_manager: JobManager = job_manager
+        self.job_manager = job_manager
         self.group = group
         self._start_time = time.time()
 
@@ -55,8 +59,6 @@ class JobMonitor:
             List of relevant log lines (empty if no summary found)
         """
         try:
-            from pathlib import Path
-
             log_file = Path(logs_path)
             if not log_file.exists():
                 return []
@@ -95,8 +97,6 @@ class JobMonitor:
             True if logs were displayed, False if no logs available
         """
         try:
-            from pathlib import Path
-
             log_file = Path(logs_path)
             if log_file.exists():
                 lines = log_file.read_text(errors="ignore").splitlines()
@@ -403,8 +403,6 @@ def extract_log_tail(logs_path: str, num_lines: int = 5) -> list[str]:
         List of log lines (empty if file doesn't exist or can't be read)
     """
     try:
-        from pathlib import Path
-
         log_file = Path(logs_path)
         if not log_file.exists():
             return []
@@ -468,8 +466,6 @@ def format_job_status_line(job_dict: dict, show_duration: bool = True) -> str:
         completed = job_dict.get("completed_at")
         if started and completed:
             try:
-                from datetime import datetime
-
                 start_dt = datetime.fromisoformat(started)
                 end_dt = datetime.fromisoformat(completed)
                 duration = (end_dt - start_dt).total_seconds()
