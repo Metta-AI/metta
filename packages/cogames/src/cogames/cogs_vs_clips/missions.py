@@ -404,10 +404,12 @@ class VibeCheckMission(Mission):
         map_builder: MapBuilderConfig,
         num_cogs: int,
         variant: MissionVariant | None = None,
+        *,
+        cli_override: bool = False,
     ) -> "Mission":
         # Respect CLI --cogs if provided (differs from site.min_cogs); otherwise default to 4
         desired = 4 if (self.site and num_cogs == self.site.min_cogs) else num_cogs
-        return super().instantiate(map_builder, desired, variant)
+        return super().instantiate(map_builder, desired, variant, cli_override=cli_override)
 
 
 class RepairMission(Mission):
@@ -441,10 +443,49 @@ class RepairMission(Mission):
         map_builder: MapBuilderConfig,
         num_cogs: int,
         variant: MissionVariant | None = None,
+        *,
+        cli_override: bool = False,
     ) -> "Mission":
         # Respect CLI --cogs if provided (differs from site.min_cogs); otherwise default to 2
         desired = 2 if (self.site and num_cogs == self.site.min_cogs) else num_cogs
-        return super().instantiate(map_builder, desired, variant)
+        return super().instantiate(map_builder, desired, variant, cli_override=cli_override)
+
+
+class UnclipDrillsMission(Mission):
+    name: str = "unclip_drills"
+    description: str = "Practice unclipping hub facilities after a grid outage."
+    site: Site = TRAINING_FACILITY
+
+    def configure(self):
+        self.clip_rate = 0.0
+        self.procedural_overrides = {
+            "hub_cross_bundle": "extractors",
+            "hub_cross_distance": 7,
+        }
+
+        for station in (
+            self.carbon_extractor,
+            self.oxygen_extractor,
+            self.germanium_extractor,
+            self.silicon_extractor,
+            self.charger,
+        ):
+            station.start_clipped = True
+
+    def make_env(self) -> MettaGridConfig:
+        env = super().make_env()
+
+        for chest_name in ("chest_carbon", "chest_oxygen", "chest_germanium", "chest_silicon"):
+            chest_cfg = env.game.objects.get(chest_name)
+            if isinstance(chest_cfg, ChestConfig):
+                chest_cfg.initial_inventory = max(chest_cfg.initial_inventory, 3)
+
+        agent_cfg = env.game.agent
+        agent_cfg.initial_inventory = dict(agent_cfg.initial_inventory)
+        for resource in ("decoder", "modulator", "scrambler", "resonator"):
+            agent_cfg.initial_inventory[resource] = agent_cfg.initial_inventory.get(resource, 0) + 2
+
+        return env
 
 
 class SignsAndPortentsMission(Mission):
@@ -467,6 +508,66 @@ class TreasureHuntMission(Mission):
         "A team of 4 is required to harvest germanium."
     )
     site: Site = HELLO_WORLD
+
+
+class HelloWorldUnclipMission(Mission):
+    name: str = "unclip_field_ops"
+    description: str = "Stabilize clipped extractors scattered across the hello_world sector."
+    site: Site = HELLO_WORLD
+    # default to 4 cogs
+
+    def configure(self):
+        self.num_cogs = 4
+        self.clip_rate = 0.02
+        self.procedural_overrides = {
+            "building_names": [
+                "charger",
+                "germanium_extractor",
+                "silicon_extractor",
+                "oxygen_extractor",
+                "carbon_extractor",
+            ],
+            "building_weights": {
+                "charger": 0.6,
+                "germanium_extractor": 0.6,
+                "silicon_extractor": 0.5,
+                "oxygen_extractor": 0.5,
+                "carbon_extractor": 0.5,
+            },
+            "building_coverage": 0.015,
+            "hub_corner_bundle": "chests",
+            "hub_cross_bundle": "extractors",
+            "distribution": {"type": "poisson"},
+        }
+
+        for station in (
+            self.carbon_extractor,
+            self.oxygen_extractor,
+            self.germanium_extractor,
+            self.silicon_extractor,
+        ):
+            station.start_clipped = True
+        self.charger.start_clipped = True
+
+    def make_env(self) -> MettaGridConfig:
+        env = super().make_env()
+
+        for chest_name in (
+            "chest_carbon",
+            "chest_oxygen",
+            "chest_germanium",
+            "chest_silicon",
+        ):
+            chest_cfg = env.game.objects.get(chest_name)
+            if isinstance(chest_cfg, ChestConfig):
+                chest_cfg.initial_inventory = max(chest_cfg.initial_inventory, 2)
+
+        agent_cfg = env.game.agent
+        agent_cfg.initial_inventory = dict(agent_cfg.initial_inventory)
+        for resource in ("decoder", "modulator", "scrambler", "resonator"):
+            agent_cfg.initial_inventory[resource] = agent_cfg.initial_inventory.get(resource, 0) + 1
+
+        return env
 
 
 class HelloWorldOpenWorldMission(Mission):
@@ -492,9 +593,11 @@ class ProceduralMissionBase(Mission):
         map_builder: MapBuilderConfig,
         num_cogs: int,
         variant: MissionVariant | None = None,
+        *,
+        cli_override: bool = False,
     ) -> "Mission":
         # Use standard mission instantiation first (handles configure + variants)
-        mission = super().instantiate(map_builder, num_cogs, variant)
+        mission = super().instantiate(map_builder, num_cogs, variant, cli_override=cli_override)
 
         # Build procedural map using mission-specific overrides
         overrides = dict(mission.procedural_overrides)
@@ -647,9 +750,11 @@ MISSIONS = [
     AssembleMission,
     VibeCheckMission,
     RepairMission,
+    UnclipDrillsMission,
     SignsAndPortentsMission,
     ExploreMission,
     TreasureHuntMission,
+    HelloWorldUnclipMission,
     HelloWorldOpenWorldMission,
     Machina1OpenWorldMission,
     MachinaProceduralExploreMission,

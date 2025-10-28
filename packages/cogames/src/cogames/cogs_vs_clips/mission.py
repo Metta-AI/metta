@@ -88,7 +88,12 @@ class Mission(Config):
         pass
 
     def instantiate(
-        self, map_builder: MapBuilderConfig, num_cogs: int, variant: MissionVariant | None = None
+        self,
+        map_builder: MapBuilderConfig,
+        num_cogs: int,
+        variant: MissionVariant | None = None,
+        *,
+        cli_override: bool = False,
     ) -> "Mission":
         """Create an instantiated mission with specific map and num_cogs.
 
@@ -96,6 +101,7 @@ class Mission(Config):
             map_builder: Map configuration
             num_cogs: Number of cogs (agents)
             variant: Optional variant to apply
+            cli_override: If True, prefer the provided num_cogs over mission/variant settings
 
         Returns:
             New Mission instance with map and num_cogs set
@@ -103,10 +109,17 @@ class Mission(Config):
         mission = self.model_copy(deep=True)
         mission.configure()
         mission.map = map_builder
-        mission.num_cogs = num_cogs
 
         if variant:
             mission = variant.apply(mission)
+
+        if cli_override:
+            mission.num_cogs = num_cogs
+        elif mission.num_cogs is None:
+            mission.num_cogs = num_cogs
+
+        if mission.num_cogs is None:
+            mission.num_cogs = num_cogs
 
         # Apply mission-level procedural overrides to supported builders (hub-only, machina, etc.)
         mission.map = apply_procedural_overrides_to_builder(

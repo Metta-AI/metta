@@ -195,10 +195,15 @@ def get_mission(
 
     # Determine number of cogs to use
     num_cogs = cogs if cogs is not None else site.min_cogs
+    cli_override = cogs is not None
 
     # Apply variants to the mission
     def apply_variants_to_config(
-        mission: Mission, map_builder: MapBuilderConfig, num_cogs: int
+        mission: Mission,
+        map_builder: MapBuilderConfig,
+        num_cogs: int,
+        *,
+        cli_override: bool = False,
     ) -> tuple[MettaGridConfig, Mission]:
         """Apply variants and return both MettaGridConfig and Mission.
 
@@ -227,7 +232,7 @@ def get_mission(
             combined_variant = None
 
         # Instantiate with the combined variant to ensure overrides affect map
-        instantiated_mission = mission.instantiate(map_builder, num_cogs, combined_variant)
+        instantiated_mission = mission.instantiate(map_builder, num_cogs, combined_variant, cli_override=cli_override)
         return instantiated_mission.make_env(), instantiated_mission
 
     if mission_name is not None:
@@ -243,7 +248,9 @@ def get_mission(
             raise ValueError(f"Mission {mission_name} not available on site {site_name}")
 
         mission_instance = matching_mission_class()
-        env_cfg, mission_cfg = apply_variants_to_config(mission_instance, site.map_builder, num_cogs)
+        env_cfg, mission_cfg = apply_variants_to_config(
+            mission_instance, site.map_builder, num_cogs, cli_override=cli_override
+        )
         return (
             f"{site.name}{MAP_MISSION_DELIMITER}{mission_name}",
             env_cfg,
@@ -255,7 +262,9 @@ def get_mission(
         if site_missions:
             first_mission_class = site_missions[0]
             first_mission = first_mission_class()
-            env_cfg, mission_cfg = apply_variants_to_config(first_mission, site.map_builder, num_cogs)
+            env_cfg, mission_cfg = apply_variants_to_config(
+                first_mission, site.map_builder, num_cogs, cli_override=cli_override
+            )
             return (
                 f"{site.name}{MAP_MISSION_DELIMITER}{first_mission.name}",
                 env_cfg,
