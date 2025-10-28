@@ -181,6 +181,11 @@ def _build_ray_launch_task(
             echo "[Ray Sweep] Sweep complete, stopping Ray head"
             ray stop
         else
+            echo "[Ray Sweep] Worker node ${{SKYPILOT_NODE_RANK}} waiting for head node to be ready..."
+
+            # Wait for head node to start Ray and be reachable
+            sleep 30
+
             echo "[Ray Sweep] Starting worker node ${{SKYPILOT_NODE_RANK}} -> $HEAD_IP:{ray_port}"
             ray stop --force >/dev/null 2>&1 || true
 
