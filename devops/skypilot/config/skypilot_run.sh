@@ -206,17 +206,6 @@ maybe_start_ray_cluster() {
   fi
 }
 
-maybe_stop_ray_cluster() {
-  if [[ "${METTA_CLUSTER_MODE:-}" != "ray_sweep" ]]; then
-    return
-  fi
-
-  if [[ "${METTA_RAY_STARTED_HEAD:-false}" == "true" || "${METTA_RAY_STARTED_WORKER:-false}" == "true" ]]; then
-    echo "[RAY] Stopping Ray services on node rank ${RANK}"
-    ray stop --force > /dev/null 2>&1 || true
-  fi
-}
-
 shutdown() {
   # Disable the trap to prevent re-entry
   trap '' INT TERM HUP
@@ -267,8 +256,6 @@ shutdown() {
     sleep 20
     kill -KILL -"${CMD_PGID}" 2> /dev/null || true
   fi
-
-  maybe_stop_ray_cluster
 
   # shutdown now calls the cleanup_handler
   exit 0
