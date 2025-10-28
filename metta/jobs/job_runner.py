@@ -7,7 +7,6 @@ Supports both sync (wait) and async (submit + poll) execution patterns.
 from __future__ import annotations
 
 import os
-import shlex
 import signal
 import subprocess
 import time
@@ -169,18 +168,7 @@ class LocalJob(Job):
     ):
         super().__init__(config.name, log_dir, config.timeout_s)
         self.cwd = cwd or get_repo_root()
-
-        if "cmd" in config.metadata:
-            cmd = config.metadata["cmd"]
-            if isinstance(cmd, str):
-                cmd = shlex.split(cmd)
-            self.cmd = cmd
-        else:
-            self.cmd = ["uv", "run", "./tools/run.py", config.module]
-            for k, v in config.args.items():
-                self.cmd.append(f"{k}={v}")
-            for k, v in config.overrides.items():
-                self.cmd.append(f"{k}={v}")
+        self.cmd = config.build_command()
 
         self._proc: Optional[subprocess.Popen] = None
         self._exit_code: Optional[int] = None
@@ -379,11 +367,11 @@ class RemoteJob(Job):
             run_name: WandB run name (only passed for training jobs, None otherwise)
         """
         # Build launch.py command
-        if "cmd" in self.config.metadata:
-            # Use arbitrary command directly from metadata (quoted string)
+        if self.config.cmd:
+            # Use arbitrary command directly (quoted string)
             cmd = [
                 "devops/skypilot/launch.py",
-                self.config.metadata["cmd"],
+                self.config.cmd,
                 *self.base_args,
             ]
         else:
