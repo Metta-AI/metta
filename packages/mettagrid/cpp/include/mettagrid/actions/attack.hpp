@@ -37,8 +37,12 @@ public:
     priority = 1;
   }
 
-  unsigned char max_arg() const override {
-    return 8;
+  std::vector<Action> create_actions() override {
+    std::vector<Action> actions;
+    for (unsigned char i = 0; i <= 8; ++i) {
+      actions.emplace_back(this, "attack_" + std::to_string(i), static_cast<ActionArg>(i));
+    }
+    return actions;
   }
 
 protected:
@@ -61,7 +65,8 @@ protected:
 
       for (short distance = 1; distance <= 3; distance++) {
         for (short offset : COL_OFFSETS) {
-          GridLocation target_loc = _grid->relative_location(actor.location, actor.orientation, distance, offset);
+          // Attack always northward (previously orientation was always North anyway)
+          GridLocation target_loc = _grid->relative_location(actor.location, Orientation::North, distance, offset);
           target_loc.layer = GridLayer::AgentLayer;
 
           Agent* target_agent = static_cast<Agent*>(_grid->object_at(target_loc));
@@ -99,7 +104,9 @@ protected:
       };
 
       for (const auto& pos : DIAGONAL_POSITIONS) {
-        GridLocation target_loc = _grid->relative_location(actor.location, actor.orientation, pos.forward, pos.lateral);
+        // Attack always northward (previously orientation was always North anyway)
+        GridLocation target_loc =
+            _grid->relative_location(actor.location, Orientation::North, pos.forward, pos.lateral);
         target_loc.layer = GridLayer::AgentLayer;
 
         Agent* target_agent = static_cast<Agent*>(_grid->object_at(target_loc));

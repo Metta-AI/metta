@@ -214,7 +214,7 @@ MACHINA_1 = Site(
     name="machina_1",
     description="Your first mission. Collect resources and assemble HEARTs.",
     map_builder=get_map("machina_200_stations.map"),
-    min_cogs=1,
+    min_cogs=4,
     max_cogs=20,
 )
 

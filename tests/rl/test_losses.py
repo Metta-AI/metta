@@ -14,7 +14,9 @@ class DummyPolicy(Policy):
     """Minimal policy implementation for exercising loss utilities."""
 
     def __init__(self) -> None:
-        super().__init__()
+        from mettagrid.config.mettagrid_config import ActionsConfig
+
+        super().__init__(actions=ActionsConfig())
         self._linear = torch.nn.Linear(1, 1)
 
     def forward(self, td: TensorDict, action: torch.Tensor | None = None) -> TensorDict:  # noqa: D401
@@ -25,7 +27,7 @@ class DummyPolicy(Policy):
     def get_agent_experience_spec(self) -> Composite:  # noqa: D401
         return Composite(values=UnboundedDiscrete(shape=torch.Size([]), dtype=torch.float32))
 
-    def initialize_to_environment(self, game_rules, device: torch.device) -> None:  # noqa: D401
+    def initialize_to_environment(self, policy_env_info, device: torch.device) -> None:  # noqa: D401
         return None
 
     @property
