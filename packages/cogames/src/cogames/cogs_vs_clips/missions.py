@@ -145,15 +145,15 @@ class NeutralFacedVariant(MissionVariant):
         return mission
 
 
-class HeartChorusVariant(MissionVariant):
-    name: str = "heart_chorus"
-    description: str = "Hearts require a chorus of 4 heart vibes and simple inputs."
+# class HeartChorusVariant(MissionVariant):
+#     name: str = "heart_chorus"
+#     description: str = "Hearts require a chorus of 4 heart vibes and simple inputs."
 
-    def apply(self, mission: Mission) -> Mission:
-        # Default to 4 heart tokens; inputs can be adjusted if needed
-        mission.heart_chorus_length = 4
-        mission.heart_chorus_inputs = {"carbon": 1, "oxygen": 1, "germanium": 1, "silicon": 1, "energy": 1}
-        return mission
+#     def apply(self, mission: Mission) -> Mission:
+#         # Default to 4 heart tokens; inputs can be adjusted if needed
+#         mission.heart_chorus_length = 4
+#         mission.heart_chorus_inputs = {"carbon": 1, "oxygen": 1, "germanium": 1, "silicon": 1, "energy": 1}
+#         return mission
 
 
 # Biome variants (weather) for procedural maps
@@ -263,7 +263,7 @@ VARIANTS = [
     PackRatVariant,
     EnergizedVariant,
     NeutralFacedVariant,
-    HeartChorusVariant,
+    # HeartChorusVariant,
 ]
 
 

@@ -201,24 +201,24 @@ class Mission(Config):
             },
         )
 
-        if hasattr(self, "heart_chorus_length"):
-            length_raw = self.heart_chorus_length
-            try:
-                chorus_len = max(1, int(length_raw))
-            except Exception:
-                chorus_len = 4
-            inputs = getattr(
-                self,
-                "heart_chorus_inputs",
-                {"carbon": 1, "oxygen": 1, "germanium": 1, "silicon": 1, "energy": 1},
-            )
-            assembler_cfg = game.objects.get("assembler")
-            if isinstance(assembler_cfg, CvCAssemblerConfig):
-                chorus = ProtocolConfig(input_resources=dict(inputs), output_resources={"heart": 1}, cooldown=1)
-                non_heart = [
-                    (vibes_list, recipe)
-                    for vibes_list, recipe in assembler_cfg.recipes
-                    if recipe.output_resources.get("heart", 0) == 0
-                ]
-                assembler_cfg.recipes = [(["heart"] * chorus_len, chorus), *non_heart]
+        # if hasattr(self, "heart_chorus_length"):
+        #     length_raw = self.heart_chorus_length
+        #     try:
+        #         chorus_len = max(1, int(length_raw))
+        #     except Exception:
+        #         chorus_len = 4
+        #     inputs = getattr(
+        #         self,
+        #         "heart_chorus_inputs",
+        #         {"carbon": 1, "oxygen": 1, "germanium": 1, "silicon": 1, "energy": 1},
+        #     )
+        #     assembler_cfg = game.objects.get("assembler")
+        #     if isinstance(assembler_cfg, CvCAssemblerConfig):
+        #         chorus = ProtocolConfig(input_resources=dict(inputs), output_resources={"heart": 1}, cooldown=1)
+        #         non_heart = [
+        #             (vibes_list, recipe)
+        #             for vibes_list, recipe in assembler_cfg.recipes
+        #             if recipe.output_resources.get("heart", 0) == 0
+        #         ]
+        #         assembler_cfg.recipes = [(["heart"] * chorus_len, chorus), *non_heart]
         return MettaGridConfig(game=game)
