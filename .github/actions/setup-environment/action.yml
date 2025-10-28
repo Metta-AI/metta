@@ -54,6 +54,7 @@ runs:
       uses: treeform/setup-nim-action@v2
 
     - name: Install Nimby Package Manager
+      shell: bash
       run: |
         cd ..
         git clone --depth 1 https://github.com/treeform/nimby.git
@@ -62,6 +63,7 @@ runs:
         mv src/nimby "$HOME/.nim_runtime/bin/nimby"
 
     - name: Print Nimby version
+      shell: bash
       run: nimby -v
 
     - name: Cache Bazel binary
