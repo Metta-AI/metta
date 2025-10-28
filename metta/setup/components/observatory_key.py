@@ -74,8 +74,8 @@ class ObservatoryKeySetup(SetupModule):
 
 @register_module
 class ObservatoryKeyLocalSetup(ObservatoryKeySetup):
-    server_url: str = DEV_STATS_SERVER_URI
-    extra_server_urls: list[str] = []
+    auth_server_url: str = DEV_STATS_SERVER_URI
+    api_server_url: str = DEV_STATS_SERVER_URI
 
     @property
     def name(self) -> str:
