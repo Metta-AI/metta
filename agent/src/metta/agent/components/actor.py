@@ -3,6 +3,7 @@ from typing import Optional
 
 import torch
 import torch.nn as nn
+from gymnasium.spaces import Discrete
 from tensordict import TensorDict
 from tensordict.nn import TensorDictModule as TDM
 
@@ -124,8 +125,6 @@ class ActionProbs(nn.Module):
         env: GameRules,
         device: torch.device,
     ) -> None:
-        from gymnasium.spaces import Discrete
-
         action_space = env.action_space
         if not isinstance(action_space, Discrete):
             msg = f"ActionProbs expects a Discrete action space, got {type(action_space).__name__}"

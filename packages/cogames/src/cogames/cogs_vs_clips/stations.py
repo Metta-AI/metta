@@ -2,10 +2,9 @@ from typing import Literal
 
 from pydantic import Field
 
-from cogames.cogs_vs_clips import vibes
-from cogames.cogs_vs_clips.vibes import VIBE_BY_NAME
-from mettagrid.base_config import Config
+from mettagrid.config import Config, vibes
 from mettagrid.config.mettagrid_config import AssemblerConfig, ChestConfig, GridObjectConfig, ProtocolConfig, WallConfig
+from mettagrid.config.vibes import VIBE_BY_NAME
 
 resources = [
     "energy",
