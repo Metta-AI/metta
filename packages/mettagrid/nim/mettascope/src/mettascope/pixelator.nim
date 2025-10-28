@@ -1,6 +1,6 @@
 import
   std/[os, json, strutils, tables],
-  pixie, opengl, boxy/[shaders, allocator], jsony
+  pixie, opengl, boxy/[shaders, allocator], jsony, shady, vmath
 
 # This file specifically deals with the pixel atlas texture.
 # It supports pixel art style drawing with pixel perfect AA sampling.
@@ -29,6 +29,33 @@ type
     atlasTexture: GLuint     ## GL texture for the atlas image
     instanceData: seq[uint16]
     instanceCount: int
+
+var
+  mvp: Uniform[Mat4]
+  atlasSize: Uniform[Vec2]
+  atlas: Uniform[Sampler2D]
+
+proc pixelatorVert*(vertexPos: UVec2, uv: UVec4, fragmentUv: var Vec2) =
+  # Compute the corner of the quad based on the vertex ID.
+  # 0:(0,0), 1:(1,0), 2:(0,1), 3:(1,1)
+  let corner = uvec2(gl_VertexID mod 2, gl_VertexID div 2)
+
+  # Compute the position of the vertex in the atlas.
+  let dx = float(vertexPos.x) + (float(corner.x) - 0.5) * float(uv.z)
+  let dy = float(vertexPos.y) + (float(corner.y) - 0.5) * float(uv.w)
+  gl_Position = mvp * vec4(dx, dy, 0.0, 1.0)
+
+  # Compute the texture coordinates of the vertex.
+  let sx = float(uv.x) + float(corner.x) * float(uv.z)
+  let sy = float(uv.y) + float(corner.y) * float(uv.w)
+  fragmentUv = vec2(sx, sy) / atlasSize
+
+proc pixelatorFrag*(fragmentUv: Vec2, FragColor: var Vec4) =
+  # Compute the texture coordinates of the pixel.
+  let pixCoord = fragmentUv * atlasSize
+  # Compute the AA pixel coordinates.
+  let pixAA = floor(pixCoord) + min(fract(pixCoord) / fwidth(pixCoord), 1.0) - 0.5
+  FragColor = texture(atlas, pixAA / atlasSize)
 
 proc generatePixelAtlas*(
   size: int,
@@ -81,61 +108,9 @@ proc newPixelator*(imagePath, jsonPath: string): Pixelator =
   result.instanceData = @[]
   result.instanceCount = 0
 
-  # Integer instanced attribute expands to a quad via gl_VertexID
-  let vertexShaderSource = """
-#version 410 core
-
-// Per-instance payload (uint16):
-// location 0: aPos = (x, y)
-// location 1: aUv  = (uvx, uvy, uvw, uvh)
-layout (location = 0) in uvec2 aPos;
-layout (location = 1) in uvec4 aUv;
-
-out vec2 vUv;
-
-uniform mat4 uMVP;
-uniform vec2 uAtlasSize;            // in pixels
-
-void main() {
-    // Corner from gl_VertexID for triangle strip (0..3):
-    // 0:(0,0) 1:(1,0) 2:(0,1) 3:(1,1)
-    uvec2 corner = uvec2(gl_VertexID & 1, gl_VertexID >> 1);
-
-    // Destination position in pixels
-    float dx = float(aPos.x) + (float(corner.x) - 0.5) * float(aUv.z);
-    float dy = float(aPos.y) + (float(corner.y) - 0.5) * float(aUv.w);
-
-    gl_Position = uMVP * vec4(dx, dy, 0.0, 1.0);
-
-    // Source UVs from atlas rect, convert to [0,1]
-    float sx = float(aUv.x) + float(corner.x) * float(aUv.z);
-    float sy = float(aUv.y) + float(corner.y) * float(aUv.w);
-    vUv = vec2(sx, sy) / uAtlasSize;
-}
-  """
-
-  # Fragment does the pixel art anti-aliasing algorithm.
-  let fragmentShaderSource = """
-#version 410 core
-
-in vec2 vUv;
-out vec4 FragColor;
-
-uniform sampler2D uAtlas;
-uniform vec2 uAtlasSize;
-
-void main() {
-  // Apply pixel art anti-aliasing algorithm.
-  vec2 pixCoord = vUv * uAtlasSize;
-  vec2 pixAA = floor(pixCoord) + min(fract(pixCoord) / fwidth(pixCoord), 1.0) - 0.5;
-  vec2 pix = pixAA / uAtlasSize;
-  FragColor = texture(uAtlas, pix);
-}
-  """
-
   result.shader = newShader(
-    ("vertex", vertexShaderSource),
-    ("fragment", fragmentShaderSource)
+    ("pixelatorVert", toGLSL(pixelatorVert, "410", "")),
+    ("pixelatorFrag", toGLSL(pixelatorFrag, "410", ""))
   )
 
   # Upload atlas image to GL texture
@@ -226,11 +201,11 @@ proc flush*(
 
   # Bind the shader and the atlas texture.
   glUseProgram(px.shader.programId)
-  px.shader.setUniform("uMVP", mvp)
-  px.shader.setUniform("uAtlasSize", vec2(px.image.width.float32, px.image.height.float32))
+  px.shader.setUniform("mvp", mvp)
+  px.shader.setUniform("atlasSize", vec2(px.image.width.float32, px.image.height.float32))
   glActiveTexture(GL_TEXTURE0)
   glBindTexture(GL_TEXTURE_2D, px.atlasTexture)
-  px.shader.setUniform("uAtlas", 0)
+  px.shader.setUniform("atlas", 0)
   px.shader.bindUniforms()
   glBindVertexArray(px.vao)
 
