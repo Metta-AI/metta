@@ -70,34 +70,26 @@ class TaskRunner:
         if not self.monitor:
             return
 
-        # If this is the first update, just print normally
-        if self._monitor_line_count == 0:
-            # Capture output to count lines
-            buffer = io.StringIO()
-            with redirect_stdout(buffer):
-                self.monitor.display_status(
-                    clear_screen=False,
-                    title=f"Release Validation: {self.state.version}",
-                    highlight_failures=True,
-                )
-            output = buffer.getvalue()
-            print(output, end="")
-            self._monitor_line_count = output.count("\n")
-        else:
-            # Move cursor up by the number of lines we printed last time
-            print(f"\033[{self._monitor_line_count}A", end="", flush=True)
+        # Capture new output
+        buffer = io.StringIO()
+        with redirect_stdout(buffer):
+            self.monitor.display_status(
+                clear_screen=False,
+                title=f"Release Validation: {self.state.version}",
+                highlight_failures=True,
+            )
+        output = buffer.getvalue()
+        new_line_count = output.count("\n")
 
-            # Print updated status (will overwrite previous lines)
-            buffer = io.StringIO()
-            with redirect_stdout(buffer):
-                self.monitor.display_status(
-                    clear_screen=False,
-                    title=f"Release Validation: {self.state.version}",
-                    highlight_failures=True,
-                )
-            output = buffer.getvalue()
-            print(output, end="", flush=True)
-            self._monitor_line_count = output.count("\n")
+        if self._monitor_line_count > 0:
+            # Move cursor up to start of previous monitor output
+            print(f"\033[{self._monitor_line_count}A\r", end="", flush=True)
+            # Clear from cursor to end of screen
+            print("\033[J", end="", flush=True)
+
+        # Print new output
+        print(output, end="", flush=True)
+        self._monitor_line_count = new_line_count
 
     def _evaluate_acceptance(self, job_state: JobState, rules: list[AcceptanceRule]) -> tuple[bool, str | None]:
         """Evaluate acceptance criteria against job metrics.
