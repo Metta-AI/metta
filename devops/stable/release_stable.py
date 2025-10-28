@@ -113,7 +113,7 @@ def get_user_confirmation(prompt: str) -> bool:
 
 def get_job_manager() -> JobManager:
     """Get JobManager instance for release validation."""
-    base_dir = get_repo_root() / "devops/stable"
+    base_dir = get_repo_root() / "devops/stable/state"
     return JobManager(base_dir=base_dir, max_local_jobs=1, max_remote_jobs=4)
 
 
