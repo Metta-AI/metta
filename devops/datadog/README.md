@@ -37,7 +37,7 @@ Automated metric collection from multiple services via Kubernetes CronJobs:
 - **Skypilot** ✅ **(Production)**: 30 metrics - Jobs, clusters, resource utilization
 - **Asana** ✅ **(Production)**: 14 metrics - Project health, bugs tracking, team velocity
 - **EC2** ✅ **(Production)**: 19 metrics - Instances, costs, utilization, EBS volumes
-- **WandB** ✅ **(Production)**: 20 metrics - Training runs (24h), push-to-main CI tracking (5 SPS metrics), sweep metrics, GPU hours
+- **WandB** ✅ **(Production)**: 11 per-run metrics - Training runs with per-run tags (duration, SPS, hearts, latency) for PTM/sweep/all runs
 - **Kubernetes** ✅ **(Production)**: 15 metrics - Resource efficiency, pod health, waste tracking
 - **Health FoM** ✅ **(Production)**: 14 metrics - Normalized 0.0-1.0 health scores for CI/CD and training metrics
 
@@ -224,12 +224,14 @@ devops/datadog/
 
 - **[Collectors Architecture](docs/COLLECTORS_ARCHITECTURE.md)** - System design, patterns, deployment
 - **[Adding New Collector](docs/ADDING_NEW_COLLECTOR.md)** - Step-by-step implementation guide
+- **[Metric Best Practices](docs/METRIC_BEST_PRACTICES.md)** - Guide for choosing effective metrics
 - **[Datadog Integration Analysis](docs/DATADOG_INTEGRATION_ANALYSIS.md)** - Current integration architecture
 - **[CI/CD Metrics](docs/CI_CD_METRICS.md)** - Complete GitHub metrics catalog
 
 ### Dashboards
 
 - **[Quick Start Guide](docs/QUICK_START.md)** - Get started in 10 minutes
+- **[Dashboard UI Workflow](docs/DASHBOARD_UI_WORKFLOW.md)** - Edit in Datadog UI, sync to version control
 - **[Complete Guide](docs/README.md)** - Comprehensive documentation
 - **[Jsonnet Design](docs/JSONNET_DESIGN.md)** - Architecture and patterns
 - **[Modular Workflow](docs/MODULAR_WORKFLOW.md)** - Component-based approach

@@ -188,7 +188,24 @@ def push_metrics_to_datadog(metrics: dict, source_tag: str, extra_tags: list[str
 
     metrics_to_submit = []
     for name, value in metrics.items():
-        if value is not None:
+        if value is None:
+            continue
+
+        # Handle new per-run metric format: list of (value, tags) tuples
+        if isinstance(value, list) and value and isinstance(value[0], tuple):
+            for metric_value, metric_tags in value:
+                # Combine base tags with metric-specific tags
+                all_tags = base_tags + metric_tags
+                metrics_to_submit.append(
+                    {
+                        "metric": name,
+                        "value": metric_value,
+                        "type": "gauge",
+                        "tags": all_tags,
+                    }
+                )
+        # Handle traditional single-value format
+        else:
             metrics_to_submit.append(
                 {
                     "metric": name,
@@ -206,16 +223,38 @@ def display_metrics(metrics: dict, json_output: bool = False, precision: int = 2
     """Display collected metrics.
 
     Args:
-        metrics: Dictionary of metric name to value
+        metrics: Dictionary of metric name to value or list of (value, tags) tuples
         json_output: If True, output as JSON
         precision: Decimal precision for float values
     """
     if json_output:
-        print(json.dumps(metrics, indent=2, sort_keys=True, default=str))
+        # Convert tuple lists to serializable format for JSON
+        serializable = {}
+        for key, value in metrics.items():
+            if isinstance(value, list) and value and isinstance(value[0], tuple):
+                # Convert to list of dicts for JSON
+                serializable[key] = [{"value": v, "tags": t} for v, t in value]
+            else:
+                serializable[key] = value
+        print(json.dumps(serializable, indent=2, sort_keys=True, default=str))
     else:
         print("\nCollected metrics:")
         for key, value in sorted(metrics.items()):
-            if value is not None:
+            if value is None:
+                continue
+            # Handle per-run metrics (list of tuples)
+            if isinstance(value, list) and value and isinstance(value[0], tuple):
+                print(f"  {key}: {len(value)} data points")
+                for i, (val, tags) in enumerate(value[:3], 1):  # Show first 3
+                    tags_str = ", ".join(tags)
+                    if isinstance(val, float):
+                        print(f"    [{i}] {val:.{precision}f} ({tags_str})")
+                    else:
+                        print(f"    [{i}] {val} ({tags_str})")
+                if len(value) > 3:
+                    print(f"    ... and {len(value) - 3} more")
+            # Handle single-value metrics
+            else:
                 if isinstance(value, float):
                     print(f"  {key}: {value:.{precision}f}")
                 else:
