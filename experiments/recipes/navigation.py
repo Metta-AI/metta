@@ -138,6 +138,7 @@ def make_curriculum(
             min_samples_for_lp=10,  # Use exploration bonus for first 10 samples
             enable_detailed_slice_logging=enable_detailed_slice_logging,
             lp_score_temperature=0.0,  # Z-score normalization for relative LP comparison
+            z_score_amplification=10.0,  # Amplification after z-score (only when temp=0)
             show_curriculum_troubleshooting_logging=True,  # Enable per-task metrics for debugging
             early_progress_amplification=0.5,  # 0.5 = OFF, low values (0.05) amplify unsolved tasks
         )

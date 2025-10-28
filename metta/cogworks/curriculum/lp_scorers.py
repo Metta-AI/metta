@@ -657,7 +657,7 @@ class BidirectionalLPScorer(LPScorer):
         # Apply temperature scaling or z-score normalization before sigmoid
         # Temperature controls how LP scores are transformed before sigmoid:
         # - temp > 0: Divide by temperature (low temp amplifies differences)
-        # - temp = 0: Z-score normalize (standardize to mean=0, std=1)
+        # - temp = 0: Z-score normalize (standardize to mean=0, std=1) then amplify
         temperature = self.config.lp_score_temperature
         if temperature == 0:
             # Z-score normalization: center at mean and normalize by std
@@ -666,6 +666,9 @@ class BidirectionalLPScorer(LPScorer):
             std = np.std(subprobs)
             if std > 1e-10:  # Avoid division by zero
                 subprobs = (subprobs - mean) / std
+                # Apply z-score amplification to restore selectivity
+                # Higher values spread out the distribution more before sigmoid
+                subprobs = subprobs * self.config.z_score_amplification
             # else: if std is zero, all tasks have identical LP, leave as-is
         elif temperature > 0:
             # Temperature scaling: divide by temperature

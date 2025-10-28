@@ -34,6 +34,10 @@ class LearningProgressConfig(CurriculumAlgorithmConfig):
     # - > 0: Divide LP by temperature (low temp amplifies differences)
     # - = 0: Apply z-score normalization (standardize to mean=0, std=1) before sigmoid (DEFAULT)
     #        This centers LP scores and makes sigmoid more sensitive to relative differences
+    z_score_amplification: float = 10.0  # Amplification factor after z-score normalization
+    # Only applies when lp_score_temperature = 0 (z-score mode). Higher values increase selectivity
+    # by spreading out the z-scored distribution before sigmoid. Default 10.0 provides strong selectivity
+    # while maintaining z-score's scale-invariance. Set to 1.0 for no amplification (uniform sampling).
     early_progress_amplification: float = 0.5  # Reweight performance signals before LP calculation
     # Note: 0.5 is effectively OFF (R(p) ≈ p). Low values (e.g., 0.05) amplify signal from
     # unsolved tasks (p~0) and dampen signal from partially-solved tasks (p~0.5).
