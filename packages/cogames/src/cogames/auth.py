@@ -25,22 +25,17 @@ class BaseCLIAuthenticator:
 
     def __init__(
         self,
-        auth_server_url: str,
         token_file_name: str,
         token_storage_key: str | None = None,
     ):
         """Initialize the authenticator.
 
         Args:
-            auth_server_url: Base URL of the authentication server
             token_file_name: Name of the YAML file to store tokens (e.g., 'observatory_tokens.yaml')
             token_storage_key: Optional key to nest tokens under in YAML (e.g., 'login_tokens').
                              If None, tokens are stored at the top level.
-            extra_uris: Optional dict mapping auth server URLs to lists of additional URIs
-                       that should receive the same token
         """
-        self.auth_url = auth_server_url + "/tokens/cli"
-        self.auth_server_url = auth_server_url
+
         self.token_storage_key = token_storage_key
         self.token = None
         self.error = None
@@ -274,13 +269,13 @@ class BaseCLIAuthenticator:
             s.bind(("127.0.0.1", 0))
             return s.getsockname()[1]
 
-    def _build_auth_url(self, callback_url: str) -> str:
+    def _build_auth_url(self, auth_server_url: str, callback_url: str) -> str:
         """Build the authentication URL with callback parameter"""
         params = {
             "callback": callback_url,
         }
 
-        return f"{self.auth_url}?{urlencode(params)}"
+        return f"{auth_server_url}/tokens/cli?{urlencode(params)}"
 
     def _open_browser(self, url: str) -> None:
         """Open the default browser to the authentication URL"""
@@ -288,7 +283,7 @@ class BaseCLIAuthenticator:
             print("Failed to open browser automatically")
             print(f"Please manually visit: {url}")
 
-    def save_token(self, token: str) -> None:
+    def save_token(self, token: str, auth_server_key: str) -> None:
         """Save the token to a YAML file with secure permissions.
 
         If token_storage_key is set, tokens are nested under that key.
@@ -302,7 +297,7 @@ class BaseCLIAuthenticator:
                     existing_data = yaml.safe_load(f) or {}
 
             # Prepare token data
-            token_data = {self.auth_server_url: token}
+            token_data = {auth_server_key: token}
 
             # Update data structure based on token_storage_key
             if self.token_storage_key:
@@ -321,7 +316,7 @@ class BaseCLIAuthenticator:
             # Set secure permissions (readable only by owner)
             os.chmod(self.yaml_file, 0o600)
 
-            print(f"Token saved for {self.auth_server_url}")
+            print(f"Token saved for {auth_server_key}")
 
         except Exception as e:
             raise Exception(f"Failed to save token: {e}") from e
@@ -350,10 +345,14 @@ class BaseCLIAuthenticator:
             self.server_started.set()
             self.auth_completed.set()
 
-    def authenticate(self, timeout: int = 300) -> bool:
+    def authenticate(self, auth_server_url: str, token_key: str, timeout: int = 300) -> bool:
         """Perform the OAuth2 authentication flow.
 
         Args:
+            auth_server_url: Base URL of the authentication server
+            auth_server_key: Key to store the token under in the YAML file. Used since observatory has the
+              auth server URL of 'https://observatory.softmax-research.net/api' but api calls are made to
+              'https://api.observatory.softmax-research.net'
             timeout: Maximum time to wait for authentication (seconds)
 
         Returns:
@@ -378,7 +377,7 @@ class BaseCLIAuthenticator:
                 raise Exception(self.error)
 
             # Build auth URL and open browser
-            auth_url = self._build_auth_url(callback_url)
+            auth_url = self._build_auth_url(auth_server_url, callback_url)
             print(f"Opening browser to: {auth_url}")
             self._open_browser(auth_url)
 
@@ -395,7 +394,7 @@ class BaseCLIAuthenticator:
                 raise Exception("No token received")
 
             # Save token
-            self.save_token(self.token)
+            self.save_token(self.token, token_key)
 
             return True
 
@@ -403,7 +402,7 @@ class BaseCLIAuthenticator:
             print(f"Authentication failed: {e}")
             return False
 
-    def load_token(self) -> str | None:
+    def load_token(self, token_key: str) -> str | None:
         """Load the token for this auth server from the YAML file.
 
         Returns the token string if found, None otherwise.
@@ -421,13 +420,13 @@ class BaseCLIAuthenticator:
             else:
                 tokens = data
 
-            return tokens.get(self.auth_server_url)
+            return tokens.get(token_key)
         except Exception:
             return None
 
-    def has_saved_token(self) -> bool:
+    def has_saved_token(self, token_key: str) -> bool:
         """Check if we have a saved token for this server"""
-        token = self.load_token()
+        token = self.load_token(token_key)
         if token is None:
             return False
         return True

@@ -77,6 +77,10 @@ public:
 
 private:
   unsigned int get_visitation_count(GridCoord r, GridCoord c) const;
+  void update_inventory_diversity_stats(InventoryItem item, InventoryQuantity amount);
+  std::vector<char> diversity_tracked_mask_;
+  std::vector<char> tracked_resource_presence_;
+  std::size_t tracked_resource_diversity_{0};
 };
 
 #endif  // PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_OBJECTS_AGENT_HPP_

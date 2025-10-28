@@ -32,6 +32,17 @@ proc getOrientationFromDelta(dx, dy: int): Orientation =
   else:
     return N
 
+proc agentHasEnergy(agent: Entity): bool =
+  let energyId = replay.itemNames.find("energy")
+  if energyId == -1:
+    echo "Energy item not found in replay"
+    return true
+  let inv = agent.inventory.at(step)
+  for item in inv:
+    if item.itemId == energyId and item.count > 1:
+      return true
+  return false
+
 proc processActions*() =
   ## Process path actions and send actions for the current step while in play mode.
   if not (play or requestPython):
@@ -53,6 +64,10 @@ proc processActions*() =
       continue
 
     let nextAction = pathActions[0]
+
+    # If the agent has no energy, wait and do not issue new path actions this step.
+    if not agentHasEnergy(agent):
+      continue
 
     case nextAction.kind
     of Move:
