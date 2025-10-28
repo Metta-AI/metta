@@ -7,18 +7,21 @@ from mettagrid.mapgen.area import AreaWhere
 from mettagrid.mapgen.mapgen import MapGen
 from mettagrid.mapgen.random.int import IntConstantDistribution
 from mettagrid.mapgen.scene import ChildrenAction, GridTransform, Scene, SceneConfig
-from mettagrid.mapgen.scenes.base_hub import BaseHub
+from mettagrid.mapgen.scenes.base_hub import BaseHubConfig
 from mettagrid.mapgen.scenes.biome_caves import BiomeCavesConfig
 from mettagrid.mapgen.scenes.biome_city import BiomeCityConfig
 from mettagrid.mapgen.scenes.biome_desert import BiomeDesertConfig
 from mettagrid.mapgen.scenes.biome_forest import BiomeForestConfig
-from mettagrid.mapgen.scenes.bounded_layout import BoundedLayout
-from mettagrid.mapgen.scenes.bsp import BSP, BSPLayout
-from mettagrid.mapgen.scenes.building_distributions import DistributionConfig, UniformExtractorScene
-from mettagrid.mapgen.scenes.make_connected import MakeConnected
-from mettagrid.mapgen.scenes.maze import Maze
-from mettagrid.mapgen.scenes.radial_maze import RadialMaze
-from mettagrid.mapgen.scenes.random_scene import RandomScene, RandomSceneCandidate
+from mettagrid.mapgen.scenes.bounded_layout import BoundedLayoutConfig
+from mettagrid.mapgen.scenes.bsp import BSPConfig, BSPLayoutConfig
+from mettagrid.mapgen.scenes.building_distributions import (
+    DistributionConfig,
+    UniformExtractorParams,
+)
+from mettagrid.mapgen.scenes.make_connected import MakeConnectedConfig
+from mettagrid.mapgen.scenes.maze import MazeConfig
+from mettagrid.mapgen.scenes.radial_maze import RadialMazeConfig
+from mettagrid.mapgen.scenes.random_scene import RandomSceneCandidate, RandomSceneConfig
 
 HubBundle = Literal["chests", "extractors", "none", "custom"]
 
@@ -154,7 +157,7 @@ class MachinaArena(Scene[MachinaArenaConfig]):
             if w.get("bsp", 0) > 0:
                 cands.append(
                     RandomSceneCandidate(
-                        scene=BSP.Config(
+                        scene=BSPConfig(
                             rooms=4,
                             min_room_size=6,
                             min_room_size_ratio=0.35,
@@ -167,7 +170,7 @@ class MachinaArena(Scene[MachinaArenaConfig]):
                 maze_weight = float(w["maze"]) if isinstance(w.get("maze", 0), (int, float)) else 1.0
                 cands.append(
                     RandomSceneCandidate(
-                        scene=Maze.Config(
+                        scene=MazeConfig(
                             algorithm="dfs",
                             room_size=IntConstantDistribution(value=2),
                             wall_size=IntConstantDistribution(value=1),
@@ -177,7 +180,7 @@ class MachinaArena(Scene[MachinaArenaConfig]):
                 )
                 cands.append(
                     RandomSceneCandidate(
-                        scene=Maze.Config(
+                        scene=MazeConfig(
                             algorithm="kruskal",
                             room_size=IntConstantDistribution(value=2),
                             wall_size=IntConstantDistribution(value=1),
@@ -188,7 +191,7 @@ class MachinaArena(Scene[MachinaArenaConfig]):
             if w.get("radial", 0) > 0:
                 cands.append(
                     RandomSceneCandidate(
-                        scene=RadialMaze.Config(arms=8, arm_width=2),
+                        scene=RadialMazeConfig(arms=8, arm_width=2),
                         weight=float(w["radial"]),
                     )
                 )
@@ -200,7 +203,7 @@ class MachinaArena(Scene[MachinaArenaConfig]):
         dungeon_max_h = max(10, int(min(self.height * cfg.max_dungeon_zone_fraction, self.height // 2)))
 
         def _wrap_in_layout(scene_cfg: SceneConfig, tag: str, max_w: int, max_h: int) -> SceneConfig:
-            return BoundedLayout.Config(
+            return BoundedLayoutConfig(
                 max_width=max_w,
                 max_height=max_h,
                 tag=tag,
@@ -219,12 +222,12 @@ class MachinaArena(Scene[MachinaArenaConfig]):
         if biome_cands:
             biome_fill_count = max(1, int(biome_count * 0.6))
             biome_layer = ChildrenAction(
-                scene=BSPLayout.Config(
+                scene=BSPLayoutConfig(
                     area_count=biome_count,
                     children=[
                         ChildrenAction(
                             scene=_wrap_in_layout(
-                                RandomScene.Config(candidates=biome_cands),
+                                RandomSceneConfig(candidates=biome_cands),
                                 tag="biome.zone",
                                 max_w=biome_max_w,
                                 max_h=biome_max_h,
@@ -245,12 +248,12 @@ class MachinaArena(Scene[MachinaArenaConfig]):
         if dungeon_cands:
             dungeon_fill_count = max(1, int(dungeon_count * 0.5))
             dungeon_layer = ChildrenAction(
-                scene=BSPLayout.Config(
+                scene=BSPLayoutConfig(
                     area_count=dungeon_count,
                     children=[
                         ChildrenAction(
                             scene=_wrap_in_layout(
-                                RandomScene.Config(candidates=dungeon_cands),
+                                RandomSceneConfig(candidates=dungeon_cands),
                                 tag="dungeon.zone",
                                 max_w=dungeon_max_w,
                                 max_h=dungeon_max_h,
@@ -279,7 +282,7 @@ class MachinaArena(Scene[MachinaArenaConfig]):
         # Resources
         children.append(
             ChildrenAction(
-                scene=UniformExtractorScene.Config(
+                scene=UniformExtractorParams(
                     target_coverage=float(cfg.building_coverage),
                     building_names=building_names_final,
                     building_weights=building_weights_final,
@@ -296,12 +299,12 @@ class MachinaArena(Scene[MachinaArenaConfig]):
 
         # Connectivity + hub
         children.append(
-            ChildrenAction(scene=MakeConnected.Config(), where="full", order_by="last", lock="arena.connect", limit=1)
+            ChildrenAction(scene=MakeConnectedConfig(), where="full", order_by="last", lock="arena.connect", limit=1)
         )
 
         children.append(
             ChildrenAction(
-                scene=BaseHub.Config(
+                scene=BaseHubConfig(
                     spawn_count=int(cfg.spawn_count),
                     hub_width=21,
                     hub_height=21,
@@ -317,7 +320,7 @@ class MachinaArena(Scene[MachinaArenaConfig]):
 
         children.append(
             ChildrenAction(
-                scene=MakeConnected.Config(),
+                scene=MakeConnectedConfig(),
                 where="full",
                 order_by="last",
                 lock="arena.connect.final",
@@ -378,14 +381,14 @@ def make_hub_only_map_builder(
         base_kwargs["cross_objects"] = list(cross_objects)
 
     candidates = [
-        RandomSceneCandidate(scene=BaseHub.Config(**base_kwargs, transform=t), weight=1.0) for t in transform_set
+        RandomSceneCandidate(scene=BaseHubConfig(**base_kwargs, transform=t), weight=1.0) for t in transform_set
     ]
 
     return MapGen.Config(
         width=width,
         height=height,
         seed=seed,
-        instance=RandomScene.Config(candidates=candidates),
+        instance=RandomSceneConfig(candidates=candidates),
     )
 
 
@@ -411,7 +414,7 @@ def apply_hub_overrides_to_builder(
     height = getattr(builder, "height", None) or 21
 
     inst = getattr(builder, "instance", None)
-    if isinstance(inst, RandomScene.Config):
+    if isinstance(inst, RandomSceneConfig):
         # Verify candidates are BaseHub configs; extract transforms
         transforms: list[GridTransform] = []
         basehub_seen = False
@@ -420,7 +423,7 @@ def apply_hub_overrides_to_builder(
         existing_cross_distance: int | None = None
         for cand in inst.candidates:
             scn = cand.scene
-            if isinstance(scn, BaseHub.Config):
+            if isinstance(scn, BaseHubConfig):
                 basehub_seen = True
                 transforms.append(scn.transform)
                 if existing_corner_bundle is None:

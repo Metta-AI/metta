@@ -4,7 +4,7 @@ from typing import Any, cast
 from pydantic import Field
 
 from cogames.cogs_vs_clips.mission import Mission, MissionVariant, Site
-from cogames.cogs_vs_clips.procedural import make_hub_only_map_builder, MachinaArenaConfig
+from cogames.cogs_vs_clips.procedural import MachinaArenaConfig, make_hub_only_map_builder
 from cogames.cogs_vs_clips.stations import (
     CarbonExtractorConfig,
     ChargerConfig,
