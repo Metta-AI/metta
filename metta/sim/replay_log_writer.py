@@ -1,36 +1,29 @@
-"""ReplayLogRenderer - A renderer that writes replay logs for game episodes."""
-
 from __future__ import annotations
 
 import json
 import logging
 import uuid
 import zlib
-from typing import TYPE_CHECKING, Any, Dict
+from typing import Dict
 
 import numpy as np
 
 from metta.utils.file import http_url, write_data
-from mettagrid.renderer.renderer import Renderer
-from mettagrid.util.action_catalog import build_action_mapping, make_decode_fn
+from mettagrid.simulator import SimulatorEventHandler
+from mettagrid.simulator.simulator import Simulation
 from mettagrid.util.grid_object_formatter import format_grid_object
 
-if TYPE_CHECKING:
-    from mettagrid import MettaGridEnv
-
-logger = logging.getLogger("ReplayLogRenderer")
+logger = logging.getLogger("ReplayLogWriter")
 
 
-class ReplayLogRenderer(Renderer):
-    """Renderer that writes replay logs to storage (S3 or local files)."""
+class ReplayLogWriter(SimulatorEventHandler):
+    """EventHandler that writes replay logs to storage (S3 or local files)."""
 
     def __init__(self, replay_dir: str):
-        """Initialize ReplayLogRenderer.
+        """Initialize ReplayLogWriter.
 
         Args:
-            replay_dir: S3 path or local directory where replays will be written.
-                       If None, replay writing is disabled.
-            episode_id: Unique identifier for the episode
+            replay_dir: Local directory where replays will be written.
         """
         self._replay_dir = replay_dir
         self._episode_id = None
@@ -38,83 +31,74 @@ class ReplayLogRenderer(Renderer):
         self._should_continue = True
         self.episodes: Dict[str, EpisodeReplay] = {}
 
-    def on_episode_start(self, env: MettaGridEnv) -> None:
+    def on_episode_start(self) -> None:
         """Start recording a new episode."""
+        assert self._sim is not None
         self._episode_id = str(uuid.uuid4())
-        self._episode_replay = EpisodeReplay(env)
+        self._episode_replay = EpisodeReplay(self._sim)
         self.episodes[self._episode_id] = self._episode_replay
         logger.info("Started recording episode %s", self._episode_id)
 
     def on_step(
         self,
-        current_step: int,
-        observations: np.ndarray,
-        actions: np.ndarray,
-        rewards: np.ndarray,
-        infos: Dict[str, Any],
     ) -> None:
         """Log a single step in the replay."""
         assert self._episode_replay is not None
-        self._episode_replay.log_step(current_step, actions, rewards)
+        assert self._sim is not None
+        self._episode_replay.log_step(self._sim.current_step, self._sim._c_sim.actions(), self._sim._c_sim.rewards())
 
     def should_continue(self) -> bool:
         """Check if rendering should continue."""
         return self._should_continue
 
-    def on_episode_end(self, infos: Dict[str, Any]) -> None:
+    def on_episode_end(self) -> None:
         """Write the replay to storage and clean up."""
         assert self._episode_replay is not None
+        assert self._sim is not None
         replay_path = f"{self._replay_dir}/{self._episode_id}.json.z"
         self._episode_replay.write_replay(replay_path)
         url = http_url(replay_path)
-        infos["replay_url"] = url
+        self._sim._context["replay_url"] = url
         logger.info("Wrote replay for episode %s to %s", self._episode_id, url)
-
-    def render(self) -> None:
-        """Render the current state."""
-        pass
 
 
 class EpisodeReplay:
     """Helper class for managing replay data for a single episode."""
 
-    def __init__(self, env: MettaGridEnv):
-        self.env = env
+    def __init__(self, sim: Simulation):
+        self.sim = sim
         self.step = 0
         self.objects = []
-        self.total_rewards = np.zeros(env.num_agents)
-        self._flat_action_mapping, self._base_action_names = build_action_mapping(env)
-        self._decode_flat_action = make_decode_fn(self._flat_action_mapping)
+        self.total_rewards = np.zeros(sim.num_agents)
 
-        self._validate_non_empty_string_list(env.action_names, "action_names")
-        self._validate_non_empty_string_list(env.resource_names, "item_names")
+        self._validate_non_empty_string_list(sim.action_names, "action_names")
+        self._validate_non_empty_string_list(sim.resource_names, "item_names")
 
         self.replay_data = {
             "version": 2,
-            "action_names": self._base_action_names,
-            "item_names": env.resource_names,
-            "type_names": env.object_type_names,
-            "map_size": [env.map_width, env.map_height],
-            "num_agents": env.num_agents,
-            "max_steps": env.max_steps,
-            "mg_config": env.mg_config.model_dump(mode="json"),
+            "action_names": sim.action_names,
+            "item_names": sim.resource_names,
+            "type_names": sim.object_type_names,
+            "map_size": [sim.map_width, sim.map_height],
+            "num_agents": sim.num_agents,
+            "max_steps": sim.config.game.max_steps,
+            "mg_config": sim.config.model_dump(mode="json"),
             "objects": self.objects,
         }
 
     def log_step(self, current_step: int, actions: np.ndarray, rewards: np.ndarray):
         """Log a single step of the episode."""
         self.total_rewards += rewards
-        for i, grid_object in enumerate(self.env.grid_objects().values()):
+        for i, grid_object in enumerate(self.sim.grid_objects().values()):
             if len(self.objects) <= i:
                 self.objects.append({})
 
             update_object = format_grid_object(
                 grid_object,
                 actions,
-                self.env.action_success,
+                self.sim.action_success,
                 rewards,
                 self.total_rewards,
-                decode_flat_action=self._decode_flat_action,
             )
 
             self._seq_key_merge(self.objects[i], self.step, update_object)

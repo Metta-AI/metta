@@ -211,7 +211,7 @@ These demos exercise the **external compatibility layer** of MettaGrid's archite
 ┌─────────────────────────────────────────────────────────────┐
 │ SOFTMAX STUDIO TRAINING (Primary)                          │
 ├─────────────────────────────────────────────────────────────┤
-│          MettaTrainer → MettaGridEnv                        │
+│          MettaTrainer → PufferMettaGridEnv                  │
 └─────────────────────────────────────────────────────────────┘
 ```
 
