@@ -29,6 +29,29 @@ class JobMonitor:
         self.group = group
         self._start_time = time.time()
 
+    def _display_log_tail(self, logs_path: str, num_lines: int) -> None:
+        """Display last N lines of a log file.
+
+        Args:
+            logs_path: Path to log file
+            num_lines: Number of lines to show
+        """
+        try:
+            from pathlib import Path
+
+            log_file = Path(logs_path)
+            if log_file.exists():
+                lines = log_file.read_text(errors="ignore").splitlines()
+                if lines:
+                    # Get last N non-empty lines
+                    relevant_lines = [line for line in lines if line.strip()][-num_lines:]
+                    if relevant_lines:
+                        for line in relevant_lines:
+                            # Truncate and indent
+                            print(f"      │ {line[:100]}")
+        except Exception:
+            pass  # Silently fail if we can't read logs
+
     def get_status(self) -> dict[str, Any]:
         """Get current status snapshot (non-blocking).
 
@@ -73,6 +96,10 @@ class JobMonitor:
                 "job_id": job_state.job_id,
             }
 
+            # Add logs path for all jobs (if available)
+            if job_state.logs_path:
+                status_dict["logs_path"] = job_state.logs_path
+
             if job_state.status == "completed":
                 status_dict["exit_code"] = job_state.exit_code
                 status_dict["success"] = job_state.exit_code == 0
@@ -111,6 +138,8 @@ class JobMonitor:
         show_artifacts: bool = False,
         title: str | None = None,
         highlight_failures: bool = True,
+        show_running_logs: bool = False,
+        log_tail_lines: int = 3,
     ) -> None:
         """Display current status table (non-blocking).
 
@@ -119,6 +148,8 @@ class JobMonitor:
             show_artifacts: Show WandB URLs and checkpoints (default: False)
             title: Optional title to display above status
             highlight_failures: Highlight failed jobs in red (default: True)
+            show_running_logs: Show last N lines of logs for running jobs (default: False)
+            log_tail_lines: Number of log lines to show for running jobs (default: 3)
         """
         if clear_screen:
             # Clear screen: move cursor to home, clear from cursor to end of screen
@@ -161,6 +192,11 @@ class JobMonitor:
         print("Jobs:")
         for job_status in status["jobs"]:
             name = job_status["name"]
+            # Strip version prefix for cleaner display (e.g., "v2025.10.27-1726_cpp_ci" → "cpp_ci")
+            if "_" in name:
+                display_name = name.split("_", 1)[1]
+            else:
+                display_name = name
             status_str = job_status["status"]
             job_id = job_status.get("job_id")
 
@@ -184,8 +220,8 @@ class JobMonitor:
             else:
                 status_display = f"{symbol} {status_str}"
 
-            # Build line
-            line = f"  {name:30s} {status_display:20s}"
+            # Build line with display name
+            line = f"  {display_name:30s} {status_display:20s}"
 
             # Show request_id → job_id progression for remote jobs
             request_id = job_status.get("request_id")
@@ -229,6 +265,11 @@ class JobMonitor:
                     # Show logs for successful jobs too when showing artifacts
                     if job_status.get("success") and "logs_path" in job_status:
                         print(f"    📝 Logs: {job_status['logs_path']}")
+
+            # Show live logs for running jobs
+            elif status_str == "running" and show_running_logs:
+                if "logs_path" in job_status:
+                    self._display_log_tail(job_status["logs_path"], log_tail_lines)
 
 
 def get_status_symbol(status: str) -> str:
