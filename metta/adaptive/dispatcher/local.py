@@ -124,18 +124,24 @@ class LocalDispatcher:
                         new_parts.append(current_pythonpath)
                     env["PYTHONPATH"] = os.pathsep.join(new_parts)
 
-            if use_torchrun:
-                env["NUM_GPUS"] = str(job.gpus)
-                env["NUM_NODES"] = str(job.nodes or 1)
-                # Keep rendezvous local to the worker node
-                env["MASTER_ADDR"] = "127.0.0.1"
-                if "MASTER_PORT" not in env:
-                    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
-                        sock.bind(("", 0))
-                        env["MASTER_PORT"] = str(sock.getsockname()[1])
-                # Torchrun will set the distributed rank information; clear leftovers
-                for var in ("RANK", "WORLD_SIZE", "LOCAL_RANK", "NODE_RANK"):
-                    env.pop(var, None)
+        if use_torchrun:
+            env["NUM_GPUS"] = str(job.gpus)
+            env["NUM_NODES"] = str(job.nodes or 1)
+            # Keep rendezvous local to the worker node
+            env["MASTER_ADDR"] = "127.0.0.1"
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+                sock.bind(("", 0))
+                master_port = sock.getsockname()[1]
+            env["MASTER_PORT"] = str(master_port)
+            logger.debug(
+                "Selected torchrun rendezvous port %s for run %s (PID %s)",
+                master_port,
+                job.run_id,
+                job.cmd,
+            )
+            # Torchrun will set the distributed rank information; clear leftovers
+            for var in ("RANK", "WORLD_SIZE", "LOCAL_RANK", "NODE_RANK"):
+                env.pop(var, None)
 
             # Configure subprocess output handling
             if self._capture_output:
