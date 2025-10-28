@@ -237,25 +237,45 @@ See @.cursor/commands.md for quick test commands and examples.
 # Run full CI (tests + linting) - ALWAYS run this to verify changes
 metta ci
 
-# Run all tests with coverage
-metta test --cov=mettagrid --cov-report=term-missing
+# Run specific CI stages (used by GitHub Actions)
+metta ci --stage lint                       # Linting only
+metta ci --stage python-tests               # Python tests only
+metta ci --stage python-benchmarks          # Python benchmarks only
+metta ci --stage cpp-tests                  # C++ tests only
+metta ci --stage cpp-benchmarks             # C++ benchmarks only
+
+# Run full Python test sweep (CI-style)
+metta pytest --ci
 
 # Run specific test modules
-metta test tests/rl/test_trainer_config.py -v
-metta test tests/sim/ -v
+metta pytest tests/rl/test_trainer_config.py -v
+metta pytest tests/sim/ -v
 
-# Run linting and formatting on python files with Ruff
-metta lint # optional --fix and --staged arguments
+# Run linting and formatting (formats all file types by default)
+metta lint
+
+# Format and lint with auto-fix
+metta lint --fix
+
+# Format specific file types only
+metta lint --type json,yaml
+metta lint --type python
+
+# Check formatting without modifying files
+metta lint --check
+
+# Format only staged files
+metta lint --staged --fix
 
 # Auto-fix Ruff errors with Claude (requires ANTHROPIC_API_KEY)
 uv run ./devops/tools/auto_ruff_fix.py path/to/file
-
-# Format shell scripts
-./devops/tools/format_sh.sh
 ```
 
 **IMPORTANT**: Always run `metta ci` after making changes to verify that all tests pass. This is the standard way to
 check if your changes are working correctly.
+
+**Note**: The `metta ci` command is the single source of truth for CI checks. GitHub Actions calls individual stages
+(`metta ci --stage <name>`), while local development typically runs all stages with `metta ci`.
 
 #### Building
 
@@ -297,8 +317,8 @@ The project uses OmegaConf for configuration, with config files organized in `co
 
 1. Use smaller batch sizes for debugging
 2. Check wandb logs for metrics anomalies
-3. Use `./tools/run.py arena.play` for interactive debugging (Note: Less useful in Claude Code due
-   to interactive nature)
+3. Use `./tools/run.py arena.play` for interactive debugging (Note: Less useful in Claude Code due to interactive
+   nature)
 
 #### Performance Profiling
 

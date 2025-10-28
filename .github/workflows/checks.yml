@@ -1,5 +1,11 @@
 name: "Test and Benchmark"
 
+# This workflow uses metta ci as the single source of truth for CI checks.
+# Each job calls metta ci with a specific stage:
+#   --stage lint, --stage python-tests, --stage python-benchmarks,
+#   --stage cpp-tests, --stage cpp-benchmarks
+# Local development can run all stages with: metta ci
+
 on:
   pull_request:
     types: [opened, synchronize, ready_for_review]
@@ -174,22 +180,10 @@ jobs:
       - name: Setup Environment
         uses: ./.github/actions/setup-environment
         with:
-          install-mode: "linting"
+          install-mode: "metta-cli"
 
-      - name: Run Ruff linter
-        run: |
-          uv run ruff format --check .
-
-      - name: Run Ruff formatting
-        run: |
-          uv run ruff check --exit-non-zero-on-fix .
-
-      - name: Install C++ linter
-        run: |
-          sudo apt-get install -y clang-format
-
-      - name: Run cpplint
-        run: ./packages/mettagrid/tests/cpplint.sh
+      - name: Run linting and formatting
+        run: uv run python .github/scripts/run_ci_stage.py lint
 
   observatory-typescript-check:
     name: "Observatory TypeScript Check"
@@ -224,8 +218,8 @@ jobs:
           cd observatory
           pnpm run lint
 
-  unit-tests:
-    name: "Unit Tests - Python"
+  python-tests:
+    name: "Tests - Python"
     needs: [graphite-ci-optimizer, setup-checks]
     if: |
       (needs.graphite-ci-optimizer.outputs.should_skip == 'false') &&
@@ -253,14 +247,18 @@ jobs:
           echo "PUFFERLIB_CACHE_DIR=$HOME/pufferlib-cache" >> $GITHUB_ENV
           mkdir -p $HOME/pufferlib-cache
 
-      - name: Run all package tests
+      - name: Run Python tests
         shell: bash
-        env:
-          RUN_APP_BACKEND_TESTS: ${{ needs.setup-checks.outputs.app_backend_has_changes == 'true' && 'true' || 'false' }}
-        run: .github/scripts/run_package_tests.sh
+        run: |
+          set -eo pipefail
+          ARGS=()
+          if [[ "${{ needs.setup-checks.outputs.app_backend_has_changes }}" != "true" ]]; then
+            ARGS+=(--skip-package app_backend)
+          fi
+          uv run python .github/scripts/run_ci_stage.py python-tests -- "${ARGS[@]}"
 
-  mettagrid-cpp:
-    name: "MettaGrid C++ Build & Test"
+  cpp-tests:
+    name: "Tests - C++"
     needs: [graphite-ci-optimizer, setup-checks]
     if: |
       (needs.graphite-ci-optimizer.outputs.should_skip == 'false') &&
@@ -309,21 +307,17 @@ jobs:
           restore-keys: |
             bazel-${{ runner.os }}-
 
-      - name: MettaGrid C++ tests
+      - name: Run C++ tests
         id: mettagrid-cpp-tests
-        run: |
-          cd packages/mettagrid
-          make coverage VERBOSE=1
+        run: uv run python .github/scripts/run_ci_stage.py cpp-tests
 
-      - name: MettaGrid C++ benchmarks
+      - name: Run C++ benchmarks
         id: mettagrid-cpp-benchmarks
-        run: |
-          cd packages/mettagrid
-          make benchmark VERBOSE=1
+        run: uv run python .github/scripts/run_ci_stage.py cpp-benchmarks
 
-  unit-tests-summary:
+  tests-summary:
     name: "Tests"
-    needs: [unit-tests, mettagrid-cpp]
+    needs: [python-tests, cpp-tests]
     if: always()
     runs-on: ubuntu-latest
     steps:

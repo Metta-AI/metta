@@ -1,10 +1,9 @@
-from pathlib import Path
 from typing import Any, Type, TypeVar
 
 import httpx
-import yaml
 from pydantic import BaseModel
 
+from metta.common.auth.auth_config_reader_writer import observatory_auth_config
 from metta.common.util.collections import remove_none_values
 from metta.common.util.constants import PROD_STATS_SERVER_URI
 
@@ -21,21 +20,15 @@ def get_machine_token(stats_server_uri: str | None = None) -> str | None:
 
     Args:
         stats_server_uri: The stats server URI to get token for.
-                         If None, returns token from env var or legacy location.
 
     Returns:
         The machine token or None if not found.
     """
-    yaml_file = Path.home() / ".metta" / "observatory_tokens.yaml"
-    if yaml_file.exists():
-        with open(yaml_file) as f:
-            tokens = yaml.safe_load(f) or {}
-        if isinstance(tokens, dict) and stats_server_uri in tokens:
-            token = tokens[stats_server_uri].strip()
-        else:
-            return None
-    else:
+    if not stats_server_uri:
         return None
+
+    # Use the same authenticator pattern as the login script
+    token = observatory_auth_config.load_token(stats_server_uri)
 
     if not token or token.lower() == "none":
         return None

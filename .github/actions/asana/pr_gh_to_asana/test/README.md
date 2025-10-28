@@ -54,7 +54,7 @@ python replay_and_test.py <run_directory>
 
 ## Requirements
 
-- Python 3.11+
+- Python 3.12+
 - The `gh` CLI must be installed and authenticated for `download_action_logs.py`.
 
 ## Setup

@@ -7,7 +7,6 @@ name = "metta-common"
 version = "0.1.0"
 description = "Common utilities for metta packages"
 authors = [{ name = "David Bloomin", email = "daveey@gmail.com" }]
-requires-python = "==3.11.7"
 license = { text = "MIT" }
 readme = "README.md"
 urls = { Homepage = "https://daveey.github.io", Repository = "https://github.com/Metta-AI/metta" }
@@ -44,3 +43,6 @@ pythonpath = ["src"]
 
 [tool.coverage.run]
 source = ["metta.common"]
+
+[tool.uv.sources]
+cogames = { workspace = true }
