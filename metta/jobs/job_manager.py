@@ -97,7 +97,7 @@ class JobManager:
                     # Mark stale local job as completed with abnormal termination
                     job_state.status = "completed"
                     job_state.exit_code = -1  # Abnormal termination
-                    job_state.completed_at = datetime.utcnow().isoformat(timespec="seconds")
+                    job_state.completed_at = datetime.now().isoformat(timespec="seconds")
                     session.add(job_state)
                     local_stale_count += 1
                 else:
@@ -167,7 +167,7 @@ class JobManager:
                             job_state.exit_code = 130  # User cancelled
                         else:
                             job_state.exit_code = 1  # Failed
-                        job_state.completed_at = datetime.utcnow().isoformat(timespec="seconds")
+                        job_state.completed_at = datetime.now().isoformat(timespec="seconds")
                         session.add(job_state)
                         logger.info(f"Remote job {job_name} updated: {status}")
                     # If RUNNING or PENDING, leave as-is in DB
@@ -206,7 +206,7 @@ class JobManager:
             job = self._spawn_job(job_state)
             self._active_jobs[name] = job
             job_state.status = "running"
-            job_state.started_at = datetime.utcnow().isoformat(timespec="seconds")
+            job_state.started_at = datetime.now().isoformat(timespec="seconds")
             session.add(job_state)
             session.commit()
             return True
@@ -230,18 +230,22 @@ class JobManager:
             job = LocalJob(config, log_dir)
             # Submit local job and capture PID
             job.submit()
-            if hasattr(job, "_proc") and job._proc:
-                job_state.job_id = str(job._proc.pid)
+            if job.job_id:
+                job_state.job_id = job.job_id
+            # Set logs_path immediately so monitor can tail logs during execution
+            job_state.logs_path = job.log_path
             return job
         else:
             job_id = int(job_state.job_id) if job_state.job_id else None
             job = RemoteJob(config, log_dir, job_id=job_id)
             # Submit remote job and capture request_id
             job.submit()
-            if hasattr(job, "_request_id") and job._request_id:
-                job_state.request_id = job._request_id
-            if hasattr(job, "_job_id") and job._job_id:
-                job_state.job_id = str(job._job_id)
+            if isinstance(job, RemoteJob) and job.request_id:
+                job_state.request_id = job.request_id
+            if job.job_id:
+                job_state.job_id = job.job_id
+            # Set logs_path immediately so monitor can tail logs during execution
+            job_state.logs_path = job.log_path
             return job
 
     def poll(self) -> list[str]:
@@ -253,8 +257,8 @@ class JobManager:
             for name, job in list(self._active_jobs.items()):
                 if isinstance(job, RemoteJob):
                     job_state = session.get(JobState, name)
-                    if job_state and hasattr(job, "_job_id") and job._job_id and not job_state.job_id:
-                        job_state.job_id = str(job._job_id)
+                    if job_state and job.job_id and not job_state.job_id:
+                        job_state.job_id = job.job_id
                         session.add(job_state)
             session.commit()
 
@@ -275,7 +279,7 @@ class JobManager:
                     job_state = session.get(JobState, name)
                     if job_state:
                         job_state.status = "completed"
-                        job_state.completed_at = datetime.utcnow().isoformat(timespec="seconds")
+                        job_state.completed_at = datetime.now().isoformat(timespec="seconds")
                         job_state.exit_code = job_result.exit_code
                         job_state.logs_path = job_result.logs_path
                         job_state.job_id = str(job_result.job_id) if job_result.job_id else None
@@ -403,7 +407,7 @@ class JobManager:
                     # Mark as completed with SIGINT exit code
                     job_state.status = "completed"
                     job_state.exit_code = 130  # Standard exit code for SIGINT/user cancel
-                    job_state.completed_at = datetime.utcnow().isoformat(timespec="seconds")
+                    job_state.completed_at = datetime.now().isoformat(timespec="seconds")
 
                     session.add(job_state)
                     count += 1
