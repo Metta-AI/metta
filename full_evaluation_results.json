@@ -4,14 +4,14 @@
     "greedy": 1,
     "efficiency": 1,
     "explorer_aggressive": 2,
-    "explorer_conservative": 0
+    "explorer_conservative": 1
   },
   "EXP1-MEDIUM": {
     "explorer": 2,
     "greedy": 2,
     "efficiency": 2,
     "explorer_aggressive": 2,
-    "explorer_conservative": 0
+    "explorer_conservative": 2
   },
   "EXP1-HARD": {
     "explorer": 0,
@@ -22,16 +22,16 @@
   },
   "EXP2-EASY": {
     "explorer": 0,
-    "greedy": 0,
+    "greedy": 1,
     "efficiency": 0,
     "explorer_aggressive": 0,
     "explorer_conservative": 0
   },
   "EXP2-MEDIUM": {
-    "explorer": 0,
+    "explorer": 1,
     "greedy": 0,
     "efficiency": 1,
-    "explorer_aggressive": 0,
+    "explorer_aggressive": 1,
     "explorer_conservative": 0
   },
   "EXP2-HARD": {
@@ -39,13 +39,6 @@
     "greedy": 0,
     "efficiency": 0,
     "explorer_aggressive": 0,
-    "explorer_conservative": 0
-  },
-  "ENERGY_STARVED": {
-    "explorer": 2,
-    "greedy": 1,
-    "efficiency": 2,
-    "explorer_aggressive": 1,
     "explorer_conservative": 0
   },
   "OXYGEN_BOTTLENECK": {
@@ -63,11 +56,11 @@
     "explorer_conservative": 2
   },
   "SILICON_WORKBENCH": {
-    "explorer": 2,
-    "greedy": 2,
+    "explorer": 0,
+    "greedy": 0,
     "efficiency": 0,
-    "explorer_aggressive": 2,
-    "explorer_conservative": 2
+    "explorer_aggressive": 0,
+    "explorer_conservative": 0
   },
   "CARBON_DESERT": {
     "explorer": 2,
@@ -84,11 +77,11 @@
     "explorer_conservative": 0
   },
   "SLOW_OXYGEN": {
-    "explorer": 1,
+    "explorer": 2,
     "greedy": 2,
-    "efficiency": 1,
-    "explorer_aggressive": 1,
-    "explorer_conservative": 1
+    "efficiency": 2,
+    "explorer_aggressive": 2,
+    "explorer_conservative": 2
   },
   "HIGH_REGEN_SPRINT": {
     "explorer": 2,

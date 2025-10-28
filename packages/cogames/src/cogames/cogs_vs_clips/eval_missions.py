@@ -55,26 +55,6 @@ class _EvalMissionBase(Mission):
         # Post-make_env adjust max uses on built objects
         def _post(cfg: MettaGridConfig) -> None:
             cfg.game.map_builder = forced_map
-            # Set episode length for all evals
-            cfg.game.max_steps = 1000
-            # Make HEART crafting feasible with a single agent using the heart glyph
-            assembler_obj = cfg.game.objects.get("assembler")
-            if assembler_obj is not None and hasattr(assembler_obj, "heart_cost"):
-                # Set small single-agent recipe and prepend explicit heart/red-heart entries
-                if hasattr(assembler_obj, "recipes"):
-                    tiny = ProtocolConfig(
-                        input_resources={
-                            "carbon": 2,
-                            "oxygen": 2,
-                            "germanium": 1,
-                            "silicon": 5,
-                            "energy": 2,
-                        },
-                        output_resources={"heart": 1},
-                    )
-                    heart_recipes = [(["heart"] * (i + 1), tiny) for i in range(4)]
-                    redheart_recipes = [(["red-heart"] * (i + 1), tiny) for i in range(4)]
-                    assembler_obj.recipes = [*heart_recipes, *redheart_recipes, *assembler_obj.recipes]
             if self.max_uses_charger is not None and "charger" in cfg.game.objects:
                 cfg.game.objects["charger"].max_uses = self.max_uses_charger
             if self.max_uses_carbon is not None and "carbon_extractor" in cfg.game.objects:
@@ -86,51 +66,7 @@ class _EvalMissionBase(Mission):
             if self.max_uses_silicon is not None and "silicon_extractor" in cfg.game.objects:
                 cfg.game.objects["silicon_extractor"].max_uses = self.max_uses_silicon
 
-            # Global quality-of-life tweaks for evals
-            # 1) Double agent inventory caps for core resources and gear
-            try:
-                limits = cfg.game.agent.resource_limits
-                for key in ("carbon", "oxygen", "germanium", "silicon"):
-                    if key in limits and isinstance(limits[key], int):
-                        limits[key] = limits[key] * 2
-                for key in ("decoder", "modulator", "scrambler", "resonator"):
-                    if key in limits and isinstance(limits[key], int):
-                        limits[key] = limits[key] * 2
-                if "energy" in limits and isinstance(limits["energy"], int):
-                    limits["energy"] = limits["energy"] * 2
-            except Exception:
-                pass
-
-            # 2) Reduce depletion speed: double max_uses for extractors that are finite
-            for obj_name in (
-                "carbon_extractor",
-                "oxygen_extractor",
-                "germanium_extractor",
-                "silicon_extractor",
-            ):
-                obj = cfg.game.objects.get(obj_name)
-                if obj is not None and hasattr(obj, "max_uses"):
-                    try:
-                        current = int(getattr(obj, "max_uses"))
-                        if current > 0:
-                            setattr(obj, "max_uses", current * 2)
-                    except Exception:
-                        pass
-
         return _add_make_env_modifier(mission, _post)
-
-
-class EnergyStarved(_EvalMissionBase):
-    name: str = "energy_starved"
-    description: str = "Very low energy regen; plan charger routes."
-    map_name: str = "machina_eval_exp01.map"
-    charger_eff: int = 80
-    energy_regen: int = 0
-    max_uses_charger: int = 0
-    max_uses_carbon: int = 100
-    max_uses_oxygen: int = 30
-    max_uses_germanium: int = 5
-    max_uses_silicon: int = 100
 
 
 class OxygenBottleneck(_EvalMissionBase):
@@ -238,70 +174,17 @@ class GermaniumClutch(_EvalMissionBase):
     max_uses_charger: int = 0
 
 
-EVAL_MISSIONS: list[type[Mission]] = []
-
-
-# -----------------------------
-# New Single-Agent Eval Missions
-# -----------------------------
-
-
-class CollectTheResourcesEasy(_EvalMissionBase):
-    name: str = "collect_the_resources_easy"
-    description: str = "Collect all four resources, assemble a HEART, and deposit in chest (small/easy)."
-    map_name: str = "eval_collect_resources_easy.map"
-
-
-class CollectTheResourcesMedium(_EvalMissionBase):
-    name: str = "collect_the_resources_medium"
-    description: str = "Collect all four resources, assemble a HEART, and deposit in chest (medium)."
-    map_name: str = "eval_collect_resources_medium.map"
-
-
-class CollectTheResourcesHard(_EvalMissionBase):
-    name: str = "collect_the_resources_hard"
-    description: str = "Collect all four resources, assemble a HEART, and deposit in chest (large/hard)."
-    map_name: str = "eval_collect_resources_hard.map"
-
-
-class EnergyStarved(_EvalMissionBase):
-    name: str = "energy_starved"
-    description: str = "Low regen; requires careful charging and routing."
-    map_name: str = "eval_energy_starved.map"
-    charger_eff: int = 80
-    energy_regen: int = 0
-    max_uses_charger: int = 0
-
-
-class OxygenBottleneck(_EvalMissionBase):
-    name: str = "oxygen_bottleneck"
-    description: str = "Oxygen paces assembly; low efficiency and limited uses."
-    map_name: str = "eval_oxygen_bottleneck.map"
-    oxygen_eff: int = 50
-    max_uses_oxygen: int = 20
-
-
-class GeraniumForage(_EvalMissionBase):
-    name: str = "geranium_forage"
-    description: str = "All resources near base except germanium; forage further away to find it."
-    map_name: str = "eval_germanium_forage.map"
-
-
-class SingleUseWorld(_EvalMissionBase):
-    name: str = "single_use_world"
-    description: str = "Every station can be used exactly once across more complex terrain."
-    map_name: str = "eval_single_use_world.map"
-    max_uses_charger: int = 1
-    max_uses_carbon: int = 1
-    max_uses_oxygen: int = 1
-    max_uses_germanium: int = 1
-    max_uses_silicon: int = 1
-
-
-class BalancedSpread(_EvalMissionBase):
-    name: str = "balanced_spread"
-    description: str = "Resources spread out; agent must forage far and return efficiently."
-    map_name: str = "eval_balanced_spread.map"
+EVAL_MISSIONS: list[type[Mission]] = [
+    OxygenBottleneck,
+    GermaniumRush,
+    SiliconWorkbench,
+    CarbonDesert,
+    SingleUseWorld,
+    SlowOxygen,
+    HighRegenSprint,
+    SparseBalanced,
+    GermaniumClutch,
+]
 
 
 # -----------------------------
@@ -312,7 +195,7 @@ class BalancedSpread(_EvalMissionBase):
 class ClipCarbon(_EvalMissionBase):
     name: str = "clip_carbon"
     description: str = "Carbon extractor starts clipped; unclip using gear crafted from another resource."
-    map_name: str = "eval_clip_carbon.map"
+    map_name: str = "machina_eval_exp01.map"
     clip_rate: float = 0.0
 
     def instantiate(
@@ -321,6 +204,7 @@ class ClipCarbon(_EvalMissionBase):
         mission = super().instantiate(map_builder, num_cogs, variant)
         # Ensure carbon is initially clipped; O2/G/Si remain available to craft gear
         mission.carbon_extractor.start_clipped = True
+
         # Deterministic unclipping: require modulator (crafted from oxygen)
         def _filter_unclip(cfg: MettaGridConfig) -> None:
             if cfg.game.clipper is None:
@@ -336,7 +220,9 @@ class ClipCarbon(_EvalMissionBase):
                 return
             recipe = ProtocolConfig(input_resources={"oxygen": 1}, output_resources={"modulator": 1})
             single_gear = (["gear"], recipe)
-            if not any(g == ["gear"] and getattr(p, "output_resources", {}) == {"modulator": 1} for g, p in asm.recipes):
+            if not any(
+                g == ["gear"] and getattr(p, "output_resources", {}) == {"modulator": 1} for g, p in asm.recipes
+            ):
                 asm.recipes = [single_gear, *asm.recipes]
 
         mission = _add_make_env_modifier(mission, _filter_unclip)
@@ -346,7 +232,7 @@ class ClipCarbon(_EvalMissionBase):
 class ClipOxygen(_EvalMissionBase):
     name: str = "clip_oxygen"
     description: str = "Oxygen extractor starts clipped; unclip via gear crafted from carbon/silicon/germanium."
-    map_name: str = "eval_clip_oxygen.map"
+    map_name: str = "machina_eval_exp02.map"
     clip_rate: float = 0.0
 
     def instantiate(
@@ -354,6 +240,7 @@ class ClipOxygen(_EvalMissionBase):
     ) -> "Mission":
         mission = super().instantiate(map_builder, num_cogs, variant)
         mission.oxygen_extractor.start_clipped = True
+
         # Deterministic unclipping: require decoder (crafted from carbon)
         def _filter_unclip(cfg: MettaGridConfig) -> None:
             if cfg.game.clipper is None:
@@ -372,29 +259,8 @@ class ClipOxygen(_EvalMissionBase):
             if not any(g == ["gear"] and getattr(p, "output_resources", {}) == {"decoder": 1} for g, p in asm.recipes):
                 asm.recipes = [single_gear, *asm.recipes]
 
-        # Increase agent inventory caps for this eval
-        def _expand_inventory(cfg: MettaGridConfig) -> None:
-            try:
-                limits = cfg.game.agent.resource_limits
-                # Bump core resources and gear caps; keep heart/energy as-is
-                limits.update(
-                    {
-                        "carbon": 200,
-                        "oxygen": 200,
-                        "germanium": 200,
-                        "silicon": 200,
-                        "decoder": 10,
-                        "modulator": 10,
-                        "scrambler": 10,
-                        "resonator": 10,
-                    }
-                )
-            except Exception:
-                pass
-
         mission = _add_make_env_modifier(mission, _filter_unclip)
-        mission = _add_make_env_modifier(mission, _tweak_assembler)
-        return _add_make_env_modifier(mission, _expand_inventory)
+        return _add_make_env_modifier(mission, _tweak_assembler)
 
 
 class ClipGermanium(_EvalMissionBase):
@@ -408,6 +274,7 @@ class ClipGermanium(_EvalMissionBase):
     ) -> "Mission":
         mission = super().instantiate(map_builder, num_cogs, variant)
         mission.germanium_extractor.start_clipped = True
+
         # Deterministic unclipping: require resonator (crafted from silicon)
         def _filter_unclip(cfg: MettaGridConfig) -> None:
             if cfg.game.clipper is None:
@@ -423,7 +290,9 @@ class ClipGermanium(_EvalMissionBase):
                 return
             recipe = ProtocolConfig(input_resources={"silicon": 1}, output_resources={"resonator": 1})
             single_gear = (["gear"], recipe)
-            if not any(g == ["gear"] and getattr(p, "output_resources", {}) == {"resonator": 1} for g, p in asm.recipes):
+            if not any(
+                g == ["gear"] and getattr(p, "output_resources", {}) == {"resonator": 1} for g, p in asm.recipes
+            ):
                 asm.recipes = [single_gear, *asm.recipes]
 
         mission = _add_make_env_modifier(mission, _filter_unclip)
@@ -441,6 +310,7 @@ class ClipSilicon(_EvalMissionBase):
     ) -> "Mission":
         mission = super().instantiate(map_builder, num_cogs, variant)
         mission.silicon_extractor.start_clipped = True
+
         # Deterministic unclipping: require scrambler (crafted from germanium)
         def _filter_unclip(cfg: MettaGridConfig) -> None:
             if cfg.game.clipper is None:
@@ -456,7 +326,9 @@ class ClipSilicon(_EvalMissionBase):
                 return
             recipe = ProtocolConfig(input_resources={"germanium": 1}, output_resources={"scrambler": 1})
             single_gear = (["gear"], recipe)
-            if not any(g == ["gear"] and getattr(p, "output_resources", {}) == {"scrambler": 1} for g, p in asm.recipes):
+            if not any(
+                g == ["gear"] and getattr(p, "output_resources", {}) == {"scrambler": 1} for g, p in asm.recipes
+            ):
                 asm.recipes = [single_gear, *asm.recipes]
 
         mission = _add_make_env_modifier(mission, _filter_unclip)
@@ -477,15 +349,13 @@ class ClipCharger(_EvalMissionBase):
         return mission
 
 
-EVAL_MISSIONS = [
-    CollectTheResourcesEasy,
-    CollectTheResourcesMedium,
-    CollectTheResourcesHard,
-    EnergyStarved,
-    OxygenBottleneck,
-    GeraniumForage,
-    SingleUseWorld,
-    BalancedSpread,
-    ClipCarbon,
-    ClipOxygen,
-]
+# Register clipping missions
+EVAL_MISSIONS.extend(
+    [
+        ClipCarbon,
+        ClipOxygen,
+        ClipGermanium,
+        ClipSilicon,
+        ClipCharger,
+    ]
+)

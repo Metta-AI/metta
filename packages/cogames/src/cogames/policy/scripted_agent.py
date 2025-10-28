@@ -51,25 +51,7 @@ class Hyperparameters:
     # === ENERGY MANAGEMENT (Critical for silicon gathering) ===
     min_energy_for_silicon: int = 70  # Min energy before silicon harvesting (Δ=2 impact)
 
-    # === FIXED CONSTANTS (removed from hyperparameters) ===
-    # These showed ZERO impact in sensitivity analysis, now hardcoded:
-    # - exploration_strategy: "frontier" (levy had worse performance)
-    # - levy_alpha: 1.5 (only used for levy, which we don't use)
-    # - exploration_radius: 50 (soft limit, never constrains)
-    # - energy_buffer: 20 (no impact on survival)
-    # - charger_search_threshold: 40 (derived from energy logic)
-    # - prefer_nearby: True (no impact on resource selection)
-    # - cooldown_tolerance: 20 (redundant with waiting logic)
-    # - depletion_threshold: 0.25 (no impact on exploration)
-    # - track_efficiency: True (always track for efficiency_learner)
-    # - efficiency_weight: 0.3 (no impact on resource selection)
-    # - use_astar: True (always use optimal pathfinding)
-    # - astar_threshold: 20 (fixed threshold)
-    # - enable_cooldown_waiting: True (always enabled)
-    # - max_cooldown_wait: 100 (no impact on waiting)
-    # - prioritize_center: True (no impact on exploration)
-    # - center_bias_weight: 0.5 (no impact on exploration)
-    # - max_wait_turns: 50 (redundant with cooldown logic)
+    # Fixed constants that previously had no measurable impact are hardcoded elsewhere.
 
 
 @dataclass
@@ -85,23 +67,30 @@ class ExtractorInfo:
     total_harvests: int = 0  # How many times we've used it
     total_output: int = 0  # Total resources gained from this extractor
 
-    # Estimates (learned from observations)
-    estimated_cooldown: int = 100  # Estimated cooldown duration
-    estimated_uses_left: float = 1.0  # Fraction of uses remaining (0-1)
+    # Properties from observations
+    uses_remaining_fraction: float = 1.0  # Fraction of uses remaining (0-1, from observations)
+    observed_cooldown_remaining: int = 0  # Actual cooldown remaining from observations (when in view)
+    observed_converting: bool = False  # Whether station is converting/cooling down (when in view)
+    is_clipped: bool = False  # Whether station is clipped (from observations)
+    permanently_depleted: bool = False  # Marked as dead when remaining_uses == 0
 
-    def is_available(self, current_step: int) -> bool:
-        """Check if extractor is off cooldown."""
-        if self.last_used_step < 0:
-            return True  # Never used
-        return current_step >= self.last_used_step + self.estimated_cooldown
+    # Learned cooldown (inferred from observations after first use)
+    learned_cooldown: Optional[int] = None  # Total cooldown duration (learned from observations)
+
+    def is_available(self, current_step: int, cooldown_estimate_fn) -> bool:
+        """Check if extractor is available (not depleted, not on cooldown, not clipped)."""
+        if self.permanently_depleted or self.is_clipped:
+            return False
+        rem = cooldown_estimate_fn(self, current_step)
+        return rem <= 0
 
     def is_depleted(self) -> bool:
         """Check if extractor is likely depleted."""
-        return self.estimated_uses_left <= 0.05
+        return self.permanently_depleted or self.uses_remaining_fraction <= 0.05
 
     def is_low(self, depletion_threshold: float) -> bool:
         """Check if extractor is running low (below threshold, should find backup)."""
-        return self.estimated_uses_left <= depletion_threshold
+        return self.uses_remaining_fraction <= depletion_threshold
 
     def avg_output(self) -> float:
         """Average output per use."""
@@ -109,14 +98,13 @@ class ExtractorInfo:
             return 0.0
         return self.total_output / self.total_harvests
 
-    def update_after_use(self, output: int, current_step: int, cooldown: int = 100):
+    def update_after_use(self, output: int, current_step: int):
         """Update stats after using extractor."""
         self.last_used_step = current_step
         self.total_harvests += 1
         self.total_output += output
-        self.estimated_cooldown = cooldown
-        # Estimate uses left (rough heuristic: assume 50 uses baseline)
-        self.estimated_uses_left = max(0.0, 1.0 - (self.total_harvests / 50.0))
+        # Update uses remaining fraction (heuristic: assume 50 uses baseline if not observed)
+        self.uses_remaining_fraction = max(0.0, 1.0 - (self.total_harvests / 50.0))
 
 
 class ExtractorMemory:
@@ -128,17 +116,18 @@ class ExtractorMemory:
         # Map from position to extractor (for quick lookup)
         self._by_position: Dict[Tuple[int, int], ExtractorInfo] = {}
 
-    def add_extractor(self, pos: Tuple[int, int], resource_type: str, station_name: str):
-        """Add newly discovered extractor."""
+    def add_extractor(self, pos: Tuple[int, int], resource_type: str, station_name: str) -> ExtractorInfo:
+        """Add newly discovered extractor or return existing one."""
         if pos in self._by_position:
             logger.debug(f"[Phase1] Extractor at {pos} already in memory")
-            return  # Already known
+            return self._by_position[pos]  # Return existing
 
         extractor = ExtractorInfo(position=pos, resource_type=resource_type, station_name=station_name)
         self._extractors[resource_type].append(extractor)
         self._by_position[pos] = extractor
         logger.info(f"Discovered {resource_type} extractor at {pos}")
         logger.info(f"[Phase1] Memory: {len(self._extractors[resource_type])} {resource_type} total")
+        return extractor
 
     def get_by_type(self, resource_type: str) -> List[ExtractorInfo]:
         """Get all extractors of a given type."""
@@ -149,7 +138,7 @@ class ExtractorMemory:
         return self._by_position.get(pos)
 
     def find_best_extractor(
-        self, resource_type: str, current_pos: Tuple[int, int], current_step: int, hyperparams: Hyperparameters
+        self, resource_type: str, current_pos: Tuple[int, int], current_step: int, cooldown_estimate_fn
     ) -> Optional[ExtractorInfo]:
         """Find best extractor considering distance, availability, efficiency."""
         extractors = self.get_by_type(resource_type)
@@ -157,10 +146,23 @@ class ExtractorMemory:
             return None
 
         # Filter out depleted and unavailable
-        candidates = [e for e in extractors if not e.is_depleted() and e.is_available(current_step)]
+        candidates = []
+        for e in extractors:
+            if e.is_depleted():
+                logger.debug(f"[FindExtractor] {resource_type} at {e.position} is depleted")
+                continue
+            if not e.is_available(current_step, cooldown_estimate_fn):
+                logger.debug(
+                    f"[FindExtractor] {resource_type} at {e.position} unavailable: "
+                    f"cooldown_est={cooldown_estimate_fn(e, current_step)}, "
+                    f"last_used={e.last_used_step}, current={current_step}"
+                )
+                continue
+            candidates.append(e)
 
         if not candidates:
-            # All on cooldown or depleted - return None to trigger exploration
+            # All on cooldown or depleted - return None to trigger exploration or waiting
+            logger.info(f"[FindExtractor] No available {resource_type} extractors (total={len(extractors)})")
             return None
 
         # Score each candidate
@@ -171,29 +173,16 @@ class ExtractorMemory:
 
             # Efficiency bonus
             avg_out = e.avg_output()
-            if avg_out > 0 and True:  # Always track efficiency
-                # Higher output is better
-                efficiency_score = avg_out / 50.0  # Normalize
-            else:
-                efficiency_score = 0.5  # Neutral if unknown
+            efficiency_score = (avg_out / 50.0) if avg_out > 0 else 0.5
 
-            # Depletion penalty: Prefer extractors that aren't running low
-            if e.is_low(0.25):  # Fixed depletion_threshold
-                depletion_penalty = 0.5  # Penalize low extractors (should find backups)
-            else:
-                depletion_penalty = 1.0  # No penalty
+            # Depletion penalty
+            depletion_penalty = 0.5 if e.is_low(0.25) else 1.0
 
-            # Combine with weights (fixed: prefer_nearby=True, efficiency_weight=0.3)
             total_score = ((1.0 - 0.3) * distance_score + 0.3 * efficiency_score) * depletion_penalty
-
             return total_score
 
         # Return highest scoring extractor
         return max(candidates, key=score_extractor)
-
-    def count_available(self, resource_type: str, current_step: int) -> int:
-        """Count how many extractors of this type are available."""
-        return sum(1 for e in self.get_by_type(resource_type) if not e.is_depleted() and e.is_available(current_step))
 
 
 class GamePhase(Enum):
@@ -205,6 +194,7 @@ class GamePhase(Enum):
     DEPOSIT_HEART = "deposit_heart"
     RECHARGE = "recharge"
     EXPLORE = "explore"  # Phase 3: Explore to find assembler/critical stations
+    UNCLIP_STATION = "unclip_station"  # Unclip a clipped extractor
 
 
 @dataclass
@@ -240,6 +230,9 @@ class AgentState:
     # Phase 3: Cooldown waiting
     waiting_since_step: int = -1
     wait_target: Optional[Tuple[int, int]] = None
+
+    # Unclipping tracking
+    unclip_target: Optional[Tuple[int, int]] = None  # Position of station to unclip
 
     # Phase tracking for stuck detection
     phase_entry_step: int = 0  # When we entered current phase
@@ -285,19 +278,16 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
     OBS_WIDTH_RADIUS = OBS_WIDTH // 2
 
     # Occupancy values
-    OCC_UNKNOWN, OCC_FREE, OCC_WALL = 0, 1, 2
+    OCC_UNKNOWN, OCC_FREE, OCC_OBSTACLE = 0, 1, 2
+
+    # Planning energy model: passive regeneration per step (constant)
+    PASSIVE_REGEN_PER_STEP = 1.0
 
     def __init__(self, env: MettaGridEnv, hyperparams: Hyperparameters | None = None):
         self._env = env
 
         # Hyperparameters (use default if not provided)
         self.hyperparams = hyperparams if hyperparams is not None else Hyperparameters()
-
-        # ADAPTIVE EXPLORATION: Scale exploration phase based on map size
-        # Small maps (40x40 = 1600): 100 steps
-        # Large maps (90x90 = 8100): 500 steps
-        # Formula: base_steps * sqrt(map_size / 1600)
-        self._adaptive_exploration_steps = self.hyperparams.exploration_phase_steps
 
         # Action / object names
         self._action_names: List[str] = env.action_names
@@ -307,6 +297,13 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
         self._action_lookup: Dict[str, int] = {name: i for i, name in enumerate(self._action_names)}
         obs_features = env.observation_features
         self._feature_name_to_id: Dict[str, int] = {f.name: f.id for f in obs_features.values()}
+
+        # Initialize move action indices
+        self._MOVE_N = self._action_lookup.get("move_north", -1)
+        self._MOVE_S = self._action_lookup.get("move_south", -1)
+        self._MOVE_E = self._action_lookup.get("move_east", -1)
+        self._MOVE_W = self._action_lookup.get("move_west", -1)
+        self._MOVE_SET = {self._MOVE_N, self._MOVE_S, self._MOVE_E, self._MOVE_W}
 
         # Vibes/glyphs
         from cogames.cogs_vs_clips.vibes import VIBES
@@ -320,7 +317,7 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
             "oxygen_extractor": "oxygen",
             "germanium_extractor": "germanium",
             "silicon_extractor": "silicon",
-            "assembler": "heart",  # assembling requires heart glyph
+            "assembler": "heart",
             "chest": "chest",
         }
 
@@ -349,9 +346,6 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
         self._map_width = env.c_env.map_width
 
         # ADAPTIVE EXPLORATION: Scale based on map size
-        # Small maps (40x40 = 1600): 100 steps
-        # Large maps (90x90 = 8100): ~225 steps
-        # Formula: base_steps * sqrt(map_size / 1600)
         import math
 
         map_size = self._map_height * self._map_width
@@ -365,10 +359,9 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
 
         # Incremental knowledge - NO OMNISCIENCE
         self._station_positions: Dict[str, Tuple[int, int]] = {}  # discovered stations (legacy)
-        self._wall_positions: set[Tuple[int, int]] = set()  # learned walls
         self._visited_cells: set[Tuple[int, int]] = set()
 
-        # Occupancy grid: 0=unknown, 1=free, 2=wall
+        # Occupancy grid: 0=unknown, 1=free, 2=obstacle
         self._occ = [[self.OCC_UNKNOWN for _ in range(self._map_width)] for _ in range(self._map_height)]
 
         # Movement tracking
@@ -376,12 +369,14 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
         self._last_action_idx: Optional[int] = None
         self._last_attempt_was_use: bool = False
 
-        # === NEW: Phase 1 Enhancements ===
         # Extractor memory system
         self.extractor_memory = ExtractorMemory()
 
         # Navigator for pathfinding
         self.navigator = Navigator(self._map_height, self._map_width)
+
+        # Defensive state cache - persist state even if wrapper doesn't pass it
+        self._cached_state: Optional[AgentState] = None
 
         # Station type to resource type mapping
         self._station_to_resource_type: Dict[str, str] = {
@@ -392,32 +387,8 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
             "charger": "charger",
         }
 
-        # Energy regen rate (will be detected from observations)
-        self._energy_regen_rate: float = 1.0
-        self._prev_energy: int = 100
-        self._energy_regen_samples: list[float] = []  # Track observed regen rates
-
-        # Track previous inventory to detect changes
-        self._prev_inventory: Dict[str, int] = {}
-
-        # Movement actions
-        self._MOVE_N = self._action_lookup.get("move_north", -1)
-        self._MOVE_S = self._action_lookup.get("move_south", -1)
-        self._MOVE_E = self._action_lookup.get("move_east", -1)
-        self._MOVE_W = self._action_lookup.get("move_west", -1)
-        self._MOVE_SET = {self._MOVE_N, self._MOVE_S, self._MOVE_E, self._MOVE_W}
-
-        # Loop detection (cycle breaker)
-        self._loop_window: List[Tuple[int, int, int]] = []  # (r,c,action_idx or -1)
-        self._loop_window_max = 20
-
-        # Simple sweep memory
-        self._recent_positions: List[Tuple[int, int]] = []
-        self._max_recent_positions: int = 10
-
         logger.info("Scripted agent initialized with visual discovery + frontier exploration")
         logger.info(f"Map size: {self._map_height}x{self._map_width}")
-        logger.info(f"Recharge thresholds: START={self.RECHARGE_START}, STOP={self.RECHARGE_STOP}")
         logger.info(
             "Inv feature IDs: "
             + str(
@@ -440,66 +411,42 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
         map_size = max(self._map_height, self._map_width)
         return self.RECHARGE_STOP_LARGE if map_size >= 50 else self.RECHARGE_STOP_SMALL
 
-    # ========== NEW: Phase 1 Helper Methods ==========
+    # ========== Helper Methods ==========
 
     def _can_reach_safely(
-        self, target_pos: Tuple[int, int], state: AgentState, task_energy: int = 0, is_recharge: bool = False
+        self,
+        target_pos: Tuple[int, int],
+        state: AgentState,
+        task_energy: int = 0,
+        is_recharge: bool = False,
+        regen_per_step: float = PASSIVE_REGEN_PER_STEP,
     ) -> bool:
-        """Check if agent has enough energy to reach target and complete task.
+        """Check if agent has enough energy to reach target and complete task, with passive regen.
 
-        Args:
-            target_pos: Destination position
-            state: Current agent state
-            task_energy: Energy needed at destination (e.g., 50 for silicon)
-            is_recharge: If True, this is a trip to a charger (one-way, smaller buffer)
-
-        Returns:
-            True if energy sufficient with buffer
+        - Each move costs 1 energy; regen_per_step restores energy per step.
+        - If regen_per_step >= 1, movement is effectively free (or net-positive).
         """
         if state.agent_row == -1:
             return True  # Position unknown, assume OK
 
-        # Calculate Manhattan distance
         distance = abs(target_pos[0] - state.agent_row) + abs(target_pos[1] - state.agent_col)
-
-        # Use observed energy regen rate (defaults to 1.0 if not yet measured)
-        regen_rate = self._energy_regen_rate
+        net_cost_per_step = 1.0 - regen_per_step  # positive means net drain
 
         if is_recharge:
-            # Special case: If we're adjacent to a charger (distance <= 1), we can always reach it
-            # This prevents death spiral when agent has 0 energy next to charger
-            if distance <= 1:
-                return True
+            effective_cost = max(0.0, distance * net_cost_per_step)
+            buffer = 5
+            required = effective_cost + buffer
+            return state.energy >= required or net_cost_per_step <= 0
 
-            # One-way trip to charger
-            # Net cost per step = 1 (move) - regen_rate
-            net_cost_per_step = max(0, 1.0 - regen_rate)
+        # For gathering:
+        trip_steps = distance * (2 if task_energy < 50 else 1)
+        effective_cost = max(0.0, trip_steps * net_cost_per_step)
+        buffer = 10 if task_energy < 50 else 5
+        required = effective_cost + task_energy + buffer
 
-            if state.energy < 15:
-                # Critically low: If net cost is 0 or negative (regen >= 1), we can always reach
-                # Otherwise need at least enough to make one step
-                if net_cost_per_step <= 0:
-                    return True  # Regen covers movement cost
-                energy_needed = max(1, int(distance * net_cost_per_step))
-            else:
-                # Normal: distance cost + buffer
-                energy_needed = int(distance * net_cost_per_step) + 15
-        else:
-            # For gathering: Net cost per step = 1 (move) - regen_rate
-            net_cost_per_step = max(0, 1.0 - regen_rate)
-
-            # Round trip cost (to extractor and back)
-            travel_cost = int((distance * 2) * net_cost_per_step)
-
-            if task_energy >= 50:  # Silicon
-                # Silicon: one-way trip (agent stays there) + task energy + buffer
-                travel_cost = int(distance * net_cost_per_step)
-                energy_needed = travel_cost + task_energy + 15
-            else:
-                # Other resources: round trip + task + buffer
-                energy_needed = travel_cost + task_energy + 20  # Fixed energy buffer
-
-        return state.energy >= energy_needed
+        if net_cost_per_step <= 0:
+            return True  # movement free / net-positive
+        return state.energy >= required
 
     def _update_extractor_after_use(
         self, pos: Tuple[int, int], state: AgentState, resource_gained: int, resource_type: str
@@ -509,25 +456,13 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
         if not extractor:
             return
 
-        # Determine cooldown based on resource type
-        cooldown_map = {
-            "carbon": 10,
-            "oxygen": 100,
-            "germanium": 0,
-            "silicon": 0,
-            "charger": 10,
-        }
-        cooldown = cooldown_map.get(resource_type, 10)
-
-        extractor.update_after_use(resource_gained, state.step_count, cooldown)
-
-        if True:  # Always track efficiency
-            avg = extractor.avg_output()
-            if avg > 0:
-                logger.debug(
-                    f"Used {resource_type} at {pos}: {resource_gained} output "
-                    f"(avg: {avg:.1f}, uses: {extractor.total_harvests})"
-                )
+        extractor.update_after_use(resource_gained, state.step_count)
+        avg = extractor.avg_output()
+        if avg > 0:
+            logger.debug(
+                f"Used {resource_type} at {pos}: {resource_gained} output "
+                f"(avg: {avg:.1f}, uses: {extractor.total_harvests})"
+            )
 
     def _detect_inventory_changes(self, state: AgentState) -> Dict[str, int]:
         """Detect what changed in inventory since last step."""
@@ -540,6 +475,10 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
         }
 
         changes = {}
+        if not hasattr(self, "_prev_inventory"):
+            self._prev_inventory = current.copy()
+            return changes
+
         for resource, amount in current.items():
             prev = self._prev_inventory.get(resource, amount)
             if amount != prev:
@@ -549,12 +488,26 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
         self._prev_inventory = current.copy()
         return changes
 
+    def cooldown_remaining(self, extractor: ExtractorInfo, current_step: int) -> int:
+        """Get remaining cooldown turns for an extractor (observed or estimated).
+
+        NOTE: observed_cooldown_remaining can be stale if the extractor goes out of view.
+        We prioritize estimation based on last_used_step when available.
+        """
+        # Prefer estimation based on last_used_step if available
+        if extractor.last_used_step >= 0:
+            total = extractor.learned_cooldown if extractor.learned_cooldown is not None else 20
+            elapsed = max(0, current_step - extractor.last_used_step)
+            return max(0, total - elapsed)
+
+        # If never used by us, assume ready (ignore stale observed_cooldown)
+        return 0
+
     def _find_best_extractor_for_phase(self, phase: GamePhase, state: AgentState) -> Optional[Tuple[int, int]]:
         """Find best extractor for current gathering phase using extractor memory.
 
-        Returns position of best extractor, or None if should explore.
+        Returns position of best extractor, or None if should explore (or wait).
         """
-        # Map phase to resource type
         phase_to_resource = {
             GamePhase.GATHER_CARBON: "carbon",
             GamePhase.GATHER_OXYGEN: "oxygen",
@@ -567,73 +520,45 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
         if not resource_type:
             return None
 
-        # Get task energy (silicon needs 50 energy)
         task_energy = 50 if resource_type == "silicon" else 0
-
-        # Debug: Log discovered extractors
         all_extractors = self.extractor_memory.get_by_type(resource_type)
         logger.info(f"[Phase1] Finding {resource_type}: {len(all_extractors)} total discovered")
 
         # Find best available extractor
         current_pos = (state.agent_row, state.agent_col)
-        best = self.extractor_memory.find_best_extractor(resource_type, current_pos, state.step_count, self.hyperparams)
+        best = self.extractor_memory.find_best_extractor(
+            resource_type, current_pos, state.step_count, self.cooldown_remaining
+        )
 
         if best is None:
-            # No available extractors - check if we should wait for cooldowns
-            if True and len(all_extractors) > 0:  # Always enable cooldown waiting
-                # Find extractor with shortest cooldown remaining
-                extractors_on_cooldown = [
-                    e for e in all_extractors if not e.is_available(state.step_count) and not e.is_depleted()
-                ]
-
+            # No available extractors - consider waiting for the shortest cooldown if it's short and close
+            if len(all_extractors) > 0:
+                extractors_on_cooldown = [e for e in all_extractors if not e.is_depleted()]
                 if extractors_on_cooldown:
-                    # Sort by cooldown remaining
-                    nearest_cooldown = min(
-                        extractors_on_cooldown, key=lambda e: self.cooldown_remaining(e, state.step_count)
-                    )
-                    cooldown_time = self.cooldown_remaining(nearest_cooldown, state.step_count)
 
-                    # If cooldown is reasonable, wait near it
-                    # Use cooldown_tolerance for quick decision, max_cooldown_wait for max patience
-                    should_wait = cooldown_time <= min(
-                        20,
-                        100,  # Fixed cooldown_tolerance, max_cooldown_wait
+                    def est(e: ExtractorInfo) -> int:
+                        return self.cooldown_remaining(e, state.step_count)
+
+                    cand = min(extractors_on_cooldown, key=est)
+                    cooldown_time = est(cand)
+                    dist_to_extractor = abs(cand.position[0] - state.agent_row) + abs(
+                        cand.position[1] - state.agent_col
+                    )
+                    should_wait = (
+                        cooldown_time < 10
+                        or (cooldown_time < 20 and dist_to_extractor < 5)
+                        or (cooldown_time < 100 and dist_to_extractor <= 1)
                     )
                     if should_wait:
-                        # Phase 3: Check if we're already waiting at this position
-                        if state.wait_target == nearest_cooldown.position:
-                            wait_duration = state.step_count - state.waiting_since_step
-                            # Also check max_wait_turns to avoid waiting forever
-                            if wait_duration >= cooldown_time or wait_duration >= 50:  # Fixed max_wait_turns
-                                # Waited long enough, should be available now - try again
-                                logger.info(
-                                    f"[Phase3] Finished waiting {wait_duration} turns, "
-                                    f"retrying {resource_type} at {nearest_cooldown.position}"
-                                )
-                                state.wait_target = None
-                                state.waiting_since_step = -1
-                                # Force re-check by returning the position
-                                return nearest_cooldown.position
-                            else:
-                                # Still waiting
-                                logger.debug(f"[Phase3] Waiting {wait_duration}/{cooldown_time} turns")
-                                return nearest_cooldown.position
-                        else:
-                            # Start waiting
-                            logger.info(
-                                f"[Phase3] Starting wait for {resource_type} at {nearest_cooldown.position} "
-                                f"(cooldown: {cooldown_time} turns)"
-                            )
-                            state.wait_target = nearest_cooldown.position
-                            state.waiting_since_step = state.step_count
-                            return nearest_cooldown.position
-                    else:
                         logger.info(
-                            f"[Phase1] Cooldown too long ({cooldown_time} > 100), "  # Fixed max_cooldown_wait
-                            f"will explore for new {resource_type}"
+                            f"[Phase3] Waiting for {resource_type} at {cand.position} "
+                            f"(cooldown~{cooldown_time}, dist={dist_to_extractor})"
                         )
+                        state.wait_target = cand.position
+                        if state.waiting_since_step < 0:
+                            state.waiting_since_step = state.step_count
+                        return cand.position
 
-            # No available extractors - need to explore
             logger.info(
                 f"[Phase1] No available {resource_type} extractors "
                 f"(found {len(all_extractors)} but all depleted/on cooldown)"
@@ -643,22 +568,11 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
         distance = abs(best.position[0] - state.agent_row) + abs(best.position[1] - state.agent_col)
         logger.info(f"[Phase1] Best {resource_type} extractor: {best.position}, distance={distance}")
 
-        # Check if we have energy to reach it
+        # Check energy feasibility
         is_charger = resource_type == "charger"
         if not self._can_reach_safely(best.position, state, task_energy, is_recharge=is_charger):
-            # Log why we can't reach it (using same calculation as _can_reach_safely)
-            if is_charger:
-                energy_needed = distance + 5
-            else:
-                net_travel_cost = (distance * 2) * 1
-                if task_energy >= 50:  # Silicon
-                    buffer = 5
-                else:
-                    buffer = max(5, min(15, distance // 2))
-                energy_needed = net_travel_cost + task_energy + buffer
             logger.warning(
-                f"[Phase1] Not enough energy to reach {resource_type} at {best.position} "
-                f"(need ~{energy_needed}, have {state.energy})"
+                f"[Phase1] Not enough energy to reach {resource_type} at {best.position} (have {state.energy})"
             )
             return None
 
@@ -669,13 +583,28 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
     def agent_state(self) -> AgentState:
         return AgentState()
 
+    def _ensure_move_indices(self) -> None:
+        """Defensive: ensure move indices are initialized (should already be done in __init__)."""
+        if hasattr(self, "_MOVE_SET"):
+            return
+        self._MOVE_N = self._action_lookup.get("move_north", -1)
+        self._MOVE_S = self._action_lookup.get("move_south", -1)
+        self._MOVE_E = self._action_lookup.get("move_east", -1)
+        self._MOVE_W = self._action_lookup.get("move_west", -1)
+        self._MOVE_SET = {a for a in (self._MOVE_N, self._MOVE_S, self._MOVE_E, self._MOVE_W) if a != -1}
+
     def step_with_state(
         self, obs: MettaGridObservation, state: Optional[AgentState]
     ) -> tuple[MettaGridAction, Optional[AgentState]]:
         """Main policy step: update knowledge, select phase, choose an action."""
-        if state is None:
-            state = self.agent_state()
+        # Defensive: use cached state if provided state is None or fresh
+        if state is None or (state.step_count == 0 and self._cached_state is not None):
+            state = self._cached_state if self._cached_state is not None else self.agent_state()
+
         state.step_count += 1
+
+        # Cache the state for next call
+        self._cached_state = state
 
         # Update world & agent state from observation
         self._update_inventory(obs, state)
@@ -690,19 +619,19 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
 
         # Mark current as free and update map from observation
         self._mark_cell(state.agent_row, state.agent_col, self.OCC_FREE)
+        self._last_obs = obs  # Store for inventory checks in phase determination
         self._discover_stations_from_observation(obs, state)
         self._update_wall_knowledge(state)
 
-        # === NEW: Track extractor usage ===
-        # Detect inventory changes to update extractor stats
+        # === Track extractor usage ===
         inv_changes = self._detect_inventory_changes(state)
+
+        # If we gained resources adjacent to a known extractor, update its stats
         if inv_changes and state.agent_row >= 0:
-            # Check if we just used an extractor at an adjacent position
             for dr, dc in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
                 check_pos = (state.agent_row + dr, state.agent_col + dc)
                 extractor = self.extractor_memory.get_at_position(check_pos)
                 if extractor:
-                    # Check if the inventory change matches the extractor type
                     resource = extractor.resource_type
                     if resource in inv_changes and inv_changes[resource] > 0:
                         self._update_extractor_after_use(check_pos, state, inv_changes[resource], resource)
@@ -716,7 +645,7 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
         if (state.last_heart > 0 and state.heart == 0) or (
             state.current_phase == GamePhase.DEPOSIT_HEART and state.last_reward > 0
         ):
-            state.hearts_assembled += 1  # ← FIX: Increment hearts counter
+            state.hearts_assembled += 1
             state.wait_counter = 0
             state.current_phase = GamePhase.GATHER_GERMANIUM
             state.just_deposited = True
@@ -726,7 +655,7 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
         old_phase = state.current_phase
         state.current_phase = self._determine_phase(state)
 
-        # Track phase transitions for stuck detection
+        # Track phase transitions for oscillation detection
         if state.current_phase != old_phase:
             state.phase_entry_step = state.step_count
             state.phase_entry_inventory = {
@@ -735,50 +664,16 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
                 "carbon": state.carbon,
                 "oxygen": state.oxygen,
             }
-
-            # Track phase visit count for oscillation detection
             phase_name = state.current_phase.name
             if phase_name.startswith("GATHER_"):
                 resource_name = phase_name.replace("GATHER_", "").lower()
                 state.phase_visit_count[resource_name] = state.phase_visit_count.get(resource_name, 0) + 1
-
-                # Initialize progress tracking on first visit
                 current_amount = getattr(state, resource_name)
                 if resource_name not in state.resource_progress_tracking:
                     state.resource_progress_tracking[resource_name] = current_amount
                     state.resource_gathering_start[resource_name] = state.step_count
 
-                # Detect oscillation: if we've visited this phase N+ times with no progress, mark as unobtainable
-                # Scale threshold with map size: larger maps need more exploration attempts
-                import math
-
-                map_size = self._map_height * self._map_width
-                base_threshold = 5
-                # Scale: 40x40 (1600) = 5 visits, 90x90 (8100) = 11 visits, 100x100 (10000) = 12 visits
-                oscillation_threshold = int(base_threshold * math.sqrt(map_size / 1600.0))
-                oscillation_threshold = max(5, min(oscillation_threshold, 15))  # Clamp to [5, 15]
-
-                if state.phase_visit_count[resource_name] >= oscillation_threshold:
-                    initial_amount = state.resource_progress_tracking[resource_name]
-                    progress = current_amount - initial_amount
-
-                    # If we've oscillated N+ times with zero progress, mark as unobtainable
-                    if progress == 0 and resource_name not in state.unobtainable_resources:
-                        extractors_found = len(self.extractor_memory.get_by_type(resource_name))
-                        if extractors_found > 0:
-                            visit_count = state.phase_visit_count[resource_name]
-                            logger.warning(
-                                f"[PhaseOscillation] Visited GATHER_{resource_name.upper()} {visit_count} times "
-                                f"(threshold={oscillation_threshold} for {self._map_height}x{self._map_width} map) "
-                                f"with ZERO progress. Found {extractors_found} extractors but unreachable. "
-                                f"Marking as unobtainable."
-                            )
-                            state.unobtainable_resources.add(resource_name)
-
         action_idx = self._execute_phase(state)
-
-        # Simple loop breaking: if we repeat the same (pos, action) too often, try alternatives
-        self._apply_cycle_breaker(state, action_idx)
 
         # Bookkeeping
         self._last_action_idx = action_idx
@@ -791,26 +686,27 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
     def _discover_stations_from_observation(self, obs: MettaGridObservation, state: AgentState) -> None:
         """Discover stations/walls from vision and update occupancy grid.
 
-        Rules:
-        - Walls: mark OCC_WALL
-        - Stations: mark OCC_WALL (you use them from adjacent cells)
-        - Other objects (not agents/walls/stations): mark OCC_FREE
-        - Always mark current agent position as OCC_FREE
+        Also reads cooldown_remaining and remaining_uses from observations to update extractor state.
         """
         if state.agent_row == -1:
             return
 
         type_id_feature = self._feature_name_to_id.get("type_id", 0)
+        converting_feature = self._feature_name_to_id.get("converting", 5)
+        cooldown_feature = self._feature_name_to_id.get("cooldown_remaining", 14)
+        clipped_feature = self._feature_name_to_id.get("clipped", 15)
+        remaining_uses_feature = self._feature_name_to_id.get("remaining_uses", 16)
+
+        # First pass: collect all features by position
+        position_features = {}
 
         for tok in obs:
-            if self._to_int(tok[1]) != type_id_feature:
-                continue
+            feature_id = self._to_int(tok[1])
 
             # Decode local coords (hi nibble=row, lo nibble=col)
             packed = self._to_int(tok[0])
             obs_r = packed >> 4
             obs_c = packed & 0x0F
-            type_id = self._to_int(tok[2])
 
             # Convert to absolute map coords
             map_r = obs_r - self.OBS_HEIGHT_RADIUS + state.agent_row
@@ -818,22 +714,43 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
             if not self._is_valid_position(map_r, map_c):
                 continue
 
+            pos = (map_r, map_c)
+            if pos not in position_features:
+                position_features[pos] = {}
+
+            if feature_id == type_id_feature:
+                position_features[pos]["type_id"] = self._to_int(tok[2])
+            elif feature_id == converting_feature:
+                position_features[pos]["converting"] = self._to_int(tok[2])
+            elif feature_id == cooldown_feature:
+                position_features[pos]["cooldown_remaining"] = self._to_int(tok[2])
+            elif feature_id == clipped_feature:
+                position_features[pos]["clipped"] = self._to_int(tok[2])
+            elif feature_id == remaining_uses_feature:
+                position_features[pos]["remaining_uses"] = self._to_int(tok[2])
+
+        # Second pass: process positions with their features
+        for pos, features in position_features.items():
+            map_r, map_c = pos
+            type_id = features.get("type_id")
+            if type_id is None:
+                continue
+
             if type_id == self._wall_type_id:
                 # Wall (unwalkable)
-                self._mark_cell(map_r, map_c, self.OCC_WALL)
-                self._wall_positions.add((map_r, map_c))
+                self._mark_cell(map_r, map_c, self.OCC_OBSTACLE)
                 continue
 
             if type_id in self._type_id_to_station:
                 # Station (unwalkable). Remember first seen location.
                 station_name = self._type_id_to_station[type_id]
-                self._mark_cell(map_r, map_c, self.OCC_WALL)
-                pos = (map_r, map_c)
+                self._mark_cell(map_r, map_c, self.OCC_OBSTACLE)
+
                 if station_name not in self._station_positions:
                     self._station_positions[station_name] = pos
                     logger.info(f"Discovered {station_name} at {pos}")
 
-                    # Phase 3: Track critical station discovery
+                    # Track critical station discovery
                     if station_name == "assembler" and not state.assembler_discovered:
                         state.assembler_discovered = True
                         logger.info(f"[Phase3] ✓ Assembler discovered at {pos}")
@@ -841,13 +758,61 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
                         state.chest_discovered = True
                         logger.info(f"[Phase3] ✓ Chest discovered at {pos}")
 
-                # Also add to extractor memory if it's a resource extractor
+                # Add to extractor memory if it's a resource extractor
                 resource_type = self._station_to_resource_type.get(station_name)
                 if resource_type:
-                    self.extractor_memory.add_extractor(pos, resource_type, station_name)
-                else:
-                    # Debug: station name didn't match our mapping
-                    logger.debug(f"[Phase1] Station '{station_name}' not in resource_type mapping")
+                    extractor = self.extractor_memory.add_extractor(pos, resource_type, station_name)
+
+                    # Initialize reasonable cooldown defaults if unknown
+                    if extractor.learned_cooldown is None:
+                        default_cooldowns = {
+                            "germanium": 0,
+                            "silicon": 0,
+                            "carbon": 10,
+                            "oxygen": 100,
+                            "charger": 10,
+                        }
+                        extractor.learned_cooldown = default_cooldowns.get(resource_type, 10)
+
+                    # Observations
+                    if "converting" in features:
+                        extractor.observed_converting = bool(features["converting"])
+
+                    if "clipped" in features:
+                        was_clipped = extractor.is_clipped
+                        extractor.is_clipped = bool(features["clipped"])
+                        if extractor.is_clipped and not was_clipped:
+                            logger.info(f"[ObsUpdate] {resource_type} at {pos} is CLIPPED")
+                        elif not extractor.is_clipped and was_clipped:
+                            logger.info(f"[ObsUpdate] {resource_type} at {pos} was UNCLIPPED successfully!")
+
+                    if "cooldown_remaining" in features:
+                        cv = features["cooldown_remaining"]
+                        extractor.observed_cooldown_remaining = cv
+                        # Learn cooldown from observation: elapsed + remaining = total cooldown
+                        if extractor.last_used_step >= 0:
+                            elapsed = state.step_count - extractor.last_used_step
+                            if cv > 0:
+                                # Extractor is on cooldown: total = elapsed + remaining
+                                total = elapsed + cv
+                                # Only update if we don't have a learned value, or if this is more accurate
+                                # (i.e., closer to when it was used)
+                                if extractor.learned_cooldown is None or elapsed < 5:
+                                    extractor.learned_cooldown = total
+                            elif cv == 0 and elapsed > 0:
+                                # Cooldown just finished: total = elapsed
+                                if extractor.learned_cooldown is None or elapsed < 20:
+                                    extractor.learned_cooldown = elapsed
+
+                    if "remaining_uses" in features:
+                        uses_val = features["remaining_uses"]
+                        # Update uses remaining fraction from observation (normalize to 0-1)
+                        extractor.uses_remaining_fraction = min(1.0, uses_val / 50.0)
+                        if uses_val == 0 and not extractor.permanently_depleted:
+                            extractor.permanently_depleted = True
+                            logger.warning(
+                                f"[ObsUpdate] {resource_type} at {pos} has 0 uses remaining - marking DEPLETED"
+                            )
                 continue
 
             # Non-agent, non-wall, non-station object: treat as free
@@ -861,9 +826,10 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
         """Update occupancy based on movement results.
 
         - If we moved successfully, mark new cell as free
-        - If we tried to move but didn't, mark intended target as wall
-        - UNLESS we were trying to USE a station (stay in place is expected)
+        - If we tried to move but didn't, mark intended target as obstacle
+        - UNLESS we were trying to USE a station (staying is expected)
         """
+        self._ensure_move_indices()
         if not self._prev_pos or self._last_action_idx not in self._MOVE_SET:
             return
 
@@ -873,9 +839,9 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
             self._mark_cell(cur[0], cur[1], self.OCC_FREE)
             return
 
-        # If we were trying to USE a station, staying in place is expected - don't mark as wall
+        # If we were trying to USE a station, staying in place is expected - don't mark as obstacle
         if self._last_attempt_was_use:
-            logger.info("[WallKnowledge] Stayed in place while using station - this is expected (resetting flag)")
+            logger.info("[WallKnowledge] Stayed in place while using station - expected (resetting flag)")
             self._last_attempt_was_use = False  # Reset for next action
             return
 
@@ -888,11 +854,10 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
         if not self._is_valid_position(wr, wc):
             return
 
-        # Mark as wall (could be a wall or a station; usable from adjacency)
-        if self._occ[wr][wc] != self.OCC_WALL:
+        # Mark as obstacle (could be a wall or a station; usable via adjacency)
+        if self._occ[wr][wc] != self.OCC_OBSTACLE:
             logger.info(f"Marking blocked cell at ({wr},{wc})")
-        self._wall_positions.add((wr, wc))
-        self._occ[wr][wc] = self.OCC_WALL
+        self._occ[wr][wc] = self.OCC_OBSTACLE
 
     # ---------- Phase & Action Selection ----------
     def _determine_phase(self, state: AgentState) -> GamePhase:
@@ -900,18 +865,34 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
         if state.heart > 0:
             return GamePhase.DEPOSIT_HEART
 
+        # Check if we should unclip a station
+        # (decoder, modulator, scrambler, or resonator are needed for unclipping)
+        has_unclip_resource = (
+            self._read_int_feature(self._last_obs, "inv:decoder") > 0
+            or self._read_int_feature(self._last_obs, "inv:modulator") > 0
+            or self._read_int_feature(self._last_obs, "inv:scrambler") > 0
+            or self._read_int_feature(self._last_obs, "inv:resonator") > 0
+        )
+
+        if has_unclip_resource:
+            # Find any clipped extractor
+            for extractors in self.extractor_memory._extractors_by_type.values():
+                for extractor in extractors:
+                    if extractor.is_clipped:
+                        state.unclip_target = extractor.position
+                        logger.info(f"[Phase] Unclipping {extractor.resource_type} at {extractor.position}")
+                        return GamePhase.UNCLIP_STATION
+
         germ_needed = 5 if state.hearts_assembled == 0 else max(2, 5 - state.hearts_assembled)
 
-        # Recharge hysteresis - use dynamic thresholds and charger_search_threshold
+        # Recharge hysteresis - use dynamic thresholds
         if state.current_phase == GamePhase.RECHARGE and state.energy < self.RECHARGE_STOP:
             return GamePhase.RECHARGE
-        # Use charger_search_threshold hyperparameter (overrides RECHARGE_START if lower)
-        recharge_threshold = min(self.RECHARGE_START, 40)  # Fixed charger_search_threshold
+        recharge_threshold = self.RECHARGE_START
         if state.energy < recharge_threshold:
             return GamePhase.RECHARGE
 
         # === STRATEGY DISPATCH ===
-        # Route to strategy-specific phase determination
         strategy = self.hyperparams.strategy_type
         if strategy == "explorer_first":
             return self._determine_phase_explorer_first(state, germ_needed)
@@ -922,222 +903,8 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
         else:  # "greedy_opportunistic" or default
             return self._determine_phase_greedy(state, germ_needed)
 
-        # Check if we have all resources for assembly (or 3/4 if one is blacklisted)
-        has_germanium = state.germanium >= germ_needed or "germanium" in state.unobtainable_resources
-        has_silicon = state.silicon >= self.SILICON_REQ or "silicon" in state.unobtainable_resources
-        has_carbon = state.carbon >= self.CARBON_REQ or "carbon" in state.unobtainable_resources
-        has_oxygen = state.oxygen >= self.OXYGEN_REQ or "oxygen" in state.unobtainable_resources
-
-        has_all_resources = has_germanium and has_silicon and has_carbon and has_oxygen
-
-        # Time-awareness: Check if we're running out of time
-        # If we have MOST resources and assembler is far, switch to assembly early
-        assembler_pos = self._station_positions.get("assembler")
-        if assembler_pos and state.agent_row >= 0:
-            distance_to_assembler = abs(assembler_pos[0] - state.agent_row) + abs(assembler_pos[1] - state.agent_col)
-            # If assembler is far (>30 tiles) and we have 3/4 resources, consider early switch
-            if distance_to_assembler > 30:
-                resources_count = sum(
-                    [
-                        state.germanium >= germ_needed,
-                        state.carbon >= self.CARBON_REQ,
-                        state.oxygen >= self.OXYGEN_REQ,
-                        state.silicon >= self.SILICON_REQ,
-                    ]
-                )
-                # If we have 3/4 resources and enough energy, switch to assembly now
-                if resources_count >= 3 and state.energy >= max(distance_to_assembler + 20, self.ENERGY_REQ):
-                    logger.warning(
-                        f"[TimeAware] Assembler far ({distance_to_assembler} tiles), "
-                        f"have {resources_count}/4 resources, switching to assembly early!"
-                    )
-                    has_all_resources = True  # Force assembly phase
-
-        # If we have all resources but not enough energy, recharge first
-        if has_all_resources and state.energy < self.ENERGY_REQ:
-            logger.info(f"[Phase1] Have all resources, charging for assembly (energy={state.energy}/{self.ENERGY_REQ})")
-            return GamePhase.RECHARGE
-
-        # Assembling possible?
-        if has_all_resources and state.energy >= self.ENERGY_REQ:
-            # Phase 3: Verify assembler is discovered and reachable before committing
-            assembler_pos = self._station_positions.get("assembler")
-            if assembler_pos and state.agent_row >= 0:
-                # Try to find path to assembler
-                adj = [pos for pos in self._neighbors4(*assembler_pos) if self._occ[pos[0]][pos[1]] != self.OCC_WALL]
-                if adj:
-                    # Check if we can path to at least one adjacent cell
-                    path = self._choose_pathfinding((state.agent_row, state.agent_col), adj[0], optimistic=True)
-                    if path:
-                        logger.info("[Phase3] ✓ Assembler reachable, proceeding to assembly")
-                        return GamePhase.ASSEMBLE_HEART
-                    else:
-                        logger.warning("[Phase3] Assembler not reachable, exploring for path")
-                        return GamePhase.EXPLORE
-                else:
-                    logger.warning("[Phase3] Assembler blocked by walls")
-                    return GamePhase.EXPLORE
-            else:
-                logger.warning("[Phase3] Assembler not discovered yet, exploring")
-                return GamePhase.EXPLORE
-
-        # Stuck detection: If we've been trying to gather a resource for 500+ steps with minimal progress, skip it
-        # This helps on maps where a resource is genuinely unreachable (e.g., silicon needs 150 energy but max is 100)
-        # Track TOTAL time trying to get each resource (not just time in current phase)
-        gathering_phases = [
-            GamePhase.GATHER_GERMANIUM,
-            GamePhase.GATHER_SILICON,
-            GamePhase.GATHER_CARBON,
-            GamePhase.GATHER_OXYGEN,
-        ]
-        if state.current_phase in gathering_phases:
-            resource_map = {
-                GamePhase.GATHER_GERMANIUM: "germanium",
-                GamePhase.GATHER_SILICON: "silicon",
-                GamePhase.GATHER_CARBON: "carbon",
-                GamePhase.GATHER_OXYGEN: "oxygen",
-            }
-            resource_name = resource_map[state.current_phase]
-
-            # Track when we first started trying to get this resource IN THIS ATTEMPT
-            # Reset tracking if we've made progress since last check
-            current_amount = getattr(state, resource_name)
-            if resource_name not in state.resource_gathering_start:
-                # First time gathering this resource
-                state.resource_gathering_start[resource_name] = state.step_count
-                state.resource_progress_tracking[resource_name] = current_amount
-            else:
-                # Check if we've made progress since we started tracking
-                last_tracked_amount = state.resource_progress_tracking[resource_name]
-                if current_amount > last_tracked_amount:
-                    # Made progress! Reset the timer and update tracking
-                    state.resource_gathering_start[resource_name] = state.step_count
-                    state.resource_progress_tracking[resource_name] = current_amount
-
-            # Check total time trying to get this resource WITHOUT PROGRESS
-            total_time_trying = state.step_count - state.resource_gathering_start[resource_name]
-
-            # IMPROVED: Detect stuck earlier if agent is at same position
-            if total_time_trying > 50:  # Check after 50 steps
-                initial_amount = state.resource_progress_tracking[resource_name]
-                progress = current_amount - initial_amount
-                extractors_found = len(self.extractor_memory.get_by_type(resource_name))
-
-                # If we've found extractors but made NO progress in 150+ steps, likely unreachable
-                # Lower threshold (was 100) to detect unreachable extractors faster
-                if progress == 0 and extractors_found > 0 and total_time_trying > 150:
-                    logger.warning(
-                        f"[StuckDetection] Found {extractors_found} {resource_name} extractors but made "
-                        f"ZERO progress in {total_time_trying} steps. Marking as unobtainable (likely unreachable)."
-                    )
-                    state.unobtainable_resources.add(resource_name)
-
-                # NEW: Check if we've been stuck trying to get more of a resource for a long time
-                # If we have SOME but can't get more, accept what we have
-                if extractors_found > 0 and total_time_trying > 200:
-                    # Check if we've made progress recently
-                    recent_progress = current_amount - initial_amount
-                    # If we have some of the resource but made no progress in 200+ steps, accept it
-                    if (
-                        recent_progress == 0
-                        and current_amount > 0
-                        and resource_name not in state.unobtainable_resources
-                    ):
-                        logger.warning(
-                            f"[Depletion] Stuck gathering {resource_name} for {total_time_trying} steps. "
-                            f"Collected {current_amount}, marking as sufficient (unobtainable)."
-                        )
-                        state.unobtainable_resources.add(resource_name)
-
-            # Original longer timeout for partial progress
-            if total_time_trying > 800:  # Increased from 500 to 800 for harder difficulties
-                initial_amount = state.resource_progress_tracking[resource_name]
-                progress = current_amount - initial_amount
-
-                # Check if we've found any extractors of this type
-                extractors_found = len(self.extractor_memory.get_by_type(resource_name))
-
-                # Only mark as unobtainable if we've made insufficient progress AND found extractors
-                # If we haven't found any extractors yet, keep exploring!
-                # If progress is negative, resources were consumed (good!) - don't mark unobtainable
-                min_progress = 5 if resource_name == "germanium" else 10  # Germanium only needs 10 total
-
-                if 0 <= progress < min_progress and resource_name not in state.unobtainable_resources:
-                    if extractors_found == 0:
-                        # Haven't found ANY extractors yet - keep exploring
-                        logger.info(
-                            f"[StuckDetection] Been trying to get {resource_name} for {total_time_trying} steps "
-                            f"but haven't found any extractors yet. Continuing exploration..."
-                        )
-                    else:
-                        # Found extractors but made no progress - truly unobtainable
-                        logger.warning(
-                            f"[StuckDetection] Found {extractors_found} {resource_name} extractors but made only "
-                            f"{progress} progress in {total_time_trying} steps. Marking as unobtainable, "
-                            f"will proceed with 3/4 resources."
-                        )
-                        # Permanently blacklist this resource
-                        state.unobtainable_resources.add(resource_name)
-
-        # Opportunistic resource collection: Pick closest available extractor for needed resources
-        # This replaces strict sequential (G→Si→C→O) with flexible opportunistic collection
-        # Skip resources marked as unobtainable
-        needed_resources = []
-        if state.germanium < germ_needed and "germanium" not in state.unobtainable_resources:
-            needed_resources.append(("germanium", germ_needed - state.germanium, GamePhase.GATHER_GERMANIUM))
-        # Silicon requires high energy - check min_energy_for_silicon hyperparameter
-        if (
-            state.silicon < self.SILICON_REQ
-            and "silicon" not in state.unobtainable_resources
-            and state.energy >= self.hyperparams.min_energy_for_silicon
-        ):
-            needed_resources.append(("silicon", self.SILICON_REQ - state.silicon, GamePhase.GATHER_SILICON))
-        if state.carbon < self.CARBON_REQ and "carbon" not in state.unobtainable_resources:
-            needed_resources.append(("carbon", self.CARBON_REQ - state.carbon, GamePhase.GATHER_CARBON))
-        if state.oxygen < self.OXYGEN_REQ and "oxygen" not in state.unobtainable_resources:
-            needed_resources.append(("oxygen", self.OXYGEN_REQ - state.oxygen, GamePhase.GATHER_OXYGEN))
-
-        if not needed_resources:
-            return GamePhase.GATHER_GERMANIUM  # Shouldn't happen, but fallback
-
-        # Find closest available extractor for each needed resource
-        best_phase = None
-        best_distance = float("inf")
-
-        for resource_type, _amount_needed, phase in needed_resources:
-            extractors = self.extractor_memory.get_by_type(resource_type)
-            if not extractors:
-                continue  # No extractors discovered for this resource yet
-
-            for extractor in extractors:
-                # Skip if on cooldown or depleted
-                if not extractor.is_available(state.step_count) or extractor.is_depleted():
-                    continue
-
-                # Check if reachable
-                if state.agent_row >= 0:
-                    dist = abs(extractor.position[0] - state.agent_row) + abs(extractor.position[1] - state.agent_col)
-                    if dist < best_distance:
-                        best_distance = dist
-                        best_phase = phase
-
-        # If found a close extractor, go for it
-        if best_phase:
-            return best_phase
-
-        # If we still need resources, pick the first one
-        # The execution logic will handle waiting for cooldowns or exploring for new extractors
-        if needed_resources:
-            return needed_resources[0][2]
-
-        # All resources satisfied - shouldn't reach here, but fallback to germanium
-        return GamePhase.GATHER_GERMANIUM
-
-    # ========== STRATEGY-SPECIFIC PHASE DETERMINATION ==========
-
     def _determine_phase_greedy(self, state: AgentState, germ_needed: int) -> GamePhase:
         """GREEDY_OPPORTUNISTIC: Always grab closest needed resource."""
-        # Check if we can assemble
         has_all = (
             state.germanium >= germ_needed
             and state.silicon >= self.SILICON_REQ
@@ -1150,7 +917,6 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
             if assembler_pos:
                 return GamePhase.ASSEMBLE_HEART
 
-        # Build list of needed resources
         needed = []
         if state.germanium < germ_needed:
             needed.append(("germanium", GamePhase.GATHER_GERMANIUM))
@@ -1164,47 +930,41 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
         if not needed:
             return GamePhase.EXPLORE
 
-        # Find closest available extractor for any needed resource
+        # Pick the needed phase with the closest available extractor
         best_phase = None
         best_dist = float("inf")
-
         for resource_type, phase in needed:
-            extractors = self.extractor_memory.get_by_type(resource_type)
-            for e in extractors:
-                if e.is_available(state.step_count) and not e.is_depleted():
-                    dist = abs(e.position[0] - state.agent_row) + abs(e.position[1] - state.agent_col)
-                    if dist < best_dist:
-                        best_dist = dist
-                        best_phase = phase
+            for e in self.extractor_memory.get_by_type(resource_type):
+                if e.is_depleted():
+                    continue
+                if not e.is_available(state.step_count, self.cooldown_remaining):
+                    continue
+                dist = abs(e.position[0] - state.agent_row) + abs(e.position[1] - state.agent_col)
+                if dist < best_dist:
+                    best_dist = dist
+                    best_phase = phase
 
-        # Return closest, or first needed if none available
         return best_phase if best_phase else needed[0][1]
 
     def _determine_phase_explorer_first(self, state: AgentState, germ_needed: int) -> GamePhase:
         """EXPLORER_FIRST: Explore for N steps (adaptive to map size), then gather greedily."""
-        # Phase 1: Pure exploration (adaptive to map size)
         if state.step_count < self._adaptive_exploration_steps:
             return GamePhase.EXPLORE
-
-        # Phase 2: Greedy gathering
         return self._determine_phase_greedy(state, germ_needed)
 
     def _determine_phase_sequential(self, state: AgentState, germ_needed: int) -> GamePhase:
-        """SEQUENTIAL_SIMPLE: Fixed order G→Si→C→O, no cleverness."""
-        # Check if we can assemble
+        """SEQUENTIAL_SIMPLE: Fixed order G→Si→C→O."""
         has_all = (
             state.germanium >= germ_needed
             and state.silicon >= self.SILICON_REQ
             and state.carbon >= self.CARBON_REQ
             and state.oxygen >= self.OXYGEN_REQ
         )
-
         if has_all and state.energy >= self.ENERGY_REQ:
             assembler_pos = self._station_positions.get("assembler")
             if assembler_pos:
                 return GamePhase.ASSEMBLE_HEART
 
-        # Simple sequential order
         if state.germanium < germ_needed:
             return GamePhase.GATHER_GERMANIUM
         if state.silicon < self.SILICON_REQ and state.energy >= self.hyperparams.min_energy_for_silicon:
@@ -1218,20 +978,17 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
 
     def _determine_phase_efficiency_learner(self, state: AgentState, germ_needed: int) -> GamePhase:
         """EFFICIENCY_LEARNER: Learn extractor efficiency, prioritize best ones."""
-        # Check if we can assemble
         has_all = (
             state.germanium >= germ_needed
             and state.silicon >= self.SILICON_REQ
             and state.carbon >= self.CARBON_REQ
             and state.oxygen >= self.OXYGEN_REQ
         )
-
         if has_all and state.energy >= self.ENERGY_REQ:
             assembler_pos = self._station_positions.get("assembler")
             if assembler_pos:
                 return GamePhase.ASSEMBLE_HEART
 
-        # Build list of needed resources
         needed = []
         if state.germanium < germ_needed:
             needed.append(("germanium", GamePhase.GATHER_GERMANIUM))
@@ -1245,35 +1002,69 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
         if not needed:
             return GamePhase.EXPLORE
 
-        # Find best extractor (prioritize efficiency if learned)
         best_phase = None
         best_score = -float("inf")
-
         for resource_type, phase in needed:
-            extractors = self.extractor_memory.get_by_type(resource_type)
-            for e in extractors:
-                if e.is_available(state.step_count) and not e.is_depleted():
-                    dist = abs(e.position[0] - state.agent_row) + abs(e.position[1] - state.agent_col)
+            for e in self.extractor_memory.get_by_type(resource_type):
+                if e.is_depleted():
+                    continue
+                if not e.is_available(state.step_count, self.cooldown_remaining):
+                    continue
+                dist = abs(e.position[0] - state.agent_row) + abs(e.position[1] - state.agent_col)
+                efficiency = e.avg_output() if e.avg_output() > 0 else 5
+                score = efficiency * 10 - dist
+                if score > best_score:
+                    best_score = score
+                    best_phase = phase
 
-                    # Score = efficiency - distance penalty
-                    # Higher efficiency = better, closer = better
-                    efficiency = e.avg_output() if e.avg_output() > 0 else 5  # Default if unknown
-                    score = efficiency * 10 - dist
-
-                    if score > best_score:
-                        best_score = score
-                        best_phase = phase
-
-        # Return best, or first needed if none available
         return best_phase if best_phase else needed[0][1]
 
     # ========== END STRATEGY METHODS ==========
 
     def _execute_phase(self, state: AgentState) -> int:
         """Convert phase to a concrete action (move or glyph change)."""
-        # Phase 3: Handle EXPLORE phase
+        # EXPLORE phase
         if state.current_phase == GamePhase.EXPLORE:
-            # Pure exploration to find critical stations
+            self._last_attempt_was_use = False
+            plan = self._plan_to_frontier_action(state)
+            return plan if plan is not None else self._explore_simple(state)
+
+        # UNCLIP_STATION phase
+        if state.current_phase == GamePhase.UNCLIP_STATION and state.unclip_target:
+            target_pos = state.unclip_target
+            start_pos = (state.agent_row, state.agent_col)
+
+            result = self.navigator.navigate_to(
+                start=start_pos,
+                target=target_pos,
+                occupancy_map=self._occ,
+                optimistic=True,
+                use_astar=True,
+                astar_threshold=20,
+            )
+
+            # Adjacent - ready to unclip by walking into the station
+            if result.is_adjacent:
+                tr, tc = target_pos
+                dr, dc = tr - state.agent_row, tc - state.agent_col
+                self._last_attempt_was_use = True
+                action = self._step_toward(dr, dc)
+                logger.info(f"[Unclip] Using unclip resource on station at {target_pos}")
+                # Clear unclip target after attempting to use
+                state.unclip_target = None
+                return action
+
+            # Navigator found a next step
+            if result.next_step:
+                nr, nc = result.next_step
+                dr, dc = nr - state.agent_row, nc - state.agent_col
+                self._last_attempt_was_use = False
+                logger.debug(f"[Unclip] Moving toward {target_pos} to unclip")
+                return self._step_toward(dr, dc)
+
+            # Can't reach - clear target and explore
+            logger.warning(f"[Unclip] Cannot reach {target_pos}, clearing target")
+            state.unclip_target = None
             self._last_attempt_was_use = False
             plan = self._plan_to_frontier_action(state)
             return plan if plan is not None else self._explore_simple(state)
@@ -1281,20 +1072,6 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
         station = self._phase_to_station.get(state.current_phase)
         if not station:
             return self._action_lookup.get("noop", 0)
-
-        # After deposit, if standing on chest, immediately switch to gather to move away
-        if state.just_deposited:
-            gather_station = self._phase_to_station[GamePhase.GATHER_GERMANIUM]
-            if state.agent_row != -1 and "chest" in self._station_positions:
-                cr, cc = self._station_positions["chest"]
-                if (state.agent_row, state.agent_col) == (cr, cc):
-                    state.current_phase = GamePhase.GATHER_GERMANIUM
-                    station = gather_station
-                else:
-                    state.just_deposited = False
-            else:
-                state.current_phase = GamePhase.GATHER_GERMANIUM
-                station = gather_station
 
         # Glyph switching
         needed_glyph = self._station_to_glyph.get(station, "default")
@@ -1304,7 +1081,7 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
             glyph_id = self._glyph_name_to_id.get(needed_glyph, 0)
             return self._action_lookup.get(f"change_glyph_{glyph_id}", self._action_lookup.get("noop", 0))
 
-        # === NEW: Use extractor memory for gathering phases ===
+        # Gathering phases use extractor memory
         is_gathering_phase = state.current_phase in [
             GamePhase.GATHER_CARBON,
             GamePhase.GATHER_OXYGEN,
@@ -1315,9 +1092,7 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
 
         target_pos = None
         if is_gathering_phase and state.agent_row != -1:
-            # Try to find best extractor using memory
             target_pos = self._find_best_extractor_for_phase(state.current_phase, state)
-
             if target_pos is None:
                 # No available extractors - explore to find more
                 self._last_attempt_was_use = False
@@ -1327,18 +1102,16 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
             else:
                 logger.info(f"[Phase1] {state.current_phase.value}: Targeting extractor at {target_pos}")
 
-        # Fallback to old single-station logic for non-gathering phases or if extractor memory failed
+        # Fallback to legacy single-station logic
         if target_pos is None:
-            # Old logic: use legacy _station_positions
             if station in self._station_positions and state.agent_row != -1:
                 target_pos = self._station_positions[station]
             else:
-                # Unknown station: explore
                 self._last_attempt_was_use = False
                 plan = self._plan_to_frontier_action(state)
                 return plan if plan is not None else self._explore_simple(state)
 
-        # Use Navigator to find path to target
+        # Navigate
         start_pos = (state.agent_row, state.agent_col)
         dist = abs(target_pos[0] - start_pos[0]) + abs(target_pos[1] - start_pos[1])
 
@@ -1347,12 +1120,22 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
             target=target_pos,
             occupancy_map=self._occ,
             optimistic=True,
-            use_astar=True,  # Always use A*
-            astar_threshold=20,  # Fixed threshold
+            use_astar=True,
+            astar_threshold=20,
         )
 
-        # Adjacent - ready to use station
+        # Adjacent - ready to "use" by walking into the station.
         if result.is_adjacent:
+            e = self.extractor_memory.get_at_position(target_pos)
+            if e and state.wait_target == target_pos:
+                rem = self.cooldown_remaining(e, state.step_count)
+                if rem > 0:
+                    self._last_attempt_was_use = False
+                    logger.debug(f"[Wait] At {target_pos}, remaining cooldown~{rem}; idling (noop).")
+                    return self._action_lookup.get("noop", 0)
+                else:
+                    state.wait_target = None  # Clear wait target
+
             tr, tc = target_pos
             dr, dc = tr - state.agent_row, tc - state.agent_col
             self._last_attempt_was_use = True
@@ -1412,11 +1195,7 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
         return None
 
     def _choose_frontier(self, state: AgentState) -> Optional[Tuple[int, int]]:
-        """Pick the nearest frontier by BFS distance over known-free cells.
-
-        Phase 3: If critical stations not discovered, bias toward spawn area first, then map center.
-        Uses exploration_strategy hyperparameter to choose between frontier/levy/mixed.
-        """
+        """Pick a frontier by combined BFS distance and center bias when needed."""
         if state.agent_row < 0:
             return None
 
@@ -1425,104 +1204,60 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
         if not fronts:
             return None
 
-        # Filter frontiers by exploration_radius if configured
-        if 50 > 0:  # Fixed exploration_radius
-            # Filter to frontiers within radius of home base (if known) or current position
+        # Filter by exploration radius around home base if known; else keep all
+        EXPL_RADIUS = 50
+        if EXPL_RADIUS > 0:
             center = (state.home_base_row, state.home_base_col) if state.home_base_row >= 0 else start
-            fronts = {
-                (r, c)
-                for r, c in fronts
-                if abs(r - center[0]) + abs(c - center[1]) <= 50  # Fixed exploration_radius
-            }
-            if not fronts:
-                # If all frontiers filtered out, expand radius temporarily
-                fronts = set(self._compute_frontiers())
+            filtered = {(r, c) for (r, c) in fronts if abs(r - center[0]) + abs(c - center[1]) <= EXPL_RADIUS}
+            if filtered:
+                fronts = filtered
 
-        # Phase 3: If critical stations not found, prioritize spawn area FIRST
+        # If critical stations not found, try spawn-area bias then center bias
         if not state.assembler_discovered or not state.chest_discovered:
-            # Try spawn-area search first (if spawn is known)
             if state.home_base_row >= 0 and state.home_base_col >= 0:
-                spawn_radius = 30  # Search within 30 tiles of spawn
+                spawn_radius = 30
                 spawn_area_frontiers = [
                     (fr, fc)
                     for fr, fc in fronts
                     if abs(fr - state.home_base_row) + abs(fc - state.home_base_col) <= spawn_radius
                 ]
-
                 if spawn_area_frontiers:
-                    # Pick closest spawn-area frontier to agent (by Manhattan distance)
                     closest = min(spawn_area_frontiers, key=lambda p: abs(p[0] - start[0]) + abs(p[1] - start[1]))
                     logger.debug(f"[SpawnSearch] Prioritizing spawn-area frontier: {closest}")
                     return closest
-                else:
-                    logger.info(
-                        f"[SpawnSearch] Spawn area (radius {spawn_radius}) fully explored, switching to center bias"
-                    )
 
-            # Fallback: center bias (if no spawn-area frontiers or spawn unknown)
-            if True:  # Always prioritize center
-                map_center = (self._map_height // 2, self._map_width // 2)
+            # Center bias
 
-                # Score frontiers by: (1-weight) * BFS distance + weight * distance_to_center
-                # Lower score = better
-                best_frontier = None
-                best_score = float("inf")
+            map_center = (self._map_height // 2, self._map_width // 2)
+            q = deque([(start, 0)])
+            seen = {start}
+            reachable_frontiers = []
+            while q:
+                (r, c), dist = q.popleft()
+                for nr, nc in self._neighbors4(r, c):
+                    if (nr, nc) in fronts:
+                        reachable_frontiers.append(((nr, nc), dist + 1))
+                for nr, nc in self._neighbors4(r, c):
+                    if (nr, nc) in seen or self._occ[nr][nc] != self.OCC_FREE:
+                        continue
+                    seen.add((nr, nc))
+                    q.append(((nr, nc), dist + 1))
 
-                # Do BFS to find reachable frontiers with their distances
-                q = deque([(start, 0)])  # (position, distance)
-                seen = {start}
-                reachable_frontiers = []
+            best_frontier = None
+            best_score = float("inf")
+            denom = max(self._map_height, self._map_width)
+            for (fr, fc), bfs_dist in reachable_frontiers:
+                center_dist = abs(fr - map_center[0]) + abs(fc - map_center[1])
+                score = 0.5 * (bfs_dist / denom) + 0.5 * (center_dist / denom)
+                if score < best_score:
+                    best_score = score
+                    best_frontier = (fr, fc)
+            if best_frontier:
+                logger.debug(f"[Phase3] Center-biased frontier: {best_frontier} (score={best_score:.2f})")
+                return best_frontier
 
-                while q:
-                    (r, c), dist = q.popleft()
-
-                    # If a frontier is adjacent, record it
-                    for nr, nc in self._neighbors4(r, c):
-                        if (nr, nc) in fronts:
-                            reachable_frontiers.append(((nr, nc), dist + 1))
-
-                    # Expand over known-free cells
-                    for nr, nc in self._neighbors4(r, c):
-                        if (nr, nc) in seen or self._occ[nr][nc] != self.OCC_FREE:
-                            continue
-                        seen.add((nr, nc))
-                        q.append(((nr, nc), dist + 1))
-
-                # Score and select best frontier
-                for (fr, fc), bfs_dist in reachable_frontiers:
-                    center_dist = abs(fr - map_center[0]) + abs(fc - map_center[1])
-                    # Normalize distances to similar scale
-                    norm_bfs = bfs_dist / max(self._map_height, self._map_width)
-                    norm_center = center_dist / max(self._map_height, self._map_width)
-                    # Combined score: prefer close frontiers that are also near center
-                    score = (
-                        1 - 0.5  # Fixed center_bias_weight
-                    ) * norm_bfs + 0.5 * norm_center  # Fixed center_bias_weight
-
-                    if score < best_score:
-                        best_score = score
-                        best_frontier = (fr, fc)
-
-                if best_frontier:
-                    logger.debug(f"[Phase3] Center-biased frontier: {best_frontier} (score={best_score:.2f})")
-                    return best_frontier
-
-        # Use exploration_strategy to choose frontier selection method
-        strategy = "frontier"  # Fixed exploration_strategy (levy had worse performance)
-
-        if strategy == "levy":
-            # Lévy flight: Prefer distant frontiers with power-law distribution
-            return self._choose_frontier_levy(start, fronts)
-        elif strategy == "mixed":
-            # Mixed: Alternate between frontier (systematic) and levy (exploratory)
-            # Use step count to alternate
-            if state.step_count % 100 < 50:
-                return self._choose_frontier_bfs(start, fronts)
-            else:
-                return self._choose_frontier_levy(start, fronts)
-        else:  # "frontier" or default
-            # BFS: Pick nearest frontier (systematic exploration)
-            return self._choose_frontier_bfs(start, fronts)
+        # Default: nearest by BFS
+        return self._choose_frontier_bfs(start, fronts)
 
     def _choose_frontier_bfs(self, start: Tuple[int, int], fronts: Set[Tuple[int, int]]) -> Optional[Tuple[int, int]]:
         """Pick nearest frontier by BFS distance (systematic exploration)."""
@@ -1530,54 +1265,15 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
         seen = {start}
         while q:
             r, c = q.popleft()
-
-            # If a frontier is adjacent, choose it
             for nr, nc in self._neighbors4(r, c):
                 if (nr, nc) in fronts:
                     return (nr, nc)
-
-            # Otherwise expand over known-free cells
             for nr, nc in self._neighbors4(r, c):
                 if (nr, nc) in seen or self._occ[nr][nc] != self.OCC_FREE:
                     continue
                 seen.add((nr, nc))
                 q.append((nr, nc))
         return None
-
-    def _choose_frontier_levy(self, start: Tuple[int, int], fronts: Set[Tuple[int, int]]) -> Optional[Tuple[int, int]]:
-        """Pick frontier using Lévy flight distribution (exploratory, long jumps)."""
-        import random
-
-        if not fronts:
-            return None
-
-        # Calculate distances to all frontiers
-        frontier_list = list(fronts)
-        distances = [abs(f[0] - start[0]) + abs(f[1] - start[1]) for f in frontier_list]
-
-        if not distances:
-            return None
-
-        # Lévy flight: probability ~ distance^(-alpha)
-        # Higher alpha = prefer closer, lower alpha = more long jumps
-        alpha = 1.5  # Fixed levy_alpha
-
-        # Calculate weights (avoid division by zero)
-        weights = [(d + 1) ** (-alpha) for d in distances]
-        total_weight = sum(weights)
-
-        if total_weight == 0:
-            return random.choice(frontier_list)
-
-        # Weighted random selection
-        r = random.random() * total_weight
-        cumulative = 0
-        for i, w in enumerate(weights):
-            cumulative += w
-            if r <= cumulative:
-                return frontier_list[i]
-
-        return frontier_list[-1]  # Fallback
 
     def _compute_frontiers(self) -> List[Tuple[int, int]]:
         """Unknown cells that are 4-adjacent to a known free cell."""
@@ -1598,7 +1294,7 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
         return self._bfs_next_step(start, goal, optimistic=False)
 
     def _bfs_next_step_optimistic(self, start: Tuple[int, int], goal: Tuple[int, int]) -> Optional[Tuple[int, int]]:
-        """BFS treating unknown cells as walkable; avoids only known walls."""
+        """BFS treating unknown cells as walkable; avoids only known obstacles."""
         return self._bfs_next_step(start, goal, optimistic=True)
 
     def _bfs_next_step(
@@ -1635,184 +1331,13 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
             step = parent[step]  # type: ignore[assignment]
         return step
 
-    def _is_cell_passable(self, r: int, c: int, optimistic: bool) -> bool:
-        """Check if a cell is passable for BFS."""
+    def _is_cell_passable(self, r: int, c: int, optimistic: bool = False) -> bool:
+        """Check if a cell is passable for BFS or exploration."""
         cell_state = self._occ[r][c]
-        return (cell_state != self.OCC_WALL) if optimistic else (cell_state == self.OCC_FREE)
-
-    def _astar_next_step(
-        self, start: Tuple[int, int], goal: Tuple[int, int], optimistic: bool = True
-    ) -> Optional[Tuple[int, int]]:
-        """A* pathfinding with Manhattan distance heuristic.
-
-        Much faster than BFS on large maps with complex paths.
-        Returns next cell toward goal or None if no path exists.
-        """
-        import heapq
-
-        if start == goal:
-            return start
-
-        def heuristic(pos: Tuple[int, int]) -> int:
-            """Manhattan distance heuristic."""
-            return abs(pos[0] - goal[0]) + abs(pos[1] - goal[1])
-
-        # Priority queue: (f_score, g_score, position)
-        open_set = [(heuristic(start), 0, start)]
-        came_from: Dict[Tuple[int, int], Optional[Tuple[int, int]]] = {start: None}
-        g_score: Dict[Tuple[int, int], int] = {start: 0}
-
-        while open_set:
-            current_f, current_g, current = heapq.heappop(open_set)
-
-            # If we reached goal, reconstruct path
-            if current == goal:
-                return self._reconstruct_first_step(came_from, start, goal)
-
-            # Skip if we've found a better path to this node already
-            if current_g > g_score.get(current, float("inf")):
-                continue
-
-            # Explore neighbors
-            for next_pos in self._neighbors4(*current):
-                if not self._is_cell_passable(next_pos[0], next_pos[1], optimistic):
-                    continue
-
-                tentative_g = current_g + 1
-                if next_pos not in g_score or tentative_g < g_score[next_pos]:
-                    g_score[next_pos] = tentative_g
-                    f_score = tentative_g + heuristic(next_pos)
-                    heapq.heappush(open_set, (f_score, tentative_g, next_pos))
-                    came_from[next_pos] = current
-
-        return None  # No path found
-
-    def _choose_pathfinding(
-        self, start: Tuple[int, int], goal: Tuple[int, int], optimistic: bool = True
-    ) -> Optional[Tuple[int, int]]:
-        """Intelligently choose between BFS and A* based on distance.
-
-        - Use BFS for short distances (faster for small search spaces)
-        - Use A* for long distances (much faster on large mazes)
-        """
-        if not True:  # Always use A*
-            return self._bfs_next_step(start, goal, optimistic)
-
-        # Calculate Manhattan distance
-        distance = abs(goal[0] - start[0]) + abs(goal[1] - start[1])
-
-        # Use A* for long paths, BFS for short ones
-        if distance >= 20:  # Fixed astar_threshold
-            logger.debug(f"Using A* for distance {distance} (>= 20)")
-            return self._astar_next_step(start, goal, optimistic)
-        else:
-            return self._bfs_next_step(start, goal, optimistic)
-
-    def cooldown_remaining(self, extractor: ExtractorInfo, current_step: int) -> int:
-        """Calculate remaining cooldown turns for an extractor."""
-        if extractor.last_used_step < 0:
-            return 0  # Never used
-        elapsed = current_step - extractor.last_used_step
-        remaining = max(0, extractor.estimated_cooldown - elapsed)
-        return remaining
-
-    # ---------- Exploration fallback ----------
-    def _explore_simple(self, state: AgentState) -> int:
-        """Boustrophedon sweep with simple loop avoidance."""
-        if state.agent_row == -1:
-            return self._action_lookup.get("noop", 0)
-
-        # Track recent positions for loop avoidance
-        cur = (state.agent_row, state.agent_col)
-        if not self._recent_positions or self._recent_positions[-1] != cur:
-            self._recent_positions.append(cur)
-            if len(self._recent_positions) > self._max_recent_positions:
-                self._recent_positions.pop(0)
-
-        # Horizontal sweep based on row parity
-        row_parity = state.agent_row % 2
-        preferred_dir = self._MOVE_E if row_parity == 0 else self._MOVE_W
-
-        dr, dc = self._action_to_dir(preferred_dir)
-        nr, nc = state.agent_row + (dr or 0), state.agent_col + (dc or 0)
-        if preferred_dir in self._MOVE_SET and self._is_valid_position(nr, nc) and (nr, nc) not in self._wall_positions:
-            return preferred_dir
-
-        # Try moving down a row
-        down_r, down_c = state.agent_row + 1, state.agent_col
-        if self._is_valid_position(down_r, down_c) and (down_r, down_c) not in self._wall_positions:
-            return self._MOVE_S if self._MOVE_S != -1 else self._action_lookup.get("noop", 0)
-
-        # Otherwise pick any reasonable alternative, preferring not-recent cells
-        alt = self._find_best_exploration_direction(state)
-        return (
-            alt if alt is not None else (preferred_dir if preferred_dir != -1 else self._action_lookup.get("noop", 0))
-        )
-
-    def _find_best_exploration_direction(self, state: AgentState) -> Optional[int]:
-        """Pick a direction toward an in-bounds, not-wall cell; prefer not-recent."""
-        options = [
-            (self._MOVE_N, (-1, 0)),
-            (self._MOVE_S, (1, 0)),
-            (self._MOVE_E, (0, 1)),
-            (self._MOVE_W, (0, -1)),
-        ]
-        best_action, best_score = None, -1
-        for action, (dr, dc) in options:
-            nr, nc = state.agent_row + dr, state.agent_col + dc
-            if not self._is_valid_position(nr, nc):
-                continue
-            pos = (nr, nc)
-            if pos in self._wall_positions:
-                continue
-            score = 10 if pos not in self._recent_positions else self._recent_positions.index(pos)
-            if score > best_score:
-                best_score = score
-                best_action = action
-        return best_action
-
-    # ---------- Utilities ----------
-    @staticmethod
-    def _to_int(x) -> int:
-        """Convert various numeric types to int."""
-        if isinstance(x, int):
-            return x
-
-        # Handle arrays/sequences - always take first element
-        if hasattr(x, "__len__"):
-            # Multi-element array - take first
-            if len(x) > 1:
-                return int(x[0])
-            # Single element array
-            elif len(x) == 1:
-                # Recursively convert the single element
-                return ScriptedAgentPolicyImpl._to_int(x[0])
-
-        # Handle numpy/torch scalars
-        if hasattr(x, "item"):
-            return int(x.item())
-
-        return int(x)
-
-    def _is_valid_position(self, r: int, c: int) -> bool:
-        """Check map bounds."""
-        return 0 <= r < self._map_height and 0 <= c < self._map_width
-
-    def _mark_cell(self, r: int, c: int, cell_type: int) -> None:
-        """Mark occupancy if in-bounds."""
-        if self._is_valid_position(r, c):
-            self._occ[r][c] = cell_type
-
-    def _neighbors4(self, r: int, c: int) -> List[Tuple[int, int]]:
-        """4-connected neighbors inside bounds."""
-        res: List[Tuple[int, int]] = []
-        for dr, dc in ((-1, 0), (1, 0), (0, -1), (0, 1)):
-            nr, nc = r + dr, c + dc
-            if self._is_valid_position(nr, nc):
-                res.append((nr, nc))
-        return res
+        return (cell_state != self.OCC_OBSTACLE) if optimistic else (cell_state == self.OCC_FREE)
 
     def _action_to_dir(self, action_idx: int) -> Tuple[Optional[int], Optional[int]]:
+        """Convert action index to direction delta (dr, dc)."""
         if action_idx == self._MOVE_N:
             return -1, 0
         if action_idx == self._MOVE_S:
@@ -1824,6 +1349,8 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
         return None, None
 
     def _step_toward(self, dr: int, dc: int) -> int:
+        """Convert direction delta to move action."""
+        self._ensure_move_indices()
         if dr > 0:
             return self._MOVE_S
         if dr < 0:
@@ -1861,19 +1388,14 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
             pass
 
     def _has_heart_from_obs(self, obs: MettaGridObservation) -> bool:
-        """Heart present only if FIRST 'inv:heart' token's first field == 85 (0x55)."""
+        """Heart present only if FIRST 'inv:heart' token's FIRST FIELD == 0x55."""
         heart_fid = self._feature_name_to_id.get(self.HEART_FEATURE_NAME)
         if heart_fid is None:
             return False
-        first_idx = None
-        for i, tok in enumerate(obs):
+        for tok in obs:
             if self._to_int(tok[1]) == heart_fid:
-                first_idx = i
-                break
-        if first_idx is None:
-            return False
-        first_tok = obs[first_idx]
-        return self._to_int(first_tok[0]) == self.HEART_SENTINEL_FIRST_FIELD
+                return self._to_int(tok[0]) == self.HEART_SENTINEL_FIRST_FIELD
+        return False
 
     def _read_int_feature(self, obs: MettaGridObservation, feat_name: str) -> int:
         fid = self._feature_name_to_id.get(feat_name)
@@ -1893,49 +1415,109 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
         state.energy = self._read_int_feature(obs, "inv:energy")
         state.heart = 1 if self._has_heart_from_obs(obs) else 0
 
-        # Detect energy regen rate from passive regeneration
-        # Measure during movement: energy_change = -1 (move cost) + regen_rate
-        # So: regen_rate = energy_change + 1
-        if self._last_action_idx in self._MOVE_SET and self._prev_energy > 0:
-            energy_change = state.energy - self._prev_energy
-            # Regen rate = observed change + move cost (1)
-            regen_rate_sample = energy_change + 1.0
+    # ---------- Exploration fallback ----------
+    def _explore_simple(self, state: AgentState) -> int:
+        """Boustrophedon sweep with simple preference for not-recent cells."""
+        if state.agent_row == -1:
+            return self._action_lookup.get("noop", 0)
 
-            # Only accept reasonable values (0.5 to 2.0)
-            if 0.5 <= regen_rate_sample <= 2.0:
-                self._energy_regen_samples.append(regen_rate_sample)
+        if not hasattr(self, "_recent_positions"):
+            self._recent_positions: List[Tuple[int, int]] = []
+            self._max_recent_positions: int = 10
 
-                # Keep only recent samples (last 20)
-                if len(self._energy_regen_samples) > 20:
-                    self._energy_regen_samples.pop(0)
+        cur = (state.agent_row, state.agent_col)
+        if not self._recent_positions or self._recent_positions[-1] != cur:
+            self._recent_positions.append(cur)
+            if len(self._recent_positions) > self._max_recent_positions:
+                self._recent_positions.pop(0)
 
-                # Update regen rate as average of samples
-                if len(self._energy_regen_samples) >= 3:
-                    self._energy_regen_rate = sum(self._energy_regen_samples) / len(self._energy_regen_samples)
+        # Ensure move indices initialized
+        if not hasattr(self, "_MOVE_N"):
+            self._action_to_dir(-999)
 
-        self._prev_energy = state.energy
+        # Horizontal sweep based on row parity
+        row_parity = state.agent_row % 2
+        preferred_dir = self._MOVE_E if row_parity == 0 else self._MOVE_W
 
-    # ---------- Loop breaker ----------
-    def _apply_cycle_breaker(self, state: AgentState, action_idx: int) -> None:
-        """If we keep repeating (pos, action), try a different direction."""
-        key = (state.agent_row, state.agent_col, action_idx)
-        self._loop_window.append(key)
-        if len(self._loop_window) > self._loop_window_max:
-            self._loop_window.pop(0)
+        dr, dc = self._action_to_dir(preferred_dir)
+        nr, nc = state.agent_row + (dr or 0), state.agent_col + (dc or 0)
+        if preferred_dir in self._MOVE_SET and self._is_valid_position(nr, nc) and self._is_cell_passable(nr, nc):
+            return preferred_dir
 
-        # If the same key appears more than 3 times in the window, perturb
-        if self._loop_window.count(key) > 3:
-            if state.step_count % 10 == 0:
-                action_name = self._action_names[action_idx]
-                logger.info(f"Stuck at ({state.agent_row},{state.agent_col}) action={action_name}, trying alternatives")
-            for a in (self._MOVE_E, self._MOVE_W, self._MOVE_S, self._MOVE_N):
-                if a in self._MOVE_SET and a != action_idx:
-                    # Replace last action attempt with a perturbation
-                    self._loop_window = []
-                    self._last_action_idx = a
-                    break
+        # Try moving down a row
+        down_r, down_c = state.agent_row + 1, state.agent_col
+        if self._is_valid_position(down_r, down_c) and self._is_cell_passable(down_r, down_c):
+            return self._MOVE_S if self._MOVE_S != -1 else self._action_lookup.get("noop", 0)
 
-    # ---------- Optional logging ----------
+        # Otherwise pick any reasonable alternative, preferring not-recent cells
+        alt = self._find_best_exploration_direction(state)
+        return (
+            alt if alt is not None else (preferred_dir if preferred_dir != -1 else self._action_lookup.get("noop", 0))
+        )
+
+    def _find_best_exploration_direction(self, state: AgentState) -> Optional[int]:
+        """Pick a direction toward an in-bounds, passable cell; prefer not-recent."""
+        # Ensure move indices initialized
+        if not hasattr(self, "_MOVE_N"):
+            self._action_to_dir(-999)
+
+        options = [
+            (self._MOVE_N, (-1, 0)),
+            (self._MOVE_S, (1, 0)),
+            (self._MOVE_E, (0, 1)),
+            (self._MOVE_W, (0, -1)),
+        ]
+        best_action, best_score = None, -1
+        for action, (dr, dc) in options:
+            nr, nc = state.agent_row + dr, state.agent_col + dc
+            if not self._is_valid_position(nr, nc):
+                continue
+            pos = (nr, nc)
+            if not self._is_cell_passable(nr, nc):
+                continue
+            score = (
+                10
+                if not hasattr(self, "_recent_positions") or pos not in self._recent_positions
+                else self._recent_positions.index(pos)
+            )
+            if score > best_score:
+                best_score = score
+                best_action = action
+        return best_action
+
+    # ---------- Utilities ----------
+    @staticmethod
+    def _to_int(x) -> int:
+        """Convert various numeric types to int."""
+        if isinstance(x, int):
+            return x
+        if hasattr(x, "__len__"):
+            if len(x) > 1:
+                return int(x[0])
+            elif len(x) == 1:
+                return ScriptedAgentPolicyImpl._to_int(x[0])
+        if hasattr(x, "item"):
+            return int(x.item())
+        return int(x)
+
+    def _is_valid_position(self, r: int, c: int) -> bool:
+        """Check map bounds."""
+        return 0 <= r < self._map_height and 0 <= c < self._map_width
+
+    def _mark_cell(self, r: int, c: int, cell_type: int) -> None:
+        """Mark occupancy if in-bounds."""
+        if self._is_valid_position(r, c):
+            self._occ[r][c] = cell_type
+
+    def _neighbors4(self, r: int, c: int) -> List[Tuple[int, int]]:
+        """4-connected neighbors inside bounds."""
+        res: List[Tuple[int, int]] = []
+        for dr, dc in ((-1, 0), (1, 0), (0, -1), (0, 1)):
+            nr, nc = r + dr, c + dc
+            if self._is_valid_position(nr, nc):
+                res.append((nr, nc))
+        return res
+
     def _print_step_log(self, action_idx: int, state: AgentState) -> None:
         try:
             action_name = self._action_names[action_idx] if 0 <= action_idx < len(self._action_names) else "?"
@@ -1970,11 +1552,8 @@ class ScriptedAgentPolicy(Policy):
 
     def reset(self, obs, info):
         """Reset policy state."""
-        # Get env from info if not provided during __init__
         if self._env is None and "env" in info:
             self._env = info["env"]
-
-        # Create impl if needed
         if self._impl is None:
             if self._env is None:
                 raise RuntimeError("ScriptedAgentPolicy needs env - provide during __init__ or in info['env']")
