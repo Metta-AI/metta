@@ -8,6 +8,8 @@ from cortex.blocks import (
     PostUpBlock,
     PreUpBlock,
     build_block,
+    build_column_auto_block,
+    build_column_auto_config,
     register_block,
 )
 from cortex.cells import (
@@ -34,6 +36,7 @@ from cortex.config import (
     PostUpBlockConfig,
     PreUpBlockConfig,
     RouterConfig,
+    XLCellConfig,
     mLSTMCellConfig,
     sLSTMCellConfig,
 )
@@ -56,6 +59,7 @@ __all__ = [
     "AxonConfig",
     "CausalConv1dConfig",
     "LSTMCellConfig",
+    "XLCellConfig",
     "mLSTMCellConfig",
     "sLSTMCellConfig",
     # Main classes
@@ -74,6 +78,8 @@ __all__ = [
     "BaseBlock",
     "AdapterBlock",
     "ColumnBlock",
+    "build_column_auto_config",
+    "build_column_auto_block",
     "PassThroughBlock",
     "PreUpBlock",
     "PostUpBlock",
