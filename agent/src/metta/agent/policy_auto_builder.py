@@ -11,7 +11,7 @@ from torchrl.data import Composite, UnboundedDiscrete
 
 from metta.agent.policy import Policy
 from metta.rl.training import GameRules
-from mettagrid.base_config import Config
+from mettagrid.config import Config
 
 logger = logging.getLogger("metta_agent")
 

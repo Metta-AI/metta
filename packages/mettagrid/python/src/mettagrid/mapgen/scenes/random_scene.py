@@ -1,6 +1,6 @@
 import numpy as np
 
-from mettagrid.base_config import Config
+from mettagrid.config import Config
 from mettagrid.mapgen.scene import ChildrenAction, Scene, SceneConfig
 
 

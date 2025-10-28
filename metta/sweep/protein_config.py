@@ -10,7 +10,7 @@ from typing import Any, Dict, Literal
 from pydantic import Field
 
 from metta.sweep.core import ParameterConfig
-from mettagrid.base_config import Config
+from mettagrid.config import Config
 
 
 class ProteinSettings(Config):
