@@ -1,6 +1,5 @@
 from pathlib import Path
-from types import MethodType
-from typing import Any, Callable, List, Optional, cast
+from typing import Any, cast
 
 from pydantic import Field
 
@@ -230,7 +229,7 @@ HELLO_WORLD = Site(
 MACHINA_1 = Site(
     name="machina_1",
     description="Your first mission. Collect resources and assemble HEARTs.",
-    # Originally was get_map("machina_00_stations.map"), but that was hard to make missions from
+    # Originally was get_map("machina_200_stations.map"), but that was hard to make missions from
     map_builder=make_machina_procedural_map_builder(
         num_cogs=4,
         width=200,
@@ -285,7 +284,7 @@ class HarvestMission(Mission):
         for name in ("germanium_extractor", "carbon_extractor", "oxygen_extractor", "silicon_extractor"):
             cfg = env.game.objects.get(name)
             if cfg is not None:
-                cfg.max_uses = 100  # type: ignore[attr-defined]
+                cast(Any, cfg).max_uses = 100
         return env
 
 
@@ -303,7 +302,7 @@ class AssembleMission(Mission):
         for name in ("germanium_extractor", "carbon_extractor", "oxygen_extractor", "silicon_extractor"):
             cfg = env.game.objects.get(name)
             if cfg is not None:
-                cfg.max_uses = 100  # type: ignore[attr-defined]
+                cast(Any, cfg).max_uses = 100
         return env
 
 
@@ -560,35 +559,3 @@ def make_game(num_cogs: int = 2, map_name: str = "training_facility_open_1.map")
     # Use no variant (default)
     variant = MissionVariant(name="default", description="Default mission variant")
     return mission.instantiate(map_builder, num_cogs, variant).make_env()
-
-
-def _add_make_env_modifier(mission: Mission, modifier: Callable[[MettaGridConfig], None]) -> Mission:
-    modifiers_attr: Optional[List[Callable[[MettaGridConfig], None]]] = getattr(mission, "__env_modifiers__", None)
-
-    if modifiers_attr is None:
-        original_make_env = mission.make_env.__func__
-        original_instantiate = mission.instantiate.__func__
-
-        def wrapped_make_env(self, *args, **kwargs):
-            cfg = original_make_env(self, *args, **kwargs)
-            for fn in getattr(self, "__env_modifiers__", []):
-                fn(cfg)
-            return cfg
-
-        def wrapped_instantiate(self, *args, **kwargs):
-            instantiated = original_instantiate(self, *args, **kwargs)
-            parent_mods = getattr(self, "__env_modifiers__", [])
-            if parent_mods:
-                object.__setattr__(instantiated, "__env_modifiers__", list(parent_mods))
-                object.__setattr__(instantiated, "make_env", MethodType(wrapped_make_env, instantiated))
-                object.__setattr__(instantiated, "instantiate", MethodType(wrapped_instantiate, instantiated))
-            return instantiated
-
-        object.__setattr__(mission, "__env_modifiers__", [])
-        object.__setattr__(mission, "make_env", MethodType(wrapped_make_env, mission))
-        object.__setattr__(mission, "instantiate", MethodType(wrapped_instantiate, mission))
-    modifiers: List[Callable[[MettaGridConfig], None]] = cast(
-        List[Callable[[MettaGridConfig], None]], mission.__env_modifiers__
-    )
-    modifiers.append(modifier)
-    return mission
