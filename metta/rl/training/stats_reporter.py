@@ -721,16 +721,20 @@ class StatsReporter(TrainerComponent):
 
     def _get_tracked_task_ids(self, curriculum: Any) -> list[int]:
         """Get first 3 task IDs for detailed tracking."""
-        # Get active tasks from curriculum
-        if not hasattr(curriculum, "_task_pool"):
+        # Get active tasks from curriculum (stored in _tasks dict)
+        if not hasattr(curriculum, "_tasks"):
+            logger.warning("Curriculum has no _tasks attribute")
             return []
 
-        task_pool = curriculum._task_pool
-        if not task_pool:
+        tasks = curriculum._tasks
+        if not tasks:
+            logger.info("Curriculum task pool is empty (early in training)")
             return []
 
         # Return first 3 task IDs (or fewer if pool is smaller)
-        return list(task_pool.keys())[:3]
+        task_ids = list(tasks.keys())[:3]
+        logger.info(f"Found {len(tasks)} total tasks, tracking first 3: {task_ids}")
+        return task_ids
 
     def _get_per_label_lp_stats(self, curriculum: Any) -> dict[str, float]:
         """Get per-label LP scores from curriculum algorithm.
@@ -741,22 +745,27 @@ class StatsReporter(TrainerComponent):
 
         algorithm = getattr(curriculum, "_algorithm", None)
         if not algorithm:
+            logger.info("No algorithm found in curriculum")
             return stats
 
-        # Get task pool from curriculum
-        task_pool = getattr(curriculum, "_task_pool", None)
-        if not task_pool:
+        # Get task pool from curriculum (stored in _tasks dict)
+        tasks = getattr(curriculum, "_tasks", None)
+        if not tasks:
+            logger.info("No tasks found in curriculum for per-label stats")
             return stats
 
         # Get per-label aggregated scores from algorithm (Step 5 provides this)
         if hasattr(algorithm, "get_per_label_lp_scores"):
-            per_label_scores = algorithm.get_per_label_lp_scores(task_pool)
+            per_label_scores = algorithm.get_per_label_lp_scores(tasks)
+            logger.info(f"Algorithm returned per-label scores for {len(per_label_scores)} labels")
             for label, score_dict in per_label_scores.items():
                 stats[f"curriculum_stats/per_label_lp_scores/{label}"] = float(score_dict.get("raw", 0.0))
                 stats[f"curriculum_stats/per_label_postzscored_lp_scores/{label}"] = float(
                     score_dict.get("postzscored", 0.0)
                 )
                 stats[f"curriculum_stats/per_label_lp_probs/{label}"] = float(score_dict.get("prob", 0.0))
+        else:
+            logger.warning("Algorithm does not have get_per_label_lp_scores method")
 
         return stats
 
