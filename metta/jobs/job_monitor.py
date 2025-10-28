@@ -208,12 +208,27 @@ class JobMonitor:
 
             print(line)
 
-            # Show artifacts if requested
-            if show_artifacts and status_str == "completed":
-                if "wandb_url" in job_status:
-                    print(f"    📊 WandB: {job_status['wandb_url']}")
-                if "checkpoint_uri" in job_status:
-                    print(f"    💾 Checkpoint: {job_status['checkpoint_uri']}")
+            # Show additional details for completed jobs
+            if status_str == "completed":
+                # For failures, always show exit code and logs
+                if not job_status.get("success"):
+                    exit_code = job_status.get("exit_code", "unknown")
+                    print(f"    ⚠️  Exit code: {exit_code}")
+
+                    # Show log path if available
+                    if "logs_path" in job_status:
+                        print(f"    📝 Logs: {job_status['logs_path']}")
+
+                # Show artifacts if requested
+                if show_artifacts:
+                    if "wandb_url" in job_status:
+                        print(f"    📊 WandB: {job_status['wandb_url']}")
+                    if "checkpoint_uri" in job_status:
+                        print(f"    💾 Checkpoint: {job_status['checkpoint_uri']}")
+
+                    # Show logs for successful jobs too when showing artifacts
+                    if job_status.get("success") and "logs_path" in job_status:
+                        print(f"    📝 Logs: {job_status['logs_path']}")
 
 
 def get_status_symbol(status: str) -> str:
