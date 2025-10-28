@@ -8,6 +8,7 @@ from .mettagrid_config import (
     AssemblerConfig,
     AttackActionConfig,
     ChangeGlyphActionConfig,
+    ClipperConfig,
     ConverterConfig,
     GameConfig,
     GlobalObsConfig,
@@ -30,6 +31,7 @@ __all__ = [
     "GameConfig",
     "GlobalObsConfig",
     "MettaGridConfig",
+    "ClipperConfig",
     "ProtocolConfig",
     "WallConfig",
 ]
