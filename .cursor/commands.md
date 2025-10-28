@@ -117,6 +117,7 @@ metta lint --staged --fix
 ```
 
 **Supported File Types:**
+
 - `python` - Python files (ruff format + ruff check)
 - `json` - JSON files
 - `markdown` (alias: `md`) - Markdown files

@@ -80,6 +80,9 @@ class Mission(Config):
     gear_capacity: int = Field(default=5)
     move_energy_cost: int = Field(default=2)
     heart_capacity: int = Field(default=1)
+    # Control glyph swapping in variants
+    enable_glyph_change: bool = Field(default=True)
+    glyph_count: int | None = Field(default=None)
 
     def configure(self):
         pass
@@ -138,7 +141,13 @@ class Mission(Config):
             actions=ActionsConfig(
                 move=ActionConfig(consumed_resources={"energy": self.move_energy_cost}),
                 noop=ActionConfig(),
-                change_glyph=ChangeGlyphActionConfig(number_of_glyphs=len(vibes.VIBES)),
+                change_glyph=ChangeGlyphActionConfig(
+                    number_of_glyphs=(
+                        0
+                        if not self.enable_glyph_change
+                        else (self.glyph_count if self.glyph_count is not None else len(vibes.VIBES))
+                    )
+                ),
             ),
             agent=AgentConfig(
                 resource_limits={
@@ -155,6 +164,7 @@ class Mission(Config):
                 },
                 shareable_resources=["energy"],
                 inventory_regen_amounts={"energy": self.energy_regen_amount},
+                diversity_tracked_resources=["energy", "carbon", "oxygen", "germanium", "silicon"],
             ),
             inventory_regen_interval=1,
             clipper=ClipperConfig(
@@ -190,4 +200,25 @@ class Mission(Config):
                 **RESOURCE_CHESTS,
             },
         )
+
+        if hasattr(self, "heart_chorus_length"):
+            length_raw = self.heart_chorus_length
+            try:
+                chorus_len = max(1, int(length_raw))
+            except Exception:
+                chorus_len = 4
+            inputs = getattr(
+                self,
+                "heart_chorus_inputs",
+                {"carbon": 1, "oxygen": 1, "germanium": 1, "silicon": 1, "energy": 1},
+            )
+            assembler_cfg = game.objects.get("assembler")
+            if isinstance(assembler_cfg, CvCAssemblerConfig):
+                chorus = ProtocolConfig(input_resources=dict(inputs), output_resources={"heart": 1}, cooldown=1)
+                non_heart = [
+                    (vibes_list, recipe)
+                    for vibes_list, recipe in assembler_cfg.recipes
+                    if recipe.output_resources.get("heart", 0) == 0
+                ]
+                assembler_cfg.recipes = [(["heart"] * chorus_len, chorus), *non_heart]
         return MettaGridConfig(game=game)

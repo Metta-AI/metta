@@ -26,7 +26,7 @@ runs:
     - name: Install uv with built-in caching
       uses: astral-sh/setup-uv@v6
       with:
-        version: "0.7.3"
+        version: "0.9.5"
         enable-cache: true
         prune-cache: false
         cache-suffix: "${{ inputs.install-mode }}-${{ steps.hash.outputs.hash }}"

@@ -63,7 +63,27 @@ class LonelyHeartVariant(MissionVariant):
 
     def apply(self, mission: Mission) -> Mission:
         mission.assembler.heart_cost = 1
-        return mission
+
+        def modifier(cfg: MettaGridConfig) -> None:
+            simplified_inputs = {"carbon": 1, "oxygen": 1, "germanium": 1, "silicon": 1, "energy": 1}
+
+            assembler = cfg.game.objects.get("assembler")
+            if assembler is None:
+                return
+
+            heart_recipe = ProtocolConfig(
+                input_resources=dict(input_resources), output_resources={"heart": 1}, cooldown=1
+            )
+
+            non_heart_recipes = [
+                (existing_vibe_tokens, recipe)
+                for existing_vibe_tokens, recipe in assembler.recipes
+                if recipe.output_resources.get("heart", 0) == 0
+            ]
+
+            assembler.recipes = [(["default"], heart_recipe), *non_heart_recipes]
+
+        return _add_make_env_modifier(mission, modifier)
 
 
 class BrightSideVariant(MissionVariant):
@@ -90,6 +110,49 @@ class SolarFlareVariant(MissionVariant):
 
     def apply(self, mission: Mission) -> Mission:
         mission.charger.efficiency -= 50
+        return mission
+
+
+class PackRatVariant(MissionVariant):
+    name: str = "pack_rat"
+    description: str = "Raise heart, cargo, energy, and gear caps to 255."
+
+    def apply(self, mission: Mission) -> Mission:
+        mission.heart_capacity = max(mission.heart_capacity, 255)
+        mission.energy_capacity = max(mission.energy_capacity, 255)
+        mission.cargo_capacity = max(mission.cargo_capacity, 255)
+        mission.gear_capacity = max(mission.gear_capacity, 255)
+        return mission
+
+
+class EnergizedVariant(MissionVariant):
+    name: str = "energized"
+    description: str = "Max energy and full regen so agents never run dry."
+
+    def apply(self, mission: Mission) -> Mission:
+        mission.energy_capacity = max(mission.energy_capacity, 255)
+        mission.energy_regen_amount = mission.energy_capacity
+        return mission
+
+
+class NeutralFacedVariant(MissionVariant):
+    name: str = "neutral_faced"
+    description: str = "Disable glyph swapping; keep neutral face."
+
+    def apply(self, mission: Mission) -> Mission:
+        mission.enable_glyph_change = False
+        mission.glyph_count = 1
+        return mission
+
+
+class HeartChorusVariant(MissionVariant):
+    name: str = "heart_chorus"
+    description: str = "Hearts require a chorus of 4 heart vibes and simple inputs."
+
+    def apply(self, mission: Mission) -> Mission:
+        # Default to 4 heart tokens; inputs can be adjusted if needed
+        mission.heart_chorus_length = 4
+        mission.heart_chorus_inputs = {"carbon": 1, "oxygen": 1, "germanium": 1, "silicon": 1, "energy": 1}
         return mission
 
 
@@ -196,6 +259,11 @@ VARIANTS = [
     StoreBaseVariant,
     ExtractorBaseVariant,
     BothBaseVariant,
+    LonelyHeartVariant,
+    PackRatVariant,
+    EnergizedVariant,
+    NeutralFacedVariant,
+    HeartChorusVariant,
 ]
 
 
