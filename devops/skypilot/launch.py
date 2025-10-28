@@ -238,7 +238,16 @@ def _build_ray_launch_task(
             fi
 
             echo "[Ray Sweep] Starting worker node ${{SKYPILOT_NODE_RANK}} -> $HEAD_IP:{ray_port}"
-            ray stop --force >/dev/null 2>&1 || true
+
+            # Clean up any existing Ray processes (same as head node)
+            echo "[Ray Sweep] Checking for existing Ray processes on worker..."
+            if ray status >/dev/null 2>&1; then
+                echo "[Ray Sweep] Existing Ray found, stopping gracefully..."
+                ray stop || echo "[Ray Sweep] Graceful stop failed, trying force stop..."
+                sleep 2
+            fi
+            ray stop --force 2>&1 | grep -v "No such file or directory" || true
+            sleep 2
 
             echo "[Ray Sweep] Executing: ray start --address $HEAD_IP:{ray_port} --disable-usage-stats --object-store-memory=100000000 --block"
             if ! ray start --address "$HEAD_IP:{ray_port}" --disable-usage-stats \
