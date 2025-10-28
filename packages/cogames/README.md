@@ -185,9 +185,9 @@ for step in range(1000):
         obs, info = env.reset()
 ```
 
-### `cogames eval -m [MISSION] -p POLICY [-p POLICY...]`
+### `cogames eval -m [MISSION] [-m MISSION...] -p POLICY [-p POLICY...]`
 
-Evaluate one or more policies
+Evaluate one or more policies on one more more missions
 
 **Policy** Note that here, you can provide multiple `-p POLICY` arguments if you want to run evaluations on mixed-policy
 populations.
@@ -204,8 +204,9 @@ cogames eval -m machina_1 -p simple:train_dir/model.pt:3 -p random::5
 
 **Options:**
 
-- `--episodes N`: Number of episodes (default: 10)
+- `--episodes N`: Number of episodes per mission (default: 10)
 - `--action-timeout-ms N`: Timeout per action (default: 250ms)
+- `--steps N`: Max steps per episode
 
 When multiple policies are provided, `cogames eval` fixes the number of agents each policy will control, but randomizes
 their assignments each episode.

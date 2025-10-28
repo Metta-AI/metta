@@ -161,6 +161,12 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
         for resource_name, amount in agent_props.get("inventory_regen_amounts", {}).items():
             inventory_regen_amounts[resource_name_to_id[resource_name]] = amount
 
+        diversity_tracked_resources = [
+            resource_name_to_id[resource_name]
+            for resource_name in agent_props.get("diversity_tracked_resources", [])
+            if resource_name in resource_name_to_id
+        ]
+
         # Build inventory config with support for grouped limits
         limits_list = []
 
@@ -200,6 +206,7 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
             "soul_bound_resources": soul_bound_resources,
             "shareable_resources": shareable_resources,
             "inventory_regen_amounts": inventory_regen_amounts,
+            "diversity_tracked_resources": diversity_tracked_resources,
         }
         cpp_agent_config = CppAgentConfig(**agent_cpp_params)
         cpp_agent_config.tag_ids = tag_ids

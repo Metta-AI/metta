@@ -52,7 +52,6 @@ export default function InstitutionOverlay({
       source: paper.source || null,
       externalId: paper.externalId || null,
       stars: paper.stars || 0,
-      starred: paper.starred || false,
       createdAt: paper.createdAt ? new Date(paper.createdAt) : new Date(),
       updatedAt: paper.updatedAt ? new Date(paper.updatedAt) : new Date(),
       isStarredByCurrentUser: paper.isStarredByCurrentUser || false,

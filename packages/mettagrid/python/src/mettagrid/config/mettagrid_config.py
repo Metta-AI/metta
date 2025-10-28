@@ -58,6 +58,10 @@ class AgentConfig(Config):
     inventory_regen_amounts: dict[str, int] = Field(
         default_factory=dict, description="Resources to regenerate and their amounts per regeneration interval"
     )
+    diversity_tracked_resources: list[str] = Field(
+        default_factory=list,
+        description="Resource names that contribute to inventory diversity metrics",
+    )
 
 
 class ActionConfig(Config):

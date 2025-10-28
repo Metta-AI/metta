@@ -7,7 +7,6 @@ Quick start
 
 - CPU/GPU is auto-detected. CUDA is used when available.
 - Run one or all stacks against a task:
-
   - Single stack
     - `python packages/cortex/evaluations/run.py --task delayed_recall --stack slstm_postup`
   - All registered stacks
@@ -34,7 +33,6 @@ Notes
 Tasks
 
 - Delayed Recall (T‑Maze)
-
   - Tokens: {0, 1, 2} where 2 is a filler/PAD token.
   - Sequence: length = delay + 1. The first token is a binary cue bit (0/1); the remaining positions are filler (2).
   - Label: equals the cue bit. The model must store the first token across a variable delay and recall it at the end.
@@ -43,7 +41,6 @@ Tasks
   - Defaults here: delay=50, vocab_size=3, binary classification.
 
 - Majority (Running Majority / Counting)
-
   - Tokens: {0 (pad), 1 ("+1"), 2 ("‑1")}.
   - Sequence: fixed length L. Each position is non‑zero with probability p; non‑zeros are equally likely 1 or 2.
   - Label: 1 if count(1) > count(2); otherwise 0.

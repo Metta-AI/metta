@@ -9,9 +9,8 @@ DEFAULT_COGAMES_SERVER = "https://softmax.com/api"
 class CoGamesAuthenticator(BaseCLIAuthenticator):
     """CLI Authenticator for CoGames, storing tokens in cogames.yaml under 'login_tokens' key."""
 
-    def __init__(self, auth_server_url: str):
+    def __init__(self):
         super().__init__(
-            auth_server_url=auth_server_url,
             token_file_name="cogames.yaml",
             token_storage_key="login_tokens",  # Nested under 'login_tokens' key
         )
@@ -28,11 +27,11 @@ def perform_login(auth_server_url: str, force: bool = False, timeout: int = 300)
     Returns:
         True if authentication successful, False otherwise
     """
-    authenticator = CoGamesAuthenticator(auth_server_url=auth_server_url)
+    authenticator = CoGamesAuthenticator()
 
     # Check if we already have a token
-    if authenticator.has_saved_token() and not force:
+    if authenticator.has_saved_token(auth_server_url) and not force:
         return True
 
     # Perform authentication
-    return authenticator.authenticate(timeout=timeout)
+    return authenticator.authenticate(auth_server_url=auth_server_url, token_key=auth_server_url, timeout=timeout)

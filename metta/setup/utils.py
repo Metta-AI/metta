@@ -15,7 +15,7 @@ T = TypeVar("T")
 
 @functools.cache
 def get_console() -> Console:
-    return Console()
+    return Console(soft_wrap=True)
 
 
 def _format_message(message: str, indent: int = 0) -> str:

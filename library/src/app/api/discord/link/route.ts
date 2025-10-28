@@ -7,7 +7,7 @@ import { withErrorHandler } from "@/lib/api/error-handler";
 import { Logger } from "@/lib/logging/logger";
 
 // GET /api/discord/link - Get Discord linking status
-export const GET = withErrorHandler(async () => {
+export const GET = withErrorHandler(async (): Promise<NextResponse> => {
   const session = await auth();
 
   if (!isSignedIn(session)) {

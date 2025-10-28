@@ -52,7 +52,6 @@ Follow the repository-wide rules described in `/AGENTS.md`:
 - common.ts is imported by most parts of mettascope and contains all the state.
 - Most 'magic number' constants should live in ./mettascope/src/common.ts
 - code is expected to fail fast and loudly. DO NOT use silent error suppression or error hiding.
-
   - if a function gets invalid input, we should throw an error.
   - if a function returns an error, allow that error to bubble up.
 

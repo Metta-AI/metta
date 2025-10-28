@@ -67,7 +67,6 @@ type
     frozenTime*: int
     visionSize*: int
 
-
     # Building specific keys.
     inputResources*: seq[ItemAmount]
     outputResources*: seq[ItemAmount]

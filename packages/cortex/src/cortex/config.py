@@ -1,10 +1,4 @@
-"""Configuration classes for Cortex cells, blocks, and stacks.
-
-This module now includes lightweight type tags (``cell_type`` / ``block_type``)
-and parsing validators so JSON round‑trips reconstruct concrete subclasses
-without central hard‑coded unions. Adding a new cell/block remains as simple as
-defining the config class with its tag and registering the implementation.
-"""
+"""Configuration classes for Cortex cells, blocks, and stacks with type tags for JSON serialization."""
 
 from __future__ import annotations
 
@@ -86,13 +80,24 @@ class sLSTMCellConfig(CellConfig):
     axon_layer_config: AxonConfig | None = Field(default=None)
 
 
-class AxonConfig(CellConfig):
-    """Configuration for the Axons cell (streaming RTU, diagonal input weights).
+class XLCellConfig(CellConfig):
+    """Configuration for Transformer-XL style attention cell."""
 
-    Assumes D == H (identity input map) and uses per‑channel diagonal input
-    weights (w1, w2). The kernel returns a 2H activation that the cell projects
-    to ``out_dim`` with a single linear layer.
-    """
+    cell_type: str = "xl"
+    hidden_size: int | None = Field(default=None)
+    n_heads: int = Field(default=4, ge=1)
+    head_dim: int | None = Field(default=None, ge=1)
+    mem_len: int = Field(default=128, ge=0)
+    attn_dropout: float = Field(default=0.0, ge=0.0, le=1.0)
+    out_dropout: float = Field(default=0.0, ge=0.0, le=1.0)
+    use_bias: bool = Field(default=True)
+    # Optional AxonLayer-backed Q/K/V projections
+    use_axon_qkv: bool = Field(default=False)
+    axon_qkv_config: AxonConfig | None = Field(default=None)
+
+
+class AxonConfig(CellConfig):
+    """Configuration for Axon cell with streaming RTU and diagonal input weights."""
 
     cell_type: str = "axon"
     hidden_size: int | None = Field(default=None)
@@ -250,6 +255,7 @@ __all__ = [
     "LSTMCellConfig",
     "mLSTMCellConfig",
     "sLSTMCellConfig",
+    "XLCellConfig",
     "AxonConfig",
     "BlockConfig",
     "PassThroughBlockConfig",

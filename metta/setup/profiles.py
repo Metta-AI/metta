@@ -51,6 +51,7 @@ PROFILE_DEFINITIONS: dict[UserType, ProfileConfig] = {
             "tailscale": {"enabled": False},
             "notebookwidgets": {"enabled": False},
             "scratchpad": {"enabled": True},
+            "pr-similarity": {"enabled": False},
         }
     },
     UserType.CLOUD: {
@@ -67,6 +68,7 @@ PROFILE_DEFINITIONS: dict[UserType, ProfileConfig] = {
             "tailscale": {"enabled": False},
             "notebookwidgets": {"enabled": False},
             "scratchpad": {"enabled": True},
+            "pr-similarity": {"enabled": False},
         }
     },
     UserType.SOFTMAX_DOCKER: {
@@ -83,6 +85,7 @@ PROFILE_DEFINITIONS: dict[UserType, ProfileConfig] = {
             "tailscale": {"enabled": False},
             "notebookwidgets": {"enabled": False},
             "scratchpad": {"enabled": False},
+            "pr-similarity": {"enabled": False},
         }
     },
     UserType.SOFTMAX: {
@@ -102,6 +105,7 @@ PROFILE_DEFINITIONS: dict[UserType, ProfileConfig] = {
             "notebookwidgets": {"enabled": False},
             "scratchpad": {"enabled": True},
             "helm": {"enabled": True},
+            "pr-similarity": {"enabled": True},
         }
     },
 }

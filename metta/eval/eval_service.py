@@ -22,7 +22,7 @@ def evaluate_policy(
     simulations: list[SimulationConfig],
     device: torch.device,
     vectorization: str,
-    replay_dir: str,
+    replay_dir: str | None,
     stats_dir: str = "/tmp/stats",
     export_stats_db_uri: str | None = None,
     stats_epoch_id: uuid.UUID | None = None,

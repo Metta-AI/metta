@@ -1,9 +1,7 @@
 #!/usr/bin/env -S uv run --quiet --script
 # /// script
-# requires-python = ">=3.11"
-# dependencies = [
-#     "tomli>=2.0.0; python_version < '3.11'",
-# ]
+# requires-python = ">=3.12"
+# dependencies = []
 # ///
 """Validate pyproject.toml files for compliance with project standards.
 
@@ -18,14 +16,10 @@ and maintains consistent project metadata across the monorepo.
 
 import re
 import sys
+import tomllib
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable
-
-try:
-    import tomllib
-except ImportError:
-    import tomli as tomllib
 
 
 @dataclass

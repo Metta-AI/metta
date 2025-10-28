@@ -22,7 +22,7 @@
         inherit system;
         config.allowUnfree = true;
       };
-      mettaPython = nixpkgs-python.packages.${system}."3.11.7";
+      mettaPython = nixpkgs-python.packages.${system}."3.12.11";
     in
     {
       devShells.${system}.default = pkgs.mkShell {
@@ -52,7 +52,7 @@
 
         shellHook = ''
           # Prevent uv from downloading its own Python
-          export UV_PYTHON="${mettaPython}/bin/python3.11"
+          export UV_PYTHON="${mettaPython}/bin/python3.12"
           # Clear PYTHONPATH to avoid conflicts
           export PYTHONPATH=""
 

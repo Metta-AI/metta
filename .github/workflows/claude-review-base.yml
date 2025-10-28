@@ -175,8 +175,6 @@ jobs:
       - name: Setup Python
         if: steps.check-files.outputs.has_relevant_changes == 'true' && inputs.setup_python
         uses: actions/setup-python@v5
-        with:
-          python-version: "3.11.7"
 
       - name: Set up environment (minimal)
         uses: ./.github/actions/setup-environment

@@ -40,13 +40,11 @@ from cortex import build_cortex, CortexStackConfig
 Cortex implements a modular stack-based memory architecture with three core abstractions:
 
 1. **Cells**: Stateless memory units (LSTM, GRU, etc.) that process sequences
-
    - Purpose: Encapsulate recurrent computation logic (gates, state updates, memory mechanisms)
    - Interface: Accepts input tensor and state, returns output and updated state
    - Examples: LSTM, mLSTM, sLSTM, AGaLiTe style memory, self-attention, or pretty much any other memory cell!
 
 2. **Blocks**: Wrappers around cells that handle projections and transformations
-
    - Purpose: Control information flow, stabilize gradients, and manage dimensionality
 
 3. **Stacks**: Compositions of multiple blocks forming the complete memory system

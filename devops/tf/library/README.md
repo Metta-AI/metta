@@ -17,7 +17,6 @@ The SES configuration sends emails from `library@softmax.com` (configurable via 
 After Spacelift applies the changes, add these DNS records to **Cloudflare** (not Route53):
 
 1. View outputs in:
-
    - **Spacelift UI**: Stack → Resources → Outputs tab
    - **GitHub**: PR comment from Spacelift shows outputs after apply
    - **CLI**:

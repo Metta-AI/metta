@@ -93,7 +93,11 @@ def get_mission_name_and_config(
 
 
 def get_mission_names_and_configs(
-    ctx: typer.Context, missions_arg: Optional[list[str]]
+    ctx: typer.Context,
+    missions_arg: Optional[list[str]],
+    *,
+    variants_arg: Optional[list[str]] = None,
+    cogs: Optional[int] = None,
 ) -> list[tuple[str, MettaGridConfig]]:
     if not missions_arg:
         console.print(ctx.get_help())
@@ -101,7 +105,9 @@ def get_mission_names_and_configs(
     else:
         try:
             not_deduped = [
-                mission for missions in missions_arg for mission in _get_missions_by_possible_wildcard(missions)
+                mission
+                for missions in missions_arg
+                for mission in _get_missions_by_possible_wildcard(missions, variants_arg, cogs)
             ]
             name_set: set[str] = set()
             deduped = []
@@ -122,15 +128,22 @@ def get_mission_names_and_configs(
     raise typer.Exit(0)
 
 
-def _get_missions_by_possible_wildcard(mission_arg: str) -> list[tuple[str, MettaGridConfig]]:
+def _get_missions_by_possible_wildcard(
+    mission_arg: str,
+    variants_arg: Optional[list[str]],
+    cogs: Optional[int],
+) -> list[tuple[str, MettaGridConfig]]:
     if "*" in mission_arg:
         # Convert shell-style wildcard to regex pattern
         regex_pattern = mission_arg.replace(".", "\\.").replace("*", ".*")
         missions = [m for m in get_all_missions() if re.search(regex_pattern, m)]
         # Drop the Mission (3rd element) for wildcard results
-        return [(name, env_cfg) for name, env_cfg, _ in (get_mission(m) for m in missions)]
+        return [
+            (name, env_cfg)
+            for name, env_cfg, _ in (get_mission(m, variants_arg=variants_arg, cogs=cogs) for m in missions)
+        ]
     # Drop the Mission for single mission
-    name, env_cfg, _ = get_mission(mission_arg)
+    name, env_cfg, _ = get_mission(mission_arg, variants_arg=variants_arg, cogs=cogs)
     return [(name, env_cfg)]
 
 
