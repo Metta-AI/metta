@@ -172,4 +172,4 @@ releases:
     values:
       - ./dashboard-cronjob/values-dev.yaml
       - image:
-          tag: "sha-41023ca"  # WandB heart/latency metrics + dashboard viewer + UI workflow docs
+          tag: "sha-410e6a4"  # WandB refactor: instantaneous per-run metrics with Datadog aggregation
