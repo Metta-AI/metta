@@ -90,7 +90,7 @@ def mark_step_complete(state: ReleaseState | None, step_name: str) -> None:
         {
             "step": step_name,
             "passed": True,
-            "timestamp": datetime.utcnow().isoformat(timespec="seconds"),
+            "timestamp": datetime.now().isoformat(timespec="seconds"),
         }
     )
     save_state(state)
@@ -109,6 +109,44 @@ def get_user_confirmation(prompt: str) -> bool:
                 print("Invalid input. Please enter 'y' or 'n'.")
         except (EOFError, KeyboardInterrupt):
             return False
+
+
+def get_job_manager() -> JobManager:
+    """Get JobManager instance for release validation."""
+    base_dir = get_repo_root() / "devops/stable"
+    return JobManager(base_dir=base_dir, max_local_jobs=1, max_remote_jobs=4)
+
+
+def load_state_or_exit(version: str, step_name: str) -> ReleaseState:
+    """Load release state or exit with error message."""
+    state_version = f"v{version}"
+    state = load_state(state_version)
+    if not state:
+        print(f"❌ No state found for version {version}")
+        print(f"   Run 'validate' before '{step_name}'")
+        sys.exit(1)
+    return state
+
+
+def get_training_metrics(job_manager: JobManager, state_version: str) -> tuple[dict[str, float], str | None]:
+    """Extract training metrics and job ID from JobManager.
+
+    Returns:
+        (metrics_dict, job_id)
+    """
+    training_metrics = {}
+    training_job_id = None
+    all_jobs = job_manager.get_group_jobs(state_version)
+
+    for job_name in all_jobs:
+        if "train" in job_name.lower():
+            job_state = job_manager.get_job_state(job_name)
+            if job_state:
+                training_metrics.update(job_state.metrics or {})
+                if job_state.job_id:
+                    training_job_id = job_state.job_id
+
+    return (training_metrics, training_job_id)
 
 
 def verify_on_rc_commit(version: str, step_name: str) -> str:
@@ -293,8 +331,7 @@ def step_task_validation(
         print(f"Running: {len(tasks)} task(s)\n")
 
     # Run tasks via JobManager
-    base_dir = get_repo_root() / "devops/stable"
-    job_manager = JobManager(base_dir=base_dir, max_local_jobs=1, max_remote_jobs=4)
+    job_manager = get_job_manager()
     runner = TaskRunner(state=state, job_manager=job_manager, retry_failed=retry_failed)
     runner.run_all(tasks)
 
@@ -318,44 +355,23 @@ def step_task_validation(
 
 
 def step_summary(version: str, **_kwargs) -> None:
-    """Step 4: Print validation summary and release notes template.
+    """Print validation summary and release notes template.
 
-    Queries JobManager for task outcomes and metrics (not cached in ReleaseState).
+    Queries JobManager for task outcomes and metrics.
     """
-    print("\n" + "=" * 60)
-    print(bold("STEP 4: Release Summary"))
-    print("=" * 60 + "\n")
+    print_step_header("Release Summary")
 
-    # Verify we're on the RC commit
+    # Verify on RC commit
     rc_commit = verify_on_rc_commit(version, "summary")
     print(f"✅ Verified on RC commit: {rc_commit}\n")
 
     # Load state and JobManager
     state_version = f"v{version}"
-    state = load_state(state_version)
+    state = load_state_or_exit(version, "summary")
+    job_manager = get_job_manager()
 
-    if not state:
-        print(f"No state found for version {version}")
-        print("Run task-validation first")
-        sys.exit(1)
-
-    # Initialize JobManager to query results
-    base_dir = get_repo_root() / "devops/stable"
-    job_manager = JobManager(base_dir=base_dir, max_local_jobs=1, max_remote_jobs=4)
-
-    # Query JobManager for training metrics from all jobs in this version's group
-    training_metrics = {}
-    training_job_id = None
-    all_jobs = job_manager.get_group_jobs(state_version)
-    for job_name in all_jobs:
-        if "train" in job_name.lower():
-            job_state = job_manager.get_job_state(job_name)
-            if job_state:
-                training_metrics.update(job_state.metrics or {})
-                if job_state.job_id:
-                    training_job_id = job_state.job_id
-
-    # Format metrics for display
+    # Get training metrics
+    training_metrics, training_job_id = get_training_metrics(job_manager, state_version)
     sps = training_metrics.get("overview/sps", "N/A")
 
     # Get git log since last stable release
@@ -415,32 +431,20 @@ def step_summary(version: str, **_kwargs) -> None:
 def step_release(version: str, **_kwargs) -> None:
     """Create release tag and release notes.
 
-    Verifies all validation tasks passed by querying JobManager before creating release.
+    Verifies all validation tasks passed before creating release.
     """
-    print("\n" + "=" * 60)
-    print(bold("Create Release"))
-    print("=" * 60 + "\n")
+    print_step_header("Create Release")
 
-    # Verify we're on the RC commit
+    # Verify on RC commit
     rc_commit = verify_on_rc_commit(version, "release")
     print(f"✅ Verified on RC commit: {rc_commit}\n")
 
     # Load state and JobManager
     state_version = f"v{version}"
-    state = load_state(state_version)
+    state = load_state_or_exit(version, "release")
+    job_manager = get_job_manager()
 
-    if not state:
-        print(f"No state found for version {version}")
-        print("Run task-validation first")
-        sys.exit(1)
-
-    # Initialize JobManager to query results
-    base_dir = get_repo_root() / "devops/stable"
-    job_manager = JobManager(base_dir=base_dir, max_local_jobs=1, max_remote_jobs=4)
-
-    # Verify all tasks passed by querying JobManager
-    from devops.stable.tasks import get_all_tasks
-
+    # Verify all tasks passed
     all_tasks = get_all_tasks()
     runner = TaskRunner(state=state, job_manager=job_manager, enable_monitor=False)
 
@@ -459,18 +463,8 @@ def step_release(version: str, **_kwargs) -> None:
             print(f"  ❌ {name}")
         sys.exit(1)
 
-    # Extract metrics for release notes from all jobs in this version's group
-    training_metrics = {}
-    training_job_id = None
-    all_jobs = job_manager.get_group_jobs(state_version)
-    for job_name in all_jobs:
-        if "train" in job_name.lower():
-            job_state = job_manager.get_job_state(job_name)
-            if job_state:
-                training_metrics.update(job_state.metrics or {})
-                if job_state.job_id:
-                    training_job_id = job_state.job_id
-
+    # Extract training metrics for release notes
+    training_metrics, training_job_id = get_training_metrics(job_manager, state_version)
     git_log = git.git_log_since("origin/stable")
 
     # Create release notes
@@ -483,10 +477,7 @@ def step_release(version: str, **_kwargs) -> None:
 ## Task Results Summary
 
 """
-    # Query JobManager for task results
-    all_tasks = get_all_tasks()
-    runner = TaskRunner(state=state, job_manager=job_manager, enable_monitor=False)
-
+    # Use task results already validated above
     for task in all_tasks:
         job_name = f"{state_version}_{task.name}"
         job_state = job_manager.get_job_state(job_name)
