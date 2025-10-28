@@ -118,9 +118,6 @@ class Mission(Config):
         elif mission.num_cogs is None:
             mission.num_cogs = num_cogs
 
-        if mission.num_cogs is None:
-            mission.num_cogs = num_cogs
-
         # Apply mission-level procedural overrides to supported builders (hub-only, machina, etc.)
         mission.map = apply_procedural_overrides_to_builder(
             mission.map or map_builder,

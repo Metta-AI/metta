@@ -190,7 +190,12 @@ def make_machina_procedural_map_builder(
         if w.get("radial", 0) > 0:
             cands.append(
                 RandomSceneCandidate(
-                    scene=cast(Any, RadialMaze).Config(arms=8, arm_width=2),
+                    scene=cast(Any, RadialMaze).Config(
+                        arms=8,
+                        arm_width=2,
+                        clear_background=False,
+                        outline_walls=False,
+                    ),
                     weight=float(w["radial"]),
                 )
             )
@@ -419,68 +424,64 @@ def apply_hub_overrides_to_builder(
 
     Best-effort: if structure is not recognized, return builder unchanged.
     """
-    try:
-        if not isinstance(builder, MapGen.Config):
-            return builder
-
-        # Preserve existing top-level seed unless explicitly overridden
-        existing_seed = getattr(builder, "seed", None)
-        override_seed = (overrides or {}).get("seed", None)
-        final_seed = override_seed if override_seed is not None else existing_seed
-
-        width = getattr(builder, "width", None) or 21
-        height = getattr(builder, "height", None) or 21
-
-        inst = getattr(builder, "instance", None)
-        if isinstance(inst, cast(Any, RandomScene).Config):
-            # Verify candidates are BaseHub configs; extract transforms
-            transforms: list[GridTransform] = []
-            basehub_seen = False
-            existing_corner_bundle: HubBundle | None = None
-            existing_cross_bundle: HubBundle | None = None
-            existing_cross_distance: int | None = None
-            for cand in cast(Any, inst).candidates:
-                scn = cand.scene
-                if isinstance(scn, cast(Any, BaseHub).Config):
-                    basehub_seen = True
-                    transforms.append(getattr(scn, "transform", GridTransform.IDENTITY))
-                    # Capture existing hub settings from the first BaseHub config we see
-                    if existing_corner_bundle is None:
-                        existing_corner_bundle = _normalize_bundle(getattr(scn, "corner_bundle", None), "chests")
-                    if existing_cross_bundle is None:
-                        existing_cross_bundle = _normalize_bundle(getattr(scn, "cross_bundle", None), "none")
-                    if existing_cross_distance is None:
-                        existing_cross_distance = int(getattr(scn, "cross_distance", 7) or 7)
-            if basehub_seen:
-                ov_corner = (overrides or {}).get("hub_corner_bundle")
-                ov_cross = (overrides or {}).get("hub_cross_bundle")
-                ov_dist = (overrides or {}).get("hub_cross_distance")
-
-                # If override not provided, preserve existing scene values
-                corner_bundle = (
-                    _normalize_bundle(ov_corner, existing_corner_bundle or "chests")
-                    if ov_corner is not None
-                    else (existing_corner_bundle or "chests")
-                )
-                cross_bundle = (
-                    _normalize_bundle(ov_cross, existing_cross_bundle or "none")
-                    if ov_cross is not None
-                    else (existing_cross_bundle or "none")
-                )
-                cross_distance = int(ov_dist) if ov_dist is not None else int(existing_cross_distance or 7)
-                return make_hub_only_map_builder(
-                    num_cogs=num_cogs,
-                    width=width,
-                    height=height,
-                    seed=final_seed,
-                    corner_bundle=corner_bundle,
-                    cross_bundle=cross_bundle,
-                    cross_distance=cross_distance,
-                    transforms=transforms or None,
-                )
+    if not isinstance(builder, MapGen.Config):
         return builder
-    except Exception:
-        return builder
+
+    # Preserve existing top-level seed unless explicitly overridden
+    existing_seed = getattr(builder, "seed", None)
+    override_seed = (overrides or {}).get("seed", None)
+    final_seed = override_seed if override_seed is not None else existing_seed
+
+    width = getattr(builder, "width", None) or 21
+    height = getattr(builder, "height", None) or 21
+
+    inst = getattr(builder, "instance", None)
+    if isinstance(inst, RandomScene.Config):
+        # Verify candidates are BaseHub configs; extract transforms
+        transforms: list[GridTransform] = []
+        basehub_seen = False
+        existing_corner_bundle: HubBundle | None = None
+        existing_cross_bundle: HubBundle | None = None
+        existing_cross_distance: int | None = None
+        for cand in inst.candidates:
+            scn = cand.scene
+            if isinstance(scn, BaseHub.Config):
+                basehub_seen = True
+                transforms.append(scn.transform)
+                if existing_corner_bundle is None:
+                    existing_corner_bundle = scn.corner_bundle
+                if existing_cross_bundle is None:
+                    existing_cross_bundle = scn.cross_bundle
+                if existing_cross_distance is None:
+                    existing_cross_distance = int(scn.cross_distance)
+        if basehub_seen:
+            ov_corner = (overrides or {}).get("hub_corner_bundle")
+            ov_cross = (overrides or {}).get("hub_cross_bundle")
+            ov_dist = (overrides or {}).get("hub_cross_distance")
+
+            # If override not provided, preserve existing scene values
+            corner_bundle = (
+                _normalize_bundle(ov_corner, existing_corner_bundle or "chests")
+                if ov_corner is not None
+                else (existing_corner_bundle or "chests")
+            )
+            cross_bundle = (
+                _normalize_bundle(ov_cross, existing_cross_bundle or "none")
+                if ov_cross is not None
+                else (existing_cross_bundle or "none")
+            )
+            cross_distance = int(ov_dist) if ov_dist is not None else int(existing_cross_distance or 7)
+            return make_hub_only_map_builder(
+                num_cogs=num_cogs,
+                width=width,
+                height=height,
+                seed=final_seed,
+                corner_bundle=corner_bundle,
+                cross_bundle=cross_bundle,
+                cross_distance=cross_distance,
+                transforms=transforms or None,
+            )
+    return builder
 
 
 def apply_procedural_overrides_to_builder(
@@ -504,50 +505,46 @@ def apply_procedural_overrides_to_builder(
         return hub_applied
 
     # 2) Try machina-style (biome-based) procedural
-    try:
-        if not isinstance(builder, MapGen.Config):
-            return builder
-
-        base_inst = getattr(builder, "instance", None)
-        biome_bases = (BiomeCavesConfig, BiomeForestConfig, BiomeDesertConfig, BiomeCityConfig)
-        if isinstance(base_inst, biome_bases) or isinstance(base_inst, cast(Any, biome_bases)):
-            width = int(ov.get("width", getattr(builder, "width", 100) or 100))
-            height = int(ov.get("height", getattr(builder, "height", 100) or 100))
-            seed = ov.get("seed", getattr(builder, "seed", None))
-
-            allowed_keys = {
-                "base_biome",
-                "base_biome_config",
-                # New building-based keys
-                "building_coverage",
-                "building_weights",
-                "building_names",
-                # Legacy extractor keys (supported for compatibility)
-                "extractor_coverage",
-                "extractors",
-                "extractor_names",
-                "extractor_weights",
-                "hub_corner_bundle",
-                "hub_cross_bundle",
-                "hub_cross_distance",
-                "biome_weights",
-                "dungeon_weights",
-                "biome_count",
-                "dungeon_count",
-                "density_scale",
-                "max_biome_zone_fraction",
-                "max_dungeon_zone_fraction",
-                "distribution",
-                "building_distributions",
-            }
-            kwargs = {k: v for k, v in ov.items() if k in allowed_keys}
-            return make_machina_procedural_map_builder(
-                num_cogs=num_cogs,
-                width=width,
-                height=height,
-                seed=seed,
-                **kwargs,
-            )
+    if not isinstance(builder, MapGen.Config):
         return builder
-    except Exception:
-        return builder
+
+    base_inst = getattr(builder, "instance", None)
+    biome_bases = (BiomeCavesConfig, BiomeForestConfig, BiomeDesertConfig, BiomeCityConfig)
+    if isinstance(base_inst, biome_bases):
+        width = int(ov.get("width", getattr(builder, "width", 100) or 100))
+        height = int(ov.get("height", getattr(builder, "height", 100) or 100))
+        seed = ov.get("seed", getattr(builder, "seed", None))
+
+        allowed_keys = {
+            "base_biome",
+            "base_biome_config",
+            # Building-based keys
+            "building_coverage",
+            "building_weights",
+            "building_names",
+            "hub_corner_bundle",
+            "hub_cross_bundle",
+            "hub_cross_distance",
+            "biome_weights",
+            "dungeon_weights",
+            "biome_count",
+            "dungeon_count",
+            "density_scale",
+            "max_biome_zone_fraction",
+            "max_dungeon_zone_fraction",
+            "distribution",
+            "building_distributions",
+        }
+        unknown = set(ov.keys()) - allowed_keys - {"width", "height", "seed"}
+        if unknown:
+            raise ValueError("Unknown procedural override key(s): " + ", ".join(sorted(unknown)))
+
+        kwargs = {k: v for k, v in ov.items() if k in allowed_keys}
+        return make_machina_procedural_map_builder(
+            num_cogs=num_cogs,
+            width=width,
+            height=height,
+            seed=seed,
+            **kwargs,
+        )
+    return builder
