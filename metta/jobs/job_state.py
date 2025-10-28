@@ -41,6 +41,7 @@ class JobState(SQLModel, table=True):
     status: str = Field(default="pending")
     request_id: Optional[str] = None  # SkyPilot request ID (remote jobs only)
     job_id: Optional[str] = None  # SkyPilot job ID or local PID
+    skypilot_status: Optional[str] = None  # SkyPilot job status (PENDING, RUNNING, SUCCEEDED, etc.)
     started_at: Optional[str] = None
     completed_at: Optional[str] = None
 
