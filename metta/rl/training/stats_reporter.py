@@ -639,56 +639,67 @@ class StatsReporter(TrainerComponent):
                 label = key.replace("algorithm/eviction_counts/", "")
                 stats[f"curriculum_stats/per_label_aggregate_evictions/{label}"] = float(value)
 
-        # ===== GROUP B: Derived Gini Coefficients =====
-        # NOTE: pool_occupancy_gini and pool_lp_gini are already calculated by the algorithm
-        # Just extract them directly from the stats
-        if "algorithm/pool_occupancy_gini" in curriculum_stats:
-            gini_value = float(curriculum_stats["algorithm/pool_occupancy_gini"])
-            stats["curriculum_stats/pool_occupancy_gini"] = gini_value
-            if gini_value == 0.0:
-                logger.warning(
-                    "pool_occupancy_gini is 0.0 - all tasks may have equal completion counts (early training)"
-                )
-            else:
-                logger.info(f"Extracted pool_occupancy_gini: {gini_value}")
-        else:
-            logger.warning("algorithm/pool_occupancy_gini not found in curriculum stats")
+        # ===== GROUP B: Gini Coefficients =====
+        # There are two types: per-label (terrain type distribution) and per-task (individual task inequality)
 
-        if "algorithm/pool_lp_gini" in curriculum_stats:
-            gini_value = float(curriculum_stats["algorithm/pool_lp_gini"])
-            stats["curriculum_stats/pool_lp_gini"] = gini_value
-            if gini_value == 0.0:
-                logger.warning("pool_lp_gini is 0.0 - all tasks may have equal LP scores (early training)")
-            else:
-                logger.info(f"Extracted pool_lp_gini: {gini_value}")
-        else:
-            logger.warning("algorithm/pool_lp_gini not found in curriculum stats")
+        # === PER-LABEL GINI COEFFICIENTS (Label-Aggregated Metrics) ===
 
-        # Sampling gini - calculate from per-label cumulative sampling counts (algorithm tracks these)
+        # 1. Pool composition gini - inequality in which terrain types are represented in task pool
+        pool_comp_keys = [k for k in curriculum_stats.keys() if k.startswith("algorithm/pool_composition/")]
+        pool_comp_counts = [curriculum_stats[k] for k in pool_comp_keys]
+        if pool_comp_counts:
+            stats["curriculum_stats/pool_composition_gini"] = self._calculate_gini_coefficient(pool_comp_counts)
+            logger.info(
+                f"Pool composition gini: {stats['curriculum_stats/pool_composition_gini']:.3f} "
+                f"({len(pool_comp_counts)} labels, counts={pool_comp_counts[:5]})"
+            )
+
+        # 2. Sampling gini - inequality in which terrain types are sampled
         sampling_count_keys = [k for k in curriculum_stats.keys() if k.startswith("algorithm/sampling_counts/")]
-        logger.info(f"Algorithm sampling count keys found: {sampling_count_keys[:5]}")  # Show first 5
         sampling_counts = [curriculum_stats[k] for k in sampling_count_keys]
-        logger.info(f"Found {len(sampling_counts)} per-label cumulative sampling counts: {sampling_counts[:5]}")
         if sampling_counts:
             stats["curriculum_stats/sampling_gini"] = self._calculate_gini_coefficient(sampling_counts)
-            logger.info(f"Calculated sampling_gini: {stats['curriculum_stats/sampling_gini']}")
+            logger.info(
+                f"Sampling gini: {stats['curriculum_stats/sampling_gini']:.3f} "
+                f"({len(sampling_counts)} labels, counts={sampling_counts[:5]})"
+            )
 
-        # Per-epoch samples gini - calculate from this epoch's per-label episode completion counts
-        # These come from env_curriculum_stats/per_label_samples_this_epoch in rollout info dicts
+        # 3. Eviction gini - inequality in which terrain types are evicted
+        eviction_count_keys = [k for k in curriculum_stats.keys() if k.startswith("algorithm/eviction_counts/")]
+        eviction_counts = [curriculum_stats[k] for k in eviction_count_keys]
+        if eviction_counts:
+            stats["curriculum_stats/eviction_gini"] = self._calculate_gini_coefficient(eviction_counts)
+            logger.info(
+                f"Eviction gini: {stats['curriculum_stats/eviction_gini']:.3f} "
+                f"({len(eviction_counts)} labels, counts={eviction_counts[:5]})"
+            )
+
+        # 4. Per-epoch samples gini - inequality in this epoch's episode completions by terrain type
         per_label_samples_key = "env_curriculum_stats/per_label_samples_this_epoch"
         if per_label_samples_key in self._state.rollout_stats:
             per_label_samples = self._state.rollout_stats[per_label_samples_key]
             if isinstance(per_label_samples, dict) and per_label_samples:
-                # Extract just the counts (values) for Gini calculation
                 epoch_sample_counts = list(per_label_samples.values())
-                logger.info(f"Found {len(epoch_sample_counts)} per-label samples this epoch: {epoch_sample_counts[:5]}")
                 stats["curriculum_stats/per_epoch_samples_gini"] = self._calculate_gini_coefficient(epoch_sample_counts)
-                logger.info(f"Calculated per_epoch_samples_gini: {stats['curriculum_stats/per_epoch_samples_gini']}")
-            else:
-                logger.warning(f"per_label_samples_this_epoch is not a dict or is empty: {per_label_samples}")
-        else:
-            sample_keys = list(self._state.rollout_stats.keys())[:10]
-            logger.info(f"No per_label_samples_this_epoch found in rollout_stats (keys: {sample_keys})")
+                logger.info(
+                    f"Per-epoch samples gini: {stats['curriculum_stats/per_epoch_samples_gini']:.3f} "
+                    f"({len(epoch_sample_counts)} labels, counts={epoch_sample_counts[:5]})"
+                )
+
+        # === PER-TASK GINI COEFFICIENTS (Individual Task Inequality) ===
+        # These are calculated by the algorithm and measure inequality across individual tasks
+
+        # 5. Per-task completion counts gini - inequality in how often individual tasks are completed
+        if "algorithm/pool_occupancy_gini" in curriculum_stats:
+            gini_value = float(curriculum_stats["algorithm/pool_occupancy_gini"])
+            stats["curriculum_stats/per_task_completion_gini"] = gini_value
+            logger.info(f"Per-task completion gini: {gini_value:.3f} (from algorithm)")
+
+        # 6. Per-task LP scores gini - inequality in learning progress across individual tasks
+        if "algorithm/pool_lp_gini" in curriculum_stats:
+            gini_value = float(curriculum_stats["algorithm/pool_lp_gini"])
+            stats["curriculum_stats/per_task_lp_gini"] = gini_value
+            logger.info(f"Per-task LP gini: {gini_value:.3f} (from algorithm)")
 
         # ===== GROUP C & D: Troubleshooting Stats (if enabled) =====
         if self._should_enable_curriculum_troubleshooting():
