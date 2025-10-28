@@ -611,6 +611,10 @@ class StatsReporter(TrainerComponent):
         curriculum_stats = curriculum.stats()
         logger.info(f"Got {len(curriculum_stats)} base curriculum stats")
 
+        # Debug: Log sample of stat keys to see what we're getting
+        sample_keys = list(curriculum_stats.keys())[:10]
+        logger.info(f"Sample curriculum stat keys: {sample_keys}")
+
         # ===== GROUP A: Global Curriculum Stats =====
         if "num_completed" in curriculum_stats:
             stats["curriculum_stats/total_completions"] = float(curriculum_stats["num_completed"])
@@ -636,20 +640,26 @@ class StatsReporter(TrainerComponent):
                 stats[f"curriculum_stats/per_label_aggregate_evictions/{label}"] = float(value)
 
         # ===== GROUP B: Derived Gini Coefficients =====
-        # Sampling gini
+        # NOTE: pool_occupancy_gini and pool_lp_gini are already calculated by the algorithm
+        # Just extract them directly from the stats
+        if "algorithm/pool_occupancy_gini" in curriculum_stats:
+            stats["curriculum_stats/pool_occupancy_gini"] = float(curriculum_stats["algorithm/pool_occupancy_gini"])
+            logger.info(f"Extracted pool_occupancy_gini: {stats['curriculum_stats/pool_occupancy_gini']}")
+        else:
+            logger.warning("algorithm/pool_occupancy_gini not found in curriculum stats")
+
+        if "algorithm/pool_lp_gini" in curriculum_stats:
+            stats["curriculum_stats/pool_lp_gini"] = float(curriculum_stats["algorithm/pool_lp_gini"])
+            logger.info(f"Extracted pool_lp_gini: {stats['curriculum_stats/pool_lp_gini']}")
+        else:
+            logger.warning("algorithm/pool_lp_gini not found in curriculum stats")
+
+        # Sampling gini - calculate from per-label sampling counts
         sampling_counts = [v for k, v in curriculum_stats.items() if k.startswith("algorithm/sampling_counts/")]
+        logger.info(f"Found {len(sampling_counts)} per-label sampling counts for gini calculation")
         if sampling_counts:
             stats["curriculum_stats/sampling_gini"] = self._calculate_gini_coefficient(sampling_counts)
-
-        # Pool occupancy gini
-        completion_counts = [v for k, v in curriculum_stats.items() if k.startswith("algorithm/completion_counts/")]
-        if completion_counts:
-            stats["curriculum_stats/pool_occupancy_gini"] = self._calculate_gini_coefficient(completion_counts)
-
-        # Pool LP gini
-        lp_scores = [v for k, v in curriculum_stats.items() if k.startswith("algorithm/lp_scores/")]
-        if lp_scores:
-            stats["curriculum_stats/pool_lp_gini"] = self._calculate_gini_coefficient(lp_scores)
+            logger.info(f"Calculated sampling_gini: {stats['curriculum_stats/sampling_gini']}")
 
         # ===== GROUP C & D: Troubleshooting Stats (if enabled) =====
         if self._should_enable_curriculum_troubleshooting():
