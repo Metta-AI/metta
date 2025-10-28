@@ -36,7 +36,7 @@ def metta_train_fn(config: dict[str, Any]) -> None:
 
     job = create_training_job(
         run_id=trial_name,
-        experiment_id=sweep_config.get("experiment_id"),
+        experiment_id=sweep_config.get("sweep_id"),
         recipe_module=sweep_config.get("recipe_module"),
         train_entrypoint=sweep_config.get("train_entrypoint"),
         stats_server_uri=sweep_config.get("stats_server_uri"),

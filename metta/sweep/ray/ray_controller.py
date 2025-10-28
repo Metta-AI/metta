@@ -33,7 +33,7 @@ class SweepConfig(Config):
 
     cpus_per_trial: int = 48
     gpus_per_trial: int = 4
-    max_concurrent_trials: int = 1
+    max_concurrent_trials: int = 4
 
 def ray_sweep(
     *,
