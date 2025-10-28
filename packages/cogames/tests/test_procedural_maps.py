@@ -52,8 +52,8 @@ def test_procedural_builder_builds_and_has_expected_layers(
             height=height,
             seed=seed,
             base_biome="caves",
-            extractor_coverage=0.01,
-            extractors={"chest": 1.0, "charger": 0.5},
+            building_coverage=0.01,
+            building_weights={"chest": 1.0, "charger": 0.5},
             biome_weights={"caves": 0.5, "forest": 0.5, "city": 0.5, "desert": 0.5},
             dungeon_weights={"bsp": 0.6, "maze": 0.2, "radial": 0.2},
             density_scale=density_scale,
@@ -120,12 +120,12 @@ def test_zone_counts_respect_max_zone_fraction(width: int, height: int, max_biom
 
 
 def test_uniform_extractors_configuration_pass_through():
-    extractors = {"chest": 1.0, "charger": 0.3, "carbon_extractor": 0.7}
+    buildings = {"chest": 1.0, "charger": 0.3, "carbon_extractor": 0.7}
     cfg = make_machina_procedural_map_builder(
         num_cogs=2,
         seed=123,
-        extractors=extractors,
-        extractor_coverage=0.0125,
+        building_weights=buildings,
+        building_coverage=0.0125,
     )
     builder = cfg.create()
     builder.build()
@@ -133,8 +133,8 @@ def test_uniform_extractors_configuration_pass_through():
     nodes = _find_nodes(tree, "UniformExtractorScene")
     assert nodes, "UniformExtractorScene should be present"
     ucfg = nodes[0]["config"]
-    assert ucfg.get("extractor_names") == list(extractors.keys())
-    assert ucfg.get("extractor_weights") == extractors
+    assert ucfg.get("building_names") == list(buildings.keys())
+    assert ucfg.get("building_weights") == buildings
     assert pytest.approx(ucfg.get("target_coverage", 0.0), rel=1e-6) == 0.0125
 
 

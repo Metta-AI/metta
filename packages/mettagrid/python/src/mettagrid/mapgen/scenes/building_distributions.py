@@ -8,7 +8,7 @@ from pydantic import BaseModel, Field
 
 from mettagrid.mapgen.scene import Scene, SceneConfig
 
-DEFAULT_EXTRACTOR_WEIGHTS: dict[str, float] = {
+DEFAULT_BUILDING_WEIGHTS: dict[str, float] = {
     "charger": 0.3,
     "silicon_extractor": 0.2,
     "carbon_extractor": 0.1,
@@ -200,7 +200,7 @@ class UniformExtractorParams(SceneConfig):
     clear_existing: bool = False
     frame_with_walls: bool = False
     target_coverage: float | None = None
-    extractor_names: list[str] = Field(
+    building_names: list[str] = Field(
         default_factory=lambda: [
             "carbon_extractor",
             "oxygen_extractor",
@@ -209,7 +209,7 @@ class UniformExtractorParams(SceneConfig):
             "charger",
         ]
     )
-    extractor_weights: dict[str, float] | None = None
+    building_weights: dict[str, float] | None = None
     # Spatial distribution configuration
     distribution: DistributionConfig = Field(default_factory=lambda: DistributionConfig())
     # Per-building-type distribution overrides
@@ -248,7 +248,7 @@ class UniformExtractorScene(Scene[UniformExtractorParams]):
 
         grid = self.grid
 
-        names, probabilities = self._resolve_extractor_distribution()
+        names, probabilities = self._resolve_building_distribution()
 
         def carve_and_place(center_row: int, center_col: int, name: str) -> bool:
             for rr in range(center_row - padding, center_row + padding + 1):
@@ -420,20 +420,20 @@ class UniformExtractorScene(Scene[UniformExtractorParams]):
             if carve_and_place(row, col, name):
                 placed_centers.append((row, col))
 
-    def _resolve_extractor_distribution(self) -> tuple[list[str], NDArray[np.float64]]:
-        weights = self.config.extractor_weights
+    def _resolve_building_distribution(self) -> tuple[list[str], NDArray[np.float64]]:
+        weights = self.config.building_weights
         if weights:
             filtered = [(name, float(weight)) for name, weight in weights.items() if float(weight) > 0]
             if not filtered:
-                raise ValueError("extractor_weights must contain positive values")
+                raise ValueError("building_weights must contain positive values")
             names, raw_weights = zip(*filtered, strict=False)
             weight_array = np.asarray(raw_weights, dtype=float)
         else:
-            names = self.config.extractor_names or ["carbon_extractor"]
+            names = self.config.building_names or ["carbon_extractor"]
             if not names:
                 raise ValueError("At least one extractor name must be provided")
             weight_array = np.asarray(
-                [DEFAULT_EXTRACTOR_WEIGHTS.get(name, DEFAULT_FALLBACK_WEIGHT) for name in names],
+                [DEFAULT_BUILDING_WEIGHTS.get(name, DEFAULT_FALLBACK_WEIGHT) for name in names],
                 dtype=float,
             )
 

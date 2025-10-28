@@ -446,25 +446,43 @@ class MachinaProceduralExploreMission(ProceduralMissionBase):
         self.heart_capacity = 99
         # Only chests for explore mission
         self.procedural_overrides = {
-            "extractor_names": ["chest", "charger", "germanium_extractor", "silicon_extractor", "oxygen_extractor", "carbon_extractor"],
-            "extractor_weights": {"chest": 1.0, "charger": 0.6, "germanium_extractor": 0.6, "silicon_extractor": 0.3, "oxygen_extractor": 0.3, "carbon_extractor": 0.3},  # this is relative weights to each building type
-            "extractor_coverage": 0.01,  # this is density on the map
+            "building_names": [
+                "chest",
+                "charger",
+                "germanium_extractor",
+                "silicon_extractor",
+                "oxygen_extractor",
+                "carbon_extractor",
+            ],
+            "building_weights": {
+                "chest": 1.0,
+                "charger": 0.6,
+                "germanium_extractor": 0.6,
+                "silicon_extractor": 0.3,
+                "oxygen_extractor": 0.3,
+                "carbon_extractor": 0.3,
+            },  # this is relative weights to each building type
+            "building_coverage": 0.01,  # this is density on the map
             "hub_corner_bundle": "chests",
             "hub_cross_bundle": "none",
             "hub_cross_distance": 7,
             # Distribution examples:
             # Use uniform distribution (default):
             # "distribution": {"type": "uniform"},
-
-            # Use normal/Gaussian distribution (cluster around center of map at (0.5, 0.5), smaller std means more concentrated around the mean):
-            # "distribution": {"type": "normal", "mean_x": 0.5, "mean_y": 0.5, "std_x": 0.2, "std_y": 0.2},
-
-            # Use exponential distribution, higher decay rate means objects drop off quickly, spreads in a direction from a corner of map:
+            # Use normal/Gaussian distribution (cluster around center of map at (0.5, 0.5),
+            # smaller std means more concentrated around the mean):
+            # "distribution": {
+            #     "type": "normal",
+            #     "mean_x": 0.5,
+            #     "mean_y": 0.5,
+            #     "std_x": 0.2,
+            #     "std_y": 0.2,
+            # },
+            # Use exponential distribution, higher decay rate means objects drop off quickly,
+            # spreads in a direction from a corner of map:
             # "distribution": {"type": "exponential", "decay_rate": 5.0, "origin_x": 0.0, "origin_y": 0.0},
-
             # Use poisson distribution (random clumping), always divides by 5, ex: if 10 chargers--> 2 clusters:
             # "distribution": {"type": "poisson"},
-
             # Use bimodal distribution (two clusters):
             # "distribution": {
             #     "type": "bimodal",
@@ -474,7 +492,6 @@ class MachinaProceduralExploreMission(ProceduralMissionBase):
             #     "center2_y": 0.75,
             #     "cluster_std": 0.15,
             # },
-
             # Per-building-type distributions:
             "building_distributions": {
                 "chest": {"type": "exponential", "decay_rate": 5.0, "origin_x": 0.0, "origin_y": 0.0},

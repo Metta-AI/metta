@@ -38,10 +38,10 @@ def make_machina_procedural_map_builder(
     seed: int | None = None,
     base_biome: str = "caves",
     base_biome_config: dict[str, Any] | None = None,
-    extractor_coverage: float = 0.01,
-    extractors: dict[str, float] | None = None,
-    extractor_names: list[str] | None = None,
-    extractor_weights: dict[str, float] | None = None,
+    # Generalized building placement parameters
+    building_coverage: float = 0.01,
+    building_weights: dict[str, float] | None = None,
+    building_names: list[str] | None = None,
     hub_corner_bundle: str | None = None,
     hub_cross_bundle: str | None = None,
     hub_cross_distance: int | None = None,
@@ -88,7 +88,7 @@ def make_machina_procedural_map_builder(
     ConfigModelType: type[BaseModel] = biome_map[base_biome][1]
     base_cfg = cast(SceneConfig, ConfigModelType.model_validate(base_biome_config or {}))
 
-    default_extractors = {
+    default_building_weights = {
         "chest": 0.0,
         "charger": 0.6,
         "germanium_extractor": 0.6,
@@ -98,14 +98,22 @@ def make_machina_procedural_map_builder(
         # TO DO: these are the default weights, can add distribution preset here
     }
 
-    # Legacy "extractors" dict takes precedence if provided
-    extractor_config = extractors or default_extractors
-    names = extractor_names or list(extractor_config.keys())
-    weights = extractor_weights or extractor_config
+    coverage_final = float(building_coverage)
 
-    extractor_names_final = list(dict.fromkeys(names))
-    extractor_weights_final = {
-        name: weights.get(name, default_extractors.get(name, 1.0)) for name in extractor_names_final
+    # Resolve names/weights
+    weights_dict: dict[str, float] = (
+        {str(k): float(v) for k, v in building_weights.items()} if building_weights is not None else {}
+    )
+    if not weights_dict:
+        # derive from provided names or defaults
+        if building_names is not None:
+            weights_dict = {name: float(default_building_weights.get(name, 1.0)) for name in building_names}
+        else:
+            weights_dict = {k: float(v) for k, v in default_building_weights.items()}
+
+    building_names_final = list(dict.fromkeys(list(building_names or weights_dict.keys())))
+    building_weights_final = {
+        name: float(weights_dict.get(name, default_building_weights.get(name, 1.0))) for name in building_names_final
     }
 
     # Optional layered biomes via BSPLayout
@@ -292,9 +300,9 @@ def make_machina_procedural_map_builder(
         # Resources first so connectors will tunnel between them
         ChildrenAction(
             scene=cast(Any, UniformExtractorScene).Config(
-                target_coverage=extractor_coverage,
-                extractor_names=extractor_names_final,
-                extractor_weights=extractor_weights_final,
+                target_coverage=coverage_final,
+                building_names=building_names_final,
+                building_weights=building_weights_final,
                 clear_existing=False,
                 distribution=dist_config,
                 building_distributions=building_dist_configs,
@@ -504,6 +512,11 @@ def apply_procedural_overrides_to_builder(
             allowed_keys = {
                 "base_biome",
                 "base_biome_config",
+                # New building-based keys
+                "building_coverage",
+                "building_weights",
+                "building_names",
+                # Legacy extractor keys (supported for compatibility)
                 "extractor_coverage",
                 "extractors",
                 "extractor_names",
