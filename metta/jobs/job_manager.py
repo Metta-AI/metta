@@ -373,8 +373,6 @@ class JobManager:
 
             is_remote = job_state.config.remote is not None
             if not self._has_available_slot(is_remote):
-                job_type = "remote" if is_remote else "local"
-                logger.debug(f"Job waiting for slot: {name} (type={job_type}, no slots available)")
                 return False
 
             job = self._spawn_job(job_state)
