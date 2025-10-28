@@ -19,6 +19,7 @@ class JobConfig(Config):
     """Job specification combining execution config with task parameters.
 
     remote=None runs locally, remote=RemoteConfig(...) runs remotely.
+    is_training_job=True enables WandB tracking and run name generation.
     """
 
     name: str
@@ -29,3 +30,4 @@ class JobConfig(Config):
     remote: RemoteConfig | None = None
     group: str | None = None
     metadata: dict[str, Any] = Field(default_factory=dict)
+    is_training_job: bool = False  # Explicit flag for WandB tracking
