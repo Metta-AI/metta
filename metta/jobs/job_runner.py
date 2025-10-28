@@ -359,6 +359,7 @@ class RemoteJob(Job):
         self._exit_code: Optional[int] = None
         self._timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
         self._full_logs_fetched = False
+        self._run_name: Optional[str] = None  # WandB run name used for this job
 
     def _generate_run_name(self) -> str:
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -439,6 +440,7 @@ class RemoteJob(Job):
 
         try:
             run_name = self._generate_run_name()
+            self._run_name = run_name  # Store for WandB URL construction
             request_id, job_id, _ = retry_function(
                 lambda: self._launch_via_script(run_name),
                 max_retries=max_attempts - 1,
@@ -664,6 +666,11 @@ class RemoteJob(Job):
     def request_id(self) -> str | None:
         """Return SkyPilot request ID if available."""
         return self._request_id
+
+    @property
+    def run_name(self) -> str | None:
+        """Return the WandB run name used for this job."""
+        return self._run_name
 
     def _handle_interrupt(self) -> None:
         if self._job_id:
