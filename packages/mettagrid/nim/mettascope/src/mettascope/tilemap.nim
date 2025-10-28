@@ -10,6 +10,10 @@ type
     tileAtlas*: Image
     indexData*: seq[uint8]
 
+    # Computed average colors for each tile.
+    avgColors*: seq[ColorRGBX]
+    overworldImage*: Image
+
     # OpenGL textures
     indexTexture: GLuint
     tileAtlasTextureArray: GLuint
@@ -30,9 +34,15 @@ var
   tileSize: Uniform[float32]
   zoom: Uniform[float32]
   zoomThreshold: Uniform[float32]
+  tint: Uniform[Vec4]
 
 proc tileMapVert*(aPos: Vec2, vertexUv: Vec2, fragmentUv: var Vec2) =
-  gl_Position = mvp * vec4(aPos.x, aPos.y, 0.0, 1.0)
+  gl_Position = mvp * vec4(
+    aPos.x * mapSize.x - 0.5,
+    aPos.y * mapSize.y - 0.5,
+    0.0,
+    1.0
+  )
   fragmentUv = vertexUv
 
 proc tileMapFrag*(fragmentUv: Vec2, fragColor: var Vec4) =
@@ -52,8 +62,7 @@ proc tileMapFrag*(fragmentUv: Vec2, fragColor: var Vec4) =
       tileIndex = tileIndexU.int32
 
       # Local coordinates inside the tile, continuous and fractional.
-      tilePos01 = fract(mapPos)
-      localTexel = tilePos01 * tileSize
+      localTexel = fract(mapPos) * (tileSize) - 1.0
       contTexel = fragmentUv * (mapSize * tileSize)
 
       # Anti-aliasing the nearest snap in the tile space.
@@ -77,7 +86,7 @@ proc tileMapFrag*(fragmentUv: Vec2, fragColor: var Vec4) =
       vec3(layerUV.x, layerUV.y, float(tileIndex)),
       dUVdx,
       dUVdy
-    )
+    ) * tint
 
 proc newTileMap*(
   width: int,
@@ -191,7 +200,7 @@ proc setupGPU*(tileMap: TileMap) =
 
   # Fill the texture array with the tile atlas.
   var layer = 0
-  var avgColors: seq[ColorRGBX]
+  tileMap.avgColors = newSeq[ColorRGBX](layerCount)
   for ty in 0 ..< tilesPerCol:
     for tx in 0 ..< tilesPerRow:
       let sx = tx * tileMap.tileSize
@@ -208,16 +217,16 @@ proc setupGPU*(tileMap: TileMap) =
         GL_UNSIGNED_BYTE,
         cast[pointer](subImg.data[0].addr)
       )
-      avgColors.add(subImg.averageColor())
+      tileMap.avgColors.add(subImg.averageColor())
       inc layer
   glGenerateMipmap(GL_TEXTURE_2D_ARRAY)
 
   # Fill overworld texture with average color per tile.
-  var owData = newImage(tileMap.width, tileMap.height)
+  tileMap.overworldImage = newImage(tileMap.width, tileMap.height)
   for y in 0 ..< tileMap.height:
     for x in 0 ..< tileMap.width:
       let tileIndex = tileMap.indexData[y * tileMap.width + x].int
-      owData.unsafe[x, y] = avgColors[tileIndex]
+      tileMap.overworldImage.unsafe[x, y] = tileMap.avgColors[tileIndex]
 
   glTexSubImage2D(
     GL_TEXTURE_2D,
@@ -228,7 +237,7 @@ proc setupGPU*(tileMap: TileMap) =
     tileMap.height.GLsizei,
     GL_RGBA,
     GL_UNSIGNED_BYTE,
-    owData.data[0].addr
+    tileMap.overworldImage.data[0].addr
   )
   glGenerateMipmap(GL_TEXTURE_2D)
 
@@ -301,11 +310,49 @@ proc setupGPU*(tileMap: TileMap) =
   )
   glEnableVertexAttribArray(1)
 
+proc updateGPU*(tileMap: TileMap) =
+  ## Update the GPU for the tile map.
+
+  # Update the index texture.
+  glBindTexture(GL_TEXTURE_2D, tileMap.indexTexture)
+  glTexSubImage2D(
+    GL_TEXTURE_2D,
+    0,
+    0,
+    0,
+    tileMap.width.GLsizei,
+    tileMap.height.GLsizei,
+    GL_RED_INTEGER,
+    GL_UNSIGNED_BYTE,
+    tileMap.indexData[0].addr
+  )
+
+  # Update the overworld texture.
+  # Fill overworld texture with average color per tile.
+  for y in 0 ..< tileMap.height:
+    for x in 0 ..< tileMap.width:
+      let tileIndex = tileMap.indexData[y * tileMap.width + x].int
+      tileMap.overworldImage.unsafe[x, y] = tileMap.avgColors[tileIndex]
+  glBindTexture(GL_TEXTURE_2D, tileMap.overworldTexture)
+  glTexSubImage2D(
+    GL_TEXTURE_2D,
+    0,
+    0,
+    0,
+    tileMap.width.GLsizei,
+    tileMap.height.GLsizei,
+    GL_RGBA,
+    GL_UNSIGNED_BYTE,
+    tileMap.overworldImage.data[0].addr
+  )
+  glGenerateMipmap(GL_TEXTURE_2D)
+
 proc draw*(
   tileMap: TileMap,
   mvp: Mat4,
   zoom: float32,
-  zoomThreshold = 1.25f
+  zoomThreshold = 1.25f,
+  tint: Color = color(1, 1, 1, 1)
 ) =
 
   # Do not clear here; Boxy manages the target/FBO.
@@ -318,6 +365,7 @@ proc draw*(
   tileMap.shader.setUniform("tileSize", 64.0f)  # Tile size in pixels.
   tileMap.shader.setUniform("zoom", zoom)
   tileMap.shader.setUniform("zoomThreshold", zoomThreshold)
+  tileMap.shader.setUniform("tint", vec4(tint.r, tint.g, tint.b, tint.a))
   tileMap.shader.bindUniforms()
 
   # Bind textures.
