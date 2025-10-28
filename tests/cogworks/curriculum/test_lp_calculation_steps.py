@@ -615,6 +615,7 @@ class TestTemperatureAndZScore:
             ema_timescale=0.1,
             slow_timescale_factor=0.2,
             lp_score_temperature=0.0,  # Z-score mode (default)
+            z_score_amplification=1.0,  # No amplification for pure z-score test
             num_active_tasks=10,
             use_shared_memory=False,
         )

@@ -135,7 +135,7 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         # Track task labels for pool composition and sampling stats
         self._task_labels: Dict[int, str] = {}  # task_id -> label
         self._label_completion_counts: Dict[str, int] = {}  # label -> completion count
-        self._label_sampling_counts: Dict[str, int] = {}  # label -> sampling count (episodes started)
+        self._label_sampling_counts: Dict[str, int] = {}  # label -> cumulative sampling count (episodes started)
 
         # Per-label tracking (only if troubleshooting logging enabled to prevent memory leaks)
         if hypers.show_curriculum_troubleshooting_logging:
@@ -143,8 +143,9 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         else:
             self._label_eviction_counts = None
 
-        # Per-epoch eviction tracking (ALWAYS enabled for gini calculation)
+        # Per-epoch tracking (ALWAYS enabled for gini calculation)
         self._label_evictions_this_epoch: Dict[str, int] = {}  # label -> evictions this epoch
+        self._label_sampling_counts_this_epoch: Dict[str, int] = {}  # label -> samples this epoch
 
         # Track which labels are currently active (have tasks in pool)
         self._active_labels: set[str] = set()
@@ -277,10 +278,11 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         Args:
             task_id: The ID of the task that was sampled
         """
-        # Track sampling counts per label
+        # Track sampling counts per label (both cumulative and per-epoch)
         if task_id in self._task_labels:
             label = self._task_labels[task_id]
             self._label_sampling_counts[label] = self._label_sampling_counts.get(label, 0) + 1
+            self._label_sampling_counts_this_epoch[label] = self._label_sampling_counts_this_epoch.get(label, 0) + 1
 
     def get_and_reset_evictions_this_epoch(self) -> Dict[str, int]:
         """Get per-epoch evictions and reset the counter.
@@ -291,6 +293,16 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         evictions = self._label_evictions_this_epoch.copy()
         self._label_evictions_this_epoch.clear()
         return evictions
+
+    def get_and_reset_sampling_counts_this_epoch(self) -> Dict[str, int]:
+        """Get per-epoch sampling counts and reset the counter.
+
+        Returns:
+            Dictionary mapping label -> sampling count this epoch
+        """
+        sampling_counts = self._label_sampling_counts_this_epoch.copy()
+        self._label_sampling_counts_this_epoch.clear()
+        return sampling_counts
 
     def update_task_performance(self, task_id: int, score: float) -> None:
         """Update task performance using the scorer strategy."""
@@ -406,10 +418,10 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         for label in self._task_labels.values():
             pool_composition[label] = pool_composition.get(label, 0) + 1
 
-        # Debug: Log sampling counts population
+        # Return per-epoch sampling counts (reset each epoch)
         return {
             "pool_composition": pool_composition,
-            "sampling_counts": self._label_sampling_counts.copy(),  # Use sampling counts, not completion counts
+            "sampling_counts": self._label_sampling_counts_this_epoch.copy(),
         }
 
     def get_base_stats(self) -> Dict[str, float]:
@@ -609,9 +621,21 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         if sampling_probs:
             gini_stats["curriculum_gini/sampling_probs"] = self._calculate_gini_coefficient(sampling_probs)
 
-        # === 6. Sampling Counts by Label ===
-        if self._label_sampling_counts:
-            label_sampling_values = list(self._label_sampling_counts.values())
+        # === 5b. Sampling Probabilities by Label (aggregated) ===
+        if sampling_probs and task_labels_list:
+            label_prob_sums = {}
+            for label, prob in zip(task_labels_list, sampling_probs, strict=True):
+                label_prob_sums[label] = label_prob_sums.get(label, 0.0) + prob
+
+            if label_prob_sums:
+                label_prob_values = list(label_prob_sums.values())
+                gini_stats["curriculum_gini/sampling_probs_by_label"] = self._calculate_gini_coefficient(
+                    label_prob_values
+                )
+
+        # === 6. Sampling Counts by Label (per-epoch) ===
+        if self._label_sampling_counts_this_epoch:
+            label_sampling_values = list(self._label_sampling_counts_this_epoch.values())
             gini_stats["curriculum_gini/sampling_by_label"] = self._calculate_gini_coefficient(label_sampling_values)
 
         # === 7. Eviction Counts by Label ===
@@ -635,11 +659,21 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
             )
             gini_stats["curriculum_gini/selectivity_loss_lp_to_prob"] = selectivity_loss
 
+        if "curriculum_gini/raw_lp_by_label" in gini_stats and "curriculum_gini/sampling_probs_by_label" in gini_stats:
+            label_prob_selectivity_loss = (
+                gini_stats["curriculum_gini/raw_lp_by_label"] - gini_stats["curriculum_gini/sampling_probs_by_label"]
+            )
+            gini_stats["curriculum_gini/selectivity_loss_lp_label_to_prob_label"] = label_prob_selectivity_loss
+
         if "curriculum_gini/raw_lp_by_label" in gini_stats and "curriculum_gini/sampling_by_label" in gini_stats:
             label_selectivity_loss = (
                 gini_stats["curriculum_gini/raw_lp_by_label"] - gini_stats["curriculum_gini/sampling_by_label"]
             )
             gini_stats["curriculum_gini/selectivity_loss_lp_label_to_sampling_label"] = label_selectivity_loss
+
+        # Reset per-epoch sampling counts after computing Gini statistics
+        # This ensures each epoch starts with fresh counts
+        self._label_sampling_counts_this_epoch.clear()
 
         return gini_stats
 

@@ -51,7 +51,7 @@ class CurriculumLPConfig(BaseModel):
     exploration_bonus: float = 0.1
     progress_smoothing: float = 0.0
     lp_score_temperature: float = 0.0  # 0.0 is z-score normalization
-    z_score_amplification: float =  10.0  # Amplification after z-score
+    z_score_amplification: float =  100.0  # Amplification after z-score
     early_progress_amplification: float = 0.5  # 0.5 is no amplification
     max_slice_axes: int = 3
     num_active_tasks: int = 1000
@@ -922,6 +922,9 @@ def simulate_task_dependencies(config: SimulationConfig) -> Dict[str, Any]:
         if epoch % 10 == 0:
             # Get Gini coefficients for logging (from curriculum.stats())
             gini_lp = epoch_metrics.get("algorithm/curriculum_gini/raw_lp_scores", 0.0)
+            gini_label_lp = epoch_metrics.get("algorithm/curriculum_gini/raw_lp_by_label", 0.0)
+            gini_occupancy = epoch_metrics.get("algorithm/curriculum_gini/pool_occupancy", 0.0)
+            gini_probs = epoch_metrics.get("algorithm/curriculum_gini/sampling_probs_by_label", 0.0)
             gini_sampling = epoch_metrics.get(
                 "algorithm/curriculum_gini/sampling_by_label", 0.0
             )
@@ -930,7 +933,7 @@ def simulate_task_dependencies(config: SimulationConfig) -> Dict[str, Any]:
 
             logger.info(
                 f"Epoch {epoch}: Mean perf = {epoch_metrics['task_dependency/mean_performance']:.3f}, "
-                f"Gini LP = {gini_lp:.3f}, Gini sampling = {gini_sampling:.3f}"
+                f"Gini LP = {gini_lp:.3f}, Gini_label LP = {gini_label_lp:.3f}, Gini_occupancy_label = {gini_occupancy:.3f}, Gini_probs_label = {gini_probs:.3f}, Gini sampling = {gini_sampling:.3f}"
             )
 
     # Get final summary
