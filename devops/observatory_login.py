@@ -9,9 +9,9 @@ from urllib.parse import urlparse
 from metta.common.auth import BaseCLIAuthenticator
 from metta.common.util.constants import (
     DEV_STATS_SERVER_URI,
+    OBSERVATORY_AUTH_SERVER_URL,
+    PROD_STATS_SERVER_URI,
 )
-
-DEFAULT_AUTH_SERVER = "https://observatory.softmax-research.net/api"
 
 
 class CLIAuthenticator(BaseCLIAuthenticator):
@@ -29,12 +29,11 @@ def main():
     parser = argparse.ArgumentParser(description="Authenticate with Observatory")
     parser.add_argument(
         "auth_server_url",
-        help=f"Stats server API URI (e.g., {DEFAULT_AUTH_SERVER} or {DEV_STATS_SERVER_URI})",
+        help=f"Stats server API URI (e.g., {OBSERVATORY_AUTH_SERVER_URL} or {DEV_STATS_SERVER_URI})",
     )
     parser.add_argument(
-        "--token-key",
-        required=True,
-        help="key to store the token under in the YAML file",
+        "token_key",
+        help=f"key to store the token under in the YAML file (e.g. {PROD_STATS_SERVER_URI})",
     )
     parser.add_argument("--force", action="store_true", help="Get a new token even if one already exists")
     parser.add_argument("--timeout", type=int, default=300, help="Authentication timeout in seconds (default: 300)")
