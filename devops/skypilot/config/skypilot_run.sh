@@ -154,6 +154,7 @@ maybe_start_ray_cluster() {
 
   local head_port="${RAY_HEAD_PORT:-6379}"
   local dashboard_port="${RAY_DASHBOARD_PORT:-}"
+  local client_port="${RAY_CLIENT_PORT:-10001}"
   local gpus_per_node="${RAY_GPUS_PER_NODE:-}"
 
   if [[ -z "$gpus_per_node" ]]; then
@@ -168,9 +169,10 @@ maybe_start_ray_cluster() {
   head_ip=$(get_ray_head_ip)
   export RAY_HEAD_IP="$head_ip"
   export RAY_PORT="$head_port"
-  export RAY_ADDRESS="ray://${head_ip}:${head_port}"
+  export RAY_CLIENT_PORT="$client_port"
+  export RAY_ADDRESS="ray://${head_ip}:${client_port}"
 
-  echo "[RAY] Preparing Ray cluster (rank=${RANK}, head_ip=${head_ip}, port=${head_port}, gpus_per_node=${gpus_per_node})"
+  echo "[RAY] Preparing Ray cluster (rank=${RANK}, head_ip=${head_ip}, port=${head_port}, client_port=${client_port}, gpus_per_node=${gpus_per_node})"
 
   local -a common_args=("--disable-usage-stats")
   if [[ "$gpus_per_node" =~ ^[0-9]+$ ]] && [[ "$gpus_per_node" -gt 0 ]]; then
@@ -178,7 +180,7 @@ maybe_start_ray_cluster() {
   fi
 
   if [[ "$IS_MASTER" == "true" ]]; then
-    local -a head_args=("--head" "--port" "$head_port" "--dashboard-host" "0.0.0.0")
+    local -a head_args=("--head" "--port" "$head_port" "--dashboard-host" "0.0.0.0" "--ray-client-server-port" "$client_port")
     if [[ -n "$dashboard_port" ]]; then
       head_args+=("--dashboard-port" "$dashboard_port")
     fi

@@ -109,6 +109,12 @@ Examples:
         help="Head node port for the Ray cluster (default: 6379)",
     )
     parser.add_argument(
+        "--ray-client-port",
+        type=int,
+        default=10001,
+        help="Ray client server port exposed by the head node (default: 10001)",
+    )
+    parser.add_argument(
         "--ray-dashboard-port",
         type=int,
         default=None,
@@ -182,6 +188,7 @@ Examples:
         TEST_JOB_RESTART="true" if args.run_ci_tests else "false",
         TEST_NCCL="true" if args.run_ci_tests else "false",
         RAY_HEAD_PORT=args.ray_head_port,
+        RAY_CLIENT_PORT=args.ray_client_port,
         RAY_DASHBOARD_PORT=args.ray_dashboard_port,
     )
 
@@ -228,6 +235,7 @@ Examples:
     if args.copies > 1:
         extra_details["copies"] = args.copies
     extra_details["ray_head_port"] = args.ray_head_port
+    extra_details["ray_client_port"] = args.ray_client_port
 
     display_job_summary(
         job_name=run_id,
