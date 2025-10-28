@@ -75,8 +75,15 @@ def tool_task(
 
     # Extract metric keys from acceptance criteria for training jobs
     metrics_to_track = []
+    acceptance_criteria_dict = None
     if acceptance:
         metrics_to_track = [key for key, _op, _expected in acceptance]
+        # Convert AcceptanceRule list to dict format for JobConfig
+        # operator.__name__ gives "ge", "gt", etc. - convert to symbols
+        op_to_symbol = {"ge": ">=", "gt": ">", "le": "<=", "lt": "<", "eq": "=="}
+        acceptance_criteria_dict = {
+            key: (op_to_symbol.get(op.__name__, op.__name__), expected) for key, op, expected in acceptance
+        }
 
     # Assert that only training jobs can have metrics to track
     if metrics_to_track and not is_training:
@@ -91,6 +98,7 @@ def tool_task(
         remote=remote,
         is_training_job=is_training,
         metrics_to_track=metrics_to_track,
+        acceptance_criteria=acceptance_criteria_dict,
     )
     return Task(job_config=job_config, acceptance=acceptance, dependency_names=dependency_names)
 

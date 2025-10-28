@@ -21,6 +21,7 @@ class JobConfig(Config):
     remote=None runs locally, remote=RemoteConfig(...) runs remotely.
     is_training_job=True enables WandB tracking and run name generation.
     metrics_to_track tracks which WandB metrics to fetch periodically (training jobs only).
+    acceptance_criteria stores metric thresholds for validation (e.g., {"overview/sps": (">=", 40000)}).
     """
 
     name: str
@@ -33,3 +34,4 @@ class JobConfig(Config):
     metadata: dict[str, Any] = Field(default_factory=dict)
     is_training_job: bool = False  # Explicit flag for WandB tracking
     metrics_to_track: list[str] = Field(default_factory=list)  # Metrics to fetch from WandB (training only)
+    acceptance_criteria: dict[str, tuple[str, float]] | None = None  # Metric thresholds: {metric: (op, value)}

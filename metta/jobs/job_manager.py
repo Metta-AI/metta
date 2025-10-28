@@ -107,6 +107,15 @@ class JobManager:
             if remote_jobs:
                 logger.info(f"Reattached to {len(remote_jobs)} remote job(s)")
 
+    def _get_total_timesteps(self, job_config: JobConfig) -> int | None:
+        """Extract total_timesteps from job config overrides."""
+        if "trainer.total_timesteps" in job_config.overrides:
+            try:
+                return int(job_config.overrides["trainer.total_timesteps"])
+            except (ValueError, TypeError):
+                return None
+        return None
+
     def _fetch_metrics(self, job_name: str, job_state: JobState) -> None:
         """Fetch and update metrics for a training job."""
         if not job_state.config.metrics_to_track:
@@ -117,13 +126,16 @@ class JobManager:
             logger.warning(f"Cannot fetch metrics for {job_name}: no wandb_run_id set")
             return
 
+        # Get total timesteps for progress tracking
+        total_timesteps = self._get_total_timesteps(job_state.config)
+
         logger.debug(
             f"Fetching metrics for {job_name}: run={job_state.wandb_run_id}, "
-            f"metrics={job_state.config.metrics_to_track}"
+            f"metrics={job_state.config.metrics_to_track}, total_timesteps={total_timesteps}"
         )
 
         try:
-            metrics_data = fetch_wandb_metrics(
+            metrics_data, current_step = fetch_wandb_metrics(
                 entity=METTA_WANDB_ENTITY,
                 project=METTA_WANDB_PROJECT,
                 run_name=job_state.wandb_run_id,
@@ -133,6 +145,13 @@ class JobManager:
                 # Extract just the values for storage (backward compatible with display)
                 metrics_values = {key: data["value"] for key, data in metrics_data.items()}
 
+                # Add progress tracking if we have both current and total steps
+                if current_step is not None and total_timesteps is not None:
+                    metrics_values["_progress"] = {
+                        "current_step": current_step,
+                        "total_steps": total_timesteps,
+                    }
+
                 with Session(self._engine) as session:
                     job_state = session.get(JobState, job_name)
                     if job_state:
@@ -140,11 +159,16 @@ class JobManager:
                         session.add(job_state)
                         session.commit()
 
-                        # Log with value and count
+                        # Log with value, count, and progress
                         metrics_info = ", ".join(
                             f"{key}={data['value']:.2f} (n={int(data['count'])})" for key, data in metrics_data.items()
                         )
-                        logger.info(f"Fetched metrics for {job_name}: {metrics_info}")
+                        progress_info = ""
+                        if current_step is not None and total_timesteps is not None:
+                            progress_pct = (current_step / total_timesteps) * 100
+                            progress_info = f" | progress={current_step}/{total_timesteps} ({progress_pct:.1f}%)"
+
+                        logger.info(f"Fetched metrics for {job_name}: {metrics_info}{progress_info}")
             else:
                 logger.warning(f"No metrics returned for {job_name} (run may not have data yet)")
         except Exception as e:
