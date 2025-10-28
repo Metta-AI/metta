@@ -10,8 +10,10 @@ if [ -n "${VIRTUAL_ENV:-}" ]; then
 fi
 . .venv/bin/activate
 
+export WRAPPER_PID=$BASHPID
+
 echo "Setting up Python environment..."
-uv sync
+uv sync --force-reinstall
 
 echo "[SIMPLE] Configuring environment..."
 bash ./devops/skypilot/config/lifecycle/configure_environment.sh
