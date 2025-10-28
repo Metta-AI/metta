@@ -73,6 +73,15 @@ def tool_task(
     # Automatically detect training jobs by module path (e.g., "arena.train", "navigation.train")
     is_training = module.endswith(".train")
 
+    # Extract metric keys from acceptance criteria for training jobs
+    metrics_to_track = []
+    if acceptance:
+        metrics_to_track = [key for key, _op, _expected in acceptance]
+
+    # Assert that only training jobs can have metrics to track
+    if metrics_to_track and not is_training:
+        raise ValueError(f"Task {name} has metrics_to_track but is not a training job")
+
     job_config = JobConfig(
         name=name,
         module=module,
@@ -81,6 +90,7 @@ def tool_task(
         timeout_s=timeout_s,
         remote=remote,
         is_training_job=is_training,
+        metrics_to_track=metrics_to_track,
     )
     return Task(job_config=job_config, acceptance=acceptance, dependency_names=dependency_names)
 
@@ -96,7 +106,7 @@ def get_all_tasks() -> list[Task]:
     smoke_run = f"stable.smoke.{datetime.now().strftime('%Y%m%d_%H%M%S')}"
     smoke = tool_task(
         name="arena_local_smoke",
-        module="experiments.recipes.arena_basic_easy_shaped.train",
+        module="arena_basic_easy_shaped.train",
         args=[f"run={smoke_run}", "trainer.total_timesteps=1000"],
         timeout_s=600,
     )
@@ -104,7 +114,7 @@ def get_all_tasks() -> list[Task]:
     # Single GPU training - 100M timesteps
     train_100m = tool_task(
         name="arena_single_gpu_100m",
-        module="experiments.recipes.arena_basic_easy_shaped.train",
+        module="arena_basic_easy_shaped.train",
         args=["trainer.total_timesteps=100000000"],
         timeout_s=7200,
         remote=RemoteConfig(gpus=1, nodes=1),
@@ -117,7 +127,7 @@ def get_all_tasks() -> list[Task]:
     # Multi-GPU training - 2B timesteps
     train_2b = tool_task(
         name="arena_multi_gpu_2b",
-        module="experiments.recipes.arena_basic_easy_shaped.train",
+        module="arena_basic_easy_shaped.train",
         args=["trainer.total_timesteps=2000000000"],
         timeout_s=172800,  # 48 hours
         remote=RemoteConfig(gpus=4, nodes=4),
@@ -130,7 +140,7 @@ def get_all_tasks() -> list[Task]:
     # Evaluation - depends on single-GPU 100M training run
     eval_task = tool_task(
         name="arena_evaluate",
-        module="experiments.recipes.arena_basic_easy_shaped.evaluate",
+        module="arena_basic_easy_shaped.evaluate",
         dependency_names=["arena_single_gpu_100m"],  # Dependency by name
         timeout_s=1800,
     )

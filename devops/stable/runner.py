@@ -13,14 +13,18 @@ import io
 import sys
 import time
 from contextlib import redirect_stdout
-from pathlib import Path
 
+from devops.stable.display import (
+    check_task_passed,
+    evaluate_acceptance,
+    format_task_result,
+    format_task_with_acceptance,
+)
 from devops.stable.state import ReleaseState
-from devops.stable.tasks import AcceptanceRule, Task
-from metta.common.util.text_styles import blue, cyan, green, magenta, red, yellow
+from devops.stable.tasks import Task
+from metta.common.util.text_styles import green, red, yellow
 from metta.jobs.job_manager import JobManager
-from metta.jobs.job_monitor import JobMonitor
-from metta.jobs.job_state import JobState
+from metta.jobs.job_monitor import JobMonitor, format_progress_bar
 
 
 class TaskRunner:
@@ -48,28 +52,12 @@ class TaskRunner:
         self.retry_failed = retry_failed
         self.show_individual_results = show_individual_results
 
-        # Create monitor for live status display (optional, for tests)
-        # Only show training artifacts (WandB, checkpoints) for training jobs
-        def is_training_job(name: str) -> bool:
-            """Check if job is a training job by looking up its config."""
-            job_state = job_manager.get_job_state(name)
-            return job_state.config.is_training_job if job_state else False
-
-        self.monitor = (
-            JobMonitor(job_manager, group=state.version, show_training_artifacts=is_training_job)
-            if enable_monitor
-            else None
-        )
+        self.monitor = JobMonitor(job_manager, group=state.version) if enable_monitor else None
         self._last_display_update = 0.0
         self._display_interval = 3.0  # Update display every 3 seconds
         self._monitor_line_count = 0  # Track how many lines monitor has printed
 
     def _get_job_name(self, task: Task) -> str:
-        """Generate globally unique job name for JobManager.
-
-        Format: {version}_{task_name}
-        Example: "v2025.10.22_metta_ci"
-        """
         return f"{self.state.version}_{task.name}"
 
     def _update_monitor_display(self) -> None:
@@ -104,36 +92,12 @@ class TaskRunner:
         print(output, end="", flush=True)
         self._monitor_line_count = new_line_count
 
-    def _evaluate_acceptance(self, job_state: JobState, rules: list[AcceptanceRule]) -> tuple[bool, str | None]:
-        """Evaluate acceptance criteria against job metrics.
-
-        Returns:
-            (passed, error_message)
-        """
-        if not rules:
-            return (True, None)
-
-        failures: list[str] = []
-        for key, op, expected in rules:
-            if key not in job_state.metrics:
-                failures.append(f"{key}: metric missing (expected {op.__name__} {expected})")
-                continue
-            if not op(job_state.metrics[key], expected):
-                failures.append(f"{key}: expected {op.__name__} {expected}, saw {job_state.metrics[key]}")
-
-        if failures:
-            return (False, "; ".join(failures))
-        return (True, None)
-
     def _passed(self, job_name: str, task: Task) -> bool:
         """Check if job passed (exit_code 0 + acceptance criteria)."""
         job_state = self.job_manager.get_job_state(job_name)
-        if not job_state or job_state.exit_code != 0:
+        if not job_state:
             return False
-
-        # Check acceptance criteria
-        passed, _ = self._evaluate_acceptance(job_state, task.acceptance)
-        return passed
+        return check_task_passed(job_state, task)
 
     def _dependencies_satisfied(self, task: Task, task_by_name: dict[str, Task]) -> bool:
         """Check if all dependencies are resolved (completed with any outcome)."""
@@ -191,67 +155,12 @@ class TaskRunner:
         if not job_state:
             return
 
-        print(f"\n{'=' * 80}")
-        print(blue(f"📋 TASK RESULT: {task.name}"))
-        print(f"{'=' * 80}\n")
+        # Evaluate acceptance
+        acceptance_passed, acceptance_error = evaluate_acceptance(job_state, task.acceptance)
 
-        # Outcome
-        passed = self._passed(job_name, task)
-        if passed:
-            print(green("✅ Outcome: PASSED"))
-        else:
-            print(red("❌ Outcome: FAILED"))
-
-        # Exit code
-        if job_state.exit_code != 0:
-            print(red(f"⚠️  Exit Code: {job_state.exit_code}"))
-        else:
-            print(green(f"✓ Exit Code: {job_state.exit_code}"))
-
-        # Acceptance check
-        if task.acceptance:
-            acceptance_passed, error = self._evaluate_acceptance(job_state, task.acceptance)
-            if not acceptance_passed:
-                print(red(f"\n❗ Acceptance Criteria Failed: {error}"))
-
-        # Metrics
-        if job_state.metrics:
-            print("\n📊 Metrics:")
-            for key, value in job_state.metrics.items():
-                print(f"   • {key}: {value:.4f}")
-
-        # Artifacts with highlighting
-        artifacts = {}
-        if job_state.wandb_run_id:
-            artifacts["wandb_run_id"] = job_state.wandb_run_id
-        if job_state.wandb_url:
-            artifacts["wandb_url"] = job_state.wandb_url
-        if job_state.checkpoint_uri:
-            artifacts["checkpoint_uri"] = job_state.checkpoint_uri
-
-        if artifacts:
-            print("\n📦 Artifacts:")
-            for key, value in artifacts.items():
-                highlighted = self._highlight_artifact(value)
-                print(f"   • {key}: {highlighted}")
-
-        # Job ID and logs path
-        if job_state.job_id:
-            print(f"\n🆔 Job ID: {job_state.job_id}")
-
-        if job_state.logs_path:
-            print(f"📝 Logs: {job_state.logs_path}")
-
-    def _highlight_artifact(self, value: str) -> str:
-        if value.startswith("wandb://"):
-            return magenta(f"📦 {value}")
-        elif value.startswith("s3://"):
-            return magenta(f"📦 {value}")
-        elif value.startswith("file://"):
-            return magenta(f"📦 {value}")
-        elif value.startswith("http"):
-            return cyan(f"🔗 {value}")
-        return value
+        # Format and print result
+        result = format_task_result(job_state, task, acceptance_passed, acceptance_error)
+        print(f"\n{result}")
 
     def run_all(self, tasks: list[Task]) -> None:
         """Run all tasks in parallel, respecting dependencies.
@@ -325,9 +234,6 @@ class TaskRunner:
                         show_running_logs=True,
                         log_tail_lines=3,
                     )
-                    # Count lines for future in-place updates
-                    import io
-                    from contextlib import redirect_stdout
 
                     buffer = io.StringIO()
                     with redirect_stdout(buffer):
@@ -351,6 +257,8 @@ class TaskRunner:
                         # Find the task with this job name
                         task = next((t for t in submitted if self._get_job_name(t) == job_name), None)
                         if task:
+                            # Note: Metrics fetching happens in JobManager monitoring threads
+
                             # Display result only if requested (otherwise monitor shows status)
                             if self.show_individual_results:
                                 self._display_result(job_name, task)
@@ -378,54 +286,44 @@ class TaskRunner:
             print(yellow("\n💡 On restart: stale local jobs will be retried, running remote jobs will be reattached"))
             sys.exit(130)  # Standard exit code for Ctrl+C
 
-        # Display final summary
-        if self.monitor:
-            print("\n")
-            self.monitor.display_status(
-                clear_screen=False,
-                title=f"Release Validation Complete: {self.state.version}",
-                highlight_failures=True,
-                show_artifacts=True,
-            )
+        # Display final summary using composable display
+        print("\n" + "=" * 80)
+        print(f"Release Validation Complete: {self.state.version}")
+        print("=" * 80)
 
-        # Show detailed failure reasons for any failed tasks
-        failed_details = []
-        for task in completed:
-            job_name = self._get_job_name(task)
+        # Get aggregated summary
+        summary = self.job_manager.get_status_summary(group=self.state.version)
+
+        # Show progress bar
+        progress = format_progress_bar(summary["completed"], summary["total"])
+        pct = (summary["completed"] / summary["total"] * 100) if summary["total"] > 0 else 0
+        print(f"\nProgress: {summary['completed']}/{summary['total']} ({pct:.0f}%)")
+        print(f"{progress}")
+        print(f"Succeeded: {green(str(summary['succeeded']))}  Failed: {red(str(summary['failed']))}")
+        print()
+
+        # Show each task with integrated job status + acceptance
+        # Build task lookup
+        task_by_name = {task.name: task for task in tasks}
+
+        for job_dict in summary["jobs"]:
+            # Extract task name from job name (format: {version}_{task_name})
+            job_name = job_dict["name"]
+            task_name = job_name.split("_", 1)[1] if "_" in job_name else job_name
+            task = task_by_name.get(task_name)
+
+            if not task:
+                continue
+
+            # Get full job state for metrics
             job_state = self.job_manager.get_job_state(job_name)
-            if job_state and not self._passed(job_name, task):
-                # Check acceptance criteria
-                if task.acceptance:
-                    acceptance_passed, error = self._evaluate_acceptance(job_state, task.acceptance)
-                    if not acceptance_passed:
-                        failed_details.append((task.name, error, job_state.logs_path))
-                else:
-                    # No acceptance criteria, just show exit code failure
-                    failed_details.append((task.name, None, job_state.logs_path))
+            if not job_state:
+                continue
 
-        if failed_details:
-            print(f"\n{red('Failure Details:')}")
-            for task_name, error, logs_path in failed_details:
-                if error:
-                    print(f"  {red('✗')} {task_name}: {error}")
-                else:
-                    print(f"  {red('✗')} {task_name}: Job failed (see logs)")
-
-                # Show last 5 lines of logs for quick debugging
-                if logs_path:
-                    try:
-                        log_file = Path(logs_path)
-                        if log_file.exists():
-                            lines = log_file.read_text(errors="ignore").splitlines()
-                            if lines:
-                                # Get last 5 non-empty lines
-                                relevant_lines = [line for line in lines if line.strip()][-5:]
-                                if relevant_lines:
-                                    print(f"      Last {len(relevant_lines)} lines:")
-                                    for line in relevant_lines:
-                                        print(f"      │ {line[:100]}")  # Truncate long lines
-                    except Exception:
-                        pass  # Don't crash if we can't read logs
+            # Use composable display
+            display = format_task_with_acceptance(job_dict, task, job_state)
+            print(display)
+            print()
 
     def _submit_task(self, task: Task, task_by_name: dict[str, Task]) -> bool:
         """Submit task to JobManager if not already completed.
