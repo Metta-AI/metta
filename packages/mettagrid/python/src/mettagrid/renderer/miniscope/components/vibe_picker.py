@@ -1,14 +1,14 @@
 """Vibe picker component for miniscope renderer."""
 
-from mettagrid import MettaGridEnv
-from mettagrid.renderer.miniscope.miniscope_panel import SIDEBAR_WIDTH, PanelLayout
+from mettagrid.renderer.miniscope.miniscope_panel import PanelLayout
 from mettagrid.renderer.miniscope.miniscope_state import MiniscopeState, RenderMode
+from mettagrid.simulator import Action, Simulation
 
 from .base import MiniscopeComponent
 
 try:
     from cogames.cogs_vs_clips.vibes import VIBES as VIBE_DATA
-    from cogames.cogs_vs_clips.vibes import search_vibes as search_vibes
+    from cogames.cogs_vs_clips.vibes import search_vibes
 except ImportError:
     VIBE_DATA = None
     search_vibes = None
@@ -19,19 +19,22 @@ class VibePickerComponent(MiniscopeComponent):
 
     def __init__(
         self,
-        env: MettaGridEnv,
+        sim: Simulation,
         state: MiniscopeState,
         panels: PanelLayout,
     ):
         """Initialize the vibe picker component.
 
         Args:
-            env: MettaGrid environment reference
+            sim: MettaGrid simulator reference
             state: Miniscope state reference
             panels: Panel layout containing all panels
         """
-        super().__init__(env=env, state=state, panels=panels)
-        self._set_panel(panels.get_sidebar_panel("vibe_picker"))
+        super().__init__(sim=sim, state=state, panels=panels)
+        sidebar_panel = panels.get_sidebar_panel("vibe_picker")
+        if sidebar_panel is None:
+            sidebar_panel = panels.register_sidebar_panel("vibe_picker")
+        self._set_panel(sidebar_panel)
         self._vibe_query: str = ""
 
     def handle_input(self, ch: str) -> bool:
@@ -51,23 +54,27 @@ class VibePickerComponent(MiniscopeComponent):
                     vibe_id = results[0][0]
 
             if vibe_id is not None and VIBE_DATA and 0 <= vibe_id < len(VIBE_DATA):
-                # Set vibe action - action name includes the vibe ID
-                action_name = f"change_vibe_{vibe_id}"
-                if self.env and action_name in self.env.action_names:
-                    change_vibe_idx = self.env.action_names.index(action_name)
-                    self.state.user_action = change_vibe_idx
+                # Get the vibe name and construct the proper action name
+                vibe = VIBE_DATA[vibe_id]
+                action_name = f"change_vibe_{vibe.name}"
+                # Check if the action exists before setting it
+                if action_name in self._sim.action_ids:
+                    self.state.user_action = Action(name=action_name)
                     self.state.should_step = True
-                self._exit_vibe_picker()
+                    self._exit_vibe_picker()
+                else:
+                    # Action doesn't exist - exit picker without setting action
+                    self._exit_vibe_picker()
         elif ch == "\x1b":  # Escape
             self._exit_vibe_picker()
         elif ch == "\x7f" or ch == "\x08":  # Backspace
             self._vibe_query = self._vibe_query[:-1] if self._vibe_query else ""
         elif ch == "[":
             # Cycle to previous agent
-            self._state.select_previous_agent(self._env.num_agents)
+            self._state.select_previous_agent(self._sim.num_agents)
         elif ch == "]":
             # Cycle to next agent
-            self._state.select_next_agent(self._env.num_agents)
+            self._state.select_next_agent(self._sim.num_agents)
         elif ch and ch.isprintable():
             self._vibe_query = self._vibe_query + ch
 
@@ -79,7 +86,11 @@ class VibePickerComponent(MiniscopeComponent):
         in_picker_mode = self._state.mode == RenderMode.VIBE_PICKER
 
         if not in_picker_mode and not self.state.is_sidebar_visible("vibe_picker"):
-            self._panel.clear()
+            if self._panel is not None:
+                self._panel.clear()
+            return
+
+        if self._panel is None:
             return
 
         lines = self._build_lines(self._vibe_query)
@@ -94,7 +105,7 @@ class VibePickerComponent(MiniscopeComponent):
         Returns:
             List of strings for display
         """
-        width = self._width if self._width else SIDEBAR_WIDTH
+        width = self._width if self._width else 40
         lines = []
 
         if not VIBE_DATA:
@@ -114,8 +125,11 @@ class VibePickerComponent(MiniscopeComponent):
         if query and search_vibes:
             results = search_vibes(query)[:10]
         else:
-            # Show first 10 vibes when no query
-            results = [(i, VIBE_DATA[i]) for i in range(min(10, len(VIBE_DATA)))]
+            # Show first 5 vibes when no query
+            if VIBE_DATA:
+                results = [(i, VIBE_DATA[i]) for i in range(min(5, len(VIBE_DATA)))]
+            else:
+                results = []
 
         if results:
             for idx, (_vibe_id, vibe) in enumerate(results):
