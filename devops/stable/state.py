@@ -8,6 +8,8 @@ This module handles:
 
 from __future__ import annotations
 
+import re
+from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
@@ -21,46 +23,15 @@ from metta.common.util.fs import get_repo_root
 
 
 def get_state_path(version: str) -> Path:
-    """Get state file path for a specific release version.
-
-    Args:
-        version: Version string
-
-    Returns:
-        Path to state file, relative to repo root
-    """
     state_dir = get_repo_root() / "devops/stable/state"
     state_dir.mkdir(parents=True, exist_ok=True)
     return state_dir / f"{version}.json"
 
 
-def get_log_dir(version: str, job_type: str) -> Path:
-    """Get log directory for a specific release version and job type.
-
-    Args:
-        version: Version string
-        job_type: Type of job ("local" or "remote")
-
-    Returns:
-        Path to log directory, relative to repo root
-    """
-    log_dir = get_repo_root() / "devops/stable/logs" / version / job_type
-    log_dir.mkdir(parents=True, exist_ok=True)
-    return log_dir
-
-
 # ============================================================================
-# Data Models
+# State Persistence
 # ============================================================================
-
-
 class ReleaseState(BaseModel):
-    """State of a release qualification run.
-
-    Simplified to just track version/timestamp/commit/gates - TaskRunner queries
-    JobManager directly for job outcomes and submitted jobs.
-    """
-
     version: str
     created_at: str
     commit_sha: Optional[str] = None
@@ -68,20 +39,7 @@ class ReleaseState(BaseModel):
     released: bool = False
 
 
-# ============================================================================
-# State Persistence
-# ============================================================================
-
-
 def load_state(version: str) -> Optional[ReleaseState]:
-    """Load release state from JSON file.
-
-    Args:
-        version: Version string (with or without 'release_' prefix)
-
-    Returns:
-        ReleaseState if found, None otherwise
-    """
     path = get_state_path(version)
     if not path.exists():
         return None
@@ -94,17 +52,6 @@ def load_state(version: str) -> Optional[ReleaseState]:
 
 
 def load_or_create_state(version: str, commit_sha: str) -> ReleaseState:
-    """Load existing state or create new one.
-
-    Args:
-        version: Version string
-        commit_sha: Git commit SHA to use when creating new state
-
-    Returns:
-        ReleaseState (either loaded or newly created)
-    """
-    from datetime import datetime
-
     state = load_state(version)
     if state:
         return state
@@ -120,16 +67,10 @@ def load_or_create_state(version: str, commit_sha: str) -> ReleaseState:
 
 
 def get_most_recent_state() -> Optional[tuple[str, ReleaseState]]:
-    """Get the most recent release state.
-
-    Only considers state files with valid timestamp-based version format:
-    v{YYYY.MM.DD-HHMM}.json (e.g., v2025.10.10-1801.json)
-
-    Returns:
-        Tuple of (version, state) or None if no state files exist
     """
-    import re
-
+    Only considers state files with valid timestamp-based version format:
+    v{YYYY.MM.DD-HHMM}.json (e.g., v2025.10.10-1801.json).
+    """
     state_base = get_repo_root() / "devops/stable/state"
     if not state_base.exists():
         return None
@@ -161,12 +102,6 @@ def get_most_recent_state() -> Optional[tuple[str, ReleaseState]]:
 
 
 def save_state(state: ReleaseState) -> Path:
-    """Save release state to JSON file.
-
-    Note: This is NOT concurrent-safe. Tasks run sequentially, so we don't need
-    atomic writes or file locking. If concurrent execution is needed in the future,
-    add proper file locking (e.g., via filelock library).
-    """
     path = get_state_path(state.version)
 
     # Simple write - no atomicity needed for sequential execution

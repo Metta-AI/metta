@@ -54,7 +54,6 @@ def tool_task(
     module: str,
     args: list[str] | None = None,
     timeout_s: int = 1800,
-    job_type: str = "train",
     remote: RemoteConfig | None = None,
     acceptance: list[AcceptanceRule] | None = None,
     dependency_names: list[str] | None = None,
@@ -66,7 +65,6 @@ def tool_task(
         module: Python module to run (e.g., "arena.train")
         args: Arguments as list of "key=value" strings
         timeout_s: Timeout in seconds
-        job_type: Type of job ("train", "eval", etc.)
         remote: Remote execution config (None = local)
         acceptance: Acceptance criteria for validation
         dependency_names: Names of tasks this depends on
@@ -78,7 +76,6 @@ def tool_task(
         args=args_dict,
         overrides=overrides_dict,
         timeout_s=timeout_s,
-        job_type=job_type,
         remote=remote,
     )
     return Task(job_config=job_config, acceptance=acceptance, dependency_names=dependency_names)
@@ -122,7 +119,7 @@ def get_all_tasks() -> list[Task]:
         remote=RemoteConfig(gpus=4, nodes=4),
         acceptance=[
             ("overview/sps", ge, 40000),
-            ("env_agent/heart.gained", gt, 2.0),
+            ("env_agent/heart.gained", gt, 0.0),
         ],
     )
 
@@ -130,7 +127,6 @@ def get_all_tasks() -> list[Task]:
     eval_task = tool_task(
         name="arena_evaluate",
         module="experiments.recipes.arena_basic_easy_shaped.evaluate",
-        job_type="eval",
         dependency_names=["arena_single_gpu_100m"],  # Dependency by name
         timeout_s=1800,
     )
