@@ -28,7 +28,6 @@ echo "[SIMPLE] Ray ports: tcp=$RAY_PORT client=$RAY_CLIENT_PORT"
 
 start_ray_head() {
   echo "[SIMPLE] Starting Ray head node..."
-  ray stop --force > /dev/null 2>&1 || true
   ray start \
     --head \
     --port "$RAY_PORT" \
@@ -40,7 +39,6 @@ start_ray_head() {
 
 start_ray_worker() {
   echo "[SIMPLE] Starting Ray worker..."
-  ray stop --force > /dev/null 2>&1 || true
   until ray start --address "${HEAD_IP}:${RAY_PORT}" --disable-usage-stats; do
     echo "[SIMPLE] Worker waiting for head..."
     sleep 5
