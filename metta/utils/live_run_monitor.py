@@ -39,7 +39,6 @@ from rich.table import Table
 from rich.text import Text
 
 from metta.common.util.constants import METTA_WANDB_ENTITY, METTA_WANDB_PROJECT
-from metta.jobs.job_monitor import format_cost
 
 if TYPE_CHECKING:
     from metta.adaptive.models import JobStatus, RunInfo
@@ -56,6 +55,18 @@ app = typer.Typer(
     rich_markup_mode="rich",
     context_settings={"help_option_names": ["-h", "--help"]},
 )
+
+
+def format_cost(cost: float) -> str:
+    """Format cost in USD.
+
+    Args:
+        cost: Cost in dollars
+
+    Returns:
+        Formatted string like "$12.34"
+    """
+    return f"${cost:.2f}"
 
 
 class RateLimiter:
