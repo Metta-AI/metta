@@ -627,10 +627,6 @@ class BidirectionalLPScorer(LPScorer):
 
     def _calculate_task_distribution(self) -> None:
         """Calculate task sampling distribution from learning progress."""
-        import logging
-
-        logger = logging.getLogger(__name__)
-
         if not self._outcomes:
             self._task_dist = None
             self._raw_lp_scores = None
@@ -645,12 +641,6 @@ class BidirectionalLPScorer(LPScorer):
             self._postzscored_lp_scores = None
             self._stale_dist = False
             return
-
-        # DEBUG: Log LP calculation details
-        logger.info(
-            f"LP calculation: num_tasks={len(learning_progress)}, raw_LP={learning_progress}, "
-            f"fast_ema={self._p_fast}, slow_ema={self._p_slow}"
-        )
 
         # Apply smoothing to all tasks (even those with negative/zero learning progress)
         # This ensures all tasks get non-zero probability
