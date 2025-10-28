@@ -6,7 +6,6 @@ import os
 from typing import Any, Dict
 
 import ray
-
 from pydantic import Field
 from ray import init, tune
 from ray.tune import TuneConfig, Tuner
@@ -102,13 +101,13 @@ def ray_sweep(
             "sweep_config": sweep_config.model_dump(),
         }
 
-    trial_bundle: dict[str, float] = {}
+    trial_resources: dict[str, float] = {}
     if sweep_config.cpus_per_trial:
-        trial_bundle["CPU"] = float(sweep_config.cpus_per_trial)
+        trial_resources["cpu"] = float(sweep_config.cpus_per_trial)
     if sweep_config.gpus_per_trial:
-        trial_bundle["GPU"] = float(sweep_config.gpus_per_trial)
+        trial_resources["gpu"] = float(sweep_config.gpus_per_trial)
         if accelerator_resource:
-            trial_bundle[accelerator_resource] = float(sweep_config.gpus_per_trial)
+            trial_resources[accelerator_resource] = float(sweep_config.gpus_per_trial)
 
     effective_max_concurrent = max(int(sweep_config.max_concurrent_trials), 1)
 
@@ -138,25 +137,23 @@ def ray_sweep(
 
     logger.info(
         "Trials will request resources: %s; max concurrent trials capped at %d",
-        trial_bundle if trial_bundle else "(none)",
+        trial_resources if trial_resources else "(none)",
         effective_max_concurrent,
     )
 
-    tune_config_kwargs: dict[str, Any] = dict(
-        num_samples=sweep_config.num_samples,
-        metric="reward",
-        mode="max",
-        max_concurrent_trials=effective_max_concurrent,
-    )
-
-    if trial_bundle:
-        tune_config_kwargs["resources_per_trial"] = tune.PlacementGroupFactory([trial_bundle])
-
-    trainable = metta_train_fn
+    if trial_resources:
+        trainable = tune.with_resources(metta_train_fn, resources=trial_resources)
+    else:
+        trainable = metta_train_fn
 
     tuner = Tuner(
         trainable,
-        tune_config=TuneConfig(**tune_config_kwargs),
+        tune_config=TuneConfig(
+            num_samples=sweep_config.num_samples,
+            metric="reward",
+            mode="max",
+            max_concurrent_trials=effective_max_concurrent,
+        ),
         param_space=space,
     )
     tuner.fit()
