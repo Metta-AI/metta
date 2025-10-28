@@ -670,17 +670,22 @@ class StatsReporter(TrainerComponent):
         Flag Location: LearningProgressAlgorithmHypers.show_curriculum_troubleshooting_logging
         """
         if not self.context or not hasattr(self.context, "curriculum"):
+            logger.info("Troubleshooting disabled: No context or curriculum")
             return False
 
         curriculum = self.context.curriculum
         if not curriculum or not hasattr(curriculum, "_algorithm"):
+            logger.info("Troubleshooting disabled: No curriculum or algorithm")
             return False
 
         algorithm = curriculum._algorithm
         if not algorithm or not hasattr(algorithm, "hypers"):
+            logger.info("Troubleshooting disabled: No algorithm or hypers")
             return False
 
-        return getattr(algorithm.hypers, "show_curriculum_troubleshooting_logging", False)
+        flag_value = getattr(algorithm.hypers, "show_curriculum_troubleshooting_logging", False)
+        logger.info(f"Troubleshooting flag value: {flag_value}")
+        return flag_value
 
     def _collect_curriculum_troubleshooting_stats(self, curriculum: Any, curriculum_stats: dict) -> dict[str, float]:
         """Collect detailed troubleshooting stats for curriculum debugging.
@@ -694,6 +699,7 @@ class StatsReporter(TrainerComponent):
         # GROUP C: Tracked task dynamics
         # Get first 3 task IDs from the curriculum's task pool
         tracked_task_ids = self._get_tracked_task_ids(curriculum)
+        logger.info(f"Tracked task IDs: {tracked_task_ids}")
 
         if tracked_task_ids:
             for i, task_id in enumerate(tracked_task_ids):
@@ -708,6 +714,7 @@ class StatsReporter(TrainerComponent):
         # GROUP D: Per-label LP scores
         # Collect from curriculum algorithm's per-label tracking
         per_label_stats = self._get_per_label_lp_stats(curriculum)
+        logger.info(f"Per-label stats collected: {len(per_label_stats)} stats")
         stats.update(per_label_stats)
 
         return stats
