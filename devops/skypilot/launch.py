@@ -49,19 +49,57 @@ def _validate_sky_cluster_name(run_name: str) -> bool:
     return valid
 
 
-def _validate_run_tool(module_path: str, run_id: str, filtered_args: list) -> None:
-    """Validate that run.py can successfully create a tool config with the given arguments."""
-    # Build the run.py command
+def _extract_module_from_command(command: str) -> str | None:
+    """Extract module path from command if it uses tools/run.py pattern.
+
+    Returns module path if found, None otherwise.
+    """
+    # Match patterns like: "uv run ./tools/run.py arena.train ..." or "tools/run.py module.path ..."
+    import re
+
+    pattern = r"(?:uv\s+run\s+)?(?:\./)?tools/run\.py\s+([a-zA-Z0-9_.]+)"
+    match = re.search(pattern, command)
+    if match:
+        return match.group(1)
+    return None
+
+
+def _validate_command(command: str) -> None:
+    """Validate command by attempting dry-run if it uses tools/run.py.
+
+    If the command uses tools/run.py with a module, validate the module.
+    Otherwise, skip validation (arbitrary commands are allowed).
+    """
+    module_path = _extract_module_from_command(command)
+
+    if not module_path:
+        print("[VALIDATION] ⏭️  Skipping validation (command doesn't use tools/run.py)")
+        return
+
+    # Validate the module
+    if not validate_module_path(module_path):
+        sys.exit(1)
+
+    # Attempt dry-run validation
     run_cmd = ["uv", "run", "--active", "tools/run.py", module_path, "--dry-run"]
 
-    # Add args if provided (run= is already included in filtered_args)
-    if filtered_args:
-        run_cmd.extend(filtered_args)
+    # Extract any additional args from command (after the module)
+    import re
+
+    pattern = r"(?:uv\s+run\s+)?(?:\./)?tools/run\.py\s+[a-zA-Z0-9_.]+\s+(.*)"
+    match = re.search(pattern, command)
+    if match:
+        args_str = match.group(1).strip()
+        if args_str:
+            import shlex
+
+            run_cmd.extend(shlex.split(args_str))
+
     try:
         subprocess.run(run_cmd, capture_output=True, text=True, check=True)
-        print("[VALIDATION] ✅ Configuration validation successful")
+        print(f"[VALIDATION] ✅ Module '{module_path}' validated successfully")
     except subprocess.CalledProcessError as e:
-        print(red("[VALIDATION] ❌ Configuration validation failed"))
+        print(red(f"[VALIDATION] ❌ Module '{module_path}' validation failed"))
         if e.stdout:
             print(e.stdout)
         if e.stderr:
@@ -115,20 +153,29 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  # Basic:
-  %(prog)s arena.train run=test_123 trainer.total_timesteps=100000
+  # Using --tool flag (recommended for tools/run.py):
+  %(prog)s --tool arena.train run=test_123 trainer.total_timesteps=100000 --gpus 2
 
-  # Mix of launch flags and tool args:
-  %(prog)s arena.train --gpus 2 --nodes 4 -- run=test_123 trainer.steps=1000
+  # Arbitrary command:
+  %(prog)s "pytest tests/rl/" --gpus 1
+
+  # Both styles support resource flags:
+  %(prog)s --tool arena.train run=foo --gpus 2 --nodes 4
         """,
     )
 
-    # First, we need to separate launch flags from tool args
-    # We'll parse known args only, allowing unknown ones to be passed as tool args
     parser.add_argument(
-        "module_path",
-        help="Module path to run (e.g., arena.train or experiments.recipes.arena.train). "
-        "Any arguments following the module path will be passed to the tool.",
+        "command",
+        nargs="?",
+        help="Command to execute on remote cluster (required if --tool not used). "
+        "Will be wrapped with devops/run.sh for torchrun setup if it uses tools/run.py.",
+    )
+
+    parser.add_argument(
+        "--tool",
+        type=str,
+        help="Run a tool from tools/run.py. This auto-prefixes 'uv run ./tools/run.py' and validates the module. "
+        "Example: --tool arena.train run=foo trainer.steps=1000",
     )
 
     # Launch-specific flags
@@ -173,29 +220,49 @@ Examples:
         help="Run NCCL and job restart tests",
     )
 
-    # Use parse_known_args to handle both launch flags and tool args
-    args, tool_args = parser.parse_known_args()
+    # Parse known args to handle --tool with remaining args
+    args, remaining_args = parser.parse_known_args()
 
-    # Handle run ID extraction
+    # Validate that either --tool or command is provided (not both, not neither)
+    if args.tool and args.command:
+        parser.error("Cannot specify both --tool and command. Use one or the other.")
+    if not args.tool and not args.command:
+        parser.error("Must specify either --tool or command")
+
+    # Build command string
+    if args.tool:
+        # Using --tool: validate module and build command
+        if not validate_module_path(args.tool):
+            sys.exit(1)
+
+        # Combine tool module with remaining args
+        cmd_parts = [args.tool] + remaining_args
+        command = f"uv run ./tools/run.py {' '.join(cmd_parts)}"
+    else:
+        # Using direct command
+        command = args.command
+
+    # Extract run ID from --run flag or from command string
     run_id = args.run
-    filtered_args = []
 
-    for arg in tool_args:
-        if arg.startswith("run="):
-            # Extract the run ID
-            new_run_id = arg[4:]
-            if run_id is not None and new_run_id != run_id:
-                raise ValueError(f"Conflicting run IDs specified: '{run_id}' and '{new_run_id}'")
-            run_id = new_run_id
-        else:
-            filtered_args.append(arg)
+    # Try to extract run= from command if not provided via flag
+    if run_id is None:
+        import re
 
+        # Match run=value (handling various formats: run=foo, run="foo bar", etc.)
+        match = re.search(r"run=([^\s]+)", command)
+        if match:
+            run_id = match.group(1)
+
+    # Generate auto run ID if still not found
     if run_id is None:
         run_id = auto_run_name()
         logger.info(f"Using auto-generated run ID: {run_id}")
-        logger.info("To specify a run ID pass run=foo")
+        logger.info("To specify a run ID, add 'run=foo' to your command or use --run flag")
 
-    filtered_args.append(f"run={run_id}")
+    # Ensure command includes run= (append if missing)
+    if "run=" not in command:
+        command = f"{command} run={run_id}"
 
     cd_repo_root()
 
@@ -216,16 +283,15 @@ Examples:
                 print("  - Skip check: add --skip-git-check flag")
                 sys.exit(1)
 
-    # Validate module path (supports shorthand like 'arena.train')
-    if not validate_module_path(args.module_path):
-        sys.exit(1)
-
     assert commit_hash
 
-    # Validate the run.py tool configuration early to catch errors before setting up the task
-    _validate_run_tool(args.module_path, run_id, filtered_args)
+    # Validate command (skip if we used --tool, already validated)
+    if not args.tool:
+        _validate_command(command)
+    else:
+        print(f"[VALIDATION] ✅ Module '{args.tool}' validated successfully")
 
-    # Validate the provided run name
+    # Validate the run name for Sky cluster naming requirements
     if not _validate_sky_cluster_name(run_id):
         sys.exit(1)
 
@@ -234,8 +300,7 @@ Examples:
     # Prepare environment variables including status parameters
     env_updates = dict(
         METTA_RUN_ID=run_id,
-        METTA_MODULE_PATH=args.module_path,
-        METTA_ARGS=" ".join(filtered_args),
+        METTA_CMD=command,
         METTA_GIT_REF=commit_hash,
         HEARTBEAT_TIMEOUT=args.heartbeat_timeout_seconds,
         GITHUB_PAT=args.github_pat,
@@ -287,8 +352,8 @@ Examples:
 
     display_job_summary(
         job_name=run_id,
-        cmd=f"{args.module_path} (args: {filtered_args})",
-        task_args=[],  # We're showing args differently now
+        cmd=command,
+        task_args=[],
         commit_hash=commit_hash,
         git_ref=args.git_ref,
         timeout_hours=args.max_runtime_hours,
