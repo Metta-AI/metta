@@ -142,7 +142,7 @@ def _run_python_benchmarks(*, verbose: bool = False, extra_args: Sequence[str] |
     _ensure_no_extra_args("python-benchmarks", extra_args)
     _print_header("Python Benchmarks")
 
-    cmd = ["uv", "run", "pytest", "--benchmark-only"]
+    cmd = ["uv", "run", "metta", "pytest", "--ci", "--", "--benchmark-only"]
     passed = _run_command(cmd, "Python benchmarks", verbose=verbose)
 
     return CheckResult("Python Benchmarks", passed)
