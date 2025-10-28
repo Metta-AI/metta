@@ -21,19 +21,22 @@ def metta_train_fn(config: dict[str, Any]) -> None:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
     """
     Train function for the metta model.
-    Keys needed in config:
-        - serialized_job_definition,
-        - experiment_id
+
+    Ray allocates GPUs via CUDA_VISIBLE_DEVICES, but the training subprocess
+    expects LOCAL_RANK to select which GPU to use. For single-GPU trials,
+    we set LOCAL_RANK=0 so the training code uses the first (only) visible GPU.
     """
-    # Get Ray's GPU allocation and log it
-    import ray
-    try:
-        gpu_ids = ray.get_gpu_ids()
-        cuda_visible_devices = os.environ.get("CUDA_VISIBLE_DEVICES", "")
-        print(f"[Ray Trial] Ray GPU IDs: {gpu_ids}")
-        print(f"[Ray Trial] CUDA_VISIBLE_DEVICES: {cuda_visible_devices}")
-    except Exception as e:
-        print(f"[Ray Trial] Warning: Could not get Ray GPU allocation: {e}")
+    # Configure environment for single-GPU training subprocess
+    # Ray has already isolated the GPU via CUDA_VISIBLE_DEVICES
+    # Now tell the training code to use the first visible GPU
+    os.environ["LOCAL_RANK"] = "0"
+    os.environ["RANK"] = "0"
+    os.environ["WORLD_SIZE"] = "1"
+
+    # Log GPU allocation for debugging
+    cuda_visible_devices = os.environ.get("CUDA_VISIBLE_DEVICES", "NOT SET")
+    print(f"[Ray Trial] CUDA_VISIBLE_DEVICES: {cuda_visible_devices}")
+    print(f"[Ray Trial] Set LOCAL_RANK=0 for single-GPU training")
 
     dispatcher = LocalDispatcher(capture_output=True)
 
