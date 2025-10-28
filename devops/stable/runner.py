@@ -13,6 +13,7 @@ import io
 import sys
 import time
 from contextlib import redirect_stdout
+from pathlib import Path
 
 from devops.stable.state import ReleaseState
 from devops.stable.tasks import AcceptanceRule, Task
@@ -341,6 +342,45 @@ class TaskRunner:
                 show_artifacts=True,
             )
 
+        # Show detailed failure reasons for any failed tasks
+        failed_details = []
+        for task in completed:
+            job_name = self._get_job_name(task)
+            job_state = self.job_manager.get_job_state(job_name)
+            if job_state and not self._passed(job_name, task):
+                # Check acceptance criteria
+                if task.acceptance:
+                    acceptance_passed, error = self._evaluate_acceptance(job_state, task.acceptance)
+                    if not acceptance_passed:
+                        failed_details.append((task.name, error, job_state.logs_path))
+                else:
+                    # No acceptance criteria, just show exit code failure
+                    failed_details.append((task.name, None, job_state.logs_path))
+
+        if failed_details:
+            print(f"\n{red('Failure Details:')}")
+            for task_name, error, logs_path in failed_details:
+                if error:
+                    print(f"  {red('✗')} {task_name}: {error}")
+                else:
+                    print(f"  {red('✗')} {task_name}: Job failed (see logs)")
+
+                # Show last 5 lines of logs for quick debugging
+                if logs_path:
+                    try:
+                        log_file = Path(logs_path)
+                        if log_file.exists():
+                            lines = log_file.read_text(errors="ignore").splitlines()
+                            if lines:
+                                # Get last 5 non-empty lines
+                                relevant_lines = [line for line in lines if line.strip()][-5:]
+                                if relevant_lines:
+                                    print(f"      Last {len(relevant_lines)} lines:")
+                                    for line in relevant_lines:
+                                        print(f"      │ {line[:100]}")  # Truncate long lines
+                    except Exception:
+                        pass  # Don't crash if we can't read logs
+
     def _submit_task(self, task: Task, task_by_name: dict[str, Task]) -> bool:
         """Submit task to JobManager if not already completed.
 
@@ -382,11 +422,7 @@ class TaskRunner:
         task.job_config.name = job_name
         task.job_config.group = self.state.version
 
-        # Submit to JobManager
-        print(f"\n{'=' * 80}")
-        print(f"🔄 Running: {task.name}")
-        print(f"{'=' * 80}")
-
+        # Submit to JobManager (monitor will show status)
         try:
             self.job_manager.submit(task.job_config)
             return True
