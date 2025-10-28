@@ -17,7 +17,11 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader, Dataset
 
-from .doxascope_data import get_num_classes_for_manhattan_distance, preprocess_doxascope_data
+from .doxascope_data import (
+    get_num_classes_for_manhattan_distance,
+    get_num_classes_for_quadrant_granularity,
+    preprocess_doxascope_data,
+)
 
 
 def get_activation_fn(name: str) -> nn.Module:
@@ -68,6 +72,7 @@ class DoxascopeNet(nn.Module):
         activation_fn: str = "gelu",
         main_net_depth: int = 3,
         processor_depth: int = 1,
+        granularity: str = "exact",
     ):
         super(DoxascopeNet, self).__init__()
 
@@ -80,6 +85,7 @@ class DoxascopeNet(nn.Module):
             "activation_fn": activation_fn,
             "main_net_depth": main_net_depth,
             "processor_depth": processor_depth,
+            "granularity": granularity,
         }
 
         lstm_state_dim = input_dim // 2
@@ -115,7 +121,12 @@ class DoxascopeNet(nn.Module):
         )
 
         for k in self.head_timesteps:
-            num_classes = get_num_classes_for_manhattan_distance(abs(k))
+            if granularity == "exact":
+                num_classes = get_num_classes_for_manhattan_distance(abs(k))
+            elif granularity == "quadrant":
+                num_classes = get_num_classes_for_quadrant_granularity(abs(k))
+            else:
+                raise ValueError(f"Unknown granularity: {granularity}")
             self.output_heads.append(nn.Linear(hidden_dim, num_classes))
 
     def forward(self, x: torch.Tensor) -> List[torch.Tensor]:
@@ -400,6 +411,7 @@ def prepare_data(
     num_future_timesteps: int,
     num_past_timesteps: int,
     data_split_seed: int = 42,
+    granularity: str = "exact",
 ) -> Tuple[Optional[DataLoader], Optional[DataLoader], Optional[DataLoader], Optional[int]]:
     """
     Prepares and splits data into training, validation, and test sets.
@@ -487,7 +499,12 @@ def prepare_data(
 
     # Process files for each split
     X_train, y_train = preprocess_doxascope_data(
-        train_files, preprocessed_dir, "train.npz", num_future_timesteps, num_past_timesteps
+        train_files,
+        preprocessed_dir,
+        "train.npz",
+        num_future_timesteps,
+        num_past_timesteps,
+        granularity=granularity,
     )
     if X_train is None:
         print("No training data could be generated.")
@@ -495,13 +512,13 @@ def prepare_data(
     input_dim = X_train.shape[1]
 
     X_val, y_val = preprocess_doxascope_data(
-        val_files, preprocessed_dir, "val.npz", num_future_timesteps, num_past_timesteps
+        val_files, preprocessed_dir, "val.npz", num_future_timesteps, num_past_timesteps, granularity=granularity
     )
     if X_val is None:
         print("Warning: No validation samples could be generated from the validation files.")
 
     X_test, y_test = preprocess_doxascope_data(
-        test_files, preprocessed_dir, "test.npz", num_future_timesteps, num_past_timesteps
+        test_files, preprocessed_dir, "test.npz", num_future_timesteps, num_past_timesteps, granularity=granularity
     )
     if X_test is None:
         print("Warning: No test samples could be generated from the test files.")

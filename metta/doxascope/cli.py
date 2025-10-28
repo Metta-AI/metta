@@ -14,6 +14,7 @@ import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
+import numpy as np
 import pandas as pd
 import torch
 from torch.utils.data import DataLoader
@@ -90,6 +91,11 @@ def _interactive_prediction_config(args: argparse.Namespace) -> Optional[argpars
     if new_past is None:
         return None
     args.num_past_timesteps = new_past
+
+    new_granularity = _prompt_for_value("Granularity (exact, quadrant)", str, args.granularity)
+    if new_granularity is None:
+        return None
+    args.granularity = new_granularity
 
     print("\nPrediction settings updated.")
     return args
@@ -555,6 +561,7 @@ def handle_train_command(args: argparse.Namespace):
         num_future_timesteps=args.num_future_timesteps,
         num_past_timesteps=args.num_past_timesteps,
         data_split_seed=42,
+        granularity=args.granularity,
     )
 
     if not data_loaders or data_loaders[0] is None:
@@ -566,6 +573,15 @@ def handle_train_command(args: argparse.Namespace):
         print("Error: input_dim is None. Cannot determine model input size.")
         return
 
+    # Load granularity from the preprocessed data if it exists
+    granularity = args.granularity
+    preprocessed_meta_file = output_dir / "preprocessed_data" / "train.npz"
+    if preprocessed_meta_file.exists():
+        with np.load(preprocessed_meta_file) as data:
+            if "granularity" in data:
+                granularity = str(data["granularity"])
+                print(f"Loaded granularity '{granularity}' from preprocessed data.")
+
     model_params = {
         "input_dim": input_dim,
         "num_future_timesteps": args.num_future_timesteps,
@@ -575,6 +591,7 @@ def handle_train_command(args: argparse.Namespace):
         "activation_fn": args.activation_fn,
         "main_net_depth": args.main_net_depth,
         "processor_depth": args.processor_depth,
+        "granularity": granularity,
     }
 
     model = DoxascopeNet(**model_params).to(device)
@@ -754,6 +771,7 @@ def handle_sweep_command(args: argparse.Namespace):
         args.val_split,
         args.num_future_timesteps,
         args.num_past_timesteps,
+        granularity=args.granularity,
     )
     if data_loaders[0] is None:
         print("❌ Failed to prepare data. Aborting sweep.")
@@ -833,6 +851,13 @@ def main():
         "--num-future-timesteps", type=int, default=1, help="Number of future timesteps to predict."
     )
     parser_train.add_argument("--num-past-timesteps", type=int, default=0, help="Number of past timesteps to predict.")
+    parser_train.add_argument(
+        "--granularity",
+        type=str,
+        default="exact",
+        choices=["exact", "quadrant"],
+        help="Prediction granularity for position.",
+    )
     parser_train.add_argument("--batch-size", type=int, default=64, help="Batch size for training.")
     parser_train.add_argument("--learning-rate", type=float, default=0.0005, help="Learning rate for the optimizer.")
     parser_train.add_argument("--num-epochs", type=int, default=100, help="Number of epochs to train for.")
@@ -886,6 +911,13 @@ def main():
         help="Number of future steps to predict (interactive if omitted).",
     )
     parser_sweep.add_argument("--num-past-timesteps", type=int, default=0, help="Number of past steps to predict.")
+    parser_sweep.add_argument(
+        "--granularity",
+        type=str,
+        default="exact",
+        choices=["exact", "quadrant"],
+        help="Prediction granularity for position.",
+    )
     parser_sweep.add_argument("--num-configs", type=int, default=30, help="Number of random configurations to test.")
     parser_sweep.add_argument("--max-epochs", type=int, default=50, help="Maximum number of epochs for each run.")
     parser_sweep.add_argument("--patience", type=int, default=10, help="Patience for early stopping in each trial.")

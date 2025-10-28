@@ -15,7 +15,12 @@ import numpy as np
 import torch
 from torch.utils.data import DataLoader
 
-from .doxascope_data import get_class_id_to_pos_map, get_num_classes_for_manhattan_distance
+from .doxascope_data import (
+    get_class_id_to_pos_map,
+    get_num_classes_for_manhattan_distance,
+    get_num_classes_for_quadrant_granularity,
+    pos_to_quadrant_class_id,
+)
 
 if TYPE_CHECKING:
     from .doxascope_network import DoxascopeNet
@@ -100,48 +105,111 @@ def plot_accuracy_heatmaps_per_timestep(
     output_dir: Path,
 ):
     """Generate a heatmap per timestep head where color=accuracy and text=count.
-
     For head with timestep k, we build a (2|k|+1)×(2|k|+1) grid over (dr, dc).
     Non-reachable cells (|dr|+|dc|>|k|) are masked to NaN.
     """
     preds, _ = get_predictions(model, X_test, device)
     timesteps: List[int] = model.head_timesteps  # type: ignore[attr-defined]
+    granularity = model.config.get("granularity", "exact")
 
     for head_idx, k in enumerate(timesteps):
         d = abs(k)
         if d == 0:
             continue
-        num_classes = get_num_classes_for_manhattan_distance(d)
-        acc_c, cnt_c = _per_class_accuracy_and_counts(y_test[:, head_idx], preds[head_idx], num_classes)
 
-        # Build grid
+        y_true_head = y_test[:, head_idx]
+        y_pred_head = preds[head_idx]
+
         size = 2 * d + 1
-        acc_grid = np.full((size, size), np.nan, dtype=np.float32)
-        cnt_grid = np.zeros((size, size), dtype=np.int64)
-        class_id_to_pos = get_class_id_to_pos_map(d)
-        # Map center at (d, d) representing (dr=0, dc=0)
-        for class_id, (dr, dc) in class_id_to_pos.items():
-            r = d + dr
-            c = d + dc
-            acc_grid[r, c] = acc_c[class_id]
-            cnt_grid[r, c] = cnt_c[class_id]
+        fig, ax = plt.subplots(figsize=(8, 8))
 
-        fig, ax = plt.subplots(figsize=(6, 6))
-        im = ax.imshow(acc_grid, cmap="viridis", vmin=0.0, vmax=1.0)
-        ax.set_title(f"Accuracy Heatmap (timestep {k})")
+        if granularity == "exact":
+            num_classes = get_num_classes_for_manhattan_distance(d)
+            acc_c, cnt_c = _per_class_accuracy_and_counts(y_true_head, y_pred_head, num_classes)
+            class_id_to_pos = get_class_id_to_pos_map(d)
+
+            acc_grid = np.full((size, size), np.nan, dtype=np.float32)
+            cnt_grid = np.zeros((size, size), dtype=np.int64)
+
+            for class_id, (dr, dc) in class_id_to_pos.items():
+                r, c = d + dr, d + dc
+                acc_grid[r, c] = acc_c[class_id]
+                cnt_grid[r, c] = cnt_c[class_id]
+
+            im = ax.imshow(acc_grid, cmap="viridis", vmin=0.0, vmax=1.0)
+            for r in range(size):
+                for c in range(size):
+                    if not np.isnan(acc_grid[r, c]):
+                        ax.text(c, r, str(cnt_grid[r, c]), ha="center", va="center", color="white", fontsize=8)
+
+        elif granularity == "quadrant":
+            num_quad_classes = get_num_classes_for_quadrant_granularity(k)
+            # y_true_head and y_pred_head are already in quadrant space
+            acc_q, cnt_q = _per_class_accuracy_and_counts(y_true_head, y_pred_head, num_quad_classes)
+
+            acc_grid = np.full((size, size), np.nan, dtype=np.float32)
+            for r in range(size):
+                for c in range(size):
+                    dr, dc = r - d, c - d
+                    if abs(dr) + abs(dc) <= d:
+                        quad_id = pos_to_quadrant_class_id(dr, dc)
+                        if quad_id < len(acc_q):
+                            acc_grid[r, c] = acc_q[quad_id]
+
+            im = ax.imshow(acc_grid, cmap="viridis", vmin=0.0, vmax=1.0)
+
+            # Annotate quadrants
+            for quad_id, count in enumerate(cnt_q):
+                if count > 0:
+                    # Find all grid cells that belong to this quadrant
+                    quad_cells = []
+                    for r in range(size):
+                        for c in range(size):
+                            dr, dc = r - d, c - d
+                            if abs(dr) + abs(dc) <= d and pos_to_quadrant_class_id(dr, dc) == quad_id:
+                                quad_cells.append((r, c))
+
+                    if not quad_cells:
+                        continue
+
+                    # Find a representative center for annotation
+                    rows, cols = zip(*quad_cells, strict=True)
+                    center_r, center_c = np.mean(rows), np.mean(cols)
+
+                    ax.text(
+                        center_c,
+                        center_r - 0.15,
+                        str(count),
+                        ha="center",
+                        va="center",
+                        color="white",
+                        weight="bold",
+                        fontsize=10,
+                    )
+                    ax.text(
+                        center_c,
+                        center_r + 0.15,
+                        f"({acc_q[quad_id]:.1%})",
+                        ha="center",
+                        va="center",
+                        color="white",
+                        fontsize=8,
+                    )
+        else:
+            raise ValueError(f"Unknown granularity: {granularity}")
+
+        # Draw grid lines between cells
+        for i in range(size + 1):
+            ax.axvline(i - 0.5, color="gray", linewidth=0.5)
+            ax.axhline(i - 0.5, color="gray", linewidth=0.5)
+
+        ax.set_title(f"Accuracy Heatmap (timestep {k}, granularity: {granularity})")
         ax.set_xticks(range(size))
         ax.set_yticks(range(size))
         ax.set_xticklabels([str(i) for i in range(-d, d + 1)])
         ax.set_yticklabels([str(i) for i in range(-d, d + 1)])
         ax.set_xlabel("dc (columns)")
         ax.set_ylabel("dr (rows)")
-
-        # Annotate counts
-        for r in range(size):
-            for c in range(size):
-                if np.isnan(acc_grid[r, c]):
-                    continue
-                ax.text(c, r, str(cnt_grid[r, c]), ha="center", va="center", color="white", fontsize=8)
 
         plt.colorbar(im, ax=ax, fraction=0.046, pad=0.04, label="Accuracy")
         plt.tight_layout()
