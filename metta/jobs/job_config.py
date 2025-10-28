@@ -1,6 +1,6 @@
 """Core job specification models shared across Metta job systems."""
 
-from typing import Any, Literal
+from typing import Any
 
 from pydantic import Field
 
@@ -27,6 +27,5 @@ class JobConfig(Config):
     overrides: dict[str, Any] = Field(default_factory=dict)
     timeout_s: int = 7200
     remote: RemoteConfig | None = None
-    job_type: Literal["train", "eval", "task"] = "train"
     group: str | None = None
     metadata: dict[str, Any] = Field(default_factory=dict)
