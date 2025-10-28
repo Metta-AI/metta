@@ -51,7 +51,7 @@ class TaskRunner:
         # Create monitor for live status display (optional, for tests)
         self.monitor = JobMonitor(job_manager, group=state.version) if enable_monitor else None
         self._last_display_update = 0.0
-        self._display_interval = 2.0  # Update display every 2 seconds
+        self._display_interval = 3.0  # Update display every 3 seconds
         self._monitor_line_count = 0  # Track how many lines monitor has printed
 
     def _get_job_name(self, task: Task) -> str:
@@ -286,6 +286,8 @@ class TaskRunner:
 
         # Submit-poll loop with interrupt handling
         first_submission = True
+        last_poll_time = 0.0
+        poll_interval = 1.0  # Poll JobManager every 1 second for job completions
         try:
             while pending or submitted:
                 # Submit all tasks with satisfied dependencies
@@ -328,9 +330,12 @@ class TaskRunner:
                         )
                     self._monitor_line_count = buffer.getvalue().count("\n")
                     self._last_display_update = time.time()
+                    last_poll_time = time.time()
 
-                # Poll for completions
-                if submitted:
+                now = time.time()
+
+                # Poll for completions (less frequently - may be slow for remote jobs)
+                if submitted and now - last_poll_time >= poll_interval:
                     completed_job_names = self.job_manager.poll()
                     for job_name in completed_job_names:
                         # Find the task with this job name
@@ -341,15 +346,14 @@ class TaskRunner:
                                 self._display_result(job_name, task)
                             completed.add(task)
                             submitted.remove(task)
+                    last_poll_time = now
 
-                # Display status periodically (throttled)
-                if self.monitor:
-                    now = time.time()
-                    if now - self._last_display_update >= self._display_interval:
-                        # Don't clear screen during execution - update in place
-                        # This preserves step headers and previous output
-                        self._update_monitor_display()
-                        self._last_display_update = now
+                # Display status periodically (fast - just reads from database)
+                if self.monitor and now - self._last_display_update >= self._display_interval:
+                    # Don't clear screen during execution - update in place
+                    # This preserves step headers and previous output
+                    self._update_monitor_display()
+                    self._last_display_update = now
 
                 # Small sleep to avoid tight polling loop
                 if pending or submitted:
