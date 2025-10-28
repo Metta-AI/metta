@@ -57,6 +57,7 @@ envs:
 
   METTA_RUN_ID: ""
   METTA_CMD: ""
+  METTA_USE_TORCHRUN: "false"
   METTA_GIT_REF: main
   HEARTBEAT_TIMEOUT: 600
 

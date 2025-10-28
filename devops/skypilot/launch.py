@@ -298,9 +298,11 @@ Examples:
     task = sky.Task.from_yaml("./devops/skypilot/config/skypilot_run.yaml")
 
     # Prepare environment variables including status parameters
+    # METTA_USE_TORCHRUN tells skypilot_run.sh whether to wrap with devops/run.sh
     env_updates = dict(
         METTA_RUN_ID=run_id,
         METTA_CMD=command,
+        METTA_USE_TORCHRUN="true" if args.tool else "false",
         METTA_GIT_REF=commit_hash,
         HEARTBEAT_TIMEOUT=args.heartbeat_timeout_seconds,
         GITHUB_PAT=args.github_pat,
