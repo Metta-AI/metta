@@ -11,10 +11,24 @@ from ray import tune
 from metta.adaptive.dispatcher import LocalDispatcher
 from metta.adaptive.stores import WandbStore
 from metta.adaptive.utils import create_training_job
+from webbrowser import get
 
 
 def _fallback_run_id() -> str:
     return f"local-{datetime.now().strftime('%Y%m%d-%H%M%S')}"
+
+
+def _report_metrics(trial_name: str) -> dict[str, Any]:
+    store = WandbStore(entity="metta-research", project=os.environ.get("WANDB_PROJECT", "metta"))
+    try:
+        summary = store.get_run_summary(trial_name)
+        current_timestep = summary.get("metric/agent_step")
+        current_reward = summary.get("experience/rewards")
+        tune.report({"reward": current_reward, "timestep": current_timestep})
+        return {"reward": current_reward, "timestep": current_timestep}
+    except Exception as e:
+        print(f"Error polling WandB: {e}")
+        return {}
 
 
 def metta_train_fn(config: dict[str, Any]) -> None:
@@ -34,16 +48,11 @@ def metta_train_fn(config: dict[str, Any]) -> None:
     merged_overrides = dict(sweep_config.get("train_overrides", {}))
     merged_overrides.update(config["params"])
 
-    gpus_per_trial = int(sweep_config.get("gpus_per_trial", 0) or 0)
-    nodes_per_trial = int(sweep_config.get("nodes_per_trial", 1) or 1)
-
     job = create_training_job(
         run_id=trial_name,
         experiment_id=sweep_config.get("sweep_id"),
         recipe_module=sweep_config.get("recipe_module"),
         train_entrypoint=sweep_config.get("train_entrypoint"),
-        gpus=gpus_per_trial if gpus_per_trial > 0 else 0,
-        nodes=nodes_per_trial if nodes_per_trial > 0 else 1,
         stats_server_uri=sweep_config.get("stats_server_uri"),
         train_overrides=merged_overrides,
     )
@@ -55,18 +64,17 @@ def metta_train_fn(config: dict[str, Any]) -> None:
     print(f"Job ID: {job_pid}")
 
     # polling returns None as long as the process is running
-    while dispatcher.get_process(job_pid).poll() is None:
+
+    # Fetch process as it might have been reaped already
+    training_proc = dispatcher.get_process(job_pid)
+
+    # Wait for the process to finish
+    while training_proc and training_proc.poll() is None:
         time.sleep(10)
 
         # Poll WandB
-        store = WandbStore(entity="metta-research", project=os.environ.get("WANDB_PROJECT", "metta"))
-        summary = store.get_run_summary(trial_name)
-        current_timestep = summary.get("metric/agent_step")
-        current_reward = summary.get("metric/reward")
-        tune.report({"reward": current_reward, "timestep": current_timestep})
+        _report_metrics(trial_name)
 
-    store = WandbStore(entity="metta-research", project=os.environ.get("WANDB_PROJECT", "metta"))
-    summary = store.get_run_summary(trial_name)
-    current_timestep = summary.get("metric/agent_step")
-    current_reward = summary.get("experience/rewards")
-    tune.report({"reward": current_reward, "current_timestep": current_timestep})
+    # Give WandB a few seconds to sync
+    time.sleep(20)
+    _report_metrics(trial_name)

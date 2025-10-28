@@ -36,8 +36,8 @@ class SweepConfig(Config):
     # TODO: Obviously not this
     sweep_id: str = Field(default="sweep_id_unset")
 
-    cpus_per_trial: int = 48
-    gpus_per_trial: int = 4
+    cpus_per_trial: int = 1
+    gpus_per_trial: int = 0
     max_concurrent_trials: int = 4
 
 
