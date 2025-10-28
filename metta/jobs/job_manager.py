@@ -122,6 +122,41 @@ class JobManager:
             )
             thread.start()
 
+    def _extract_artifacts_from_logs(self, job_state: JobState) -> None:
+        """Extract WandB info and checkpoint URI from job logs.
+
+        Updates job_state in-place with extracted artifacts.
+        Should be called whenever logs are updated (during monitoring or completion).
+
+        Args:
+            job_state: Job state to update with extracted artifacts
+        """
+        if not job_state.logs_path:
+            return
+
+        try:
+            logs = Path(job_state.logs_path).read_text(errors="ignore")
+        except Exception:
+            return
+
+        if not logs:
+            return
+
+        # Extract WandB info (only once)
+        if not job_state.wandb_url:
+            wandb_info = extract_wandb_info(logs)
+            if wandb_info:
+                job_state.wandb_run_id = wandb_info.run_id
+                job_state.wandb_url = wandb_info.url
+
+        # Always update checkpoint URI to get most recent
+        checkpoint = extract_checkpoint_path(logs)
+        if checkpoint:
+            job_state.checkpoint_uri = checkpoint
+        elif job_state.wandb_run_id and not job_state.checkpoint_uri:
+            # Set default wandb URI only if no explicit checkpoint found
+            job_state.checkpoint_uri = f"wandb://run/{job_state.wandb_run_id}"
+
     def _start_remote_monitor(self, job_name: str, job_id: int) -> None:
         """Start background monitoring thread for a remote job.
 
@@ -154,11 +189,12 @@ class JobManager:
                                 except Exception:
                                     pass  # Don't fail monitoring if log fetch fails
 
-                        # Update database with current status
+                        # Update database with current status and extract artifacts from logs
                         with Session(self._engine) as session:
                             job_state = session.get(JobState, job_name)
                             if job_state:
                                 job_state.skypilot_status = status
+                                self._extract_artifacts_from_logs(job_state)
                                 session.add(job_state)
                                 session.commit()
 
@@ -390,26 +426,16 @@ class JobManager:
                         # Extract artifacts from completed job logs for downstream tasks
                         # Priority order: wandb info -> checkpoint URI -> job ID -> metrics
                         if job_state.logs_path:
+                            # Extract WandB and checkpoint info
+                            self._extract_artifacts_from_logs(job_state)
+
+                            # Extract additional completion-specific info
                             try:
                                 logs = Path(job_state.logs_path).read_text(errors="ignore")
                             except Exception:
                                 logs = ""
 
                             if logs:
-                                # WandB run info (needed for metrics and default checkpoint URI)
-                                if not job_state.wandb_url:
-                                    wandb_info = extract_wandb_info(logs)
-                                    if wandb_info:
-                                        job_state.wandb_run_id = wandb_info.run_id
-                                        job_state.wandb_url = wandb_info.url
-
-                                if not job_state.checkpoint_uri:
-                                    checkpoint = extract_checkpoint_path(logs)
-                                    if checkpoint:
-                                        job_state.checkpoint_uri = checkpoint
-                                    elif job_state.wandb_run_id:
-                                        job_state.checkpoint_uri = f"wandb://run/{job_state.wandb_run_id}"
-
                                 if not job_state.job_id:
                                     skypilot_id = extract_skypilot_job_id(logs)
                                     if skypilot_id:
