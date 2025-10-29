@@ -1,3 +1,4 @@
+{{- if .Values.cronjobEnabled }}
 apiVersion: batch/v1
 kind: CronJob
 metadata:
@@ -38,3 +39,4 @@ spec:
             # The softmax.aws.secrets_manager module handles fetching them at runtime
             resources:
               {{- toYaml .Values.resources | nindent 14 }}
+{{- end }}

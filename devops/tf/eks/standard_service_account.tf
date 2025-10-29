@@ -1,27 +1,26 @@
-# IRSA role for dashboard cronjob to access Secrets Manager
-module "dashboard_irsa" {
+# IRSA role for standard service account used by cronjobs
+module "standard_service_account_irsa" {
   source  = "terraform-aws-modules/iam/aws//modules/iam-role-for-service-accounts-eks"
   version = "~> 5.34"
 
-  role_name = "dashboard-cronjob"
+  role_name = "standard-service-account"
 
   oidc_providers = {
     main = {
       provider_arn               = module.eks.oidc_provider_arn
       namespace_service_accounts = [
-        "monitoring:dashboard-cronjob-dashboard-cronjob",
-        "monitoring:pr-similarity-cache-refresh-dashboard-cronjob",
+        "cronjobs:standard-service-account",
       ]
     }
   }
 
   role_policy_arns = {
-    policy = aws_iam_policy.dashboard_secrets.arn
+    policy = aws_iam_policy.standard_service_account.arn
   }
 }
 
-resource "aws_iam_policy" "dashboard_secrets" {
-  name = "dashboard-secrets-access"
+resource "aws_iam_policy" "standard_service_account" {
+  name = "standard-service-account-access"
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = [
@@ -66,7 +65,7 @@ resource "aws_iam_policy" "dashboard_secrets" {
   })
 }
 
-output "dashboard_irsa_role_arn" {
-  value       = module.dashboard_irsa.iam_role_arn
-  description = "ARN of the IAM role for dashboard cronjob service account"
+output "standard_service_account_irsa_role_arn" {
+  value       = module.standard_service_account_irsa.iam_role_arn
+  description = "ARN of the IAM role for the standard cronjob service account"
 }

@@ -1,3 +1,5 @@
+cronjobEnabled: true
+
 schedule: "*/15 * * * *"  # Run every 15 minutes
 
 image:
@@ -7,9 +9,14 @@ image:
   tag: "latest"
 
 serviceAccount:
-  create: true
-  annotations:
-    eks.amazonaws.com/role-arn: arn:aws:iam::751442549699:role/dashboard-cronjob
+  create: false  # helmfile.yaml has a one-off release that creates this service account
+  name: standard-service-account
+  annotations: {}
+
+datadog:
+  env: production
+  service: ""  # It is expected that release definitions in helmfile.yaml will set the service name
+  site: datadoghq.com
 
 resources:
   requests:
@@ -18,10 +25,6 @@ resources:
   limits:
     cpu: 500m
     memory: 2Gi
-
-datadog:
-  env: production
-  site: datadoghq.com
 
 # CronJob configuration
 successfulJobsHistoryLimit: 3

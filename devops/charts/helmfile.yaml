@@ -161,6 +161,16 @@ releases:
 
 # Below are helm releases for cronjobs that run on a docker image with the `softmax` package installed.
 
+  - name: softmax-cronjob-serviceaccount
+    <<: *softmax_cronjob
+    values:
+      - cronjobEnabled: false
+      - serviceAccount:
+          create: true
+          name: standard-service-account
+          annotations:
+            eks.amazonaws.com/role-arn: arn:aws:iam::751442549699:role/standard-service-account
+
   - name: dashboard-cronjob
     <<: *softmax_cronjob
     values:

@@ -20,5 +20,5 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end }}
 
 {{- define "softmax-cronjob.serviceAccountName" -}}
-{{- include "softmax-cronjob.fullname" . }}
+{{- default (include "softmax-cronjob.fullname" .) .Values.serviceAccount.name }}
 {{- end }}
