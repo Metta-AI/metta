@@ -184,9 +184,11 @@ releases:
       - datadog:
           service: dashboard-cronjob
 
+
   - name: pr-similarity-cache-refresh-cronjob
     <<: *softmax_cronjob
     values:
+      - schedule: "0 0 * * *"  # Once daily at midnight
       - command:
           - uv
           - run
@@ -195,3 +197,4 @@ releases:
           - softmax.pr_similarity.cache_refresh
       - datadog:
           service: pr-similarity-cache-refresh
+
