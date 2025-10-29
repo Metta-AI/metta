@@ -234,8 +234,8 @@ def sweep(sweep_name: str) -> SweepTool:
         num_parallel_trials=4,
     )
 
-def ray_mini_sweep(sweep_name: str):
 
+def ray_mini_sweep(sweep_name: str):
     config = SweepConfig(
         sweep_id=sweep_name,
         recipe_module="experiments.recipes.arena_basic_easy_shaped",

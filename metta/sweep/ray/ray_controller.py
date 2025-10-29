@@ -8,10 +8,10 @@ from typing import Any, Dict
 import ray
 from pydantic import Field
 from ray import init, tune
-from ray.tune import TuneConfig, Tuner, RunConfig
+from ray.tune import RunConfig, TuneConfig, Tuner
 
-from metta.sweep.ray.ray_run_trial import metta_train_fn
 from metta.common.util.constants import PROD_STATS_SERVER_URI
+from metta.sweep.ray.ray_run_trial import metta_train_fn
 from mettagrid.base_config import Config
 
 logger = logging.getLogger(__name__)
@@ -47,6 +47,7 @@ class SweepConfig(Config):
     # TODO I don't like having a default score key
     score_key: str = Field(default="evaluator/eval_sweep/score")
 
+
 def ray_sweep(
     *,
     search_space: Dict[str, Any] | None = None,
@@ -73,7 +74,9 @@ def ray_sweep(
             sweep_config.cpus_per_trial = int(cpus_from_env)
             logger.info(f"Auto-detected CPUs per trial from node hardware: {sweep_config.cpus_per_trial}")
         else:
-            logger.warning("'auto' specified for cpus_per_trial but METTA_DETECTED_CPUS_PER_NODE not set, defaulting to 1")
+            logger.warning(
+                "'auto' specified for cpus_per_trial but METTA_DETECTED_CPUS_PER_NODE not set, defaulting to 1"
+            )
             sweep_config.cpus_per_trial = 1
 
     if sweep_config.gpus_per_trial == "auto":
@@ -82,7 +85,9 @@ def ray_sweep(
             sweep_config.gpus_per_trial = int(gpus_from_env)
             logger.info(f"Auto-detected GPUs per trial from node hardware: {sweep_config.gpus_per_trial}")
         else:
-            logger.warning("'auto' specified for gpus_per_trial but METTA_DETECTED_GPUS_PER_NODE not set, defaulting to 0")
+            logger.warning(
+                "'auto' specified for gpus_per_trial but METTA_DETECTED_GPUS_PER_NODE not set, defaulting to 0"
+            )
             sweep_config.gpus_per_trial = 0
 
     init_kwargs: dict[str, Any] = {"ignore_reinit_error": True}
