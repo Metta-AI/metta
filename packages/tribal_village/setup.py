@@ -3,11 +3,11 @@
 Setup script for tribal-village that builds the Nim shared library.
 """
 
-import os
-import subprocess
 import shutil
+import subprocess
 from pathlib import Path
-from setuptools import setup, find_packages
+
+from setuptools import setup
 from setuptools.command.build_py import build_py
 from setuptools.command.develop import develop
 from setuptools.command.install import install
@@ -36,27 +36,16 @@ class BuildNimLibrary:
             print(f"Using existing Nim library at {prebuilt}")
         elif build_script.exists():
             # Run custom build script if provided
-            result = subprocess.run(
-                ["bash", str(build_script)],
-                cwd=project_root,
-                capture_output=True,
-                text=True
-            )
+            result = subprocess.run(["bash", str(build_script)], cwd=project_root, capture_output=True, text=True)
 
             if result.returncode != 0:
                 raise RuntimeError(f"Failed to build Nim library: {result.stderr}")
         else:
             # Fall back to Nimble build if script is absent
-            result = subprocess.run(
-                ["nimble", "buildLib"],
-                cwd=project_root,
-                capture_output=True,
-                text=True
-            )
+            result = subprocess.run(["nimble", "buildLib"], cwd=project_root, capture_output=True, text=True)
             if result.returncode != 0:
                 raise RuntimeError(
-                    "Failed to build Nim library with Nimble. "
-                    f"stdout: {result.stdout}\nstderr: {result.stderr}"
+                    f"Failed to build Nim library with Nimble. stdout: {result.stdout}\nstderr: {result.stderr}"
                 )
 
         # Copy the built library to the Python package directory
@@ -109,8 +98,8 @@ class CustomInstall(install, BuildNimLibrary):
 if __name__ == "__main__":
     setup(
         cmdclass={
-            'build_py': CustomBuildPy,
-            'develop': CustomDevelop,
-            'install': CustomInstall,
+            "build_py": CustomBuildPy,
+            "develop": CustomDevelop,
+            "install": CustomInstall,
         }
     )

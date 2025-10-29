@@ -7,16 +7,10 @@ name = "tribal-village"
 version = "0.1.0"
 description = "Tribal Village - Multi-agent RL environment built with Nim"
 readme = "README.md"
-license = {text = "MIT"}
-authors = [
-    {name = "Metta AI", email = "info@metta.ai"}
-]
+license = { text = "MIT" }
+authors = [{ name = "Metta AI", email = "info@metta.ai" }]
 requires-python = ">=3.9"
-dependencies = [
-    "numpy>=1.20.0",
-    "gymnasium>=0.29.0",
-    "pufferlib>=3.0.0",
-]
+dependencies = ["numpy>=1.20.0", "gymnasium>=0.29.0", "pufferlib>=3.0.0"]
 
 [tool.setuptools]
 include-package-data = true
