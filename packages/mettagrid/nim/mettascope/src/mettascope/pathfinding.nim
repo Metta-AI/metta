@@ -1,20 +1,24 @@
 import
-  std/[algorithm, tables],
+  std/[algorithm, tables, sets, heapqueue],
   vmath,
   common, replays
 
 type
-  PathNode = object
-    pos: IVec2
-    gCost: int
-    hCost: int
-    parent: int
+  PathNode* = object
+    pos*: IVec2
+    gCost*: int
+    hCost*: int
+    parent*: int
 
-proc fCost(node: PathNode): int =
+proc fCost*(node: PathNode): int =
   ## Calculate the total cost of a node.
   node.gCost + node.hCost
 
-proc heuristic(a, b: IVec2): int =
+proc `<`(a, b: PathNode): bool =
+  ## Comparison for heap (min-heap based on fCost).
+  a.fCost < b.fCost
+
+proc heuristic*(a, b: IVec2): int =
   ## Calculate the Manhattan distance heuristic.
   abs(a.x - b.x) + abs(a.y - b.y)
 
@@ -35,17 +39,15 @@ proc findPath*(start, goal: IVec2): seq[IVec2] =
     return @[]
   if not isWalkablePos(goal):
     return @[]
-  var openList: seq[PathNode] = @[PathNode(pos: start, gCost: 0, hCost: heuristic(start, goal), parent: -1)]
-  var closedSet: seq[IVec2] = @[]
+  var openHeap = initHeapQueue[PathNode]()
+  openHeap.push(PathNode(pos: start, gCost: 0, hCost: heuristic(start, goal), parent: -1))
+  var closedSet = initHashSet[IVec2]()
   var allNodes: seq[PathNode] = @[]
-  while openList.len > 0:
-    var currentIdx = 0
-    for i in 1 ..< openList.len:
-      if openList[i].fCost < openList[currentIdx].fCost:
-        currentIdx = i
-    let current = openList[currentIdx]
-    openList.delete(currentIdx)
-    closedSet.add(current.pos)
+  while openHeap.len > 0:
+    let current = openHeap.pop()
+    if current.pos in closedSet:
+      continue
+    closedSet.incl(current.pos)
     let currentNodeIdx = allNodes.len
     allNodes.add(current)
     if current.pos == goal:
@@ -72,21 +74,12 @@ proc findPath*(start, goal: IVec2): seq[IVec2] =
       if not isWalkablePos(neighborPos):
         continue
       let newGCost = current.gCost + 1
-      var foundInOpen = false
-      for i in 0 ..< openList.len:
-        if openList[i].pos == neighborPos:
-          foundInOpen = true
-          if newGCost < openList[i].gCost:
-            openList[i].gCost = newGCost
-            openList[i].parent = currentNodeIdx
-          break
-      if not foundInOpen:
-        openList.add(PathNode(
-          pos: neighborPos,
-          gCost: newGCost,
-          hCost: heuristic(neighborPos, goal),
-          parent: currentNodeIdx
-        ))
+      openHeap.push(PathNode(
+        pos: neighborPos,
+        gCost: newGCost,
+        hCost: heuristic(neighborPos, goal),
+        parent: currentNodeIdx
+      ))
   return @[]
 
 proc clearPath*(agentId: int) =
