@@ -15,9 +15,6 @@ class RaySweepTool(Tool):
     sweep_config: SweepConfig = SweepConfig()
     search_space: dict[str, Any] = Field(default_factory=dict)
 
-    # TODO This is unused at the moment
-    ray_config: Optional[dict[str, Any]] = None
-
     #  TODO: Add some logging here?
 
     def invoke(self, args: dict[str, str]) -> int | None:

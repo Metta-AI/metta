@@ -26,7 +26,7 @@ class SweepConfig(Config):
 
     # And we could add those in to the search space??
     train_entrypoint: str = "train"
-    eval_entrypoint: str = "evaluate"
+    eval_entrypoint: str = "evaluate_in_sweep"
 
     # We can get rid of the train_overrids I think now
     train_overrides: dict[str, Any] = Field(default_factory=dict)
