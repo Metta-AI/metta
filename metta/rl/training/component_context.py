@@ -197,7 +197,13 @@ class ComponentContext:
     # ------------------------------------------------------------------
     def reset_for_epoch(self) -> None:
         self.training_env_id = None
-        # Reset per-epoch counters in curriculum environments
+
+    def reset_epoch_counters(self) -> None:
+        """Reset per-epoch counters after stats have been collected.
+
+        This is called AFTER epoch-end callbacks to ensure stats collection
+        sees the data from the completed epoch before it's cleared.
+        """
         if hasattr(self.env, "reset_epoch_counters"):
             self.env.reset_epoch_counters()
 
