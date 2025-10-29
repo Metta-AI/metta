@@ -1,4 +1,4 @@
-from typing import Any, Dict
+from typing import Any
 
 import numpy as np
 import torch
@@ -18,10 +18,10 @@ from mettagrid.base_config import Config
 class ActionSupervisedConfig(Config):
     action_loss_coef: float = Field(default=0.995, ge=0, le=1.0)
     value_loss_coef: float = Field(default=1.0, ge=0, le=1.0)
-    use_own_sampling: bool = True,
-    use_kl_div: bool = False,
-    use_own_rollout: bool = True,
-    student_led: bool = True, # sigma as per Matt's document
+    use_own_sampling: bool = (True,)
+    use_kl_div: bool = (False,)
+    use_own_rollout: bool = (True,)
+    student_led: bool = (True,)  # sigma as per Matt's document
 
     def create(
         self,
@@ -33,9 +33,14 @@ class ActionSupervisedConfig(Config):
         loss_config: Any,
     ):
         """Create ActionSupervised loss instance."""
-        return ActionSupervised(policy, trainer_cfg, vec_env, device, instance_name=instance_name, loss_config=loss_config)
+        return ActionSupervised(
+            policy, trainer_cfg, vec_env, device, instance_name=instance_name, loss_config=loss_config
+        )
+
 
 # helper to extract teacher actions from env obs
+
+# helper to translate teacher logits (centering)
 
 # helper to multinomial sample teacher actions
 
@@ -103,8 +108,10 @@ class ActionSupervised(Loss):
             raise RuntimeError("ComponentContext.training_env_id is missing in rollout.")
         self.replay.store(data_td=td, env_id=env_slice)
 
-        # we'll need to modify this logic when we move to including PPO
         if not self.student_led:
+        # we'll need to modify this logic when we move to including PPO by calling the student forward under run_train()
+        # for now, we save td["action"] into the td that goes to the replay buffer but then overwrite it with teacher
+        # actions when sending to the environment. After it gets sent to env it is no longer used.
             pass
             # multinomial sample here
             # overwrite td["actions"] with sampled actions
@@ -124,21 +131,16 @@ class ActionSupervised(Loss):
 
         minibatch = shared_loss_data["sampled_mb"]
 
-        # if not student_led:
-        # policy_td = minibatch.select(*self.policy_experience_spec.keys(include_nested=True))
-
-        # # Student forward pass
-        # student_td = policy_td.select(*self.policy_experience_spec.keys(include_nested=True)).clone()
-        # student_td = self.policy(student_td, action=None)
-
-
         if self.use_kl_div:
-            student_log_probs = student_td["full_log_probs"].to(dtype=torch.float32)
+            # need to be updated based on translation method, softmax of teacher, etc.
+            student_log_probs = minibatch["full_log_probs"].to(dtype=torch.float32)
             teacher_log_probs = minibatch["teacher_act_log_prob"].to(dtype=torch.float32).detach()
             student_probs = torch.exp(student_log_probs)
             ks_action_loss = (student_probs * (student_log_probs - teacher_log_probs)).sum(dim=-1).mean()
         else:
-            student_action = student_td["action"].to(dtype=torch.int32)
+            # MSE distance between student and teacher actions
+            # need to be updated based on translation method
+            student_action = minibatch["action"].to(dtype=torch.int32)
             teacher_action = minibatch["teacher_actions"].to(dtype=torch.int32).detach()
             matching_actions = (teacher_action == student_action).float()
             ks_action_loss = (1.0 - matching_actions).mean()
