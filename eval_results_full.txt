@@ -1,0 +1,115 @@
+W1029 12:43:11.911000 17474 torch/distributed/elastic/multiprocessing/redirects.py:29] NOTE: Redirects are currently not supported in Windows or MacOs.
+╭───────────────────── Traceback (most recent call last) ──────────────────────╮
+│ /Users/daphnedemekas/Desktop/metta/packages/cogames/src/cogames/main.py:337  │
+│ in evaluate_cmd                                                              │
+│                                                                              │
+│   334 │   ),                                                                 │
+│   335 │   steps: Optional[int] = typer.Option(1000, "--steps", "-s", help="M │
+│   336 ) -> None:                                                             │
+│ ❱ 337 │   selected_missions = get_mission_names_and_configs(ctx, missions, v │
+│   338 │   policy_specs = get_policy_specs(ctx, policies)                     │
+│   339 │                                                                      │
+│   340 │   console.print(                                                     │
+│                                                                              │
+│ /Users/daphnedemekas/Desktop/metta/packages/cogames/src/cogames/cli/mission. │
+│ py:110 in get_mission_names_and_configs                                      │
+│                                                                              │
+│   107 │   │   │   not_deduped = [                                            │
+│   108 │   │   │   │   mission                                                │
+│   109 │   │   │   │   for missions in missions_arg                           │
+│ ❱ 110 │   │   │   │   for mission in _get_missions_by_possible_wildcard(miss │
+│   111 │   │   │   ]                                                          │
+│   112 │   │   │   name_set: set[str] = set()                                 │
+│   113 │   │   │   deduped = []                                               │
+│                                                                              │
+│ /Users/daphnedemekas/Desktop/metta/packages/cogames/src/cogames/cli/mission. │
+│ py:143 in _get_missions_by_possible_wildcard                                 │
+│                                                                              │
+│   140 │   │   # Drop the Mission (3rd element) for wildcard results          │
+│   141 │   │   return [                                                       │
+│   142 │   │   │   (name, env_cfg)                                            │
+│ ❱ 143 │   │   │   for name, env_cfg, _ in (get_mission(m, variants_arg=varia │
+│   144 │   │   ]                                                              │
+│   145 │   # Drop the Mission for single mission                              │
+│   146 │   name, env_cfg, _ = get_mission(mission_arg, variants_arg=variants_ │
+│                                                                              │
+│ /Users/daphnedemekas/Desktop/metta/packages/cogames/src/cogames/cli/mission. │
+│ py:143 in <genexpr>                                                          │
+│                                                                              │
+│   140 │   │   # Drop the Mission (3rd element) for wildcard results          │
+│   141 │   │   return [                                                       │
+│   142 │   │   │   (name, env_cfg)                                            │
+│ ❱ 143 │   │   │   for name, env_cfg, _ in (get_mission(m, variants_arg=varia │
+│   144 │   │   ]                                                              │
+│   145 │   # Drop the Mission for single mission                              │
+│   146 │   name, env_cfg, _ = get_mission(mission_arg, variants_arg=variants_ │
+│                                                                              │
+│ /Users/daphnedemekas/Desktop/metta/packages/cogames/src/cogames/cli/mission. │
+│ py:227 in get_mission                                                        │
+│                                                                              │
+│   224 │   │   │   raise ValueError(f"Mission {mission_name} not available on │
+│   225 │   │                                                                  │
+│   226 │   │   mission_instance = matching_mission_class()                    │
+│ ❱ 227 │   │   env_cfg, mission_cfg = apply_variants_to_config(mission_instan │
+│   228 │   │   return (                                                       │
+│   229 │   │   │   f"{site.name}{MAP_MISSION_DELIMITER}{mission_name}",       │
+│   230 │   │   │   env_cfg,                                                   │
+│                                                                              │
+│ /Users/daphnedemekas/Desktop/metta/packages/cogames/src/cogames/cli/mission. │
+│ py:205 in apply_variants_to_config                                           │
+│                                                                              │
+│   202 │   ) -> tuple[MettaGridConfig, Mission]:                              │
+│   203 │   │   """Apply variants and return both MettaGridConfig and Mission. │
+│   204 │   │   # Instantiate the mission with specific map and num_cogs, appl │
+│ ❱ 205 │   │   instantiated_mission = mission.instantiate(map_builder, num_co │
+│   206 │   │                                                                  │
+│   207 │   │   if variants:                                                   │
+│   208 │   │   │   # Apply all variants in sequence                           │
+│                                                                              │
+│ /Users/daphnedemekas/Desktop/metta/packages/cogames/src/cogames/cogs_vs_clip │
+│ s/eval_missions.py:43 in instantiate                                         │
+│                                                                              │
+│    40 │   │   self, map_builder: MapBuilderConfig, num_cogs: int, variant: M │
+│    41 │   ) -> "Mission":                                                    │
+│    42 │   │   # Force map                                                    │
+│ ❱  43 │   │   forced_map = get_map(self.map_name)                            │
+│    44 │   │   mission = super().instantiate(forced_map, num_cogs, variant)   │
+│    45 │   │                                                                  │
+│    46 │   │   # Apply pre-make_env efficiency and regen knobs                │
+│                                                                              │
+│ /Users/daphnedemekas/Desktop/metta/packages/cogames/src/cogames/cogs_vs_clip │
+│ s/missions.py:23 in get_map                                                  │
+│                                                                              │
+│    20 def get_map(site: str) -> MapBuilderConfig:                            │
+│    21 │   maps_dir = Path(__file__).parent.parent / "maps"                   │
+│    22 │   map_path = maps_dir / site                                         │
+│ ❱  23 │   return MapBuilderConfig.from_uri(str(map_path))                    │
+│    24                                                                        │
+│    25                                                                        │
+│    26 def _replace_heart_recipes(cfg: MettaGridConfig, input_resources: dict │
+│                                                                              │
+│ /Users/daphnedemekas/Desktop/metta/packages/mettagrid/python/src/mettagrid/m │
+│ ap_builder/map_builder.py:68 in from_uri                                     │
+│                                                                              │
+│    65 │   │   """Load a builder config from a YAML or JSON file."""          │
+│    66 │   │                                                                  │
+│    67 │   │   path = Path(uri)                                               │
+│ ❱  68 │   │   with path.open("r", encoding="utf-8") as f:                    │
+│    69 │   │   │   raw = f.read()                                             │
+│    70 │   │                                                                  │
+│    71 │   │   return cls.from_str(raw)                                       │
+│                                                                              │
+│ /Users/daphnedemekas/.local/share/uv/python/cpython-3.12.11-macos-aarch64-no │
+│ ne/lib/python3.12/pathlib.py:1013 in open                                    │
+│                                                                              │
+│   1010 │   │   """                                                           │
+│   1011 │   │   if "b" not in mode:                                           │
+│   1012 │   │   │   encoding = io.text_encoding(encoding)                     │
+│ ❱ 1013 │   │   return io.open(self, mode, buffering, encoding, errors, newli │
+│   1014 │                                                                     │
+│   1015 │   def read_bytes(self):                                             │
+│   1016 │   │   """                                                           │
+╰──────────────────────────────────────────────────────────────────────────────╯
+FileNotFoundError: [Errno 2] No such file or directory: 
+'/Users/daphnedemekas/Desktop/metta/packages/cogames/src/cogames/maps/eval_colle
+ct_resources_hard.map'
