@@ -281,6 +281,28 @@ class SingleUseWorld(_EvalMissionBase):
     max_uses_germanium: int = 1
     max_uses_silicon: int = 1
 
+    def instantiate(
+        self, map_builder: MapBuilderConfig, num_cogs: int, variant: MissionVariant | None = None
+    ) -> "Mission":
+        # Use base behavior to set up env and QoL tweaks
+        mission = super().instantiate(map_builder, num_cogs, variant)
+
+        # Re-enforce strict single-use on extractors AFTER any global doubling logic
+        def _enforce_strict_single_use(cfg: MettaGridConfig) -> None:
+            for key in ("carbon_extractor", "oxygen_extractor", "germanium_extractor", "silicon_extractor"):
+                obj = cfg.game.objects.get(key)
+                if obj is None:
+                    continue
+                try:
+                    obj.max_uses = 1
+                    # Prefer partial usage semantics if supported by the object type
+                    if hasattr(obj, "allow_partial_usage"):
+                        setattr(obj, "allow_partial_usage", True)
+                except Exception:
+                    pass
+
+        return _add_make_env_modifier(mission, _enforce_strict_single_use)
+
 
 class BalancedSpread(_EvalMissionBase):
     name: str = "balanced_spread"
