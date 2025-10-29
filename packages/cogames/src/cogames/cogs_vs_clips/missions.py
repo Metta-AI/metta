@@ -573,11 +573,14 @@ class ProceduralMissionBase(Mission):
 
         # Build procedural map using mission-specific overrides
         overrides = dict(mission.procedural_overrides)
-        # Reuse existing builder dimensions/seed when overrides omit them
         builder_cfg = mission.map or map_builder
-        width = int(overrides.get("width", getattr(builder_cfg, "width", 100) or 100))
-        height = int(overrides.get("height", getattr(builder_cfg, "height", 100) or 100))
-        seed = overrides.get("seed", getattr(builder_cfg, "seed", None))
+
+        if not isinstance(builder_cfg, MapGen.Config):
+            raise TypeError("Procedural missions require MapGen.Config builders")
+
+        width = int(overrides.pop("width", builder_cfg.width))
+        height = int(overrides.pop("height", builder_cfg.height))
+        seed = overrides.pop("seed", builder_cfg.seed)
 
         allowed_keys = {
             "base_biome",
@@ -631,24 +634,13 @@ class MachinaProceduralExploreMission(ProceduralMissionBase):
         self.procedural_overrides = {
             "building_names": [
                 "chest",
-                "charger",
-                "germanium_extractor",
-                "silicon_extractor",
-                "oxygen_extractor",
-                "carbon_extractor",
             ],
             "building_weights": {
                 "chest": 1.0,
-                "charger": 0.6,
-                "germanium_extractor": 0.6,
-                "silicon_extractor": 0.3,
-                "oxygen_extractor": 0.3,
-                "carbon_extractor": 0.3,
             },  # this is relative weights to each building type
             "building_coverage": 0.01,  # this is density on the map
-            "hub_corner_bundle": "chests",
+            "hub_corner_bundle": "none",
             "hub_cross_bundle": "none",
-            "hub_cross_distance": 7,
             # Distribution examples:
             # Use uniform distribution (default):
             # "distribution": {"type": "uniform"},
@@ -678,7 +670,8 @@ class MachinaProceduralExploreMission(ProceduralMissionBase):
             # Per-building-type distributions:
             "building_distributions": {
                 "chest": {"type": "exponential", "decay_rate": 5.0, "origin_x": 0.0, "origin_y": 0.0},
-                "charger": {"type": "poisson"},
+                #     # Note: Example, but chargers are not used in this mission
+                #     "charger": {"type": "poisson"},
             },
         }
 

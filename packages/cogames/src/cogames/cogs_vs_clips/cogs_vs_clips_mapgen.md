@@ -7,7 +7,7 @@ This guide explains how the procedural map system is wired together and how to e
 ### Core Modules
 
 - `cogs_vs_clips/procedural.py`
-  - Procedural map builders (`make_machina_procedural_map_builder`, `make_hub_only_map_builder`)
+  - MachinaArena scene (`MachinaArenaConfig`) and `make_hub_only_map_builder`
   - Runtime override helpers (`apply_hub_overrides_to_builder`, `apply_procedural_overrides_to_builder`)
 - `mettagrid/mapgen/scenes/building_distributions.py`
   - `UniformExtractorScene` and `DistributionConfig` for building placement
@@ -23,18 +23,19 @@ building, agent setup, and post-processing such as assembler rewrites.
 
 ---
 
-### Procedural Builders
+### Procedural Composition
 
-#### `make_machina_procedural_map_builder`
+#### `MachinaArena` (Scene)
 
-Creates an asteroid arena with hub + biome/dungeon layers and dense resource pockets.
+Asteroid arena built as a Scene graph: base-biome shell, optional biome/dungeon overlays, resource placement,
+connectivity, and a central hub.
 
-Key parameters (all keyword-only):
+Config fields (all keyword-only):
 
 | Category                | Parameters                                                                                      |
 | ----------------------- | ----------------------------------------------------------------------------------------------- |
-| Size                    | `width`, `height`                                                                               |
-| Randomness              | `seed`                                                                                          |
+| Size (MapGen)           | `width`, `height`                                                                               |
+| Randomness (MapGen)     | `seed`                                                                                          |
 | Base biome              | `base_biome` (`"caves"`, `"forest"`, `"desert"`, `"city"`), `base_biome_config`                 |
 | Biome overlays          | `biome_weights`, `biome_count`, `density_scale`, `max_biome_zone_fraction`                      |
 | Dungeon overlays        | `dungeon_weights`, `dungeon_count`, `max_dungeon_zone_fraction`                                 |
@@ -44,51 +45,53 @@ Key parameters (all keyword-only):
 
 Important details:
 
-- Building parameters are expressed in terms of “buildings” (stations). Legacy extractor fields are deprecated but still
-  accepted via overrides for backward compatibility.
-- The resulting `MapGen.Config` carries the provided `seed`. All child scenes use RNGs spawned from this root, so the
-  same seed reproduces terrain and resource placement exactly.
-- Hub defaults place chests in the corners, but variants commonly override the bundles and cross spacing.
+- Building parameters are expressed in “buildings” (stations). Legacy extractor fields are not accepted.
+- The top-level `MapGen.Config` (not the scene) carries `seed`. Scenes inherit RNGs spawned from the root, so the same
+  seed reproduces terrain and placement exactly.
+- Hub defaults place chests in the corners, but variants commonly override bundles and cross spacing.
 
 #### Example: site-level builder
 
 ```python
-from cogames.cogs_vs_clips.procedural import make_machina_procedural_map_builder
+from cogames.cogs_vs_clips.procedural import MachinaArenaConfig
+from mettagrid.mapgen.mapgen import MapGen
 
 MACHINA_PROCEDURAL_200 = Site(
     name="machina_procedural_200",
     description="Large procedural arena",
-    map_builder=make_machina_procedural_map_builder(
-        num_cogs=4,
+    map_builder=MapGen.Config(
         width=200,
         height=200,
         seed=12345,
-        base_biome="caves",
-        hub_corner_bundle="chests",
-        hub_cross_bundle="extractors",
-        hub_cross_distance=7,
-        building_names=[
-            "chest",
-            "charger",
-            "carbon_extractor",
-            "oxygen_extractor",
-            "germanium_extractor",
-            "silicon_extractor",
-        ],
-        building_weights={
-            "chest": 0.2,
-            "charger": 0.6,
-            "carbon_extractor": 0.3,
-            "oxygen_extractor": 0.3,
-            "germanium_extractor": 0.3,
-            "silicon_extractor": 0.3,
-        },
-        building_coverage=0.01,
-        distribution={"type": "bimodal", "cluster_std": 0.15},
-        building_distributions={
-            "chest": {"type": "exponential", "decay_rate": 5.0, "origin_x": 0.0, "origin_y": 0.0},
-            "charger": {"type": "poisson"},
-        },
+        instance=MachinaArenaConfig(
+            spawn_count=4,
+            base_biome="caves",
+            hub_corner_bundle="chests",
+            hub_cross_bundle="extractors",
+            hub_cross_distance=7,
+            building_names=[
+                "chest",
+                "charger",
+                "carbon_extractor",
+                "oxygen_extractor",
+                "germanium_extractor",
+                "silicon_extractor",
+            ],
+            building_weights={
+                "chest": 0.2,
+                "charger": 0.6,
+                "carbon_extractor": 0.3,
+                "oxygen_extractor": 0.3,
+                "germanium_extractor": 0.3,
+                "silicon_extractor": 0.3,
+            },
+            building_coverage=0.01,
+            distribution={"type": "bimodal", "cluster_std": 0.15},
+            building_distributions={
+                "chest": {"type": "exponential", "decay_rate": 5.0, "origin_x": 0.0, "origin_y": 0.0},
+                "charger": {"type": "poisson"},
+            },
+        ),
     ),
     min_cogs=1,
     max_cogs=20,
@@ -105,7 +108,8 @@ hub.
 
 ### Placement Distributions (`building_distributions.py`)
 
-`UniformExtractorScene` handles actual placement of buildings. It works in two modes:
+`UniformExtractorScene` (configured via `UniformExtractorParams`) handles actual placement of buildings. It works in two
+modes:
 
 1. **Coverage-driven**: If `target_coverage` is set, it samples enough center points to hit the requested coverage using
    the supplied distributions.
@@ -152,9 +156,9 @@ drive a fresh call to `make_machina_procedural_map_builder`.
 
 #### Procedural overrides cheat sheet
 
-`Mission.procedural_overrides` is a plain `dict[str, Any]`. After variants run, we feed it directly into
-`make_machina_procedural_map_builder(**overrides)` (and also respect legacy extractor keys for backward compatibility).
-Typical keys include:
+`Mission.procedural_overrides` is a plain `dict[str, Any]`. After variants run, we build a new `MapGen.Config` with
+`instance=MachinaArenaConfig(**overrides)`. Width/height/seed are applied at the `MapGen.Config` level. Typical keys
+include:
 
 ```python
 self.procedural_overrides = {
@@ -208,8 +212,8 @@ self.procedural_overrides = {
 }
 ```
 
-You can add or remove keys as needed—anything not provided falls back to `make_machina_procedural_map_builder` defaults.
-Because overrides accept `seed`, variants or missions can pin a layout for reproducibility.
+You can add or remove keys as needed—anything not provided falls back to `MachinaArenaConfig` defaults. Because
+overrides accept `seed`, variants or missions can pin a layout for reproducibility.
 
 ---
 
@@ -308,7 +312,7 @@ self.procedural_overrides = {
 3. **Add the mission class to `MISSIONS`** so the CLI picks it up.
 4. (Optional) **Create variants** for common modifiers and append them to `VARIANTS`.
 
-`ProceduralMissionBase` is a convenient base for missions that always rebuild a procedural map using
+`ProceduralMissionBase` rebuilds a procedural map by creating a new `MapGen.Config` with `MachinaArenaConfig` from
 `procedural_overrides`.
 
 ---

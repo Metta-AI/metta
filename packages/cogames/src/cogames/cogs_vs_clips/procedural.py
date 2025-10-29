@@ -405,14 +405,14 @@ def apply_hub_overrides_to_builder(
         return builder
 
     # Preserve existing top-level seed unless explicitly overridden
-    existing_seed = getattr(builder, "seed", None)
+    existing_seed = builder.seed
     override_seed = (overrides or {}).get("seed", None)
     final_seed = override_seed if override_seed is not None else existing_seed
 
-    width = getattr(builder, "width", None) or 21
-    height = getattr(builder, "height", None) or 21
+    width = builder.width or 21
+    height = builder.height or 21
 
-    inst = getattr(builder, "instance", None)
+    inst = builder.instance
     if isinstance(inst, RandomSceneConfig):
         # Verify candidates are BaseHub configs; extract transforms
         transforms: list[GridTransform] = []
@@ -485,11 +485,11 @@ def apply_procedural_overrides_to_builder(
     if not isinstance(builder, MapGen.Config):
         return builder
 
-    base_inst = getattr(builder, "instance", None)
+    base_inst = builder.instance
     if isinstance(base_inst, MachinaArenaConfig):
-        width = int(ov.get("width", getattr(builder, "width", 100) or 100))
-        height = int(ov.get("height", getattr(builder, "height", 100) or 100))
-        seed = ov.get("seed", getattr(builder, "seed", None))
+        width = int(ov.pop("width", builder.width))
+        height = int(ov.pop("height", builder.height))
+        seed = ov.pop("seed", builder.seed)
 
         allowed_keys = {
             "base_biome",
