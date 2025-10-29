@@ -76,9 +76,17 @@ def _setup_job_metadata():
 
 def _write_environment_variables(metta_env_file, metadata=None):
     """Write environment variables to METTA_ENV_FILE from template."""
-    # Read the base template
-    template_path = Path(__file__).parent.parent / "config" / "job_env.template.sh"
-    env_vars = template_path.read_text()
+    # Import the template module and generate shell exports
+    import sys
+
+    config_path = Path(__file__).parent.parent / "config"
+    sys.path.insert(0, str(config_path))
+    try:
+        from job_env_template import generate_shell_exports
+
+        env_vars = generate_shell_exports()
+    finally:
+        sys.path.pop(0)
 
     # Add job metadata exports only if metadata is provided (non-sandbox mode)
     if metadata:
