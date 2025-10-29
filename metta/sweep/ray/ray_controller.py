@@ -42,6 +42,8 @@ class SweepConfig(Config):
     max_failures_per_trial: int = 3  # Max retries for failed trials (e.g., spot terminations)
     fail_fast: bool = False  # Whether to stop the sweep if any trial fails permanently
 
+    # TODO I don't like having a default score key
+    score_key: str = Field(default="evaluator/eval_sweep/score")
 
 def ray_sweep(
     *,
