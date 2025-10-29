@@ -55,14 +55,24 @@ def ray_sweep(
         num_samples: Number of Tune samples; falls back to sweep_config.max_trials.
         sweep_config: Sweep configuration; if omitted, uses defaults.
         static_overrides: Additional overrides applied to training jobs.
-        ray_address: Optional Ray cluster address (e.g. ray://host:port).
+        ray_address: Optional Ray cluster address (e.g. host:port or ray://host:port).
     """
     sweep_config = sweep_config or SweepConfig()
 
     init_kwargs: dict[str, Any] = {"ignore_reinit_error": True}
 
     if ray_address:
-        init_kwargs["address"] = ray_address
+        # Check if this is a client mode address (ray://) or local mode address
+        if ray_address.startswith("ray://"):
+            # Client mode - use as is but may have GPU allocation issues
+            init_kwargs["address"] = ray_address
+            logger.warning(
+                "Using Ray client mode (ray://) which may not properly allocate GPUs to trials. "
+                "Consider using local mode (host:port) instead."
+            )
+        else:
+            # Local mode - better for GPU allocation
+            init_kwargs["address"] = ray_address
     init_kwargs["runtime_env"] = {"working_dir": None}
 
     init(**init_kwargs)
@@ -79,10 +89,11 @@ def ray_sweep(
         accelerator_resource = accelerator_keys[0]
 
     logger.info(
-        "Connected to Ray cluster: CPUs=%s, GPUs=%s, accelerator_resource=%s",
+        "Connected to Ray cluster: CPUs=%s, GPUs=%s, accelerator_resource=%s, mode=%s",
         total_cpus,
         total_gpus,
         accelerator_resource,
+        "client" if ray_address and ray_address.startswith("ray://") else "local",
     )
 
     default_space: Dict[str, Any] = {

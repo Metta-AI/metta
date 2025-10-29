@@ -103,9 +103,11 @@ start_ray_worker() {
 
 if [[ "$IS_HEAD" == "true" ]]; then
   start_ray_head
-  RAY_ADDRESS_VALUE="ray://${HEAD_IP}:${RAY_CLIENT_PORT}"
-  export RAY_ADDRESS="${RAY_ADDRESS_VALUE}"
-  echo "[SIMPLE] Ray address: ${RAY_ADDRESS_VALUE}"
+  # Use local mode address instead of client mode for better GPU allocation
+  # This format allows Ray to properly allocate GPUs to worker processes
+  export RAY_ADDRESS="${HEAD_IP}:${RAY_PORT}"
+  echo "[SIMPLE] Ray address (local mode): ${RAY_ADDRESS}"
+  echo "[SIMPLE] Note: Using local mode for proper GPU allocation to trials"
 else
   start_ray_worker
 fi
