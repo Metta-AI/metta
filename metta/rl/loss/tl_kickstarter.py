@@ -26,6 +26,7 @@ class TLKickstarterConfig(Config):
         device: torch.device,
         instance_name: str,
         loss_config: Any,
+        use_kl_div: bool = False,
     ):
         """Create TLKickstarter loss instance."""
         return TLKickstarter(policy, trainer_cfg, vec_env, device, instance_name=instance_name, loss_config=loss_config)
@@ -82,26 +83,31 @@ class TLKickstarter(Loss):
         # Teacher forward pass
         teacher_td = policy_td.select(*self.teacher_policy_spec.keys(include_nested=True)).clone()
         teacher_td = self.teacher_policy(teacher_td, action=None)
-        teacher_action_logits = teacher_td["action_logits"].to(dtype=torch.float32)
-        teacher_value = teacher_td["values"].to(dtype=torch.float32)
 
         # Student forward pass
         student_td = policy_td.select(*self.policy_experience_spec.keys(include_nested=True)).clone()
         student_td = self.policy(student_td, action=None)
-        student_action_logits = student_td["action_logits"].to(dtype=torch.float32)
-        student_value = student_td["values"].to(dtype=torch.float32)
 
         # action loss
-        ks_action_loss = torch.tensor(0.0, device=self.device, dtype=torch.float32)
-        ks_action_loss += ((teacher_action_logits.detach() - student_action_logits) ** 2).mean() * self.action_loss_coef
+        if self.use_kl_div:
+            student_log_probs = student_td["full_log_probs"].to(dtype=torch.float32)
+            teacher_log_probs = teacher_td["full_log_probs"].to(dtype=torch.float32).detach()
+            student_probs = torch.exp(student_log_probs)
+            ks_action_loss = (student_probs * (student_log_probs - teacher_log_probs)).sum(dim=-1).mean()
+        else:
+            student_action = student_td["action"].to(dtype=torch.int32)
+            teacher_action = teacher_td["action"].to(dtype=torch.int32).detach()
+            matching_actions = (teacher_action == student_action).float()
+            ks_action_loss = (1.0 - matching_actions).mean()
 
         # value loss
-        ks_value_loss = torch.tensor(0.0, device=self.device, dtype=torch.float32)
+        teacher_value = teacher_td["values"].to(dtype=torch.float32).detach()
+        student_value = student_td["values"].to(dtype=torch.float32).detach()
         teacher_value = einops.rearrange(teacher_value, "b t 1 -> b (t 1)")
         student_value = einops.rearrange(student_value, "b t 1 -> b (t 1)")
-        ks_value_loss += ((teacher_value.detach() - student_value) ** 2).mean() * self.value_loss_coef
+        ks_value_loss = ((teacher_value.detach() - student_value) ** 2).mean() * self.value_loss_coef
 
-        loss = ks_action_loss + ks_value_loss
+        loss = ks_action_loss * self.action_loss_coef + ks_value_loss * self.value_loss_coef
 
         self.loss_tracker["tl_ks_action_loss"].append(float(ks_action_loss.item()))
         self.loss_tracker["tl_ks_value_loss"].append(float(ks_value_loss.item()))
