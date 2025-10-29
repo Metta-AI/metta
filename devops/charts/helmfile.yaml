@@ -207,3 +207,11 @@ releases:
   #         - my.example.main
   #     - datadog:
   #         env: development
+
+# Helpful commands:
+#   Deploy cronjob definition: cd devops/charts && helmfile -l name=<release-name> apply
+#   Inspect cronjob definition: kubectl get cronjobs -n cronjobs
+#   Trigger a run of cronjob off-schedule: kubectl -n cronjobs create job <custom-name> --from=cronjob/<release-name>
+#   Inspect runs/logs: kubectl get jobs -n cronjobs && kubectl logs -n cronjobs job/<job-name>
+
+# If you need to expand permissions, update the `standard-service-account-access` IAM policy in `tf/eks/standard_service_account.tf`.
