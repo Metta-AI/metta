@@ -20,7 +20,6 @@ class TerminationReason(str, Enum):
 
     # Testing
     FORCE_RESTART_TEST = "force_restart_test"
-    NCCL_TESTS_FAILED = "nccl_tests_failed"
     RAPID_RESTARTS = "rapid_restarts"
 
     # Failures

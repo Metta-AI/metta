@@ -175,7 +175,7 @@ Examples:
     parser.add_argument(
         "--run-ci-tests",
         action="store_true",
-        help="Run NCCL and job restart tests",
+        help="Enable CI test mode (forces job restart at 50%% of max runtime)",
     )
     parser.add_argument("-jl", "--job-log", action="store_true", help="Open job log after launch")
     parser.add_argument("--verbose", action="store_true", help="Print detailed request IDs and log instructions")
