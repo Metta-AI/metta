@@ -42,9 +42,6 @@ def _validate_tool_module(tool_module: str) -> bool:
 
     For known tools (like devops.skypilot.tools.nccl), performs strict validation.
     For unknown tools, logs a warning and allows them to pass (assumed valid).
-
-    Returns:
-        True if tool is valid or assumed valid, False if validation failed
     """
     # Check if this is a known tool that requires strict validation
     if tool_module in KNOWN_TOOL_MODULES:
