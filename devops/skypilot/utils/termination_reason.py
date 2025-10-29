@@ -19,7 +19,6 @@ class TerminationReason(str, Enum):
     HEARTBEAT_PERMISSION_DENIED = "heartbeat_permission_denied"
 
     # Testing
-    FORCE_RESTART_TEST = "force_restart_test"
     RAPID_RESTARTS = "rapid_restarts"
 
     # Failures

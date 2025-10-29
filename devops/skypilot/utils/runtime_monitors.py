@@ -190,6 +190,6 @@ class ForceRestartTestMonitor(Monitor):
         elapsed = time.time() - self.start_time
 
         if elapsed >= self.failure_delay_sec:
-            return TerminationReason.FORCE_RESTART_TEST.value
+            return "force_restart_test"
 
         return None
