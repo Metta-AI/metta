@@ -49,25 +49,22 @@ export IS_HEAD=$([[ "$RANK" == "0" ]] && echo "true" || echo "false")
 HEAD_IP=$(echo "${SKYPILOT_NODE_IPS:-127.0.0.1}" | head -n1)
 RAY_PORT=${RAY_HEAD_PORT:-6379}
 RAY_CLIENT_PORT=${RAY_CLIENT_PORT:-10001}
-GPU_COUNT="${SKYPILOT_NUM_GPUS_PER_NODE:-}"
-CPU_COUNT="${SKYPILOT_NUM_CPUS_PER_NODE:-}"
-if [[ -z "$GPU_COUNT" ]]; then
-  if command -v nvidia-smi >/dev/null 2>&1; then
-    GPU_COUNT=$(nvidia-smi --list-gpus | wc -l | tr -d ' ')
-  else
-    GPU_COUNT=0
-  fi
+
+# Detect GPUs and CPUs on this node (not provided by SkyPilot)
+if command -v nvidia-smi >/dev/null 2>&1; then
+  GPU_COUNT=$(nvidia-smi --list-gpus | wc -l | tr -d ' ')
+else
+  GPU_COUNT=0
 fi
-if [[ -z "$CPU_COUNT" ]]; then
-  if command -v nproc >/dev/null 2>&1; then
-    CPU_COUNT=$(nproc)
-  else
-    CPU_COUNT=$(python - <<'PY'
+
+if command -v nproc >/dev/null 2>&1; then
+  CPU_COUNT=$(nproc)
+else
+  CPU_COUNT=$(python - <<'PY'
 import os
 print(os.cpu_count() or 1)
 PY
 )
-  fi
 fi
 if [[ "$GPU_COUNT" -lt 1 ]]; then
   echo "[SIMPLE] Warning: No GPUs detected, defaulting Ray to CPU-only mode."
@@ -78,6 +75,11 @@ echo "[SIMPLE] Head IP: $HEAD_IP"
 echo "[SIMPLE] GPUs per node: $GPU_COUNT"
 echo "[SIMPLE] CPUs per node: $CPU_COUNT"
 echo "[SIMPLE] Ray ports: tcp=$RAY_PORT client=$RAY_CLIENT_PORT"
+
+# Export detected hardware counts for Python processes to use
+# These are detected by us, not provided by SkyPilot
+export METTA_DETECTED_GPUS_PER_NODE="$GPU_COUNT"
+export METTA_DETECTED_CPUS_PER_NODE="$CPU_COUNT"
 
 start_ray_head() {
   echo "[SIMPLE] Starting Ray head node..."
