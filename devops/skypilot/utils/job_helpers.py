@@ -150,13 +150,20 @@ def display_job_summary(
         first_line = commit_message.split("\n")[0]
         print(f"{bold('Commit Message:')} {yellow(first_line)}")
 
-    pr_info = git.get_matched_pr(commit_hash, REPO_SLUG)
-    if pr_info:
-        pr_number, pr_title = pr_info
-        first_line = pr_title.split("\n")[0]
-        print(f"{bold('PR:')} {yellow(f'#{pr_number} - {first_line}')}")
-    else:
-        print(f"{bold('PR:')} {red('Not an open PR HEAD')}")
+    try:
+        pr_info = git.get_matched_pr(commit_hash, REPO_SLUG)
+        if pr_info:
+            pr_number, pr_title = pr_info
+            first_line = pr_title.split("\n")[0]
+            print(f"{bold('PR:')} {yellow(f'#{pr_number} - {first_line}')}")
+        else:
+            print(f"{bold('PR:')} {red('Not an open PR HEAD')}")
+    except git.GitError as e:
+        # Handle rate limiting and other GitHub API errors gracefully
+        if "rate limit" in str(e).lower():
+            print(f"{bold('PR:')} {yellow('(GitHub API rate limited)')}")
+        else:
+            print(f"{bold('PR:')} {yellow(f'(GitHub API error: {e})')}")
 
     print(blue("-" * divider_length))
     print(f"\n{bold('Command:')} {yellow(cmd)}")
