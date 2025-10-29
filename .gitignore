@@ -41,6 +41,7 @@ build-coverage/
 **/bazel-*
 **/.bazel_output/
 **/bazel-mettagrid/*
+**/.bazel_output/*
 
 # Node.js / Frontend
 node_modules/
@@ -103,7 +104,6 @@ experiments/recipes/scratchpad/*.py
 packages/cogames/experiments
 
 resources
-!library/src/lib/api/resources/
 LUNARVIM_CHEATSHEET.md
 metta/sweep/experiments/README.md
 metta/sweep/experiments/README_*.md

@@ -21,6 +21,7 @@ from mettagrid.mettagrid_c import ConverterConfig as CppConverterConfig
 from mettagrid.mettagrid_c import GameConfig as CppGameConfig
 from mettagrid.mettagrid_c import GlobalObsConfig as CppGlobalObsConfig
 from mettagrid.mettagrid_c import InventoryConfig as CppInventoryConfig
+from mettagrid.mettagrid_c import PatrolSupervisorConfig as CppPatrolSupervisorConfig
 from mettagrid.mettagrid_c import Recipe as CppRecipe
 from mettagrid.mettagrid_c import ResourceModConfig as CppResourceModConfig
 from mettagrid.mettagrid_c import WallConfig as CppWallConfig
@@ -161,6 +162,12 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
         for resource_name, amount in agent_props.get("inventory_regen_amounts", {}).items():
             inventory_regen_amounts[resource_name_to_id[resource_name]] = amount
 
+        diversity_tracked_resources = [
+            resource_name_to_id[resource_name]
+            for resource_name in agent_props.get("diversity_tracked_resources", [])
+            if resource_name in resource_name_to_id
+        ]
+
         # Build inventory config with support for grouped limits
         limits_list = []
 
@@ -185,6 +192,17 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
 
         inventory_config = CppInventoryConfig(limits=limits_list)
 
+        # Convert supervisor configuration if present
+        supervisor_config = None
+        if first_agent.supervisor:
+            supervisor = first_agent.supervisor
+            if supervisor.type == "patrol":
+                supervisor_config = CppPatrolSupervisorConfig(
+                    steps_per_direction=supervisor.steps_per_direction,
+                    can_override_action=supervisor.can_override_action,
+                    name=supervisor.name,
+                )
+
         agent_cpp_params = {
             "freeze_duration": agent_props["freeze_duration"],
             "group_id": team_id,
@@ -200,7 +218,12 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
             "soul_bound_resources": soul_bound_resources,
             "shareable_resources": shareable_resources,
             "inventory_regen_amounts": inventory_regen_amounts,
+            "diversity_tracked_resources": diversity_tracked_resources,
         }
+
+        if supervisor_config:
+            agent_cpp_params["supervisor_config"] = supervisor_config
+
         cpp_agent_config = CppAgentConfig(**agent_cpp_params)
         cpp_agent_config.tag_ids = tag_ids
 
