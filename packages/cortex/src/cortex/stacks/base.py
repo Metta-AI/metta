@@ -82,7 +82,11 @@ class CortexStack(nn.Module):
                     block_state = TensorDict({}, batch_size=[batch_size], device=y.device)
             else:
                 block_state = TensorDict({}, batch_size=[batch_size], device=y.device)
-            if self._compiled_blocks is not None:
+            # Use compiled block only when gradients are enabled. Under TBPTT, earlier
+            # chunks may be executed inside a torch.no_grad() region; compiling there
+            # can capture an inference-only graph and suppress gradients later. Fall
+            # back to eager in no-grad contexts to keep training dynamics intact.
+            if self._compiled_blocks is not None and torch.is_grad_enabled():
                 call = self._compiled_blocks[i]
             else:
                 call = block

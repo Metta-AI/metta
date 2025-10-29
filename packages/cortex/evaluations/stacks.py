@@ -176,6 +176,12 @@ STACKS: Dict[str, StackSpec] = {
         builder=lambda: build_cortex_auto_stack(d_hidden=128, num_layers=1, compile_blocks=False, pattern="AMS"),
         d_hidden=128,
     ),
+    # Variant with per-block torch.compile enabled for A/B comparisons
+    "cortex_auto_compiled": StackSpec(
+        name="cortex_auto_stack",
+        builder=lambda: build_cortex_auto_stack(d_hidden=128, num_layers=1, compile_blocks=True, pattern="AMS"),
+        d_hidden=128,
+    ),
     "cortex_auto_axon": StackSpec(
         name="cortex_auto_stack",
         builder=lambda: build_cortex_auto_stack(d_hidden=128, num_layers=2, pattern="M^X^S^"),
