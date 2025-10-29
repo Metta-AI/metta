@@ -3,8 +3,8 @@
 ## the world and other agents.
 
 import
-  std/os,
-  fidget2,
+  std/[os, tables],
+  fidget2, windy,
   common, panels, replays, actions
 
 find "/UI/Main/**/VibePanel":
@@ -18,7 +18,31 @@ find "/UI/Main/**/VibePanel":
         echo "no selection, can't send vibe action"
         return
       let vibeActionId = replay.actionNames.find("change_glyph_" & $vibeId)
-      sendAction(selection.agentId, vibeActionId, -1)
+      let shiftDown = window.buttonDown[KeyLeftShift] or window.buttonDown[KeyRightShift]
+
+      if shiftDown:
+        # Queue the vibe action as an objective.
+        let objective = Objective(kind: Vibe, vibeActionId: vibeActionId, repeat: false)
+        if not agentObjectives.hasKey(selection.agentId) or agentObjectives[selection.agentId].len == 0:
+          agentObjectives[selection.agentId] = @[objective]
+          # Append vibe action directly to path queue.
+          agentPaths[selection.agentId] = @[
+            PathAction(kind: Vibe, vibeActionId: vibeActionId)
+          ]
+        else:
+          agentObjectives[selection.agentId].add(objective)
+          # Push the vibe action to the end of the current path.
+          if agentPaths.hasKey(selection.agentId):
+            agentPaths[selection.agentId].add(
+              PathAction(kind: Vibe, vibeActionId: vibeActionId)
+            )
+          else:
+            agentPaths[selection.agentId] = @[
+              PathAction(kind: Vibe, vibeActionId: vibeActionId)
+            ]
+      else:
+        # Execute immediately.
+        sendAction(selection.agentId, vibeActionId, -1)
 
 proc updateVibePanel*() =
   ## Updates the vibe panel to display the current vibe frequency for the agent.

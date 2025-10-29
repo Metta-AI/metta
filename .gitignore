@@ -41,6 +41,7 @@ build-coverage/
 **/bazel-*
 **/.bazel_output/
 **/bazel-mettagrid/*
+**/.bazel_output/*
 
 # Node.js / Frontend
 node_modules/
@@ -103,7 +104,6 @@ experiments/recipes/scratchpad/*.py
 packages/cogames/experiments
 
 resources
-!library/src/lib/api/resources/
 LUNARVIM_CHEATSHEET.md
 metta/sweep/experiments/README.md
 metta/sweep/experiments/README_*.md
@@ -119,6 +119,7 @@ mettagrid/MODULE.bazel.lock
 devops/stable/state/
 devops/stable/logs/
 devops/stable/release-notes/
+mcp_servers/pr_similarity/cache/
 
 # skypilot testing
 recipe_test_jobs.json

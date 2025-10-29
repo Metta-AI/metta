@@ -124,7 +124,7 @@ class TestGitHubAPI:
         with patch.dict(os.environ, {}, clear=True):
             with pytest.raises(ValueError) as exc_info:
                 post_commit_status("abc123", "success", "Metta-AI/metta")
-            assert "token not provided" in str(exc_info.value).lower()
+            assert "secret not found" in str(exc_info.value).lower()
 
     def test_post_commit_status_no_repo(self):
         """Test that post_commit_status fails without repo."""
@@ -182,7 +182,7 @@ class TestGitHubAPI:
         with patch.dict(os.environ, {}, clear=True):
             with pytest.raises(ValueError) as exc_info:
                 create_pr(repo="Metta-AI/metta", title="Test", body="Test", head="feature", base="main")
-            assert "token not provided" in str(exc_info.value).lower()
+            assert "secret not found" in str(exc_info.value).lower()
 
     @patch("httpx.post")
     def test_create_pr_api_error(self, mock_post):

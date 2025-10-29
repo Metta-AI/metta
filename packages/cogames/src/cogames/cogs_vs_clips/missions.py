@@ -1,4 +1,6 @@
 from pathlib import Path
+from types import MethodType
+from typing import Callable, List
 
 from cogames.cogs_vs_clips.mission import Mission, MissionVariant, Site
 from cogames.cogs_vs_clips.stations import (
@@ -11,7 +13,7 @@ from cogames.cogs_vs_clips.stations import (
     OxygenExtractorConfig,
     SiliconExtractorConfig,
 )
-from mettagrid.config.mettagrid_config import GridObjectConfig, MettaGridConfig
+from mettagrid.config.mettagrid_config import GridObjectConfig, MettaGridConfig, ProtocolConfig
 from mettagrid.map_builder.map_builder import MapBuilderConfig
 
 
@@ -19,6 +21,22 @@ def get_map(site: str) -> MapBuilderConfig:
     maps_dir = Path(__file__).parent.parent / "maps"
     map_path = maps_dir / site
     return MapBuilderConfig.from_uri(str(map_path))
+
+
+def _replace_heart_recipes(cfg: MettaGridConfig, input_resources: dict[str, int]) -> None:
+    assembler = cfg.game.objects.get("assembler")
+    if assembler is None:
+        return
+
+    heart_recipe = ProtocolConfig(input_resources=dict(input_resources), output_resources={"heart": 1}, cooldown=1)
+
+    non_heart_recipes = [
+        (existing_vibe_tokens, recipe)
+        for existing_vibe_tokens, recipe in assembler.recipes
+        if recipe.output_resources.get("heart", 0) == 0
+    ]
+
+    assembler.recipes = [(["default"], heart_recipe), *non_heart_recipes]
 
 
 class MinedOutVariant(MissionVariant):
@@ -48,7 +66,27 @@ class LonelyHeartVariant(MissionVariant):
 
     def apply(self, mission: Mission) -> Mission:
         mission.assembler.heart_cost = 1
-        return mission
+
+        def modifier(cfg: MettaGridConfig) -> None:
+            simplified_inputs = {"carbon": 1, "oxygen": 1, "germanium": 1, "silicon": 1, "energy": 1}
+
+            _replace_heart_recipes(cfg, simplified_inputs)
+
+            if germanium := cfg.game.objects.get("germanium_extractor"):
+                germanium.max_uses = 0
+                germanium.recipes = [
+                    (
+                        token_requirements,
+                        ProtocolConfig(
+                            input_resources=dict(recipe.input_resources),
+                            output_resources={"germanium": max(recipe.output_resources.get("germanium", 0), 1)},
+                            cooldown=max(recipe.cooldown, 1),
+                        ),
+                    )
+                    for token_requirements, recipe in germanium.recipes
+                ]
+
+        return _add_make_env_modifier(mission, modifier)
 
 
 class BrightSideVariant(MissionVariant):
@@ -78,6 +116,69 @@ class SolarFlareVariant(MissionVariant):
         return mission
 
 
+class PackRatVariant(MissionVariant):
+    name: str = "pack_rat"
+    description: str = "Raise heart, cargo, and energy caps to 255 so agents can haul more at once."
+
+    def apply(self, mission: Mission) -> Mission:
+        mission.heart_capacity = max(mission.heart_capacity, 255)
+        mission.energy_capacity = max(mission.energy_capacity, 255)
+        mission.cargo_capacity = max(mission.cargo_capacity, 255)
+        mission.gear_capacity = max(mission.gear_capacity, 255)
+        return mission
+
+
+class EnergizedVariant(MissionVariant):
+    name: str = "energized"
+    description: str = "Top off energy every tick so agents never run dry."
+
+    def apply(self, mission: Mission) -> Mission:
+        mission.energy_capacity = max(mission.energy_capacity, 255)
+        mission.energy_regen_amount = mission.energy_capacity
+
+        def modifier(cfg: MettaGridConfig) -> None:
+            energy_cap = cfg.game.agent.resource_limits.get("energy", mission.energy_capacity)
+            cfg.game.agent.initial_inventory = {"energy": energy_cap}
+            cfg.game.agent.inventory_regen_amounts = {"energy": energy_cap}
+
+        return _add_make_env_modifier(mission, modifier)
+
+
+class NeutralFacedVariant(MissionVariant):
+    name: str = "neutral_faced"
+    description: str = "Keep the neutral face glyph; disable glyph swapping entirely."
+
+    def apply(self, mission: Mission) -> Mission:
+        def modifier(cfg: MettaGridConfig) -> None:
+            change_glyph = cfg.game.actions.change_glyph
+            change_glyph.enabled = False
+            change_glyph.number_of_glyphs = 1
+
+        return _add_make_env_modifier(mission, modifier)
+
+
+# Backwards-compatible alias
+class HeartChorusVariant(MissionVariant):
+    name: str = "heart_chorus"
+    description: str = "Heart-centric reward shaping with gentle resource bonuses."
+
+    def apply(self, mission: Mission) -> Mission:
+        def modifier(cfg: MettaGridConfig) -> None:
+            # Reward hearts at full value, penalize hoarding them, and add diversity bonuses tuned from the Oct 2025
+            # playtests so agents seek mixed inventories instead of camping chargers.
+            cfg.game.agent.rewards.stats = {
+                "heart.gained": 1.0,
+                "chest.heart.deposited": 1.0,
+                "chest.heart.withdrawn": -1.0,
+                "inventory.diversity.ge.2": 0.17,
+                "inventory.diversity.ge.3": 0.18,
+                "inventory.diversity.ge.4": 0.60,
+                "inventory.diversity.ge.5": 0.97,
+            }
+
+        return _add_make_env_modifier(mission, modifier)
+
+
 VARIANTS = [
     MinedOutVariant,
     DarkSideVariant,
@@ -85,6 +186,10 @@ VARIANTS = [
     RoughTerrainVariant,
     SolarFlareVariant,
     LonelyHeartVariant,
+    PackRatVariant,
+    EnergizedVariant,
+    NeutralFacedVariant,
+    HeartChorusVariant,
 ]
 
 
@@ -223,3 +328,34 @@ def make_game(num_cogs: int = 2, map_name: str = "training_facility_open_1.map")
     # Use no variant (default)
     variant = MissionVariant(name="default", description="Default mission variant")
     return mission.instantiate(map_builder, num_cogs, variant).make_env()
+
+
+def _add_make_env_modifier(mission: Mission, modifier: Callable[[MettaGridConfig], None]) -> Mission:
+    modifiers: List[Callable[[MettaGridConfig], None]] = getattr(mission, "__env_modifiers__", None)
+
+    if modifiers is None:
+        original_make_env = mission.make_env.__func__
+        original_instantiate = mission.instantiate.__func__
+
+        def wrapped_make_env(self, *args, **kwargs):
+            cfg = original_make_env(self, *args, **kwargs)
+            for fn in getattr(self, "__env_modifiers__", []):
+                fn(cfg)
+            return cfg
+
+        def wrapped_instantiate(self, *args, **kwargs):
+            instantiated = original_instantiate(self, *args, **kwargs)
+            parent_mods = getattr(self, "__env_modifiers__", [])
+            if parent_mods:
+                object.__setattr__(instantiated, "__env_modifiers__", list(parent_mods))
+                object.__setattr__(instantiated, "make_env", MethodType(wrapped_make_env, instantiated))
+                object.__setattr__(instantiated, "instantiate", MethodType(wrapped_instantiate, instantiated))
+            return instantiated
+
+        object.__setattr__(mission, "__env_modifiers__", [])
+        object.__setattr__(mission, "make_env", MethodType(wrapped_make_env, mission))
+        object.__setattr__(mission, "instantiate", MethodType(wrapped_instantiate, mission))
+        modifiers = mission.__env_modifiers__
+
+    modifiers.append(modifier)
+    return mission
