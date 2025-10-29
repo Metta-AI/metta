@@ -96,14 +96,16 @@ class ColumnBlock(BaseBlock):
             expert_outs.append(y_i)
             next_state[key] = s_i if isinstance(s_i, TensorDict) else TensorDict({}, batch_size=[B])
 
+        if len(expert_outs) == 1:
+            return expert_outs[0], next_state
+
         gate = self.router(expert_outs)
         if is_step:
-            Y = torch.stack(expert_outs, dim=0)
-            mixed = torch.einsum("k,kbh->bh", gate, Y)
+            Y = torch.stack(expert_outs, dim=0)  # [K, B, H]
+            y = torch.einsum("k,kbh->bh", gate, Y)
         else:
-            Y = torch.stack(expert_outs, dim=0)
-            mixed = torch.einsum("k,kbth->bth", gate, Y)
-        y = x + mixed
+            Y = torch.stack(expert_outs, dim=0)  # [K, B, T, H]
+            y = torch.einsum("k,kbth->bth", gate, Y)
         return y, next_state
 
     @staticmethod
