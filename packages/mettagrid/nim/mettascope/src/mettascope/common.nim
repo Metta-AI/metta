@@ -101,7 +101,6 @@ type
   ActionRequest* = object
     agentId*: int
     actionId*: int
-    argument*: int
 
   ObjectiveKind* = enum
     Move # Move to a specific position.

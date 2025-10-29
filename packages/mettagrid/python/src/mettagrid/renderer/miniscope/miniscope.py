@@ -375,11 +375,11 @@ class MiniscopeRenderer(Renderer):
                 return True
         return False
 
-    def get_user_actions(self) -> dict[int, tuple[int, int]]:
+    def get_user_actions(self) -> dict[int, int]:
         """Get the current user actions for manually controlled agents.
 
         Returns:
-            Dictionary mapping agent_id to (action_id, action_param).
+            Dictionary mapping agent_id to action_id.
             Empty dict if no manual actions are set.
         """
         actions = {}
