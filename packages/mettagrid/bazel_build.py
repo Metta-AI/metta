@@ -186,22 +186,38 @@ def _run_mettascope_build() -> None:
         _sync_mettascope_package_data()
         return
 
-    # Check if nim and nimble are available
-    if shutil.which("nim") is None or shutil.which("nimble") is None:
-        raise RuntimeError(
-            "Nim compiler or Nimble package manager not found! To build mettascope, install Nim: https://nim-lang.org/install.html"
+    skip = os.environ.get("METTAGRID_SKIP_NIM", "").lower() in {"1", "true", "yes"}
+    if skip:
+        print("Skipping mettascope build (METTAGRID_SKIP_NIM set)")
+        _sync_mettascope_package_data()
+        return
+
+    nim = shutil.which("nim")
+    nimble = shutil.which("nimble")
+    if nim is None or nimble is None:
+        print(
+            "Warning: Nim toolchain not found (run metta/install.sh for a full setup). "
+            "Using bundled mettascope artifacts.",
+            file=sys.stderr,
         )
+        _sync_mettascope_package_data()
+        return
 
     print(f"Building mettascope from {METTASCOPE_DIR}")
 
     # Build the Nim bindings library
-    result = subprocess.run(["nimble", "bindings", "-y"], cwd=METTASCOPE_DIR, capture_output=True, text=True)
+    result = subprocess.run([nimble, "bindings", "-y"], cwd=METTASCOPE_DIR, capture_output=True, text=True)
     print(result.stderr, file=sys.stderr)
     print(result.stdout, file=sys.stderr)
     if result.returncode != 0:
-        print("Warning: Mettascope build failed. bindings failed. STDERR:", file=sys.stderr)
-        print("Mettascope build bindings STDOUT:", file=sys.stderr)
-        raise RuntimeError("Mettascope build failed")
+        print(
+            "Warning: Mettascope Nim build failed; using bundled artifacts. "
+            "Run metta/install.sh if you need a fresh build.",
+            file=sys.stderr,
+        )
+        _sync_mettascope_package_data()
+        return
+
     print("Successfully built mettascope")
     _sync_mettascope_package_data()
 
