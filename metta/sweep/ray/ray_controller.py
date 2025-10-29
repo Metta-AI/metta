@@ -8,7 +8,7 @@ from typing import Any, Dict
 import ray
 from pydantic import Field
 from ray import init, tune
-from ray.tune import TuneConfig, Tuner
+from ray.tune import TuneConfig, Tuner, RunConfig
 
 from metta.sweep.ray.ray_run_trial import metta_train_fn
 from mettagrid.base_config import Config
@@ -178,6 +178,8 @@ def ray_sweep(
             metric="reward",
             mode="max",
             max_concurrent_trials=effective_max_concurrent,
+        ),
+        run_config=RunConfig(
             failure_config=failure_config,
         ),
         param_space=space,
