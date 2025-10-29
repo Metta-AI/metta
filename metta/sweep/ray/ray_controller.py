@@ -43,8 +43,8 @@ class SweepConfig(Config):
     # TODO: Obviously not this
     sweep_id: str = Field(default="sweep_id_unset")
 
-    cpus_per_trial: int | str = 1  # Can be int or "auto" to use all available per node
-    gpus_per_trial: int | str = 0  # Can be int or "auto" to use all available per node
+    cpus_per_trial: int | str = "auto"  # Can be int or "auto" to use all available per node
+    gpus_per_trial: int | str = "auto"  # Can be int or "auto" to use all available per node
     max_concurrent_trials: int = 4
     max_failures_per_trial: int = 3  # Max retries for failed trials (e.g., spot terminations)
     fail_fast: bool = False  # Whether to stop the sweep if any trial fails permanently
