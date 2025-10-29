@@ -207,15 +207,15 @@ class MapBuilder(ABC, Generic[ConfigT]):
         if isinstance(self.config, WithMaxRetriesConfig):
             retry_budget = self.config.max_retries
         else:
-            retry_budget = 1
+            retry_budget = 0
 
-        for attempt in range(retry_budget):
+        for attempt in range(retry_budget + 1):
             try:
                 game_map = self.build()
                 self._designate_agent_spawn_points(game_map, num_agents)
                 return game_map
             except ValueError as exc:
-                if attempt >= retry_budget:
+                if attempt == retry_budget:
                     raise exc
                 logger.warning(
                     "Map build failed with ValueError on attempt %s/%s: %s; retrying",
