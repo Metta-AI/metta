@@ -39,6 +39,8 @@ class SweepConfig(Config):
     cpus_per_trial: int = 1
     gpus_per_trial: int = 0
     max_concurrent_trials: int = 4
+    max_failures_per_trial: int = 3  # Max retries for failed trials (e.g., spot terminations)
+    fail_fast: bool = False  # Whether to stop the sweep if any trial fails permanently
 
 
 def ray_sweep(
@@ -155,6 +157,18 @@ def ray_sweep(
     else:
         trainable = metta_train_fn
 
+    # Configure failure handling for spot instances
+    failure_config = tune.FailureConfig(
+        max_failures=sweep_config.max_failures_per_trial,  # Retry failed trials
+        fail_fast=sweep_config.fail_fast,  # Whether to stop on permanent failures
+    )
+
+    logger.info(
+        "Failure handling configured: max_failures=%d, fail_fast=%s",
+        sweep_config.max_failures_per_trial,
+        sweep_config.fail_fast,
+    )
+
     tuner = Tuner(
         trainable,
         tune_config=TuneConfig(
@@ -162,6 +176,7 @@ def ray_sweep(
             metric="reward",
             mode="max",
             max_concurrent_trials=effective_max_concurrent,
+            failure_config=failure_config,
         ),
         param_space=space,
     )

@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import logging
 import os
+import signal
+import sys
 import time
 from datetime import datetime
 from typing import Any
@@ -38,6 +40,32 @@ def metta_train_fn(config: dict[str, Any]) -> None:
     Train function for the metta model
     """
     dispatcher = LocalDispatcher(capture_output=True, use_torchrun=True)
+
+    # Track the training process and termination status
+    training_proc = None
+    spot_termination = False
+
+    def handle_sigterm(signum, frame):
+        """Handle SIGTERM signal (spot instance termination)"""
+        nonlocal spot_termination
+        spot_termination = True
+        logging.warning("SIGTERM received - likely spot instance termination. Attempting graceful shutdown...")
+
+        # If we have a running training process, terminate it gracefully
+        if training_proc and training_proc.poll() is None:
+            logging.info("Terminating training process...")
+            training_proc.terminate()
+            # Give it some time to save checkpoint
+            time.sleep(10)
+            if training_proc.poll() is None:
+                training_proc.kill()
+
+        # Exit with special code to indicate spot termination
+        # Ray Tune can use this to determine if it should retry
+        sys.exit(124)  # 124 = timeout/spot termination
+
+    # Register SIGTERM handler
+    signal.signal(signal.SIGTERM, handle_sigterm)
 
     # Ray config should provide a dict payload under "serialized_job_definition".
     sweep_config = config["sweep_config"]
@@ -174,3 +202,15 @@ def metta_train_fn(config: dict[str, Any]) -> None:
     # Give WandB a few seconds to sync
     time.sleep(20)
     _report_metrics(trial_name)
+
+    # Check exit code to determine if this was a normal exit or failure
+    if training_proc:
+        exit_code = training_proc.returncode
+        if exit_code == 124:
+            # Spot termination - should be retried
+            logging.info("Trial terminated due to spot instance preemption (exit code 124)")
+            sys.exit(124)
+        elif exit_code != 0:
+            # Other failure
+            logging.error(f"Trial failed with exit code {exit_code}")
+            sys.exit(exit_code if exit_code else 1)
