@@ -250,32 +250,23 @@ class CortexStackConfig(BaseModel):
         return out
 
 
-__all__ = [
-    "CellConfig",
-    "CausalConv1dConfig",
-    "LSTMCellConfig",
-    "mLSTMCellConfig",
-    "sLSTMCellConfig",
-    "XLCellConfig",
-    "AxonConfig",
-    "BlockConfig",
-    "PassThroughBlockConfig",
-    "PreUpBlockConfig",
-    "PostUpBlockConfig",
-    "AdapterBlockConfig",
-    "CortexStackConfig",
-]
-
-
 class RouterConfig(BaseModel):
-    """Router settings for Column experts."""
+    """Router settings with global prior and optional per-token refinement."""
 
-    d_key: int | None = Field(default=None, ge=1)
-    temperature: float = Field(default=1.0, gt=0.0)
-    top_k: int | None = Field(default=None, ge=1)
-    use_sqrt_scale: bool = Field(default=True)
-    init_scale_wq: float = Field(default=0.0)  # 0 → near-uniform at init
-    init_scale_wk: float = Field(default=0.0)
+    # Global prior settings
+    d_key: int | None = Field(default=None, ge=1, description="Key/query dim for global prior; defaults to d_hidden.")
+    temperature: float = Field(default=1.0, gt=0.0, description="Softmax temperature for the global gate.")
+    top_k: int | None = Field(default=None, ge=1, description="If set, keep only top‑k experts in the global prior.")
+    use_sqrt_scale: bool = Field(default=True, description="Use 1/sqrt(d_key) (vs 1/d_key) dot‑product scaling.")
+    init_scale_wq: float = Field(default=0.0, description="Uniform init scale for Wq; 0 → near‑uniform prior.")
+    init_scale_wk: float = Field(default=0.0, description="Uniform init scale for Wk; 0 → near‑uniform prior.")
+
+    # Per-token refinement (optional; disabled when whisper_lambda == 0)
+    d_key_local: int | None = Field(default=None, ge=1, description="Key dim for per‑token refiner; defaults to d_key.")
+    local_temperature: float = Field(default=1.0, gt=0.0, description="Temperature for token‑refiner logits.")
+    whisper_lambda: float = Field(default=0.0, ge=0.0, description="Strength λ of per‑token refinement (0 disables).")
+    center_refine: bool = Field(default=True, description="Center token logits over experts to redistribute mass only.")
+    restrict_to_topk: bool = Field(default=True, description="Limit refinement to the global top‑k support if set.")
 
     class Config:
         extra = "allow"
@@ -286,7 +277,10 @@ class ColumnBlockConfig(BlockConfig):
 
     block_type: str = "column"
     experts: list[SerializeAsAny[BlockConfig]]
-    router: RouterConfig = Field(default_factory=RouterConfig)
+    router: RouterConfig = Field(default_factory=RouterConfig, description="Router hyperparameters for this column.")
+    alpha_col_init: float = Field(
+        default=0.01, ge=0.0, description="Initial outer ReZero gain α_col (small for calm starts)."
+    )
 
     class Config:
         extra = "allow"
@@ -316,7 +310,20 @@ class ColumnBlockConfig(BlockConfig):
         return out
 
 
-__all__ += [
+__all__ = [
+    "CellConfig",
+    "CausalConv1dConfig",
+    "LSTMCellConfig",
+    "mLSTMCellConfig",
+    "sLSTMCellConfig",
+    "XLCellConfig",
+    "AxonConfig",
+    "BlockConfig",
+    "PassThroughBlockConfig",
+    "PreUpBlockConfig",
+    "PostUpBlockConfig",
+    "AdapterBlockConfig",
+    "CortexStackConfig",
     "RouterConfig",
     "ColumnBlockConfig",
 ]
