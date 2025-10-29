@@ -698,17 +698,24 @@ class StatsReporter(TrainerComponent):
 
         # 5. Task sampling gini - inequality in how often individual tasks are sampled
         # Uses completion counts (empirical sampling distribution)
-        if "algorithm/pool_occupancy_gini" in curriculum_stats:
-            gini_value = float(curriculum_stats["algorithm/pool_occupancy_gini"])
+        if "algorithm/curriculum_gini/pool_occupancy" in curriculum_stats:
+            gini_value = float(curriculum_stats["algorithm/curriculum_gini/pool_occupancy"])
             stats["curriculum_stats/task_sampling_gini"] = gini_value
-            logger.info(f"Task sampling gini: {gini_value:.3f} (from algorithm/pool_occupancy_gini)")
+            logger.info(f"Task sampling gini: {gini_value:.3f} (from algorithm/curriculum_gini/pool_occupancy)")
 
         # 6. Task LP gini - inequality in learning progress scores across all individual tasks
-        # Uses LP scores (theoretical sampling probabilities)
-        if "algorithm/pool_lp_gini" in curriculum_stats:
-            gini_value = float(curriculum_stats["algorithm/pool_lp_gini"])
+        # Uses raw LP scores (before z-score normalization)
+        if "algorithm/curriculum_gini/raw_lp_scores" in curriculum_stats:
+            gini_value = float(curriculum_stats["algorithm/curriculum_gini/raw_lp_scores"])
             stats["curriculum_stats/task_lp_gini"] = gini_value
-            logger.info(f"Task LP gini: {gini_value:.3f} (from algorithm/pool_lp_gini)")
+            logger.info(f"Task LP gini: {gini_value:.3f} (from algorithm/curriculum_gini/raw_lp_scores)")
+
+        # 7. Pass through additional gini coefficients from the algorithm
+        for key, value in curriculum_stats.items():
+            if key.startswith("algorithm/curriculum_gini/"):
+                # Extract the specific gini type (e.g., "raw_lp_by_label")
+                gini_type = key.replace("algorithm/curriculum_gini/", "")
+                stats[f"algorithm/curriculum_gini/{gini_type}"] = float(value)
 
         # ===== GROUP C & D: Troubleshooting Stats (if enabled) =====
         if self._should_enable_curriculum_troubleshooting():
