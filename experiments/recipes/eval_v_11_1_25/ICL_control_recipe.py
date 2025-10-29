@@ -371,6 +371,97 @@ def _get_policy_config(architecture: str) -> PolicyArchitecture:
         )
 
 
+def make_assembly_line_eval_suite() -> list[SimulationConfig]:
+    """Create held-out evaluation suite with harder configurations than training.
+
+    Eval configurations use:
+    - Longer chains (2-5 steps vs training starting at 1-2)
+    - Larger rooms (medium, large vs training starting with tiny)
+    - More obstacles (balanced, dense terrains)
+    - More distractors (1-2 sinks)
+
+    This ensures evals test generalization to harder, unseen configurations.
+    """
+
+    def make_eval_env(
+        chain_length: int,
+        num_sinks: int,
+        room_size: str,
+        terrain: str,
+    ) -> MettaGridConfig:
+        task_generator_cfg = make_task_generator_cfg(
+            chain_lengths=[chain_length],
+            num_sinks=[num_sinks],
+            room_sizes=[room_size],
+            terrains=[terrain],
+        )
+        task_generator = AssemblyLinesTaskGenerator(task_generator_cfg)
+        return task_generator.get_task(random.randint(0, 1000000))
+
+    return [
+        SimulationConfig(
+            suite="in_context_ordered_chains",
+            name="2c_2s_medium",
+            env=make_eval_env(2, 2, "medium", "no-terrain"),
+        ),
+        SimulationConfig(
+            suite="in_context_ordered_chains",
+            name="2c_2s_medium_balanced",
+            env=make_eval_env(2, 2, "medium", "balanced"),
+        ),
+        SimulationConfig(
+            suite="in_context_ordered_chains",
+            name="3c_1s_medium",
+            env=make_eval_env(3, 1, "medium", "no-terrain"),
+        ),
+        SimulationConfig(
+            suite="in_context_ordered_chains",
+            name="3c_2s_medium",
+            env=make_eval_env(3, 2, "medium", "no-terrain"),
+        ),
+        SimulationConfig(
+            suite="in_context_ordered_chains",
+            name="4c_1s_medium_terrain_dense",
+            env=make_eval_env(4, 1, "medium", "dense"),
+        ),
+        SimulationConfig(
+            suite="in_context_ordered_chains",
+            name="4c_1s_medium_balanced",
+            env=make_eval_env(4, 1, "medium", "balanced"),
+        ),
+        SimulationConfig(
+            suite="in_context_ordered_chains",
+            name="4c_2s_medium_balanced",
+            env=make_eval_env(4, 2, "medium", "balanced"),
+        ),
+        SimulationConfig(
+            suite="in_context_ordered_chains",
+            name="4c_2s_large_balanced",
+            env=make_eval_env(4, 2, "large", "balanced"),
+        ),
+        SimulationConfig(
+            suite="in_context_ordered_chains",
+            name="5c_1s_medium",
+            env=make_eval_env(5, 1, "medium", "no-terrain"),
+        ),
+        SimulationConfig(
+            suite="in_context_ordered_chains",
+            name="5c_1s_medium_balanced",
+            env=make_eval_env(5, 1, "medium", "balanced"),
+        ),
+        SimulationConfig(
+            suite="in_context_ordered_chains",
+            name="5c_2s_medium_balanced",
+            env=make_eval_env(5, 2, "medium", "balanced"),
+        ),
+        SimulationConfig(
+            suite="in_context_ordered_chains",
+            name="5c_2s_large_dense",
+            env=make_eval_env(5, 2, "large", "dense"),
+        ),
+    ]
+
+
 def _validate_seed_synchronization(train_tool: TrainTool) -> None:
     """Validate seed synchronization across environment, curriculum, and weight initialization.
 
@@ -433,10 +524,6 @@ def train(
         architecture: Policy architecture ('vit_reset' or 'trxl')
         validate_seeds: If True, validates seed synchronization before training (default: True)
     """
-    from experiments.evals.assembly_lines import (
-        make_assembly_line_eval_suite,
-    )
-
     task_generator_cfg = make_task_generator_cfg(**curriculum_args[curriculum_style])
     # Curriculum learning enabled - adaptive task sampling based on learning progress
     curriculum = CurriculumConfig(
