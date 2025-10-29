@@ -25,7 +25,7 @@ from cortex import build_cortex, CortexStackConfig
   - [Memory Cells](#memory-cells)
   - [Blocks](#blocks)
   - [Column](#column)
-- [How Column Works (High Level)](#how-column-works-high-level)
+- [MoE using Column](#how-column-works-high-level)
 - [Quick Start](#quick-start)
 - [Advanced Setup](#advanced-setup)
 - [Metta Framework Integration](#metta-framework-integration)
@@ -186,7 +186,7 @@ E‑axis cross‑attention mixer and a small outer ReZero head for stability and
 - Pattern/auto helpers: `packages/cortex/src/cortex/blocks/column/auto.py`
 - Quick‑build DSL stack: `packages/cortex/src/cortex/stacks/auto.py`
 
-## How Column Works (High Level)
+## MoE using Column
 
 This describes what happens inside a single Column block—high level.
 
