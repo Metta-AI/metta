@@ -5,12 +5,14 @@
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
 
+#include <memory>
 #include <string>
 #include <unordered_map>
 
 #include "core/grid_object.hpp"
 #include "core/types.hpp"
 #include "objects/inventory_config.hpp"
+#include "supervisors/agent_supervisor.hpp"
 
 struct AgentConfig : public GridObjectConfig {
   AgentConfig(TypeId type_id,
@@ -27,7 +29,8 @@ struct AgentConfig : public GridObjectConfig {
               const std::vector<InventoryItem>& soul_bound_resources = {},
               const std::vector<InventoryItem>& shareable_resources = {},
               const std::unordered_map<InventoryItem, InventoryQuantity>& inventory_regen_amounts = {},
-              const std::vector<InventoryItem>& diversity_tracked_resources = {})
+              const std::vector<InventoryItem>& diversity_tracked_resources = {},
+              std::shared_ptr<AgentSupervisorConfig> supervisor_config = nullptr)
       : GridObjectConfig(type_id, type_name),
         group_id(group_id),
         group_name(group_name),
@@ -41,7 +44,8 @@ struct AgentConfig : public GridObjectConfig {
         soul_bound_resources(soul_bound_resources),
         shareable_resources(shareable_resources),
         inventory_regen_amounts(inventory_regen_amounts),
-        diversity_tracked_resources(diversity_tracked_resources) {}
+        diversity_tracked_resources(diversity_tracked_resources),
+        supervisor_config(supervisor_config) {}
 
   unsigned char group_id;
   std::string group_name;
@@ -56,6 +60,7 @@ struct AgentConfig : public GridObjectConfig {
   std::vector<InventoryItem> shareable_resources;
   std::unordered_map<InventoryItem, InventoryQuantity> inventory_regen_amounts;
   std::vector<InventoryItem> diversity_tracked_resources;
+  std::shared_ptr<AgentSupervisorConfig> supervisor_config;
 };
 
 namespace py = pybind11;
@@ -76,7 +81,8 @@ inline void bind_agent_config(py::module& m) {
                     const std::vector<InventoryItem>&,
                     const std::vector<InventoryItem>&,
                     const std::unordered_map<InventoryItem, InventoryQuantity>&,
-                    const std::vector<InventoryItem>&>(),
+                    const std::vector<InventoryItem>&,
+                    std::shared_ptr<AgentSupervisorConfig>>(),
            py::arg("type_id"),
            py::arg("type_name") = "agent",
            py::arg("group_id"),
@@ -91,7 +97,8 @@ inline void bind_agent_config(py::module& m) {
            py::arg("soul_bound_resources") = std::vector<InventoryItem>(),
            py::arg("shareable_resources") = std::vector<InventoryItem>(),
            py::arg("inventory_regen_amounts") = std::unordered_map<InventoryItem, InventoryQuantity>(),
-           py::arg("diversity_tracked_resources") = std::vector<InventoryItem>())
+           py::arg("diversity_tracked_resources") = std::vector<InventoryItem>(),
+           py::arg("supervisor_config") = nullptr)
       .def_readwrite("type_id", &AgentConfig::type_id)
       .def_readwrite("type_name", &AgentConfig::type_name)
       .def_readwrite("tag_ids", &AgentConfig::tag_ids)
@@ -107,7 +114,8 @@ inline void bind_agent_config(py::module& m) {
       .def_readwrite("soul_bound_resources", &AgentConfig::soul_bound_resources)
       .def_readwrite("shareable_resources", &AgentConfig::shareable_resources)
       .def_readwrite("inventory_regen_amounts", &AgentConfig::inventory_regen_amounts)
-      .def_readwrite("diversity_tracked_resources", &AgentConfig::diversity_tracked_resources);
+      .def_readwrite("diversity_tracked_resources", &AgentConfig::diversity_tracked_resources)
+      .def_readwrite("supervisor_config", &AgentConfig::supervisor_config);
 }
 
 #endif  // PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_OBJECTS_AGENT_CONFIG_HPP_

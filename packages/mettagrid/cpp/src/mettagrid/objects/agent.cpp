@@ -3,6 +3,8 @@
 #include <algorithm>
 #include <cassert>
 
+#include "objects/agent_config.hpp"
+
 Agent::Agent(GridCoord r, GridCoord c, const AgentConfig& config, const std::vector<std::string>* resource_names)
     : GridObject(),
       HasInventory(config.inventory_config),
