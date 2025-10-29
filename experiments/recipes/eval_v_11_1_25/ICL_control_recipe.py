@@ -5,14 +5,18 @@ This recipe implements a controlled benchmark for comparing agent architectures
 
 Key Configuration:
 - Combat: OFF (assembly_lines environment has no attack/combat mechanics)
-- Curriculum Learning: OFF (algorithm_config=None → uniform random task sampling)
-- Seed Synchronization: ON (BENCHMARK_SEED=42 for reproducibility)
-- Evaluations: ENABLED (every 30 epochs, local evaluation)
+- Curriculum Learning: ON (LearningProgressConfig → adaptive task sampling)
+- Domain Randomization: ON (varied chain lengths, sinks, room sizes, terrains)
+- Seed Synchronization: ON (BENCHMARK_SEED=63 for reproducibility)
+- Evaluations: ENABLED (every 30 epochs, held-out configurations, local evaluation)
+- Training Duration: 2B timesteps
 
 The controlled settings ensure fair comparison between architectures by:
-1. Disabling adaptive curriculum learning (uniform random sampling instead)
-2. Using fixed seed for deterministic weight initialization and task generation
-3. Eliminating combat dynamics that could introduce confounding variables
+1. Using adaptive curriculum learning for efficient training
+2. Training with domain randomization across task parameters
+3. Evaluating on held-out configurations (longer chains, larger rooms, harder terrains)
+4. Using fixed seed for deterministic weight initialization and task generation
+5. Eliminating combat dynamics that could introduce confounding variables
 """
 
 import random
@@ -25,6 +29,7 @@ from metta.agent.policies.trxl import trxl_policy_config
 from metta.agent.policies.vit_reset import ViTResetConfig
 from metta.agent.policy import PolicyArchitecture
 from metta.cogworks.curriculum.curriculum import CurriculumConfig
+from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
 from metta.cogworks.curriculum.task_generator import TaskGenerator, TaskGeneratorConfig
 from metta.rl.loss import LossConfig
 from metta.rl.system_config import SystemConfig
@@ -433,14 +438,14 @@ def train(
     )
 
     task_generator_cfg = make_task_generator_cfg(**curriculum_args[curriculum_style])
-    # Curriculum learning disabled - tasks are uniformly randomly sampled
+    # Curriculum learning enabled - adaptive task sampling based on learning progress
     curriculum = CurriculumConfig(
-        task_generator=task_generator_cfg, algorithm_config=None
+        task_generator=task_generator_cfg, algorithm_config=LearningProgressConfig()
     )
 
     policy_config = _get_policy_config(architecture)
 
-    trainer_cfg = TrainerConfig(losses=LossConfig())
+    trainer_cfg = TrainerConfig(losses=LossConfig(), total_timesteps=2_000_000_000)
 
     train_tool = TrainTool(
         system=SystemConfig(seed=BENCHMARK_SEED),
