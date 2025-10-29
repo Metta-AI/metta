@@ -422,14 +422,14 @@ def _validate_seed_synchronization(train_tool: TrainTool) -> None:
 
 
 def train(
-    curriculum_style: str = "level_0",
+    curriculum_style: str = "terrain_3",
     architecture: str = "vit_reset",
     validate_seeds: bool = True,
 ) -> TrainTool:
     """Train an agent with the specified curriculum and architecture.
 
     Args:
-        curriculum_style: Curriculum difficulty level
+        curriculum_style: Curriculum difficulty level (default: terrain_3 - balanced complexity)
         architecture: Policy architecture ('vit_reset' or 'trxl')
         validate_seeds: If True, validates seed synchronization before training (default: True)
     """
@@ -473,7 +473,7 @@ def make_mettagrid(task_generator: AssemblyLinesTaskGenerator) -> MettaGridConfi
     return task_generator.get_task(random.randint(0, 1000000))
 
 
-def play(curriculum_style: str = "level_0") -> PlayTool:
+def play(curriculum_style: str = "terrain_3") -> PlayTool:
     task_generator = AssemblyLinesTaskGenerator(
         make_task_generator_cfg(**curriculum_args[curriculum_style])
     )
@@ -485,7 +485,7 @@ def play(curriculum_style: str = "level_0") -> PlayTool:
 
 
 def replay(
-    curriculum_style: str = "level_0",
+    curriculum_style: str = "terrain_3",
 ) -> ReplayTool:
     task_generator = AssemblyLinesTaskGenerator(
         make_task_generator_cfg(**curriculum_args[curriculum_style])
