@@ -11,6 +11,7 @@
 #include "actions/change_glyph.hpp"
 #include "bindings/mettagrid_c.hpp"
 #include "objects/agent.hpp"
+#include "objects/agent_config.hpp"
 #include "objects/wall.hpp"
 
 namespace py = pybind11;

@@ -43,3 +43,6 @@ pythonpath = ["src"]
 
 [tool.coverage.run]
 source = ["metta.common"]
+
+[tool.uv.sources]
+cogames = { workspace = true }

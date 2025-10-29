@@ -23,6 +23,22 @@ def get_map(site: str) -> MapBuilderConfig:
     return MapBuilderConfig.from_uri(str(map_path))
 
 
+def _replace_heart_recipes(cfg: MettaGridConfig, input_resources: dict[str, int]) -> None:
+    assembler = cfg.game.objects.get("assembler")
+    if assembler is None:
+        return
+
+    heart_recipe = ProtocolConfig(input_resources=dict(input_resources), output_resources={"heart": 1}, cooldown=1)
+
+    non_heart_recipes = [
+        (existing_vibe_tokens, recipe)
+        for existing_vibe_tokens, recipe in assembler.recipes
+        if recipe.output_resources.get("heart", 0) == 0
+    ]
+
+    assembler.recipes = [(["default"], heart_recipe), *non_heart_recipes]
+
+
 class MinedOutVariant(MissionVariant):
     name: str = "mined_out"
     description: str = "Some resources are depleted. You must be efficient to survive."
@@ -50,7 +66,27 @@ class LonelyHeartVariant(MissionVariant):
 
     def apply(self, mission: Mission) -> Mission:
         mission.assembler.heart_cost = 1
-        return mission
+
+        def modifier(cfg: MettaGridConfig) -> None:
+            simplified_inputs = {"carbon": 1, "oxygen": 1, "germanium": 1, "silicon": 1, "energy": 1}
+
+            _replace_heart_recipes(cfg, simplified_inputs)
+
+            if germanium := cfg.game.objects.get("germanium_extractor"):
+                germanium.max_uses = 0
+                germanium.recipes = [
+                    (
+                        token_requirements,
+                        ProtocolConfig(
+                            input_resources=dict(recipe.input_resources),
+                            output_resources={"germanium": max(recipe.output_resources.get("germanium", 0), 1)},
+                            cooldown=max(recipe.cooldown, 1),
+                        ),
+                    )
+                    for token_requirements, recipe in germanium.recipes
+                ]
+
+        return _add_make_env_modifier(mission, modifier)
 
 
 class BrightSideVariant(MissionVariant):
@@ -80,42 +116,32 @@ class SolarFlareVariant(MissionVariant):
         return mission
 
 
-class SimpleRecipesVariant(MissionVariant):
-    name: str = "simple_recipes"
-    description: str = "Swap in tutorial assembler protocols for easier heart crafting."
-
-    def apply(self, mission: Mission) -> Mission:
-        def modifier(cfg: MettaGridConfig) -> None:
-            assembler = cfg.game.objects.get("assembler")
-            if assembler is None:
-                return
-
-            energy_recipe = (
-                ["default"],
-                ProtocolConfig(
-                    input_resources={"energy": 1},
-                    output_resources={"heart": 1},
-                    cooldown=1,
-                ),
-            )
-
-            if not any(
-                recipe.input_resources == energy_recipe[1].input_resources
-                and recipe.output_resources == energy_recipe[1].output_resources
-                for _, recipe in assembler.recipes
-            ):
-                assembler.recipes = [energy_recipe, *assembler.recipes]
-
-        return _add_make_env_modifier(mission, modifier)
-
-
 class PackRatVariant(MissionVariant):
     name: str = "pack_rat"
-    description: str = "Boost heart inventory limits so agents can haul more at once."
+    description: str = "Raise heart, cargo, and energy caps to 255 so agents can haul more at once."
 
     def apply(self, mission: Mission) -> Mission:
-        mission.heart_capacity = max(mission.heart_capacity, 10)
+        mission.heart_capacity = max(mission.heart_capacity, 255)
+        mission.energy_capacity = max(mission.energy_capacity, 255)
+        mission.cargo_capacity = max(mission.cargo_capacity, 255)
+        mission.gear_capacity = max(mission.gear_capacity, 255)
         return mission
+
+
+class EnergizedVariant(MissionVariant):
+    name: str = "energized"
+    description: str = "Top off energy every tick so agents never run dry."
+
+    def apply(self, mission: Mission) -> Mission:
+        mission.energy_capacity = max(mission.energy_capacity, 255)
+        mission.energy_regen_amount = mission.energy_capacity
+
+        def modifier(cfg: MettaGridConfig) -> None:
+            energy_cap = cfg.game.agent.resource_limits.get("energy", mission.energy_capacity)
+            cfg.game.agent.initial_inventory = {"energy": energy_cap}
+            cfg.game.agent.inventory_regen_amounts = {"energy": energy_cap}
+
+        return _add_make_env_modifier(mission, modifier)
 
 
 class NeutralFacedVariant(MissionVariant):
@@ -138,14 +164,16 @@ class HeartChorusVariant(MissionVariant):
 
     def apply(self, mission: Mission) -> Mission:
         def modifier(cfg: MettaGridConfig) -> None:
+            # Reward hearts at full value, penalize hoarding them, and add diversity bonuses tuned from the Oct 2025
+            # playtests so agents seek mixed inventories instead of camping chargers.
             cfg.game.agent.rewards.stats = {
-                "heart.gained": 0.25,
+                "heart.gained": 1.0,
                 "chest.heart.deposited": 1.0,
-                "carbon.gained": 0.02,
-                "oxygen.gained": 0.02,
-                "germanium.gained": 0.05,
-                "silicon.gained": 0.02,
-                "energy.gained": 0.005,
+                "chest.heart.withdrawn": -1.0,
+                "inventory.diversity.ge.2": 0.17,
+                "inventory.diversity.ge.3": 0.18,
+                "inventory.diversity.ge.4": 0.60,
+                "inventory.diversity.ge.5": 0.97,
             }
 
         return _add_make_env_modifier(mission, modifier)
@@ -158,8 +186,8 @@ VARIANTS = [
     RoughTerrainVariant,
     SolarFlareVariant,
     LonelyHeartVariant,
-    SimpleRecipesVariant,
     PackRatVariant,
+    EnergizedVariant,
     NeutralFacedVariant,
     HeartChorusVariant,
 ]
