@@ -157,7 +157,7 @@ class NeutralFacedVariant(MissionVariant):
 # Biome variants (weather) for procedural maps
 class DesertBiomeVariant(MissionVariant):
     name: str = "desert"
-    description: str = "The desert sands make navigation challenging."
+    description: str = "The desert sands make parallel ridges to navigate between."
 
     def apply(self, mission: Mission) -> Mission:
         if hasattr(mission, "procedural_overrides"):
@@ -168,7 +168,7 @@ class DesertBiomeVariant(MissionVariant):
 
 class ForestBiomeVariant(MissionVariant):
     name: str = "forest"
-    description: str = "Dense forests obscure your view."
+    description: str = "Clusters of trees make forests to navigate through."
 
     def apply(self, mission: Mission) -> Mission:
         if hasattr(mission, "procedural_overrides"):
@@ -179,7 +179,7 @@ class ForestBiomeVariant(MissionVariant):
 
 class CityBiomeVariant(MissionVariant):
     name: str = "city"
-    description: str = "Ancient city ruins provide structured pathways."
+    description: str = "Ancient city ruins provide structured pathways with streets and buildings."
 
     def apply(self, mission: Mission) -> Mission:
         if hasattr(mission, "procedural_overrides"):
