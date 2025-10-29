@@ -185,8 +185,10 @@ def main() -> int:
             termination_reason = monitor_until_termination(job_config, subprocess)
 
     except BaseException as e:
-        exit_code = getattr(e, "code", 1) if isinstance(e, SystemExit) else 1
-        if isinstance(e, SystemExit) and e.code is None:
+        # Extract exit code from SystemExit, default to 1
+        if isinstance(e, SystemExit) and e.code is not None:
+            exit_code = e.code
+        else:
             exit_code = 1
 
         termination_reason = TerminationReason.JOB_FAILED.with_exit_code(exit_code)
