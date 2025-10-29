@@ -108,12 +108,8 @@ class ActionConfig:
     consumed_resources: dict[int, float]
 
 class Recipe:
-    def __init__(
-        self,
-        input_resources: dict[int, int] = {},
-        output_resources: dict[int, int] = {},
-        cooldown: int = 0,
-    ) -> None: ...
+    def __init__(self) -> None: ...
+    vibes: list[int]
     input_resources: dict[int, int]
     output_resources: dict[int, int]
     cooldown: int
