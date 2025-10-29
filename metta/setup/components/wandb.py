@@ -1,6 +1,7 @@
 import os
 import re
 import subprocess
+import warnings
 
 from metta.common.util.constants import METTA_WANDB_ENTITY, METTA_WANDB_PROJECT
 from metta.setup.components.base import SetupModule
@@ -75,7 +76,12 @@ class WandbSetup(SetupModule):
             return
 
         try:
-            subprocess.run(["wandb", "login"], check=True)
+            # Suppress Pydantic warnings from wandb's internal usage during login
+            with warnings.catch_warnings():
+                from pydantic._internal._generate_schema import UnsupportedFieldAttributeWarning
+
+                warnings.filterwarnings("ignore", category=UnsupportedFieldAttributeWarning)
+                subprocess.run(["wandb", "login"], check=True)
             success("W&B configured successfully")
         except subprocess.CalledProcessError:
             warning("W&B login failed. You can run 'wandb login' manually later.")
@@ -107,7 +113,12 @@ class WandbSetup(SetupModule):
             )
         if self.is_enabled():
             try:
-                import wandb
+                    # Suppress Pydantic warnings from wandb's internal usage
+                with warnings.catch_warnings():
+                    from pydantic._internal._generate_schema import UnsupportedFieldAttributeWarning
+
+                    warnings.filterwarnings("ignore", category=UnsupportedFieldAttributeWarning)
+                    import wandb
 
                 # TODO: let users specify their intended entity and project as part of configuration
                 return dict(
