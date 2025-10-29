@@ -24,10 +24,54 @@ from metta.common.tool.tool_path import validate_module_path
 from metta.common.util.cli import get_user_confirmation
 from metta.common.util.constants import METTA_WANDB_ENTITY, METTA_WANDB_PROJECT
 from metta.common.util.fs import cd_repo_root
-from metta.common.util.text_styles import red
+from metta.common.util.text_styles import red, yellow
 from metta.tools.utils.auto_config import auto_run_name
 
 logger = logging.getLogger(__name__)
+
+# Known tool modules that we explicitly validate
+KNOWN_TOOL_MODULES = {
+    "devops.skypilot.tools.nccl",
+    "devops.skypilot.tools.run",
+}
+
+
+def _validate_tool_module(tool_module: str) -> bool:
+    """Validate tool module, with warnings for unknown tools.
+
+    For known tools (like devops.skypilot.tools.nccl), performs strict validation.
+    For unknown tools, logs a warning and allows them to pass (assumed valid).
+
+    Returns:
+        True if tool is valid or assumed valid, False if validation failed
+    """
+    # Check if this is a known tool that requires strict validation
+    if tool_module in KNOWN_TOOL_MODULES:
+        # Known tool - validate strictly
+        try:
+            if not validate_module_path(tool_module):
+                print(red(f"[VALIDATION] ❌ Known tool module failed validation: '{tool_module}'"))
+                return False
+            return True
+        except Exception as e:
+            print(red(f"[VALIDATION] ❌ Known tool module validation error: '{tool_module}'"))
+            print(red(f"             Error: {e}"))
+            return False
+
+    # Unknown tool - try to validate but warn and allow if validation fails
+    try:
+        if validate_module_path(tool_module):
+            # Validation passed
+            return True
+    except Exception:
+        # Validation failed due to exception
+        pass
+
+    # Validation failed for unknown tool - warn but allow
+    print(yellow(f"[VALIDATION] ⚠️  Unrecognized tool module: '{tool_module}'"))
+    print(yellow("             Assuming valid and continuing..."))
+    print(yellow("             If this is a new standard tool, add it to KNOWN_TOOL_MODULES in launch.py"))
+    return True
 
 
 def _validate_sky_cluster_name(run_name: str) -> bool:
@@ -179,7 +223,7 @@ Examples:
     # Build command string
     if args.tool:
         # Using --tool: validate module and build command
-        if not validate_module_path(args.tool):
+        if not _validate_tool_module(args.tool):
             sys.exit(1)
 
         # Combine tool module with remaining args
@@ -231,11 +275,6 @@ Examples:
                 sys.exit(1)
 
     assert commit_hash
-
-    # Validate command if using --tool (already validated above) or if using direct command
-    if not args.tool:
-        # For arbitrary commands, optionally validate if they use tools/run.py
-        pass  # Skip validation for arbitrary commands
 
     # Validate the provided run name
     if not _validate_sky_cluster_name(run_id):

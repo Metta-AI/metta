@@ -14,6 +14,21 @@ NCCL tests validate GPU communication infrastructure before training.
 NCCL tests use the same `job.yaml` configuration as training jobs, ensuring you're testing the exact infrastructure that
 will be used for training.
 
+### Automated test matrix (recommended)
+
+```bash
+# Launch tests across multiple configurations (1 node/4 GPUs, 2 nodes/4 GPUs, 4 nodes/4 GPUs)
+./devops/skypilot/tests/nccl_test.py launch
+
+# Check test results
+./devops/skypilot/tests/nccl_test.py check
+
+# Check with detailed logs
+./devops/skypilot/tests/nccl_test.py check -l
+```
+
+### Manual single test
+
 ```bash
 # Single node (uses default GPU configuration)
 ./devops/skypilot/launch.py --tool devops.skypilot.tools.nccl run=nccl_diag_$(date +%Y%m%d_%H%M%S)

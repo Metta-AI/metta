@@ -1,21 +1,10 @@
 # SkyPilot Python Refactor - Follow-up Work
 
-This document tracks remaining improvements after PR #2384.
-
-## Completed (during PR review)
-
-- Rename skypilot_run.yaml to job.yaml
-- Make configure_environment.py executable
-- Launch script verbosity control
-- Document restart count tracking rationale
-- Document NCCL test necessity
-
-## Remaining Work
+This document tracks remaining follow up work after PR #2384.
 
 ### 1. Client/Server Code Separation
 
-**From:** @berekuk's review
-**Priority:** Low
+**From:** @berekuk's review **Priority:** Low
 
 **Current:** `job_helpers` (client-side) mixed with `skypilot/utils/` and `skypilot/launch/` (server-side)
 
@@ -25,9 +14,7 @@ This document tracks remaining improvements after PR #2384.
 
 ### 2. Environment Variable Management
 
-**From:** @daveey's review
-**Priority:** Low
-**Status:** Requires team discussion
+**From:** @daveey's review **Priority:** Low **Status:** Requires team discussion
 
 **Questions:**
 
