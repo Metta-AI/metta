@@ -88,7 +88,7 @@ class LocalDispatcher:
         # Reap any finished processes first to prevent zombie accumulation
         self._reap_finished_processes()
 
-        use_torchrun = self._use_torchrun and job.gpus and job.gpus > 0
+        use_torchrun = self._use_torchrun
 
         # Build command
         if use_torchrun:
