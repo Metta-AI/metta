@@ -32,7 +32,6 @@ class TestCondition:
     name: str
     extra_args: list[str]
     description: str
-    ci: bool = False
 
 
 @dataclass
