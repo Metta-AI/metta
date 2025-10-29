@@ -333,8 +333,11 @@ def tail_job_log(job_id: str, lines: int = 100) -> str | None:
         return f"Error: {str(e)}"
 
 
-def open_job_log_from_request_id(request_id: str, max_retries: int = 5) -> tuple[str | None, str]:
-    """Launch job log in a subprocess from a request ID."""
+def open_job_log_from_request_id(request_id: str, max_retries: int = 5) -> None:
+    """Stream job logs to stdout from a request ID.
+
+    This is a CLI function that prints all output directly to the terminal.
+    """
 
     def _get_job_from_request():
         job_id, handle = sky.get(RequestId(request_id))
@@ -355,9 +358,7 @@ def open_job_log_from_request_id(request_id: str, max_retries: int = 5) -> tuple
 
         if job_id is None:
             print(yellow("Job ID not found in output"))
-            return None, "No job ID returned from request"
-
-        # assert isinstance(job_id, int)  # Help type checker
+            return
 
         print(green(f"Job submitted with ID: {job_id}"))
 
@@ -377,27 +378,18 @@ def open_job_log_from_request_id(request_id: str, max_retries: int = 5) -> tuple
             # Tail the job logs - returns exit code
             exit_code = sky.jobs.tail_logs(job_id=job_id, follow=True, output_stream=cast(TextIOBase, sys.stdout))
 
-            # Determine success/failure based on exit code
+            # Print completion status based on exit code
             if exit_code == 0:
-                status_msg = "Job completed successfully"
+                print(green("\nJob completed successfully"))
             else:
-                status_msg = f"Job failed with exit code: {exit_code}"
-
-            return str(job_id), status_msg
+                print(red(f"\nJob failed with exit code: {exit_code}"))
 
         except KeyboardInterrupt:
             print("\n" + yellow("Stopped tailing logs"))
-            return str(job_id), "Log tailing interrupted by user"
 
     except sky.exceptions.ClusterNotUpError:
-        error_msg = "Error: Jobs controller is not up"
-        print(red(error_msg))
-        return None, error_msg
+        print(red("Error: Jobs controller is not up"))
     except sky.exceptions.CommandError as e:
-        error_msg = f"Error getting logs: {str(e)}"
-        print(red(error_msg))
-        return None, error_msg
+        print(red(f"Error getting logs: {str(e)}"))
     except Exception as e:
-        error_msg = f"Error: {str(e)}"
-        print(red(error_msg))
-        return None, error_msg
+        print(red(f"Error: {str(e)}"))
