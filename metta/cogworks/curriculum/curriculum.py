@@ -487,6 +487,15 @@ class Curriculum(StatsLogger):
             return self._algorithm.get_and_reset_evictions_this_epoch()
         return {}
 
+    def reset_epoch_counters(self) -> None:
+        """Reset per-epoch counters in the curriculum algorithm.
+
+        This is called by the training infrastructure at epoch boundaries
+        to ensure per-epoch metrics start fresh each epoch.
+        """
+        if self._algorithm is not None and hasattr(self._algorithm, "reset_epoch_counters"):
+            self._algorithm.reset_epoch_counters()
+
     def get_base_stats(self) -> Dict[str, float]:
         """Get basic curriculum statistics."""
         # Get global completion count from algorithm's task tracker if available

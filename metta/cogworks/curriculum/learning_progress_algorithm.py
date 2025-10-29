@@ -304,6 +304,15 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         self._label_sampling_counts_this_epoch.clear()
         return sampling_counts
 
+    def reset_epoch_counters(self) -> None:
+        """Reset per-epoch counters at the start of a new epoch.
+
+        This is called by the training infrastructure at epoch boundaries
+        to ensure per-epoch metrics start fresh.
+        """
+        self._label_sampling_counts_this_epoch.clear()
+        self._label_evictions_this_epoch.clear()
+
     def update_task_performance(self, task_id: int, score: float) -> None:
         """Update task performance using the scorer strategy."""
         # NEW: Update scorer's internal state
@@ -670,10 +679,6 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
                 gini_stats["curriculum_gini/raw_lp_by_label"] - gini_stats["curriculum_gini/sampling_by_label"]
             )
             gini_stats["curriculum_gini/selectivity_loss_lp_label_to_sampling_label"] = label_selectivity_loss
-
-        # Reset per-epoch sampling counts after computing Gini statistics
-        # This ensures each epoch starts with fresh counts
-        self._label_sampling_counts_this_epoch.clear()
 
         return gini_stats
 

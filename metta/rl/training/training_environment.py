@@ -199,12 +199,11 @@ class VectorizedTrainingEnvironment(TrainingEnvironment):
     def reset_epoch_counters(self) -> None:
         """Reset per-epoch counters in curriculum environments at the start of a new epoch.
 
-        Note: Per-label counts are now emitted per-episode completion (value=1), not tracked
-        cumulatively. This means no baseline management is needed. The summing happens
-        automatically in process_training_stats(). This is kept for API compatibility.
+        This resets counters in the curriculum algorithm (e.g., sampling counts per label)
+        that accumulate during the epoch and need to be cleared at epoch boundaries.
         """
-        # No-op: environments emit completion counts per-episode, no baseline to reset
-        pass
+        if self._curriculum is not None and hasattr(self._curriculum, "reset_epoch_counters"):
+            self._curriculum.reset_epoch_counters()
 
     @property
     def game_rules(self) -> GameRules:
