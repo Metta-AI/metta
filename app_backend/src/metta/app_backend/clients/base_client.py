@@ -3,7 +3,7 @@ from typing import Any, Type, TypeVar
 import httpx
 from pydantic import BaseModel
 
-from metta.common.auth import BaseCLIAuthenticator
+from metta.common.auth.auth_config_reader_writer import observatory_auth_config
 from metta.common.util.collections import remove_none_values
 from metta.common.util.constants import PROD_STATS_SERVER_URI
 
@@ -13,16 +13,6 @@ ClientT = TypeVar("ClientT", bound="BaseAppBackendClient")
 
 class NotAuthenticatedError(Exception):
     pass
-
-
-class ObservatoryAuthenticator(BaseCLIAuthenticator):
-    """Authenticator for Observatory, matching the login script configuration."""
-
-    def __init__(self):
-        super().__init__(
-            token_file_name="config.yaml",
-            token_storage_key="observatory_tokens",
-        )
 
 
 def get_machine_token(stats_server_uri: str | None = None) -> str | None:
@@ -38,8 +28,7 @@ def get_machine_token(stats_server_uri: str | None = None) -> str | None:
         return None
 
     # Use the same authenticator pattern as the login script
-    authenticator = ObservatoryAuthenticator()
-    token = authenticator.load_token(stats_server_uri)
+    token = observatory_auth_config.load_token(stats_server_uri)
 
     if not token or token.lower() == "none":
         return None

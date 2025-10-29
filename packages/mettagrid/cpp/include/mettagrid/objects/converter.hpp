@@ -82,11 +82,11 @@ public:
   // -1 means no limit
   short max_output;
   short max_conversions;
-  unsigned short conversion_ticks;  // Time to produce output
+  unsigned short conversion_ticks;            // Time to produce output
   std::vector<unsigned short> cooldown_time;  // Sequenced cooldown durations
   unsigned short conversions_completed;
-  bool converting;                  // Currently in production phase
-  bool cooling_down;                // Currently in cooldown phase
+  bool converting;    // Currently in production phase
+  bool cooling_down;  // Currently in cooldown phase
   bool recipe_details_obs;
   EventManager* event_manager;
   ObservationType input_recipe_offset;
@@ -135,16 +135,11 @@ public:
 
     // Use (conversions_completed - 1) to get the cooldown for the conversion
     // that just finished
-    unsigned short cooldown_value =
-        this->cooldown_value_for_cycle(this->conversions_completed - 1);
+    unsigned short cooldown_value = this->cooldown_value_for_cycle(this->conversions_completed - 1);
     if (cooldown_value > 0) {
       this->cooling_down = true;
       if (this->event_manager) {
-        this->event_manager->schedule_event(
-            EventType::CoolDown,
-            cooldown_value,
-            this->id,
-            0);
+        this->event_manager->schedule_event(EventType::CoolDown, cooldown_value, this->id, 0);
       }
     } else {
       this->cooling_down = false;
