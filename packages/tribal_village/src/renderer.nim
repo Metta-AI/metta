@@ -34,15 +34,23 @@ proc getInfectionSprite*(entityType: string): string =
 
 proc useSelections*() =
   if window.buttonPressed[MouseLeft]:
-    selection = nil
-    let
-      mousePos = bxy.getTransform().inverse * window.mousePos.vec2
-      gridPos = (mousePos + vec2(0.5, 0.5)).ivec2
-    if gridPos.x >= 0 and gridPos.x < MapWidth and
-       gridPos.y >= 0 and gridPos.y < MapHeight:
-      let thing = env.grid[gridPos.x][gridPos.y]
-      if thing != nil:
-        selection = thing
+    mouseDownPos = logicalMousePos(window)
+
+  if window.buttonReleased[MouseLeft]:
+    let mouseUpPos = logicalMousePos(window)
+    let dragDistance = (mouseUpPos - mouseDownPos).length
+    let clickThreshold = 3.0
+
+    if dragDistance <= clickThreshold:
+      selection = nil
+      let
+        mousePos = bxy.getTransform().inverse * window.mousePos.vec2
+        gridPos = (mousePos + vec2(0.5, 0.5)).ivec2
+      if gridPos.x >= 0 and gridPos.x < MapWidth and
+         gridPos.y >= 0 and gridPos.y < MapHeight:
+        let thing = env.grid[gridPos.x][gridPos.y]
+        if thing != nil:
+          selection = thing
 
 proc drawFloor*() =
   # Draw the floor tiles everywhere first as the base layer

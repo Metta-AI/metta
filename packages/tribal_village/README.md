@@ -33,8 +33,8 @@ nimble buildLib  # Builds in danger mode for maximum performance
 python -c "from tribal_village_env import TribalVillageEnv; env = TribalVillageEnv()"
 ```
 
-> Prefer avoiding a global editable install? Use `uv run --project packages/tribal_village python -c "..."`
-> to execute one-off commands against this package with its local dependencies instead.
+> Prefer avoiding a global editable install? Use `uv run --project packages/tribal_village python -c "..."` to execute
+> one-off commands against this package with its local dependencies instead.
 
 ## Configuration
 

@@ -85,6 +85,15 @@ var
   followSelection*: bool = false
   mouseCaptured*: bool = false
   mouseCapturedPanel*: Panel = nil
+  mouseDownPos*: Vec2 = vec2(0, 0)
+
+proc logicalMousePos*(window: Window): Vec2 =
+  ## Mouse position in logical coordinates (accounts for HiDPI scaling).
+  window.mousePos.vec2 / window.contentScale
+
+proc logicalMouseDelta*(window: Window): Vec2 =
+  ## Mouse delta in logical coordinates (accounts for HiDPI scaling).
+  window.mouseDelta.vec2 / window.contentScale
 
 proc manhattanDistance*(a, b: IVec2): int =
   abs(a.x - b.x) + abs(a.y - b.y)
