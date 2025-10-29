@@ -3,7 +3,8 @@ from __future__ import annotations
 
 import logging
 import os
-from typing import Any, Dict
+from itertools import count
+from typing import TYPE_CHECKING, Any, Dict
 
 import ray
 from pydantic import Field
@@ -14,6 +15,9 @@ from ray.tune.search.optuna import OptunaSearch
 from metta.common.util.constants import PROD_STATS_SERVER_URI
 from metta.sweep.ray.ray_run_trial import metta_train_fn
 from mettagrid.base_config import Config
+
+if TYPE_CHECKING:
+    from ray.tune.experiment.trial import Trial
 
 logger = logging.getLogger(__name__)
 
@@ -202,6 +206,12 @@ def ray_sweep(
 
     optuna_search = OptunaSearch(metric="reward", mode="max")
 
+    trial_counter = count()
+
+    def trial_name_creator(trial: Trial) -> str:
+        trial_index = next(trial_counter)
+        return f"{sweep_config.sweep_id}.{trial_index}.{trial.trial_id}"
+
     tuner = Tuner(
         trainable,
         tune_config=TuneConfig(
@@ -210,6 +220,7 @@ def ray_sweep(
             mode="max",
             max_concurrent_trials=effective_max_concurrent,
             search_alg=optuna_search,
+            trial_name_creator=trial_name_creator,
         ),
         run_config=RunConfig(
             failure_config=failure_config,
