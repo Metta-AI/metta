@@ -35,6 +35,30 @@ class AgentRewards(Config):
     stats_max: dict[str, float] = Field(default_factory=dict)
 
 
+class SupervisorConfig(Config):
+    """Base supervisor configuration."""
+
+    type: str = Field(description="Type of supervisor")
+    can_override_action: bool = Field(default=False, description="Whether the supervisor can override agent actions")
+    name: str = Field(default="supervisor", description="Name for logging and statistics")
+
+
+class PatrolSupervisorConfig(SupervisorConfig):
+    """Configuration for patrol supervisor that moves agent left and right repeatedly."""
+
+    type: Literal["patrol"] = "patrol"
+    steps_per_direction: int = Field(
+        default=5, ge=1, description="Number of steps to move in each direction before turning"
+    )
+
+
+# Union type for all supervisor configs
+AnySupervisorConfig = Union[
+    PatrolSupervisorConfig,
+    # Future supervisor types can be added here
+]
+
+
 class AgentConfig(Config):
     """Python agent configuration."""
 
@@ -61,6 +85,9 @@ class AgentConfig(Config):
     diversity_tracked_resources: list[str] = Field(
         default_factory=list,
         description="Resource names that contribute to inventory diversity metrics",
+    )
+    supervisor: Optional[AnySupervisorConfig] = Field(
+        default=None, description="Optional supervisor configuration for this agent"
     )
 
 
