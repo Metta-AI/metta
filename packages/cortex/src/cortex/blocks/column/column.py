@@ -31,6 +31,8 @@ class ColumnBlock(BaseBlock):
         # Precompute stable per‑expert state keys once.
         self._expert_keys: list[str] = [self._expert_state_key(i, expert) for i, expert in enumerate(self.experts)]
         self._compiled_experts: list | None = None
+        # Lazily created CUDA streams for expert parallelism (one per expert).
+        self._cuda_streams: list[torch.cuda.Stream] | None = None
 
     @staticmethod
     def _make_placeholder_cell(hidden_size: int) -> MemoryCell:
@@ -91,19 +93,56 @@ class ColumnBlock(BaseBlock):
     ) -> Tuple[Tensor, MaybeState]:
         is_step = x.dim() == 2
         B = x.shape[0]
-        expert_outs: list[Tensor] = []
-        state_map: dict[str, TensorDict] = {}
         td_empty = _empty_td(B, x.device)
         use_compiled = self._compiled_experts is not None and torch.is_grad_enabled()
         expert_call_list = self._compiled_experts if use_compiled else list(self.experts)
 
-        for key, expert in zip(self._expert_keys, expert_call_list, strict=False):
-            expert_state = state.get(key) if isinstance(state, TensorDict) else td_empty
-            if expert_state is None:
-                expert_state = td_empty
-            y_i, s_i = expert(x, expert_state, resets=resets)
-            expert_outs.append(y_i)
-            state_map[key] = s_i if isinstance(s_i, TensorDict) else _empty_td(B, x.device)
+        num_experts = len(expert_call_list)
+        # Preallocate lists for deterministic ordering
+        expert_outs: list[Tensor] = [torch.empty(0, device=x.device)] * num_experts
+        expert_states: list[TensorDict] = [td_empty] * num_experts
+
+        can_parallel = num_experts > 1 and x.is_cuda and torch.cuda.is_available()
+
+        if can_parallel:
+            # Lazily create one stream per expert on the input tensor's device.
+            dev = x.device
+            if (
+                self._cuda_streams is None
+                or len(self._cuda_streams) != num_experts
+                or any(s.device != dev for s in (self._cuda_streams or []))
+            ):
+                self._cuda_streams = [torch.cuda.Stream(device=dev) for _ in range(num_experts)]
+
+            current = torch.cuda.current_stream(dev)
+            # Schedule each expert on its own stream.
+            for i, (key, expert) in enumerate(zip(self._expert_keys, expert_call_list, strict=False)):
+                s = self._cuda_streams[i]
+                # Ensure expert stream sees work done on current stream for inputs.
+                s.wait_stream(current)
+                with torch.cuda.stream(s):
+                    expert_state = state.get(key) if isinstance(state, TensorDict) else td_empty
+                    if expert_state is None:
+                        expert_state = td_empty
+                    y_i, s_i = expert(x, expert_state, resets=resets)
+                    expert_outs[i] = y_i
+                    expert_states[i] = s_i if isinstance(s_i, TensorDict) else _empty_td(B, x.device)
+
+            # Back on current stream, wait for all expert streams before consuming outputs.
+            for s in self._cuda_streams:
+                current.wait_stream(s)
+        else:
+            # Fallback sequential execution (CPU or single expert)
+            for i, (key, expert) in enumerate(zip(self._expert_keys, expert_call_list, strict=False)):
+                expert_state = state.get(key) if isinstance(state, TensorDict) else td_empty
+                if expert_state is None:
+                    expert_state = td_empty
+                y_i, s_i = expert(x, expert_state, resets=resets)
+                expert_outs[i] = y_i
+                expert_states[i] = s_i if isinstance(s_i, TensorDict) else _empty_td(B, x.device)
+
+        # Build the next state TensorDict on the current stream after synchronization.
+        state_map = {k: v for k, v in zip(self._expert_keys, expert_states, strict=False)}
         next_state = _make_td(state_map, B, x.device)
 
         if len(expert_outs) == 1:

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from cortex.blocks.auto import build_column_auto_config
+from cortex.blocks.column.auto import build_column_auto_config
 from cortex.config import BlockConfig, CortexStackConfig, RouterConfig
 from cortex.stacks.base import CortexStack
 
