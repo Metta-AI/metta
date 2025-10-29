@@ -207,41 +207,20 @@ This describes what happens inside a single Column block—high level.
 
 $$
 \begin{aligned}
-y_{t,i} &= \mathrm{Block}_i\big(\mathrm{RMSNorm}(x_t)\big) \\
+u_t &:= \mathrm{RMSNorm}(x_t) \\
+y_{t,i} &= \mathrm{Block}_i(u_t) \\
 \Delta_{t,i} &= y_{t,i} - u_t \\
-\tilde{\Delta}_{t,i} &= \Delta_{t,i} + \mathrm{Mixer}(\Delta)_{t,i} \quad \text{(E\text{-}axis mixer)} \\
-\alpha_t &= \mathrm{softmax}\!\big(\log \mathrm{softmax}(z_g) + \lambda\, \hat{p}_t\big) \\
-r_t &= \sum_i \alpha_{t,i}\,\tilde{\Delta}_{t,i} + (u_t - x_t) \\
-y_{\text{total}}(t) &= x_t + r_t \\
-\text{out}_t &= y_{\text{total}}(t) + \alpha_{\text{col}} \cdot \rho(r_t)
+\tilde{\Delta}_{t,i} &= \Delta_{t,i} + \mathrm{Mixer}(\Delta)_{t,i}
+\quad\text{(cross-attention over experts \(E\))} \\
+\alpha_t &= \mathrm{softmax}\!\big(\log \mathrm{softmax}(z_g) + \lambda\, \hat{p}_t\big)
+\quad (\alpha_{t,i}\ge 0,\ \sum_i \alpha_{t,i}=1) \\
+r_t &= \sum_i \alpha_{t,i}\,\tilde{\Delta}_{t,i} + (u_t - x_t)
+\quad\text{(align from normalized space \(u_t\) back to \(x_t\))} \\
+y_{\mathrm{total}}(t) &= x_t + r_t \\
+\mathrm{out}_t &= y_{\mathrm{total}}(t) + \alpha_{\mathrm{col}} \cdot \rho(r_t)\, .
 \end{aligned}
 $$
 
-[
-\begin{aligned}
-y_{t,i} &= \text{Block}*i(\text{RMSNorm}(x_t)) \
-\Delta*{t,i} &= y_{t,i} - u_t \
-\tilde{\Delta}*{t,i} &\text{ via E-mixer as above} \
-\alpha_t &= \text{softmax}(\log \text{softmax}(z_g) + \lambda \hat{p}*t) \
-r_t &= \sum_i \alpha*{t,i} \tilde{\Delta}*{t,i} + (u_t - x_t) \
-y_\text{total}(t) &= x_t + r_t \
-\text{out}*t &= y*\text{total}(t) + \alpha_{\text{col}} \cdot \rho(r_t)
-\end{aligned}
-]
-
-Formatted (LaTeX):
-
-\[
-\begin{aligned}
-y_{t,i} &= \mathrm{Block}_i\big(\mathrm{RMSNorm}(x_t)\big) \\
-\Delta_{t,i} &= y_{t,i} - u_t \\
-\tilde{\Delta}_{t,i} &= \Delta_{t,i} + \mathrm{Mixer}(\Delta)_{t,i} \quad \text{(E\text{-}axis mixer)} \\
-\alpha_t &= \mathrm{softmax}\!\big(\log \mathrm{softmax}(z_g) + \lambda\, \hat{p}_t\big) \\
-r_t &= \sum_i \alpha_{t,i}\,\tilde{\Delta}_{t,i} + (u_t - x_t) \\
-y_{\text{total}}(t) &= x_t + r_t \\
-\text{out}_t &= y_{\text{total}}(t) + \alpha_{\text{col}} \cdot \rho(r_t)
-\end{aligned}
-\]
 
 ## Quick Start
 
@@ -287,7 +266,7 @@ out_step, state = stack.step(x_step, state)
 
 Advanced control:
 
-- Per‑layer patterns: pass a list like `["AXMS", "AM^S", "XS", "M^"]`.
+- Per‑layer patterns: pass a list like `["AXMS", "AM^S", "XXS", "M^"]`; or a single pattern `"XXS"` repeated with `num_layers`.
 - Custom symbols: supply `custom_map={"Q": PreUpBlockConfig(cell=mLSTMCellConfig(...))}` and use `"Q"` in patterns.
 - Column implementation: `packages/cortex/src/cortex/blocks/column/column.py`; pattern builder:
   `packages/cortex/src/cortex/blocks/column/auto.py`.
