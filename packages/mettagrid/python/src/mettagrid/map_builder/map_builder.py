@@ -1,16 +1,20 @@
 from __future__ import annotations
 
 import inspect
+import logging
 from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Any, ClassVar, Generic, Self, TypeVar, cast, get_args, get_origin
 
+import numpy as np
 import yaml
-from pydantic import ModelWrapValidatorHandler, SerializeAsAny, model_serializer, model_validator
+from pydantic import Field, ModelWrapValidatorHandler, SerializeAsAny, model_serializer, model_validator
 
 from mettagrid.base_config import Config
 from mettagrid.mapgen.types import MapGrid
 from mettagrid.util.module import load_symbol
+
+logger = logging.getLogger(__name__)
 
 
 class GameMap:
@@ -134,6 +138,14 @@ class MapBuilderConfig(Config, Generic[TBuilder]):
         return result
 
 
+class WithMaxRetriesConfig(Config):
+    max_retries: int = Field(
+        default=5,
+        ge=0,
+        description="Number of additional map samples to try when a builder raises ValueError during build().",
+    )
+
+
 AnyMapBuilderConfig = SerializeAsAny[MapBuilderConfig]
 
 
@@ -184,3 +196,52 @@ class MapBuilder(ABC, Generic[ConfigT]):
 
     @abstractmethod
     def build(self) -> GameMap: ...
+
+    def build_for_num_agents(self, num_agents: int) -> GameMap:
+        """
+        Build a map and ensure it can accommodate the requested number of agents.
+
+        Subclasses may override if they have a more efficient way to enforce spawn counts.
+        """
+
+        if isinstance(self.config, WithMaxRetriesConfig):
+            retry_budget = self.config.max_retries
+        else:
+            retry_budget = 0
+
+        for attempt in range(retry_budget + 1):
+            try:
+                game_map = self.build()
+                self._designate_agent_spawn_points(game_map, num_agents)
+                return game_map
+            except ValueError as exc:
+                if attempt == retry_budget:
+                    raise exc
+                logger.warning(
+                    "Map build failed with ValueError on attempt %s/%s: %s; retrying",
+                    attempt + 1,
+                    retry_budget + 1,
+                    exc,
+                )
+        raise ValueError(f"Failed to build map for {num_agents} agents")
+
+    def _designate_agent_spawn_points(self, game_map: GameMap, num_agents: int) -> None:
+        """
+        Validate that the map provides enough spawn points and trim excess when necessary.
+        """
+
+        spawn_mask = np.char.startswith(game_map.grid, "agent")
+        level_agents = np.count_nonzero(spawn_mask)
+
+        if level_agents < num_agents:
+            raise ValueError(
+                (
+                    f"Number of agents {num_agents} exceeds available spawn points {level_agents} in map. "
+                    "After removing the border width, the map might be too small to fit all agents."
+                )
+            )
+
+        if level_agents > num_agents:
+            spawn_indices = np.argwhere(spawn_mask)
+            for idx in spawn_indices[num_agents:]:
+                game_map.grid[tuple(idx)] = "empty"
