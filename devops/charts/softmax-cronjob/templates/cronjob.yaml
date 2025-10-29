@@ -1,9 +1,9 @@
 apiVersion: batch/v1
 kind: CronJob
 metadata:
-  name: {{ include "dashboard-cronjob.fullname" . }}
+  name: {{ include "softmax-cronjob.fullname" . }}
   labels:
-    {{- include "dashboard-cronjob.labels" . | nindent 4 }}
+    {{- include "softmax-cronjob.labels" . | nindent 4 }}
 spec:
   schedule: {{ .Values.schedule | quote }}
   successfulJobsHistoryLimit: {{ .Values.successfulJobsHistoryLimit }}
@@ -15,9 +15,9 @@ spec:
       template:
         metadata:
           labels:
-            {{- include "dashboard-cronjob.selectorLabels" . | nindent 12 }}
+            {{- include "softmax-cronjob.selectorLabels" . | nindent 12 }}
         spec:
-          serviceAccountName: {{ include "dashboard-cronjob.serviceAccountName" . }}
+          serviceAccountName: {{ include "softmax-cronjob.serviceAccountName" . }}
           restartPolicy: {{ .Values.restartPolicy }}
           containers:
           - name: {{ .Chart.Name }}

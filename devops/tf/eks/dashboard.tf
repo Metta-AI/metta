@@ -8,7 +8,10 @@ module "dashboard_irsa" {
   oidc_providers = {
     main = {
       provider_arn               = module.eks.oidc_provider_arn
-      namespace_service_accounts = ["monitoring:dashboard-cronjob-dashboard-cronjob"]
+      namespace_service_accounts = [
+        "monitoring:dashboard-cronjob-dashboard-cronjob",
+        "monitoring:pr-similarity-cache-refresh-dashboard-cronjob",
+      ]
     }
   }
 
@@ -35,6 +38,7 @@ resource "aws_iam_policy" "dashboard_secrets" {
           "arn:aws:secretsmanager:us-east-1:751442549699:secret:asana/workspace-gid-*",
           "arn:aws:secretsmanager:us-east-1:751442549699:secret:asana/bugs-project-gid-*",
           "arn:aws:secretsmanager:us-east-1:751442549699:secret:wandb/api-key-*",
+          "arn:aws:secretsmanager:us-east-1:751442549699:secret:GEMINI-API-KEY*",
         ]
       },
       {
@@ -45,6 +49,18 @@ resource "aws_iam_policy" "dashboard_secrets" {
           "ec2:DescribeSnapshots",
         ]
         Resource = "*"
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "s3:GetObject",
+          "s3:PutObject",
+          "s3:CreateMultipartUpload",
+          "s3:UploadPart",
+          "s3:CompleteMultipartUpload",
+          "s3:AbortMultipartUpload",
+        ]
+        Resource = "arn:aws:s3:::softmax-public/*"
       }
     ]
   })

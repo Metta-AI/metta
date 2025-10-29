@@ -6,9 +6,6 @@ image:
   pullPolicy: Always
   tag: "latest"
 
-# Command to run - can be overridden for different scripts
-command: ["uv", "run", "python", "-m", "softmax.dashboard.report", "--push"]
-
 serviceAccount:
   create: true
   annotations:
@@ -22,11 +19,9 @@ resources:
     cpu: 500m
     memory: 2Gi
 
-# Datadog metric tagging (for organizing metrics in Datadog)
 datadog:
-  env: "production"
-  service: "dashboard-cronjob"
-  site: "datadoghq.com"
+  env: production
+  site: datadoghq.com
 
 # CronJob configuration
 successfulJobsHistoryLimit: 3
