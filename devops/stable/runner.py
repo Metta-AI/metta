@@ -198,31 +198,48 @@ class TaskRunner:
                 yellow(f"🧹 Found {len(stale_job_names)} stale job(s) from previous runs: {', '.join(stale_job_names)}")
             )
 
-        # Track task states
-        pending = set(tasks)  # Not yet submitted
-        submitted = set()  # Submitted to JobManager but not complete
-        completed = set()  # Completed (any outcome)
+        # Track which tasks we've already tried to submit (to avoid re-submission)
+        submitted_tasks = set()
 
         # Submit-poll loop with interrupt handling
         first_submission = True
         last_poll_time = 0.0
         poll_interval = 1.0  # Poll JobManager every 1 second for job completions
         try:
-            while pending or submitted:
-                # Submit all tasks with satisfied dependencies
-                ready_to_submit = [task for task in pending if self._dependencies_satisfied(task, task_by_name)]
+            while True:
+                # Get current state from JobManager (source of truth)
+                group_jobs = self.job_manager.get_group_jobs(self.state.version)
+
+                # Determine which tasks still need work
+                incomplete_tasks = []
+                for task in tasks:
+                    job_name = self._get_job_name(task)
+
+                    # Task needs work if:
+                    # 1. Not yet submitted, OR
+                    # 2. Submitted but not completed yet
+                    if task not in submitted_tasks:
+                        incomplete_tasks.append(task)
+                    elif job_name in group_jobs and group_jobs[job_name].status != "completed":
+                        incomplete_tasks.append(task)
+
+                # Exit if all tasks are complete
+                if not incomplete_tasks:
+                    break
+
+                # Submit all tasks with satisfied dependencies that we haven't submitted yet
+                ready_to_submit = [
+                    task
+                    for task in tasks
+                    if task not in submitted_tasks and self._dependencies_satisfied(task, task_by_name)
+                ]
 
                 for task in ready_to_submit:
-                    submit_result = self._submit_task(task, task_by_name)
-                    if submit_result:  # Task was actually submitted (not skipped/cached)
-                        pending.remove(task)
-                        submitted.add(task)
-                    else:  # Task was skipped or cached
-                        completed.add(task)
-                        pending.remove(task)
+                    self._submit_task(task, task_by_name)
+                    submitted_tasks.add(task)
 
                 # Show initial status immediately after first batch of submissions
-                if first_submission and submitted and self.monitor:
+                if first_submission and submitted_tasks and self.monitor:
                     first_submission = False
                     # Display monitor for the first time (don't update in-place yet
                     # since we have submission messages above)
@@ -250,21 +267,21 @@ class TaskRunner:
 
                 now = time.time()
 
-                # Poll for completions (less frequently - may be slow for remote jobs)
-                if submitted and now - last_poll_time >= poll_interval:
-                    completed_job_names = self.job_manager.poll()
-                    for job_name in completed_job_names:
-                        # Find the task with this job name
-                        task = next((t for t in submitted if self._get_job_name(t) == job_name), None)
-                        if task:
-                            # Note: Metrics fetching happens in JobManager monitoring threads
-
-                            # Display result only if requested (otherwise monitor shows status)
-                            if self.show_individual_results:
-                                self._display_result(job_name, task)
-                            completed.add(task)
-                            submitted.remove(task)
+                # Call poll() to start pending jobs and update internal state
+                # (we don't use the return value since we query state directly)
+                if now - last_poll_time >= poll_interval:
+                    self.job_manager.poll()
                     last_poll_time = now
+
+                # Display result for newly completed jobs if requested
+                if self.show_individual_results and now - last_poll_time < 0.1:  # Just polled
+                    for task in submitted_tasks:
+                        job_name = self._get_job_name(task)
+                        if job_name in group_jobs and group_jobs[job_name].status == "completed":
+                            # Check if we already displayed this one
+                            if not hasattr(task, "_result_displayed"):
+                                self._display_result(job_name, task)
+                                task._result_displayed = True  # Mark as displayed
 
                 # Display status periodically (fast - just reads from database)
                 if self.monitor and now - self._last_display_update >= self._display_interval:
@@ -274,8 +291,7 @@ class TaskRunner:
                     self._last_display_update = now
 
                 # Small sleep to avoid tight polling loop
-                if pending or submitted:
-                    time.sleep(0.1)
+                time.sleep(0.1)
 
         except KeyboardInterrupt:
             print(yellow("\n\n⚠️  Interrupted by user (Ctrl+C)"))
