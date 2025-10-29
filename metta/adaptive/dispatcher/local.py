@@ -5,7 +5,6 @@ import os
 import socket
 import subprocess
 import threading
-from pathlib import Path
 from typing import Optional
 
 from metta.adaptive.models import JobDefinition
