@@ -76,7 +76,12 @@ class CortexStack(nn.Module):
         next_state = TensorDict({}, batch_size=[batch_size])
         for i, block in enumerate(self.blocks):
             block_key = f"{block.__class__.__name__}_{i}"
-            block_state = state.get(block_key) if isinstance(state, TensorDict) else None
+            if isinstance(state, TensorDict):
+                block_state = state.get(block_key)
+                if block_state is None:
+                    block_state = TensorDict({}, batch_size=[batch_size], device=y.device)
+            else:
+                block_state = TensorDict({}, batch_size=[batch_size], device=y.device)
             if self._compiled_blocks is not None:
                 call = self._compiled_blocks[i]
             else:

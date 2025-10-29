@@ -7,6 +7,7 @@ from typing import Optional, Tuple
 import torch
 import torch.nn as nn
 from tensordict import TensorDict
+from torch._dynamo import disable
 
 from cortex.blocks.base import BaseBlock
 from cortex.blocks.column.routers import GlobalContextDotRouter
@@ -27,6 +28,9 @@ class ColumnBlock(BaseBlock):
         self.d_hidden = d_hidden
         self.experts = nn.ModuleList(self._build_experts(config.experts, d_hidden))
         self.router = GlobalContextDotRouter(d_hidden, len(self.experts), config.router)
+        # Precompute stable per‑expert state keys once to avoid dynamic
+        # TensorDict growth inside forward (reduces Dynamo recompiles).
+        self._expert_keys: list[str] = [self._expert_state_key(i, expert) for i, expert in enumerate(self.experts)]
 
     @staticmethod
     def _make_placeholder_cell(hidden_size: int) -> MemoryCell:
@@ -60,22 +64,23 @@ class ColumnBlock(BaseBlock):
         return experts
 
     def init_state(self, batch: int, *, device: torch.device | str, dtype: torch.dtype) -> TensorDict:
-        td = TensorDict({}, batch_size=[batch], device=torch.device(device))
-        for i, expert in enumerate(self.experts):
-            key = self._expert_state_key(i, expert)
-            td[key] = expert.init_state(batch=batch, device=device, dtype=dtype)
-        return td
+        # Build in one shot to avoid per‑item __setitem__ during graph capture.
+        state_map = {
+            key: expert.init_state(batch=batch, device=device, dtype=dtype)
+            for key, expert in zip(self._expert_keys, self.experts, strict=False)
+        }
+        return TensorDict(state_map, batch_size=[batch], device=torch.device(device))
 
     def reset_state(self, state: MaybeState, mask: ResetMask) -> MaybeState:
         if state is None or not isinstance(state, TensorDict):
             return state
         batch_size = state.batch_size[0] if state.batch_size else mask.shape[0]
-        new_state = TensorDict({}, batch_size=[batch_size], device=state.device)
-        for i, expert in enumerate(self.experts):
-            key = self._expert_state_key(i, expert)
+        # Build mapping in Python first, then wrap.
+        state_map = {}
+        for key, expert in zip(self._expert_keys, self.experts, strict=False):
             cur = state.get(key)
-            new_state[key] = expert.reset_state(cur, mask)
-        return new_state
+            state_map[key] = expert.reset_state(cur, mask)
+        return TensorDict(state_map, batch_size=[batch_size], device=state.device)
 
     def forward(
         self,
@@ -87,14 +92,16 @@ class ColumnBlock(BaseBlock):
         is_step = x.dim() == 2
         B = x.shape[0]
         expert_outs: list[Tensor] = []
-        next_state = TensorDict({}, batch_size=[B], device=x.device)
-
-        for i, expert in enumerate(self.experts):
-            key = self._expert_state_key(i, expert)
-            expert_state = state.get(key) if isinstance(state, TensorDict) else None
+        state_map: dict[str, TensorDict] = {}
+        td_empty = _empty_td(B, x.device)
+        for key, expert in zip(self._expert_keys, self.experts, strict=False):
+            expert_state = state.get(key) if isinstance(state, TensorDict) else td_empty
+            if expert_state is None:
+                expert_state = td_empty
             y_i, s_i = expert(x, expert_state, resets=resets)
             expert_outs.append(y_i)
-            next_state[key] = s_i if isinstance(s_i, TensorDict) else TensorDict({}, batch_size=[B])
+            state_map[key] = s_i if isinstance(s_i, TensorDict) else _empty_td(B, x.device)
+        next_state = _make_td(state_map, B, x.device)
 
         if len(expert_outs) == 1:
             return expert_outs[0], next_state
@@ -115,3 +122,13 @@ class ColumnBlock(BaseBlock):
 
 
 __all__ = ["ColumnBlock"]
+
+
+@disable
+def _make_td(state_map: dict[str, TensorDict], batch_size: int, device: torch.device | str) -> TensorDict:
+    return TensorDict(state_map, batch_size=[batch_size], device=torch.device(device))
+
+
+@disable
+def _empty_td(batch_size: int, device: torch.device | str) -> TensorDict:
+    return TensorDict({}, batch_size=[batch_size], device=torch.device(device))

@@ -8,6 +8,7 @@ import os
 from typing import Callable
 
 import torch
+from torch._dynamo import disable
 
 logger = logging.getLogger(__name__)
 
@@ -50,6 +51,7 @@ def _lazy_import(fn_or_path: Callable | str | None) -> Callable | None:
         return None
 
 
+@disable
 def select_backend(
     triton_fn: Callable | str | None,
     pytorch_fn: Callable | str,
