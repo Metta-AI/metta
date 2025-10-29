@@ -14,10 +14,12 @@ from metta.rl.trainer_config import TorchProfilerConfig, TrainerConfig
 from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
 from metta.sim.simulation_config import SimulationConfig
 from metta.sweep.core import make_sweep, SweepParameters as SP, Distribution as D
+from metta.sweep.ray.ray_controller import SweepConfig
 from metta.tools.eval import EvaluateTool
 from metta.tools.play import PlayTool
 from metta.tools.replay import ReplayTool
 from metta.tools.sweep import SweepTool
+from metta.tools.ray_sweep import RaySweepTool
 from metta.tools.train import TrainTool
 from mettagrid import MettaGridConfig
 from mettagrid.config import ConverterConfig
@@ -234,4 +236,25 @@ def sweep(sweep_name: str) -> SweepTool:
         # Default value is 1. We don't recommend going higher than 4.
         # The faster each individual trial, the lower you should set this number.
         num_parallel_trials=4,
+    )
+
+def ray_mini_sweep(sweep_name: str):
+
+    config = SweepConfig(
+        sweep_id=sweep_name,
+        recipe_module="experiments.recipes.arena_basic_easy_shaped",
+        train_entrypoint="train",
+        eval_entrypoint="evaluate_in_sweep",
+        num_samples=10,
+        max_concurrent_trials=4,
+        fail_fast=True,
+        max_failures_per_trial=0,
+        cpus_per_trial=4,
+        gpus_per_trial=0,
+    )
+
+    # This sweep will use the default search space.
+
+    return RaySweepTool(
+        sweep_config=config,
     )
