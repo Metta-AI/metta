@@ -88,6 +88,9 @@ start_ray_worker() {
   sleep 5
 }
 
+MODULE_PATH=${SIMPLE_SWEEP_MODULE_PATH:?missing SIMPLE_SWEEP_MODULE_PATH}
+MODULE_ARGS=${SIMPLE_SWEEP_MODULE_ARGS:-}
+
 if [[ "$IS_HEAD" == "true" ]]; then
   start_ray_head
   RAY_ADDRESS_VALUE="ray://${HEAD_IP}:${RAY_CLIENT_PORT}"
@@ -103,9 +106,6 @@ if [[ "$IS_HEAD" == "true" ]]; then
 else
   start_ray_worker
 fi
-
-MODULE_PATH=${SIMPLE_SWEEP_MODULE_PATH:?missing SIMPLE_SWEEP_MODULE_PATH}
-MODULE_ARGS=${SIMPLE_SWEEP_MODULE_ARGS:-}
 
 if [[ "$IS_HEAD" == "true" ]]; then
   echo "[SIMPLE] Launching tool: ${MODULE_PATH} ${MODULE_ARGS}"
