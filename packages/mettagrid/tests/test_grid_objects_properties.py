@@ -35,8 +35,8 @@ def env_with_assembler():
             objects={
                 "wall": WallConfig(),
                 "assembler": AssemblerConfig(
-                    recipes=[
-                        ([], ProtocolConfig(input_resources={"iron": 10}, output_resources={"steel": 5}, cooldown=20))
+                    protocols=[
+                        ProtocolConfig(input_resources={"iron": 10}, output_resources={"steel": 5}, cooldown=20)
                     ],
                     max_uses=10,
                     allow_partial_usage=True,

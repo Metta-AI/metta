@@ -260,21 +260,22 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
         elif isinstance(object_config, AssemblerConfig):
             recipes = {}
 
-            for vibes, recipe_config in reversed(object_config.recipes):
+            for protocol_config in reversed(object_config.protocols):
                 # Convert vibe names to IDs
-                vibe_ids = sorted([vibe_name_to_id[vibe] for vibe in vibes])
+                vibe_ids = sorted([vibe_name_to_id[vibe] for vibe in protocol_config.vibes])
                 overall_vibe = 0
                 for vibe_id in vibe_ids:
                     overall_vibe = overall_vibe << 8 | vibe_id
                 # Create C++ recipe - must use keyword args for pybind11
-                input_res = {resource_name_to_id[k]: int(v) for k, v in recipe_config.input_resources.items()}
-                output_res = {resource_name_to_id[k]: int(v) for k, v in recipe_config.output_resources.items()}
+                input_res = {resource_name_to_id[k]: int(v) for k, v in protocol_config.input_resources.items()}
+                output_res = {resource_name_to_id[k]: int(v) for k, v in protocol_config.output_resources.items()}
                 cpp_recipe = CppRecipe(
-                    input_resources=input_res, output_resources=output_res, cooldown=int(recipe_config.cooldown)
+                    input_resources=input_res, output_resources=output_res, cooldown=int(protocol_config.cooldown)
                 )
                 if overall_vibe in recipes:
                     raise ValueError(
-                        f"Recipe with vibe {overall_vibe} (from vibes {vibes}) already exists in {object_type}"
+                        f"Recipe with vibe {overall_vibe} (from vibes {protocol_config.vibes}) "
+                        f"already exists in {object_type}"
                     )
                 recipes[overall_vibe] = cpp_recipe
 
@@ -424,14 +425,14 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
     # Add clipper if configured
     if game_config.clipper is not None:
         clipper: ClipperConfig = game_config.clipper
-        clipper_recipes = []
-        for recipe_config in clipper.unclipping_recipes:
-            input_res = {resource_name_to_id[k]: int(v) for k, v in recipe_config.input_resources.items()}
-            output_res = {resource_name_to_id[k]: int(v) for k, v in recipe_config.output_resources.items()}
-            cpp_recipe = CppRecipe(input_res, output_res, int(recipe_config.cooldown))
-            clipper_recipes.append(cpp_recipe)
+        clipper_protocols = []
+        for protocol_config in clipper.unclipping_protocols:
+            input_res = {resource_name_to_id[k]: int(v) for k, v in protocol_config.input_resources.items()}
+            output_res = {resource_name_to_id[k]: int(v) for k, v in protocol_config.output_resources.items()}
+            cpp_protocol = CppRecipe(input_res, output_res, int(protocol_config.cooldown))
+            clipper_protocols.append(cpp_protocol)
         game_cpp_params["clipper"] = CppClipperConfig(
-            clipper_recipes, clipper.length_scale, clipper.cutoff_distance, clipper.clip_rate
+            clipper_protocols, clipper.length_scale, clipper.cutoff_distance, clipper.clip_rate
         )
 
     # Set feature flags
