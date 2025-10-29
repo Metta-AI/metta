@@ -152,8 +152,9 @@ class SkyPilotTestLauncher:
         # Build the command
         cmd = [
             "devops/skypilot/launch.py",
-            *base_args,
+            "--tool",
             module,
+            *base_args,
             f"run={run_name}",
             *extra_args,
         ]
