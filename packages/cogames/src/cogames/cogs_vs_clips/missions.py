@@ -143,60 +143,43 @@ class NeutralFacedVariant(MissionVariant):
         return mission
 
 
-# class HeartChorusVariant(MissionVariant):
-#     name: str = "heart_chorus"
-#     description: str = "Hearts require a chorus of 4 heart vibes and simple inputs."
-
-#     def apply(self, mission: Mission) -> Mission:
-#         # Default to 4 heart tokens; inputs can be adjusted if needed
-#         mission.heart_chorus_length = 4
-#         mission.heart_chorus_inputs = {"carbon": 1, "oxygen": 1, "germanium": 1, "silicon": 1, "energy": 1}
-#         return mission
-
-
 # Biome variants (weather) for procedural maps
 class DesertBiomeVariant(MissionVariant):
     name: str = "desert"
-    description: str = "The desert sands make parallel ridges to navigate between."
+    description: str = "The desert sands make navigation challenging."
 
     def apply(self, mission: Mission) -> Mission:
-        if hasattr(mission, "procedural_overrides"):
-            mission.procedural_overrides["biome_weights"] = {"desert": 1.0, "caves": 0.0, "forest": 0.0, "city": 0.0}
-            mission.procedural_overrides["base_biome"] = "desert"
+        mission.procedural_overrides["biome_weights"] = {"desert": 1.0, "caves": 0.0, "forest": 0.0, "city": 0.0}
+        mission.procedural_overrides["base_biome"] = "desert"
         return mission
 
 
 class ForestBiomeVariant(MissionVariant):
     name: str = "forest"
-    description: str = "Clusters of trees make forests to navigate through."
+    description: str = "Dense forests obscure your view."
 
     def apply(self, mission: Mission) -> Mission:
-        if hasattr(mission, "procedural_overrides"):
-            mission.procedural_overrides["biome_weights"] = {"forest": 1.0, "caves": 0.0, "desert": 0.0, "city": 0.0}
-            mission.procedural_overrides["base_biome"] = "forest"
+        mission.procedural_overrides["biome_weights"] = {"forest": 1.0, "caves": 0.0, "desert": 0.0, "city": 0.0}
+        mission.procedural_overrides["base_biome"] = "forest"
         return mission
 
 
 class CityBiomeVariant(MissionVariant):
     name: str = "city"
-    description: str = "Ancient city ruins provide structured pathways with streets and buildings."
+    description: str = "Ancient city ruins provide structured pathways."
 
     def apply(self, mission: Mission) -> Mission:
-        if hasattr(mission, "procedural_overrides"):
-            mission.procedural_overrides.update(
-                {
-                    "base_biome": "city",
-                    "biome_weights": {"city": 1.0, "caves": 0.0, "desert": 0.0, "forest": 0.0},
-                    # Fill almost the entire map with the city layer
-                    "density_scale": 1.0,
-                    "biome_count": 1,
-                    "max_biome_zone_fraction": 0.95,
-                    # Disable dungeon overlays so they don't overwrite the grid
-                    "dungeon_weights": {"bsp": 0.0, "maze": 0.0, "radial": 0.0},
-                    "max_dungeon_zone_fraction": 0.0,
-                    # Tighten the city grid itself
-                }
-            )
+        mission.procedural_overrides.update(
+            {
+                "base_biome": "city",
+                "biome_weights": {"city": 1.0, "caves": 0.0, "desert": 0.0, "forest": 0.0},
+                # Fill almost the entire map with the city layer
+                "density_scale": 1.0,
+                "biome_count": 1,
+                "max_biome_zone_fraction": 0.95,
+                # Tighten the city grid itself
+            }
+        )
         return mission
 
 
@@ -205,9 +188,8 @@ class CavesBiomeVariant(MissionVariant):
     description: str = "Winding cave systems create a natural maze."
 
     def apply(self, mission: Mission) -> Mission:
-        if hasattr(mission, "procedural_overrides"):
-            mission.procedural_overrides["biome_weights"] = {"caves": 1.0, "desert": 0.0, "forest": 0.0, "city": 0.0}
-            mission.procedural_overrides["base_biome"] = "caves"
+        mission.procedural_overrides["biome_weights"] = {"caves": 1.0, "desert": 0.0, "forest": 0.0, "city": 0.0}
+        mission.procedural_overrides["base_biome"] = "caves"
         return mission
 
 
@@ -325,9 +307,9 @@ class HarvestMission(Mission):
         env = super().make_env()
         # Log-shaped chest rewards at episode end via per-step telescoping
         if self.num_cogs and self.num_cogs > 0:
-            reward_weight = 1.0 / float(self.num_cogs)
+            reward_weight = 1.0 / self.num_cogs
         else:
-            reward_weight = 1.0 / float(max(1, getattr(env.game, "num_agents", 1)))
+            reward_weight = 1.0 / max(1, getattr(env.game, "num_agents", 1))
 
         env.game.agent.rewards.inventory = {}
         env.game.agent.rewards.stats = {
@@ -351,7 +333,7 @@ class AssembleMission(Mission):
     description: str = "Make HEARTs by using the assembler. Coordinate your team to maximize efficiency."
     site: Site = TRAINING_FACILITY
 
-    # ONly extractors, no chests
+    # Only extractors, no chests
     def configure(self):
         self.procedural_overrides = {"hub_corner_bundle": "none"}
 
@@ -704,9 +686,9 @@ class MachinaProceduralExploreMission(ProceduralMissionBase):
         env = super().make_env()
         # Reward agents for hearts they personally hold
         if self.num_cogs and self.num_cogs > 0:
-            reward_weight = 1.0 / float(self.num_cogs)
+            reward_weight = 1.0 / self.num_cogs
         else:
-            reward_weight = 1.0 / float(max(1, getattr(env.game, "num_agents", 1)))
+            reward_weight = 1.0 / max(1, getattr(env.game, "num_agents", 1))
         env.game.agent.rewards.inventory = {"heart": reward_weight}
         env.game.agent.rewards.stats = {}
         env.game.agent.rewards.inventory_max = {}

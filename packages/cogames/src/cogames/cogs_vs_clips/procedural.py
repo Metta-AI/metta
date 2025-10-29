@@ -93,18 +93,17 @@ class MachinaArena(Scene[MachinaArenaConfig]):
         }
 
         weights_dict: dict[str, float] = (
-            {str(k): float(v) for k, v in cfg.building_weights.items()} if cfg.building_weights is not None else {}
+            {str(k): v for k, v in cfg.building_weights.items()} if cfg.building_weights is not None else {}
         )
         if not weights_dict:
             if cfg.building_names is not None:
-                weights_dict = {name: float(default_building_weights.get(name, 1.0)) for name in cfg.building_names}
+                weights_dict = {name: default_building_weights.get(name, 1.0) for name in cfg.building_names}
             else:
-                weights_dict = {k: float(v) for k, v in default_building_weights.items()}
+                weights_dict = {k: v for k, v in default_building_weights.items()}
 
         building_names_final = list(dict.fromkeys(list((cfg.building_names or list(weights_dict.keys())))))
         building_weights_final = {
-            name: float(weights_dict.get(name, default_building_weights.get(name, 1.0)))
-            for name in building_names_final
+            name: weights_dict.get(name, default_building_weights.get(name, 1.0)) for name in building_names_final
         }
 
         # Autoscale counts
@@ -141,13 +140,13 @@ class MachinaArena(Scene[MachinaArenaConfig]):
             w = {**defaults, **(weights or {})}
             cands: list[RandomSceneCandidate] = []
             if w.get("caves", 0) > 0:
-                cands.append(RandomSceneCandidate(scene=BiomeCavesConfig(), weight=float(w["caves"])))
+                cands.append(RandomSceneCandidate(scene=BiomeCavesConfig(), weight=w["caves"]))
             if w.get("forest", 0) > 0:
-                cands.append(RandomSceneCandidate(scene=BiomeForestConfig(), weight=float(w["forest"])))
+                cands.append(RandomSceneCandidate(scene=BiomeForestConfig(), weight=w["forest"]))
             if w.get("desert", 0) > 0:
-                cands.append(RandomSceneCandidate(scene=BiomeDesertConfig(), weight=float(w["desert"])))
+                cands.append(RandomSceneCandidate(scene=BiomeDesertConfig(), weight=w["desert"]))
             if w.get("city", 0) > 0:
-                cands.append(RandomSceneCandidate(scene=BiomeCityConfig(), weight=float(w["city"])))
+                cands.append(RandomSceneCandidate(scene=BiomeCityConfig(), weight=w["city"]))
             return cands
 
         def _make_dungeon_candidates(weights: dict[str, float] | None) -> list[RandomSceneCandidate]:
@@ -163,11 +162,11 @@ class MachinaArena(Scene[MachinaArenaConfig]):
                             min_room_size_ratio=0.35,
                             max_room_size_ratio=0.75,
                         ),
-                        weight=float(w["bsp"]),
+                        weight=w["bsp"],
                     )
                 )
             if w.get("maze", 0) > 0:
-                maze_weight = float(w["maze"]) if isinstance(w.get("maze", 0), (int, float)) else 1.0
+                maze_weight = w["maze"]
                 cands.append(
                     RandomSceneCandidate(
                         scene=MazeConfig(
@@ -191,8 +190,8 @@ class MachinaArena(Scene[MachinaArenaConfig]):
             if w.get("radial", 0) > 0:
                 cands.append(
                     RandomSceneCandidate(
-                        scene=RadialMazeConfig(arms=8, arm_width=2),
-                        weight=float(w["radial"]),
+                        scene=RadialMazeConfig(arms=8, arm_width=2, clear_background=False, outline_walls=True),
+                        weight=w["radial"],
                     )
                 )
             return cands
