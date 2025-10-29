@@ -28,9 +28,9 @@ class ColumnBlock(BaseBlock):
         self.d_hidden = d_hidden
         self.experts = nn.ModuleList(self._build_experts(config.experts, d_hidden))
         self.router = GlobalContextDotRouter(d_hidden, len(self.experts), config.router)
-        # Precompute stable per‑expert state keys once to avoid dynamic
-        # TensorDict growth inside forward (reduces Dynamo recompiles).
+        # Precompute stable per‑expert state keys once.
         self._expert_keys: list[str] = [self._expert_state_key(i, expert) for i, expert in enumerate(self.experts)]
+        self._compiled_experts: list | None = None
 
     @staticmethod
     def _make_placeholder_cell(hidden_size: int) -> MemoryCell:
@@ -94,7 +94,10 @@ class ColumnBlock(BaseBlock):
         expert_outs: list[Tensor] = []
         state_map: dict[str, TensorDict] = {}
         td_empty = _empty_td(B, x.device)
-        for key, expert in zip(self._expert_keys, self.experts, strict=False):
+        use_compiled = self._compiled_experts is not None and torch.is_grad_enabled()
+        expert_call_list = self._compiled_experts if use_compiled else list(self.experts)
+
+        for key, expert in zip(self._expert_keys, expert_call_list, strict=False):
             expert_state = state.get(key) if isinstance(state, TensorDict) else td_empty
             if expert_state is None:
                 expert_state = td_empty

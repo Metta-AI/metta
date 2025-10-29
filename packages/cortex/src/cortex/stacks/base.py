@@ -8,7 +8,7 @@ import torch
 import torch.nn as nn
 from tensordict import TensorDict
 
-from cortex.blocks import build_block
+from cortex.blocks import ColumnBlock, build_block
 from cortex.blocks.base import BaseBlock
 from cortex.cells import build_cell
 from cortex.config import CortexStackConfig
@@ -26,7 +26,14 @@ class CortexStack(nn.Module):
         self._compiled_blocks: list | None = None
 
         if bool(getattr(cfg, "compile_blocks", False)) and hasattr(torch, "compile"):
-            self._compiled_blocks = [torch.compile(b) for b in self.blocks]
+            compiled: list[nn.Module] = []
+            for b in self.blocks:
+                if isinstance(b, ColumnBlock):
+                    b._compiled_experts = [torch.compile(e) for e in b.experts]  # type: ignore[attr-defined]
+                    compiled.append(b)
+                else:
+                    compiled.append(torch.compile(b))
+            self._compiled_blocks = compiled
 
     def _build_blocks(self, cfg: CortexStackConfig) -> list[BaseBlock]:
         blocks: list[BaseBlock] = []
@@ -82,10 +89,6 @@ class CortexStack(nn.Module):
                     block_state = TensorDict({}, batch_size=[batch_size], device=y.device)
             else:
                 block_state = TensorDict({}, batch_size=[batch_size], device=y.device)
-            # Use compiled block only when gradients are enabled. Under TBPTT, earlier
-            # chunks may be executed inside a torch.no_grad() region; compiling there
-            # can capture an inference-only graph and suppress gradients later. Fall
-            # back to eager in no-grad contexts to keep training dynamics intact.
             if self._compiled_blocks is not None and torch.is_grad_enabled():
                 call = self._compiled_blocks[i]
             else:
