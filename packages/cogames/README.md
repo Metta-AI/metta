@@ -12,7 +12,7 @@ interacting with a "station". Many such interactions will require multiple cogs 
 Your Cogs' efforts may be thwarted by Clips: NPC agents that disable stations or otherwise impede progress.
 
 <p align="middle">
-<img src="src/cogames/assets/showoff.gif" alt="Example Cogs vs Clips video">
+<img src="assets/showoff.gif" alt="Example Cogs vs Clips video">
 <br>
 
 There are many mission configurations available, with different map sizes, resource and station layouts, and game rules.
@@ -32,8 +32,6 @@ Cogs should refer to their [MISSION.md](MISSION.md) for a thorough description o
 ```bash
 # Install
 uv pip install cogames
-# Or install alongside PufferLib's integration extras
-pip install "pufferlib[cogames]" --no-build-isolation
 
 # List available missions
 cogames missions
@@ -209,6 +207,7 @@ cogames eval -m machina_1 -p simple:train_dir/model.pt:3 -p random::5
 - `--episodes N`: Number of episodes per mission (default: 10)
 - `--action-timeout-ms N`: Timeout per action (default: 250ms)
 - `--steps N`: Max steps per episode
+- `--format [json/yaml]`: Output results as structured json or yaml (default: None for human-readable tables)
 
 When multiple policies are provided, `cogames eval` fixes the number of agents each policy will control, but randomizes
 their assignments each episode.
