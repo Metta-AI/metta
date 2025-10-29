@@ -9,12 +9,13 @@
 
 #include "actions/orientation.hpp"
 #include "core/types.hpp"
-#include "objects/agent_config.hpp"
 #include "objects/constants.hpp"
 #include "objects/has_inventory.hpp"
 #include "objects/usable.hpp"
+#include "supervisors/agent_supervisor.hpp"
 #include "systems/stats_tracker.hpp"
 
+class AgentConfig;
 class Agent : public GridObject, public HasInventory, public Usable {
 public:
   ObservationType group;
@@ -47,6 +48,8 @@ public:
   unsigned int steps_without_motion;
   // Inventory regeneration amounts (per-agent)
   std::unordered_map<InventoryItem, InventoryQuantity> inventory_regen_amounts;
+  // Agent supervisor (optional)
+  std::unique_ptr<AgentSupervisor> supervisor;
 
   Agent(GridCoord r, GridCoord c, const AgentConfig& config, const std::vector<std::string>* resource_names);
 
@@ -77,6 +80,10 @@ public:
 
 private:
   unsigned int get_visitation_count(GridCoord r, GridCoord c) const;
+  void update_inventory_diversity_stats(InventoryItem item, InventoryQuantity amount);
+  std::vector<char> diversity_tracked_mask_;
+  std::vector<char> tracked_resource_presence_;
+  std::size_t tracked_resource_diversity_{0};
 };
 
 #endif  // PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_OBJECTS_AGENT_HPP_

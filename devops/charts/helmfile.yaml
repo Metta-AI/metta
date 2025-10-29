@@ -151,11 +151,6 @@ releases:
         args: ["create", "namespace", "home", "--dry-run=client"]
   # Note: Observatory is deployed automatically by Github Actions.
 
-  - name: library
-    chart: ./library
-    version: 0.1.0
-    namespace: library
-
   - name: dashboard-cronjob
     chart: ./dashboard-cronjob
     version: 0.1.0
