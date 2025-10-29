@@ -148,197 +148,224 @@ class JobMonitor:
         print("└" + "─" * 60)
         print()
 
-        # Print individual job statuses
-        print("┌─ Jobs " + "─" * 53)
-        print("│")
-        for job_status in status["jobs"]:
-            name = job_status["name"]
-            # Strip version prefix for cleaner display (e.g., "v2025.10.27-1726_cpp_ci" → "cpp_ci")
-            if "_" in name:
-                display_name = name.split("_", 1)[1]
+        # Separate jobs into three categories
+        active_jobs = [j for j in status["jobs"] if j["status"] in ("running", "pending")]
+        completed_jobs = [j for j in status["jobs"] if j["status"] == "completed" and j.get("success")]
+        failed_jobs = [j for j in status["jobs"] if j["status"] == "completed" and not j.get("success")]
+
+        # Print failed jobs FIRST (at the top for maximum visibility)
+        if failed_jobs:
+            print("┌─ Failed Jobs " + "─" * 46)
+            print("│")
+            for job_status in failed_jobs:
+                self._display_failed_job(job_status)
+
+            # Close the failed jobs section
+            print("└" + "─" * 60)
+            print()
+
+        # Print active jobs with full details
+        if active_jobs:
+            print("┌─ Active Jobs " + "─" * 46)
+            print("│")
+            for job_status in active_jobs:
+                self._display_active_job(job_status, show_running_logs, log_tail_lines)
+
+            # Close the active jobs section
+            print("└" + "─" * 60)
+            print()
+
+        # Print completed (succeeded) jobs in condensed format at the bottom
+        if completed_jobs:
+            print("┌─ Completed Jobs " + "─" * 43)
+            print("│")
+            for job_status in completed_jobs:
+                self._display_completed_job(job_status, show_artifacts)
+
+            # Close the completed jobs section
+            print("└" + "─" * 60)
+
+    def _display_active_job(
+        self,
+        job_status: dict,
+        show_running_logs: bool = True,
+        log_tail_lines: int = 10,
+    ) -> None:
+        """Display details for an active (running/pending) job."""
+        name = job_status["name"]
+        # Strip version prefix for cleaner display (e.g., "v2025.10.27-1726_cpp_ci" → "cpp_ci")
+        if "_" in name:
+            display_name = name.split("_", 1)[1]
+        else:
+            display_name = name
+        status_str = job_status["status"]
+        job_id = job_status.get("job_id")
+
+        # Format status with symbol and color
+        symbol = get_status_symbol(status_str)
+        if status_str == "running":
+            status_display = f"\033[93m{symbol} {status_str}\033[0m"  # Yellow
+        elif status_str == "pending":
+            status_display = f"\033[90m{symbol} {status_str}\033[0m"  # Gray
+        else:
+            status_display = f"{symbol} {status_str}"
+
+        # Build line with display name and indentation
+        line = f"│  {display_name:30s} {status_display:20s}"
+
+        # Show request_id → job_id progression for remote jobs
+        request_id = job_status.get("request_id")
+        if request_id and not job_id:
+            # Remote job launching: have request_id but not job_id yet
+            line += f" (Request: {request_id[:8]}... → waiting for job ID)"
+        elif job_id:
+            # Have job_id (local or remote)
+            if request_id:
+                # Remote job: show request -> job progression
+                line += f" (Request: {request_id[:8]}... → Job: {job_id})"
             else:
-                display_name = name
-            status_str = job_status["status"]
-            job_id = job_status.get("job_id")
+                # Local job: just show ID (PID)
+                line += f" (PID: {job_id})"
 
-            # Format status with symbol and color
-            symbol = get_status_symbol(status_str)
-            if status_str == "completed":
-                # Use success/failure for completed jobs
-                if job_status.get("success"):
-                    symbol = "✓"
-                    status_display = f"\033[92m{symbol} succeeded\033[0m"  # Green
-                else:
-                    symbol = "✗"
-                    if highlight_failures:
-                        status_display = f"\033[91m{symbol} failed\033[0m"  # Red
-                    else:
-                        status_display = f"{symbol} failed"
-            elif status_str == "running":
-                status_display = f"\033[93m{symbol} {status_str}\033[0m"  # Yellow
-            elif status_str == "pending":
-                status_display = f"\033[90m{symbol} {status_str}\033[0m"  # Gray
-            else:
-                status_display = f"{symbol} {status_str}"
+        print(line)
 
-            # Build line with display name and indentation
-            line = f"│  {display_name:30s} {status_display:20s}"
+        # Show progress bar for training jobs
+        metrics = job_status.get("metrics", {})
+        if metrics and self._should_show_training_artifacts(name):
+            # Check for progress info
+            progress_info = metrics.get("_progress")
 
-            # Show request_id → job_id progression for remote jobs
-            request_id = job_status.get("request_id")
-            if request_id and not job_id:
-                # Remote job launching: have request_id but not job_id yet
-                line += f" (Request: {request_id[:8]}... → waiting for job ID)"
-            elif job_id:
-                # Have job_id (local or remote)
-                if request_id:
-                    # Remote job: show request -> job progression
-                    line += f" (Request: {request_id[:8]}... → Job: {job_id})"
-                else:
-                    # Local job: just show ID (PID)
-                    line += f" (PID: {job_id})"
+            # Show progress bar if available
+            if progress_info and isinstance(progress_info, dict):
+                current = progress_info.get("current_step")
+                total = progress_info.get("total_steps")
+                if current is not None and total is not None:
+                    progress_str = format_progress_bar(current, total)
+                    print(f"│    🎯 Progress: {progress_str}")
 
-            # Add duration if completed
-            if "duration_s" in job_status:
-                duration = format_duration(job_status["duration_s"])
-                line += f" [{duration}]"
-
-            print(line)
-
-            # Show additional details for completed jobs
-            if status_str == "completed":
-                # For failures, always show exit code, logs, and failure context
-                if not job_status.get("success"):
-                    exit_code = job_status.get("exit_code", "unknown")
-                    print(f"│    ⚠️  Exit code: {exit_code}")
-
-                    # Show log path if available
-                    if "logs_path" in job_status:
-                        print(f"│    📝 Logs: {job_status['logs_path']}")
-
-                        # Try to extract failure summary first
-                        summary = self._extract_failure_summary(job_status["logs_path"])
-                        if summary:
-                            print("│    📜 Failure summary:")
-                            for line in summary[:20]:  # Limit to 20 lines
-                                print(f"│      │ {line[:95]}")
-                        else:
-                            # Fallback: show last 10 lines
-                            print("│    📜 Failure context:")
-                            has_logs = self._display_log_tail(job_status["logs_path"], 10)
-                            if not has_logs:
-                                print("│      │ (no logs available)")
-
-                # Show artifacts if requested
-                if show_artifacts:
-                    # Show SkyPilot dashboard link for remote jobs
-                    if request_id and job_id:
-                        dashboard_url = f"{get_server_url()}/dashboard/jobs/{job_id}"
-                        print(f"│    🚀 SkyPilot: {dashboard_url}")
-                    if "wandb_url" in job_status:
-                        print(f"│    📊 WandB: {job_status['wandb_url']}")
-                    if "checkpoint_uri" in job_status:
-                        print(f"│    💾 Checkpoint: {job_status['checkpoint_uri']}")
-
-                    # Show logs for successful jobs too when showing artifacts
-                    if job_status.get("success") and "logs_path" in job_status:
-                        print(f"│    📝 Logs: {job_status['logs_path']}")
-
-            # Show metrics for training jobs (if available)
-            metrics = job_status.get("metrics", {})
-            if metrics and self._should_show_training_artifacts(name):
-                # Check for progress info
-                progress_info = metrics.get("_progress")
-
-                # Show progress bar if available
-                if progress_info and isinstance(progress_info, dict):
-                    current = progress_info.get("current_step")
-                    total = progress_info.get("total_steps")
-                    if current is not None and total is not None:
-                        progress_str = format_progress_bar(current, total)
-                        print(f"│    🎯 Progress: {progress_str}")
-
-                # Get acceptance criteria from job config
-                job_state = self.job_manager.get_job_state(name)
-                acceptance_criteria = job_state.config.acceptance_criteria if job_state else None
-
-                # Show other metrics
-                has_metrics = False
-                for metric_key, metric_value in metrics.items():
-                    if metric_key == "_progress":  # Skip progress info (already displayed)
+            # Show other metrics
+            if len(metrics) > 1 or "_progress" not in metrics:  # Has metrics other than progress
+                print("│    📊 Metrics:")
+                for metric_key, metric_data in metrics.items():
+                    if metric_key == "_progress":
                         continue
-                    if not has_metrics:
-                        print("│    📊 Metrics:")
-                        has_metrics = True
 
-                    # Format metric value appropriately
-                    if isinstance(metric_value, float):
-                        if metric_value >= 1000:
-                            value_str = f"{metric_value:.0f}"
-                        else:
-                            value_str = f"{metric_value:.4f}"
+                    # Handle both old format (float) and new format (dict with value/count)
+                    if isinstance(metric_data, dict):
+                        metric_value = metric_data.get("value", 0)
+                    else:
+                        metric_value = metric_data
+
+                    # Format value based on magnitude
+                    if metric_value >= 1000:
+                        value_str = f"{metric_value:,.0f}"
+                    elif metric_value >= 1:
+                        value_str = f"{metric_value:.2f}"
                     else:
                         value_str = str(metric_value)
 
-                    # Add acceptance criteria if available
-                    criteria_str = ""
-                    passed_indicator = ""
-                    if acceptance_criteria and metric_key in acceptance_criteria:
-                        op, threshold = acceptance_criteria[metric_key]
-                        criteria_str = f" (target: {op} {threshold:.0f if threshold >= 1000 else threshold})"
-                        # Check if criterion is met for completed jobs
-                        if status_str == "completed" and job_status.get("success"):
-                            if op == ">=" and metric_value >= threshold:
-                                passed_indicator = " ✓"
-                            elif op == ">" and metric_value > threshold:
-                                passed_indicator = " ✓"
-                            elif op == "<=" and metric_value <= threshold:
-                                passed_indicator = " ✓"
-                            elif op == "<" and metric_value < threshold:
-                                passed_indicator = " ✓"
-                            elif op == "==" and metric_value == threshold:
-                                passed_indicator = " ✓"
+                    print(f"│      • {metric_key}: {value_str}")
 
-                    print(f"│      • {metric_key}: {value_str}{criteria_str}{passed_indicator}")
-
-            # Show live logs for running or succeeded jobs
-            if show_running_logs and "logs_path" in job_status:
-                if status_str == "running":
-                    skypilot_status = job_status.get("skypilot_status")
-                    # Check if job is actually running on SkyPilot or just pending
-                    if request_id and skypilot_status == "PENDING":
-                        print("│    🕐 Job queued on cluster, waiting to start...")
-                    else:
-                        # Show SkyPilot dashboard link for remote jobs
-                        if request_id and job_id:
-                            dashboard_url = f"{get_server_url()}/dashboard/jobs/{job_id}"
-                            print(f"│    🚀 SkyPilot: {dashboard_url}")
-                        # Show WandB URL if this is a training job
-                        if "wandb_url" in job_status and self._should_show_training_artifacts(name):
-                            print(f"│    📊 WandB: {job_status['wandb_url']}")
-                        print(f"│    📝 {job_status['logs_path']}")
-                        print("│    📜 Live output:")
-                        has_logs = self._display_log_tail(job_status["logs_path"], log_tail_lines)
-                        if not has_logs and request_id:
-                            # Remote job running but no logs yet - just started
-                            print("│      │ 🕐 Starting...")
-                elif status_str == "completed" and job_status.get("success"):
-                    # Show last few lines for succeeded jobs too
+        # Show live logs for running jobs
+        if show_running_logs and "logs_path" in job_status:
+            if status_str == "running":
+                skypilot_status = job_status.get("skypilot_status")
+                # Check if job is actually running on SkyPilot or just pending
+                if request_id and skypilot_status == "PENDING":
+                    print("│    🕐 Job queued on cluster, waiting to start...")
+                else:
                     # Show SkyPilot dashboard link for remote jobs
                     if request_id and job_id:
                         dashboard_url = f"{get_server_url()}/dashboard/jobs/{job_id}"
                         print(f"│    🚀 SkyPilot: {dashboard_url}")
+                    # Show WandB URL if this is a training job
                     if "wandb_url" in job_status and self._should_show_training_artifacts(name):
                         print(f"│    📊 WandB: {job_status['wandb_url']}")
                     print(f"│    📝 {job_status['logs_path']}")
-                    print("│    📜 Output:")
-                    self._display_log_tail(job_status["logs_path"], log_tail_lines)
+                    print("│    📜 Live output:")
+                    has_logs = self._display_log_tail(job_status["logs_path"], log_tail_lines)
+                    if not has_logs and request_id:
+                        # Remote job running but no logs yet - just started
+                        print("│      │ 🕐 Starting...")
 
-            # Add blank line between jobs for readability
-            print("│")
+        # Add blank line between jobs for readability
+        print("│")
 
-        # Close the jobs section
-        print("└" + "─" * 60)
+    def _display_completed_job(
+        self,
+        job_status: dict,
+        show_artifacts: bool = True,
+    ) -> None:
+        """Display condensed summary for a succeeded job."""
+        name = job_status["name"]
+        # Strip version prefix for cleaner display
+        if "_" in name:
+            display_name = name.split("_", 1)[1]
+        else:
+            display_name = name
+
+        symbol = "✓"
+        status_display = f"\033[92m{symbol}\033[0m"  # Green checkmark
+
+        # Build condensed line: name, status, duration
+        line = f"│  {status_display} {display_name:28s}"
+
+        # Add duration
+        if "duration_s" in job_status:
+            duration = format_duration(job_status["duration_s"])
+            line += f" [{duration}]"
+
+        # Show artifacts for succeeded jobs (WandB, checkpoint)
+        artifacts = []
+        if show_artifacts:
+            if "wandb_url" in job_status and self._should_show_training_artifacts(name):
+                artifacts.append("📊")
+            if "checkpoint_uri" in job_status:
+                artifacts.append("💾")
+        if artifacts:
+            line += f"  {' '.join(artifacts)}"
+
+        print(line)
+
+    def _display_failed_job(
+        self,
+        job_status: dict,
+    ) -> None:
+        """Display condensed summary for a failed job with error context."""
+        name = job_status["name"]
+        # Strip version prefix for cleaner display
+        if "_" in name:
+            display_name = name.split("_", 1)[1]
+        else:
+            display_name = name
+
+        symbol = "✗"
+        status_display = f"\033[91m{symbol}\033[0m"  # Red X
+
+        # Build condensed line: name, status, duration, exit code
+        line = f"│  {status_display} {display_name:28s}"
+
+        # Add duration
+        if "duration_s" in job_status:
+            duration = format_duration(job_status["duration_s"])
+            line += f" [{duration}]"
+
+        # Show exit code inline
+        exit_code = job_status.get("exit_code", "?")
+        line += f"  (exit: {exit_code})"
+
+        print(line)
+
+        # Show log path and failure context
+        if "logs_path" in job_status:
+            print(f"│    📝 {job_status['logs_path']}")
+            # Try to extract failure summary (but don't show full tail)
+            summary = self._extract_failure_summary(job_status["logs_path"])
+            if summary:
+                # Show just first 3 lines of failure summary
+                print("│    💥 Error:")
+                for line in summary[:3]:
+                    print(f"│      {line[:90]}")
 
 
 def get_status_symbol(status: str) -> str:
