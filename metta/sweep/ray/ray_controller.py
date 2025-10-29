@@ -9,6 +9,7 @@ import ray
 from pydantic import Field
 from ray import init, tune
 from ray.tune import RunConfig, TuneConfig, Tuner
+from ray.tune.search.optuna import OptunaSearch
 
 from metta.common.util.constants import PROD_STATS_SERVER_URI
 from metta.sweep.ray.ray_run_trial import metta_train_fn
@@ -199,6 +200,8 @@ def ray_sweep(
         sweep_config.fail_fast,
     )
 
+    optuna_search = OptunaSearch(metric="reward", mode="max")
+
     tuner = Tuner(
         trainable,
         tune_config=TuneConfig(
@@ -206,6 +209,7 @@ def ray_sweep(
             metric="reward",
             mode="max",
             max_concurrent_trials=effective_max_concurrent,
+            search_alg=optuna_search,
         ),
         run_config=RunConfig(
             failure_config=failure_config,
