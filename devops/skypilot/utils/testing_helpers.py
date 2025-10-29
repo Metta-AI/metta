@@ -157,6 +157,7 @@ class SkyPilotTestLauncher:
             module,
             "--run",
             run_name,
+            "--verbose",  # Needed to print request ID for parsing
             *base_args,
         ]
 
