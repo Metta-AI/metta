@@ -16,12 +16,13 @@ from __future__ import annotations
 
 import logging
 from collections import defaultdict, deque
-from dataclasses import dataclass, field
-from enum import Enum
+from dataclasses import dataclass
 from typing import Dict, List, Optional, Set, Tuple
 
+from cogames.policy.hyperparameters_streamlined import Hyperparameters
 from cogames.policy.interfaces import AgentPolicy, Policy, StatefulAgentPolicy, StatefulPolicyImpl
 from cogames.policy.navigator import Navigator
+from cogames.policy.phase_controller import Context, GamePhase, create_controller
 from mettagrid import MettaGridAction, MettaGridEnv, MettaGridObservation, dtype_actions
 
 logger = logging.getLogger("cogames.policy.scripted_agent")
@@ -30,28 +31,6 @@ logger = logging.getLogger("cogames.policy.scripted_agent")
 # ===============================
 # Enums & Data
 # ===============================
-
-
-@dataclass
-class Hyperparameters:
-    """Tunable hyperparameters for agent behavior.
-
-    SIMPLIFIED: Removed 12 redundant hyperparameters based on sensitivity analysis.
-    Only parameters that showed measurable impact on performance are kept.
-    """
-
-    # === HIGH-LEVEL STRATEGY (Core behavior) ===
-    # "explorer_first": Explore N steps, then gather greedily
-    # "greedy_opportunistic": Always grab closest needed resource
-    # "sequential_simple": Fixed order G→Si→C→O
-    # "efficiency_learner": Learn extractor efficiency, prioritize best
-    strategy_type: str = "greedy_opportunistic"
-    exploration_phase_steps: int = 100  # For explorer_first strategy
-
-    # === ENERGY MANAGEMENT (Critical for silicon gathering) ===
-    min_energy_for_silicon: int = 70  # Min energy before silicon harvesting (Δ=2 impact)
-
-    # Fixed constants that previously had no measurable impact are hardcoded elsewhere.
 
 
 @dataclass
@@ -77,6 +56,9 @@ class ExtractorInfo:
     # Learned cooldown (inferred from observations after first use)
     learned_cooldown: Optional[int] = None  # Total cooldown duration (learned from observations)
 
+    # Hyperparameters for access in methods
+    hyperparams: Optional[Hyperparameters] = None
+
     def is_available(self, current_step: int, cooldown_estimate_fn) -> bool:
         """Check if extractor is available (not depleted, not on cooldown, not clipped)."""
         if self.permanently_depleted or self.is_clipped:
@@ -88,8 +70,14 @@ class ExtractorInfo:
         """Check if extractor is likely depleted."""
         return self.permanently_depleted or self.uses_remaining_fraction <= 0.05
 
-    def is_low(self, depletion_threshold: float) -> bool:
+    def is_low(self, depletion_threshold: float | None = None) -> bool:
         """Check if extractor is running low (below threshold, should find backup)."""
+        if depletion_threshold is None:
+            # Use hyperparameter default if available
+            if hasattr(self, "hyperparams") and self.hyperparams:
+                depletion_threshold = self.hyperparams.depletion_threshold
+            else:
+                depletion_threshold = 0.25  # fallback default
         return self.uses_remaining_fraction <= depletion_threshold
 
     def avg_output(self) -> float:
@@ -110,11 +98,13 @@ class ExtractorInfo:
 class ExtractorMemory:
     """Tracks all discovered extractors."""
 
-    def __init__(self):
+    def __init__(self, hyperparams: Hyperparameters | None = None):
         # Map from resource type to list of extractors
         self._extractors: Dict[str, List[ExtractorInfo]] = defaultdict(list)
         # Map from position to extractor (for quick lookup)
         self._by_position: Dict[Tuple[int, int], ExtractorInfo] = {}
+        # Store hyperparameters for access in methods
+        self.hyperparams = hyperparams
 
     def add_extractor(self, pos: Tuple[int, int], resource_type: str, station_name: str) -> ExtractorInfo:
         """Add newly discovered extractor or return existing one."""
@@ -123,6 +113,9 @@ class ExtractorMemory:
             return self._by_position[pos]  # Return existing
 
         extractor = ExtractorInfo(position=pos, resource_type=resource_type, station_name=station_name)
+        # Pass hyperparameters to the extractor
+        if self.hyperparams:
+            extractor.hyperparams = self.hyperparams
         self._extractors[resource_type].append(extractor)
         self._by_position[pos] = extractor
         logger.info(f"Discovered {resource_type} extractor at {pos}")
@@ -132,6 +125,13 @@ class ExtractorMemory:
     def get_by_type(self, resource_type: str) -> List[ExtractorInfo]:
         """Get all extractors of a given type."""
         return self._extractors[resource_type]
+
+    def get_all(self) -> List[ExtractorInfo]:
+        """Get all extractors of any type."""
+        res: List[ExtractorInfo] = []
+        for lst in self._extractors.values():
+            res.extend(lst)
+        return res
 
     def get_at_position(self, pos: Tuple[int, int]) -> Optional[ExtractorInfo]:
         """Get extractor at specific position."""
@@ -176,25 +176,24 @@ class ExtractorMemory:
             efficiency_score = (avg_out / 50.0) if avg_out > 0 else 0.5
 
             # Depletion penalty
-            depletion_penalty = 0.5 if e.is_low(0.25) else 1.0
+            depletion_penalty = 0.5 if e.is_low(0.25) else 1.0  # Fixed threshold
 
-            total_score = ((1.0 - 0.3) * distance_score + 0.3 * efficiency_score) * depletion_penalty
+            # Use fixed weights
+            w_d = 0.7  # Distance weight
+            w_e = 0.3  # Efficiency weight
+            total_score = (w_d * distance_score + w_e * efficiency_score) * depletion_penalty
+
+            # Clip avoidance bias
+            if e.is_clipped:
+                total_score *= 0.5  # Fixed bias
+
             return total_score
 
         # Return highest scoring extractor
         return max(candidates, key=score_extractor)
 
 
-class GamePhase(Enum):
-    GATHER_GERMANIUM = "gather_germanium"
-    GATHER_SILICON = "gather_silicon"
-    GATHER_CARBON = "gather_carbon"
-    GATHER_OXYGEN = "gather_oxygen"
-    ASSEMBLE_HEART = "assemble_heart"
-    DEPOSIT_HEART = "deposit_heart"
-    RECHARGE = "recharge"
-    EXPLORE = "explore"  # Phase 3: Explore to find assembler/critical stations
-    UNCLIP_STATION = "unclip_station"  # Unclip a clipped extractor
+# GamePhase enum is now imported from phase_controller
 
 
 @dataclass
@@ -209,6 +208,11 @@ class AgentState:
     silicon: int = 0
     energy: int = 100
     heart: int = 0
+    # Unclip items
+    decoder: int = 0
+    modulator: int = 0
+    resonator: int = 0
+    scrambler: int = 0
 
     # Strategy tracking
     hearts_assembled: int = 0
@@ -233,6 +237,8 @@ class AgentState:
 
     # Unclipping tracking
     unclip_target: Optional[Tuple[int, int]] = None  # Position of station to unclip
+    # Recipe knowledge: what resource is needed to craft each unclip item
+    unclip_recipes: Optional[Dict[str, str]] = None  # e.g., {"decoder": "carbon", "modulator": "oxygen"}
 
     # Phase tracking for stuck detection
     phase_entry_step: int = 0  # When we entered current phase
@@ -257,11 +263,11 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
     """Scripted policy with visual discovery, frontier exploration, and detailed logging."""
 
     # ---- Constants & thresholds ----
-    # Dynamic recharge thresholds (adjusted for map size)
-    RECHARGE_START_SMALL = 65  # for maps < 50x50
-    RECHARGE_START_LARGE = 45  # for maps >= 50x50 (less recharging)
-    RECHARGE_STOP_SMALL = 90
-    RECHARGE_STOP_LARGE = 75  # Recharge less on large maps
+    # Dynamic recharge thresholds (adjusted for map size) - now from hyperparams
+    # RECHARGE_START_SMALL = 65  # for maps < 50x50
+    # RECHARGE_START_LARGE = 45  # for maps >= 50x50 (less recharging)
+    # RECHARGE_STOP_SMALL = 90
+    # RECHARGE_STOP_LARGE = 75  # Recharge less on large maps
 
     CARBON_REQ = 20
     OXYGEN_REQ = 20
@@ -280,14 +286,17 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
     # Occupancy values
     OCC_UNKNOWN, OCC_FREE, OCC_OBSTACLE = 0, 1, 2
 
-    # Planning energy model: passive regeneration per step (constant)
-    PASSIVE_REGEN_PER_STEP = 1.0
+    # Planning energy model: passive regeneration per step (constant) - now from hyperparams
+    # PASSIVE_REGEN_PER_STEP = 1.0
 
     def __init__(self, env: MettaGridEnv, hyperparams: Hyperparameters | None = None):
         self._env = env
 
         # Hyperparameters (use default if not provided)
         self.hyperparams = hyperparams if hyperparams is not None else Hyperparameters()
+
+        # Phase controller for state machine
+        self.phase_controller = create_controller(GamePhase.GATHER_GERMANIUM)
 
         # Action / object names
         self._action_names: List[str] = env.action_names
@@ -321,6 +330,11 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
             "chest": "chest",
         }
 
+        # Phase-specific glyph overrides for crafting
+        self._phase_to_glyph: Dict[GamePhase, str] = {
+            GamePhase.CRAFT_UNCLIP_ITEM: "gear",
+        }
+
         # Phase → desired station
         self._phase_to_station: Dict[GamePhase, str] = {
             GamePhase.GATHER_GERMANIUM: "germanium_extractor",
@@ -330,6 +344,8 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
             GamePhase.ASSEMBLE_HEART: "assembler",
             GamePhase.DEPOSIT_HEART: "chest",
             GamePhase.RECHARGE: "charger",
+            GamePhase.UNCLIP_STATION: None,  # Dynamic
+            GamePhase.CRAFT_UNCLIP_ITEM: "assembler",
         }
 
         # Build type_id -> station name mapping for visual discovery
@@ -370,7 +386,10 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
         self._last_attempt_was_use: bool = False
 
         # Extractor memory system
-        self.extractor_memory = ExtractorMemory()
+        self.extractor_memory = ExtractorMemory(hyperparams=self.hyperparams)
+
+        # Load unclip recipes from environment config
+        self._unclip_recipes = self._load_unclip_recipes_from_config()
 
         # Navigator for pathfinding
         self.navigator = Navigator(self._map_height, self._map_width)
@@ -403,13 +422,13 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
     def RECHARGE_START(self) -> int:
         """Dynamic recharge start threshold based on map size."""
         map_size = max(self._map_height, self._map_width)
-        return self.RECHARGE_START_LARGE if map_size >= 50 else self.RECHARGE_START_SMALL
+        return self.hyperparams.recharge_start_large if map_size >= 50 else self.hyperparams.recharge_start_small
 
     @property
     def RECHARGE_STOP(self) -> int:
         """Dynamic recharge stop threshold based on map size."""
         map_size = max(self._map_height, self._map_width)
-        return self.RECHARGE_STOP_LARGE if map_size >= 50 else self.RECHARGE_STOP_SMALL
+        return self.hyperparams.recharge_stop_large if map_size >= 50 else self.hyperparams.recharge_stop_small
 
     # ========== Helper Methods ==========
 
@@ -419,7 +438,7 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
         state: AgentState,
         task_energy: int = 0,
         is_recharge: bool = False,
-        regen_per_step: float = PASSIVE_REGEN_PER_STEP,
+        regen_per_step: float = None,
     ) -> bool:
         """Check if agent has enough energy to reach target and complete task, with passive regen.
 
@@ -429,24 +448,88 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
         if state.agent_row == -1:
             return True  # Position unknown, assume OK
 
+        # Use default regen if not specified
+        if regen_per_step is None:
+            regen_per_step = 1.0  # Default passive regen
+
         distance = abs(target_pos[0] - state.agent_row) + abs(target_pos[1] - state.agent_col)
         net_cost_per_step = 1.0 - regen_per_step  # positive means net drain
 
         if is_recharge:
             effective_cost = max(0.0, distance * net_cost_per_step)
-            buffer = 5
+            buffer = 5  # Fixed buffer
             required = effective_cost + buffer
             return state.energy >= required or net_cost_per_step <= 0
 
         # For gathering:
         trip_steps = distance * (2 if task_energy < 50 else 1)
         effective_cost = max(0.0, trip_steps * net_cost_per_step)
-        buffer = 10 if task_energy < 50 else 5
+        buffer = 10 if task_energy < 50 else 5  # Fixed buffer
         required = effective_cost + task_energy + buffer
 
         if net_cost_per_step <= 0:
             return True  # movement free / net-positive
         return state.energy >= required
+
+    def _exists_viable_alternative(self, resource_type: str, state: AgentState, radius: int) -> bool:
+        """Check if there's a viable alternative extractor within radius."""
+        current_pos = (state.agent_row, state.agent_col)
+        extractors = self.extractor_memory.get_by_type(resource_type)
+
+        for e in extractors:
+            if e.position == state.wait_target:
+                continue  # Skip current target
+            dist = abs(e.position[0] - current_pos[0]) + abs(e.position[1] - current_pos[1])
+            if dist <= radius and not e.is_low(0.25):  # Fixed depletion threshold
+                rem = self.cooldown_remaining(e, state.step_count)
+                if rem < 3:  # Fixed rotation threshold
+                    return True
+        return False
+
+    def _navigate_to_best_alternative(self, resource_type: str, state: AgentState) -> int:
+        """Navigate to the best alternative extractor."""
+        current_pos = (state.agent_row, state.agent_col)
+        extractors = self.extractor_memory.get_by_type(resource_type)
+
+        # Filter viable alternatives
+        alternatives = []
+        for e in extractors:
+            if e.position == state.wait_target:
+                continue  # Skip current target
+            if not e.is_low(0.25):  # Fixed depletion threshold
+                rem = self.cooldown_remaining(e, state.step_count)
+                if rem < 3:  # Fixed rotation threshold
+                    alternatives.append(e)
+
+        if not alternatives:
+            # No alternatives, explore
+            return self._explore_simple(state)
+
+        # Find best alternative
+        best = self._find_best_extractor(alternatives, current_pos, resource_type)
+        if not best:
+            return self._explore_simple(state)
+
+        # Navigate to best alternative
+        target_pos = best.position
+        start_pos = (state.agent_row, state.agent_col)
+        result = self.navigator.navigate_to(
+            start=start_pos,
+            target=target_pos,
+            occupancy_map=self._occ,
+            optimistic=True,  # Fixed optimistic planning
+            use_astar=True,  # Fixed A* usage
+            astar_threshold=20,  # Fixed A* threshold
+        )
+
+        if result.next_step:
+            nr, nc = result.next_step
+            dr, dc = nr - state.agent_row, nc - state.agent_col
+            self._last_attempt_was_use = False
+            logger.debug(f"[Rotate] Moving toward alternative {resource_type} at {target_pos}")
+            return self._step_toward(dr, dc)
+
+        return self._explore_simple(state)
 
     def _update_extractor_after_use(
         self, pos: Tuple[int, int], state: AgentState, resource_gained: int, resource_type: str
@@ -653,7 +736,7 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
 
         # Decide phase & act
         old_phase = state.current_phase
-        state.current_phase = self._determine_phase(state)
+        state.current_phase = self._determine_phase(state, obs)
 
         # Track phase transitions for oscillation detection
         if state.current_phase != old_phase:
@@ -663,14 +746,20 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
                 "silicon": state.silicon,
                 "carbon": state.carbon,
                 "oxygen": state.oxygen,
+                "decoder": state.decoder,
             }
             phase_name = state.current_phase.name
             if phase_name.startswith("GATHER_"):
                 resource_name = phase_name.replace("GATHER_", "").lower()
-                state.phase_visit_count[resource_name] = state.phase_visit_count.get(resource_name, 0) + 1
+                if state.phase_visit_count is not None:
+                    state.phase_visit_count[resource_name] = state.phase_visit_count.get(resource_name, 0) + 1
                 current_amount = getattr(state, resource_name)
-                if resource_name not in state.resource_progress_tracking:
+                if (
+                    state.resource_progress_tracking is not None
+                    and resource_name not in state.resource_progress_tracking
+                ):
                     state.resource_progress_tracking[resource_name] = current_amount
+                if state.resource_gathering_start is not None:
                     state.resource_gathering_start[resource_name] = state.step_count
 
         action_idx = self._execute_phase(state)
@@ -778,6 +867,7 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
                     if "converting" in features:
                         extractor.observed_converting = bool(features["converting"])
 
+                    # ---- CLIPPED STATUS INTERPRETATION ----
                     if "clipped" in features:
                         was_clipped = extractor.is_clipped
                         extractor.is_clipped = bool(features["clipped"])
@@ -785,6 +875,19 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
                             logger.info(f"[ObsUpdate] {resource_type} at {pos} is CLIPPED")
                         elif not extractor.is_clipped and was_clipped:
                             logger.info(f"[ObsUpdate] {resource_type} at {pos} was UNCLIPPED successfully!")
+                            if state.unclip_target == pos:
+                                state.unclip_target = None
+                                logger.info(f"[Unclip] Cleared unclip target (obs shows unclipped) for {pos}")
+                    else:
+                        # No 'clipped' feature observed this step ⇒ treat as UNCLIPPED
+                        if extractor.is_clipped:
+                            extractor.is_clipped = False
+                            logger.info(
+                                f"[ObsUpdate] {resource_type} at {pos} UNCLIPPED (implicit: no 'clipped' token present)"
+                            )
+                            if state.unclip_target == pos:
+                                state.unclip_target = None
+                                logger.info(f"[Unclip] Cleared unclip target (implicit unclipped) for {pos}")
 
                     if "cooldown_remaining" in features:
                         cv = features["cooldown_remaining"]
@@ -793,20 +896,15 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
                         if extractor.last_used_step >= 0:
                             elapsed = state.step_count - extractor.last_used_step
                             if cv > 0:
-                                # Extractor is on cooldown: total = elapsed + remaining
                                 total = elapsed + cv
-                                # Only update if we don't have a learned value, or if this is more accurate
-                                # (i.e., closer to when it was used)
                                 if extractor.learned_cooldown is None or elapsed < 5:
                                     extractor.learned_cooldown = total
                             elif cv == 0 and elapsed > 0:
-                                # Cooldown just finished: total = elapsed
                                 if extractor.learned_cooldown is None or elapsed < 20:
                                     extractor.learned_cooldown = elapsed
 
                     if "remaining_uses" in features:
                         uses_val = features["remaining_uses"]
-                        # Update uses remaining fraction from observation (normalize to 0-1)
                         extractor.uses_remaining_fraction = min(1.0, uses_val / 50.0)
                         if uses_val == 0 and not extractor.permanently_depleted:
                             extractor.permanently_depleted = True
@@ -860,48 +958,20 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
         self._occ[wr][wc] = self.OCC_OBSTACLE
 
     # ---------- Phase & Action Selection ----------
-    def _determine_phase(self, state: AgentState) -> GamePhase:
-        """Choose the current high-level phase."""
-        if state.heart > 0:
-            return GamePhase.DEPOSIT_HEART
+    def _determine_phase(self, state: AgentState, obs: MettaGridObservation) -> GamePhase:
+        """Choose the current high-level phase using the phase controller."""
+        # Create context for phase controller
+        ctx = Context(obs=obs, env=self._env, step=state.step_count)
+        # Add policy implementation to context for guards
+        ctx.policy_impl = self
 
-        # Check if we should unclip a station
-        # (decoder, modulator, scrambler, or resonator are needed for unclipping)
-        has_unclip_resource = (
-            self._read_int_feature(self._last_obs, "inv:decoder") > 0
-            or self._read_int_feature(self._last_obs, "inv:modulator") > 0
-            or self._read_int_feature(self._last_obs, "inv:scrambler") > 0
-            or self._read_int_feature(self._last_obs, "inv:resonator") > 0
-        )
+        # Update phase using the controller
+        new_phase = self.phase_controller.maybe_transition(state, ctx, logger)
 
-        if has_unclip_resource:
-            # Find any clipped extractor
-            for extractors in self.extractor_memory._extractors_by_type.values():
-                for extractor in extractors:
-                    if extractor.is_clipped:
-                        state.unclip_target = extractor.position
-                        logger.info(f"[Phase] Unclipping {extractor.resource_type} at {extractor.position}")
-                        return GamePhase.UNCLIP_STATION
+        # Update state's current phase
+        state.current_phase = new_phase
 
-        germ_needed = 5 if state.hearts_assembled == 0 else max(2, 5 - state.hearts_assembled)
-
-        # Recharge hysteresis - use dynamic thresholds
-        if state.current_phase == GamePhase.RECHARGE and state.energy < self.RECHARGE_STOP:
-            return GamePhase.RECHARGE
-        recharge_threshold = self.RECHARGE_START
-        if state.energy < recharge_threshold:
-            return GamePhase.RECHARGE
-
-        # === STRATEGY DISPATCH ===
-        strategy = self.hyperparams.strategy_type
-        if strategy == "explorer_first":
-            return self._determine_phase_explorer_first(state, germ_needed)
-        elif strategy == "sequential_simple":
-            return self._determine_phase_sequential(state, germ_needed)
-        elif strategy == "efficiency_learner":
-            return self._determine_phase_efficiency_learner(state, germ_needed)
-        else:  # "greedy_opportunistic" or default
-            return self._determine_phase_greedy(state, germ_needed)
+        return new_phase
 
     def _determine_phase_greedy(self, state: AgentState, germ_needed: int) -> GamePhase:
         """GREEDY_OPPORTUNISTIC: Always grab closest needed resource."""
@@ -1021,6 +1091,8 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
 
     # ========== END STRATEGY METHODS ==========
 
+    # Old helper methods removed - phase controller handles transitions
+
     def _execute_phase(self, state: AgentState) -> int:
         """Convert phase to a concrete action (move or glyph change)."""
         # EXPLORE phase
@@ -1029,11 +1101,40 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
             plan = self._plan_to_frontier_action(state)
             return plan if plan is not None else self._explore_simple(state)
 
-        # UNCLIP_STATION phase
-        if state.current_phase == GamePhase.UNCLIP_STATION and state.unclip_target:
-            target_pos = state.unclip_target
-            start_pos = (state.agent_row, state.agent_col)
+        # UNCLIP_STATION phase - unclip extractor with decoder (GENERALIZED)
+        if state.current_phase == GamePhase.UNCLIP_STATION:
+            # Prefer an existing target if still clipped; else choose nearest clipped extractor of ANY type.
+            target_pos = None
 
+            # If we already had a target, keep it if still clipped (based on latest obs)
+            if state.unclip_target is not None:
+                cur = self.extractor_memory.get_at_position(state.unclip_target)
+                if cur and cur.is_clipped:
+                    target_pos = state.unclip_target
+                else:
+                    # Target no longer clipped or unknown => clear
+                    logger.info(f"[Unclip] Previous target {state.unclip_target} no longer clipped; clearing.")
+                    state.unclip_target = None
+
+            if target_pos is None:
+                # Find nearest clipped extractor across all resource types
+                clipped: List[ExtractorInfo] = [e for e in self.extractor_memory.get_all() if e.is_clipped]
+                if clipped:
+                    # Choose nearest by Manhattan distance
+                    def md(e: ExtractorInfo) -> int:
+                        return abs(e.position[0] - state.agent_row) + abs(e.position[1] - state.agent_col)
+
+                    chosen = min(clipped, key=md)
+                    target_pos = chosen.position
+                    state.unclip_target = target_pos
+                    logger.info(f"[Unclip] New unclip target set to {target_pos} ({chosen.resource_type})")
+                else:
+                    logger.warning("[Unclip] No clipped extractors known; exploring.")
+                    self._last_attempt_was_use = False
+                    plan = self._plan_to_frontier_action(state)
+                    return plan if plan is not None else self._explore_simple(state)
+
+            start_pos = (state.agent_row, state.agent_col)
             result = self.navigator.navigate_to(
                 start=start_pos,
                 target=target_pos,
@@ -1043,15 +1144,66 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
                 astar_threshold=20,
             )
 
-            # Adjacent - ready to unclip by walking into the station
+            # Adjacent - attempt to unclip by walking into the extractor
             if result.is_adjacent:
                 tr, tc = target_pos
                 dr, dc = tr - state.agent_row, tc - state.agent_col
                 self._last_attempt_was_use = True
+                logger.info(f"[Unclip] Using decoder to unclip at {target_pos} (decoder={state.decoder})")
+                return self._step_toward(dr, dc)
+
+            # Navigator found a next step
+            if result.next_step:
+                nr, nc = result.next_step
+                dr, dc = nr - state.agent_row, nc - state.agent_col
+                self._last_attempt_was_use = False
+                logger.debug(f"[Unclip] Moving toward {target_pos}")
+                return self._step_toward(dr, dc)
+
+            # Can't reach - explore
+            logger.warning(f"[Unclip] Cannot reach extractor at {target_pos}, exploring")
+            self._last_attempt_was_use = False
+            plan = self._plan_to_frontier_action(state)
+            return plan if plan is not None else self._explore_simple(state)
+
+        # CRAFT_UNCLIP_ITEM phase
+        if state.current_phase == GamePhase.CRAFT_UNCLIP_ITEM:
+            # Check if we need to switch to gear glyph first
+            needed_glyph = self._phase_to_glyph.get(state.current_phase, "gear")
+            if state.current_glyph != needed_glyph:
+                state.current_glyph = needed_glyph
+                state.wait_counter = 0
+                glyph_id = self._glyph_name_to_id.get(needed_glyph, 0)
+                logger.info(f"[Craft] Switching to {needed_glyph} glyph (ID: {glyph_id})")
+                return self._action_lookup.get(f"change_glyph_{glyph_id}", self._action_lookup.get("noop", 0))
+
+            assembler_pos = self._station_positions.get("assembler")
+            if not assembler_pos:
+                logger.warning("[Craft] No assembler found, exploring")
+                self._last_attempt_was_use = False
+                plan = self._plan_to_frontier_action(state)
+                return plan if plan is not None else self._explore_simple(state)
+
+            start_pos = (state.agent_row, state.agent_col)
+            result = self.navigator.navigate_to(
+                start=start_pos,
+                target=assembler_pos,
+                occupancy_map=self._occ,
+                optimistic=True,
+                use_astar=True,
+                astar_threshold=20,
+            )
+
+            # Adjacent - ready to craft by walking into the assembler
+            if result.is_adjacent:
+                tr, tc = assembler_pos
+                dr, dc = tr - state.agent_row, tc - state.agent_col
+                self._last_attempt_was_use = True
                 action = self._step_toward(dr, dc)
-                logger.info(f"[Unclip] Using unclip resource on station at {target_pos}")
-                # Clear unclip target after attempting to use
-                state.unclip_target = None
+                action_name = self._action_names[action] if action < len(self._action_names) else f"action_{action}"
+                logger.info(
+                    f"[Craft] Adjacent to assembler at {assembler_pos}, USE via {action_name} (carbon={state.carbon})"
+                )
                 return action
 
             # Navigator found a next step
@@ -1059,22 +1211,22 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
                 nr, nc = result.next_step
                 dr, dc = nr - state.agent_row, nc - state.agent_col
                 self._last_attempt_was_use = False
-                logger.debug(f"[Unclip] Moving toward {target_pos} to unclip")
+                logger.debug(f"[Craft] Moving toward assembler at {assembler_pos}")
                 return self._step_toward(dr, dc)
 
-            # Can't reach - clear target and explore
-            logger.warning(f"[Unclip] Cannot reach {target_pos}, clearing target")
-            state.unclip_target = None
+            # Can't reach - explore
+            logger.warning(f"[Craft] Cannot reach assembler at {assembler_pos}, exploring")
             self._last_attempt_was_use = False
             plan = self._plan_to_frontier_action(state)
             return plan if plan is not None else self._explore_simple(state)
 
+        # Continue with other phases...
         station = self._phase_to_station.get(state.current_phase)
         if not station:
             return self._action_lookup.get("noop", 0)
 
-        # Glyph switching
-        needed_glyph = self._station_to_glyph.get(station, "default")
+        # Glyph switching - check for phase-specific glyph first
+        needed_glyph = self._phase_to_glyph.get(state.current_phase, self._station_to_glyph.get(station, "default"))
         if state.current_glyph != needed_glyph:
             state.current_glyph = needed_glyph
             state.wait_counter = 0
@@ -1129,11 +1281,27 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
             e = self.extractor_memory.get_at_position(target_pos)
             if e and state.wait_target == target_pos:
                 rem = self.cooldown_remaining(e, state.step_count)
-                if rem > 0:
-                    self._last_attempt_was_use = False
-                    logger.debug(f"[Wait] At {target_pos}, remaining cooldown~{rem}; idling (noop).")
-                    return self._action_lookup.get("noop", 0)
+                if rem > self.hyperparams.wait_if_cooldown_leq:
+                    # Check if we should rotate to an alternative
+                    if self._exists_viable_alternative(e.resource_type, state, 7):  # Fixed radius
+                        self._last_attempt_was_use = False
+                        logger.debug(f"[Wait] At {target_pos}, rotating to alternative (cooldown~{rem})")
+                        return self._navigate_to_best_alternative(e.resource_type, state)
+
+                    # Otherwise wait but cap patience
+                    if state.waiting_since_step < 0:
+                        state.waiting_since_step = state.step_count
+
+                    if state.step_count - state.waiting_since_step <= 12:  # Fixed patience
+                        self._last_attempt_was_use = False
+                        logger.debug(f"[Wait] At {target_pos}, remaining cooldown~{rem}; idling (noop).")
+                        return self._action_lookup.get("noop", 0)
+                    else:
+                        # Patience exhausted: force rotate
+                        logger.debug(f"[Wait] At {target_pos}, patience exhausted, rotating")
+                        return self._navigate_to_best_alternative(e.resource_type, state)
                 else:
+                    # Try-use when rem <= wait_if_cooldown_leq
                     state.wait_target = None  # Clear wait target
 
             tr, tc = target_pos
@@ -1227,7 +1395,6 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
                     return closest
 
             # Center bias
-
             map_center = (self._map_height // 2, self._map_width // 2)
             q = deque([(start, 0)])
             seen = {start}
@@ -1327,7 +1494,6 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
         """Reconstruct the first step from start towards goal using parent pointers."""
         step: Tuple[int, int] = goal
         while parent.get(step) is not None and parent[step] != start:
-            # mypy: parent[step] is not None due to guard above
             step = parent[step]  # type: ignore[assignment]
         return step
 
@@ -1406,6 +1572,52 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
                 return self._to_int(tok[2])
         return 0
 
+    def _load_unclip_recipes_from_config(self) -> Dict[str, str]:
+        """
+        Load unclip item recipes from environment config.
+        Returns a mapping of unclip_item -> craft_resource.
+        E.g., {"decoder": "carbon", "modulator": "oxygen"}
+        """
+        recipes = {}
+
+        # Try to access assembler config from environment
+        try:
+            # Access the config through the env_cfg attribute
+            env_cfg = getattr(self._env, 'env_cfg', None)
+            if env_cfg and hasattr(env_cfg, 'game') and hasattr(env_cfg.game, 'objects'):
+                assembler_config = env_cfg.game.objects.get("assembler")
+                if assembler_config and hasattr(assembler_config, "recipes"):
+                    for glyph_seq, protocol in assembler_config.recipes:
+                        # Look for gear glyph recipes
+                        if "gear" in glyph_seq:
+                            # Get the output (unclip item)
+                            output_resources = protocol.output_resources
+                            input_resources = protocol.input_resources
+
+                            # Map unclip item to the resource needed to craft it
+                            for unclip_item in output_resources:
+                                if unclip_item in ["decoder", "modulator", "resonator", "scrambler"]:
+                                    # Find the input resource (should be only one)
+                                    for craft_resource in input_resources:
+                                        if craft_resource in ["carbon", "oxygen", "germanium", "silicon"]:
+                                            recipes[unclip_item] = craft_resource
+                                            logger.info(f"[Recipes] {unclip_item} requires {craft_resource}")
+                                            break
+        except Exception as e:
+            logger.warning(f"[Recipes] Could not load unclip recipes from config: {e}")
+
+        # Fallback to default mappings if config reading fails
+        if not recipes:
+            recipes = {
+                "decoder": "carbon",
+                "modulator": "oxygen",
+                "resonator": "silicon",
+                "scrambler": "germanium",
+            }
+            logger.info("[Recipes] Using default unclip recipe mappings")
+
+        return recipes
+
     def _update_inventory(self, obs: MettaGridObservation, state: AgentState) -> None:
         """Read inventory strictly from observation tokens."""
         state.carbon = self._read_int_feature(obs, "inv:carbon")
@@ -1414,6 +1626,15 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
         state.silicon = self._read_int_feature(obs, "inv:silicon")
         state.energy = self._read_int_feature(obs, "inv:energy")
         state.heart = 1 if self._has_heart_from_obs(obs) else 0
+        # Unclip items
+        state.decoder = self._read_int_feature(obs, "inv:decoder")
+        state.modulator = self._read_int_feature(obs, "inv:modulator")
+        state.resonator = self._read_int_feature(obs, "inv:resonator")
+        state.scrambler = self._read_int_feature(obs, "inv:scrambler")
+
+        # Update state's recipe knowledge
+        if not state.unclip_recipes:
+            state.unclip_recipes = self._unclip_recipes
 
     # ---------- Exploration fallback ----------
     def _explore_simple(self, state: AgentState) -> int:

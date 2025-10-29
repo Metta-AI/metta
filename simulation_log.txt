@@ -1,0 +1,2602 @@
+=== COMPREHENSIVE SIMULATION LOG ===
+Max steps: 200
+Initial observation shape: (1, 200, 3)
+
+STEP 1:
+  Action: change_glyph_1 (id=6)
+  Position: (19, 20)
+  Phase: RECHARGE
+  Glyph: charger
+  Resources: G=0 Si=0 C=0 O=0
+  Decoder: 0
+  Energy: 0
+  Reward: 0.0
+  Done: False
+
+STEP 2:
+  Action: move_south (id=2)
+  Position: (19, 20)
+  Phase: EXPLORE
+  Glyph: charger
+  Resources: G=0 Si=0 C=0 O=0
+  Decoder: 0
+  Energy: 101
+  Reward: 0.0
+  Done: False
+  Distance to assembler: 1 (assembler at (18, 20))
+  Distance to oxygen extractor: 8 (oxygen at (15, 16), clipped=True)
+
+STEP 3:
+  Action: change_glyph_3 (id=8)
+  Position: (20, 20)
+  Phase: GATHER_OXYGEN
+  Glyph: oxygen
+  Resources: G=0 Si=0 C=0 O=0
+  Decoder: 0
+  Energy: 100
+  Reward: 0.0
+  Done: False
+  Distance to assembler: 2 (assembler at (18, 20))
+  Distance to oxygen extractor: 9 (oxygen at (15, 16), clipped=True)
+
+STEP 4:
+  Action: move_north (id=1)
+  Position: (20, 20)
+  Phase: GATHER_OXYGEN
+  Glyph: oxygen
+  Resources: G=0 Si=0 C=0 O=0
+  Decoder: 0
+  Energy: 101
+  Reward: 0.0
+  Done: False
+  Distance to assembler: 2 (assembler at (18, 20))
+  Distance to oxygen extractor: 9 (oxygen at (15, 16), clipped=True)
+
+STEP 5:
+  Action: change_glyph_2 (id=7)
+  Position: (19, 20)
+  Phase: GATHER_CARBON
+  Glyph: carbon
+  Resources: G=0 Si=0 C=0 O=0
+  Decoder: 0
+  Energy: 100
+  Reward: 0.0
+  Done: False
+  Distance to assembler: 1 (assembler at (18, 20))
+  Distance to oxygen extractor: 8 (oxygen at (15, 16), clipped=True)
+
+STEP 6:
+  Action: move_south (id=2)
+  Position: (19, 20)
+  Phase: GATHER_CARBON
+  Glyph: carbon
+  Resources: G=0 Si=0 C=0 O=0
+  Decoder: 0
+  Energy: 101
+  Reward: 0.0
+  Done: False
+  Distance to assembler: 1 (assembler at (18, 20))
+  Distance to oxygen extractor: 8 (oxygen at (15, 16), clipped=True)
+
+STEP 7:
+  Action: move_west (id=3)
+  Position: (20, 20)
+  Phase: GATHER_CARBON
+  Glyph: carbon
+  Resources: G=0 Si=0 C=0 O=0
+  Decoder: 0
+  Energy: 100
+  Reward: 0.0
+  Done: False
+  Distance to assembler: 2 (assembler at (18, 20))
+  Distance to oxygen extractor: 9 (oxygen at (15, 16), clipped=True)
+
+STEP 8:
+  Action: move_south (id=2)
+  Position: (20, 19)
+  Phase: GATHER_CARBON
+  Glyph: carbon
+  Resources: G=0 Si=0 C=0 O=0
+  Decoder: 0
+  Energy: 99
+  Reward: 0.0
+  Done: False
+  Distance to assembler: 3 (assembler at (18, 20))
+  Distance to oxygen extractor: 8 (oxygen at (15, 16), clipped=True)
+
+STEP 9:
+  Action: move_west (id=3)
+  Position: (21, 19)
+  Phase: GATHER_CARBON
+  Glyph: carbon
+  Resources: G=0 Si=0 C=0 O=0
+  Decoder: 0
+  Energy: 98
+  Reward: 0.0
+  Done: False
+  Distance to assembler: 4 (assembler at (18, 20))
+  Distance to oxygen extractor: 9 (oxygen at (15, 16), clipped=True)
+
+STEP 10:
+  Action: move_west (id=3)
+  Position: (21, 18)
+  Phase: GATHER_CARBON
+  Glyph: carbon
+  Resources: G=0 Si=0 C=0 O=0
+  Decoder: 0
+  Energy: 97
+  Reward: 0.0
+  Done: False
+  Distance to assembler: 5 (assembler at (18, 20))
+  Distance to oxygen extractor: 8 (oxygen at (15, 16), clipped=True)
+
+STEP 11:
+  Action: move_west (id=3)
+  Position: (21, 17)
+  Phase: GATHER_CARBON
+  Glyph: carbon
+  Resources: G=0 Si=0 C=0 O=0
+  Decoder: 0
+  Energy: 96
+  Reward: 0.0
+  Done: False
+  Distance to assembler: 6 (assembler at (18, 20))
+  Distance to oxygen extractor: 7 (oxygen at (15, 16), clipped=True)
+
+STEP 12:
+  Action: move_south (id=2)
+  Position: (21, 16)
+  Phase: GATHER_CARBON
+  Glyph: carbon
+  Resources: G=0 Si=0 C=0 O=0
+  Decoder: 0
+  Energy: 95
+  Reward: 0.0
+  Done: False
+  Distance to assembler: 7 (assembler at (18, 20))
+  Distance to oxygen extractor: 6 (oxygen at (15, 16), clipped=True)
+
+STEP 13:
+  Action: change_glyph_7 (id=12)
+  Position: (21, 16)
+  Phase: CRAFT_DECODER
+  Glyph: gear
+  Resources: G=0 Si=0 C=4 O=0
+  Decoder: 0
+  Energy: 94
+  Reward: 0.0
+  Done: False
+  Distance to assembler: 7 (assembler at (18, 20))
+  Distance to oxygen extractor: 6 (oxygen at (15, 16), clipped=True)
+
+STEP 14:
+  Action: move_north (id=1)
+  Position: (21, 16)
+  Phase: CRAFT_DECODER
+  Glyph: gear
+  Resources: G=0 Si=0 C=4 O=0
+  Decoder: 0
+  Energy: 95
+  Reward: 0.0
+  Done: False
+  Distance to assembler: 7 (assembler at (18, 20))
+  Distance to oxygen extractor: 6 (oxygen at (15, 16), clipped=True)
+
+STEP 15:
+  Action: move_north (id=1)
+  Position: (20, 16)
+  Phase: CRAFT_DECODER
+  Glyph: gear
+  Resources: G=0 Si=0 C=4 O=0
+  Decoder: 0
+  Energy: 94
+  Reward: 0.0
+  Done: False
+  Distance to assembler: 6 (assembler at (18, 20))
+  Distance to oxygen extractor: 5 (oxygen at (15, 16), clipped=True)
+
+STEP 16:
+  Action: move_east (id=4)
+  Position: (19, 16)
+  Phase: CRAFT_DECODER
+  Glyph: gear
+  Resources: G=0 Si=0 C=4 O=0
+  Decoder: 0
+  Energy: 93
+  Reward: 0.0
+  Done: False
+  Distance to assembler: 5 (assembler at (18, 20))
+  Distance to oxygen extractor: 4 (oxygen at (15, 16), clipped=True)
+
+STEP 17:
+  Action: move_east (id=4)
+  Position: (19, 17)
+  Phase: CRAFT_DECODER
+  Glyph: gear
+  Resources: G=0 Si=0 C=4 O=0
+  Decoder: 0
+  Energy: 92
+  Reward: 0.0
+  Done: False
+  Distance to assembler: 4 (assembler at (18, 20))
+  Distance to oxygen extractor: 5 (oxygen at (15, 16), clipped=True)
+
+STEP 18:
+  Action: move_east (id=4)
+  Position: (19, 18)
+  Phase: CRAFT_DECODER
+  Glyph: gear
+  Resources: G=0 Si=0 C=4 O=0
+  Decoder: 0
+  Energy: 91
+  Reward: 0.0
+  Done: False
+  Distance to assembler: 3 (assembler at (18, 20))
+  Distance to oxygen extractor: 6 (oxygen at (15, 16), clipped=True)
+
+STEP 19:
+  Action: move_east (id=4)
+  Position: (19, 19)
+  Phase: CRAFT_DECODER
+  Glyph: gear
+  Resources: G=0 Si=0 C=4 O=0
+  Decoder: 0
+  Energy: 90
+  Reward: 0.0
+  Done: False
+  Distance to assembler: 2 (assembler at (18, 20))
+  Distance to oxygen extractor: 7 (oxygen at (15, 16), clipped=True)
+
+STEP 20:
+  Action: move_north (id=1)
+  Position: (19, 20)
+  Phase: CRAFT_DECODER
+  Glyph: gear
+  Resources: G=0 Si=0 C=4 O=0
+  Decoder: 0
+  Energy: 89
+  Reward: 0.0
+  Done: False
+  Distance to assembler: 1 (assembler at (18, 20))
+  Distance to oxygen extractor: 8 (oxygen at (15, 16), clipped=True)
+
+STEP 21:
+  Action: move_west (id=3)
+  Position: (19, 20)
+  Phase: UNCLIP_STATION
+  Glyph: default
+  Resources: G=0 Si=0 C=3 O=0
+  Decoder: 1
+  Energy: 88
+  Reward: 0.0
+  Done: False
+  Distance to assembler: 1 (assembler at (18, 20))
+  Distance to oxygen extractor: 8 (oxygen at (15, 16), clipped=True)
+
+STEP 22:
+  Action: move_north (id=1)
+  Position: (19, 19)
+  Phase: UNCLIP_STATION
+  Glyph: default
+  Resources: G=0 Si=0 C=3 O=0
+  Decoder: 1
+  Energy: 87
+  Reward: 0.0
+  Done: False
+  Distance to assembler: 2 (assembler at (18, 20))
+  Distance to oxygen extractor: 7 (oxygen at (15, 16), clipped=True)
+
+STEP 23:
+  Action: move_north (id=1)
+  Position: (18, 19)
+  Phase: UNCLIP_STATION
+  Glyph: default
+  Resources: G=0 Si=0 C=3 O=0
+  Decoder: 1
+  Energy: 86
+  Reward: 0.0
+  Done: False
+  Distance to assembler: 1 (assembler at (18, 20))
+  Distance to oxygen extractor: 6 (oxygen at (15, 16), clipped=True)
+
+STEP 24:
+  Action: move_north (id=1)
+  Position: (17, 19)
+  Phase: UNCLIP_STATION
+  Glyph: default
+  Resources: G=0 Si=0 C=3 O=0
+  Decoder: 1
+  Energy: 85
+  Reward: 0.0
+  Done: False
+  Distance to assembler: 2 (assembler at (18, 20))
+  Distance to oxygen extractor: 5 (oxygen at (15, 16), clipped=True)
+
+STEP 25:
+  Action: move_west (id=3)
+  Position: (16, 19)
+  Phase: UNCLIP_STATION
+  Glyph: default
+  Resources: G=0 Si=0 C=3 O=0
+  Decoder: 1
+  Energy: 84
+  Reward: 0.0
+  Done: False
+  Distance to assembler: 3 (assembler at (18, 20))
+  Distance to oxygen extractor: 4 (oxygen at (15, 16), clipped=True)
+
+STEP 26:
+  Action: move_west (id=3)
+  Position: (16, 18)
+  Phase: UNCLIP_STATION
+  Glyph: default
+  Resources: G=0 Si=0 C=3 O=0
+  Decoder: 1
+  Energy: 83
+  Reward: 0.0
+  Done: False
+  Distance to assembler: 4 (assembler at (18, 20))
+  Distance to oxygen extractor: 3 (oxygen at (15, 16), clipped=True)
+
+STEP 27:
+  Action: move_west (id=3)
+  Position: (16, 17)
+  Phase: UNCLIP_STATION
+  Glyph: default
+  Resources: G=0 Si=0 C=3 O=0
+  Decoder: 1
+  Energy: 82
+  Reward: 0.0
+  Done: False
+  Distance to assembler: 5 (assembler at (18, 20))
+  Distance to oxygen extractor: 2 (oxygen at (15, 16), clipped=True)
+
+STEP 28:
+  Action: move_north (id=1)
+  Position: (16, 16)
+  Phase: UNCLIP_STATION
+  Glyph: default
+  Resources: G=0 Si=0 C=3 O=0
+  Decoder: 1
+  Energy: 81
+  Reward: 0.0
+  Done: False
+  Distance to assembler: 6 (assembler at (18, 20))
+  Distance to oxygen extractor: 1 (oxygen at (15, 16), clipped=True)
+
+STEP 29:
+  Action: move_north (id=1)
+  Position: (16, 16)
+  Phase: UNCLIP_STATION
+  Glyph: default
+  Resources: G=0 Si=0 C=3 O=0
+  Decoder: 0
+  Energy: 80
+  Reward: 0.0
+  Done: False
+  Distance to assembler: 6 (assembler at (18, 20))
+  Distance to oxygen extractor: 1 (oxygen at (15, 16), clipped=True)
+
+STEP 30:
+  Action: move_north (id=1)
+  Position: (16, 16)
+  Phase: UNCLIP_STATION
+  Glyph: default
+  Resources: G=0 Si=0 C=3 O=20
+  Decoder: 0
+  Energy: 79
+  Reward: 0.0
+  Done: False
+  Distance to assembler: 6 (assembler at (18, 20))
+  Distance to oxygen extractor: 1 (oxygen at (15, 16), clipped=True)
+
+STEP 31:
+  Action: move_north (id=1)
+  Position: (16, 16)
+  Phase: UNCLIP_STATION
+  Glyph: default
+  Resources: G=0 Si=0 C=3 O=20
+  Decoder: 0
+  Energy: 80
+  Reward: 0.0
+  Done: False
+  Distance to assembler: 6 (assembler at (18, 20))
+  Distance to oxygen extractor: 1 (oxygen at (15, 16), clipped=True)
+
+STEP 32:
+  Action: move_north (id=1)
+  Position: (16, 16)
+  Phase: UNCLIP_STATION
+  Glyph: default
+  Resources: G=0 Si=0 C=3 O=20
+  Decoder: 0
+  Energy: 81
+  Reward: 0.0
+  Done: False
+  Distance to assembler: 6 (assembler at (18, 20))
+  Distance to oxygen extractor: 1 (oxygen at (15, 16), clipped=True)
+
+STEP 33:
+  Action: move_north (id=1)
+  Position: (16, 16)
+  Phase: UNCLIP_STATION
+  Glyph: default
+  Resources: G=0 Si=0 C=3 O=20
+  Decoder: 0
+  Energy: 82
+  Reward: 0.0
+  Done: False
+  Distance to assembler: 6 (assembler at (18, 20))
+  Distance to oxygen extractor: 1 (oxygen at (15, 16), clipped=True)
+
+STEP 34:
+  Action: move_north (id=1)
+  Position: (16, 16)
+  Phase: UNCLIP_STATION
+  Glyph: default
+  Resources: G=0 Si=0 C=3 O=20
+  Decoder: 0
+  Energy: 83
+  Reward: 0.0
+  Done: False
+  Distance to assembler: 6 (assembler at (18, 20))
+  Distance to oxygen extractor: 1 (oxygen at (15, 16), clipped=True)
+
+STEP 35:
+  Action: move_north (id=1)
+  Position: (16, 16)
+  Phase: UNCLIP_STATION
+  Glyph: default
+  Resources: G=0 Si=0 C=3 O=21
+  Decoder: 0
+  Energy: 82
+  Reward: 0.0
+  Done: False
+  Distance to assembler: 6 (assembler at (18, 20))
+  Distance to oxygen extractor: 1 (oxygen at (15, 16), clipped=True)
+
+STEP 36:
+  Action: move_north (id=1)
+  Position: (16, 16)
+  Phase: UNCLIP_STATION
+  Glyph: default
+  Resources: G=0 Si=0 C=3 O=21
+  Decoder: 0
+  Energy: 83
+  Reward: 0.0
+  Done: False
+  Distance to assembler: 6 (assembler at (18, 20))
+  Distance to oxygen extractor: 1 (oxygen at (15, 16), clipped=True)
+
+STEP 37:
+  Action: move_north (id=1)
+  Position: (16, 16)
+  Phase: UNCLIP_STATION
+  Glyph: default
+  Resources: G=0 Si=0 C=3 O=21
+  Decoder: 0
+  Energy: 84
+  Reward: 0.0
+  Done: False
+  Distance to assembler: 6 (assembler at (18, 20))
+  Distance to oxygen extractor: 1 (oxygen at (15, 16), clipped=True)
+
+STEP 38:
+  Action: move_north (id=1)
+  Position: (16, 16)
+  Phase: UNCLIP_STATION
+  Glyph: default
+  Resources: G=0 Si=0 C=3 O=21
+  Decoder: 0
+  Energy: 85
+  Reward: 0.0
+  Done: False
+  Distance to assembler: 6 (assembler at (18, 20))
+  Distance to oxygen extractor: 1 (oxygen at (15, 16), clipped=True)
+
+STEP 39:
+  Action: move_north (id=1)
+  Position: (16, 16)
+  Phase: UNCLIP_STATION
+  Glyph: default
+  Resources: G=0 Si=0 C=3 O=21
+  Decoder: 0
+  Energy: 86
+  Reward: 0.0
+  Done: False
+  Distance to assembler: 6 (assembler at (18, 20))
+  Distance to oxygen extractor: 1 (oxygen at (15, 16), clipped=True)
+
+STEP 40:
+  Action: move_north (id=1)
+  Position: (16, 16)
+  Phase: UNCLIP_STATION
+  Glyph: default
+  Resources: G=0 Si=0 C=3 O=22
+  Decoder: 0
+  Energy: 85
+  Reward: 0.0
+  Done: False
+  Distance to assembler: 6 (assembler at (18, 20))
+  Distance to oxygen extractor: 1 (oxygen at (15, 16), clipped=True)
+
+STEP 41:
+  Action: move_north (id=1)
+  Position: (16, 16)
+  Phase: UNCLIP_STATION
+  Glyph: default
+  Resources: G=0 Si=0 C=3 O=22
+  Decoder: 0
+  Energy: 86
+  Reward: 0.0
+  Done: False
+  Distance to assembler: 6 (assembler at (18, 20))
+  Distance to oxygen extractor: 1 (oxygen at (15, 16), clipped=True)
+
+STEP 42:
+  Action: move_north (id=1)
+  Position: (16, 16)
+  Phase: UNCLIP_STATION
+  Glyph: default
+  Resources: G=0 Si=0 C=3 O=22
+  Decoder: 0
+  Energy: 87
+  Reward: 0.0
+  Done: False
+  Distance to assembler: 6 (assembler at (18, 20))
+  Distance to oxygen extractor: 1 (oxygen at (15, 16), clipped=True)
+
+STEP 43:
+  Action: move_north (id=1)
+  Position: (16, 16)
+  Phase: UNCLIP_STATION
+  Glyph: default
+  Resources: G=0 Si=0 C=3 O=22
+  Decoder: 0
+  Energy: 88
+  Reward: 0.0
+  Done: False
+  Distance to assembler: 6 (assembler at (18, 20))
+  Distance to oxygen extractor: 1 (oxygen at (15, 16), clipped=True)
+
+STEP 44:
+  Action: move_north (id=1)
+  Position: (16, 16)
+  Phase: UNCLIP_STATION
+  Glyph: default
+  Resources: G=0 Si=0 C=3 O=22
+  Decoder: 0
+  Energy: 89
+  Reward: 0.0
+  Done: False
+  Distance to assembler: 6 (assembler at (18, 20))
+  Distance to oxygen extractor: 1 (oxygen at (15, 16), clipped=True)
+
+STEP 45:
+  Action: move_north (id=1)
+  Position: (16, 16)
+  Phase: UNCLIP_STATION
+  Glyph: default
+  Resources: G=0 Si=0 C=3 O=23
+  Decoder: 0
+  Energy: 88
+  Reward: 0.0
+  Done: False
+  Distance to assembler: 6 (assembler at (18, 20))
+  Distance to oxygen extractor: 1 (oxygen at (15, 16), clipped=True)
+
+STEP 46:
+  Action: move_north (id=1)
+  Position: (16, 16)
+  Phase: UNCLIP_STATION
+  Glyph: default
+  Resources: G=0 Si=0 C=3 O=23
+  Decoder: 0
+  Energy: 89
+  Reward: 0.0
+  Done: False
+  Distance to assembler: 6 (assembler at (18, 20))
+  Distance to oxygen extractor: 1 (oxygen at (15, 16), clipped=True)
+
+STEP 47:
+  Action: move_north (id=1)
+  Position: (16, 16)
+  Phase: UNCLIP_STATION
+  Glyph: default
+  Resources: G=0 Si=0 C=3 O=23
+  Decoder: 0
+  Energy: 90
+  Reward: 0.0
+  Done: False
+  Distance to assembler: 6 (assembler at (18, 20))
+  Distance to oxygen extractor: 1 (oxygen at (15, 16), clipped=True)
+
+STEP 48:
+  Action: move_north (id=1)
+  Position: (16, 16)
+  Phase: UNCLIP_STATION
+  Glyph: default
+  Resources: G=0 Si=0 C=3 O=23
+  Decoder: 0
+  Energy: 91
+  Reward: 0.0
+  Done: False
+  Distance to assembler: 6 (assembler at (18, 20))
+  Distance to oxygen extractor: 1 (oxygen at (15, 16), clipped=True)
+
+STEP 49:
+  Action: move_north (id=1)
+  Position: (16, 16)
+  Phase: UNCLIP_STATION
+  Glyph: default
+  Resources: G=0 Si=0 C=3 O=23
+  Decoder: 0
+  Energy: 92
+  Reward: 0.0
+  Done: False
+  Distance to assembler: 6 (assembler at (18, 20))
+  Distance to oxygen extractor: 1 (oxygen at (15, 16), clipped=True)
+
+STEP 50:
+  Action: move_north (id=1)
+  Position: (16, 16)
+  Phase: UNCLIP_STATION
+  Glyph: default
+  Resources: G=0 Si=0 C=3 O=24
+  Decoder: 0
+  Energy: 91
+  Reward: 0.0
+  Done: False
+  Distance to assembler: 6 (assembler at (18, 20))
+  Distance to oxygen extractor: 1 (oxygen at (15, 16), clipped=True)
+
+STEP 51:
+  Action: move_north (id=1)
+  Position: (16, 16)
+  Phase: UNCLIP_STATION
+  Glyph: default
+  Resources: G=0 Si=0 C=3 O=24
+  Decoder: 0
+  Energy: 92
+  Reward: 0.0
+  Done: False
+  Distance to assembler: 6 (assembler at (18, 20))
+  Distance to oxygen extractor: 1 (oxygen at (15, 16), clipped=True)
+
+STEP 52:
+  Action: move_north (id=1)
+  Position: (16, 16)
+  Phase: UNCLIP_STATION
+  Glyph: default
+  Resources: G=0 Si=0 C=3 O=24
+  Decoder: 0
+  Energy: 93
+  Reward: 0.0
+  Done: False
+  Distance to assembler: 6 (assembler at (18, 20))
+  Distance to oxygen extractor: 1 (oxygen at (15, 16), clipped=True)
+
+STEP 53:
+  Action: move_north (id=1)
+  Position: (16, 16)
+  Phase: UNCLIP_STATION
+  Glyph: default
+  Resources: G=0 Si=0 C=3 O=24
+  Decoder: 0
+  Energy: 94
+  Reward: 0.0
+  Done: False
+  Distance to assembler: 6 (assembler at (18, 20))
+  Distance to oxygen extractor: 1 (oxygen at (15, 16), clipped=True)
+
+STEP 54:
+  Action: move_north (id=1)
+  Position: (16, 16)
+  Phase: UNCLIP_STATION
+  Glyph: default
+  Resources: G=0 Si=0 C=3 O=24
+  Decoder: 0
+  Energy: 95
+  Reward: 0.0
+  Done: False
+  Distance to assembler: 6 (assembler at (18, 20))
+  Distance to oxygen extractor: 1 (oxygen at (15, 16), clipped=True)
+
+STEP 55:
+  Action: move_north (id=1)
+  Position: (16, 16)
+  Phase: UNCLIP_STATION
+  Glyph: default
+  Resources: G=0 Si=0 C=3 O=25
+  Decoder: 0
+  Energy: 94
+  Reward: 0.0
+  Done: False
+  Distance to assembler: 6 (assembler at (18, 20))
+  Distance to oxygen extractor: 1 (oxygen at (15, 16), clipped=True)
+
+STEP 56:
+  Action: move_north (id=1)
+  Position: (16, 16)
+  Phase: UNCLIP_STATION
+  Glyph: default
+  Resources: G=0 Si=0 C=3 O=25
+  Decoder: 0
+  Energy: 95
+  Reward: 0.0
+  Done: False
+  Distance to assembler: 6 (assembler at (18, 20))
+  Distance to oxygen extractor: 1 (oxygen at (15, 16), clipped=True)
+
+STEP 57:
+  Action: move_north (id=1)
+  Position: (16, 16)
+  Phase: UNCLIP_STATION
+  Glyph: default
+  Resources: G=0 Si=0 C=3 O=25
+  Decoder: 0
+  Energy: 96
+  Reward: 0.0
+  Done: False
+  Distance to assembler: 6 (assembler at (18, 20))
+  Distance to oxygen extractor: 1 (oxygen at (15, 16), clipped=True)
+
+STEP 58:
+  Action: move_north (id=1)
+  Position: (16, 16)
+  Phase: UNCLIP_STATION
+  Glyph: default
+  Resources: G=0 Si=0 C=3 O=25
+  Decoder: 0
+  Energy: 97
+  Reward: 0.0
+  Done: False
+  Distance to assembler: 6 (assembler at (18, 20))
+  Distance to oxygen extractor: 1 (oxygen at (15, 16), clipped=True)
+
+STEP 59:
+  Action: move_north (id=1)
+  Position: (16, 16)
+  Phase: UNCLIP_STATION
+  Glyph: default
+  Resources: G=0 Si=0 C=3 O=25
+  Decoder: 0
+  Energy: 98
+  Reward: 0.0
+  Done: False
+  Distance to assembler: 6 (assembler at (18, 20))
+  Distance to oxygen extractor: 1 (oxygen at (15, 16), clipped=True)
+
+STEP 60:
+  Action: move_north (id=1)
+  Position: (16, 16)
+  Phase: UNCLIP_STATION
+  Glyph: default
+  Resources: G=0 Si=0 C=3 O=26
+  Decoder: 0
+  Energy: 97
+  Reward: 0.0
+  Done: False
+  Distance to assembler: 6 (assembler at (18, 20))
+  Distance to oxygen extractor: 1 (oxygen at (15, 16), clipped=True)
+
+STEP 61:
+  Action: move_north (id=1)
+  Position: (16, 16)
+  Phase: UNCLIP_STATION
+  Glyph: default
+  Resources: G=0 Si=0 C=3 O=26
+  Decoder: 0
+  Energy: 98
+  Reward: 0.0
+  Done: False
+  Distance to assembler: 6 (assembler at (18, 20))
+  Distance to oxygen extractor: 1 (oxygen at (15, 16), clipped=True)
+
+STEP 62:
+  Action: move_north (id=1)
+  Position: (16, 16)
+  Phase: UNCLIP_STATION
+  Glyph: default
+  Resources: G=0 Si=0 C=3 O=26
+  Decoder: 0
+  Energy: 99
+  Reward: 0.0
+  Done: False
+  Distance to assembler: 6 (assembler at (18, 20))
+  Distance to oxygen extractor: 1 (oxygen at (15, 16), clipped=True)
+
+STEP 63:
+  Action: move_north (id=1)
+  Position: (16, 16)
+  Phase: UNCLIP_STATION
+  Glyph: default
+  Resources: G=0 Si=0 C=3 O=26
+  Decoder: 0
+  Energy: 100
+  Reward: 0.0
+  Done: False
+  Distance to assembler: 6 (assembler at (18, 20))
+  Distance to oxygen extractor: 1 (oxygen at (15, 16), clipped=True)
+
+STEP 64:
+  Action: move_north (id=1)
+  Position: (16, 16)
+  Phase: UNCLIP_STATION
+  Glyph: default
+  Resources: G=0 Si=0 C=3 O=26
+  Decoder: 0
+  Energy: 101
+  Reward: 0.0
+  Done: False
+  Distance to assembler: 6 (assembler at (18, 20))
+  Distance to oxygen extractor: 1 (oxygen at (15, 16), clipped=True)
+
+STEP 65:
+  Action: move_north (id=1)
+  Position: (16, 16)
+  Phase: UNCLIP_STATION
+  Glyph: default
+  Resources: G=0 Si=0 C=3 O=27
+  Decoder: 0
+  Energy: 100
+  Reward: 0.0
+  Done: False
+  Distance to assembler: 6 (assembler at (18, 20))
+  Distance to oxygen extractor: 1 (oxygen at (15, 16), clipped=True)
+
+STEP 66:
+  Action: move_north (id=1)
+  Position: (16, 16)
+  Phase: UNCLIP_STATION
+  Glyph: default
+  Resources: G=0 Si=0 C=3 O=27
+  Decoder: 0
+  Energy: 101
+  Reward: 0.0
+  Done: False
+  Distance to assembler: 6 (assembler at (18, 20))
+  Distance to oxygen extractor: 1 (oxygen at (15, 16), clipped=True)
+
+STEP 67:
+  Action: move_north (id=1)
+  Position: (16, 16)
+  Phase: UNCLIP_STATION
+  Glyph: default
+  Resources: G=0 Si=0 C=3 O=27
+  Decoder: 0
+  Energy: 102
+  Reward: 0.0
+  Done: False
+  Distance to assembler: 6 (assembler at (18, 20))
+  Distance to oxygen extractor: 1 (oxygen at (15, 16), clipped=True)
+
+STEP 68:
+  Action: move_north (id=1)
+  Position: (16, 16)
+  Phase: UNCLIP_STATION
+  Glyph: default
+  Resources: G=0 Si=0 C=3 O=27
+  Decoder: 0
+  Energy: 103
+  Reward: 0.0
+  Done: False
+  Distance to assembler: 6 (assembler at (18, 20))
+  Distance to oxygen extractor: 1 (oxygen at (15, 16), clipped=True)
+
+STEP 69:
+  Action: move_north (id=1)
+  Position: (16, 16)
+  Phase: UNCLIP_STATION
+  Glyph: default
+  Resources: G=0 Si=0 C=3 O=27
+  Decoder: 0
+  Energy: 104
+  Reward: 0.0
+  Done: False
+  Distance to assembler: 6 (assembler at (18, 20))
+  Distance to oxygen extractor: 1 (oxygen at (15, 16), clipped=True)
+
+STEP 70:
+  Action: move_north (id=1)
+  Position: (16, 16)
+  Phase: UNCLIP_STATION
+  Glyph: default
+  Resources: G=0 Si=0 C=3 O=28
+  Decoder: 0
+  Energy: 103
+  Reward: 0.0
+  Done: False
+  Distance to assembler: 6 (assembler at (18, 20))
+  Distance to oxygen extractor: 1 (oxygen at (15, 16), clipped=True)
+
+STEP 71:
+  Action: move_north (id=1)
+  Position: (16, 16)
+  Phase: UNCLIP_STATION
+  Glyph: default
+  Resources: G=0 Si=0 C=3 O=28
+  Decoder: 0
+  Energy: 104
+  Reward: 0.0
+  Done: False
+  Distance to assembler: 6 (assembler at (18, 20))
+  Distance to oxygen extractor: 1 (oxygen at (15, 16), clipped=True)
+
+STEP 72:
+  Action: move_north (id=1)
+  Position: (16, 16)
+  Phase: UNCLIP_STATION
+  Glyph: default
+  Resources: G=0 Si=0 C=3 O=28
+  Decoder: 0
+  Energy: 105
+  Reward: 0.0
+  Done: False
+  Distance to assembler: 6 (assembler at (18, 20))
+  Distance to oxygen extractor: 1 (oxygen at (15, 16), clipped=True)
+
+STEP 73:
+  Action: move_north (id=1)
+  Position: (16, 16)
+  Phase: UNCLIP_STATION
+  Glyph: default
+  Resources: G=0 Si=0 C=3 O=28
+  Decoder: 0
+  Energy: 106
+  Reward: 0.0
+  Done: False
+  Distance to assembler: 6 (assembler at (18, 20))
+  Distance to oxygen extractor: 1 (oxygen at (15, 16), clipped=True)
+
+STEP 74:
+  Action: move_north (id=1)
+  Position: (16, 16)
+  Phase: UNCLIP_STATION
+  Glyph: default
+  Resources: G=0 Si=0 C=3 O=28
+  Decoder: 0
+  Energy: 107
+  Reward: 0.0
+  Done: False
+  Distance to assembler: 6 (assembler at (18, 20))
+  Distance to oxygen extractor: 1 (oxygen at (15, 16), clipped=True)
+
+STEP 75:
+  Action: move_north (id=1)
+  Position: (16, 16)
+  Phase: UNCLIP_STATION
+  Glyph: default
+  Resources: G=0 Si=0 C=3 O=29
+  Decoder: 0
+  Energy: 106
+  Reward: 0.0
+  Done: False
+  Distance to assembler: 6 (assembler at (18, 20))
+  Distance to oxygen extractor: 1 (oxygen at (15, 16), clipped=True)
+
+STEP 76:
+  Action: move_north (id=1)
+  Position: (16, 16)
+  Phase: UNCLIP_STATION
+  Glyph: default
+  Resources: G=0 Si=0 C=3 O=29
+  Decoder: 0
+  Energy: 107
+  Reward: 0.0
+  Done: False
+  Distance to assembler: 6 (assembler at (18, 20))
+  Distance to oxygen extractor: 1 (oxygen at (15, 16), clipped=True)
+
+STEP 77:
+  Action: move_north (id=1)
+  Position: (16, 16)
+  Phase: UNCLIP_STATION
+  Glyph: default
+  Resources: G=0 Si=0 C=3 O=29
+  Decoder: 0
+  Energy: 108
+  Reward: 0.0
+  Done: False
+  Distance to assembler: 6 (assembler at (18, 20))
+  Distance to oxygen extractor: 1 (oxygen at (15, 16), clipped=True)
+
+STEP 78:
+  Action: move_north (id=1)
+  Position: (16, 16)
+  Phase: UNCLIP_STATION
+  Glyph: default
+  Resources: G=0 Si=0 C=3 O=29
+  Decoder: 0
+  Energy: 109
+  Reward: 0.0
+  Done: False
+  Distance to assembler: 6 (assembler at (18, 20))
+  Distance to oxygen extractor: 1 (oxygen at (15, 16), clipped=True)
+
+STEP 79:
+  Action: move_north (id=1)
+  Position: (16, 16)
+  Phase: UNCLIP_STATION
+  Glyph: default
+  Resources: G=0 Si=0 C=3 O=29
+  Decoder: 0
+  Energy: 110
+  Reward: 0.0
+  Done: False
+  Distance to assembler: 6 (assembler at (18, 20))
+  Distance to oxygen extractor: 1 (oxygen at (15, 16), clipped=True)
+
+STEP 80:
+  Action: move_north (id=1)
+  Position: (16, 16)
+  Phase: UNCLIP_STATION
+  Glyph: default
+  Resources: G=0 Si=0 C=3 O=30
+  Decoder: 0
+  Energy: 109
+  Reward: 0.0
+  Done: False
+  Distance to assembler: 6 (assembler at (18, 20))
+  Distance to oxygen extractor: 1 (oxygen at (15, 16), clipped=True)
+
+STEP 81:
+  Action: move_north (id=1)
+  Position: (16, 16)
+  Phase: UNCLIP_STATION
+  Glyph: default
+  Resources: G=0 Si=0 C=3 O=30
+  Decoder: 0
+  Energy: 110
+  Reward: 0.0
+  Done: False
+  Distance to assembler: 6 (assembler at (18, 20))
+  Distance to oxygen extractor: 1 (oxygen at (15, 16), clipped=True)
+
+STEP 82:
+  Action: move_north (id=1)
+  Position: (16, 16)
+  Phase: UNCLIP_STATION
+  Glyph: default
+  Resources: G=0 Si=0 C=3 O=30
+  Decoder: 0
+  Energy: 111
+  Reward: 0.0
+  Done: False
+  Distance to assembler: 6 (assembler at (18, 20))
+  Distance to oxygen extractor: 1 (oxygen at (15, 16), clipped=True)
+
+STEP 83:
+  Action: move_north (id=1)
+  Position: (16, 16)
+  Phase: UNCLIP_STATION
+  Glyph: default
+  Resources: G=0 Si=0 C=3 O=30
+  Decoder: 0
+  Energy: 112
+  Reward: 0.0
+  Done: False
+  Distance to assembler: 6 (assembler at (18, 20))
+  Distance to oxygen extractor: 1 (oxygen at (15, 16), clipped=True)
+
+STEP 84:
+  Action: move_north (id=1)
+  Position: (16, 16)
+  Phase: UNCLIP_STATION
+  Glyph: default
+  Resources: G=0 Si=0 C=3 O=30
+  Decoder: 0
+  Energy: 113
+  Reward: 0.0
+  Done: False
+  Distance to assembler: 6 (assembler at (18, 20))
+  Distance to oxygen extractor: 1 (oxygen at (15, 16), clipped=True)
+
+STEP 85:
+  Action: move_north (id=1)
+  Position: (16, 16)
+  Phase: UNCLIP_STATION
+  Glyph: default
+  Resources: G=0 Si=0 C=3 O=31
+  Decoder: 0
+  Energy: 112
+  Reward: 0.0
+  Done: False
+  Distance to assembler: 6 (assembler at (18, 20))
+  Distance to oxygen extractor: 1 (oxygen at (15, 16), clipped=True)
+
+STEP 86:
+  Action: move_north (id=1)
+  Position: (16, 16)
+  Phase: UNCLIP_STATION
+  Glyph: default
+  Resources: G=0 Si=0 C=3 O=31
+  Decoder: 0
+  Energy: 113
+  Reward: 0.0
+  Done: False
+  Distance to assembler: 6 (assembler at (18, 20))
+  Distance to oxygen extractor: 1 (oxygen at (15, 16), clipped=True)
+
+STEP 87:
+  Action: move_north (id=1)
+  Position: (16, 16)
+  Phase: UNCLIP_STATION
+  Glyph: default
+  Resources: G=0 Si=0 C=3 O=31
+  Decoder: 0
+  Energy: 114
+  Reward: 0.0
+  Done: False
+  Distance to assembler: 6 (assembler at (18, 20))
+  Distance to oxygen extractor: 1 (oxygen at (15, 16), clipped=True)
+
+STEP 88:
+  Action: move_north (id=1)
+  Position: (16, 16)
+  Phase: UNCLIP_STATION
+  Glyph: default
+  Resources: G=0 Si=0 C=3 O=31
+  Decoder: 0
+  Energy: 115
+  Reward: 0.0
+  Done: False
+  Distance to assembler: 6 (assembler at (18, 20))
+  Distance to oxygen extractor: 1 (oxygen at (15, 16), clipped=True)
+
+STEP 89:
+  Action: move_north (id=1)
+  Position: (16, 16)
+  Phase: UNCLIP_STATION
+  Glyph: default
+  Resources: G=0 Si=0 C=3 O=31
+  Decoder: 0
+  Energy: 116
+  Reward: 0.0
+  Done: False
+  Distance to assembler: 6 (assembler at (18, 20))
+  Distance to oxygen extractor: 1 (oxygen at (15, 16), clipped=True)
+
+STEP 90:
+  Action: move_north (id=1)
+  Position: (16, 16)
+  Phase: UNCLIP_STATION
+  Glyph: default
+  Resources: G=0 Si=0 C=3 O=32
+  Decoder: 0
+  Energy: 115
+  Reward: 0.0
+  Done: False
+  Distance to assembler: 6 (assembler at (18, 20))
+  Distance to oxygen extractor: 1 (oxygen at (15, 16), clipped=True)
+
+STEP 91:
+  Action: move_north (id=1)
+  Position: (16, 16)
+  Phase: UNCLIP_STATION
+  Glyph: default
+  Resources: G=0 Si=0 C=3 O=32
+  Decoder: 0
+  Energy: 116
+  Reward: 0.0
+  Done: False
+  Distance to assembler: 6 (assembler at (18, 20))
+  Distance to oxygen extractor: 1 (oxygen at (15, 16), clipped=True)
+
+STEP 92:
+  Action: move_north (id=1)
+  Position: (16, 16)
+  Phase: UNCLIP_STATION
+  Glyph: default
+  Resources: G=0 Si=0 C=3 O=32
+  Decoder: 0
+  Energy: 117
+  Reward: 0.0
+  Done: False
+  Distance to assembler: 6 (assembler at (18, 20))
+  Distance to oxygen extractor: 1 (oxygen at (15, 16), clipped=True)
+
+STEP 93:
+  Action: move_north (id=1)
+  Position: (16, 16)
+  Phase: UNCLIP_STATION
+  Glyph: default
+  Resources: G=0 Si=0 C=3 O=32
+  Decoder: 0
+  Energy: 118
+  Reward: 0.0
+  Done: False
+  Distance to assembler: 6 (assembler at (18, 20))
+  Distance to oxygen extractor: 1 (oxygen at (15, 16), clipped=True)
+
+STEP 94:
+  Action: move_north (id=1)
+  Position: (16, 16)
+  Phase: UNCLIP_STATION
+  Glyph: default
+  Resources: G=0 Si=0 C=3 O=32
+  Decoder: 0
+  Energy: 119
+  Reward: 0.0
+  Done: False
+  Distance to assembler: 6 (assembler at (18, 20))
+  Distance to oxygen extractor: 1 (oxygen at (15, 16), clipped=True)
+
+STEP 95:
+  Action: move_north (id=1)
+  Position: (16, 16)
+  Phase: UNCLIP_STATION
+  Glyph: default
+  Resources: G=0 Si=0 C=3 O=33
+  Decoder: 0
+  Energy: 118
+  Reward: 0.0
+  Done: False
+  Distance to assembler: 6 (assembler at (18, 20))
+  Distance to oxygen extractor: 1 (oxygen at (15, 16), clipped=True)
+
+STEP 96:
+  Action: move_north (id=1)
+  Position: (16, 16)
+  Phase: UNCLIP_STATION
+  Glyph: default
+  Resources: G=0 Si=0 C=3 O=33
+  Decoder: 0
+  Energy: 119
+  Reward: 0.0
+  Done: False
+  Distance to assembler: 6 (assembler at (18, 20))
+  Distance to oxygen extractor: 1 (oxygen at (15, 16), clipped=True)
+
+STEP 97:
+  Action: move_north (id=1)
+  Position: (16, 16)
+  Phase: UNCLIP_STATION
+  Glyph: default
+  Resources: G=0 Si=0 C=3 O=33
+  Decoder: 0
+  Energy: 120
+  Reward: 0.0
+  Done: False
+  Distance to assembler: 6 (assembler at (18, 20))
+  Distance to oxygen extractor: 1 (oxygen at (15, 16), clipped=True)
+
+STEP 98:
+  Action: move_north (id=1)
+  Position: (16, 16)
+  Phase: UNCLIP_STATION
+  Glyph: default
+  Resources: G=0 Si=0 C=3 O=33
+  Decoder: 0
+  Energy: 121
+  Reward: 0.0
+  Done: False
+  Distance to assembler: 6 (assembler at (18, 20))
+  Distance to oxygen extractor: 1 (oxygen at (15, 16), clipped=True)
+
+STEP 99:
+  Action: move_north (id=1)
+  Position: (16, 16)
+  Phase: UNCLIP_STATION
+  Glyph: default
+  Resources: G=0 Si=0 C=3 O=33
+  Decoder: 0
+  Energy: 122
+  Reward: 0.0
+  Done: False
+  Distance to assembler: 6 (assembler at (18, 20))
+  Distance to oxygen extractor: 1 (oxygen at (15, 16), clipped=True)
+
+STEP 100:
+  Action: move_north (id=1)
+  Position: (16, 16)
+  Phase: UNCLIP_STATION
+  Glyph: default
+  Resources: G=0 Si=0 C=3 O=34
+  Decoder: 0
+  Energy: 121
+  Reward: 0.0
+  Done: False
+  Distance to assembler: 6 (assembler at (18, 20))
+  Distance to oxygen extractor: 1 (oxygen at (15, 16), clipped=True)
+
+STEP 101:
+  Action: move_north (id=1)
+  Position: (16, 16)
+  Phase: UNCLIP_STATION
+  Glyph: default
+  Resources: G=0 Si=0 C=3 O=34
+  Decoder: 0
+  Energy: 122
+  Reward: 0.0
+  Done: False
+  Distance to assembler: 6 (assembler at (18, 20))
+  Distance to oxygen extractor: 1 (oxygen at (15, 16), clipped=True)
+
+STEP 102:
+  Action: move_north (id=1)
+  Position: (16, 16)
+  Phase: UNCLIP_STATION
+  Glyph: default
+  Resources: G=0 Si=0 C=3 O=34
+  Decoder: 0
+  Energy: 123
+  Reward: 0.0
+  Done: False
+  Distance to assembler: 6 (assembler at (18, 20))
+  Distance to oxygen extractor: 1 (oxygen at (15, 16), clipped=True)
+
+STEP 103:
+  Action: move_north (id=1)
+  Position: (16, 16)
+  Phase: UNCLIP_STATION
+  Glyph: default
+  Resources: G=0 Si=0 C=3 O=34
+  Decoder: 0
+  Energy: 124
+  Reward: 0.0
+  Done: False
+  Distance to assembler: 6 (assembler at (18, 20))
+  Distance to oxygen extractor: 1 (oxygen at (15, 16), clipped=True)
+
+STEP 104:
+  Action: move_north (id=1)
+  Position: (16, 16)
+  Phase: UNCLIP_STATION
+  Glyph: default
+  Resources: G=0 Si=0 C=3 O=34
+  Decoder: 0
+  Energy: 125
+  Reward: 0.0
+  Done: False
+  Distance to assembler: 6 (assembler at (18, 20))
+  Distance to oxygen extractor: 1 (oxygen at (15, 16), clipped=True)
+
+STEP 105:
+  Action: move_north (id=1)
+  Position: (16, 16)
+  Phase: UNCLIP_STATION
+  Glyph: default
+  Resources: G=0 Si=0 C=3 O=35
+  Decoder: 0
+  Energy: 124
+  Reward: 0.0
+  Done: False
+  Distance to assembler: 6 (assembler at (18, 20))
+  Distance to oxygen extractor: 1 (oxygen at (15, 16), clipped=True)
+
+STEP 106:
+  Action: move_north (id=1)
+  Position: (16, 16)
+  Phase: UNCLIP_STATION
+  Glyph: default
+  Resources: G=0 Si=0 C=3 O=35
+  Decoder: 0
+  Energy: 125
+  Reward: 0.0
+  Done: False
+  Distance to assembler: 6 (assembler at (18, 20))
+  Distance to oxygen extractor: 1 (oxygen at (15, 16), clipped=True)
+
+STEP 107:
+  Action: move_north (id=1)
+  Position: (16, 16)
+  Phase: UNCLIP_STATION
+  Glyph: default
+  Resources: G=0 Si=0 C=3 O=35
+  Decoder: 0
+  Energy: 126
+  Reward: 0.0
+  Done: False
+  Distance to assembler: 6 (assembler at (18, 20))
+  Distance to oxygen extractor: 1 (oxygen at (15, 16), clipped=True)
+
+STEP 108:
+  Action: move_north (id=1)
+  Position: (16, 16)
+  Phase: UNCLIP_STATION
+  Glyph: default
+  Resources: G=0 Si=0 C=3 O=35
+  Decoder: 0
+  Energy: 127
+  Reward: 0.0
+  Done: False
+  Distance to assembler: 6 (assembler at (18, 20))
+  Distance to oxygen extractor: 1 (oxygen at (15, 16), clipped=True)
+
+STEP 109:
+  Action: move_north (id=1)
+  Position: (16, 16)
+  Phase: UNCLIP_STATION
+  Glyph: default
+  Resources: G=0 Si=0 C=3 O=35
+  Decoder: 0
+  Energy: 128
+  Reward: 0.0
+  Done: False
+  Distance to assembler: 6 (assembler at (18, 20))
+  Distance to oxygen extractor: 1 (oxygen at (15, 16), clipped=True)
+
+STEP 110:
+  Action: move_north (id=1)
+  Position: (16, 16)
+  Phase: UNCLIP_STATION
+  Glyph: default
+  Resources: G=0 Si=0 C=3 O=36
+  Decoder: 0
+  Energy: 127
+  Reward: 0.0
+  Done: False
+  Distance to assembler: 6 (assembler at (18, 20))
+  Distance to oxygen extractor: 1 (oxygen at (15, 16), clipped=True)
+
+STEP 111:
+  Action: move_north (id=1)
+  Position: (16, 16)
+  Phase: UNCLIP_STATION
+  Glyph: default
+  Resources: G=0 Si=0 C=3 O=36
+  Decoder: 0
+  Energy: 128
+  Reward: 0.0
+  Done: False
+  Distance to assembler: 6 (assembler at (18, 20))
+  Distance to oxygen extractor: 1 (oxygen at (15, 16), clipped=True)
+
+STEP 112:
+  Action: move_north (id=1)
+  Position: (16, 16)
+  Phase: UNCLIP_STATION
+  Glyph: default
+  Resources: G=0 Si=0 C=3 O=36
+  Decoder: 0
+  Energy: 129
+  Reward: 0.0
+  Done: False
+  Distance to assembler: 6 (assembler at (18, 20))
+  Distance to oxygen extractor: 1 (oxygen at (15, 16), clipped=True)
+
+STEP 113:
+  Action: move_north (id=1)
+  Position: (16, 16)
+  Phase: UNCLIP_STATION
+  Glyph: default
+  Resources: G=0 Si=0 C=3 O=36
+  Decoder: 0
+  Energy: 130
+  Reward: 0.0
+  Done: False
+  Distance to assembler: 6 (assembler at (18, 20))
+  Distance to oxygen extractor: 1 (oxygen at (15, 16), clipped=True)
+
+STEP 114:
+  Action: move_north (id=1)
+  Position: (16, 16)
+  Phase: UNCLIP_STATION
+  Glyph: default
+  Resources: G=0 Si=0 C=3 O=36
+  Decoder: 0
+  Energy: 131
+  Reward: 0.0
+  Done: False
+  Distance to assembler: 6 (assembler at (18, 20))
+  Distance to oxygen extractor: 1 (oxygen at (15, 16), clipped=True)
+
+STEP 115:
+  Action: move_north (id=1)
+  Position: (16, 16)
+  Phase: UNCLIP_STATION
+  Glyph: default
+  Resources: G=0 Si=0 C=3 O=37
+  Decoder: 0
+  Energy: 130
+  Reward: 0.0
+  Done: False
+  Distance to assembler: 6 (assembler at (18, 20))
+  Distance to oxygen extractor: 1 (oxygen at (15, 16), clipped=True)
+
+STEP 116:
+  Action: move_north (id=1)
+  Position: (16, 16)
+  Phase: UNCLIP_STATION
+  Glyph: default
+  Resources: G=0 Si=0 C=3 O=37
+  Decoder: 0
+  Energy: 131
+  Reward: 0.0
+  Done: False
+  Distance to assembler: 6 (assembler at (18, 20))
+  Distance to oxygen extractor: 1 (oxygen at (15, 16), clipped=True)
+
+STEP 117:
+  Action: move_north (id=1)
+  Position: (16, 16)
+  Phase: UNCLIP_STATION
+  Glyph: default
+  Resources: G=0 Si=0 C=3 O=37
+  Decoder: 0
+  Energy: 132
+  Reward: 0.0
+  Done: False
+  Distance to assembler: 6 (assembler at (18, 20))
+  Distance to oxygen extractor: 1 (oxygen at (15, 16), clipped=True)
+
+STEP 118:
+  Action: move_north (id=1)
+  Position: (16, 16)
+  Phase: UNCLIP_STATION
+  Glyph: default
+  Resources: G=0 Si=0 C=3 O=37
+  Decoder: 0
+  Energy: 133
+  Reward: 0.0
+  Done: False
+  Distance to assembler: 6 (assembler at (18, 20))
+  Distance to oxygen extractor: 1 (oxygen at (15, 16), clipped=True)
+
+STEP 119:
+  Action: move_north (id=1)
+  Position: (16, 16)
+  Phase: UNCLIP_STATION
+  Glyph: default
+  Resources: G=0 Si=0 C=3 O=37
+  Decoder: 0
+  Energy: 134
+  Reward: 0.0
+  Done: False
+  Distance to assembler: 6 (assembler at (18, 20))
+  Distance to oxygen extractor: 1 (oxygen at (15, 16), clipped=True)
+
+STEP 120:
+  Action: move_north (id=1)
+  Position: (16, 16)
+  Phase: UNCLIP_STATION
+  Glyph: default
+  Resources: G=0 Si=0 C=3 O=38
+  Decoder: 0
+  Energy: 133
+  Reward: 0.0
+  Done: False
+  Distance to assembler: 6 (assembler at (18, 20))
+  Distance to oxygen extractor: 1 (oxygen at (15, 16), clipped=True)
+
+STEP 121:
+  Action: move_north (id=1)
+  Position: (16, 16)
+  Phase: UNCLIP_STATION
+  Glyph: default
+  Resources: G=0 Si=0 C=3 O=38
+  Decoder: 0
+  Energy: 134
+  Reward: 0.0
+  Done: False
+  Distance to assembler: 6 (assembler at (18, 20))
+  Distance to oxygen extractor: 1 (oxygen at (15, 16), clipped=True)
+
+STEP 122:
+  Action: move_north (id=1)
+  Position: (16, 16)
+  Phase: UNCLIP_STATION
+  Glyph: default
+  Resources: G=0 Si=0 C=3 O=38
+  Decoder: 0
+  Energy: 135
+  Reward: 0.0
+  Done: False
+  Distance to assembler: 6 (assembler at (18, 20))
+  Distance to oxygen extractor: 1 (oxygen at (15, 16), clipped=True)
+
+STEP 123:
+  Action: move_north (id=1)
+  Position: (16, 16)
+  Phase: UNCLIP_STATION
+  Glyph: default
+  Resources: G=0 Si=0 C=3 O=38
+  Decoder: 0
+  Energy: 136
+  Reward: 0.0
+  Done: False
+  Distance to assembler: 6 (assembler at (18, 20))
+  Distance to oxygen extractor: 1 (oxygen at (15, 16), clipped=True)
+
+STEP 124:
+  Action: move_north (id=1)
+  Position: (16, 16)
+  Phase: UNCLIP_STATION
+  Glyph: default
+  Resources: G=0 Si=0 C=3 O=38
+  Decoder: 0
+  Energy: 137
+  Reward: 0.0
+  Done: False
+  Distance to assembler: 6 (assembler at (18, 20))
+  Distance to oxygen extractor: 1 (oxygen at (15, 16), clipped=True)
+
+STEP 125:
+  Action: move_north (id=1)
+  Position: (16, 16)
+  Phase: UNCLIP_STATION
+  Glyph: default
+  Resources: G=0 Si=0 C=3 O=39
+  Decoder: 0
+  Energy: 136
+  Reward: 0.0
+  Done: False
+  Distance to assembler: 6 (assembler at (18, 20))
+  Distance to oxygen extractor: 1 (oxygen at (15, 16), clipped=True)
+
+STEP 126:
+  Action: move_north (id=1)
+  Position: (16, 16)
+  Phase: UNCLIP_STATION
+  Glyph: default
+  Resources: G=0 Si=0 C=3 O=39
+  Decoder: 0
+  Energy: 137
+  Reward: 0.0
+  Done: False
+  Distance to assembler: 6 (assembler at (18, 20))
+  Distance to oxygen extractor: 1 (oxygen at (15, 16), clipped=True)
+
+STEP 127:
+  Action: move_north (id=1)
+  Position: (16, 16)
+  Phase: UNCLIP_STATION
+  Glyph: default
+  Resources: G=0 Si=0 C=3 O=39
+  Decoder: 0
+  Energy: 138
+  Reward: 0.0
+  Done: False
+  Distance to assembler: 6 (assembler at (18, 20))
+  Distance to oxygen extractor: 1 (oxygen at (15, 16), clipped=True)
+
+STEP 128:
+  Action: move_north (id=1)
+  Position: (16, 16)
+  Phase: UNCLIP_STATION
+  Glyph: default
+  Resources: G=0 Si=0 C=3 O=39
+  Decoder: 0
+  Energy: 139
+  Reward: 0.0
+  Done: False
+  Distance to assembler: 6 (assembler at (18, 20))
+  Distance to oxygen extractor: 1 (oxygen at (15, 16), clipped=True)
+
+STEP 129:
+  Action: move_north (id=1)
+  Position: (16, 16)
+  Phase: UNCLIP_STATION
+  Glyph: default
+  Resources: G=0 Si=0 C=3 O=39
+  Decoder: 0
+  Energy: 140
+  Reward: 0.0
+  Done: False
+  Distance to assembler: 6 (assembler at (18, 20))
+  Distance to oxygen extractor: 1 (oxygen at (15, 16), clipped=True)
+
+STEP 130:
+  Action: move_north (id=1)
+  Position: (16, 16)
+  Phase: UNCLIP_STATION
+  Glyph: default
+  Resources: G=0 Si=0 C=3 O=40
+  Decoder: 0
+  Energy: 139
+  Reward: 0.0
+  Done: False
+  Distance to assembler: 6 (assembler at (18, 20))
+  Distance to oxygen extractor: 1 (oxygen at (15, 16), clipped=True)
+
+STEP 131:
+  Action: move_north (id=1)
+  Position: (16, 16)
+  Phase: UNCLIP_STATION
+  Glyph: default
+  Resources: G=0 Si=0 C=3 O=40
+  Decoder: 0
+  Energy: 140
+  Reward: 0.0
+  Done: False
+  Distance to assembler: 6 (assembler at (18, 20))
+  Distance to oxygen extractor: 1 (oxygen at (15, 16), clipped=True)
+
+STEP 132:
+  Action: move_north (id=1)
+  Position: (16, 16)
+  Phase: UNCLIP_STATION
+  Glyph: default
+  Resources: G=0 Si=0 C=3 O=40
+  Decoder: 0
+  Energy: 141
+  Reward: 0.0
+  Done: False
+  Distance to assembler: 6 (assembler at (18, 20))
+  Distance to oxygen extractor: 1 (oxygen at (15, 16), clipped=True)
+
+STEP 133:
+  Action: move_north (id=1)
+  Position: (16, 16)
+  Phase: UNCLIP_STATION
+  Glyph: default
+  Resources: G=0 Si=0 C=3 O=40
+  Decoder: 0
+  Energy: 142
+  Reward: 0.0
+  Done: False
+  Distance to assembler: 6 (assembler at (18, 20))
+  Distance to oxygen extractor: 1 (oxygen at (15, 16), clipped=True)
+
+STEP 134:
+  Action: move_north (id=1)
+  Position: (16, 16)
+  Phase: UNCLIP_STATION
+  Glyph: default
+  Resources: G=0 Si=0 C=3 O=40
+  Decoder: 0
+  Energy: 143
+  Reward: 0.0
+  Done: False
+  Distance to assembler: 6 (assembler at (18, 20))
+  Distance to oxygen extractor: 1 (oxygen at (15, 16), clipped=True)
+
+STEP 135:
+  Action: move_north (id=1)
+  Position: (16, 16)
+  Phase: UNCLIP_STATION
+  Glyph: default
+  Resources: G=0 Si=0 C=3 O=41
+  Decoder: 0
+  Energy: 142
+  Reward: 0.0
+  Done: False
+  Distance to assembler: 6 (assembler at (18, 20))
+  Distance to oxygen extractor: 1 (oxygen at (15, 16), clipped=True)
+
+STEP 136:
+  Action: move_north (id=1)
+  Position: (16, 16)
+  Phase: UNCLIP_STATION
+  Glyph: default
+  Resources: G=0 Si=0 C=3 O=41
+  Decoder: 0
+  Energy: 143
+  Reward: 0.0
+  Done: False
+  Distance to assembler: 6 (assembler at (18, 20))
+  Distance to oxygen extractor: 1 (oxygen at (15, 16), clipped=True)
+
+STEP 137:
+  Action: move_north (id=1)
+  Position: (16, 16)
+  Phase: UNCLIP_STATION
+  Glyph: default
+  Resources: G=0 Si=0 C=3 O=41
+  Decoder: 0
+  Energy: 144
+  Reward: 0.0
+  Done: False
+  Distance to assembler: 6 (assembler at (18, 20))
+  Distance to oxygen extractor: 1 (oxygen at (15, 16), clipped=True)
+
+STEP 138:
+  Action: move_north (id=1)
+  Position: (16, 16)
+  Phase: UNCLIP_STATION
+  Glyph: default
+  Resources: G=0 Si=0 C=3 O=41
+  Decoder: 0
+  Energy: 145
+  Reward: 0.0
+  Done: False
+  Distance to assembler: 6 (assembler at (18, 20))
+  Distance to oxygen extractor: 1 (oxygen at (15, 16), clipped=True)
+
+STEP 139:
+  Action: move_north (id=1)
+  Position: (16, 16)
+  Phase: UNCLIP_STATION
+  Glyph: default
+  Resources: G=0 Si=0 C=3 O=41
+  Decoder: 0
+  Energy: 146
+  Reward: 0.0
+  Done: False
+  Distance to assembler: 6 (assembler at (18, 20))
+  Distance to oxygen extractor: 1 (oxygen at (15, 16), clipped=True)
+
+STEP 140:
+  Action: move_north (id=1)
+  Position: (16, 16)
+  Phase: UNCLIP_STATION
+  Glyph: default
+  Resources: G=0 Si=0 C=3 O=42
+  Decoder: 0
+  Energy: 145
+  Reward: 0.0
+  Done: False
+  Distance to assembler: 6 (assembler at (18, 20))
+  Distance to oxygen extractor: 1 (oxygen at (15, 16), clipped=True)
+
+STEP 141:
+  Action: move_north (id=1)
+  Position: (16, 16)
+  Phase: UNCLIP_STATION
+  Glyph: default
+  Resources: G=0 Si=0 C=3 O=42
+  Decoder: 0
+  Energy: 146
+  Reward: 0.0
+  Done: False
+  Distance to assembler: 6 (assembler at (18, 20))
+  Distance to oxygen extractor: 1 (oxygen at (15, 16), clipped=True)
+
+STEP 142:
+  Action: move_north (id=1)
+  Position: (16, 16)
+  Phase: UNCLIP_STATION
+  Glyph: default
+  Resources: G=0 Si=0 C=3 O=42
+  Decoder: 0
+  Energy: 147
+  Reward: 0.0
+  Done: False
+  Distance to assembler: 6 (assembler at (18, 20))
+  Distance to oxygen extractor: 1 (oxygen at (15, 16), clipped=True)
+
+STEP 143:
+  Action: move_north (id=1)
+  Position: (16, 16)
+  Phase: UNCLIP_STATION
+  Glyph: default
+  Resources: G=0 Si=0 C=3 O=42
+  Decoder: 0
+  Energy: 148
+  Reward: 0.0
+  Done: False
+  Distance to assembler: 6 (assembler at (18, 20))
+  Distance to oxygen extractor: 1 (oxygen at (15, 16), clipped=True)
+
+STEP 144:
+  Action: move_north (id=1)
+  Position: (16, 16)
+  Phase: UNCLIP_STATION
+  Glyph: default
+  Resources: G=0 Si=0 C=3 O=42
+  Decoder: 0
+  Energy: 149
+  Reward: 0.0
+  Done: False
+  Distance to assembler: 6 (assembler at (18, 20))
+  Distance to oxygen extractor: 1 (oxygen at (15, 16), clipped=True)
+
+STEP 145:
+  Action: move_north (id=1)
+  Position: (16, 16)
+  Phase: UNCLIP_STATION
+  Glyph: default
+  Resources: G=0 Si=0 C=3 O=43
+  Decoder: 0
+  Energy: 148
+  Reward: 0.0
+  Done: False
+  Distance to assembler: 6 (assembler at (18, 20))
+  Distance to oxygen extractor: 1 (oxygen at (15, 16), clipped=True)
+
+STEP 146:
+  Action: move_north (id=1)
+  Position: (16, 16)
+  Phase: UNCLIP_STATION
+  Glyph: default
+  Resources: G=0 Si=0 C=3 O=43
+  Decoder: 0
+  Energy: 149
+  Reward: 0.0
+  Done: False
+  Distance to assembler: 6 (assembler at (18, 20))
+  Distance to oxygen extractor: 1 (oxygen at (15, 16), clipped=True)
+
+STEP 147:
+  Action: move_north (id=1)
+  Position: (16, 16)
+  Phase: UNCLIP_STATION
+  Glyph: default
+  Resources: G=0 Si=0 C=3 O=43
+  Decoder: 0
+  Energy: 150
+  Reward: 0.0
+  Done: False
+  Distance to assembler: 6 (assembler at (18, 20))
+  Distance to oxygen extractor: 1 (oxygen at (15, 16), clipped=True)
+
+STEP 148:
+  Action: move_north (id=1)
+  Position: (16, 16)
+  Phase: UNCLIP_STATION
+  Glyph: default
+  Resources: G=0 Si=0 C=3 O=43
+  Decoder: 0
+  Energy: 151
+  Reward: 0.0
+  Done: False
+  Distance to assembler: 6 (assembler at (18, 20))
+  Distance to oxygen extractor: 1 (oxygen at (15, 16), clipped=True)
+
+STEP 149:
+  Action: move_north (id=1)
+  Position: (16, 16)
+  Phase: UNCLIP_STATION
+  Glyph: default
+  Resources: G=0 Si=0 C=3 O=43
+  Decoder: 0
+  Energy: 152
+  Reward: 0.0
+  Done: False
+  Distance to assembler: 6 (assembler at (18, 20))
+  Distance to oxygen extractor: 1 (oxygen at (15, 16), clipped=True)
+
+STEP 150:
+  Action: move_north (id=1)
+  Position: (16, 16)
+  Phase: UNCLIP_STATION
+  Glyph: default
+  Resources: G=0 Si=0 C=3 O=44
+  Decoder: 0
+  Energy: 151
+  Reward: 0.0
+  Done: False
+  Distance to assembler: 6 (assembler at (18, 20))
+  Distance to oxygen extractor: 1 (oxygen at (15, 16), clipped=True)
+
+STEP 151:
+  Action: move_north (id=1)
+  Position: (16, 16)
+  Phase: UNCLIP_STATION
+  Glyph: default
+  Resources: G=0 Si=0 C=3 O=44
+  Decoder: 0
+  Energy: 152
+  Reward: 0.0
+  Done: False
+  Distance to assembler: 6 (assembler at (18, 20))
+  Distance to oxygen extractor: 1 (oxygen at (15, 16), clipped=True)
+
+STEP 152:
+  Action: move_north (id=1)
+  Position: (16, 16)
+  Phase: UNCLIP_STATION
+  Glyph: default
+  Resources: G=0 Si=0 C=3 O=44
+  Decoder: 0
+  Energy: 153
+  Reward: 0.0
+  Done: False
+  Distance to assembler: 6 (assembler at (18, 20))
+  Distance to oxygen extractor: 1 (oxygen at (15, 16), clipped=True)
+
+STEP 153:
+  Action: move_north (id=1)
+  Position: (16, 16)
+  Phase: UNCLIP_STATION
+  Glyph: default
+  Resources: G=0 Si=0 C=3 O=44
+  Decoder: 0
+  Energy: 154
+  Reward: 0.0
+  Done: False
+  Distance to assembler: 6 (assembler at (18, 20))
+  Distance to oxygen extractor: 1 (oxygen at (15, 16), clipped=True)
+
+STEP 154:
+  Action: move_north (id=1)
+  Position: (16, 16)
+  Phase: UNCLIP_STATION
+  Glyph: default
+  Resources: G=0 Si=0 C=3 O=44
+  Decoder: 0
+  Energy: 155
+  Reward: 0.0
+  Done: False
+  Distance to assembler: 6 (assembler at (18, 20))
+  Distance to oxygen extractor: 1 (oxygen at (15, 16), clipped=True)
+
+STEP 155:
+  Action: move_north (id=1)
+  Position: (16, 16)
+  Phase: UNCLIP_STATION
+  Glyph: default
+  Resources: G=0 Si=0 C=3 O=45
+  Decoder: 0
+  Energy: 154
+  Reward: 0.0
+  Done: False
+  Distance to assembler: 6 (assembler at (18, 20))
+  Distance to oxygen extractor: 1 (oxygen at (15, 16), clipped=True)
+
+STEP 156:
+  Action: move_north (id=1)
+  Position: (16, 16)
+  Phase: UNCLIP_STATION
+  Glyph: default
+  Resources: G=0 Si=0 C=3 O=45
+  Decoder: 0
+  Energy: 155
+  Reward: 0.0
+  Done: False
+  Distance to assembler: 6 (assembler at (18, 20))
+  Distance to oxygen extractor: 1 (oxygen at (15, 16), clipped=True)
+
+STEP 157:
+  Action: move_north (id=1)
+  Position: (16, 16)
+  Phase: UNCLIP_STATION
+  Glyph: default
+  Resources: G=0 Si=0 C=3 O=45
+  Decoder: 0
+  Energy: 156
+  Reward: 0.0
+  Done: False
+  Distance to assembler: 6 (assembler at (18, 20))
+  Distance to oxygen extractor: 1 (oxygen at (15, 16), clipped=True)
+
+STEP 158:
+  Action: move_north (id=1)
+  Position: (16, 16)
+  Phase: UNCLIP_STATION
+  Glyph: default
+  Resources: G=0 Si=0 C=3 O=45
+  Decoder: 0
+  Energy: 157
+  Reward: 0.0
+  Done: False
+  Distance to assembler: 6 (assembler at (18, 20))
+  Distance to oxygen extractor: 1 (oxygen at (15, 16), clipped=True)
+
+STEP 159:
+  Action: move_north (id=1)
+  Position: (16, 16)
+  Phase: UNCLIP_STATION
+  Glyph: default
+  Resources: G=0 Si=0 C=3 O=45
+  Decoder: 0
+  Energy: 158
+  Reward: 0.0
+  Done: False
+  Distance to assembler: 6 (assembler at (18, 20))
+  Distance to oxygen extractor: 1 (oxygen at (15, 16), clipped=True)
+
+STEP 160:
+  Action: move_north (id=1)
+  Position: (16, 16)
+  Phase: UNCLIP_STATION
+  Glyph: default
+  Resources: G=0 Si=0 C=3 O=46
+  Decoder: 0
+  Energy: 157
+  Reward: 0.0
+  Done: False
+  Distance to assembler: 6 (assembler at (18, 20))
+  Distance to oxygen extractor: 1 (oxygen at (15, 16), clipped=True)
+
+STEP 161:
+  Action: move_north (id=1)
+  Position: (16, 16)
+  Phase: UNCLIP_STATION
+  Glyph: default
+  Resources: G=0 Si=0 C=3 O=46
+  Decoder: 0
+  Energy: 158
+  Reward: 0.0
+  Done: False
+  Distance to assembler: 6 (assembler at (18, 20))
+  Distance to oxygen extractor: 1 (oxygen at (15, 16), clipped=True)
+
+STEP 162:
+  Action: move_north (id=1)
+  Position: (16, 16)
+  Phase: UNCLIP_STATION
+  Glyph: default
+  Resources: G=0 Si=0 C=3 O=46
+  Decoder: 0
+  Energy: 159
+  Reward: 0.0
+  Done: False
+  Distance to assembler: 6 (assembler at (18, 20))
+  Distance to oxygen extractor: 1 (oxygen at (15, 16), clipped=True)
+
+STEP 163:
+  Action: move_north (id=1)
+  Position: (16, 16)
+  Phase: UNCLIP_STATION
+  Glyph: default
+  Resources: G=0 Si=0 C=3 O=46
+  Decoder: 0
+  Energy: 160
+  Reward: 0.0
+  Done: False
+  Distance to assembler: 6 (assembler at (18, 20))
+  Distance to oxygen extractor: 1 (oxygen at (15, 16), clipped=True)
+
+STEP 164:
+  Action: move_north (id=1)
+  Position: (16, 16)
+  Phase: UNCLIP_STATION
+  Glyph: default
+  Resources: G=0 Si=0 C=3 O=46
+  Decoder: 0
+  Energy: 161
+  Reward: 0.0
+  Done: False
+  Distance to assembler: 6 (assembler at (18, 20))
+  Distance to oxygen extractor: 1 (oxygen at (15, 16), clipped=True)
+
+STEP 165:
+  Action: move_north (id=1)
+  Position: (16, 16)
+  Phase: UNCLIP_STATION
+  Glyph: default
+  Resources: G=0 Si=0 C=3 O=47
+  Decoder: 0
+  Energy: 160
+  Reward: 0.0
+  Done: False
+  Distance to assembler: 6 (assembler at (18, 20))
+  Distance to oxygen extractor: 1 (oxygen at (15, 16), clipped=True)
+
+STEP 166:
+  Action: move_north (id=1)
+  Position: (16, 16)
+  Phase: UNCLIP_STATION
+  Glyph: default
+  Resources: G=0 Si=0 C=3 O=47
+  Decoder: 0
+  Energy: 161
+  Reward: 0.0
+  Done: False
+  Distance to assembler: 6 (assembler at (18, 20))
+  Distance to oxygen extractor: 1 (oxygen at (15, 16), clipped=True)
+
+STEP 167:
+  Action: move_north (id=1)
+  Position: (16, 16)
+  Phase: UNCLIP_STATION
+  Glyph: default
+  Resources: G=0 Si=0 C=3 O=47
+  Decoder: 0
+  Energy: 162
+  Reward: 0.0
+  Done: False
+  Distance to assembler: 6 (assembler at (18, 20))
+  Distance to oxygen extractor: 1 (oxygen at (15, 16), clipped=True)
+
+STEP 168:
+  Action: move_north (id=1)
+  Position: (16, 16)
+  Phase: UNCLIP_STATION
+  Glyph: default
+  Resources: G=0 Si=0 C=3 O=47
+  Decoder: 0
+  Energy: 163
+  Reward: 0.0
+  Done: False
+  Distance to assembler: 6 (assembler at (18, 20))
+  Distance to oxygen extractor: 1 (oxygen at (15, 16), clipped=True)
+
+STEP 169:
+  Action: move_north (id=1)
+  Position: (16, 16)
+  Phase: UNCLIP_STATION
+  Glyph: default
+  Resources: G=0 Si=0 C=3 O=47
+  Decoder: 0
+  Energy: 164
+  Reward: 0.0
+  Done: False
+  Distance to assembler: 6 (assembler at (18, 20))
+  Distance to oxygen extractor: 1 (oxygen at (15, 16), clipped=True)
+
+STEP 170:
+  Action: move_north (id=1)
+  Position: (16, 16)
+  Phase: UNCLIP_STATION
+  Glyph: default
+  Resources: G=0 Si=0 C=3 O=48
+  Decoder: 0
+  Energy: 163
+  Reward: 0.0
+  Done: False
+  Distance to assembler: 6 (assembler at (18, 20))
+  Distance to oxygen extractor: 1 (oxygen at (15, 16), clipped=True)
+
+STEP 171:
+  Action: move_north (id=1)
+  Position: (16, 16)
+  Phase: UNCLIP_STATION
+  Glyph: default
+  Resources: G=0 Si=0 C=3 O=48
+  Decoder: 0
+  Energy: 164
+  Reward: 0.0
+  Done: False
+  Distance to assembler: 6 (assembler at (18, 20))
+  Distance to oxygen extractor: 1 (oxygen at (15, 16), clipped=True)
+
+STEP 172:
+  Action: move_north (id=1)
+  Position: (16, 16)
+  Phase: UNCLIP_STATION
+  Glyph: default
+  Resources: G=0 Si=0 C=3 O=48
+  Decoder: 0
+  Energy: 165
+  Reward: 0.0
+  Done: False
+  Distance to assembler: 6 (assembler at (18, 20))
+  Distance to oxygen extractor: 1 (oxygen at (15, 16), clipped=True)
+
+STEP 173:
+  Action: move_north (id=1)
+  Position: (16, 16)
+  Phase: UNCLIP_STATION
+  Glyph: default
+  Resources: G=0 Si=0 C=3 O=48
+  Decoder: 0
+  Energy: 166
+  Reward: 0.0
+  Done: False
+  Distance to assembler: 6 (assembler at (18, 20))
+  Distance to oxygen extractor: 1 (oxygen at (15, 16), clipped=True)
+
+STEP 174:
+  Action: move_north (id=1)
+  Position: (16, 16)
+  Phase: UNCLIP_STATION
+  Glyph: default
+  Resources: G=0 Si=0 C=3 O=48
+  Decoder: 0
+  Energy: 167
+  Reward: 0.0
+  Done: False
+  Distance to assembler: 6 (assembler at (18, 20))
+  Distance to oxygen extractor: 1 (oxygen at (15, 16), clipped=True)
+
+STEP 175:
+  Action: move_north (id=1)
+  Position: (16, 16)
+  Phase: UNCLIP_STATION
+  Glyph: default
+  Resources: G=0 Si=0 C=3 O=49
+  Decoder: 0
+  Energy: 166
+  Reward: 0.0
+  Done: False
+  Distance to assembler: 6 (assembler at (18, 20))
+  Distance to oxygen extractor: 1 (oxygen at (15, 16), clipped=True)
+
+STEP 176:
+  Action: move_north (id=1)
+  Position: (16, 16)
+  Phase: UNCLIP_STATION
+  Glyph: default
+  Resources: G=0 Si=0 C=3 O=49
+  Decoder: 0
+  Energy: 167
+  Reward: 0.0
+  Done: False
+  Distance to assembler: 6 (assembler at (18, 20))
+  Distance to oxygen extractor: 1 (oxygen at (15, 16), clipped=True)
+
+STEP 177:
+  Action: move_north (id=1)
+  Position: (16, 16)
+  Phase: UNCLIP_STATION
+  Glyph: default
+  Resources: G=0 Si=0 C=3 O=49
+  Decoder: 0
+  Energy: 168
+  Reward: 0.0
+  Done: False
+  Distance to assembler: 6 (assembler at (18, 20))
+  Distance to oxygen extractor: 1 (oxygen at (15, 16), clipped=True)
+
+STEP 178:
+  Action: move_north (id=1)
+  Position: (16, 16)
+  Phase: UNCLIP_STATION
+  Glyph: default
+  Resources: G=0 Si=0 C=3 O=49
+  Decoder: 0
+  Energy: 169
+  Reward: 0.0
+  Done: False
+  Distance to assembler: 6 (assembler at (18, 20))
+  Distance to oxygen extractor: 1 (oxygen at (15, 16), clipped=True)
+
+STEP 179:
+  Action: move_north (id=1)
+  Position: (16, 16)
+  Phase: UNCLIP_STATION
+  Glyph: default
+  Resources: G=0 Si=0 C=3 O=49
+  Decoder: 0
+  Energy: 170
+  Reward: 0.0
+  Done: False
+  Distance to assembler: 6 (assembler at (18, 20))
+  Distance to oxygen extractor: 1 (oxygen at (15, 16), clipped=True)
+
+STEP 180:
+  Action: move_north (id=1)
+  Position: (16, 16)
+  Phase: UNCLIP_STATION
+  Glyph: default
+  Resources: G=0 Si=0 C=3 O=50
+  Decoder: 0
+  Energy: 169
+  Reward: 0.0
+  Done: False
+  Distance to assembler: 6 (assembler at (18, 20))
+  Distance to oxygen extractor: 1 (oxygen at (15, 16), clipped=True)
+
+STEP 181:
+  Action: move_north (id=1)
+  Position: (16, 16)
+  Phase: UNCLIP_STATION
+  Glyph: default
+  Resources: G=0 Si=0 C=3 O=50
+  Decoder: 0
+  Energy: 170
+  Reward: 0.0
+  Done: False
+  Distance to assembler: 6 (assembler at (18, 20))
+  Distance to oxygen extractor: 1 (oxygen at (15, 16), clipped=True)
+
+STEP 182:
+  Action: move_north (id=1)
+  Position: (16, 16)
+  Phase: UNCLIP_STATION
+  Glyph: default
+  Resources: G=0 Si=0 C=3 O=50
+  Decoder: 0
+  Energy: 171
+  Reward: 0.0
+  Done: False
+  Distance to assembler: 6 (assembler at (18, 20))
+  Distance to oxygen extractor: 1 (oxygen at (15, 16), clipped=True)
+
+STEP 183:
+  Action: move_north (id=1)
+  Position: (16, 16)
+  Phase: UNCLIP_STATION
+  Glyph: default
+  Resources: G=0 Si=0 C=3 O=50
+  Decoder: 0
+  Energy: 172
+  Reward: 0.0
+  Done: False
+  Distance to assembler: 6 (assembler at (18, 20))
+  Distance to oxygen extractor: 1 (oxygen at (15, 16), clipped=True)
+
+STEP 184:
+  Action: move_north (id=1)
+  Position: (16, 16)
+  Phase: UNCLIP_STATION
+  Glyph: default
+  Resources: G=0 Si=0 C=3 O=50
+  Decoder: 0
+  Energy: 173
+  Reward: 0.0
+  Done: False
+  Distance to assembler: 6 (assembler at (18, 20))
+  Distance to oxygen extractor: 1 (oxygen at (15, 16), clipped=True)
+
+STEP 185:
+  Action: move_north (id=1)
+  Position: (16, 16)
+  Phase: UNCLIP_STATION
+  Glyph: default
+  Resources: G=0 Si=0 C=3 O=51
+  Decoder: 0
+  Energy: 172
+  Reward: 0.0
+  Done: False
+  Distance to assembler: 6 (assembler at (18, 20))
+  Distance to oxygen extractor: 1 (oxygen at (15, 16), clipped=True)
+
+STEP 186:
+  Action: move_north (id=1)
+  Position: (16, 16)
+  Phase: UNCLIP_STATION
+  Glyph: default
+  Resources: G=0 Si=0 C=3 O=51
+  Decoder: 0
+  Energy: 173
+  Reward: 0.0
+  Done: False
+  Distance to assembler: 6 (assembler at (18, 20))
+  Distance to oxygen extractor: 1 (oxygen at (15, 16), clipped=True)
+
+STEP 187:
+  Action: move_north (id=1)
+  Position: (16, 16)
+  Phase: UNCLIP_STATION
+  Glyph: default
+  Resources: G=0 Si=0 C=3 O=51
+  Decoder: 0
+  Energy: 174
+  Reward: 0.0
+  Done: False
+  Distance to assembler: 6 (assembler at (18, 20))
+  Distance to oxygen extractor: 1 (oxygen at (15, 16), clipped=True)
+
+STEP 188:
+  Action: move_north (id=1)
+  Position: (16, 16)
+  Phase: UNCLIP_STATION
+  Glyph: default
+  Resources: G=0 Si=0 C=3 O=51
+  Decoder: 0
+  Energy: 175
+  Reward: 0.0
+  Done: False
+  Distance to assembler: 6 (assembler at (18, 20))
+  Distance to oxygen extractor: 1 (oxygen at (15, 16), clipped=True)
+
+STEP 189:
+  Action: move_north (id=1)
+  Position: (16, 16)
+  Phase: UNCLIP_STATION
+  Glyph: default
+  Resources: G=0 Si=0 C=3 O=51
+  Decoder: 0
+  Energy: 176
+  Reward: 0.0
+  Done: False
+  Distance to assembler: 6 (assembler at (18, 20))
+  Distance to oxygen extractor: 1 (oxygen at (15, 16), clipped=True)
+
+STEP 190:
+  Action: move_north (id=1)
+  Position: (16, 16)
+  Phase: UNCLIP_STATION
+  Glyph: default
+  Resources: G=0 Si=0 C=3 O=52
+  Decoder: 0
+  Energy: 175
+  Reward: 0.0
+  Done: False
+  Distance to assembler: 6 (assembler at (18, 20))
+  Distance to oxygen extractor: 1 (oxygen at (15, 16), clipped=True)
+
+STEP 191:
+  Action: move_north (id=1)
+  Position: (16, 16)
+  Phase: UNCLIP_STATION
+  Glyph: default
+  Resources: G=0 Si=0 C=3 O=52
+  Decoder: 0
+  Energy: 176
+  Reward: 0.0
+  Done: False
+  Distance to assembler: 6 (assembler at (18, 20))
+  Distance to oxygen extractor: 1 (oxygen at (15, 16), clipped=True)
+
+STEP 192:
+  Action: move_north (id=1)
+  Position: (16, 16)
+  Phase: UNCLIP_STATION
+  Glyph: default
+  Resources: G=0 Si=0 C=3 O=52
+  Decoder: 0
+  Energy: 177
+  Reward: 0.0
+  Done: False
+  Distance to assembler: 6 (assembler at (18, 20))
+  Distance to oxygen extractor: 1 (oxygen at (15, 16), clipped=True)
+
+STEP 193:
+  Action: move_north (id=1)
+  Position: (16, 16)
+  Phase: UNCLIP_STATION
+  Glyph: default
+  Resources: G=0 Si=0 C=3 O=52
+  Decoder: 0
+  Energy: 178
+  Reward: 0.0
+  Done: False
+  Distance to assembler: 6 (assembler at (18, 20))
+  Distance to oxygen extractor: 1 (oxygen at (15, 16), clipped=True)
+
+STEP 194:
+  Action: move_north (id=1)
+  Position: (16, 16)
+  Phase: UNCLIP_STATION
+  Glyph: default
+  Resources: G=0 Si=0 C=3 O=52
+  Decoder: 0
+  Energy: 179
+  Reward: 0.0
+  Done: False
+  Distance to assembler: 6 (assembler at (18, 20))
+  Distance to oxygen extractor: 1 (oxygen at (15, 16), clipped=True)
+
+STEP 195:
+  Action: move_north (id=1)
+  Position: (16, 16)
+  Phase: UNCLIP_STATION
+  Glyph: default
+  Resources: G=0 Si=0 C=3 O=53
+  Decoder: 0
+  Energy: 178
+  Reward: 0.0
+  Done: False
+  Distance to assembler: 6 (assembler at (18, 20))
+  Distance to oxygen extractor: 1 (oxygen at (15, 16), clipped=True)
+
+STEP 196:
+  Action: move_north (id=1)
+  Position: (16, 16)
+  Phase: UNCLIP_STATION
+  Glyph: default
+  Resources: G=0 Si=0 C=3 O=53
+  Decoder: 0
+  Energy: 179
+  Reward: 0.0
+  Done: False
+  Distance to assembler: 6 (assembler at (18, 20))
+  Distance to oxygen extractor: 1 (oxygen at (15, 16), clipped=True)
+
+STEP 197:
+  Action: move_north (id=1)
+  Position: (16, 16)
+  Phase: UNCLIP_STATION
+  Glyph: default
+  Resources: G=0 Si=0 C=3 O=53
+  Decoder: 0
+  Energy: 180
+  Reward: 0.0
+  Done: False
+  Distance to assembler: 6 (assembler at (18, 20))
+  Distance to oxygen extractor: 1 (oxygen at (15, 16), clipped=True)
+
+STEP 198:
+  Action: move_north (id=1)
+  Position: (16, 16)
+  Phase: UNCLIP_STATION
+  Glyph: default
+  Resources: G=0 Si=0 C=3 O=53
+  Decoder: 0
+  Energy: 181
+  Reward: 0.0
+  Done: False
+  Distance to assembler: 6 (assembler at (18, 20))
+  Distance to oxygen extractor: 1 (oxygen at (15, 16), clipped=True)
+
+STEP 199:
+  Action: move_north (id=1)
+  Position: (16, 16)
+  Phase: UNCLIP_STATION
+  Glyph: default
+  Resources: G=0 Si=0 C=3 O=53
+  Decoder: 0
+  Energy: 182
+  Reward: 0.0
+  Done: False
+  Distance to assembler: 6 (assembler at (18, 20))
+  Distance to oxygen extractor: 1 (oxygen at (15, 16), clipped=True)
+
+STEP 200:
+  Action: move_north (id=1)
+  Position: (16, 16)
+  Phase: UNCLIP_STATION
+  Glyph: default
+  Resources: G=0 Si=0 C=3 O=54
+  Decoder: 0
+  Energy: 181
+  Reward: 0.0
+  Done: False
+  Distance to assembler: 6 (assembler at (18, 20))
+  Distance to oxygen extractor: 1 (oxygen at (15, 16), clipped=True)
+
