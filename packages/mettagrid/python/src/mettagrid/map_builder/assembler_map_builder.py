@@ -6,23 +6,24 @@ from mettagrid.map_builder.map_builder import GameMap, MapBuilder, MapBuilderCon
 from mettagrid.map_builder.utils import draw_border
 
 
-class AssemblerMapBuilder(MapBuilder):
-    class Config(MapBuilderConfig["AssemblerMapBuilder"]):
-        seed: Optional[int] = None
+class AssemblerMapBuilderConfig(MapBuilderConfig["AssemblerMapBuilder"]):
+    seed: Optional[int] = None
 
-        width: int = 10
-        height: int = 10
-        objects: dict[str, int] = {}
-        agents: int | dict[str, int] = 0
-        border_width: int = 0
-        border_object: str = "wall"
+    width: int = 10
+    height: int = 10
+    objects: dict[str, int] = {}
+    agents: int | dict[str, int] = 0
+    border_width: int = 0
+    border_object: str = "wall"
 
-        # New: terrain density controller: "", "sparse", "balanced", "dense"
-        terrain: str = "no-terrain"
+    # New: terrain density controller: "", "sparse", "balanced", "dense"
+    terrain: str = "no-terrain"
 
-    def __init__(self, config: Config):
-        self._config = config
-        self._rng = np.random.default_rng(self._config.seed)
+
+class AssemblerMapBuilder(MapBuilder[AssemblerMapBuilderConfig]):
+    def __init__(self, config):
+        super().__init__(config)
+        self._rng = np.random.default_rng(self.config.seed)
         self._shape_cache: dict[tuple[str, int], np.ndarray] = {}
 
     # ---------- obstacle shapes ----------
@@ -74,7 +75,7 @@ class AssemblerMapBuilder(MapBuilder):
         return self._get_shape(kind, size)
 
     def _get_num_obstacles(self, inner_area: int) -> int:
-        t = getattr(self._config, "terrain", "no-terrain") or "no-terrain"
+        t = getattr(self.config, "terrain", "no-terrain") or "no-terrain"
         if t == "sparse":
             return max(1, inner_area // 40)
         if t == "balanced":
@@ -109,19 +110,19 @@ class AssemblerMapBuilder(MapBuilder):
     # ---------- main ----------
     def build(self):
         # Reset RNG for deterministic builds across calls
-        if self._config.seed is not None:
-            self._rng = np.random.default_rng(self._config.seed)
+        if self.config.seed is not None:
+            self._rng = np.random.default_rng(self.config.seed)
 
-        H = self._config.height
-        W = self._config.width
-        bw = self._config.border_width
+        H = self.config.height
+        W = self.config.width
+        bw = self.config.border_width
 
         # Empty grid
         grid = np.full((H, W), "empty", dtype="<U50")
 
         # Border
         if bw > 0:
-            draw_border(grid, bw, self._config.border_object)
+            draw_border(grid, bw, self.config.border_object)
 
         # Inner dims
         inner_h = max(0, H - 2 * bw)
@@ -203,7 +204,7 @@ class AssemblerMapBuilder(MapBuilder):
 
         # Flatten object symbols list
         object_symbols: list[str] = []
-        for name, count in self._config.objects.items():
+        for name, count in self.config.objects.items():
             if count > 0:
                 object_symbols.extend([name] * count)
 
@@ -247,12 +248,12 @@ class AssemblerMapBuilder(MapBuilder):
 
     # ---------- helpers ----------
     def _place_agents(self, grid: np.ndarray) -> None:
-        if isinstance(self._config.agents, int):
-            agent_symbols = ["agent.agent"] * self._config.agents
-        elif isinstance(self._config.agents, dict):
-            agent_symbols = ["agent." + a for a, n in self._config.agents.items() for _ in range(n)]
+        if isinstance(self.config.agents, int):
+            agent_symbols = ["agent.agent"] * self.config.agents
+        elif isinstance(self.config.agents, dict):
+            agent_symbols = ["agent." + a for a, n in self.config.agents.items() for _ in range(n)]
         else:
-            raise ValueError(f"Invalid agents configuration: {self._config.agents}")
+            raise ValueError(f"Invalid agents configuration: {self.config.agents}")
 
         if not agent_symbols:
             return
