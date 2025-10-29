@@ -341,7 +341,7 @@ sky autostop --cancel <sandbox-name>
 
 ## Configuration
 
-The script uses `./devops/skypilot/launch/skypilot_run.yaml` as the base configuration. This file defines:
+The script uses `./devops/skypilot/recipes/job.yaml` as the base configuration. This file defines:
 
 - Default resource requirements (CPU, GPU, memory)
 - Docker image settings

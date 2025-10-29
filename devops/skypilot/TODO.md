@@ -2,8 +2,8 @@
 
 This document tracks the remaining low-priority improvements to be addressed in follow-up PRs after the initial Python refactor (PR #2384) is merged.
 
-**Status:** 7 items remaining - all low priority
-**Last Updated:** 2025-10-23
+**Status:** 2 items remaining - all low priority
+**Last Updated:** 2025-10-29
 
 ---
 
@@ -13,6 +13,7 @@ The shell-to-Python refactor (PR #2384) successfully completed all high and medi
 - ✅ 10/10 substantive issues resolved
 - ✅ All technical improvements complete
 - ✅ Zero blocking concerns
+- ✅ 5/7 follow-up items completed during PR review
 
 Remaining items are code organization improvements, UX enhancements, and design questions that require team discussion.
 
@@ -37,17 +38,17 @@ Remaining items are code organization improvements, UX enhancements, and design 
 
 ---
 
-### 1.2 Rename Configuration Files
+### 1.2 Rename Configuration Files ✅ COMPLETED
 **From:** @berekuk's review
 
-**Current State:**
-- `skypilot_run.yaml` - not immediately obvious what this configures
+**Completed:** 2025-10-29
 
-**Proposed:**
-- Rename to `job.yaml` for clarity
-- Update references in documentation and launch scripts
-
-**Effort:** 1 hour
+**Implementation:**
+- Renamed `skypilot_run.yaml` to `job.yaml`
+- Updated references in:
+  - `devops/skypilot/launch.py`
+  - `devops/skypilot/connect.py`
+  - `devops/skypilot/README.md`
 
 ---
 
@@ -76,18 +77,15 @@ Remaining items are code organization improvements, UX enhancements, and design 
 
 ---
 
-### 2.2 Make Configure Environment Executable
+### 2.2 Make Configure Environment Executable ✅ COMPLETED
 **From:** @daveey's review
 
-**Current State:**
-- Must call via `uv run python devops/skypilot/utils/configure_environment.py`
+**Completed:** 2025-10-29
 
-**Proposed:**
-- Add shebang: `#!/usr/bin/env -S uv run --script`
-- Make file executable: `chmod +x configure_environment.py`
-- Call directly: `./devops/skypilot/utils/configure_environment.py`
-
-**Effort:** 30 minutes
+**Implementation:**
+- Added shebang: `#!/usr/bin/env -S uv run python3`
+- Made file executable: `chmod +x configure_environment.py`
+- Updated YAML files to call directly: `./devops/skypilot/utils/configure_environment.py`
 
 ---
 
@@ -95,50 +93,38 @@ Remaining items are code organization improvements, UX enhancements, and design 
 
 **Priority:** Low | **Effort:** 2-6 hours | **Impact:** Code Quality
 
-### 3.1 Restart Count Tracking
+### 3.1 Restart Count Tracking ✅ COMPLETED
 **From:** @daveey's review
 
-**Question:**
-Why track restart count manually? SkyPilot has native restart limiting via `job_recovery.max_restarts_on_errors`.
+**Completed:** 2025-10-29
 
-**Current State:**
-- `configure_environment.py` tracks restart count
-- Unclear why this is needed vs SkyPilot's native mechanism
+**Decision:** Document rationale (Option A)
 
-**Options:**
-a) **Document rationale** - Explain why manual tracking is needed and keep current approach
-b) **Switch to native** - Use SkyPilot's restart management exclusively
-c) **Remove** - If not providing value beyond SkyPilot's feature
-
-**Next Steps:**
-1. **Requires team discussion** about requirements and rationale
-2. Implement chosen approach
-
-**Effort:** 2-4 hours (depending on decision)
+**Implementation:**
+Added comprehensive docstring to `_setup_job_metadata()` explaining:
+- Restart count needed for runtime monitoring and accumulated runtime tracking
+- Persisted to shared storage (DATA_DIR) to survive job restarts
+- Used by runtime monitors to make timeout and testing decisions
+- SkyPilot's max_restarts_on_errors controls policy, our count tracks actual restarts
 
 ---
 
-### 3.2 NCCL Test Necessity
+### 3.2 NCCL Test Necessity ✅ COMPLETED
 **From:** @daveey's review
 **Location:** `devops/skypilot/utils/nccl_tests.py`
 
-**Question:**
-What's the failure mode these tests protect against? Has NCCL ever failed in practice?
+**Completed:** 2025-10-29
 
-**Current State:**
-- NCCL tests run as part of job setup
-- Unclear if they've caught real issues
+**Decision:** Document value (Option A)
 
-**Options:**
-a) **Document value** - Explain what failures these catch and when they're useful (2 hours)
-b) **Remove** - If not catching real issues in practice (1 hour)
-
-**Next Steps:**
-1. **Requires team discussion** about testing strategy
-2. Check if tests have caught issues historically
-3. Document rationale or remove
-
-**Effort:** 1-2 hours
+**Implementation:**
+Added module-level docstring explaining:
+- Validates GPU communication infrastructure before training starts
+- Catches network configuration issues in cloud environments
+- Detects GPU driver/firmware incompatibilities
+- Identifies incorrect NCCL environment variable settings
+- Catches hardware issues on specific instance types
+- Saves hours of debugging when training mysteriously fails mid-run
 
 ---
 
@@ -146,22 +132,17 @@ b) **Remove** - If not catching real issues in practice (1 hour)
 
 **Priority:** Low | **Effort:** ~2 hours | **Impact:** Developer Experience
 
-### 4.1 Launch Script Verbosity Control
+### 4.1 Launch Script Verbosity Control ✅ COMPLETED
 **From:** @daveey's review
 **Location:** `devops/skypilot/launch.py`
 
-**Issue:**
-- Script always prints cluster ID
-- Interrupts workflow when pasting multiple commands
+**Completed:** 2025-10-29
 
-**Proposed Solution:**
-- Add `--verbose` or `--print-id` flag
-- Default to quiet mode
-- Print cluster ID only when flag is set
-
-**Benefit:** Better UX for batch operations
-
-**Effort:** 1-2 hours
+**Implementation:**
+- Added `--verbose` flag to launch.py
+- Modified `launch_task()` to accept `verbose` parameter
+- Request IDs and log instructions only printed when `--verbose` is passed
+- Default is now quiet mode for better batch operation UX
 
 ---
 
@@ -207,15 +188,17 @@ b) **Remove** - If not catching real issues in practice (1 hour)
 ## Quick Reference
 
 **Can start immediately (no discussion needed):**
-- ✅ Client/Server separation (#1.1)
-- ✅ Rename skypilot_run.yaml (#1.2)
-- ✅ Configure environment executable (#2.2)
-- ✅ Launch script verbosity (#4.1)
+- 🔄 Client/Server separation (#1.1)
+
+**Completed during PR review:**
+- ✅ Rename skypilot_run.yaml (#1.2) - COMPLETED
+- ✅ Configure environment executable (#2.2) - COMPLETED
+- ✅ Launch script verbosity (#4.1) - COMPLETED
+- ✅ Restart count tracking (#3.1) - COMPLETED
+- ✅ NCCL test necessity (#3.2) - COMPLETED
 
 **Requires discussion first:**
 - ⏸️ Environment variable management (#2.1)
-- ⏸️ Restart count tracking (#3.1)
-- ⏸️ NCCL test necessity (#3.2)
 
 ---
 

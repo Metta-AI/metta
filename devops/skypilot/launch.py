@@ -236,7 +236,7 @@ Examples:
     if not _validate_sky_cluster_name(run_id):
         sys.exit(1)
 
-    task = sky.Task.from_yaml("./devops/skypilot/recipes/skypilot_run.yaml")
+    task = sky.Task.from_yaml("./devops/skypilot/recipes/job.yaml")
 
     # Prepare environment variables including status parameters
     env_updates = dict(
