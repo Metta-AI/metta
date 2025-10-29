@@ -82,6 +82,36 @@ def metta_train_fn(config: dict[str, Any]) -> None:
         except Exception as exc:
             logging.warning("ray.get_gpu_ids() failed: %s", exc)
 
+    requested_gpus = sweep_config.get("gpus_per_trial")
+    if (requested_gpus is None or requested_gpus == 0) and gpu_id_strings:
+        requested_gpus = len(gpu_id_strings)
+
+    if not gpu_id_strings:
+        fallback_slots = requested_gpus or 0
+        if fallback_slots <= 0:
+            fallback_slots = 1
+        try:
+            import torch
+
+            available = torch.cuda.device_count()
+        except Exception as exc:  # pragma: no cover - diagnostic
+            logging.warning("Failed to inspect CUDA devices for fallback: %s", exc)
+            available = 0
+
+        if available >= fallback_slots and available > 0:
+            gpu_id_strings = [str(i) for i in range(fallback_slots)]
+            logging.warning(
+                "Ray did not provide GPU IDs; falling back to first %d visible device(s): %s",
+                fallback_slots,
+                gpu_id_strings,
+            )
+        else:
+            logging.warning(
+                "Ray did not provide GPU IDs and no fallback GPUs available (requested=%s, visible=%s).",
+                fallback_slots,
+                available,
+            )
+
     if gpu_id_strings:
         cuda_visible = ",".join(gpu_id_strings)
         os.environ["CUDA_VISIBLE_DEVICES"] = cuda_visible
@@ -110,7 +140,6 @@ def metta_train_fn(config: dict[str, Any]) -> None:
     merged_overrides = dict(sweep_config.get("train_overrides", {}))
     merged_overrides.update(config["params"])
 
-    requested_gpus = sweep_config.get("gpus_per_trial")
     if (requested_gpus is None or requested_gpus == 0) and gpu_id_strings:
         requested_gpus = len(gpu_id_strings)
 

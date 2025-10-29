@@ -90,7 +90,16 @@ start_ray_worker() {
 
 if [[ "$IS_HEAD" == "true" ]]; then
   start_ray_head
-  export RAY_ADDRESS="ray://${HEAD_IP}:${RAY_CLIENT_PORT}"
+  RAY_ADDRESS_VALUE="ray://${HEAD_IP}:${RAY_CLIENT_PORT}"
+  export RAY_ADDRESS="${RAY_ADDRESS_VALUE}"
+  echo "[SIMPLE] Ray address: ${RAY_ADDRESS_VALUE}"
+  if [[ "${MODULE_ARGS}" != *"ray_address="* ]]; then
+    if [[ -z "${MODULE_ARGS}" ]]; then
+      MODULE_ARGS="ray_address=${RAY_ADDRESS_VALUE}"
+    else
+      MODULE_ARGS="${MODULE_ARGS} ray_address=${RAY_ADDRESS_VALUE}"
+    fi
+  fi
 else
   start_ray_worker
 fi
