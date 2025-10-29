@@ -139,6 +139,12 @@ Examples:
     # Launch-specific flags
     parser.add_argument("--run", type=str, default=None, help="Run ID for the job")
     parser.add_argument("--git-ref", type=str, default=None)
+    parser.add_argument(
+        "--recipe",
+        type=str,
+        default="job",
+        help="Recipe to use (job=training, nccl_test=NCCL diagnostics)",
+    )
     parser.add_argument("--gpus", type=int, default=None)
     parser.add_argument("--nodes", type=int, default=None)
     parser.add_argument("--cpus", type=int, default=None)
@@ -223,27 +229,29 @@ Examples:
                 print("  - Skip check: add --skip-git-check flag")
                 sys.exit(1)
 
-    # Validate module path (supports shorthand like 'arena.train')
-    if not validate_module_path(args.module_path):
-        sys.exit(1)
+    # Skip module validation for non-training recipes
+    if args.recipe != "nccl_test":
+        # Validate module path (supports shorthand like 'arena.train')
+        if not validate_module_path(args.module_path):
+            sys.exit(1)
 
-    assert commit_hash
+        assert commit_hash
 
-    # Validate the run.py tool configuration early to catch errors before setting up the task
-    _validate_run_tool(args.module_path, run_id, filtered_args)
+        # Validate the run.py tool configuration early to catch errors before setting up the task
+        _validate_run_tool(args.module_path, run_id, filtered_args)
 
     # Validate the provided run name
     if not _validate_sky_cluster_name(run_id):
         sys.exit(1)
 
-    task = sky.Task.from_yaml("./devops/skypilot/recipes/job.yaml")
+    # Load the appropriate recipe
+    recipe_file = f"./devops/skypilot/recipes/{args.recipe}.yaml"
+    task = sky.Task.from_yaml(recipe_file)
 
     # Prepare environment variables including status parameters
     env_updates = dict(
         METTA_RUN_ID=run_id,
-        METTA_MODULE_PATH=args.module_path,
-        METTA_ARGS=" ".join(filtered_args),
-        METTA_GIT_REF=commit_hash,
+        METTA_GIT_REF=commit_hash or "main",
         HEARTBEAT_TIMEOUT=args.heartbeat_timeout_seconds,
         MAX_RUNTIME_HOURS=args.max_runtime_hours,
         DISCORD_WEBHOOK_URL=args.discord_webhook_url,  # enables discord notification
@@ -253,6 +261,11 @@ Examples:
         ENABLE_WANDB_ALERTS="false" if args.run_ci_tests else "true",  # enables wandb alerts
         TEST_JOB_RESTART="true" if args.run_ci_tests else "false",
     )
+
+    # Add training-specific env vars only for training recipes
+    if args.recipe != "nccl_test":
+        env_updates["METTA_MODULE_PATH"] = args.module_path
+        env_updates["METTA_ARGS"] = " ".join(filtered_args)
 
     env_updates = {k: v for k, v in env_updates.items() if v is not None}
     task = task.update_envs(env_updates)
