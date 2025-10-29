@@ -237,6 +237,7 @@ type
     currentStep*: int
     config*: EnvironmentConfig  # Configuration for this environment
     shouldReset*: bool  # Track if environment needs reset
+    observationsInitialized*: bool  # Track whether observation tensors are populated
     things*: seq[Thing]
     agents*: seq[Thing]
     grid*: array[MapWidth, array[MapHeight, Thing]]
@@ -356,7 +357,60 @@ proc updateObservations(
     let y = dy + ObservationRadius
     var agentLayer = addr env.observations[agentId][layerId]
     agentLayer[][x][y] = value.uint8
+  env.observationsInitialized = true
 {.pop.}
+
+
+proc rebuildObservations*(env: Environment) =
+  ## Recompute all observation layers from the current environment state when needed.
+  env.observations.clear()
+  env.observationsInitialized = false
+
+  # Populate agent-centric layers (presence, orientation, inventory).
+  for agent in env.agents:
+    if agent.isNil:
+      continue
+    let teamValue = getTeamId(agent.agentId) + 1
+    env.updateObservations(AgentLayer, agent.pos, teamValue)
+    env.updateObservations(AgentOrientationLayer, agent.pos, agent.orientation.int)
+    env.updateObservations(AgentInventoryOreLayer, agent.pos, agent.inventoryOre)
+    env.updateObservations(AgentInventoryBatteryLayer, agent.pos, agent.inventoryBattery)
+    env.updateObservations(AgentInventoryWaterLayer, agent.pos, agent.inventoryWater)
+    env.updateObservations(AgentInventoryWheatLayer, agent.pos, agent.inventoryWheat)
+    env.updateObservations(AgentInventoryWoodLayer, agent.pos, agent.inventoryWood)
+    env.updateObservations(AgentInventorySpearLayer, agent.pos, agent.inventorySpear)
+    env.updateObservations(AgentInventoryLanternLayer, agent.pos, agent.inventoryLantern)
+    env.updateObservations(AgentInventoryArmorLayer, agent.pos, agent.inventoryArmor)
+    env.updateObservations(AgentInventoryBreadLayer, agent.pos, agent.inventoryBread)
+
+  # Populate environment object layers.
+  for thing in env.things:
+    if thing.isNil:
+      continue
+    case thing.kind
+    of Agent:
+      discard  # Already handled above.
+    of Wall:
+      env.updateObservations(WallLayer, thing.pos, 1)
+    of Mine:
+      env.updateObservations(MineLayer, thing.pos, 1)
+      env.updateObservations(MineResourceLayer, thing.pos, thing.resources)
+      env.updateObservations(MineReadyLayer, thing.pos, thing.cooldown)
+    of Converter:
+      env.updateObservations(ConverterLayer, thing.pos, 1)
+      env.updateObservations(ConverterReadyLayer, thing.pos, thing.cooldown)
+    of Altar:
+      env.updateObservations(AltarLayer, thing.pos, 1)
+      env.updateObservations(AltarHeartsLayer, thing.pos, thing.hearts)
+      env.updateObservations(AltarReadyLayer, thing.pos, thing.cooldown)
+    of Spawner:
+      discard  # No dedicated observation layer for spawners.
+    of Tumor:
+      env.updateObservations(AgentLayer, thing.pos, 255)
+    of Armory, Forge, ClayOven, WeavingLoom, PlantedLantern:
+      discard
+
+  env.observationsInitialized = true
 
 
 {.push inline.}
@@ -1765,6 +1819,7 @@ proc reset*(env: Environment) =
   env.stats.setLen(0)
   env.grid.clear()
   env.observations.clear()
+  env.observationsInitialized = false
   # Clear the massive tintMods array to prevent accumulation
   env.tintMods.clear()
   env.activeTiles.positions.setLen(0)
