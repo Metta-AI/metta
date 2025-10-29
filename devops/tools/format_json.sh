@@ -8,7 +8,7 @@ EXCLUDE_PATTERN="$(
   printf '%s\|' \
     '/charts/' \
     'packages/mettagrid/python/src/mettagrid/renderer/assets/' \
-    'packages/mettagrid/nim/mettascope/data/fidget/'
+    'packages/mettagrid/nim/mettascope/data/'
 )"
 # strip trailing \|
 EXCLUDE_PATTERN="${EXCLUDE_PATTERN%\\|}"
