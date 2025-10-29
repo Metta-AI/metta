@@ -194,12 +194,15 @@ def evaluate(
         )
 
     summary = _build_results_summary(mission_results, policy_specs)
-    _output_results(console, summary, output_format)
+    _output_results(console, policy_specs, summary, output_format)
     return summary
 
 
 def _output_results(
-    console: Console, summary: MissionResultsSummary, output_format: Optional[Literal["yaml", "json"]]
+    console: Console,
+    policy_specs: list[PolicySpec],
+    summary: MissionResultsSummary,
+    output_format: Optional[Literal["yaml", "json"]],
 ) -> None:
     if output_format:
         if output_format == "json":
@@ -211,40 +214,35 @@ def _output_results(
 
     name_count: defaultdict[str, int] = defaultdict(int)
     display_names: list[str] = []
-    if not summary.missions:
-        return
-    policy_display_names: list[str] = []
+    for policy_spec in policy_specs:
+        name_count[policy_spec.name] += 1
+        if name_count[policy_spec.name] > 1:
+            display_names.append(f"{policy_spec.name} ({name_count[policy_spec.name]})")
+        else:
+            display_names.append(policy_spec.name)
+
+    console.print("\n[bold cyan]Policy Assignments[/bold cyan]")
+    assignment_table = Table(show_header=True, header_style="bold magenta")
+    assignment_table.add_column("Mission")
+    assignment_table.add_column("Policy")
+    assignment_table.add_column("Num Agents", justify="right")
     for mission in summary.missions:
         for policy_summary in mission.policy_summaries:
-            name_count[policy_summary.policy_name] += 1
-            if name_count[policy_summary.policy_name] > 1:
-                display_names.append(f"{policy_summary.policy_name} ({name_count[policy_summary.policy_name]})")
-            else:
-                display_names.append(policy_summary.policy_name)
-
-    if len(policy_display_names) > 1:
-        console.print("\n[bold cyan]Policy Assignments[/bold cyan]")
-        assignment_table = Table(show_header=True, header_style="bold magenta")
-        assignment_table.add_column("Mission")
-        assignment_table.add_column("Policy")
-        assignment_table.add_column("Num Agents", justify="right")
-        for mission in summary.missions:
-            for policy_idx, policy_summary in enumerate(mission.policy_summaries):
-                assignment_table.add_row(
-                    mission.mission_name,
-                    display_names[policy_idx],
-                    str(policy_summary.agent_count),
-                )
-        console.print(assignment_table)
+            assignment_table.add_row(
+                mission.mission_name,
+                policy_summary.policy_name,
+                str(policy_summary.agent_count),
+            )
+    console.print(assignment_table)
 
     console.print("\n[bold cyan]Average Policy Stats[/bold cyan]")
-    for policy_idx, policy_name in enumerate(policy_display_names):
+    for i, policy_name in enumerate(display_names):
         policy_table = Table(title=policy_name, show_header=True, header_style="bold magenta")
         policy_table.add_column("Mission")
         policy_table.add_column("Metric")
         policy_table.add_column("Average", justify="right")
         for mission in summary.missions:
-            metrics = mission.policy_summaries[policy_idx].avg_agent_metrics
+            metrics = mission.policy_summaries[i].avg_agent_metrics
             if not metrics:
                 policy_table.add_row(mission.mission_name, "-", "0.00")
                 continue
@@ -266,7 +264,7 @@ def _output_results(
     summary_table = Table(show_header=True, header_style="bold magenta")
     summary_table.add_column("Mission")
     summary_table.add_column("Episode", justify="right")
-    for display_name in policy_display_names:
+    for display_name in display_names:
         summary_table.add_column(display_name, justify="right")
 
     for mission in summary.missions:
