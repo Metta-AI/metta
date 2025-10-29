@@ -1,3 +1,20 @@
+"""ICL Control Recipe - Architecture Benchmark Configuration.
+
+This recipe implements a controlled benchmark for comparing agent architectures
+(vit_reset vs trxl) on in-context learning tasks with assembly lines.
+
+Key Configuration:
+- Combat: OFF (assembly_lines environment has no attack/combat mechanics)
+- Curriculum Learning: OFF (algorithm_config=None → uniform random task sampling)
+- Seed Synchronization: ON (BENCHMARK_SEED=42 for reproducibility)
+- Evaluations: ENABLED (every 30 epochs, local evaluation)
+
+The controlled settings ensure fair comparison between architectures by:
+1. Disabling adaptive curriculum learning (uniform random sampling instead)
+2. Using fixed seed for deterministic weight initialization and task generation
+3. Eliminating combat dynamics that could introduce confounding variables
+"""
+
 import random
 import subprocess
 import time
@@ -8,7 +25,6 @@ from metta.agent.policies.trxl import trxl_policy_config
 from metta.agent.policies.vit_reset import ViTResetConfig
 from metta.agent.policy import PolicyArchitecture
 from metta.cogworks.curriculum.curriculum import CurriculumConfig
-from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
 from metta.cogworks.curriculum.task_generator import TaskGenerator, TaskGeneratorConfig
 from metta.rl.loss import LossConfig
 from metta.rl.system_config import SystemConfig
@@ -26,7 +42,7 @@ from mettagrid.config.mettagrid_config import (
 )
 
 # Seed for reproducibility across environment, curriculum, and weight initialization
-BENCHMARK_SEED = 42
+BENCHMARK_SEED = 63
 
 curriculum_args = {
     "level_0": {
@@ -350,30 +366,83 @@ def _get_policy_config(architecture: str) -> PolicyArchitecture:
         )
 
 
+def _validate_seed_synchronization(train_tool: TrainTool) -> None:
+    """Validate seed synchronization across environment, curriculum, and weight initialization.
+
+    This check ensures reproducibility before training begins by verifying:
+    1. System seed (weight initialization via seed_everything)
+    2. Training environment seed (environment episodes)
+    3. Curriculum seed (task sampling - passed to Curriculum.__init__ via training_env.seed)
+
+    All three must equal BENCHMARK_SEED for deterministic training.
+
+    Raises:
+        ValueError: If any seed doesn't match BENCHMARK_SEED or curriculum is missing
+    """
+    errors = []
+
+    # Check 1: System seed for weight initialization
+    if train_tool.system.seed != BENCHMARK_SEED:
+        errors.append(
+            f"System seed mismatch: expected {BENCHMARK_SEED}, got {train_tool.system.seed}"
+        )
+
+    # Check 2: Training environment seed (also used for curriculum)
+    if train_tool.training_env.seed != BENCHMARK_SEED:
+        errors.append(
+            f"Training env seed mismatch: expected {BENCHMARK_SEED}, got {train_tool.training_env.seed}"
+        )
+
+    # Check 3: Curriculum configuration exists
+    if train_tool.training_env.curriculum is None:
+        errors.append("Curriculum config is None - benchmark requires curriculum")
+
+    if errors:
+        error_msg = "❌ Seed synchronization check FAILED:\n" + "\n".join(
+            f"  - {e}" for e in errors
+        )
+        raise ValueError(error_msg)
+
+    # All checks passed
+    print("\n" + "=" * 70)
+    print("✓ SEED VALIDATION PASSED - Benchmark is ready for reproducible training")
+    print("=" * 70)
+    print(f"  System seed:        {train_tool.system.seed} → weight initialization")
+    print(
+        f"  Environment seed:   {train_tool.training_env.seed} → environment episodes"
+    )
+    print(f"  Curriculum seed:    {train_tool.training_env.seed} → task sampling")
+    print(f"  All synchronized to: BENCHMARK_SEED = {BENCHMARK_SEED}")
+    print("=" * 70 + "\n")
+
+
 def train(
     curriculum_style: str = "level_0",
     architecture: str = "vit_reset",
+    validate_seeds: bool = True,
 ) -> TrainTool:
     """Train an agent with the specified curriculum and architecture.
 
     Args:
         curriculum_style: Curriculum difficulty level
         architecture: Policy architecture ('vit_reset' or 'trxl')
+        validate_seeds: If True, validates seed synchronization before training (default: True)
     """
     from experiments.evals.assembly_lines import (
         make_assembly_line_eval_suite,
     )
 
     task_generator_cfg = make_task_generator_cfg(**curriculum_args[curriculum_style])
+    # Curriculum learning disabled - tasks are uniformly randomly sampled
     curriculum = CurriculumConfig(
-        task_generator=task_generator_cfg, algorithm_config=LearningProgressConfig()
+        task_generator=task_generator_cfg, algorithm_config=None
     )
 
     policy_config = _get_policy_config(architecture)
 
     trainer_cfg = TrainerConfig(losses=LossConfig())
 
-    return TrainTool(
+    train_tool = TrainTool(
         system=SystemConfig(seed=BENCHMARK_SEED),
         trainer=trainer_cfg,
         training_env=TrainingEnvironmentConfig(
@@ -387,6 +456,12 @@ def train(
         ),
         stats_server_uri="https://api.observatory.softmax-research.net",
     )
+
+    # Validate seed synchronization before proceeding with training
+    if validate_seeds:
+        _validate_seed_synchronization(train_tool)
+
+    return train_tool
 
 
 def make_mettagrid(task_generator: AssemblyLinesTaskGenerator) -> MettaGridConfig:
