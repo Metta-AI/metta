@@ -68,114 +68,37 @@ def metta_train_fn(config: dict[str, Any]) -> None:
 
     # Ray config should provide a dict payload under "serialized_job_definition".
     sweep_config = config["sweep_config"]
-
-    runtime_ctx = get_runtime_context()
-    assigned_resources = None
-    resource_ids = None
-    gpu_id_strings: list[str] = []
-
-    if runtime_ctx is not None:
-        get_assigned = getattr(runtime_ctx, "get_assigned_resources", None)
-        if callable(get_assigned):
-            try:
-                assigned_resources = get_assigned()
-            except Exception as exc:
-                logging.warning("Failed to read assigned resources from runtime context: %s", exc)
-
-        get_resource_ids = getattr(runtime_ctx, "get_resource_ids", None)
-        if callable(get_resource_ids):
-            try:
-                resource_ids = get_resource_ids()
-                raw_gpu_ids = resource_ids.get("GPU")
-                if raw_gpu_ids:
-                    gpu_id_strings = [str(int(g)) for g in raw_gpu_ids]
-            except Exception as exc:
-                logging.warning("Failed to read resource IDs from runtime context: %s", exc)
-        else:
-            legacy_get_gpu_ids = getattr(runtime_ctx, "get_gpu_ids", None)
-            if callable(legacy_get_gpu_ids):
-                try:
-                    raw_legacy_ids = legacy_get_gpu_ids()
-                    if raw_legacy_ids:
-                        gpu_id_strings = [str(int(g)) for g in raw_legacy_ids]
-                except Exception as exc:
-                    logging.warning("Failed to read GPU IDs from runtime context: %s", exc)
-
-    if not gpu_id_strings:
-        try:
-            ray_gpu_ids = get_gpu_ids()
-            if ray_gpu_ids:
-                gpu_id_strings = [str(int(g)) for g in ray_gpu_ids]
-        except Exception as exc:
-            logging.warning("ray.get_gpu_ids() failed: %s", exc)
-
-    requested_gpus = sweep_config.get("gpus_per_trial")
-    if (requested_gpus is None or requested_gpus == 0) and gpu_id_strings:
-        requested_gpus = len(gpu_id_strings)
-
-    if not gpu_id_strings:
-        fallback_slots = requested_gpus or 0
-        if fallback_slots <= 0:
-            fallback_slots = 1
-        try:
-            import torch
-
-            available = torch.cuda.device_count()
-        except Exception as exc:  # pragma: no cover - diagnostic
-            logging.warning("Failed to inspect CUDA devices for fallback: %s", exc)
-            available = 0
-
-        if available >= fallback_slots and available > 0:
-            gpu_id_strings = [str(i) for i in range(fallback_slots)]
-            logging.warning(
-                "Ray did not provide GPU IDs; falling back to first %d visible device(s): %s",
-                fallback_slots,
-                gpu_id_strings,
-            )
-        else:
-            logging.warning(
-                "Ray did not provide GPU IDs and no fallback GPUs available (requested=%s, visible=%s).",
-                fallback_slots,
-                available,
-            )
-
-    if gpu_id_strings:
-        cuda_visible = ",".join(gpu_id_strings)
-        os.environ["CUDA_VISIBLE_DEVICES"] = cuda_visible
-        os.environ["RAY_GPU_IDS"] = cuda_visible
-        os.environ["NUM_GPUS"] = str(len(gpu_id_strings))
-        logging.info(
-            "Configured CUDA visibility for trial %s: %s (num_gpus=%s)",
-            sweep_config.get("sweep_id"),
-            cuda_visible,
-            len(gpu_id_strings),
-        )
-    else:
-        logging.warning("Ray did not provide GPU IDs; CUDA visibility remains unchanged for this trial.")
-
-    logging.info(
-        "Ray runtime assigned resources: %s; resource_ids: %s; gpu_id_strings: %s",
-        assigned_resources,
-        resource_ids,
-        gpu_id_strings,
-    )
-
-    # Get run name from Ray Tune
     ctx = tune.get_context()
     trial_name = ctx.get_trial_name()
 
+    # Check if Ray assigned GPUs to this trial
+    runtime_ctx = get_runtime_context()
+    assigned_gpus = 0
+
+    if runtime_ctx is not None:
+        # Try to get GPU assignment from Ray
+        try:
+            ray_gpu_ids = get_gpu_ids()
+            if ray_gpu_ids:
+                assigned_gpus = len(ray_gpu_ids)
+                logging.info(f"Ray assigned {assigned_gpus} GPU(s) to trial {trial_name}: {ray_gpu_ids}")
+            else:
+                logging.warning(f"No GPUs assigned by Ray to trial {trial_name}")
+        except Exception as e:
+            logging.warning(f"Failed to get GPU IDs from Ray: {e}")
+
+    # Use assigned GPUs or fall back to sweep config
+    gpus_for_job = assigned_gpus if assigned_gpus > 0 else sweep_config.get("gpus_per_trial", 0)
+
     merged_overrides = dict(sweep_config.get("train_overrides", {}))
     merged_overrides.update(config["params"])
-
-    if (requested_gpus is None or requested_gpus == 0) and gpu_id_strings:
-        requested_gpus = len(gpu_id_strings)
 
     job = create_training_job(
         run_id=trial_name,
         experiment_id=sweep_config.get("sweep_id"),
         recipe_module=sweep_config.get("recipe_module"),
         train_entrypoint=sweep_config.get("train_entrypoint"),
-        gpus=requested_gpus or 0,
+        gpus=gpus_for_job,
         stats_server_uri=sweep_config.get("stats_server_uri"),
         train_overrides=merged_overrides,
     )
