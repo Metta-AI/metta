@@ -12,25 +12,15 @@ from metta.common.util.log_config import getRankAwareLogger, init_logging
 logger = getRankAwareLogger(__name__)
 
 
-def run_command(cmd, capture_output=True):
-    """Run a shell command and return the output."""
-    if isinstance(cmd, str):
-        cmd = cmd.split()
+def _setup_job_metadata():
+    """Setup job metadata tracking (restart count, accumulated runtime).
 
-    result = subprocess.run(cmd, capture_output=capture_output, text=True)
-
-    if result.returncode != 0:
-        logger.error(f"Command failed: {' '.join(cmd)}")
-        if capture_output:
-            logger.error(f"Error: {result.stderr}")
-            logger.error(f"Output: {result.stdout}")
-        sys.exit(1)
-
-    return result.stdout.strip() if capture_output else None
-
-
-def setup_job_metadata():
-    """Setup job metadata tracking (restart count, accumulated runtime)."""
+    Note: We track restart count separately from SkyPilot's job recovery config because:
+    1. We need the count for runtime monitoring and accumulated runtime tracking
+    2. We persist it to shared storage (DATA_DIR) so it survives across job restarts
+    3. It's used by runtime monitors to make decisions about timeouts and testing
+    4. SkyPilot's max_restarts_on_errors controls the restart policy, while this tracks actual restarts
+    """
     data_dir = os.environ.get("DATA_DIR", "./train_dir")
     metta_run_id = os.environ.get("METTA_RUN_ID", "default")
 
@@ -84,29 +74,11 @@ def setup_job_metadata():
     }
 
 
-def write_environment_variables(metta_env_file, metadata=None):
-    """Write environment variables to METTA_ENV_FILE."""
-    env_vars = """export PYTHONUNBUFFERED=1
-export PYTHONPATH="${PYTHONPATH:+$PYTHONPATH:}$(pwd)"
-export PYTHONOPTIMIZE=1
-export HYDRA_FULL_ERROR=1
-
-export WANDB_DIR="./wandb"
-export WANDB_API_KEY="${WANDB_PASSWORD}"
-export DATA_DIR="${DATA_DIR:-./train_dir}"
-
-# Datadog configuration
-export DD_ENV="production"
-export DD_SERVICE="skypilot-worker"
-export DD_AGENT_HOST="localhost"
-export DD_TRACE_AGENT_PORT="8126"
-
-export NUM_GPUS="${SKYPILOT_NUM_GPUS_PER_NODE}"
-export NUM_NODES="${SKYPILOT_NUM_NODES}"
-export MASTER_ADDR="$(echo "$SKYPILOT_NODE_IPS" | head -n1)"
-export MASTER_PORT="${MASTER_PORT:-29501}"
-export NODE_INDEX="${SKYPILOT_NODE_RANK}"
-"""
+def _write_environment_variables(metta_env_file, metadata=None):
+    """Write environment variables to METTA_ENV_FILE from template."""
+    # Read the base template
+    template_path = Path(__file__).parent.parent / "config" / "job_env.template.sh"
+    env_vars = template_path.read_text()
 
     # Add job metadata exports only if metadata is provided (non-sandbox mode)
     if metadata:
@@ -120,22 +92,6 @@ export ACCUMULATED_RUNTIME_FILE="{metadata["accumulated_runtime_file"]}"
 export HEARTBEAT_FILE="{metadata["heartbeat_file"]}"
 '''
 
-    env_vars += """
-# NCCL Configuration
-export NCCL_PORT_RANGE="${NCCL_PORT_RANGE:-43000-43063}"
-export NCCL_SOCKET_FAMILY="${NCCL_SOCKET_FAMILY:-AF_INET}"
-
-# Debug
-export TORCH_NCCL_ASYNC_ERROR_HANDLING="${TORCH_NCCL_ASYNC_ERROR_HANDLING:-1}"
-export NCCL_DEBUG=WARN
-export NCCL_DEBUG_SUBSYS=""
-
-# NCCL Mode
-export NCCL_P2P_DISABLE="${NCCL_P2P_DISABLE:-0}"
-export NCCL_SHM_DISABLE="${NCCL_SHM_DISABLE:-0}"
-export NCCL_IB_DISABLE="${NCCL_IB_DISABLE:-1}"
-"""
-
     # Append to file
     with open(metta_env_file, "a") as f:
         f.write(env_vars)
@@ -143,7 +99,7 @@ export NCCL_IB_DISABLE="${NCCL_IB_DISABLE:-1}"
     logger.info(f"Environment variables written to: {metta_env_file}")
 
 
-def create_job_secrets(profile, wandb_password, observatory_token):
+def _create_job_secrets(profile, wandb_password, observatory_token):
     """Create ~/.netrc and ~/.metta/observatory_tokens.yaml files."""
     # Run metta configure if profile is provided
     if profile:
@@ -190,9 +146,17 @@ def main():
 
     # Print initial environment info only on master
     logger.info_master(f"VIRTUAL_ENV: {os.environ.get('VIRTUAL_ENV', 'Not set')}")
-    logger.info_master(f"Which python: {run_command('which python')}")
-    python_exec = run_command([sys.executable, "-c", "import sys; print(sys.executable)"])
-    logger.info_master(f"Python executable: {python_exec}")
+
+    # Get python path
+    which_result = subprocess.run(["which", "python"], capture_output=True, text=True)
+    if which_result.returncode == 0:
+        logger.info_master(f"Which python: {which_result.stdout.strip()}")
+
+    python_result = subprocess.run(
+        [sys.executable, "-c", "import sys; print(sys.executable)"], capture_output=True, text=True
+    )
+    if python_result.returncode == 0:
+        logger.info_master(f"Python executable: {python_result.stdout.strip()}")
 
     logger.info("Configuring runtime environment...")
 
@@ -207,10 +171,10 @@ def main():
     # Setup job metadata only in non-sandbox mode
     metadata = None
     if not args.sandbox:
-        metadata = setup_job_metadata()
+        metadata = _setup_job_metadata()
 
     # Write environment variables
-    write_environment_variables(metta_env_file, metadata)
+    _write_environment_variables(metta_env_file, metadata)
 
     # Check for required WANDB_PASSWORD
     wandb_password = os.environ.get("WANDB_PASSWORD")
@@ -225,7 +189,7 @@ def main():
     logger.info("Creating/updating job secrets...")
 
     # Create job secrets
-    create_job_secrets("softmax-docker", wandb_password, observatory_token)
+    _create_job_secrets("softmax-docker", wandb_password, observatory_token)
 
     logger.info("Runtime environment configuration completed")
 

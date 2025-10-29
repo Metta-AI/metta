@@ -1,5 +1,17 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
+"""NCCL tests for multi-GPU communication validation.
+
+These tests validate GPU communication infrastructure before training starts.
+While NCCL failures are rare, they can occur due to:
+- Network configuration issues in cloud environments
+- GPU driver/firmware incompatibilities
+- Incorrect NCCL environment variable settings
+- Hardware issues on specific instance types
+
+Catching these issues early (in setup phase) saves hours of debugging
+when training mysteriously fails or hangs mid-run.
+"""
 
 import datetime
 import io

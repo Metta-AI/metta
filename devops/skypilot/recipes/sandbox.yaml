@@ -24,18 +24,8 @@ file_mounts:
 setup: set -u && bash <(curl -fsSL "https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/${METTA_GIT_REF}/devops/skypilot/recipes/setup.sh")
 
 run: |
-  set -e
-  cd /workspace/metta
-
-  # Note that the docker image may start with its own venv - switch to metta venv
-  if [ -n "$VIRTUAL_ENV" ]; then
-      deactivate 2>/dev/null || true
-  fi
-  . .venv/bin/activate
-
-  uv run ./devops/skypilot/utils/configure_environment.py --sandbox
-  METTA_ENV_FILE="$(uv run ./common/src/metta/common/util/constants.py METTA_ENV_FILE)"
-  source "$METTA_ENV_FILE"
+  export SANDBOX_MODE=true
+  source <(curl -fsSL "https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/${METTA_GIT_REF}/devops/skypilot/recipes/init_run.sh")
 
   echo "Starting bash shell..."
   exec bash

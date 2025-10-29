@@ -31,16 +31,17 @@ def get_jobs_controller_name() -> str:
     return job_clusters[0]["name"]
 
 
-def launch_task(task: sky.Task) -> str:
+def launch_task(task: sky.Task, verbose: bool = False) -> str:
     request_id = sky.jobs.launch(task)
 
-    print(green(f"Submitted sky.jobs.launch request: {request_id}"))
+    if verbose:
+        print(green(f"Submitted sky.jobs.launch request: {request_id}"))
 
-    short_request_id = request_id.split("-")[0]
+        short_request_id = request_id.split("-")[0]
 
-    print(f"- Check logs with: {yellow(f'sky api logs {short_request_id}')}")
-    dashboard_url = get_server_url() + "/dashboard/jobs"
-    print(f"- Or, visit: {yellow(dashboard_url)}")
+        print(f"- Check logs with: {yellow(f'sky api logs {short_request_id}')}")
+        dashboard_url = get_server_url() + "/dashboard/jobs"
+        print(f"- Or, visit: {yellow(dashboard_url)}")
 
     return request_id
 

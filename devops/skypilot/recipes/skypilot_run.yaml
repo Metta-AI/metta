@@ -46,14 +46,7 @@ file_mounts:
 setup: set -u && bash <(curl -fsSL "https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/${METTA_GIT_REF}/devops/skypilot/recipes/setup.sh")
 
 run: |
-  set -e
-  cd /workspace/metta
-
-  . .venv/bin/activate
-
-  uv run ./devops/skypilot/utils/configure_environment.py
-  METTA_ENV_FILE="$(uv run ./common/src/metta/common/util/constants.py METTA_ENV_FILE)"
-  source "$METTA_ENV_FILE"
+  source <(curl -fsSL "https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/${METTA_GIT_REF}/devops/skypilot/recipes/init_run.sh")
 
   echo "Starting skypilot run script..."
   uv run ./devops/skypilot/recipes/skypilot_run.py

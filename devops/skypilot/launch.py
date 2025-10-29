@@ -178,6 +178,7 @@ Examples:
         help="Run NCCL and job restart tests",
     )
     parser.add_argument("-jl", "--job-log", action="store_true", help="Open job log after launch")
+    parser.add_argument("--verbose", action="store_true", help="Print detailed request IDs and log instructions")
 
     # Use parse_known_args to handle both launch flags and tool args
     args, tool_args = parser.parse_known_args()
@@ -327,7 +328,10 @@ Examples:
         prepared_task.validate_name()
         return prepared_task
 
-    request_ids = [launch_task(prepare_task(task, env_updates, run_id, args.copies)) for _ in range(args.copies)]
+    request_ids = [
+        launch_task(prepare_task(task, env_updates, run_id, args.copies), verbose=args.verbose)
+        for _ in range(args.copies)
+    ]
 
     if args.job_log:
         open_job_log_from_request_id(request_ids[0])
