@@ -13,7 +13,7 @@ from ray.runtime_context import get_runtime_context
 
 from metta.adaptive.dispatcher import LocalDispatcher
 from metta.adaptive.stores import WandbStore
-from metta.adaptive.utils import create_training_job, create_evaluation_job
+from metta.adaptive.utils import create_training_job, create_eval_job
 from metta.adaptive.models import JobDefinition
 
 logger = logging.getLogger(__name__)
@@ -78,8 +78,13 @@ def metta_train_fn(config: dict[str, Any]) -> None:
         # Ray Tune can use this to determine if it should retry
         sys.exit(124)  # 124 = timeout/spot termination
 
-    # Register SIGTERM handler
-    signal.signal(signal.SIGTERM, handle_sigterm)
+    # Register SIGTERM handler only if we're in the main thread
+    # Ray Tune may run trials in worker threads where signal handlers can't be registered
+    import threading
+    if threading.current_thread() is threading.main_thread():
+        signal.signal(signal.SIGTERM, handle_sigterm)
+    else:
+        logger.info("Not in main thread, skipping SIGTERM handler registration")
 
     # Ray config should provide a dict payload under "serialized_job_definition".
     sweep_config = config["sweep_config"]
@@ -157,7 +162,8 @@ def metta_train_fn(config: dict[str, Any]) -> None:
 
     # TODO Run evaluation
     evaluation_dispatcher = LocalDispatcher(capture_output=True)
-    eval_job = create_evaluation_job(
+    eval_job = create_eval_job(
+        run_id=trial_name,
         experiment_id=sweep_config.get("sweep_id"),
         recipe_module=sweep_config.get("recipe_module"),
         eval_entrypoint=sweep_config.get("eval_entrypoint"),
