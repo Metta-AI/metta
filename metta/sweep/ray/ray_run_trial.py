@@ -7,6 +7,7 @@ from datetime import datetime
 from typing import Any
 
 from ray import tune
+from ray.runtime_context import get_runtime_context
 
 from metta.adaptive.dispatcher import LocalDispatcher
 from metta.adaptive.stores import WandbStore
@@ -40,6 +41,11 @@ def metta_train_fn(config: dict[str, Any]) -> None:
 
     # Ray config should provide a dict payload under "serialized_job_definition".
     sweep_config = config["sweep_config"]
+
+    runtime_ctx = get_runtime_context()
+    assigned = runtime_ctx.get_assigned_resources()
+    gpu_ids = runtime_ctx.get_gpu_ids()
+    logging.info("Ray runtime assigned resources: %s; gpu_ids: %s", assigned, gpu_ids)
 
     # Get run name from Ray Tune
     ctx = tune.get_context()

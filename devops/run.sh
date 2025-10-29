@@ -23,11 +23,30 @@ detect_visible_gpus() {
   fi
 }
 
-NUM_GPUS=${NUM_GPUS:-$(detect_visible_gpus)}
 NUM_NODES=${NUM_NODES:-1}
 MASTER_ADDR=${MASTER_ADDR:-localhost}
 MASTER_PORT=${MASTER_PORT:-12345}
 NODE_INDEX=${NODE_INDEX:-0}
+
+# If Ray assigned GPU IDs but CUDA_VISIBLE_DEVICES is empty, adopt Ray's list.
+if [[ -z "${CUDA_VISIBLE_DEVICES:-}" && -n "${RAY_GPU_IDS:-}" ]]; then
+  export CUDA_VISIBLE_DEVICES="${RAY_GPU_IDS}"
+  echo "[DIAG] Adopted CUDA_VISIBLE_DEVICES from RAY_GPU_IDS: ${CUDA_VISIBLE_DEVICES}"
+fi
+
+# Recompute NUM_GPUS if CUDA_VISIBLE_DEVICES now set.
+if [[ -n "${CUDA_VISIBLE_DEVICES:-}" ]]; then
+  trimmed="${CUDA_VISIBLE_DEVICES// /}"
+  trimmed="${trimmed%,}"
+  if [[ -n "$trimmed" ]]; then
+    IFS=',' read -r -a __visible_ids <<< "$trimmed"
+    NUM_GPUS=${NUM_GPUS:-${#__visible_ids[@]}}
+  fi
+fi
+
+if [[ -z "${NUM_GPUS:-}" || "${NUM_GPUS}" -lt 1 ]]; then
+  NUM_GPUS=$(detect_visible_gpus)
+fi
 
 # Display configuration
 echo "[CONFIG] Training configuration:"
@@ -63,6 +82,7 @@ else:
         print(f"[DIAG] torch.cuda.get_device_name(0) = {torch.cuda.get_device_name(0)}")
 print(f"[DIAG] CUDA_VISIBLE_DEVICES = {os.environ.get('CUDA_VISIBLE_DEVICES')!r}")
 print(f"[DIAG] LD_LIBRARY_PATH = {os.environ.get('LD_LIBRARY_PATH')!r}")
+print(f"[DIAG] RAY_GPU_IDS = {os.environ.get('RAY_GPU_IDS')!r}")
 PY_EOF
 
 # run torchrun; preserve exit code and print a friendly line
