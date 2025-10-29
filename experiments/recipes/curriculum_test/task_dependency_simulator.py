@@ -51,13 +51,13 @@ class CurriculumLPConfig(BaseModel):
     exploration_bonus: float = 0.1
     progress_smoothing: float = 0.0
     lp_score_temperature: float = 0.0  # 0.0 is z-score normalization
-    z_score_amplification: float =  100.0  # Amplification after z-score
+    z_score_amplification: float =  10.0  # Amplification after z-score
     early_progress_amplification: float = 0.5  # 0.5 is no amplification
     max_slice_axes: int = 3
-    num_active_tasks: int = 1000
+    num_active_tasks: int = 200
     rand_task_rate: float = 0.01
     min_presentations_for_eviction: int = 5
-    eviction_threshold_percentile: float = 0.4
+    eviction_threshold_percentile: float = 0.1
     enable_detailed_slice_logging: bool = False
     show_curriculum_troubleshooting_logging: bool = True
     use_shared_memory: bool = True
