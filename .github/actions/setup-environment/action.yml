@@ -51,9 +51,13 @@ runs:
           nim-binary-${{ runner.os }}-
 
     - name: Set up nim
+      if: inputs.install-mode != 'minimal' && steps.cache-bazel.outputs.cache-hit != 'true'
+      id: setup-nim
       uses: treeform/setup-nim-action@v2
 
     - name: Install Nimby Package Manager
+      if: inputs.install-mode != 'minimal' && steps.cache-bazel.outputs.cache-hit != 'true'
+      id: install-nimby
       shell: bash
       run: |
         cd ..
