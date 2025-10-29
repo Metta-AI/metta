@@ -27,7 +27,7 @@ class MettascopeRenderer(Renderer):
         # Store the data directory for mettascope
         self._data_dir = str(nim_root / "data") if nim_root else "."
         # Store user actions persistently
-        self._user_actions = {}  # Dict mapping agent_id -> (action_id, action_param)
+        self._user_actions = {}  # Dict mapping agent_id -> action_id
         self._current_step = 0
 
     def on_episode_start(self, env: "MettaGridEnv") -> None:
@@ -53,6 +53,10 @@ class MettascopeRenderer(Renderer):
     def render(self) -> None:
         """Render current state and capture user input."""
         assert self._env is not None
+
+        # Clear previous actions so they don't persist across steps.
+        self._user_actions.clear()
+
         # Generate replay data for current state
         grid_objects = []
         total_rewards = self._env.get_episode_rewards()
@@ -79,15 +83,15 @@ class MettascopeRenderer(Renderer):
         # Store user actions to be applied in the next step
         if self.response.actions:
             for action in self.response.actions:
-                self._user_actions[action.agent_id] = (action.action_id, action.argument)
+                self._user_actions[action.agent_id] = action.action_id
 
         self._current_step += 1
 
-    def get_user_actions(self) -> dict[int, tuple[int, int]]:
+    def get_user_actions(self) -> dict[int, int]:
         """Get the current user actions for all agents.
 
         Returns:
-            Dictionary mapping agent_id to (action_id, action_param)
+            Dictionary mapping agent_id to action_id
         """
         return self._user_actions.copy()
 
