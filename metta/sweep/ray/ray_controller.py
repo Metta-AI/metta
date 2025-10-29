@@ -36,8 +36,8 @@ class SweepConfig(Config):
     # TODO: Obviously not this
     sweep_id: str = Field(default="sweep_id_unset")
 
-    cpus_per_trial: int = 1
-    gpus_per_trial: int = 0
+    cpus_per_trial: int | str = 1  # Can be int or "auto" to use all available per node
+    gpus_per_trial: int | str = 0  # Can be int or "auto" to use all available per node
     max_concurrent_trials: int = 4
     max_failures_per_trial: int = 3  # Max retries for failed trials (e.g., spot terminations)
     fail_fast: bool = False  # Whether to stop the sweep if any trial fails permanently
@@ -62,6 +62,26 @@ def ray_sweep(
         ray_address: Optional Ray cluster address (e.g. host:port or ray://host:port).
     """
     sweep_config = sweep_config or SweepConfig()
+
+    # Handle "auto" values for cpus_per_trial and gpus_per_trial
+    # These environment variables are detected and set by our launch script, not provided by SkyPilot
+    if sweep_config.cpus_per_trial == "auto":
+        cpus_from_env = os.getenv("METTA_DETECTED_CPUS_PER_NODE")
+        if cpus_from_env:
+            sweep_config.cpus_per_trial = int(cpus_from_env)
+            logger.info(f"Auto-detected CPUs per trial from node hardware: {sweep_config.cpus_per_trial}")
+        else:
+            logger.warning("'auto' specified for cpus_per_trial but METTA_DETECTED_CPUS_PER_NODE not set, defaulting to 1")
+            sweep_config.cpus_per_trial = 1
+
+    if sweep_config.gpus_per_trial == "auto":
+        gpus_from_env = os.getenv("METTA_DETECTED_GPUS_PER_NODE")
+        if gpus_from_env:
+            sweep_config.gpus_per_trial = int(gpus_from_env)
+            logger.info(f"Auto-detected GPUs per trial from node hardware: {sweep_config.gpus_per_trial}")
+        else:
+            logger.warning("'auto' specified for gpus_per_trial but METTA_DETECTED_GPUS_PER_NODE not set, defaulting to 0")
+            sweep_config.gpus_per_trial = 0
 
     init_kwargs: dict[str, Any] = {"ignore_reinit_error": True}
 
@@ -117,14 +137,15 @@ def ray_sweep(
         }
 
     trial_resources: dict[str, float] = {}
-    if sweep_config.cpus_per_trial:
+    # At this point, cpus_per_trial and gpus_per_trial should be integers (auto already resolved)
+    if isinstance(sweep_config.cpus_per_trial, int) and sweep_config.cpus_per_trial > 0:
         trial_resources["cpu"] = float(sweep_config.cpus_per_trial)
-    if sweep_config.gpus_per_trial:
+    if isinstance(sweep_config.gpus_per_trial, int) and sweep_config.gpus_per_trial > 0:
         trial_resources["gpu"] = float(sweep_config.gpus_per_trial)
 
     effective_max_concurrent = max(int(sweep_config.max_concurrent_trials), 1)
 
-    if sweep_config.cpus_per_trial:
+    if isinstance(sweep_config.cpus_per_trial, int) and sweep_config.cpus_per_trial > 0:
         if total_cpus <= 0:
             logger.warning("Cluster reports zero CPUs; cannot derive CPU-based concurrency limit.")
         else:
@@ -136,7 +157,7 @@ def ray_sweep(
                 )
             effective_max_concurrent = min(effective_max_concurrent, cpu_limit)
 
-    if sweep_config.gpus_per_trial:
+    if isinstance(sweep_config.gpus_per_trial, int) and sweep_config.gpus_per_trial > 0:
         if total_gpus <= 0:
             logger.warning("Cluster reports zero GPUs; cannot derive GPU-based concurrency limit.")
         else:
