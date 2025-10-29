@@ -75,6 +75,7 @@ def make_curriculum(
             use_bidirectional=True,  # Enable bidirectional learning progress by default
             ema_timescale=0.001,
             exploration_bonus=0.1,
+            z_score_amplification=10.0,  # Amplification after z-score (only when temp=0)
             max_slice_axes=5,  # More slices for arena complexity
             enable_detailed_slice_logging=enable_detailed_slice_logging,
         )

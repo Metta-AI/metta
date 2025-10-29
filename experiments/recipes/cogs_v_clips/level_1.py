@@ -344,6 +344,7 @@ def train(
     algorithm_config = LearningProgressConfig(
         ema_timescale=0.001,
         exploration_bonus=0.15,
+        z_score_amplification=10.0,  # Amplification after z-score (only when temp=0)
         max_slice_axes=3,
         progress_smoothing=0.15,
         num_active_tasks=1000,
