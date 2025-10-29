@@ -169,21 +169,6 @@ class ColumnBlock(BaseBlock):
             (y if isinstance(y, torch.Tensor) else torch.empty(0, device=x.device)) for y in expert_outs
         ]
 
-        if len(expert_outs_tensors) == 1:
-            # Single expert: behave like identity delta + small head on delta
-            y_single = expert_outs_tensors[0]
-            delta = y_single - u
-            if is_step:
-                delta = delta.unsqueeze(1)  # [B,1,H]
-            # Mix (no-op effectively) and reduce
-            delta = delta.unsqueeze(2)  # [B,T,E=1,H]
-            delta_mixed = self.e_mixer(u if not is_step else u.unsqueeze(1), delta)
-            y_mix = delta_mixed.squeeze(2)  # [B,T,H]
-            h = self.head(y_mix)
-            out = x if not is_step else x.unsqueeze(1)
-            out = out + self.alpha_col.to(out.dtype) * h
-            return (out.squeeze(1) if is_step else out), next_state
-
         # Build deltas across experts
         if is_step:
             # expert_outs: list of [B,H] -> [B,1,H]
@@ -220,7 +205,7 @@ class ColumnBlock(BaseBlock):
         y_minus_x = y_delta + res_corr  # equals y_total - x
         y_total = (x if not is_step else x.unsqueeze(1)) + y_minus_x
         h = self.head(y_minus_x)  # small corrective head on the residual
-        out = y_total + self.alpha_col.to(h.dtype) * y_minus_x
+        out = y_total + self.alpha_col.to(h.dtype) * h
         return (out.squeeze(1) if is_step else out), next_state
 
     @staticmethod

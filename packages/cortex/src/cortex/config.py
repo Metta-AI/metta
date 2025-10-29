@@ -264,7 +264,7 @@ class RouterConfig(BaseModel):
     # Per-token refinement (optional; disabled when whisper_lambda == 0)
     d_key_local: int | None = Field(default=None, ge=1, description="Key dim for per‑token refiner; defaults to d_key.")
     local_temperature: float = Field(default=1.0, gt=0.0, description="Temperature for token‑refiner logits.")
-    whisper_lambda: float = Field(default=0.0, ge=0.0, description="Strength λ of per‑token refinement (0 disables).")
+    whisper_lambda: float = Field(default=0.1, ge=0.0, description="Strength λ of per‑token refinement (0 disables).")
     center_refine: bool = Field(default=True, description="Center token logits over experts to redistribute mass only.")
     restrict_to_topk: bool = Field(default=True, description="Limit refinement to the global top‑k support if set.")
 
@@ -279,7 +279,12 @@ class ColumnBlockConfig(BlockConfig):
     experts: list[SerializeAsAny[BlockConfig]]
     router: RouterConfig = Field(default_factory=RouterConfig, description="Router hyperparameters for this column.")
     alpha_col_init: float = Field(
-        default=0.01, ge=0.0, description="Initial outer ReZero gain α_col (small for calm starts)."
+        default=0.1,
+        ge=0.0,
+        description=(
+            "Initial outer ReZero gain α_col; controls how much gradient from this block flows at init "
+            "(small for calm starts)."
+        ),
     )
 
     class Config:
