@@ -34,7 +34,7 @@ def main():
 
     print("Looking up EC2 instance...")
 
-    REGIONS = get_regions_from_yaml(Path("devops/skypilot/recipes/skypilot_run.yaml"))
+    REGIONS = get_regions_from_yaml(Path("devops/skypilot/recipes/job.yaml"))
 
     instance = None
     for region in REGIONS:
