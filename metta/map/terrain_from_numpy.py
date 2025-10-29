@@ -13,7 +13,7 @@ from pydantic import ConfigDict, Field
 from metta.common.util.log_config import getRankAwareLogger
 from metta.utils.uri import ParsedURI
 from mettagrid.map_builder import MapGrid
-from mettagrid.map_builder.map_builder import GameMap, MapBuilder, MapBuilderConfig
+from mettagrid.map_builder.map_builder import GameMap, MapBuilder, MapBuilderConfig, WithMaxRetriesConfig
 
 logger = getRankAwareLogger(__name__)
 
@@ -50,7 +50,7 @@ def download_from_s3(s3_path: str, save_path: str):
         raise e
 
 
-class TerrainFromNumpyConfig(MapBuilderConfig["TerrainFromNumpy"]):
+class TerrainFromNumpyConfig(MapBuilderConfig["TerrainFromNumpy"], WithMaxRetriesConfig):
     # Allow non-pydantic types like random.Random
     model_config = ConfigDict(arbitrary_types_allowed=True)
     objects: dict[str, int] = Field(default_factory=dict)
