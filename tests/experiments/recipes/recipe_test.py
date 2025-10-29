@@ -104,7 +104,6 @@ class RecipeTestRunner(BaseTestRunner):
                 "description": recipe["description"],
                 "timesteps": 50000,
                 "nodes": 1,
-                "ci_tests_enabled": False,
             }
 
             # Launch the job
@@ -114,7 +113,6 @@ class RecipeTestRunner(BaseTestRunner):
                 base_args=BASE_ARGS,
                 extra_args=TEST_CONDITION.extra_args,
                 test_config=test_config,
-                enable_ci_tests=False,
             )
 
         # Save results

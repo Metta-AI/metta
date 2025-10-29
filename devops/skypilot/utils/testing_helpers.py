@@ -147,7 +147,6 @@ class SkyPilotTestLauncher:
         base_args: list[str],
         extra_args: list[str],
         test_config: dict[str, Any],
-        enable_ci_tests: bool = False,
         max_attempts: int = 3,
     ) -> LaunchedJob:
         """Launch a single job and track its status with retry logic."""
@@ -159,9 +158,6 @@ class SkyPilotTestLauncher:
             f"run={run_name}",
             *extra_args,
         ]
-
-        if enable_ci_tests:
-            cmd.append("--run-ci-tests")
 
         if self.skip_git_check:
             cmd.append("--skip-git-check")

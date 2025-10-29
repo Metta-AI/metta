@@ -103,11 +103,9 @@ Examples:
         # Launch jobs
         for nodes in NODE_CONFIGS:
             for condition_key, condition in TEST_CONDITIONS.items():
-                enable_ci_tests = condition.ci
-
                 # Generate unique run name
                 suffix = f"{nodes}n_{condition_key}"
-                if enable_ci_tests:
+                if condition.ci:
                     suffix += "_ci"
                 run_name = launcher.generate_run_name(suffix)
 
@@ -117,7 +115,7 @@ Examples:
                     "condition": condition_key,
                     "condition_name": condition.name,
                     "condition_description": condition.description,
-                    "ci_tests_enabled": enable_ci_tests,
+                    "is_ci_test": condition.ci,
                 }
 
                 # Launch the job
@@ -127,7 +125,6 @@ Examples:
                     base_args=BASE_ARGS + ["--nodes", str(nodes)],
                     extra_args=condition.extra_args,
                     test_config=test_config,
-                    enable_ci_tests=enable_ci_tests,
                 )
 
         # Save results

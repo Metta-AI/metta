@@ -32,6 +32,7 @@ logger = logging.getLogger(__name__)
 # Known tool modules that we explicitly validate
 KNOWN_TOOL_MODULES = {
     "devops.skypilot.tools.nccl",
+    "devops.skypilot.tools.restart_test",
     "devops.skypilot.tools.run",
 }
 
@@ -203,11 +204,6 @@ Examples:
     parser.add_argument(
         "--discord-webhook-url", type=str, default=None, help="Discord webhook URL for status update channel"
     )
-    parser.add_argument(
-        "--run-ci-tests",
-        action="store_true",
-        help="Enable CI test mode (forces job restart at 50%% of max runtime)",
-    )
     parser.add_argument("-jl", "--job-log", action="store_true", help="Open job log after launch")
     parser.add_argument("--verbose", action="store_true", help="Print detailed request IDs and log instructions")
 
@@ -295,8 +291,6 @@ Examples:
         GITHUB_PAT=args.github_pat,  # enables github status update
         WANDB_PROJECT=os.environ.get("WANDB_PROJECT", METTA_WANDB_PROJECT),
         WANDB_ENTITY=os.environ.get("WANDB_ENTITY", METTA_WANDB_ENTITY),
-        ENABLE_WANDB_ALERTS="false" if args.run_ci_tests else "true",  # enables wandb alerts
-        TEST_JOB_RESTART="true" if args.run_ci_tests else "false",
     )
 
     env_updates = {k: v for k, v in env_updates.items() if v is not None}

@@ -103,7 +103,6 @@ Examples:
                 base_args=BASE_ARGS + ["--nodes", str(nodes), "--gpus", str(gpus)],
                 extra_args=[],
                 test_config=test_config,
-                enable_ci_tests=False,
             )
 
         # Save results
