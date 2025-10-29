@@ -17,7 +17,8 @@ from metta.sim.simulation_config import SimulationConfig
 from metta.tools.eval import EvaluateTool
 from metta.tools.play import PlayTool
 from metta.tools.replay import ReplayTool
-from mettagrid import MettaGridEnv, dtype_observations
+from mettagrid import PufferMettaGridEnv, dtype_observations
+from mettagrid.simulator import Simulator
 
 
 class TestBasicPolicyEnvironment:
@@ -30,8 +31,9 @@ class TestBasicPolicyEnvironment:
 
     @pytest.fixture
     def env_with_config(self, simple_env_config):
-        """Create MettaGridEnv from config."""
-        env = MettaGridEnv(simple_env_config)
+        """Create PufferMettaGridEnv from config."""
+        simulator = Simulator()
+        env = PufferMettaGridEnv(simulator, simple_env_config)
         try:
             yield env
         finally:

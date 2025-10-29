@@ -14,8 +14,10 @@
 #include "actions/attack.hpp"
 #include "actions/change_glyph.hpp"
 #include "actions/move.hpp"
+#include "actions/move_config.hpp"
 #include "actions/noop.hpp"
 #include "actions/resource_mod.hpp"
+#include "config/observation_features.hpp"
 #include "core/event.hpp"
 #include "core/grid.hpp"
 #include "core/hash.hpp"
@@ -70,7 +72,19 @@ MettaGrid::MettaGrid(const GameConfig& game_config, const py::list map, unsigned
   GridCoord width = static_cast<GridCoord>(py::len(map[0]));
 
   _grid = std::make_unique<Grid>(height, width);
-  _obs_encoder = std::make_unique<ObservationEncoder>(resource_names, game_config.recipe_details_obs);
+
+  // Initialize global ObservationFeature lookup from config
+  ObservationFeature::Initialize(game_config.feature_ids);
+
+  // Build reverse map for feature names (id -> name)
+  for (const auto& [name, id] : game_config.feature_ids) {
+    feature_id_to_name[id] = name;
+  }
+
+  _obs_encoder = std::make_unique<ObservationEncoder>(resource_names.size(),
+                                                       game_config.recipe_details_obs,
+                                                       &resource_names,
+                                                       &game_config.feature_ids);
 
   _event_manager = std::make_unique<EventManager>();
   _stats = std::make_unique<StatsTracker>(&resource_names);
@@ -169,7 +183,7 @@ void MettaGrid::_init_grid(const GameConfig& game_config, const py::list& map) {
 
       const AgentConfig* agent_config = dynamic_cast<const AgentConfig*>(object_cfg);
       if (agent_config) {
-        Agent* agent = new Agent(r, c, *agent_config, &resource_names);
+        Agent* agent = new Agent(r, c, *agent_config, &resource_names, &game_config.feature_ids);
         _grid->add_object(agent);
         if (_agents.size() > std::numeric_limits<decltype(agent->agent_id)>::max()) {
           throw std::runtime_error("Too many agents for agent_id type");
@@ -186,17 +200,12 @@ void MettaGrid::_init_grid(const GameConfig& game_config, const py::list& map) {
 
       const AssemblerConfig* assembler_config = dynamic_cast<const AssemblerConfig*>(object_cfg);
       if (assembler_config) {
-        // Create a new AssemblerConfig with the recipe offsets from the observation encoder
-        AssemblerConfig config_with_offsets(*assembler_config);
-        config_with_offsets.input_recipe_offset = _obs_encoder->get_input_recipe_offset();
-        config_with_offsets.output_recipe_offset = _obs_encoder->get_output_recipe_offset();
-        config_with_offsets.recipe_details_obs = _obs_encoder->recipe_details_obs;
-
-        Assembler* assembler = new Assembler(r, c, config_with_offsets);
+        Assembler* assembler = new Assembler(r, c, *assembler_config);
         _grid->add_object(assembler);
         _stats->incr("objects." + cell);
         assembler->set_grid(_grid.get());
         assembler->set_current_timestep_ptr(&current_step);
+        assembler->set_obs_encoder(_obs_encoder.get());
         continue;
       }
 
@@ -280,7 +289,8 @@ void MettaGrid::init_action_handlers(const GameConfig& game_config) {
   _action_handler_impl.push_back(std::move(noop));
 
   // Move
-  auto move = std::make_unique<Move>(*game_config.actions.at("move"), &game_config);
+  auto move_config = std::static_pointer_cast<const MoveActionConfig>(game_config.actions.at("move"));
+  auto move = std::make_unique<Move>(*move_config, &game_config);
   move->init(_grid.get(), &_rng);
   if (move->priority > _max_action_priority) _max_action_priority = move->priority;
   for (const auto& action : move->actions()) {
@@ -738,7 +748,10 @@ py::dict MettaGrid::grid_objects(int min_row, int max_row, int min_col, int max_
     // Inject observation features
     auto features = obj->obs_features();
     for (const auto& feature : features) {
-      obj_dict[py::str(_obs_encoder->feature_names().at(feature.feature_id))] = feature.value;
+      auto it = feature_id_to_name.find(feature.feature_id);
+      if (it != feature_id_to_name.end()) {
+        obj_dict[py::str(it->second)] = feature.value;
+      }
     }
 
     if (auto* has_inventory = dynamic_cast<HasInventory*>(obj)) {
@@ -849,50 +862,12 @@ py::dict MettaGrid::grid_objects(int min_row, int max_row, int min_col, int max_
   return objects;
 }
 
-py::list MettaGrid::action_names() {
-  py::list names;
-  for (const auto& action : _action_handlers) {
-    names.append(py::str(action.name()));
-  }
-  return names;
-}
-
 GridCoord MettaGrid::map_width() {
   return _grid->width;
 }
 
 GridCoord MettaGrid::map_height() {
   return _grid->height;
-}
-
-// These should correspond to the features we emit in the observations -- either
-// the channel or the feature_id.
-py::dict MettaGrid::feature_spec() {
-  py::dict feature_spec;
-  const auto& names = _obs_encoder->feature_names();
-  const auto& normalizations = _obs_encoder->feature_normalizations();
-
-  for (const auto& [feature_id, feature_name] : names) {
-    py::dict spec;
-    spec["normalization"] = py::float_(normalizations.at(feature_id));
-    spec["id"] = py::int_(feature_id);
-
-    // Add tag mapping for the tag feature
-    if (feature_name == "tag") {
-      py::dict tag_map;
-      for (const auto& [tag_id, tag_name] : _game_config.tag_id_map) {
-        tag_map[py::int_(tag_id)] = py::str(tag_name);
-      }
-      spec["values"] = tag_map;
-    }
-
-    feature_spec[py::str(feature_name)] = spec;
-  }
-  return feature_spec;
-}
-
-size_t MettaGrid::num_agents() const {
-  return _agents.size();
 }
 
 py::array_t<float> MettaGrid::get_episode_rewards() {
@@ -918,28 +893,16 @@ py::dict MettaGrid::get_episode_stats() {
   return stats;
 }
 
-size_t MettaGrid::num_actions() const {
-  return _action_handlers.size();
-}
-
-
 
 py::list MettaGrid::action_success_py() {
   return py::cast(_action_success);
 }
 
 
-py::list MettaGrid::object_type_names_py() {
-  return py::cast(object_type_names);
-}
-
-py::list MettaGrid::resource_names_py() {
-  return py::cast(resource_names);
-}
 
 py::none MettaGrid::set_inventory(GridObjectId agent_id,
                                   const std::unordered_map<InventoryItem, InventoryQuantity>& inventory) {
-  if (agent_id < num_agents()) {
+  if (agent_id < _agents.size()) {
     this->_agents[agent_id]->set_inventory(inventory);
   }
   return py::none();
@@ -965,8 +928,8 @@ py::array_t<RewardType> MettaGrid::rewards() {
 py::array_t<MaskType> MettaGrid::masks() {
   // Return action masks - currently not computed, return empty array
   // TODO: Implement proper action masking if needed
-  auto result = py::array_t<MaskType>({static_cast<py::ssize_t>(num_agents()), static_cast<py::ssize_t>(num_actions())});
-  auto r = result.mutable_unchecked<2>();
+  auto result = py::array_t<MaskType>({static_cast<py::ssize_t>(_agents.size()), static_cast<py::ssize_t>(_action_handlers.size())});
+  auto r = result.template mutable_unchecked<2>();
   for (py::ssize_t i = 0; i < r.shape(0); i++) {
     for (py::ssize_t j = 0; j < r.shape(1); j++) {
       r(i, j) = 1;  // All actions available by default
@@ -1013,20 +976,17 @@ PYBIND11_MODULE(mettagrid_c, m) {
       .def("rewards", &MettaGrid::rewards)
       .def("masks", &MettaGrid::masks)
       .def("actions", &MettaGrid::actions)
-      .def("action_names", &MettaGrid::action_names)
       .def_property_readonly("map_width", &MettaGrid::map_width)
       .def_property_readonly("map_height", &MettaGrid::map_height)
-      .def_property_readonly("num_agents", &MettaGrid::num_agents)
       .def("get_episode_rewards", &MettaGrid::get_episode_rewards)
       .def("get_episode_stats", &MettaGrid::get_episode_stats)
       .def("action_success", &MettaGrid::action_success_py)
-      .def("object_type_names", &MettaGrid::object_type_names_py)
-      .def("feature_spec", &MettaGrid::feature_spec)
       .def_readonly("obs_width", &MettaGrid::obs_width)
       .def_readonly("obs_height", &MettaGrid::obs_height)
       .def_readonly("max_steps", &MettaGrid::max_steps)
       .def_readonly("current_step", &MettaGrid::current_step)
-      .def("resource_names", &MettaGrid::resource_names_py)
+      .def_readonly("resource_names", &MettaGrid::resource_names)
+      .def_readonly("object_type_names", &MettaGrid::object_type_names)
       .def_readonly("initial_grid_hash", &MettaGrid::initial_grid_hash)
       .def("set_inventory", &MettaGrid::set_inventory, py::arg("agent_id"), py::arg("inventory"));
 
@@ -1050,9 +1010,11 @@ PYBIND11_MODULE(mettagrid_c, m) {
   bind_assembler_config(m);
   bind_chest_config(m);
   bind_action_config(m);
+  bind_move_action_config(m);
   bind_attack_action_config(m);
   bind_change_glyph_action_config(m);
   bind_resource_mod_config(m);
+  // bind_observation_feature_spec(m);  // TODO: Implement if needed
   bind_global_obs_config(m);
   bind_clipper_config(m);
   bind_game_config(m);
@@ -1065,11 +1027,4 @@ PYBIND11_MODULE(mettagrid_c, m) {
   m.attr("dtype_actions") = dtype_actions();
   m.attr("dtype_masks") = dtype_masks();
   m.attr("dtype_success") = dtype_success();
-
-#ifdef METTA_WITH_RAYLIB
-  py::class_<HermesPy>(m, "Hermes")
-      .def(py::init<>())
-      .def("update", &HermesPy::update, py::arg("env"))
-      .def("render", &HermesPy::render);
-#endif
 }

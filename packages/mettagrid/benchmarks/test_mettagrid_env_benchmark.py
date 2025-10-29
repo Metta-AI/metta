@@ -7,6 +7,7 @@ from mettagrid.config.mettagrid_config import (
     MettaGridConfig,
     MoveActionConfig,
     NoopActionConfig,
+    ObsConfig,
 )
 from mettagrid.map_builder.random import RandomMapBuilder
 from mettagrid.simulator import Simulation
@@ -20,9 +21,7 @@ def simulation(num_agents: int):
     cfg = MettaGridConfig(
         game=GameConfig(
             num_agents=num_agents,
-            obs_width=11,
-            obs_height=11,
-            num_observation_tokens=100,
+            obs=ObsConfig(num_tokens=100),
             max_steps=0,  # env lasts forever
             actions=ActionsConfig(noop=NoopActionConfig(), move=MoveActionConfig()),
             map_builder=RandomMapBuilder.Config(agents=num_agents, width=20, height=20, seed=seed),
@@ -127,9 +126,6 @@ def test_create_env_performance(benchmark):
         cfg = MettaGridConfig(
             game=GameConfig(
                 num_agents=8,
-                obs_width=11,
-                obs_height=11,
-                num_observation_tokens=100,
                 actions=ActionsConfig(noop=NoopActionConfig(), move=MoveActionConfig()),
                 map_builder=RandomMapBuilder.Config(agents=8, width=20, height=20, seed=42),
             )

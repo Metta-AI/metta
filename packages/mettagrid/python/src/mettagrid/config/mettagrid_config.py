@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from abc import abstractmethod
 from collections.abc import Iterable
-from typing import TYPE_CHECKING, Annotated, Any, Literal, Optional, Union
+from typing import TYPE_CHECKING, Annotated, Any, Literal, Optional, Union, get_args
 
 from pydantic import (
     ConfigDict,
@@ -19,6 +19,7 @@ from mettagrid.config.obs_config import ObsConfig
 from mettagrid.config.vibes import VIBES, Vibe
 
 if TYPE_CHECKING:
+    from mettagrid.config.id_map import IdMap
     from mettagrid.simulator import Action
 
 # Forward reference - actual import happens at runtime when needed
@@ -36,11 +37,12 @@ except ImportError:
 # Left to right, top to bottom.
 FixedPosition = Literal["NW", "N", "NE", "W", "E", "SW", "S", "SE"]
 
-Directions = ["north", "south", "east", "west", "northeast", "northwest", "southeast", "southwest"]
 Direction = Literal["north", "south", "east", "west", "northeast", "northwest", "southeast", "southwest"]
+Directions = list(get_args(Direction))
 
-CardinalDirections = ["north", "south", "east", "west"]
-CardinalDirection = Literal["north", "south", "east", "west"]
+# Order must match C++ expectations: north, south, west, east
+CardinalDirection = Literal["north", "south", "west", "east"]
+CardinalDirections = list(get_args(CardinalDirection))
 
 
 class AgentRewards(Config):
@@ -444,13 +446,11 @@ class GameConfig(Config):
     recipe_details_obs: bool = Field(
         default=False, description="Converters show their recipe inputs and outputs when observed"
     )
-    allow_diagonals: bool = Field(default=False, description="Enable actions to be aware of diagonal orientations")
 
     reward_estimates: Optional[dict[str, float]] = Field(default=None)
 
     @model_validator(mode="after")
-    def _assign_type_ids(self) -> "GameConfig":
-        self._resolve_object_type_ids()
+    def _compute_feature_ids(self) -> "GameConfig":
         self._populate_vibe_names()
         return self
 
@@ -472,54 +472,18 @@ class GameConfig(Config):
 
         return super().model_dump(**kwargs)
 
-    def _resolve_object_type_ids(self) -> None:
-        resolved: dict[str, int] = {}
-        if not self.objects:
-            self.resolved_type_ids = resolved
-            return
-
-        sorted_objects = sorted(self.objects.items(), key=lambda item: item[0])
-        used_ids: set[int] = {0}
-
-        for object_name, object_config in sorted_objects:
-            if not object_config.name:
-                object_config.name = object_name
-
-            if object_config.type_id is None:
-                continue
-
-            if object_config.type_id == 0:
-                raise ValueError("type_id 0 is reserved for agents and cannot be assigned to objects")
-
-            if object_config.type_id in used_ids:
-                raise ValueError(f"Duplicate type_id {object_config.type_id} found for object '{object_name}'")
-
-            used_ids.add(object_config.type_id)
-            resolved[object_name] = object_config.type_id
-
-        next_candidate = 1
-        for object_name, object_config in sorted_objects:
-            if object_config.type_id is not None:
-                continue
-
-            while next_candidate in used_ids:
-                next_candidate += 1
-
-            if next_candidate > 255:
-                raise ValueError("Too many object types configured; auto-generated type_id exceeds uint8 range")
-
-            object_config.type_id = next_candidate
-            used_ids.add(next_candidate)
-            resolved[object_name] = next_candidate
-            next_candidate += 1
-
-        self.resolved_type_ids = resolved
-
     def resolved_type_id(self, object_name: str) -> int:
-        self._resolve_object_type_ids()
         if object_name not in self.resolved_type_ids:
             raise KeyError(f"No object named '{object_name}' is registered")
         return self.resolved_type_ids[object_name]
+
+    def id_map(self) -> "IdMap":
+        """Get the observation feature ID map for this configuration."""
+        from mettagrid.config.id_map import IdMap
+
+        # Create a minimal MettaGridConfig wrapper
+        wrapper = MettaGridConfig(game=self)
+        return IdMap(wrapper)
 
 
 class MettaGridConfig(Config):
@@ -528,6 +492,12 @@ class MettaGridConfig(Config):
     label: str = Field(default="mettagrid")
     game: GameConfig = Field(default_factory=GameConfig)
     desync_episodes: bool = Field(default=True)
+
+    def id_map(self) -> "IdMap":
+        """Get the observation feature ID map for this configuration."""
+        from mettagrid.config.id_map import IdMap
+
+        return IdMap(self)
 
     def with_ascii_map(self, map_data: list[list[str]]) -> "MettaGridConfig":
         from mettagrid.map_builder.ascii import AsciiMapBuilder

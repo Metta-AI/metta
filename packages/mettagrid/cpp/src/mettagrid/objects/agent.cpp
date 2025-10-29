@@ -3,9 +3,15 @@
 #include <algorithm>
 #include <cassert>
 
-Agent::Agent(GridCoord r, GridCoord c, const AgentConfig& config, const std::vector<std::string>* resource_names)
+#include "config/observation_features.hpp"
+
+Agent::Agent(GridCoord r,
+             GridCoord c,
+             const AgentConfig& config,
+             const std::vector<std::string>* resource_names,
+             const std::unordered_map<std::string, ObservationType>* feature_ids)
     : GridObject(),
-      HasInventory(config.inventory_config),
+      HasInventory(config.inventory_config, resource_names, feature_ids),
       group(config.group_id),
       frozen(0),
       freeze_duration(config.freeze_duration),
@@ -186,7 +192,7 @@ std::vector<PartialObservationToken> Agent::obs_features() const {
   for (const auto& [item, amount] : this->inventory.get()) {
     // inventory should only contain non-zero amounts
     assert(amount > 0);
-    auto item_observation_feature = static_cast<ObservationType>(InventoryFeatureOffset + item);
+    auto item_observation_feature = this->inventory.get_feature_id(item);
     features.push_back({item_observation_feature, static_cast<ObservationType>(amount)});
   }
 

@@ -20,9 +20,9 @@ from metta.rl.vecenv import make_vecenv
 from metta.utils.batch import calculate_batch_sizes
 from mettagrid.builder.envs import make_arena
 from mettagrid.config import Config
+from mettagrid.config.id_map import ObservationFeatureSpec
 from mettagrid.config.mettagrid_config import ActionsConfig, MettaGridConfig
 from mettagrid.mettagrid_c import dtype_actions
-from mettagrid.simulator import ObservationFeature
 
 logger = logging.getLogger(__name__)
 
@@ -72,7 +72,7 @@ class TrainingEnvironmentConfig(Config):
 
 @dataclass
 class PolicyEnvInterface:
-    obs_features: list[ObservationFeature]
+    obs_features: list[ObservationFeatureSpec]
     actions: ActionsConfig
     num_agents: int
     observation_space: gym.spaces.Box
@@ -83,7 +83,7 @@ class PolicyEnvInterface:
     @staticmethod
     def from_mg_cfg(mg_cfg: MettaGridConfig) -> "PolicyEnvInterface":
         return PolicyEnvInterface(
-            obs_features=mg_cfg.game.obs.features,
+            obs_features=mg_cfg.id_map().features(),
             actions=mg_cfg.game.actions,
             num_agents=mg_cfg.game.num_agents,
             observation_space=gym.spaces.Box(0, 255, (mg_cfg.game.obs.num_tokens, mg_cfg.game.obs.token_dim)),

@@ -10,10 +10,11 @@ import numpy as np
 
 from metta.utils.file import http_url, write_data
 from mettagrid.simulator import SimulatorEventHandler
+from mettagrid.simulator.simulator import Simulation
 from mettagrid.util.grid_object_formatter import format_grid_object
 
 if TYPE_CHECKING:
-    from mettagrid import MettaGridEnv
+    pass
 
 logger = logging.getLogger("ReplayLogWriter")
 
@@ -35,8 +36,7 @@ class ReplayLogWriter(SimulatorEventHandler):
 
     def on_episode_start(self) -> None:
         """Start recording a new episode."""
-        if self._sim is None:
-            raise RuntimeError("Simulation not set. Call set_simulation() first.")
+        assert self._sim is not None
         self._episode_id = str(uuid.uuid4())
         self._episode_replay = EpisodeReplay(self._sim)
         self.episodes[self._episode_id] = self._episode_replay
@@ -71,38 +71,38 @@ class ReplayLogWriter(SimulatorEventHandler):
 class EpisodeReplay:
     """Helper class for managing replay data for a single episode."""
 
-    def __init__(self, env: MettaGridEnv):
-        self.env = env
+    def __init__(self, sim: Simulation):
+        self.sim = sim
         self.step = 0
         self.objects = []
-        self.total_rewards = np.zeros(env.num_agents)
+        self.total_rewards = np.zeros(sim.num_agents)
 
-        self._validate_non_empty_string_list(env.action_names, "action_names")
-        self._validate_non_empty_string_list(env.resource_names, "item_names")
+        self._validate_non_empty_string_list(sim.action_names, "action_names")
+        self._validate_non_empty_string_list(sim.resource_names, "item_names")
 
         self.replay_data = {
             "version": 2,
-            "action_names": env.action_names,
-            "item_names": env.resource_names,
-            "type_names": env.object_type_names,
-            "map_size": [env.map_width, env.map_height],
-            "num_agents": env.num_agents,
-            "max_steps": env.config.game.max_steps,
-            "mg_config": env.config.model_dump(mode="json"),
+            "action_names": sim.action_names,
+            "item_names": sim.resource_names,
+            "type_names": sim.object_type_names,
+            "map_size": [sim.map_width, sim.map_height],
+            "num_agents": sim.num_agents,
+            "max_steps": sim.config.game.max_steps,
+            "mg_config": sim.config.model_dump(mode="json"),
             "objects": self.objects,
         }
 
     def log_step(self, current_step: int, actions: np.ndarray, rewards: np.ndarray):
         """Log a single step of the episode."""
         self.total_rewards += rewards
-        for i, grid_object in enumerate(self.env.grid_objects().values()):
+        for i, grid_object in enumerate(self.sim.grid_objects().values()):
             if len(self.objects) <= i:
                 self.objects.append({})
 
             update_object = format_grid_object(
                 grid_object,
                 actions,
-                self.env.action_success,
+                self.sim.action_success,
                 rewards,
                 self.total_rewards,
             )

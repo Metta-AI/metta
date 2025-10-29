@@ -6,6 +6,7 @@
 #include <string>
 #include <vector>
 
+#include "config/observation_features.hpp"
 #include "core/event.hpp"
 #include "objects/agent.hpp"
 #include "objects/constants.hpp"
@@ -89,8 +90,7 @@ public:
   bool cooling_down;  // Currently in cooldown phase
   bool recipe_details_obs;
   EventManager* event_manager;
-  ObservationType input_recipe_offset;
-  ObservationType output_recipe_offset;
+  const class ObservationEncoder* obs_encoder;
 
   Converter(GridCoord r, GridCoord c, const ConverterConfig& cfg)
       : GridObject(),
@@ -106,8 +106,7 @@ public:
         cooling_down(false),
         recipe_details_obs(cfg.recipe_details_obs),
         event_manager(nullptr),
-        input_recipe_offset(cfg.input_recipe_offset),
-        output_recipe_offset(cfg.output_recipe_offset) {
+        obs_encoder(nullptr) {
     GridObject::init(cfg.type_id, cfg.type_name, GridLocation(r, c, GridLayer::ObjectLayer), cfg.tag_ids);
 
     // Initialize inventory with initial_resource_count for all output types
@@ -177,25 +176,22 @@ public:
     for (const auto& [item, amount] : this->inventory.get()) {
       // inventory should only contain non-zero amounts
       assert(amount > 0);
-      features.push_back(
-          {static_cast<ObservationType>(item + InventoryFeatureOffset), static_cast<ObservationType>(amount)});
+      features.push_back({this->inventory.get_feature_id(item), static_cast<ObservationType>(amount)});
     }
 
     // Add recipe details if configured to do so
-    if (this->recipe_details_obs) {
+    if (this->recipe_details_obs && this->obs_encoder) {
       // Add recipe inputs (input:resource) - only non-zero values
       for (const auto& [item, amount] : this->input_resources) {
         if (amount > 0) {
-          features.push_back(
-              {static_cast<ObservationType>(input_recipe_offset + item), static_cast<ObservationType>(amount)});
+          features.push_back({obs_encoder->get_input_feature_id(item), static_cast<ObservationType>(amount)});
         }
       }
 
       // Add recipe outputs (output:resource) - only non-zero values
       for (const auto& [item, amount] : this->output_resources) {
         if (amount > 0) {
-          features.push_back(
-              {static_cast<ObservationType>(output_recipe_offset + item), static_cast<ObservationType>(amount)});
+          features.push_back({obs_encoder->get_output_feature_id(item), static_cast<ObservationType>(amount)});
         }
       }
     }

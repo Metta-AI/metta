@@ -22,6 +22,7 @@ from mettagrid.mettagrid_c import ConverterConfig as CppConverterConfig
 from mettagrid.mettagrid_c import GameConfig as CppGameConfig
 from mettagrid.mettagrid_c import GlobalObsConfig as CppGlobalObsConfig
 from mettagrid.mettagrid_c import InventoryConfig as CppInventoryConfig
+from mettagrid.mettagrid_c import MoveActionConfig as CppMoveActionConfig
 from mettagrid.mettagrid_c import Recipe as CppRecipe
 from mettagrid.mettagrid_c import ResourceModConfig as CppResourceModConfig
 from mettagrid.mettagrid_c import WallConfig as CppWallConfig
@@ -42,12 +43,16 @@ def recursive_update(d, u):
 def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
     """Convert a GameConfig to a CppGameConfig."""
     if isinstance(mettagrid_config, GameConfig):
-        # If it's already a GameConfig instance, convert to dict
+        # If it's already a GameConfig instance, use it directly
         game_config = mettagrid_config
     else:
-        # If it's a dict, instantiate a GameConfig from it
-        # mettagrid_config needs special handling for map_builder
-        game_config = GameConfig(**mettagrid_config)
+        # If it's a dict, remove computed fields before instantiating GameConfig
+        # features is a computed field and can't be set during __init__
+        config_dict = mettagrid_config.copy()
+        if "obs" in config_dict and "features" in config_dict["obs"]:
+            config_dict["obs"] = config_dict["obs"].copy()
+            config_dict["obs"].pop("features", None)
+        game_config = GameConfig(**config_dict)
 
     # Set up resource mappings
     resource_names = list(game_config.resource_names)
@@ -94,6 +99,17 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
 
     tag_name_to_id = {tag: tag_id_offset + i for i, tag in enumerate(sorted_tags)}
     tag_id_to_name = {id: name for name, id in tag_name_to_id.items()}
+
+    # Auto-assign type_ids for objects that don't have one
+    # Start at 1 since 0 is reserved for agent type_id
+    next_type_id = 1
+    for _object_type, object_config in game_config.objects.items():
+        if object_config.type_id is None:
+            object_config.type_id = next_type_id
+            next_type_id += 1
+        else:
+            # Track the maximum used type_id to avoid collisions
+            next_type_id = max(next_type_id, object_config.type_id + 1)
 
     # Group agents by team_id to create groups
     team_groups = {}
@@ -325,6 +341,11 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
         game_cpp_params["num_observation_tokens"] = obs_config["num_tokens"]
         # Note: token_dim is not used by C++ GameConfig, it's only used in Python
 
+    # Convert observation features from Python to C++
+    # Use id_map to get feature_ids
+    id_map = game_config.id_map()
+    game_cpp_params["feature_ids"] = {feature.name: feature.id for feature in id_map.features()}
+
     # Convert global_obs configuration
     global_obs_config = game_config.global_obs
     global_obs_cpp = CppGlobalObsConfig(
@@ -381,7 +402,8 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
 
     # Process move - always add to map
     action_params = process_action_config("move", actions_config.move)
-    actions_cpp_params["move"] = CppActionConfig(**action_params)
+    action_params["allowed_directions"] = actions_config.move.allowed_directions
+    actions_cpp_params["move"] = CppMoveActionConfig(**action_params)
 
     # Process attack - always add to map
     action_params = process_action_config("attack", actions_config.attack)
@@ -443,7 +465,6 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
 
     # Set feature flags
     game_cpp_params["recipe_details_obs"] = game_config.recipe_details_obs
-    game_cpp_params["allow_diagonals"] = game_config.allow_diagonals
     game_cpp_params["track_movement_metrics"] = game_config.track_movement_metrics
 
     # Add tag mappings for C++ debugging/display

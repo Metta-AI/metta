@@ -4,19 +4,13 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Optional, Sequence
 
 if TYPE_CHECKING:
+    from mettagrid.config.id_map import ObservationFeatureSpec
     from mettagrid.simulator.simulator import Simulation
 
 
 @dataclass
-class ObservationFeature:
-    id: int
-    name: str
-    normalization: float
-
-
-@dataclass
 class ObservationToken:
-    feature: ObservationFeature
+    feature: ObservationFeatureSpec
     location: tuple[int, int]
     value: int
 

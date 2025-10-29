@@ -135,7 +135,7 @@ class TransformerPolicy(Policy):
         self._uses_sliding_backbone = isinstance(transformer_config, backbone_sliding.SlidingTransformerConfig)
         self.strict_attr_indices = self.config.strict_attr_indices
         self.use_aux_tokens = self.config.use_aux_tokens
-        self._num_input_features = policy_env_info.observation_space.shape[0] + 1  # xcxc
+        self._num_input_features = policy_env_info.observation_space.shape[0] + 1
         self._memory_len = transformer_config.memory_len
         self._transformer_layers = transformer_config.num_layers
         self._memory_len_initial = self._memory_len
@@ -752,12 +752,12 @@ class TransformerPolicy(Policy):
     # ------------------------------------------------------------------
     # Policy interface
     # ------------------------------------------------------------------
-    def initialize_to_environment(self, env, device):
+    def initialize_to_environment(self, policy_env_info: PolicyEnvInterface, device: torch.device):
         device = torch.device(device)
         self.to(device)
 
-        log = self.obs_shim.initialize_to_environment(env, device)
-        self.action_probs.initialize_to_environment(env, device)
+        log = self.obs_shim.initialize_to_environment(policy_env_info, device)
+        self.action_probs.initialize_to_environment(policy_env_info, device)
         self.clear_memory()
         return [log] if log is not None else []
 

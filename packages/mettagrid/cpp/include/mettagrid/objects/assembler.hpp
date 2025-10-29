@@ -8,6 +8,7 @@
 #include <unordered_map>
 #include <vector>
 
+#include "config/observation_features.hpp"
 #include "core/grid.hpp"
 #include "core/grid_object.hpp"
 #include "core/types.hpp"
@@ -16,6 +17,7 @@
 #include "objects/constants.hpp"
 #include "objects/recipe.hpp"
 #include "objects/usable.hpp"
+#include "systems/observation_encoder.hpp"
 
 class Clipper;
 
@@ -177,8 +179,7 @@ public:
 
   // Recipe observation configuration
   bool recipe_details_obs;
-  ObservationType input_recipe_offset;
-  ObservationType output_recipe_offset;
+  const class ObservationEncoder* obs_encoder;
 
   // Allow partial usage during cooldown
   bool allow_partial_usage;
@@ -198,8 +199,7 @@ public:
         grid(nullptr),
         current_timestep_ptr(nullptr),
         recipe_details_obs(cfg.recipe_details_obs),
-        input_recipe_offset(cfg.input_recipe_offset),
-        output_recipe_offset(cfg.output_recipe_offset),
+        obs_encoder(nullptr),
         allow_partial_usage(cfg.allow_partial_usage),
         clipper_ptr(nullptr) {
     GridObject::init(cfg.type_id, cfg.type_name, GridLocation(r, c, GridLayer::ObjectLayer), cfg.tag_ids);
@@ -214,6 +214,11 @@ public:
   // Set current timestep pointer
   void set_current_timestep_ptr(unsigned int* timestep_ptr) {
     this->current_timestep_ptr = timestep_ptr;
+  }
+
+  // Set observation encoder for recipe feature ID lookup
+  void set_obs_encoder(const class ObservationEncoder* encoder) {
+    this->obs_encoder = encoder;
   }
 
   // Get the remaining cooldown duration in ticks (0 when ready for use)
@@ -406,22 +411,20 @@ public:
     }
 
     // Add recipe details if configured to do so
-    if (this->recipe_details_obs) {
+    if (this->recipe_details_obs && this->obs_encoder) {
       const Recipe* current_recipe = get_current_recipe();
       if (current_recipe) {
         // Add recipe inputs (input:resource) - only non-zero values
         for (const auto& [item, amount] : current_recipe->input_resources) {
           if (amount > 0) {
-            features.push_back(
-                {static_cast<ObservationType>(input_recipe_offset + item), static_cast<ObservationType>(amount)});
+            features.push_back({obs_encoder->get_input_feature_id(item), static_cast<ObservationType>(amount)});
           }
         }
 
         // Add recipe outputs (output:resource) - only non-zero values
         for (const auto& [item, amount] : current_recipe->output_resources) {
           if (amount > 0) {
-            features.push_back(
-                {static_cast<ObservationType>(output_recipe_offset + item), static_cast<ObservationType>(amount)});
+            features.push_back({obs_encoder->get_output_feature_id(item), static_cast<ObservationType>(amount)});
           }
         }
       }
