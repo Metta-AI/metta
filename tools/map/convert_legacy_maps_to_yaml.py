@@ -20,7 +20,7 @@ DEFAULT_DIRECTORIES = (
     Path("packages/mettagrid/configs/maps"),
     Path("packages/cogames/src/cogames/maps"),
 )
-DEFAULT_TYPE_LINE = "type: mettagrid.map_builder.ascii.AsciiMapBuilder"
+DEFAULT_TYPE_LINE = "type: mettagrid.map_builder.ascii.AsciiMapBuilder.Config"
 ASCII_GRID_LEGEND_KEY = "ascii_grid"
 COGS_VS_CLIPS_LEGEND_KEY = "cogs_vs_clips"
 COGS_VS_CLIPS_PATH_MARKER = Path("packages/cogames")
