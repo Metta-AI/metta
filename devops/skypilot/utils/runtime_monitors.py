@@ -17,11 +17,6 @@ logger = getRankAwareLogger(__name__)
 class Monitor(ABC):
     """Abstract base class for runtime monitors."""
 
-    @property
-    def name(self) -> str:
-        """Get the monitor name from the class name."""
-        return self.__class__.__name__
-
     @abstractmethod
     def check_condition(self) -> str | None:
         """Check if the monitor condition is triggered.

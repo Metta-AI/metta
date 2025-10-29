@@ -130,7 +130,7 @@ def monitor_until_termination(job_config: JobConfig, job: subprocess.Popen) -> s
         for monitor in monitors:
             reason = monitor.check_condition()
             if reason:
-                logger.info(f"{monitor.name} triggered: {reason}")
+                logger.info(f"{monitor.__class__.__name__} triggered: {reason}")
                 terminate_process_group(job)
 
                 return reason
