@@ -207,9 +207,13 @@ Examples:
     # Parse known args to handle --tool with remaining args
     args, remaining_args = parser.parse_known_args()
 
-    # Validate that either --tool or command is provided (not both, not neither)
+    # When using --tool, argparse may assign positional args to 'command'
+    # Treat those as tool args instead
     if args.tool and args.command:
-        parser.error("Cannot specify both --tool and command. Use one or the other.")
+        remaining_args = [args.command] + remaining_args
+        args.command = None
+
+    # Validate that either --tool or command is provided
     if not args.tool and not args.command:
         parser.error("Must specify either --tool or command")
 

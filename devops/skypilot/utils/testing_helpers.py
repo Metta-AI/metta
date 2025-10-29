@@ -150,19 +150,21 @@ class SkyPilotTestLauncher:
     ) -> LaunchedJob:
         """Launch a single job and track its status with retry logic."""
         # Build the command
-        # Use --run flag instead of run=... to avoid argparse confusion
-        cmd = [
+        # All launch.py flags must come before tool args to avoid argparse confusion
+        launch_flags = [
             "devops/skypilot/launch.py",
             "--tool",
             module,
             "--run",
             run_name,
             *base_args,
-            *extra_args,
         ]
 
         if self.skip_git_check:
-            cmd.append("--skip-git-check")
+            launch_flags.append("--skip-git-check")
+
+        # Tool args go after all launch.py flags
+        cmd = [*launch_flags, *extra_args]
 
         # Display launch info
         print(f"\n{bold('Launching job:')} {magenta(run_name)}")
