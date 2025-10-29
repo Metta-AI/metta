@@ -20,7 +20,6 @@ from mettagrid import MettaGridEnv, RenderMode, dtype_actions
 logger = logging.getLogger(__name__)
 
 
-
 class PlayTool(Tool):
     """Interactive play tool for Metta simulations using MettaScope2."""
 

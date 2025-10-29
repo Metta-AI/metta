@@ -53,10 +53,10 @@ class MettascopeRenderer(Renderer):
     def render(self) -> None:
         """Render current state and capture user input."""
         assert self._env is not None
-        
+
         # Clear previous actions so they don't persist across steps.
         self._user_actions.clear()
-        
+
         # Generate replay data for current state
         grid_objects = []
         total_rewards = self._env.get_episode_rewards()

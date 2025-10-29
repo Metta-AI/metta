@@ -18,7 +18,6 @@ if TYPE_CHECKING:
 logger = logging.getLogger("cogames.play")
 
 
-
 def play(
     console: Console,
     env_cfg: "MettaGridConfig",
