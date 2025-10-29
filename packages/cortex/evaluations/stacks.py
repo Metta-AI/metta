@@ -173,7 +173,7 @@ STACKS: Dict[str, StackSpec] = {
     # Mixed auto stack cycling Axon/mLSTM/sLSTM with PreUp/PreUp/PostUp
     "cortex_auto": StackSpec(
         name="cortex_auto_stack",
-        builder=lambda: build_cortex_auto_stack(d_hidden=128, num_layers=2),
+        builder=lambda: build_cortex_auto_stack(d_hidden=128, num_layers=2,compile_blocks=True, pattern="AXMS"),
         d_hidden=128,
     ),
     "cortex_auto_axon": StackSpec(

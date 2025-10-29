@@ -14,6 +14,20 @@ def _load_ext():
     global _ext
     if _ext is not None:
         return _ext
+    build_dir = None
+    if torch.cuda.is_available():
+        caps = sorted(
+            {
+                f"{maj}.{min}"
+                for i in range(torch.cuda.device_count())
+                for (maj, min) in [torch.cuda.get_device_capability(i)]
+            }
+        )
+        if caps:
+            desired = ";".join(caps)
+            env_arch = os.environ.get("TORCH_CUDA_ARCH_LIST", "")
+            if not all(c in env_arch for c in caps):
+                os.environ["TORCH_CUDA_ARCH_LIST"] = desired
     _ext = load(
         name="srht_cuda",
         sources=[
@@ -22,6 +36,7 @@ def _load_ext():
         ],
         extra_cflags=["-O3"],
         extra_cuda_cflags=["-O3", "-Xptxas", "-O3"],
+        build_directory=None,
         verbose=False,
     )
     return _ext
