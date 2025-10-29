@@ -80,20 +80,21 @@ def create_job_config_from_environment() -> JobConfig:
 
 
 def run_job_in_background() -> subprocess.Popen:
-    """Launch training process in the background and return the process handle."""
-    cmd = ["./devops/run.sh"]
+    """Launch job process in the background and return the process handle."""
+    metta_cmd = os.environ.get("METTA_CMD")
+    if not metta_cmd:
+        raise ValueError("METTA_CMD is required")
 
-    module_path = os.environ.get("METTA_MODULE_PATH")
-    if not module_path:
-        raise ValueError("METTA_MODULE_PATH is required")
-    cmd.append(module_path)
+    use_torchrun = os.environ.get("METTA_USE_TORCHRUN", "false").lower() == "true"
 
-    # Add args if present
-    args = os.environ.get("METTA_ARGS", "").strip()
-    if args:
-        cmd.extend(args.split())
-
-    logger.info(f"Launching training in background: {' '.join(cmd)}")
+    if use_torchrun:
+        # Wrap with devops/run.sh for torchrun setup
+        cmd = ["./devops/run.sh"] + metta_cmd.split()
+        logger.info(f"Launching job with torchrun wrapper: {' '.join(cmd)}")
+    else:
+        # Run command directly without torchrun
+        cmd = metta_cmd.split()
+        logger.info(f"Launching job directly (no torchrun): {' '.join(cmd)}")
 
     process = subprocess.Popen(
         cmd,
@@ -102,7 +103,7 @@ def run_job_in_background() -> subprocess.Popen:
         stderr=sys.stderr,
     )
 
-    logger.info(f"Training process launched in background (PID: {process.pid})")
+    logger.info(f"Job process launched in background (PID: {process.pid})")
     return process
 
 

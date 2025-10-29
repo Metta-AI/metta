@@ -1,6 +1,7 @@
 # Running NCCL Tests on SkyPilot
 
 NCCL tests validate GPU communication infrastructure before training. They should be run:
+
 - Before starting large/expensive training runs
 - After changing cloud provider, region, or instance type
 - When investigating mysterious training failures or hangs
@@ -8,20 +9,23 @@ NCCL tests validate GPU communication infrastructure before training. They shoul
 
 ## Usage
 
+NCCL tests use the **same infrastructure** as training jobs (defined in `job.yaml`), ensuring you're testing the exact
+configuration that will be used for training.
+
 ### Launch NCCL tests on the cluster
 
 ```bash
-# Single node with 4 GPUs (default configuration)
-./devops/skypilot/launch.py --recipe nccl_test run=nccl_diag_$(date +%Y%m%d_%H%M%S)
+# Single node (uses default GPU configuration from job.yaml)
+./devops/skypilot/launch.py --tool devops.skypilot.tools.nccl run=nccl_diag_$(date +%Y%m%d_%H%M%S)
 
 # Multi-node test (2 nodes, 4 GPUs each)
-./devops/skypilot/launch.py --recipe nccl_test --nodes 2 --gpus 4 run=nccl_diag_multinode
+./devops/skypilot/launch.py --tool devops.skypilot.tools.nccl --nodes 2 --gpus 4 run=nccl_diag_multinode
 
 # 8 GPU test
-./devops/skypilot/launch.py --recipe nccl_test --gpus 8 run=nccl_diag_8gpu
+./devops/skypilot/launch.py --tool devops.skypilot.tools.nccl --gpus 8 run=nccl_diag_8gpu
 
 # Skip using spot instances (for faster startup)
-./devops/skypilot/launch.py --recipe nccl_test --no-spot run=nccl_diag_ondemand
+./devops/skypilot/launch.py --tool devops.skypilot.tools.nccl --no-spot run=nccl_diag_ondemand
 ```
 
 ### Check test results
@@ -43,9 +47,9 @@ sky jobs logs <job_id>
 
 ## Configuration
 
-The `nccl_test.yaml` recipe mirrors the resource configuration from `job.yaml` to ensure tests run on the same hardware as training jobs.
-
-**Important**: If you modify training resource requirements in `job.yaml`, update `nccl_test.yaml` accordingly to keep them in sync.
+NCCL tests use the same `job.yaml` configuration as training jobs, so you're always testing on the exact infrastructure
+that will be used for training. There's no separate configuration to maintain - just modify `job.yaml` and both training
+and NCCL tests will use the updated settings.
 
 ## Exit codes
 
