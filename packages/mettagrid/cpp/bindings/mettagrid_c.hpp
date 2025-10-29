@@ -63,11 +63,11 @@ public:
 
   std::vector<std::string> resource_names;
   std::vector<std::string> object_type_names;
+  std::unordered_map<ObservationType, std::string> feature_id_to_name;
 
   // Python API methods
   // In general, these types need to match what puffer wants to use.
   py::tuple step();
-  void set_actions(const py::array_t<ActionType, py::array::c_style>& actions);
   void set_buffers(const py::array_t<ObservationType, py::array::c_style>& observations,
                    const py::array_t<TerminalType, py::array::c_style>& terminals,
                    const py::array_t<TruncationType, py::array::c_style>& truncations,
@@ -79,7 +79,6 @@ public:
                         int min_col = -1,
                         int max_col = -1,
                         const py::list& ignore_types = py::list());
-  py::list action_names();
 
   py::array_t<ObservationType> observations();
   py::array_t<TerminalType> terminals();
@@ -90,16 +89,10 @@ public:
 
   GridCoord map_width();
   GridCoord map_height();
-  py::dict feature_normalizations();
-  py::dict feature_spec();
-  size_t num_agents() const;
   py::none set_inventory(GridObjectId agent_id, const std::unordered_map<InventoryItem, InventoryQuantity>& inventory);
   py::array_t<float> get_episode_rewards();
   py::dict get_episode_stats();
-  size_t num_actions() const;
   py::list action_success_py();
-  py::list object_type_names_py();
-  py::list resource_names_py();
 
   uint64_t initial_grid_hash;
 

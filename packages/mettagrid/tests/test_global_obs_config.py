@@ -1,7 +1,5 @@
 """Test global observation configuration functionality."""
 
-import numpy as np
-
 from mettagrid.config.mettagrid_config import (
     ActionsConfig,
     AgentConfig,
@@ -14,21 +12,8 @@ from mettagrid.config.mettagrid_config import (
     ObsConfig,
     WallConfig,
 )
-from mettagrid.map_builder.map_builder import GameMap, MapBuilder, MapBuilderConfig
 from mettagrid.simulator import Action, Simulation
-
-
-class ObjectNameMapBuilder(MapBuilder):
-    """Map builder that uses pre-built object name maps."""
-
-    class Config(MapBuilderConfig["ObjectNameMapBuilder"]):
-        map_data: list[list[str]]
-
-    def __init__(self, config: Config):
-        self.config = config
-
-    def build(self) -> GameMap:
-        return GameMap(grid=np.array(self.config.map_data))
+from mettagrid.test_support.map_builders import ObjectNameMapBuilder
 
 
 def create_test_sim(global_obs_config: dict[str, bool]) -> Simulation:

@@ -1,6 +1,5 @@
 """Test cases for action system compatibility and behavior."""
 
-import numpy as np
 import pytest
 
 from mettagrid.config.mettagrid_config import (
@@ -14,23 +13,12 @@ from mettagrid.config.mettagrid_config import (
     ObsConfig,
     WallConfig,
 )
-from mettagrid.map_builder.map_builder import GameMap, MapBuilder, MapBuilderConfig
 from mettagrid.simulator import Action, Simulation
 from mettagrid.test_support.actions import get_agent_position
+from mettagrid.test_support.map_builders import ObjectNameMapBuilder
 
-
-# Helper map builder for tests that have pre-built maps (object names, not ASCII)
-class ObjectNameMapBuilder(MapBuilder):
-    """Map builder that uses pre-built object name maps."""
-
-    class Config(MapBuilderConfig["ObjectNameMapBuilder"]):
-        map_data: list[list[str]]
-
-    def __init__(self, config: Config):
-        self.config = config
-
-    def build(self) -> GameMap:
-        return GameMap(grid=np.array(self.config.map_data))
+# Rebuild GameConfig after MapBuilderConfig is imported
+GameConfig.model_rebuild()
 
 
 def create_sim(game_config: GameConfig, game_map: list[list[str]], seed: int = 42) -> Simulation:
@@ -50,7 +38,6 @@ def create_basic_config() -> GameConfig:
         agent=AgentConfig(freeze_duration=0, resource_limits={"ore": 10, "wood": 10}),
         actions=ActionsConfig(move=MoveActionConfig(), noop=NoopActionConfig()),
         objects={"wall": WallConfig(swappable=False)},
-        allow_diagonals=True,
     )
 
 
@@ -114,7 +101,6 @@ class TestActionOrdering:
             agent=basic_config.agent,
             actions=ActionsConfig(noop=NoopActionConfig(), move=MoveActionConfig()),
             objects=basic_config.objects,
-            allow_diagonals=basic_config.allow_diagonals,
         )
 
         sim2 = create_sim(reordered_config, simple_map, 42)
@@ -183,7 +169,6 @@ class TestResourceRequirements:
                 move=MoveActionConfig(enabled=True, required_resources={"ore": 1}), noop=NoopActionConfig()
             ),
             objects=basic_config.objects,
-            allow_diagonals=basic_config.allow_diagonals,
         )
 
         sim = create_sim(config, simple_map, 42)
@@ -210,7 +195,6 @@ class TestResourceRequirements:
                 move=MoveActionConfig(enabled=True, consumed_resources={"ore": 1}), noop=NoopActionConfig()
             ),
             objects=basic_config.objects,
-            allow_diagonals=basic_config.allow_diagonals,
         )
 
         sim = create_sim(config, simple_map, 42)
@@ -278,7 +262,6 @@ class TestActionSpace:
             agent=basic_config.agent,
             actions=basic_config.actions,
             objects=basic_config.objects,
-            allow_diagonals=basic_config.allow_diagonals,
         )
 
         sim = create_sim(config, multi_agent_map, 42)
@@ -318,7 +301,6 @@ class TestSpecialActions:
                 noop=NoopActionConfig(),
             ),
             objects=basic_config.objects,
-            allow_diagonals=basic_config.allow_diagonals,
         )
 
         sim = create_sim(config, simple_map, 42)
@@ -332,8 +314,8 @@ class TestSpecialActions:
         assert action_names[0] == "noop", "Noop should always be first"
         assert any(name.startswith("move_") for name in action_names), "Should have move actions"
 
-        # All attack variants should be present
-        for i in range(9):
+        # All attack variants should be present (1-9, corresponding to grid positions)
+        for i in range(1, 10):
             assert f"attack_{i}" in action_names, f"Should have attack_{i}"
 
 
@@ -351,7 +333,6 @@ class TestResourceOrdering:
             agent=basic_config.agent,
             actions=basic_config.actions,
             objects=basic_config.objects,
-            allow_diagonals=basic_config.allow_diagonals,
         )
 
         # Config with wood first
@@ -363,7 +344,6 @@ class TestResourceOrdering:
             agent=basic_config.agent,
             actions=basic_config.actions,
             objects=basic_config.objects,
-            allow_diagonals=basic_config.allow_diagonals,
         )
 
         sim1 = create_sim(config1, simple_map, 42)

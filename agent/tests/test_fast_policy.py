@@ -2,9 +2,9 @@ import torch
 from tensordict import TensorDict
 
 from metta.agent.policies.fast import FastConfig, FastPolicy
-from metta.rl.training import PolicyEnvInterface
 from metta.rl.utils import ensure_sequence_metadata
 from mettagrid.config import MettaGridConfig
+from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 
 
 def _build_policy_env_info() -> PolicyEnvInterface:

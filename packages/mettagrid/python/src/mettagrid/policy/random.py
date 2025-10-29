@@ -4,6 +4,7 @@ import random
 
 from mettagrid.config.mettagrid_config import ActionsConfig
 from mettagrid.policy.policy import AgentPolicy, MultiAgentPolicy
+from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.simulator import Action, AgentObservation
 
 
@@ -23,8 +24,8 @@ class RandomAgentPolicy(AgentPolicy):
 class RandomMultiAgentPolicy(MultiAgentPolicy):
     """Random multi-agent policy that samples actions uniformly from the action space."""
 
-    def __init__(self, actions: ActionsConfig):
-        super().__init__(actions)
+    def __init__(self, policy_env_info: PolicyEnvInterface):
+        super().__init__(policy_env_info)
 
     def agent_policy(self, agent_id: int) -> AgentPolicy:
         """Get an AgentPolicy instance for a specific agent.

@@ -131,7 +131,7 @@ To get started, `cogames` supports some torch-nn-based policy architectures out 
 supply your own, you will want to extend `cogames.policy.Policy`.
 
 ```python
-from cogames.policy.interfaces import Policy
+from mettagrid.policy.policy import MultiAgentPolicy as Policy
 
 class MyPolicy(Policy):
     def __init__(self, observation_space, action_space):
@@ -162,15 +162,15 @@ The underlying environment follows the Gymnasium API:
 
 ```python
 from cogames.cli.mission import get_mission
-from mettagrid.envs import MettaGridEnv
-from mettagrid.simulator.simulator import Simulator
+from mettagrid import PufferMettaGridEnv
+from mettagrid.simulator import Simulator
 
 # Load a mission configuration
 _, config = get_mission("assembler_2_complex")
 
 # Create environment
 simulator = Simulator()
-env = MettaGridEnv(simulator, config)
+env = PufferMettaGridEnv(simulator, config)
 
 # Reset environment
 obs, info = env.reset()

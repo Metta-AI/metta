@@ -99,13 +99,8 @@ class TestComprehensiveEnvironmentIntegration:
                         "generator_red": building.assembler_generator_red,
                     },
                     actions=ActionsConfig(
-<<<<<<< HEAD
-                        move=ActionConfig(),
-                        noop=ActionConfig(),
-=======
                         move=MoveActionConfig(),
                         noop=NoopActionConfig(),
->>>>>>> 4b8de25bb4 (feat: implement mettagrid API changes)
                     ),
                     agent=AgentConfig(
                         rewards=AgentRewards(
@@ -138,13 +133,8 @@ class TestComprehensiveEnvironmentIntegration:
                         "generator_red": building.assembler_generator_red,
                     },
                     actions=ActionsConfig(
-<<<<<<< HEAD
-                        move=ActionConfig(),
-                        noop=ActionConfig(),
-=======
                         move=MoveActionConfig(),
                         noop=NoopActionConfig(),
->>>>>>> 4b8de25bb4 (feat: implement mettagrid API changes)
                     ),
                     agent=AgentConfig(
                         rewards=AgentRewards(

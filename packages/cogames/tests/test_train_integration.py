@@ -60,7 +60,7 @@ def test_train_lstm_policy(test_env_config, temp_checkpoint_dir):
 @pytest.mark.timeout(180)
 def test_train_lstm_and_load_policy_data(test_env_config, temp_checkpoint_dir):
     """Test training LSTM policy, then loading it for evaluation."""
-    from mettagrid import MettaGridEnv
+    from mettagrid import PufferMettaGridEnv
     from mettagrid.policy.lstm import LSTMPolicy
 
     # Train the policy
@@ -87,9 +87,12 @@ def test_train_lstm_and_load_policy_data(test_env_config, temp_checkpoint_dir):
     from mettagrid.simulator import Simulator
 
     simulator = Simulator()
-    env = MettaGridEnv(simulator, test_env_config)
+    env = PufferMettaGridEnv(simulator, test_env_config)
     obs_shape = env.single_observation_space.shape
-    policy = LSTMPolicy(test_env_config.game.actions, obs_shape, torch.device("cpu"))
+    from mettagrid.policy.policy_env_interface import PolicyEnvInterface
+
+    policy_env_info = PolicyEnvInterface.from_mg_cfg(test_env_config)
+    policy = LSTMPolicy(test_env_config.game.actions, obs_shape, torch.device("cpu"), policy_env_info)
     policy.load_policy_data(str(checkpoints[0]))
 
     # Verify the policy can be used for inference with state
@@ -108,4 +111,6 @@ def test_train_lstm_and_load_policy_data(test_env_config, temp_checkpoint_dir):
         agent_policy = policy.agent_policy(int(agent_id))
         action = agent_policy.step(agent_obs)
         assert action is not None
-        assert np.isscalar(action)
+        from mettagrid.simulator import Action
+
+        assert isinstance(action, Action)

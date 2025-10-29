@@ -1,8 +1,8 @@
 """
-MettaGridPufferBase - Base PufferLib integration for MettaGrid.
+MettaGridPufferEnv - PufferLib integration for MettaGrid.
 
-This class provides PufferLib compatibility for MettaGrid environments by inheriting
-from both MettaGridCore and PufferEnv. This allows MettaGrid environments to be used
+This class provides PufferLib compatibility for MettaGrid environments using
+the Simulation class. This allows MettaGrid environments to be used
 directly with PufferLib training infrastructure.
 
 Provides:
@@ -10,12 +10,11 @@ Provides:
  - Persistent buffers for re-use between resets
 
 Architecture:
-- MettaGridPufferBase inherits from: MettaGridCore + PufferEnv
-- MettaGridEnv inherits from: MettaGridPufferBase
-- This enables MettaGridEnv to work seamlessly with PufferLib training code
+- MettaGridPufferEnv wraps Simulation and provides PufferEnv interface
+- This enables MettaGridPufferEnv to work seamlessly with PufferLib training code
 
 For users:
-- Use MettaGridEnv directly with PufferLib (it inherits PufferLib functionality)
+- Use MettaGridPufferEnv directly with PufferLib (it inherits PufferLib functionality)
 - Alternatively, use PufferLib's MettaPuff wrapper for additional PufferLib features:
   https://github.com/PufferAI/PufferLib/blob/main/pufferlib/environments/metta/environment.py
 
@@ -146,17 +145,20 @@ class MettaGridPufferEnv(PufferEnv):
     @override
     def step(self, actions: np.ndarray) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, Dict[str, Any]]:
         self._sim._c_sim.actions()[:] = actions
-        self._sim._c_sim.step()
+        self._sim.step()
 
+        infos = {}
         if self._buffers.terminals.all() or self._buffers.truncations.all():
             self._should_reset = True
+            for handler in self._sim._event_handlers:
+                infos.update(handler.infos())
 
         return (
             self._buffers.observations,
             self._buffers.rewards,
             self._buffers.terminals,
             self._buffers.truncations,
-            {},
+            infos,
         )
 
     @property

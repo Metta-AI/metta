@@ -8,6 +8,7 @@ import torch.nn as nn
 from pydantic import BaseModel
 
 from mettagrid.config.mettagrid_config import ActionsConfig
+from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.simulator import Action, AgentObservation
 
 # Type variable for agent state - can be any type
@@ -50,8 +51,9 @@ class MultiAgentPolicy:
     get per-agent instances.
     """
 
-    def __init__(self, actions: ActionsConfig):
-        self._actions = actions
+    def __init__(self, policy_env_info: PolicyEnvInterface):
+        self._policy_env_info = policy_env_info
+        self._actions = policy_env_info.actions
 
     @abstractmethod
     def agent_policy(self, agent_id: int) -> AgentPolicy:
@@ -155,6 +157,9 @@ class TrainablePolicy(MultiAgentPolicy):
     TrainablePolicy extends Policy and manages a neural network that can be trained.
     It creates per-agent AgentPolicy instances that share the same network.
     """
+
+    def __init__(self, policy_env_info: PolicyEnvInterface):
+        super().__init__(policy_env_info)
 
     @abstractmethod
     def network(self) -> nn.Module:

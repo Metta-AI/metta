@@ -113,7 +113,7 @@ class TestTags:
         assert len(wall_locations) > 0, "Should find walls in observation"
 
         # Get tag feature ID from environment
-        tag_feature_id = sim._c_sim.feature_spec()["tag"]["id"]
+        tag_feature_id = sim.id_map.feature_id("tag")
 
         # Check for tag features at wall locations
         tag_features = []
@@ -142,7 +142,7 @@ class TestTags:
                 wall_locations.add(token[0])
 
         # Get tag feature ID from environment
-        tag_feature_id = sim._c_sim.feature_spec()["tag"]["id"]
+        tag_feature_id = sim.id_map.feature_id("tag")
 
         # Find tag features at wall locations
         found_tags = set()
@@ -192,7 +192,7 @@ class TestTags:
         agent_obs = obs[0]
 
         # Get tag feature ID from environment
-        tag_feature_id = env._c_sim.feature_spec()["tag"]["id"]
+        tag_feature_id = env.id_map.feature_id("tag")
 
         # Find wall locations
         wall_locations = set()
@@ -221,7 +221,7 @@ class TestTags:
         shared_tag_id = 1  # "shared_tag" should be ID 1
 
         # Get tag feature ID from environment
-        tag_feature_id = sim._c_sim.feature_spec()["tag"]["id"]
+        tag_feature_id = sim.id_map.feature_id("tag")
 
         # Find wall and agent locations
         wall_locations = set()
@@ -282,7 +282,7 @@ class TestTags:
         agent_obs = obs[0]
 
         # Get tag feature ID from environment
-        tag_feature_id = env._c_sim.feature_spec()["tag"]["id"]
+        tag_feature_id = env.id_map.feature_id("tag")
 
         # Find wall locations
         wall_locations = set()
@@ -361,7 +361,7 @@ class TestTags:
         assert obs2 is not None
 
         # Get tag feature ID from environment
-        tag_feature_id = env1._c_sim.feature_spec()["tag"]["id"]
+        tag_feature_id = env1.config.id_map().feature_id("tag")
 
         # Extract tag IDs from both environments
         def get_wall_tag_ids(obs):
@@ -425,7 +425,7 @@ class TestTags:
         obs = sim._c_sim.observations()
 
         # Get tag feature ID from environment
-        tag_feature_id = sim._c_sim.feature_spec()["tag"]["id"]
+        tag_feature_id = sim.id_map.feature_id("tag")
 
         assert obs is not None
 
@@ -477,7 +477,7 @@ class TestTags:
         obs = env._c_sim.observations()
 
         # Get tag feature ID from environment
-        tag_feature_id = env._c_sim.feature_spec()["tag"]["id"]
+        tag_feature_id = env.id_map.feature_id("tag")
 
         assert obs is not None
         assert len(obs) == 2  # Two agents
@@ -647,7 +647,7 @@ def test_default_agent_tags_preserved():
     assert len(obs) == 2  # Two default agents
 
     # Get tag feature ID from environment
-    tag_feature_id = env._c_sim.feature_spec()["tag"]["id"]
+    tag_feature_id = env.config.id_map().feature_id("tag")
 
     # Check both agents have the default tags
     for agent_idx in range(2):
@@ -692,8 +692,8 @@ def test_default_agent_tags_in_cpp_config():
     assert tag_id_map[1] == "player", f"Tag ID 1 should be 'player', got {tag_id_map[1]}"
 
 
-def test_tag_mapping_in_feature_spec():
-    """Test that tag mapping is exposed through feature_spec()"""
+def test_tag_mapping_in_id_map():
+    """Test that tag mapping is exposed through id_map"""
     cfg = MettaGridConfig(
         game=GameConfig(
             num_agents=1,
@@ -726,21 +726,15 @@ def test_tag_mapping_in_feature_spec():
         )
     )
 
-    env = Simulation(cfg)
-    feature_spec = env._c_sim.feature_spec()
+    sim = Simulation(cfg)
+    id_map = sim.id_map
 
     # Check that tag feature exists
-    assert "tag" in feature_spec, "tag feature should be in feature_spec"
-
-    tag_spec = feature_spec["tag"]
-
-    # Check that tag feature has expected fields
-    assert "id" in tag_spec, "tag feature should have 'id' field"
-    assert "normalization" in tag_spec, "tag feature should have 'normalization' field"
-    assert "values" in tag_spec, "tag feature should have 'values' field for tag mapping"
+    tag_feature_id = id_map.feature_id("tag")
+    assert tag_feature_id is not None, "tag feature should exist in id_map"
 
     # Check tag mapping contents
-    tag_values = tag_spec["values"]
+    tag_values = id_map.tag_names()
     assert isinstance(tag_values, dict), "tag values should be a dict mapping tag_id -> tag_name"
 
     # All unique tags sorted: ["blocking", "industrial", "machine", "mobile", "player", "solid"]
@@ -781,17 +775,13 @@ def test_tag_mapping_empty_tags():
     )
 
     env = Simulation(cfg)
-    feature_spec = env._c_sim.feature_spec()
+    id_map = env.id_map
 
     # Check that tag feature exists
-    assert "tag" in feature_spec, "tag feature should be in feature_spec even with no tags"
-
-    tag_spec = feature_spec["tag"]
-
-    # Check that tag feature has expected fields
-    assert "values" in tag_spec, "tag feature should have 'values' field even with no tags"
+    tag_feature_id = id_map.feature_id("tag")
+    assert tag_feature_id is not None, "tag feature should exist in id_map even with no tags"
 
     # Check tag mapping is empty
-    tag_values = tag_spec["values"]
+    tag_values = id_map.tag_names()
     assert isinstance(tag_values, dict), "tag values should be a dict"
     assert len(tag_values) == 0, f"Should have 0 tags, got {len(tag_values)}"

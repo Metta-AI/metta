@@ -5,7 +5,6 @@
 #include "core/grid.hpp"
 #include "objects/assembler.hpp"
 #include "objects/constants.hpp"
-#include "objects/converter.hpp"
 
 // Handles the FinishConverting event
 class ProductionHandler : public EventHandler {
@@ -13,12 +12,9 @@ public:
   explicit ProductionHandler(EventManager* event_manager) : EventHandler(event_manager) {}
 
   void handle_event(GridObjectId obj_id, EventArg /*arg*/) override {
-    Converter* converter = static_cast<Converter*>(this->event_manager->grid->object(obj_id));
-    if (!converter) {
-      return;
-    }
-
-    converter->finish_converting();
+    // Converter handling removed
+    // This handler is now primarily for Assembler production events
+    (void)obj_id;  // Suppress unused parameter warning
   }
 };
 
@@ -33,14 +29,9 @@ public:
       return;
     }
 
-    // Handle Converter cooldown
-    Converter* converter = dynamic_cast<Converter*>(obj);
-    if (converter) {
-      converter->finish_cooldown();
-      return;
-    }
-
+    // Converter cooldown handling removed
     // NB: Assemblers handle cooldown implicitly.
+    (void)obj;  // Suppress unused parameter warning
   }
 };
 

@@ -27,8 +27,8 @@ class AgentControlComponent(MiniscopeComponent):
 
         # Setup movement action mapping (maps keys to action names)
         self._move_action_lookup: Dict[str, str] = {}
-        if hasattr(sim.state, "action_ids"):
-            action_ids = sim.state.action_ids
+        if hasattr(sim, "action_ids"):
+            action_ids = sim.action_ids
             # Map WASD keys to directional movement actions
             if "move_north" in action_ids:
                 self._move_action_lookup["W"] = "move_north"
@@ -54,10 +54,10 @@ class AgentControlComponent(MiniscopeComponent):
         ch = ch.upper()
         # Handle agent selection
         if ch == "[":
-            self._state.select_previous_agent(self._sim.state.num_agents)
+            self._state.select_previous_agent(self._sim.num_agents)
             return True
         elif ch == "]":
-            self._state.select_next_agent(self._sim.state.num_agents)
+            self._state.select_next_agent(self._sim.num_agents)
             return True
 
         # Handle manual mode toggle
@@ -100,4 +100,5 @@ class AgentControlComponent(MiniscopeComponent):
             content = table
 
         # Set panel content
-        self._panel.set_content(content)
+        if self._panel is not None:
+            self._panel.set_content(content)

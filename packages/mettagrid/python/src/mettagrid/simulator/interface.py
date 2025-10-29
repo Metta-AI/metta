@@ -1,22 +1,16 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Optional, Sequence
+from typing import TYPE_CHECKING, Any, Dict, Optional, Sequence
 
 if TYPE_CHECKING:
+    from mettagrid.config.id_map import ObservationFeatureSpec
     from mettagrid.simulator.simulator import Simulation
 
 
 @dataclass
-class ObservationFeature:
-    id: int
-    name: str
-    normalization: float
-
-
-@dataclass
 class ObservationToken:
-    feature: ObservationFeature
+    feature: ObservationFeatureSpec
     location: tuple[int, int]
     value: int
 
@@ -55,6 +49,9 @@ class SimulatorEventHandler:
 
     def on_step(self) -> None:
         pass
+
+    def infos(self) -> Dict[str, Any]:
+        return {}
 
     def on_close(self) -> None:
         pass

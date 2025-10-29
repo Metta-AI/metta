@@ -8,13 +8,12 @@
 #include <vector>
 
 #include "core/types.hpp"
+#include "objects/agent_config.hpp"
 #include "objects/constants.hpp"
 #include "objects/has_inventory.hpp"
 #include "objects/usable.hpp"
 #include "supervisors/agent_supervisor.hpp"
 #include "systems/stats_tracker.hpp"
-
-class AgentConfig;
 class Agent : public GridObject, public HasInventory, public Usable {
 public:
   ObservationType group;
@@ -49,7 +48,11 @@ public:
   // Agent supervisor (optional)
   std::unique_ptr<AgentSupervisor> supervisor;
 
-  Agent(GridCoord r, GridCoord c, const AgentConfig& config, const std::vector<std::string>* resource_names);
+  Agent(GridCoord r,
+        GridCoord c,
+        const AgentConfig& config,
+        const std::vector<std::string>* resource_names,
+        const std::unordered_map<std::string, ObservationType>* feature_ids = nullptr);
 
   void init(RewardType* reward_ptr);
 

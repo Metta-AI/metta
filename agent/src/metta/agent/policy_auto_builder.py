@@ -10,8 +10,8 @@ from torch.nn.parameter import UninitializedParameter
 from torchrl.data import Composite, UnboundedDiscrete
 
 from metta.agent.policy import Policy
-from metta.rl.training import PolicyEnvInterface
 from mettagrid.config import Config
+from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 
 logger = logging.getLogger("metta_agent")
 
@@ -25,9 +25,7 @@ class PolicyAutoBuilder(Policy):
     """Generic policy builder for use with configs."""
 
     def __init__(self, policy_env_info: PolicyEnvInterface, config: Config | None = None):
-        from mettagrid.config.mettagrid_config import ActionsConfig
-
-        super().__init__(actions=ActionsConfig())
+        super().__init__(policy_env_info)
         self.config = config
 
         self.components = OrderedDict()
@@ -36,7 +34,7 @@ class PolicyAutoBuilder(Policy):
             self.components[name] = component_config.make_component(policy_env_info)
 
         self.action_probs = self.config.action_probs_config.make_component()
-        self.network = TensorDictSequential(self.components, inplace=True)
+        self._sequential_network = TensorDictSequential(self.components, inplace=True)
         self._sdpa_context = ExitStack()
 
         self._total_params = sum(
@@ -46,7 +44,7 @@ class PolicyAutoBuilder(Policy):
         )
 
     def forward(self, td: TensorDict, action: Optional[torch.Tensor] = None) -> TensorDict:
-        td = self.network(td)
+        td = self._sequential_network(td)
         self.action_probs(td, action)
         # Only flatten values if they exist (GRPO policies don't have critic networks)
         if "values" in td.keys():
@@ -161,6 +159,13 @@ class PolicyAutoBuilder(Policy):
                 spec.update(layer.get_agent_experience_spec())
 
         return spec
+
+    def network(self) -> torch.nn.Module:
+        """Get the underlying neural network for training.
+
+        Returns the TensorDictSequential network that contains all components.
+        """
+        return self._sequential_network
 
     @property
     def device(self) -> torch.device:

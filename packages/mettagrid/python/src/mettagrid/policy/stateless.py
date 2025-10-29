@@ -8,6 +8,7 @@ import pufferlib.pytorch
 from mettagrid.config.mettagrid_config import ActionsConfig
 from mettagrid.mettagrid_c import dtype_actions
 from mettagrid.policy.policy import AgentPolicy, TrainablePolicy
+from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.simulator import Action as MettaGridAction
 from mettagrid.simulator import AgentObservation as MettaGridObservation
 
@@ -71,8 +72,10 @@ class StatelessAgentPolicyImpl(AgentPolicy):
 class StatelessPolicy(TrainablePolicy):
     """Stateless feedforward policy."""
 
-    def __init__(self, actions_cfg: ActionsConfig, obs_shape: tuple, device: torch.device):
-        super().__init__(actions_cfg)
+    def __init__(
+        self, actions_cfg: ActionsConfig, obs_shape: tuple, device: torch.device, policy_env_info: PolicyEnvInterface
+    ):
+        super().__init__(policy_env_info)
         self._net = StatelessPolicyNet(actions_cfg, obs_shape).to(device)
         self._device = device
         self.num_actions = len(actions_cfg.actions())

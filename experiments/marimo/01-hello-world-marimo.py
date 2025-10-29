@@ -1004,7 +1004,7 @@ def _(
             print(f"Evaluating checkpoint: {latest_ckpt.name}")
 
             # Create game rules from config
-            game_rules = PolicyEnvInterface.from_mg_cfg(mg_config)
+            policy_env_interface = PolicyEnvInterface.from_mg_cfg(mg_config)
 
             # Create evaluation environment for rendering
             with contextlib.redirect_stdout(io.StringIO()):
@@ -1015,7 +1015,7 @@ def _(
             )
 
             trained_policy = trained_artifact.instantiate(
-                game_rules, torch.device("cpu")
+                policy_env_interface, torch.device("cpu")
             )
             if trained_policy is None:
                 raise RuntimeError(

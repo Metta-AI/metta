@@ -51,7 +51,8 @@ class SimControlComponent(MiniscopeComponent):
 
         # Handle quit
         elif ch in ["q", "Q"]:
-            self._sim.state.end_episode()
+            self._sim.end_episode()
+            self._state.playback = PlaybackState.STOPPED
             return True
 
         # Handle help

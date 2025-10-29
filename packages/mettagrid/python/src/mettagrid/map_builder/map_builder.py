@@ -10,7 +10,7 @@ import numpy as np
 import yaml
 from pydantic import Field, ModelWrapValidatorHandler, SerializeAsAny, model_serializer, model_validator
 
-from mettagrid.config import Config
+from mettagrid.base_config import Config
 from mettagrid.mapgen.types import MapGrid
 from mettagrid.util.module import load_symbol
 

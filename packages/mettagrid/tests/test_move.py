@@ -1,6 +1,5 @@
 """Tests for 8-way movement system."""
 
-import numpy as np
 import pytest
 
 from mettagrid.config.mettagrid_config import (
@@ -13,25 +12,11 @@ from mettagrid.config.mettagrid_config import (
     WallConfig,
 )
 from mettagrid.map_builder.ascii import AsciiMapBuilder
-from mettagrid.map_builder.map_builder import GameMap, MapBuilder, MapBuilderConfig
 from mettagrid.mapgen.utils.ascii_grid import DEFAULT_CHAR_TO_NAME
 from mettagrid.simulator import Action, Simulation
 from mettagrid.test_support.actions import get_agent_position, move
+from mettagrid.test_support.map_builders import ObjectNameMapBuilder
 from mettagrid.test_support.orientation import Orientation
-
-
-# Helper map builder for tests that have pre-built maps (object names, not ASCII)
-class ObjectNameMapBuilder(MapBuilder):
-    """Map builder that uses pre-built object name maps."""
-
-    class Config(MapBuilderConfig["ObjectNameMapBuilder"]):
-        map_data: list[list[str]]
-
-    def __init__(self, config: Config):
-        self.config = config
-
-    def build(self) -> GameMap:
-        return GameMap(grid=np.array(self.config.map_data))
 
 
 # Test fixtures for MettaGrid environments
@@ -62,7 +47,6 @@ def base_config() -> GameConfig:
         objects={
             "wall": WallConfig(),
         },
-        allow_diagonals=True,
     )
 
 
@@ -138,11 +122,43 @@ def make_sim(base_config):
 
 
 # Tests for Simulation (low-level API)
-@pytest.mark.skip(reason="Diagonal movements fail at C++ level - actions exist but C++ rejects diagonal moves")
-def test_8way_movement_all_directions():
+def test_8way_movement_all_directions(make_sim, movement_game_map):
     """Test 8-way movement in all eight directions using Simulation."""
-    # This test includes diagonal movements which currently fail at the C++ implementation level
-    pass
+    # Test all 8 directions with expected deltas
+    all_direction_tests = [
+        (Orientation.NORTH, (-1, 0)),
+        (Orientation.EAST, (0, 1)),
+        (Orientation.SOUTH, (1, 0)),
+        (Orientation.WEST, (0, -1)),
+        (Orientation.NORTHEAST, (-1, 1)),
+        (Orientation.NORTHWEST, (-1, -1)),
+        (Orientation.SOUTHEAST, (1, 1)),
+        (Orientation.SOUTHWEST, (1, -1)),
+    ]
+
+    for orientation, (expected_dr, expected_dc) in all_direction_tests:
+        # Create a fresh sim for each direction test to start from center
+        sim = make_sim(movement_game_map)
+        direction_name = str(orientation)
+
+        print(f"Testing move {direction_name} (value {orientation.value})")
+
+        position_before = get_agent_position(sim, 0)
+        result = move(sim, orientation)
+        position_after = get_agent_position(sim, 0)
+
+        # Assert movement was successful
+        assert result["success"], f"Move {direction_name} should succeed. Error: {result.get('error', 'Unknown')}"
+
+        # Assert position changed
+        assert position_before != position_after, f"Agent should have moved {direction_name}"
+
+        # Assert movement was in correct direction
+        dr = position_after[0] - position_before[0]
+        dc = position_after[1] - position_before[1]
+        assert (dr, dc) == (expected_dr, expected_dc), f"Agent should have moved correctly {direction_name}"
+
+        print(f"✅ Move {direction_name}: {position_before} → {position_after}")
 
 
 def test_8way_movement_obstacles():
@@ -178,7 +194,6 @@ def test_8way_movement_obstacles():
             ),
         )
     )
-    cfg.game.allow_diagonals = True
     sim = Simulation(cfg)
 
     objects = sim.grid_objects()
@@ -204,18 +219,157 @@ def test_8way_movement_obstacles():
     assert (objects[agent_id]["r"], objects[agent_id]["c"]) == (1, 1)
 
 
-@pytest.mark.skip(reason="Diagonal movements fail at C++ level - actions exist but C++ rejects diagonal moves")
 def test_8way_movement_with_simple_environment():
     """Test 8-way movement using the simple environment builder."""
-    # This test includes diagonal movements which currently fail at the C++ implementation level
-    pass
+    cfg = MettaGridConfig(
+        game=GameConfig(
+            num_agents=1,
+            actions=ActionsConfig(
+                move=MoveActionConfig(
+                    allowed_directions=[
+                        "north",
+                        "south",
+                        "east",
+                        "west",
+                        "northeast",
+                        "northwest",
+                        "southeast",
+                        "southwest",
+                    ]
+                ),
+                noop=NoopActionConfig(),
+            ),
+            objects={"wall": WallConfig()},
+            map_builder=AsciiMapBuilder.Config(
+                map_data=[
+                    ["#", "#", "#", "#", "#", "#", "#"],
+                    ["#", ".", ".", ".", ".", ".", "#"],
+                    ["#", ".", ".", "@", ".", ".", "#"],
+                    ["#", ".", ".", ".", ".", ".", "#"],
+                    ["#", "#", "#", "#", "#", "#", "#"],
+                ],
+                char_to_name_map=DEFAULT_CHAR_TO_NAME,
+            ),
+        )
+    )
+    sim = Simulation(cfg)
+
+    objects = sim.grid_objects()
+    agent_id = next(id for id, obj in objects.items() if obj["type_name"] == "agent")
+
+    # Get initial position (should be at center, row=2, col=3)
+    initial_pos = (objects[agent_id]["r"], objects[agent_id]["c"])
+
+    # Test a few diagonal movements
+    # Move northeast
+    sim.agent(0).set_action(Action(name="move_northeast"))
+    sim.step()
+
+    objects = sim.grid_objects()
+    pos_after_ne = (objects[agent_id]["r"], objects[agent_id]["c"])
+
+    # Should have moved up and right: row-1, col+1
+    assert pos_after_ne[0] == initial_pos[0] - 1, "Should move up (row-1) for northeast"
+    assert pos_after_ne[1] == initial_pos[1] + 1, "Should move right (col+1) for northeast"
+
+    # Move southwest (should return close to original position)
+    sim.agent(0).set_action(Action(name="move_southwest"))
+    sim.step()
+
+    objects = sim.grid_objects()
+    pos_after_sw = (objects[agent_id]["r"], objects[agent_id]["c"])
+
+    # Should be back at initial position
+    assert pos_after_sw == initial_pos, f"After NE then SW, should be back at {initial_pos}, but at {pos_after_sw}"
 
 
-@pytest.mark.skip(reason="Diagonal movements fail at C++ level - actions exist but C++ rejects diagonal moves")
 def test_8way_movement_boundary_check():
     """Test 8-way movement respects environment boundaries."""
-    # This test uses diagonal movements which currently fail at the C++ implementation level
-    pass
+    cfg = MettaGridConfig(
+        game=GameConfig(
+            num_agents=1,
+            actions=ActionsConfig(
+                move=MoveActionConfig(
+                    allowed_directions=[
+                        "north",
+                        "south",
+                        "east",
+                        "west",
+                        "northeast",
+                        "northwest",
+                        "southeast",
+                        "southwest",
+                    ]
+                ),
+                noop=NoopActionConfig(),
+            ),
+            objects={"wall": WallConfig()},
+            map_builder=AsciiMapBuilder.Config(
+                map_data=[
+                    ["#", "#", "#", "#", "#"],
+                    ["#", ".", ".", ".", "#"],
+                    ["#", ".", "@", ".", "#"],  # Agent near center
+                    ["#", ".", ".", ".", "#"],
+                    ["#", "#", "#", "#", "#"],
+                ],
+                char_to_name_map=DEFAULT_CHAR_TO_NAME,
+            ),
+        )
+    )
+    sim = Simulation(cfg)
+
+    objects = sim.grid_objects()
+    agent_id = next(id for id, obj in objects.items() if obj["type_name"] == "agent")
+
+    # Move agent to top-left corner area (near boundary)
+    sim.agent(0).set_action(Action(name="move_northwest"))
+    sim.step()
+    sim.agent(0).set_action(Action(name="move_northwest"))
+    sim.step()
+
+    objects = sim.grid_objects()
+    position = (objects[agent_id]["r"], objects[agent_id]["c"])
+
+    # Agent should be at (1, 1) - top-left open space, blocked by walls
+    assert position == (1, 1), f"Agent should be at top-left corner (1,1), but is at {position}"
+
+    # Try to move northwest again - should be blocked by wall
+    sim.agent(0).set_action(Action(name="move_northwest"))
+    sim.step()
+
+    # Check that agent didn't move
+    assert not sim.agent(0).last_action_success, "Movement should fail when blocked by wall"
+
+    objects = sim.grid_objects()
+    new_position = (objects[agent_id]["r"], objects[agent_id]["c"])
+    assert new_position == position, f"Agent should stay at {position} when blocked"
+
+    # Try diagonal move toward boundary in different direction
+    # Move to bottom-right area
+    sim.agent(0).set_action(Action(name="move_southeast"))
+    sim.step()
+    sim.agent(0).set_action(Action(name="move_southeast"))
+    sim.step()
+    sim.agent(0).set_action(Action(name="move_southeast"))
+    sim.step()
+    sim.agent(0).set_action(Action(name="move_southeast"))
+    sim.step()
+
+    objects = sim.grid_objects()
+    position = (objects[agent_id]["r"], objects[agent_id]["c"])
+
+    # Should be near bottom-right corner
+    assert position == (3, 3), f"Agent should be at bottom-right corner (3,3), but is at {position}"
+
+    # Try to move southeast again - should be blocked
+    sim.agent(0).set_action(Action(name="move_southeast"))
+    sim.step()
+
+    assert not sim.agent(0).last_action_success, "Movement should fail at boundary"
+
+    objects = sim.grid_objects()
+    final_position = (objects[agent_id]["r"], objects[agent_id]["c"])
+    assert final_position == position, "Agent should stay in place when blocked by boundary"
 
 
 # Tests for MettaGrid (high-level API) using helper functions
@@ -257,11 +411,39 @@ def test_move_all_directions(make_sim, movement_game_map):
         print(f"✅ Move {direction_name}: {position_before} → {position_after}")
 
 
-@pytest.mark.skip(reason="Diagonal movements fail at C++ level - actions exist but C++ rejects diagonal moves")
 def test_move_diagonal_directions(make_sim, movement_game_map):
     """Test the move function in all four diagonal directions."""
-    # This test specifically tests diagonal movements which currently fail at the C++ implementation level
-    pass
+    # Test diagonal directions
+    diagonal_tests = [
+        (Orientation.NORTHEAST, (-1, 1)),
+        (Orientation.NORTHWEST, (-1, -1)),
+        (Orientation.SOUTHEAST, (1, 1)),
+        (Orientation.SOUTHWEST, (1, -1)),
+    ]
+
+    for orientation, (expected_dr, expected_dc) in diagonal_tests:
+        # Create a fresh sim for each direction test to start from center
+        sim = make_sim(movement_game_map)
+        direction_name = str(orientation)
+
+        print(f"Testing move {direction_name} (value {orientation.value})")
+
+        position_before = get_agent_position(sim, 0)
+        result = move(sim, orientation)
+        position_after = get_agent_position(sim, 0)
+
+        # Assert movement was successful
+        assert result["success"], f"Move {direction_name} should succeed. Error: {result.get('error', 'Unknown')}"
+
+        # Assert position changed
+        assert position_before != position_after, f"Agent should have moved {direction_name}"
+
+        # Assert movement was in correct direction
+        dr = position_after[0] - position_before[0]
+        dc = position_after[1] - position_before[1]
+        assert (dr, dc) == (expected_dr, expected_dc), f"Agent should have moved correctly {direction_name}"
+
+        print(f"✅ Move {direction_name}: {position_before} → {position_after}")
 
 
 def test_move_up(make_sim, small_movement_game_map):

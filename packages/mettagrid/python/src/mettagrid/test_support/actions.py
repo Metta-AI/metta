@@ -271,7 +271,16 @@ def attack(env: Simulation | MettaGrid, target_arg: int = 0, agent_idx: int = 0)
 def get_current_observation(env: MettaGrid, agent_idx: int):
     """Get current observation using noop action."""
     try:
-        action_names = env.action_names()
+        # Try to get action_names from Simulation if available
+        if hasattr(env, "_sim"):
+            action_names = env._sim.action_names
+        elif hasattr(env, "action_names"):
+            action_names = env.action_names
+            if callable(action_names):
+                action_names = action_names()
+        else:
+            raise AttributeError("Cannot determine action_names")
+
         if "noop" in action_names:
             noop_idx = action_names.index("noop")
             noop_action = np.zeros((env.num_agents,), dtype=dtype_actions)
@@ -306,11 +315,21 @@ def get_agent_orientation(env: Simulation | MettaGrid, agent_idx: int = 0) -> in
 def action_index(env, base: str, orientation: Orientation | None = None) -> int:
     """Return the flattened action index for a given action name."""
     target = base if orientation is None else f"{base}_{orientation.name.lower()}"
-    names_getter = getattr(env, "action_names", None)
-    if callable(names_getter):
-        names = names_getter()
+
+    # Try to get action_names from Simulation if available
+    if isinstance(env, Simulation):
+        names = env.action_names
+    elif hasattr(env, "_sim"):
+        names = env._sim.action_names
     else:
-        names = names_getter
+        names_getter = getattr(env, "action_names", None)
+        if callable(names_getter):
+            names = names_getter()
+        else:
+            names = names_getter
+
+    if names is None:
+        raise AttributeError("Cannot determine action_names for this environment")
     if target not in names:
         raise AssertionError(f"Action {target} not available; available actions: {names}")
     return names.index(target)

@@ -9,7 +9,6 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, List, Literal, Tuple
 
-import gymnasium as gym
 import numpy as np
 import torch
 from pydantic import Field
@@ -20,9 +19,8 @@ from metta.rl.vecenv import make_vecenv
 from metta.utils.batch import calculate_batch_sizes
 from mettagrid.builder.envs import make_arena
 from mettagrid.config import Config
-from mettagrid.config.mettagrid_config import ActionsConfig, MettaGridConfig
 from mettagrid.mettagrid_c import dtype_actions
-from mettagrid.simulator import ObservationFeature
+from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 
 logger = logging.getLogger(__name__)
 
@@ -68,29 +66,6 @@ class TrainingEnvironmentConfig(Config):
         default_factory=lambda: Path("./train_dir/replays/training"),
         description="Base directory where training replays will be stored when writing is enabled.",
     )
-
-
-@dataclass
-class PolicyEnvInterface:
-    obs_features: list[ObservationFeature]
-    actions: ActionsConfig
-    num_agents: int
-    observation_space: gym.spaces.Box
-    action_space: gym.spaces.Discrete
-    obs_width: int
-    obs_height: int
-
-    @staticmethod
-    def from_mg_cfg(mg_cfg: MettaGridConfig) -> "PolicyEnvInterface":
-        return PolicyEnvInterface(
-            obs_features=mg_cfg.game.obs.features,
-            actions=mg_cfg.game.actions,
-            num_agents=mg_cfg.game.num_agents,
-            observation_space=gym.spaces.Box(0, 255, (mg_cfg.game.obs.num_tokens, mg_cfg.game.obs.token_dim)),
-            action_space=gym.spaces.Discrete(len(mg_cfg.game.actions.actions())),
-            obs_width=mg_cfg.game.obs.width,
-            obs_height=mg_cfg.game.obs.height,
-        )
 
 
 @dataclass

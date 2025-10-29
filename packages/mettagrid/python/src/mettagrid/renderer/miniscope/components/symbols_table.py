@@ -26,7 +26,10 @@ class SymbolsTableComponent(MiniscopeComponent):
             max_rows: Maximum number of rows to display (default 1000 for unlimited)
         """
         super().__init__(sim=sim, state=state, panels=panels)
-        self._set_panel(panels.sidebar)
+        sidebar_panel = panels.get_sidebar_panel("symbols")
+        if sidebar_panel is None:
+            sidebar_panel = panels.register_sidebar_panel("symbols")
+        self._set_panel(sidebar_panel)
         self._max_rows = max_rows
 
     def _get_symbol_map(self) -> dict[str, str]:

@@ -17,11 +17,16 @@ class StatsTracker(SimulatorEventHandler):
         self._episode_end_ts = None
         self._label_completions = {"completed_tasks": [], "completion_rates": {}}
         self._per_label_rewards = {}
+        self._infos = {}
+
+    def infos(self) -> Dict[str, Any]:
+        return self._infos
 
     def on_episode_start(self) -> None:
         self._episode_start_ts = datetime.datetime.now()
+        self._infos = {}
 
-    def on_episode_end(self, infos: Dict[str, Any]) -> None:
+    def on_episode_end(self) -> None:
         assert self._sim is not None
 
         # Get episode rewards and stats
@@ -32,21 +37,21 @@ class StatsTracker(SimulatorEventHandler):
         num_agents = config.game.num_agents
 
         # Process agent stats
-        infos["game"] = stats["game"]
-        infos["agent"] = {}
+        self._infos["game"] = stats["game"]
+        self._infos["agent"] = {}
         for agent_stats in stats["agent"]:
             for n, v in agent_stats.items():
-                infos["agent"][n] = infos["agent"].get(n, 0) + v
-        for n, v in infos["agent"].items():
-            infos["agent"][n] = v / num_agents
+                self._infos["agent"][n] = self._infos["agent"].get(n, 0) + v
+        for n, v in self._infos["agent"].items():
+            self._infos["agent"][n] = v / num_agents
 
         # If reward estimates are set, plot them compared to the mean reward
         if config.game.reward_estimates:
-            infos["reward_estimates"] = {}
-            infos["reward_estimates"]["best_case_optimal_diff"] = (
+            self._infos["reward_estimates"] = {}
+            self._infos["reward_estimates"]["best_case_optimal_diff"] = (
                 config.game.reward_estimates["best_case_optimal_reward"] - episode_rewards.mean()
             )
-            infos["reward_estimates"]["worst_case_optimal_diff"] = (
+            self._infos["reward_estimates"]["worst_case_optimal_diff"] = (
                 config.game.reward_estimates["worst_case_optimal_reward"] - episode_rewards.mean()
             )
 
@@ -54,9 +59,9 @@ class StatsTracker(SimulatorEventHandler):
 
         # only plot label completions once we have a full moving average window, to prevent initial bias
         if len(self._label_completions["completed_tasks"]) >= 50:
-            infos["label_completions"] = self._label_completions["completion_rates"]
+            self._infos["label_completions"] = self._label_completions["completion_rates"]
         self._per_label_rewards[config.label] = episode_rewards.mean()
-        infos["per_label_rewards"] = self._per_label_rewards
+        self._infos["per_label_rewards"] = self._per_label_rewards
 
         # Add attributes
         attributes: Dict[str, Any] = {
@@ -68,10 +73,10 @@ class StatsTracker(SimulatorEventHandler):
             "max_steps": self._sim.config.game.max_steps,
             "completion_time": time.time(),
         }
-        infos["attributes"] = attributes
+        self._infos["attributes"] = attributes
 
         # Add timing information
-        self._add_timing_info(infos)
+        self._add_timing_info()
 
         # Flatten environment config
         env_cfg_flattened: Dict[str, str] = {}
@@ -90,7 +95,7 @@ class StatsTracker(SimulatorEventHandler):
         # Get agent groups
         grid_objects = self._sim.grid_objects(ignore_types=["wall"])
         agent_groups: Dict[int, int] = {
-            v["agent_id"]: v["agent:group"] for v in grid_objects.values() if v["type"] == 0
+            v["agent_id"]: v["agent:group"] for v in grid_objects.values() if "agent_id" in v
         }
 
         # Record episode
@@ -99,11 +104,11 @@ class StatsTracker(SimulatorEventHandler):
             agent_metrics,
             agent_groups,
             self._sim.current_step,
-            infos.get("replay_url"),
+            self._infos.get("replay_url"),
             self._episode_start_ts,
         )
 
-    def _add_timing_info(self, infos: Dict[str, Any]) -> None:
+    def _add_timing_info(self) -> None:
         """Add timing information to infos."""
         assert self._sim is not None
         timer = self._sim._timer
@@ -119,7 +124,7 @@ class StatsTracker(SimulatorEventHandler):
         wall_time_for_lap = sum(lap_times.values()) + lap_thread_idle_time
         adjusted_lap_time = wall_time_for_lap - lap_thread_idle_time
 
-        infos["timing_per_epoch"] = {
+        self._infos["timing_per_epoch"] = {
             **{
                 f"active_frac/{op}": lap_elapsed / adjusted_lap_time if adjusted_lap_time > 0 else 0
                 for op, lap_elapsed in lap_times.items()
@@ -128,7 +133,7 @@ class StatsTracker(SimulatorEventHandler):
             "frac/thread_idle": lap_thread_idle_time / wall_time_for_lap,
         }
 
-        infos["timing_cumulative"] = {
+        self._infos["timing_cumulative"] = {
             **{
                 f"active_frac/{op}": elapsed / adjusted_wall_time if adjusted_wall_time > 0 else 0
                 for op, elapsed in elapsed_times.items()

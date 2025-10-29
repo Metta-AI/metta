@@ -21,7 +21,6 @@ class Renderer(SimulatorEventHandler):
         """Initialize the renderer for a new episode."""
         pass
 
-    @override
     def render(self) -> None:
         """Render the current state. Override this for interactive renderers that need to handle input."""
         pass

@@ -4,7 +4,7 @@ import torch
 from torch import nn
 
 from metta.agent.policy import ExternalPolicyWrapper
-from metta.rl.training import PolicyEnvInterface
+from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 
 
 class _DummyPolicy(nn.Module):

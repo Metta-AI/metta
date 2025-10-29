@@ -34,13 +34,8 @@ class TestProgrammaticEnvironments:
                     "wall": building.wall,
                 },
                 actions=ActionsConfig(
-<<<<<<< HEAD
-                    move=ActionConfig(),
-                    noop=ActionConfig(),
-=======
                     move=MoveActionConfig(),
                     noop=NoopActionConfig(),
->>>>>>> 4b8de25bb4 (feat: implement mettagrid API changes)
                 ),
                 agent=AgentConfig(
                     rewards=AgentRewards(
@@ -90,10 +85,6 @@ class TestProgrammaticEnvironments:
         assert "altar" in nav_env.game.objects
         assert "wall" in nav_env.game.objects
         assert nav_env.game.actions.move is not None
-<<<<<<< HEAD
-        assert nav_env.game.actions.rotate is not None
-=======
->>>>>>> 4b8de25bb4 (feat: implement mettagrid API changes)
 
     def test_config_with_custom_rewards(self):
         """Test creating an environment with custom reward configuration."""
@@ -106,13 +97,8 @@ class TestProgrammaticEnvironments:
                     "altar": building.assembler_altar,
                 },
                 actions=ActionsConfig(
-<<<<<<< HEAD
-                    move=ActionConfig(),
-                    noop=ActionConfig(),
-=======
                     move=MoveActionConfig(),
                     noop=NoopActionConfig(),
->>>>>>> 4b8de25bb4 (feat: implement mettagrid API changes)
                 ),
                 agent=AgentConfig(
                     rewards=AgentRewards(
@@ -250,7 +236,9 @@ class TestTypeIdAllocation:
     def test_auto_assign_type_ids_raises_when_pool_exhausted(self):
         objects = {f"object_{index:03d}": WallConfig() for index in range(256)}
 
+        config = GameConfig(objects=objects)
         with pytest.raises(ValueError) as err:
-            GameConfig(objects=objects)
+            # Trigger lazy assignment by accessing objects
+            _ = config.objects
 
         assert "auto-generated type_id exceeds uint8 range" in str(err.value)

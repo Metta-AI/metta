@@ -16,11 +16,11 @@ from metta.eval.eval_request_config import EvalResults
 from metta.eval.eval_service import evaluate_policy
 from metta.rl import stats as rl_stats
 from metta.rl.checkpoint_manager import CheckpointManager
-from metta.rl.training.training_environment import PolicyEnvInterface
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.remote_job import JobResult, RemoteJobTool
 from metta.tools.utils.auto_config import auto_wandb_config
 from metta.utils.uri import ParsedURI
+from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 
 logger = logging.getLogger(__name__)
 

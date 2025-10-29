@@ -11,6 +11,7 @@ from typing import get_args
 from mettagrid.builder import building
 from mettagrid.config.mettagrid_config import MettaGridConfig
 from mettagrid.map_builder.random import RandomMapBuilder
+from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.policy.random import RandomMultiAgentPolicy
 from mettagrid.renderer.renderer import RenderMode
 from mettagrid.simulator.rollout import Rollout
@@ -93,9 +94,10 @@ def main():
     logger.debug(game_map.grid)
 
     # Create a copy of actions with change_glyph disabled for the random policy
-    policy_actions = cfg.game.actions.model_copy(deep=True)
-    policy_actions.change_glyph.enabled = False
-    policy = RandomMultiAgentPolicy(actions=policy_actions)
+    # Create a modified config for the policy
+    policy_cfg = cfg.model_copy(deep=True)
+    policy_cfg.game.actions.change_glyph.enabled = False
+    policy = RandomMultiAgentPolicy(PolicyEnvInterface.from_mg_cfg(policy_cfg))
     agent_policies = policy.agent_policies(cfg.game.num_agents)
 
     # Create rollout with renderer

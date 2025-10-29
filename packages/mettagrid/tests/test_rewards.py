@@ -1,5 +1,3 @@
-import numpy as np
-
 from mettagrid.config.mettagrid_config import (
     ActionsConfig,
     AgentConfig,
@@ -14,8 +12,8 @@ from mettagrid.config.mettagrid_config import (
     ProtocolConfig,
     WallConfig,
 )
-from mettagrid.map_builder.map_builder import GameMap, MapBuilder, MapBuilderConfig
 from mettagrid.simulator import Action, Simulation
+from mettagrid.test_support.map_builders import ObjectNameMapBuilder
 from mettagrid.test_support.orientation import Orientation
 
 NUM_AGENTS = 1
@@ -23,20 +21,6 @@ OBS_HEIGHT = 3
 OBS_WIDTH = 3
 NUM_OBS_TOKENS = 100
 OBS_TOKEN_SIZE = 3
-
-
-# Helper map builder for tests that have pre-built maps (object names, not ASCII)
-class ObjectNameMapBuilder(MapBuilder):
-    """Map builder that uses pre-built object name maps."""
-
-    class Config(MapBuilderConfig["ObjectNameMapBuilder"]):
-        map_data: list[list[str]]
-
-    def __init__(self, config: Config):
-        self.config = config
-
-    def build(self) -> GameMap:
-        return GameMap(grid=np.array(self.config.map_data))
 
 
 def create_heart_reward_test_env(max_steps=50, num_agents=NUM_AGENTS):

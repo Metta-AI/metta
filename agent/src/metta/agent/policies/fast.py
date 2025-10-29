@@ -14,7 +14,7 @@ from metta.agent.components.cnn_encoder import CNNEncoder, CNNEncoderConfig
 from metta.agent.components.lstm import LSTM, LSTMConfig
 from metta.agent.components.obs_shim import ObsShimBox, ObsShimBoxConfig
 from metta.agent.policy import Policy, PolicyArchitecture
-from metta.rl.training import PolicyEnvInterface
+from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 
 logger = logging.getLogger(__name__)
 
@@ -42,7 +42,7 @@ class FastConfig(PolicyArchitecture):
 
 class FastPolicy(Policy):
     def __init__(self, policy_env_info: "PolicyEnvInterface", config: Optional[FastConfig] = None):
-        super().__init__(actions=policy_env_info.actions)
+        super().__init__(policy_env_info)
         self.config = config or FastConfig()
         self.policy_env_info = policy_env_info
         self.is_continuous = False
@@ -104,14 +104,14 @@ class FastPolicy(Policy):
 
     def initialize_to_environment(
         self,
-        env,
-        device,
+        policy_env_info: PolicyEnvInterface,
+        device: torch.device,
     ) -> List[str]:
         device = torch.device(device)
         self.to(device)
 
-        log = self.obs_shim.initialize_to_environment(env, device)
-        self.action_probs.initialize_to_environment(env, device)
+        log = self.obs_shim.initialize_to_environment(policy_env_info, device)
+        self.action_probs.initialize_to_environment(policy_env_info, device)
         return [log]
 
     def reset_memory(self):

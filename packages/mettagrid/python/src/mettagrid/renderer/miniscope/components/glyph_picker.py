@@ -31,7 +31,10 @@ class GlyphPickerComponent(MiniscopeComponent):
             panels: Panel layout containing all panels
         """
         super().__init__(sim=sim, state=state, panels=panels)
-        self._panel = panels.sidebar
+        sidebar_panel = panels.get_sidebar_panel("glyph_picker")
+        if sidebar_panel is None:
+            sidebar_panel = panels.register_sidebar_panel("glyph_picker")
+        self._set_panel(sidebar_panel)
         self._glyph_query: str = ""
 
     def handle_input(self, ch: str) -> bool:
@@ -50,24 +53,28 @@ class GlyphPickerComponent(MiniscopeComponent):
                 if results:
                     glyph_id = results[0][0]
 
-            if glyph_id is not None and 0 <= glyph_id < len(GLYPH_DATA):
-                # Set glyph action
-                # Note: For now, we create a basic Action with the change_glyph name
-                # The glyph_id parameter will need to be handled separately
-                # TODO: Enhance Action class to support parameters
-                self.state.user_action = Action(name="change_glyph")
-                self.state.should_step = True
-                self._exit_glyph_picker()
+            if glyph_id is not None and GLYPH_DATA and 0 <= glyph_id < len(GLYPH_DATA):
+                # Get the vibe name and construct the proper action name
+                vibe = GLYPH_DATA[glyph_id]
+                action_name = f"change_glyph_{vibe.name}"
+                # Check if the action exists before setting it
+                if action_name in self._sim.action_ids:
+                    self.state.user_action = Action(name=action_name)
+                    self.state.should_step = True
+                    self._exit_glyph_picker()
+                else:
+                    # Action doesn't exist - exit picker without setting action
+                    self._exit_glyph_picker()
         elif ch == "\x1b":  # Escape
             self._exit_glyph_picker()
         elif ch == "\x7f" or ch == "\x08":  # Backspace
             self._glyph_query = self._glyph_query[:-1] if self._glyph_query else ""
         elif ch == "[":
             # Cycle to previous agent
-            self._state.select_previous_agent(self._sim.state.num_agents)
+            self._state.select_previous_agent(self._sim.num_agents)
         elif ch == "]":
             # Cycle to next agent
-            self._state.select_next_agent(self._sim.state.num_agents)
+            self._state.select_next_agent(self._sim.num_agents)
         elif ch and ch.isprintable():
             self._glyph_query = self._glyph_query + ch
 
@@ -79,7 +86,11 @@ class GlyphPickerComponent(MiniscopeComponent):
         in_picker_mode = self._state.mode == RenderMode.GLYPH_PICKER
 
         if not in_picker_mode and not self.state.is_sidebar_visible("glyph_picker"):
-            self._panel.clear()
+            if self._panel is not None:
+                self._panel.clear()
+            return
+
+        if self._panel is None:
             return
 
         lines = self._build_lines(self._glyph_query)

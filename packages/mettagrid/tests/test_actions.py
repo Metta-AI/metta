@@ -1,9 +1,7 @@
 """Integration tests that combine multiple actions."""
 
-import numpy as np
 import pytest
 
-from mettagrid.config.mettagrid_c_config import from_mettagrid_config
 from mettagrid.config.mettagrid_config import (
     ActionsConfig,
     AgentConfig,
@@ -16,25 +14,10 @@ from mettagrid.config.mettagrid_config import (
     ObsConfig,
     WallConfig,
 )
-from mettagrid.map_builder.map_builder import GameMap, MapBuilder, MapBuilderConfig
-from mettagrid.mettagrid_c import MettaGrid
 from mettagrid.simulator import Simulation
 from mettagrid.test_support.actions import attack, get_agent_position, move, noop
+from mettagrid.test_support.map_builders import ObjectNameMapBuilder
 from mettagrid.test_support.orientation import Orientation
-
-
-# Helper map builder for tests that have pre-built maps (object names, not ASCII)
-class ObjectNameMapBuilder(MapBuilder):
-    """Map builder that uses pre-built object name maps."""
-
-    class Config(MapBuilderConfig["ObjectNameMapBuilder"]):
-        map_data: list[list[str]]
-
-    def __init__(self, config: Config):
-        self.config = config
-
-    def build(self) -> GameMap:
-        return GameMap(grid=np.array(self.config.map_data))
 
 
 @pytest.fixture
@@ -65,7 +48,6 @@ def base_config():
             "wall": WallConfig(swappable=False),
         },
         agent=AgentConfig(rewards=AgentRewards()),
-        allow_diagonals=True,
     )
 
 
@@ -88,11 +70,14 @@ def make_sim(base_config: GameConfig):
     def _create_sim(game_map, config_overrides=None):
         game_config = base_config
 
-        assert game_config.allow_diagonals
-
         if config_overrides:
             # Create a new config with overrides using Pydantic model update
             config_dict = game_config.model_dump()
+
+            # Remove computed field 'features' from obs before reconstruction
+            if "obs" in config_dict and "features" in config_dict["obs"]:
+                config_dict["obs"] = config_dict["obs"].copy()
+                config_dict["obs"].pop("features", None)
 
             # Deep update for nested dicts
             for key, value in config_overrides.items():
@@ -260,7 +245,6 @@ def test_all_actions_sequence(make_sim):
     print("\n✅ All actions tested successfully!")
 
 
-@pytest.mark.skip(reason="Diagonal movement failing at C++ level - action exists but C++ rejects the move")
 def test_diagonal_movement_integration(make_sim):
     """Test diagonal movement combined with other actions."""
     open_map = [
@@ -295,22 +279,21 @@ def test_noop_is_always_index_0():
     config = GameConfig(
         max_steps=10,
         num_agents=2,
-        obs=ObsConfig(width=3, height=3, num_tokens=10),
         actions=ActionsConfig(noop=NoopActionConfig(), move=MoveActionConfig()),
     )
 
-    c_config = from_mettagrid_config(config)
     map_data = [[".", "."], ["agent.team_0", "agent.team_0"]]
-    sim = MettaGrid(c_config, map_data, 0)
+    mg_config = MettaGridConfig(game=config)
+    mg_config.game.map_builder = ObjectNameMapBuilder.Config(map_data=map_data)
+    sim = Simulation(mg_config, seed=0)
 
-    action_names = sim.action_names()
+    action_names = sim.action_names
     assert action_names[0] == "noop", f"Expected 'noop' at index 0, got '{action_names[0]}'"
 
     # Test 2: noop listed last but should still be at index 0
     config2 = GameConfig(
         max_steps=10,
         num_agents=2,
-        obs=ObsConfig(width=3, height=3, num_tokens=10),
         actions=ActionsConfig(
             attack=AttackActionConfig(),
             move=MoveActionConfig(),
@@ -318,10 +301,11 @@ def test_noop_is_always_index_0():
         ),
     )
 
-    c_config2 = from_mettagrid_config(config2)
-    sim2 = MettaGrid(c_config2, map_data, 0)
+    mg_config2 = MettaGridConfig(game=config2)
+    mg_config2.game.map_builder = ObjectNameMapBuilder.Config(map_data=map_data)
+    sim2 = Simulation(mg_config2, seed=0)
 
-    action_names2 = sim2.action_names()
+    action_names2 = sim2.action_names
     assert action_names2[0] == "noop", f"Expected 'noop' at index 0, got '{action_names2[0]}'"
 
     # Test 3: Config without noop - currently noop is always present even when disabled
@@ -329,16 +313,15 @@ def test_noop_is_always_index_0():
     config3 = GameConfig(
         max_steps=10,
         num_agents=2,
-        obs=ObsConfig(width=3, height=3, num_tokens=10),
         actions=ActionsConfig(
             noop=NoopActionConfig(enabled=False), move=MoveActionConfig(), attack=AttackActionConfig()
         ),
     )
 
-    c_config3 = from_mettagrid_config(config3)
-    sim3 = MettaGrid(c_config3, map_data, 0)
+    mg_config3 = MettaGridConfig(game=config3)
+    mg_config3.game.map_builder = ObjectNameMapBuilder.Config(map_data=map_data)
+    sim3 = Simulation(mg_config3, seed=0)
 
-    action_names3 = sim3.action_names()
-    # TODO: Fix enabled flag in ActionConfig - currently noop is always present
-    # assert "noop" not in action_names3, "noop should not be present when disabled"
-    assert action_names3[0] == "noop", "Noop is currently always at index 0 even when disabled"
+    action_names3 = sim3.action_names
+    # When noop is disabled, it should not be in the action list
+    assert "noop" not in action_names3, "noop should not be present when disabled"

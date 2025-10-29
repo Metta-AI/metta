@@ -11,7 +11,7 @@ from tensordict import TensorDict
 from torchrl.data import Composite
 
 from metta.agent.components.utils import zero_long
-from metta.rl.training import PolicyEnvInterface
+from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 
 from .config import MambaBackboneConfig
 

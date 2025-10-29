@@ -170,6 +170,10 @@ class MiniscopeRenderer(Renderer):
         was_paused_last_frame = False
 
         while True:
+            # Check if we should exit (episode done or stopped)
+            if self._sim.is_done() or self._state.playback == PlaybackState.STOPPED:
+                break
+
             # Clear previous user action before reading new input
             self._state.user_action = None
 

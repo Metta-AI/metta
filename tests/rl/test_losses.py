@@ -8,15 +8,18 @@ from torchrl.data import Composite, UnboundedDiscrete
 
 from metta.agent.policy import Policy
 from metta.rl.loss import Loss
+from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 
 
 class DummyPolicy(Policy):
     """Minimal policy implementation for exercising loss utilities."""
 
-    def __init__(self) -> None:
-        from mettagrid.config.mettagrid_config import ActionsConfig
+    def __init__(self, policy_env_info: PolicyEnvInterface | None = None) -> None:
+        if policy_env_info is None:
+            from mettagrid.config.mettagrid_config import MettaGridConfig
 
-        super().__init__(actions=ActionsConfig())
+            policy_env_info = PolicyEnvInterface.from_mg_cfg(MettaGridConfig())
+        super().__init__(policy_env_info)
         self._linear = torch.nn.Linear(1, 1)
 
     def forward(self, td: TensorDict, action: torch.Tensor | None = None) -> TensorDict:  # noqa: D401

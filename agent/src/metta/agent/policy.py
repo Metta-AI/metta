@@ -21,9 +21,9 @@ from metta.agent.components.obs_shim import (
     ObsShimTokens,
     ObsShimTokensConfig,
 )
-from metta.rl.training import PolicyEnvInterface
-from mettagrid.config.mettagrid_config import ActionsConfig, Config
+from mettagrid.config.mettagrid_config import Config
 from mettagrid.policy.policy import AgentPolicy, TrainablePolicy
+from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.simulator import Action, AgentObservation
 from mettagrid.util.module import load_symbol
 
@@ -44,7 +44,7 @@ class PolicyArchitecture(Config):
         """Create an agent instance from configuration."""
 
         AgentClass = load_symbol(self.class_path)
-        return AgentClass(policy_env_info, self)
+        return AgentClass(policy_env_info, self)  # type: ignore[misc]
 
 
 class Policy(TrainablePolicy, nn.Module):
@@ -54,8 +54,8 @@ class Policy(TrainablePolicy, nn.Module):
     and the TrainablePolicy interface for compatibility with mettagrid Rollout.
     """
 
-    def __init__(self, actions: ActionsConfig):
-        TrainablePolicy.__init__(self, actions)
+    def __init__(self, policy_env_info: PolicyEnvInterface):
+        TrainablePolicy.__init__(self, policy_env_info)
         nn.Module.__init__(self)
 
     @abstractmethod
@@ -114,32 +114,48 @@ class _SingleAgentAdapter(AgentPolicy):
         super().__init__(policy._actions)
         self._policy = policy
         self._agent_id = agent_id
+        self._actions_by_id = self._actions.actions()
 
     def step(self, obs: AgentObservation) -> Action:
         """Get action from Policy."""
         # Convert observation to tensor dict format
-        obs_array = np.array([obs])  # Add batch dimension
-        td = self._obs_to_td(obs_array, self._policy.device)
+        td = self._obs_to_td(obs, self._policy.device)
 
         # Get action from policy
         self._policy(td)
-        action = td["actions"][0].item()
-
-        return action
+        return self._actions_by_id[int(td["actions"][0].item())]
 
     def reset(self) -> None:
         """Reset policy state if needed."""
         self._policy.reset_memory()
 
-    def _obs_to_td(self, obs: np.ndarray, device: torch.device) -> TensorDict:
-        """Convert observation array to TensorDict."""
+    def _obs_to_td(self, obs: AgentObservation, device: torch.device) -> TensorDict:
+        """Convert AgentObservation to TensorDict."""
+        tokens = []
+
+        for token in obs.tokens:
+            col, row = token.location
+            # Pack coordinates into a single byte: first 4 bits are col, last 4 bits are row
+            coords_byte = ((col & 0x0F) << 4) | (row & 0x0F)
+            feature_id = token.feature.id
+            value = token.value
+            tokens.append([coords_byte, feature_id, value])
+
+        # Pad to max_tokens with [0xFF, 0, 0] (end-of-tokens marker)
+        while len(tokens) < 200:
+            tokens.append([0xFF, 0, 0])
+
+        # Convert to numpy array and then to tensor: [M, 3] -> [1, M, 3]
+        obs_array = np.array(tokens, dtype=np.uint8)
+        obs_tensor = torch.from_numpy(obs_array).unsqueeze(0).to(device)
+
         return TensorDict(
             {
-                "env_obs": torch.from_numpy(obs).to(device),
-                "dones": torch.zeros(len(obs), dtype=torch.float32, device=device),
-                "truncateds": torch.zeros(len(obs), dtype=torch.float32, device=device),
+                "env_obs": obs_tensor,
+                "dones": torch.zeros(1, dtype=torch.float32, device=device),
+                "truncateds": torch.zeros(1, dtype=torch.float32, device=device),
             },
-            batch_size=[len(obs)],
+            batch_size=[1],
         )
 
 
@@ -181,23 +197,20 @@ class ExternalPolicyWrapper(Policy):
     def __init__(
         self,
         policy: nn.Module,
-        game_rules: PolicyEnvInterface,
-        actions: Optional[ActionsConfig] = None,
+        policy_env_interface: PolicyEnvInterface,
         box_obs: bool = True,
     ):
-        if actions is None:
-            actions = ActionsConfig()
-        super().__init__(actions)
+        super().__init__(policy_env_interface)
         self.policy = policy
         self._device = next(policy.parameters()).device if hasattr(policy, "parameters") else torch.device("cpu")
         if box_obs:
             self.obs_shaper = ObsShimBox(
-                game_rules,
+                policy_env_interface,
                 config=ObsShimBoxConfig(in_key="env_obs", out_key="obs"),
             )
         else:
             self.obs_shaper = ObsShimTokens(
-                game_rules,
+                policy_env_interface,
                 config=ObsShimTokensConfig(in_key="env_obs", out_key="obs"),
             )
 

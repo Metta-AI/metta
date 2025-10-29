@@ -19,9 +19,8 @@ from metta.rl.policy_artifact import (
     policy_architecture_to_string,
     save_policy_artifact_safetensors,
 )
-from metta.rl.training import PolicyEnvInterface
 from mettagrid.config import Config
-from mettagrid.config.mettagrid_config import ActionsConfig
+from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 
 
 class DummyActionComponentConfig(Config):
@@ -38,7 +37,11 @@ class DummyPolicyArchitecture(PolicyArchitecture):
 
 class DummyPolicy(Policy):
     def __init__(self, policy_env_info: PolicyEnvInterface | None, _: PolicyArchitecture | None = None):
-        super().__init__(actions=ActionsConfig())
+        if policy_env_info is None:
+            from mettagrid.config import MettaGridConfig
+
+            policy_env_info = PolicyEnvInterface.from_mg_cfg(MettaGridConfig())
+        super().__init__(policy_env_info)
         self.linear = nn.Linear(1, 1)
 
     def forward(self, td: TensorDict) -> TensorDict:  # pragma: no cover - simple passthrough

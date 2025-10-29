@@ -13,8 +13,9 @@ from rich.console import Console
 
 from cogames.cli.policy import POLICY_ARG_DELIMITER
 from cogames.policy.signal_handler import DeferSigintContextManager
-from mettagrid import MettaGridConfig, MettaGridEnv
+from mettagrid import MettaGridConfig, PufferMettaGridEnv
 from mettagrid.policy.policy import TrainablePolicy
+from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.policy.utils import (
     find_policy_checkpoints,
     get_policy_class_shorthand,
@@ -193,7 +194,7 @@ def train(
     ):
         target_cfg = cfg.model_copy(deep=True) if cfg is not None else _clone_cfg()
         simulator = Simulator()
-        env = MettaGridEnv(simulator, target_cfg, buf, seed if seed is not None else 0)
+        env = PufferMettaGridEnv(simulator, target_cfg, buf, seed if seed is not None else 0)
         set_buffers(env, buf)
         return env
 
@@ -219,7 +220,7 @@ def train(
         resolved_initial_weights,
         vecenv.driver_env.env_cfg.game.actions,
         device,
-        env=vecenv.driver_env,
+        policy_env_info=PolicyEnvInterface.from_mg_cfg(vecenv.driver_env.env_cfg),
     )
     assert isinstance(policy, TrainablePolicy), (
         f"Policy class {policy_class_path} must implement TrainablePolicy interface"

@@ -9,7 +9,7 @@ from torchrl.data import Composite, UnboundedDiscrete
 import pufferlib.pytorch
 from metta.agent.components.actor import ActionProbs, ActionProbsConfig
 from metta.agent.policy import Policy, PolicyArchitecture
-from metta.rl.training import PolicyEnvInterface
+from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 
 
 class PufferPolicyConfig(PolicyArchitecture):
@@ -31,7 +31,7 @@ class PufferPolicy(Policy):
     """Policy that exactly matches PufferLib architecture"""
 
     def __init__(self, policy_env_info: PolicyEnvInterface, config: Optional[PufferPolicyConfig] = None):
-        super().__init__(actions=policy_env_info.actions)
+        super().__init__(policy_env_info)
 
         self.policy = torch.nn.Module()
         self.config = config or PufferPolicyConfig()

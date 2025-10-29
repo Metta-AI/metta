@@ -10,7 +10,7 @@ from tensordict.nn import TensorDictModule as TDM
 import pufferlib.pytorch
 from metta.agent.components.component_config import ComponentConfig
 from metta.agent.util.distribution_utils import evaluate_actions, sample_actions
-from metta.rl.training import PolicyEnvInterface
+from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 
 
 class ActorQueryConfig(ComponentConfig):

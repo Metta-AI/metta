@@ -29,7 +29,10 @@ class AgentInfoComponent(MiniscopeComponent):
             panels: Panel layout containing all panels
         """
         super().__init__(sim=sim, state=state, panels=panels)
-        self._set_panel(panels.sidebar)
+        sidebar_panel = panels.get_sidebar_panel("agent_info")
+        if sidebar_panel is None:
+            sidebar_panel = panels.register_sidebar_panel("agent_info")
+        self._set_panel(sidebar_panel)
 
     def _get_object_type_names(self) -> list[str]:
         """Get object type names from state."""
@@ -59,11 +62,11 @@ class AgentInfoComponent(MiniscopeComponent):
 
         bbox = BoundingBox(
             min_row=0,
-            max_row=self._sim.state.map_height,
+            max_row=self._sim.map_height,
             min_col=0,
-            max_col=self._sim.state.map_width,
+            max_col=self._sim.map_width,
         )
-        grid_objects = self._sim.state.grid_objects(bbox)
+        grid_objects = self._sim.grid_objects(bbox)
 
         lines = self._build_lines(
             grid_objects,

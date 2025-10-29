@@ -14,7 +14,6 @@ from metta.agent.policy import Policy
 from metta.app_backend.clients.stats_client import HttpStatsClient, StatsClient
 from metta.rl.checkpoint_manager import CheckpointManager
 from metta.rl.policy_artifact import PolicyArtifact
-from metta.rl.training.training_environment import PolicyEnvInterface
 from metta.sim.replay_log_writer import ReplayLogWriter
 from metta.sim.simulation_config import SimulationConfig
 from metta.sim.simulation_stats_db import SimulationStatsDB
@@ -23,6 +22,7 @@ from metta.sim.thumbnail_automation import maybe_generate_and_upload_thumbnail
 from metta.sim.utils import get_or_create_policy_ids
 from mettagrid.config.mettagrid_config import MettaGridConfig
 from mettagrid.policy.policy import AgentPolicy
+from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.simulator.rollout import Rollout
 
 SYNTHETIC_EVAL_SUITE = "training"
@@ -169,13 +169,13 @@ class Simulation:
         for agent_id in range(self._agents_per_env):
             # Assign main policy to first N agents, NPC policy to remaining
             if agent_id < self._policy_agents_per_env:
-                agent_policy = self._policy.agent_policy(agent_id, self._env_cfg.game.actions)
+                agent_policy = self._policy.agent_policy(agent_id)
             else:
                 if self._npc_policy is not None:
-                    agent_policy = self._npc_policy.agent_policy(agent_id, self._env_cfg.game.actions)
+                    agent_policy = self._npc_policy.agent_policy(agent_id)
                 else:
                     # Fallback to main policy if no NPC policy
-                    agent_policy = self._policy.agent_policy(agent_id, self._env_cfg.game.actions)
+                    agent_policy = self._policy.agent_policy(agent_id)
 
             agent_policies.append(agent_policy)
 

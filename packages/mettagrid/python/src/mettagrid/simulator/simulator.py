@@ -1,12 +1,8 @@
-"""MettaGridCore - Core Python wrapper for MettaGrid C++ environment.
-
-This class provides the base functionality for all framework-specific adapters,
-without any training-specific features or framework dependencies."""
-
 from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
+from functools import cached_property
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Sequence
 
 import numpy as np
@@ -18,13 +14,14 @@ from mettagrid.mettagrid_c import MettaGrid as MettaGridCpp
 from mettagrid.mettagrid_c import PackedCoordinate
 
 if TYPE_CHECKING:
+    from mettagrid.config.id_map import IdMap
     from mettagrid.mettagrid_c import EpisodeStats
 
+from mettagrid.config.id_map import ObservationFeatureSpec
 from mettagrid.profiling.stopwatch import Stopwatch, with_instance_timer
 from mettagrid.simulator.interface import (
     Action,
     AgentObservation,
-    ObservationFeature,
     ObservationToken,
     SimulatorEventHandler,
 )
@@ -74,23 +71,22 @@ class Simulation:
         # Create C++ environment
         self.__c_sim = MettaGridCpp(c_cfg, map_grid, self._seed)
 
+        # Compute action_ids from config actions
         self._action_ids: dict[str, int] = {
-            action_name: idx for idx, action_name in enumerate(self.__c_sim.action_names())
+            action.name: idx for idx, action in enumerate(self._config.game.actions.actions())
         }
-        feature_spec = self.__c_sim.feature_spec()
 
-        self._features: dict[int, ObservationFeature] = {
-            int(feature_info["id"]): ObservationFeature(
-                id=int(feature_info["id"]),
-                normalization=feature_info["normalization"],
-                name=feature_name,
-            )
-            for feature_name, feature_info in feature_spec.items()
-        }
+        # Build feature dict from id_map
+        self._features: dict[int, ObservationFeatureSpec] = {feature.id: feature for feature in self.id_map.features()}
 
         self._start_episode()
 
         self._timer.start("thread_idle")
+
+    @cached_property
+    def id_map(self) -> IdMap:
+        """Get the observation feature ID map for this simulation."""
+        return self._config.id_map()
 
     def agents(self) -> list[SimulationAgent]:
         return [self.agent(agent_id) for agent_id in range(self.num_agents)]
@@ -172,7 +168,7 @@ class Simulation:
 
     @property
     def num_agents(self) -> int:
-        return self.__c_sim.num_agents
+        return self._config.game.num_agents
 
     @property
     def action_ids(self) -> dict[str, int]:
@@ -184,17 +180,17 @@ class Simulation:
 
     @property
     def object_type_names(self) -> list[str]:
-        return self.__c_sim.object_type_names()
+        return self.__c_sim.object_type_names
 
     @property
     def resource_names(self) -> list[str]:
-        return self.__c_sim.resource_names()
+        return self._config.game.resource_names
 
     @property
-    def features(self) -> Sequence[ObservationFeature]:
+    def features(self) -> Sequence[ObservationFeatureSpec]:
         return list(self._features.values())
 
-    def get_feature(self, feature_id: int) -> ObservationFeature:
+    def get_feature(self, feature_id: int) -> ObservationFeatureSpec:
         """Get a feature by its ID."""
         return self._features[feature_id]
 

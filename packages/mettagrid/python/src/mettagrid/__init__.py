@@ -2,12 +2,9 @@
 MettaGrid - Multi-agent reinforcement learning grid environments.
 
 This module provides various environment adapters for different RL frameworks:
-- MettaGridCore: Core C++ wrapper (no training features)
-- MettaGridEnv: Training environment (PufferLib-based with stats/replay)
-- MettaGridGymEnv: Gymnasium adapter
-- MettaGridPettingZooEnv: PettingZoo adapter
+- Simulation: Core simulation class for running MettaGrid simulations
+- PufferMettaGridEnv: PufferLib-compatible environment with reset/step API
 
-All adapters inherit from MettaGridCore and provide framework-specific interfaces.
 For PufferLib integration, use PufferLib's MettaPuff wrapper directly.
 """
 
@@ -48,27 +45,33 @@ _LAZY_ATTRS: Dict[str, Tuple[str, str]] = {
     "Config": ("mettagrid.config", "Config"),
     # Core classes
     "Simulator": ("mettagrid.simulator.simulator", "Simulator"),
+    "Simulation": ("mettagrid.simulator.simulator", "Simulation"),
     "Action": ("mettagrid.simulator.interface", "Action"),
-    "Observation": ("mettagrid.simulator.interface", "AgentObservation"),
+    "AgentObservation": ("mettagrid.simulator.interface", "AgentObservation"),
     # Environments
-    "MettaGridEnv": ("mettagrid.envs.mettagrid_puffer_env", "MettaGridPufferEnv"),
+    "PufferMettaGridEnv": ("mettagrid.envs.mettagrid_puffer_env", "MettaGridPufferEnv"),
     # Supporting classes
     "GameMap": ("mettagrid.map_builder.map_builder", "GameMap"),
+    # C++ types
+    "dtype_observations": ("mettagrid.mettagrid_c", "dtype_observations"),
 }
 
 if TYPE_CHECKING:
     from mettagrid.config.mettagrid_config import MettaGridConfig
+    from mettagrid.envs.mettagrid_puffer_env import MettaGridPufferEnv as PufferMettaGridEnv
     from mettagrid.map_builder.map_builder import GameMap
-    from mettagrid.simulator import Action, Simulation
-    from mettagrid.simulator import AgentObservation as Observation
+    from mettagrid.simulator import Action, AgentObservation, Simulation, Simulator
 
 __all__ = [
     # Config
     "MettaGridConfig",
     # Core classes
+    "Simulator",
     "Simulation",
     "Action",
-    "Observation",
+    "AgentObservation",
+    # Environments
+    "PufferMettaGridEnv",
     # Supporting classes
     "GameMap",
 ]

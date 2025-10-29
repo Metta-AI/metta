@@ -7,9 +7,9 @@ from metta.agent.policies import sliding_transformer as backbone_sliding
 from metta.agent.policies import trxl as backbone_trxl
 from metta.agent.policies import trxl_nvidia as backbone_trxl_nvidia
 from metta.agent.policies.transformer import TransformerPolicy, TransformerPolicyConfig
-from metta.rl.training.training_environment import PolicyEnvInterface
 from metta.rl.utils import ensure_sequence_metadata
 from mettagrid.config import MettaGridConfig
+from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 
 
 def _build_policy_env_info():
