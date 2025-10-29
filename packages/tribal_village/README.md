@@ -14,6 +14,8 @@ resources while fighting off hostile tumors.
 curl https://nim-lang.org/choosenim/init.sh -sSf | sh
 # Install dependencies
 nimble install
+# Make the Python package importable from anywhere (editable install)
+uv pip install -e packages/tribal_village
 ```
 
 **Standalone Game**
@@ -25,9 +27,14 @@ nim r -d:release tribal_village.nim
 **PufferLib Training**
 
 ```bash
+# Ensure the shared library is up to date
 nimble buildLib  # Builds in danger mode for maximum performance
+# Launch a quick sanity check (works from any directory once installed)
 python -c "from tribal_village_env import TribalVillageEnv; env = TribalVillageEnv()"
 ```
+
+> Prefer avoiding a global editable install? Use `uv run --project packages/tribal_village python -c "..."`
+> to execute one-off commands against this package with its local dependencies instead.
 
 ## Configuration
 
