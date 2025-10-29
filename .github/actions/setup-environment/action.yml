@@ -145,7 +145,6 @@ runs:
             # Install workspace packages that metta CLI imports (with their dependencies)
             uv pip install -e common
             uv pip install -e packages/gitta
-            uv pip install -e softmax
             ;;
 
         esac
