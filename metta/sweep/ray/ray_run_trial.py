@@ -43,9 +43,37 @@ def metta_train_fn(config: dict[str, Any]) -> None:
     sweep_config = config["sweep_config"]
 
     runtime_ctx = get_runtime_context()
-    assigned = runtime_ctx.get_assigned_resources()
-    gpu_ids = runtime_ctx.get_gpu_ids()
-    logging.info("Ray runtime assigned resources: %s; gpu_ids: %s", assigned, gpu_ids)
+    assigned_resources = None
+    gpu_ids = None
+
+    if runtime_ctx is not None:
+        get_assigned = getattr(runtime_ctx, "get_assigned_resources", None)
+        if callable(get_assigned):
+            try:
+                assigned_resources = get_assigned()
+            except Exception as exc:
+                logging.warning("Failed to read assigned resources from runtime context: %s", exc)
+
+        get_ids = getattr(runtime_ctx, "get_resource_ids", None)
+        if callable(get_ids):
+            try:
+                resource_ids = get_ids()
+                gpu_ids = resource_ids.get("GPU")
+            except Exception as exc:
+                logging.warning("Failed to read resource IDs from runtime context: %s", exc)
+        else:
+            legacy_get_gpu_ids = getattr(runtime_ctx, "get_gpu_ids", None)
+            if callable(legacy_get_gpu_ids):
+                try:
+                    gpu_ids = legacy_get_gpu_ids()
+                except Exception as exc:
+                    logging.warning("Failed to read GPU IDs from runtime context: %s", exc)
+
+    logging.info(
+        "Ray runtime assigned resources: %s; gpu_ids: %s",
+        assigned_resources,
+        gpu_ids,
+    )
 
     # Get run name from Ray Tune
     ctx = tune.get_context()
