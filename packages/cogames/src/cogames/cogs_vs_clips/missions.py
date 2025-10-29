@@ -226,6 +226,12 @@ class BothBaseVariant(MissionVariant):
         return mission
 
 
+class CyclicalUnclipVariant(MissionVariant):
+    name: str = "cyclical_unclip"
+    description: str = "Required resources for unclipping recipes are cyclical. \
+                        So Germanium extractors require silicon-based unclipping recipes."
+
+
 VARIANTS = [
     MinedOutVariant,
     DarkSideVariant,
@@ -614,7 +620,7 @@ class ProceduralMissionBase(Mission):
             height=height,
             seed=seed,
             instance=MachinaArenaConfig(
-                spawn_count=num_cogs,
+                spawn_count=int(mission.num_cogs or num_cogs),
                 **filtered_overrides,
             ),
         )
