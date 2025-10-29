@@ -1,7 +1,6 @@
 """Interactive play tool for Metta simulations."""
 
 import logging
-from types import SimpleNamespace
 from typing import Optional
 
 import numpy as np

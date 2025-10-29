@@ -1,8 +1,7 @@
 """Game playing functionality for CoGames."""
 
 import logging
-from types import SimpleNamespace
-from typing import TYPE_CHECKING, Any, Optional
+from typing import TYPE_CHECKING, Optional
 
 import numpy as np
 from rich.console import Console
