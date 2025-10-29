@@ -21,7 +21,7 @@ struct AgentSupervisorConfig {
   // Name of the supervisor for logging
   std::string name;
 
-  AgentSupervisorConfig(bool can_override_action = false, const std::string& name = "supervisor")
+  explicit AgentSupervisorConfig(bool can_override_action = false, const std::string& name = "supervisor")
       : can_override_action(can_override_action), name(name) {}
 
   virtual ~AgentSupervisorConfig() = default;
