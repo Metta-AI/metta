@@ -15,7 +15,6 @@ from devops.skypilot.notifications import send_notifications
 from devops.skypilot.utils.cost_monitor import get_cost_info
 from devops.skypilot.utils.job_config import JobConfig, log_job_config
 from devops.skypilot.utils.job_latency import calculate_queue_latency
-from devops.skypilot.utils.nccl_tests import launch_nccl_tests
 from devops.skypilot.utils.runtime_monitors import ForceRestartTestMonitor, HeartbeatMonitor, TimeoutMonitor
 from devops.skypilot.utils.subprocess_helpers import terminate_process_group
 from devops.skypilot.utils.termination_reason import TerminationReason
@@ -57,7 +56,6 @@ def create_job_config_from_environment() -> JobConfig:
         max_runtime_hours=float(os.environ.get("MAX_RUNTIME_HOURS", "0")) or None,
         heartbeat_timeout=int(os.environ.get("HEARTBEAT_TIMEOUT", "0")) or None,
         restart_count=int(os.environ.get("RESTART_COUNT", "0")),
-        test_nccl=os.environ.get("TEST_NCCL", "false").lower() == "true",
         test_job_restart=os.environ.get("TEST_JOB_RESTART", "false").lower() == "true",
         start_time=int(os.environ.get("START_TIME", "0")) or None,
         # File paths
@@ -180,10 +178,6 @@ def main() -> int:
                     log_to_wandb_summary(metrics)
 
         termination_reason = ""
-
-        if job_config.test_nccl and job_config.restart_count == 0:
-            if not launch_nccl_tests(logger, job_config.is_master):
-                termination_reason = TerminationReason.NCCL_TESTS_FAILED.value
 
         # If we've restarted 3+ times and average runtime is less than 3 minutes,
         if job_config.restart_count >= 3 and job_config.accumulated_runtime_sec is not None:

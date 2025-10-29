@@ -1,16 +1,36 @@
-#!/usr/bin/env python
-# -*- coding: utf-8 -*-
+#!/usr/bin/env -S uv run python3
 """NCCL tests for multi-GPU communication validation.
 
-These tests validate GPU communication infrastructure before training starts.
+This is a standalone diagnostic tool for validating GPU communication infrastructure.
+
+**When to use:**
+- Before starting a large/expensive training run
+- After changing cloud provider, region, or instance type
+- When investigating mysterious training failures or hangs
+- After NCCL or GPU driver updates
+
+**Usage:**
+    # Run on a single node with multiple GPUs
+    ./devops/skypilot/utils/nccl_tests.py
+
+    # Run on distributed training setup (from within job)
+    torchrun --nproc_per_node=<gpus> --nnodes=<nodes> devops/skypilot/utils/nccl_tests.py
+
+**What it tests:**
+- Point-to-point GPU communication bandwidth
+- All-reduce collective operation bandwidth
+- GPU topology and connectivity
+- System diagnostics (NCCL version, CUDA version, etc.)
+
+**Why these tests matter:**
 While NCCL failures are rare, they can occur due to:
 - Network configuration issues in cloud environments
 - GPU driver/firmware incompatibilities
 - Incorrect NCCL environment variable settings
 - Hardware issues on specific instance types
 
-Catching these issues early (in setup phase) saves hours of debugging
-when training mysteriously fails or hangs mid-run.
+Catching these issues early saves hours of debugging when training mysteriously
+fails or hangs mid-run.
 """
 
 import datetime
@@ -1151,30 +1171,6 @@ def main():
         dist.destroy_process_group()
 
     return 0 if all_passed else 1
-
-
-def launch_nccl_tests(logger, is_master: bool) -> bool:
-    logger.info("Running GPU diagnostics and NCCL tests...")
-    try:
-        result = subprocess.run(
-            ["uv", "run", "python", "./devops/skypilot/utils/nccl_tests.py"],
-            capture_output=True,
-            text=True,
-        )
-
-        if is_master and result.stdout:
-            print(result.stdout)
-
-        if result.returncode != 0:
-            logger.error(f"NCCL tests failed: {result.stderr}")
-            return False
-        else:
-            logger.info("NCCL tests passed")
-            return True
-
-    except Exception as e:
-        logger.error(f"Failed to run NCCL tests: {e}")
-        return False
 
 
 if __name__ == "__main__":

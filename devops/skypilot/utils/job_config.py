@@ -25,7 +25,6 @@ class JobConfig:
     max_runtime_hours: Optional[float] = None
     heartbeat_timeout: Optional[int] = None
     restart_count: int = 0
-    test_nccl: bool = False
     test_job_restart: bool = False
     start_time: Optional[int] = None
 

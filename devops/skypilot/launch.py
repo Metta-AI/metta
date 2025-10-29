@@ -251,7 +251,6 @@ Examples:
         WANDB_PROJECT=os.environ.get("WANDB_PROJECT", METTA_WANDB_PROJECT),
         WANDB_ENTITY=os.environ.get("WANDB_ENTITY", METTA_WANDB_ENTITY),
         ENABLE_WANDB_ALERTS="false" if args.run_ci_tests else "true",  # enables wandb alerts
-        TEST_NCCL="true" if args.run_ci_tests else "false",
         TEST_JOB_RESTART="true" if args.run_ci_tests else "false",
     )
 
