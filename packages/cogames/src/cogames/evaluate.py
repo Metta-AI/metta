@@ -180,7 +180,7 @@ def evaluate(
     max_steps: Optional[int] = None,
     seed: int = 42,
     output_format: Optional[Literal["yaml", "json"]] = None,
-) -> None:
+) -> MissionResultsSummary:
     if not missions:
         raise ValueError("At least one mission must be provided for evaluation.")
     if not policy_specs:
@@ -212,8 +212,19 @@ def evaluate(
         )
 
     summary = _build_results_summary(mission_results, policy_specs)
+    _output_results(console, summary, output_format)
+    return summary
 
-    if not summary.missions:
+
+def _output_results(
+    console: Console, summary: MissionResultsSummary, output_format: Optional[Literal["yaml", "json"]]
+) -> None:
+    if output_format:
+        if output_format == "json":
+            serialized = json.dumps(summary.model_dump(mode="json"), indent=2)
+        else:
+            serialized = yaml.safe_dump(summary.model_dump(), sort_keys=False)
+        console.print(serialized)
         return
 
     policy_display_names = [ps.display_name for ps in summary.missions[0].policy_summaries]
@@ -292,14 +303,6 @@ def evaluate(
                         str(policy_summary.action_timeouts),
                     )
         console.print(timeouts_table)
-
-    if output_format:
-        summary_dict = summary.model_dump(mode="json")
-        if output_format == "json":
-            serialized = json.dumps(summary_dict, indent=2)
-        else:
-            serialized = yaml.safe_dump(summary_dict, sort_keys=False)
-        console.print(serialized)
 
 
 def _evaluate_single_mission(
