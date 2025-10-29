@@ -15,6 +15,7 @@ from metta.adaptive.dispatcher import LocalDispatcher
 from metta.adaptive.stores import WandbStore
 from metta.adaptive.utils import create_training_job, create_eval_job
 from metta.adaptive.models import JobDefinition
+from metta.common.util.constants import REPO_ROOT
 
 logger = logging.getLogger(__name__)
 

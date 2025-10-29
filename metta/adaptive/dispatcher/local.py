@@ -10,6 +10,7 @@ from typing import Optional
 
 from metta.adaptive.models import JobDefinition
 from metta.adaptive.utils import get_display_id
+from metta.common.util.constants import REPO_ROOT
 
 logger = logging.getLogger(__name__)
 
@@ -23,7 +24,7 @@ class LocalDispatcher:
         self._capture_output = capture_output
         self._use_torchrun = use_torchrun
         self._output_threads: dict[str, threading.Thread] = {}  # pid -> output thread
-        self._project_root = Path(__file__).resolve().parents[3]
+        self._project_root = REPO_ROOT
         self._common_src = self._project_root / "common" / "src"
 
     def _reap_finished_processes(self):

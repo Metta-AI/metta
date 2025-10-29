@@ -11,6 +11,7 @@ from ray import init, tune
 from ray.tune import TuneConfig, Tuner, RunConfig
 
 from metta.sweep.ray.ray_run_trial import metta_train_fn
+from metta.common.util.constants import PROD_STATS_SERVER_URI
 from mettagrid.base_config import Config
 
 logger = logging.getLogger(__name__)
@@ -27,6 +28,7 @@ class SweepConfig(Config):
     # And we could add those in to the search space??
     train_entrypoint: str = "train"
     eval_entrypoint: str = "evaluate_in_sweep"
+    stats_server_uri: str = PROD_STATS_SERVER_URI
 
     # We can get rid of the train_overrids I think now
     train_overrides: dict[str, Any] = Field(default_factory=dict)
