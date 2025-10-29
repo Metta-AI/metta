@@ -13,32 +13,47 @@ from ray.runtime_context import get_runtime_context
 
 from metta.adaptive.dispatcher import LocalDispatcher
 from metta.adaptive.stores import WandbStore
-from metta.adaptive.utils import create_training_job
+from metta.adaptive.utils import create_training_job, create_evaluation_job
+from metta.adaptive.models import JobDefinition
 
+logger = logging.getLogger(__name__)
 
 def _fallback_run_id() -> str:
     return f"local-{datetime.now().strftime('%Y%m%d-%H%M%S')}"
 
 
-def _report_metrics(trial_name: str) -> dict[str, Any]:
+def _report_metrics(trial_name: str, score_key: str | None = None) -> dict[str, Any]:
     store = WandbStore(entity="metta-research", project=os.environ.get("WANDB_PROJECT", "metta"))
     try:
         summary = store.get_run_summary(trial_name)
         current_timestep = summary.get("metric/agent_step", 0)
         current_reward = summary.get("experience/rewards", 0)
-        tune.report({"reward": current_reward, "timestep": current_timestep})
+        if score_key:
+            # Initialize score to -101.1 if not found
+            # TODO: Do we want to fail fast instead?
+            score = summary.get(score_key, -101.1) if score_key else 0
+            if score == -101.1:
+                logger.warning(f"Score not found for {trial_name}")
+            tune.report({"reward": current_reward, "timestep": current_timestep, "score": score})
+        else:
+            tune.report({"reward": current_reward, "timestep": current_timestep})
         return {"reward": current_reward, "timestep": current_timestep}
     except Exception as e:
         print(f"Error polling WandB: {e}")
         return {}
 
+def _save_metadata(job: JobDefinition) -> None:
+    store = WandbStore(entity="metta-research", project=os.environ.get("WANDB_PROJECT", "metta"))
+    try:
+        store.update_run_summary(run_id=job.run_id, summary_update=job.metadata)
+    except Exception as e:
+        print(f"Error saving metadata: {e}")
 
 def metta_train_fn(config: dict[str, Any]) -> None:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
     """
     Train function for the metta model
     """
-    dispatcher = LocalDispatcher(capture_output=True, use_torchrun=True)
 
     # Track the training process and termination status
     training_proc = None
@@ -89,7 +104,9 @@ def metta_train_fn(config: dict[str, Any]) -> None:
 
     # Use assigned GPUs or fall back to sweep config
     gpus_for_job = assigned_gpus if assigned_gpus > 0 else sweep_config.get("gpus_per_trial", 0)
+    training_dispatcher = LocalDispatcher(capture_output=True, use_torchrun=(gpus_for_job > 0))
 
+    # TODO We can refactor this now
     merged_overrides = dict(sweep_config.get("train_overrides", {}))
     merged_overrides.update(config["params"])
 
@@ -98,25 +115,25 @@ def metta_train_fn(config: dict[str, Any]) -> None:
         experiment_id=sweep_config.get("sweep_id"),
         recipe_module=sweep_config.get("recipe_module"),
         train_entrypoint=sweep_config.get("train_entrypoint"),
-        gpus=gpus_for_job,
         stats_server_uri=sweep_config.get("stats_server_uri"),
         train_overrides=merged_overrides,
     )
     job.metadata["sweep/suggestion"] = config["params"]
+    job.metadata["sweep/assigned_gpus"] = assigned_gpus
+    job.metadata["sweep/trial_id"] = ctx.get_trial_id()
 
     # TODO: Register SIGINTs for pruning
-    job_pid = dispatcher.dispatch(job)
+    job_pid = training_dispatcher.dispatch(job)
 
     print(f"Job ID: {job_pid}")
 
+    training_proc = training_dispatcher.get_process(job_pid)
+
     # polling returns None as long as the process is running
-
-    # Fetch process as it might have been reaped already
-    training_proc = dispatcher.get_process(job_pid)
-
     # Wait for the process to finish
     while training_proc and training_proc.poll() is None:
-        time.sleep(10)
+        # TODO Make this configurable
+        time.sleep(60)
 
         # Poll WandB
         _report_metrics(trial_name)
@@ -124,6 +141,7 @@ def metta_train_fn(config: dict[str, Any]) -> None:
     # Give WandB a few seconds to sync
     time.sleep(20)
     _report_metrics(trial_name)
+    _save_metadata(job)
 
     # Check exit code to determine if this was a normal exit or failure
     if training_proc:
@@ -136,3 +154,40 @@ def metta_train_fn(config: dict[str, Any]) -> None:
             # Other failure
             logging.error(f"Trial failed with exit code {exit_code}")
             sys.exit(exit_code if exit_code else 1)
+
+    # TODO Run evaluation
+    evaluation_dispatcher = LocalDispatcher(capture_output=True)
+    eval_job = create_evaluation_job(
+        experiment_id=sweep_config.get("sweep_id"),
+        recipe_module=sweep_config.get("recipe_module"),
+        eval_entrypoint=sweep_config.get("eval_entrypoint"),
+        stats_server_uri=sweep_config.get("stats_server_uri"),
+    )
+    eval_proc_id = evaluation_dispatcher.dispatch(eval_job)
+    eval_proc = evaluation_dispatcher.get_process(eval_proc_id)
+
+    # polling returns None as long as the process is running
+    # Wait for the process to finish
+    while eval_proc and eval_proc.poll() is None:
+        # TODO Make this configurable
+        time.sleep(60)
+
+    # Check exit code to determine if this was a normal exit or failure
+    # TODO This requires some care -- will the resumption work as expected and
+    # re-run the evaluation if necessary?
+    if eval_proc:
+        exit_code = eval_proc.returncode
+        if exit_code == 124:
+            # Spot termination - should be retried
+            logging.info("Evaluation terminated due to spot instance preemption (exit code 124)")
+            sys.exit(124)
+        elif exit_code != 0:
+            # Other failure
+            logging.error(f"Evaluation failed with exit code {exit_code}")
+            sys.exit(exit_code if exit_code else 1)
+
+    # Give WandB time to sync
+    time.sleep(10)
+
+    # No failure
+    _report_metrics(trial_name, score_key=sweep_config.get("score_key"))
