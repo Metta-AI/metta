@@ -25,7 +25,7 @@ setup: set -u && bash <(curl -fsSL "https://raw.githubusercontent.com/${GITHUB_R
 
 run: |
   export SANDBOX_MODE=true
-  source <(curl -fsSL "https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/${METTA_GIT_REF}/devops/skypilot/recipes/init_run.sh")
+  eval "$(curl -fsSL "https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/${METTA_GIT_REF}/devops/skypilot/recipes/init_run.py")"
 
   echo "Starting bash shell..."
   exec bash
