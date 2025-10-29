@@ -49,9 +49,21 @@ export IS_HEAD=$([[ "$RANK" == "0" ]] && echo "true" || echo "false")
 HEAD_IP=$(echo "${SKYPILOT_NODE_IPS:-127.0.0.1}" | head -n1)
 RAY_PORT=${RAY_HEAD_PORT:-6379}
 RAY_CLIENT_PORT=${RAY_CLIENT_PORT:-10001}
+GPU_COUNT="${SKYPILOT_NUM_GPUS_PER_NODE:-}"
+if [[ -z "$GPU_COUNT" ]]; then
+  if command -v nvidia-smi >/dev/null 2>&1; then
+    GPU_COUNT=$(nvidia-smi --list-gpus | wc -l | tr -d ' ')
+  else
+    GPU_COUNT=0
+  fi
+fi
+if [[ "$GPU_COUNT" -lt 1 ]]; then
+  echo "[SIMPLE] Warning: No GPUs detected, defaulting Ray to CPU-only mode."
+fi
 
 echo "[SIMPLE] Node rank: $RANK (head: $IS_HEAD)"
 echo "[SIMPLE] Head IP: $HEAD_IP"
+echo "[SIMPLE] GPUs per node: $GPU_COUNT"
 echo "[SIMPLE] Ray ports: tcp=$RAY_PORT client=$RAY_CLIENT_PORT"
 
 start_ray_head() {
@@ -62,14 +74,14 @@ start_ray_head() {
     --ray-client-server-port "$RAY_CLIENT_PORT" \
     --dashboard-host "0.0.0.0" \
     --disable-usage-stats \
-    --num-gpus 1 \
+    --num-gpus "$GPU_COUNT" \
     --num-cpus 4
   sleep 5
 }
 
 start_ray_worker() {
   echo "[SIMPLE] Starting Ray worker..."
-  until ray start --address "${HEAD_IP}:${RAY_PORT}" --disable-usage-stats --num-gpus 1 --num-cpus 4; do
+  until ray start --address "${HEAD_IP}:${RAY_PORT}" --disable-usage-stats --num-gpus "$GPU_COUNT" --num-cpus 4; do
     echo "[SIMPLE] Worker waiting for head..."
     sleep 5
   done
