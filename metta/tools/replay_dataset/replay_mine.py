@@ -15,7 +15,8 @@ import logging
 import sys
 import zlib
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timedelta
+from pathlib import Path
 from typing import Any
 
 import pandas as pd
@@ -195,6 +196,34 @@ class ReplayMiner:
         with SimulationStatsDB.from_uri(self.stats_db_uri) as db:
             return db.get_replay_urls(env=self.environment)
 
+    def get_earliest_replay_date(self) -> str | None:
+        """Query database for earliest replay date with replays."""
+        if self.stats_db_uri.startswith("http://") or self.stats_db_uri.startswith("https://"):
+            from metta.app_backend.clients.stats_client import HttpStatsClient
+
+            with HttpStatsClient(backend_url=self.stats_db_uri) as client:
+                query = """
+                    SELECT MIN(DATE(created_at)) as earliest_date
+                    FROM episodes
+                    WHERE replay_url IS NOT NULL
+                """
+                result = client.sql_query(query)
+                return result.rows[0][0] if result.rows and result.rows[0][0] else None
+        else:
+            from metta.sim.simulation_stats_db import SimulationStatsDB
+
+            with SimulationStatsDB.from_uri(self.stats_db_uri) as db:
+                # Query for earliest date with replays
+                cursor = db._connection.execute(
+                    """
+                    SELECT MIN(DATE(created_at)) as earliest_date
+                    FROM episodes
+                    WHERE replay_url IS NOT NULL
+                    """
+                )
+                row = cursor.fetchone()
+                return row[0] if row and row[0] else None
+
     def mine_replays(self) -> dict[str, Any]:
         """Query database, download replays, and extract samples for a specific date."""
         logger.info(f"Mining replays from {self.stats_db_uri}")
@@ -239,6 +268,14 @@ class ReplayMiner:
     def save_dataset(self, output_uri: str) -> None:
         """Save dataset to Parquet format (local or S3)."""
         import json
+
+        # Create local directory if needed (S3 paths are handled by pandas automatically)
+        if not output_uri.startswith("s3://"):
+            output_path = Path(output_uri)
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+            logger.info(f"Saving to local path: {output_uri}")
+        else:
+            logger.info(f"Saving to S3: {output_uri}")
 
         # Handle empty sample set by creating DataFrame with expected schema
         if not self.samples:
@@ -310,54 +347,177 @@ def main():
     parser.add_argument(
         "--date",
         type=str,
-        help="Date to process in YYYY-MM-DD format (default: yesterday)",
+        help="Single date to process in YYYY-MM-DD format (default: yesterday)",
+    )
+    parser.add_argument(
+        "--start-date",
+        type=str,
+        help="Start date for range processing (YYYY-MM-DD, inclusive)",
+    )
+    parser.add_argument(
+        "--end-date",
+        type=str,
+        help="End date for range processing (YYYY-MM-DD, inclusive, default: yesterday)",
+    )
+    parser.add_argument(
+        "--backfill-all",
+        action="store_true",
+        help="Process all dates from earliest replay to yesterday",
     )
     parser.add_argument("--min-reward", type=float, default=0.0, help="Minimum episode reward to include")
     parser.add_argument("--environment", type=str, help="Filter by environment name (optional)")
     parser.add_argument(
-        "--output-name",
+        "--output-prefix",
         type=str,
-        help="Output dataset name (auto-generated from date if not specified)",
+        default=SOFTMAX_S3_REPLAYS_PREFIX,
+        help="Output directory or S3 prefix (default: production S3 bucket)",
     )
 
     args = parser.parse_args()
 
     try:
-        # Determine date to process (default: yesterday)
-        if args.date:
-            process_date = args.date
+        yesterday = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
+
+        # Determine processing mode and date range
+        if args.backfill_all:
+            # Query for earliest date
+            logger.info("Backfill mode: querying for earliest replay date...")
+            temp_miner = ReplayMiner(
+                stats_db_uri=args.stats_db_uri,
+                date=yesterday,  # Temporary, just for query
+                min_reward=args.min_reward,
+                environment=args.environment,
+            )
+            start_date = temp_miner.get_earliest_replay_date()
+            if not start_date:
+                logger.error("No replays found in database")
+                return 1
+            end_date = args.end_date if args.end_date else yesterday
+            logger.info(f"Backfilling from {start_date} to {end_date}")
+        elif args.start_date:
+            # Explicit range
+            start_date = args.start_date
+            end_date = args.end_date if args.end_date else yesterday
+            logger.info(f"Processing date range: {start_date} to {end_date}")
+        elif args.date:
+            # Single date
+            start_date = end_date = args.date
+            logger.info(f"Processing single date: {start_date}")
         else:
-            from datetime import timedelta
+            # Default: yesterday
+            start_date = end_date = yesterday
+            logger.info(f"No date specified, using yesterday: {yesterday}")
 
-            yesterday = datetime.now() - timedelta(days=1)
-            process_date = yesterday.strftime("%Y-%m-%d")
-            logger.info(f"No date specified, using yesterday: {process_date}")
+        # Generate list of dates to process
+        dates_to_process = []
+        current = datetime.strptime(start_date, "%Y-%m-%d")
+        end = datetime.strptime(end_date, "%Y-%m-%d")
+        while current <= end:
+            dates_to_process.append(current.strftime("%Y-%m-%d"))
+            current += timedelta(days=1)
 
+        logger.info(f"Total dates to process: {len(dates_to_process)}")
+
+        # Process dates sequentially
+        if len(dates_to_process) == 1:
+            # Single date - process directly
+            success = process_single_date(
+                dates_to_process[0],
+                args.stats_db_uri,
+                args.min_reward,
+                args.environment,
+                args.output_prefix,
+            )
+            return 0 if success else 1
+        else:
+            # Multiple dates - sequential processing
+            return process_date_range(
+                dates_to_process,
+                args.stats_db_uri,
+                args.min_reward,
+                args.environment,
+                args.output_prefix,
+            )
+
+    except Exception as e:
+        logger.error(f"Replay mining failed: {e}", exc_info=True)
+        return 1
+
+
+def process_single_date(
+    date: str,
+    stats_db_uri: str,
+    min_reward: float,
+    environment: str | None,
+    output_prefix: str,
+) -> bool:
+    """Process a single date and return success status."""
+    try:
         miner = ReplayMiner(
-            stats_db_uri=args.stats_db_uri,
-            date=process_date,
-            min_reward=args.min_reward,
-            environment=args.environment,
+            stats_db_uri=stats_db_uri,
+            date=date,
+            min_reward=min_reward,
+            environment=environment,
         )
 
         stats = miner.mine_replays()
 
         # Create dataset name from date (YYYY-MM-DD -> YYYYMMDD)
-        date_str = process_date.replace("-", "")
-        output_name = args.output_name if args.output_name else f"replays_{date_str}"
+        date_str = date.replace("-", "")
+        output_name = f"replays_{date_str}.parquet"
+        output_uri = f"{output_prefix}/{output_name}"
 
-        output_uri = f"{SOFTMAX_S3_REPLAYS_PREFIX}/{output_name}.parquet"
         miner.save_dataset(output_uri)
 
-        logger.info("Replay mining complete!")
-        logger.info(f"Dataset: {output_uri}")
-        logger.info(f"Samples: {stats['num_samples']}")
-        logger.info(f"Episodes: {stats['num_episodes']}")
-        return 0
+        logger.info(f"✓ {date}: {stats['num_samples']} samples from {stats['num_episodes']} episodes")
+        return True
 
     except Exception as e:
-        logger.error(f"Replay mining failed: {e}", exc_info=True)
-        return 1
+        logger.error(f"✗ {date}: Failed - {e}")
+        return False
+
+
+def process_date_range(
+    dates: list[str],
+    stats_db_uri: str,
+    min_reward: float,
+    environment: str | None,
+    output_prefix: str,
+) -> int:
+    """Process multiple dates sequentially and return exit code."""
+    logger.info(f"Processing {len(dates)} dates sequentially")
+
+    successful = 0
+    failed = 0
+
+    # Process dates one by one
+    for i, date in enumerate(dates, 1):
+        logger.info(f"[{i}/{len(dates)}] Processing {date}...")
+        try:
+            success = process_single_date(
+                date,
+                stats_db_uri,
+                min_reward,
+                environment,
+                output_prefix,
+            )
+            if success:
+                successful += 1
+            else:
+                failed += 1
+        except Exception as e:
+            logger.error(f"✗ {date}: Unexpected error - {e}")
+            failed += 1
+
+    # Print summary
+    logger.info("=" * 60)
+    logger.info("SUMMARY")
+    logger.info(f"Total dates: {len(dates)}")
+    logger.info(f"Successful: {successful}")
+    logger.info(f"Failed: {failed}")
+    logger.info("=" * 60)
+
+    return 0 if failed == 0 else 1
 
 
 if __name__ == "__main__":

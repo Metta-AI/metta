@@ -18,12 +18,69 @@ loader = DataLoader(dataset, batch_size=256, shuffle=True)
 
 ## Mining Replays
 
+This is a one-off/manual tool for creating datasets from existing replays. Run it locally or as needed to process replay data into training datasets.
+
+### Basic Usage
+
 ```bash
 # Process yesterday's replays (default)
 uv run python -m metta.tools.replay_dataset.replay_mine
 
 # Process specific date
 uv run python -m metta.tools.replay_dataset.replay_mine --date 2025-10-15
+```
+
+### Date Range Processing
+
+```bash
+# Process explicit date range (sequential processing)
+uv run python -m metta.tools.replay_dataset.replay_mine \
+  --start-date 2025-10-10 \
+  --end-date 2025-10-17
+
+# Full backfill: earliest replay → yesterday (auto-discovers earliest date)
+uv run python -m metta.tools.replay_dataset.replay_mine --backfill-all
+
+# Full backfill up to specific date
+uv run python -m metta.tools.replay_dataset.replay_mine \
+  --backfill-all \
+  --end-date 2025-10-20
+```
+
+### Output Options
+
+```bash
+# Save to production S3 (default)
+uv run python -m metta.tools.replay_dataset.replay_mine --date 2025-10-15
+
+# Save to local directory (for testing)
+uv run python -m metta.tools.replay_dataset.replay_mine \
+  --date 2025-10-15 \
+  --output-prefix ./local_datasets
+
+# Save to custom S3 bucket
+uv run python -m metta.tools.replay_dataset.replay_mine \
+  --date 2025-10-15 \
+  --output-prefix s3://my-test-bucket/replay-datasets
+```
+
+### Advanced Options
+
+```bash
+# Filter by environment
+uv run python -m metta.tools.replay_dataset.replay_mine \
+  --date 2025-10-15 \
+  --environment arena
+
+# Minimum reward threshold
+uv run python -m metta.tools.replay_dataset.replay_mine \
+  --date 2025-10-15 \
+  --min-reward 10.0
+
+# Custom stats database
+uv run python -m metta.tools.replay_dataset.replay_mine \
+  --date 2025-10-15 \
+  --stats-db-uri https://my-stats-server.com
 ```
 
 ## Loading with Filters
@@ -77,8 +134,30 @@ Columns:
 - `replay_mine.py`: Mining script - processes replays into datasets
 - `replay_dataset.py`: PyTorch Dataset for loading Parquet files via DuckDB
 
-## Deployment
+## Features
 
-For Kubernetes deployment, see [devops/charts/replay-mining-cronjob/](../../../devops/charts/replay-mining-cronjob/README.md).
+- **Idempotent**: Running the same date multiple times produces the same output
+- **Flexible Output**: Save to S3 (default) or local directories
+- **Date Range Support**: Process multiple dates with `--start-date` and `--end-date`
+- **Auto-Discovery**: `--backfill-all` queries database for earliest replay date
+- **One file per day**: Format is `replays_YYYYMMDD.parquet`
+- **Manual Execution**: Run locally or on-demand to process replay data
 
-Daily cronjob runs at 2 AM UTC, processing yesterday's replays automatically.
+## Common Workflows
+
+```bash
+# Quick local test
+uv run python -m metta.tools.replay_dataset.replay_mine \
+  --date 2025-10-15 \
+  --output-prefix ./test_datasets
+
+# Production backfill (saves to S3)
+uv run python -m metta.tools.replay_dataset.replay_mine --backfill-all
+
+# Weekly update (last 7 days)
+END_DATE=$(date -v-1d +%Y-%m-%d)  # Yesterday
+START_DATE=$(date -v-7d +%Y-%m-%d)  # 7 days ago
+uv run python -m metta.tools.replay_dataset.replay_mine \
+  --start-date $START_DATE \
+  --end-date $END_DATE
+```
