@@ -12,12 +12,12 @@ from ray import get_gpu_ids, tune
 from ray.runtime_context import get_runtime_context
 
 from metta.adaptive.dispatcher import LocalDispatcher
-from metta.adaptive.stores import WandbStore
-from metta.adaptive.utils import create_training_job, create_eval_job
 from metta.adaptive.models import JobDefinition
-from metta.common.util.constants import REPO_ROOT
+from metta.adaptive.stores import WandbStore
+from metta.adaptive.utils import create_eval_job, create_training_job
 
 logger = logging.getLogger(__name__)
+
 
 def _fallback_run_id() -> str:
     return f"local-{datetime.now().strftime('%Y%m%d-%H%M%S')}"
@@ -43,12 +43,14 @@ def _report_metrics(trial_name: str, score_key: str | None = None) -> dict[str, 
         print(f"Error polling WandB: {e}")
         return {}
 
+
 def _save_metadata(job: JobDefinition) -> None:
     store = WandbStore(entity="metta-research", project=os.environ.get("WANDB_PROJECT", "metta"))
     try:
         store.update_run_summary(run_id=job.run_id, summary_update=job.metadata)
     except Exception as e:
         print(f"Error saving metadata: {e}")
+
 
 def metta_train_fn(config: dict[str, Any]) -> None:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
@@ -82,6 +84,7 @@ def metta_train_fn(config: dict[str, Any]) -> None:
     # Register SIGTERM handler only if we're in the main thread
     # Ray Tune may run trials in worker threads where signal handlers can't be registered
     import threading
+
     if threading.current_thread() is threading.main_thread():
         signal.signal(signal.SIGTERM, handle_sigterm)
     else:
