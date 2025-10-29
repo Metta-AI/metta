@@ -1,9 +1,10 @@
+{{- if .Values.cronjobEnabled }}
 apiVersion: batch/v1
 kind: CronJob
 metadata:
-  name: {{ include "dashboard-cronjob.fullname" . }}
+  name: {{ include "softmax-cronjob.fullname" . }}
   labels:
-    {{- include "dashboard-cronjob.labels" . | nindent 4 }}
+    {{- include "softmax-cronjob.labels" . | nindent 4 }}
 spec:
   schedule: {{ .Values.schedule | quote }}
   successfulJobsHistoryLimit: {{ .Values.successfulJobsHistoryLimit }}
@@ -15,9 +16,9 @@ spec:
       template:
         metadata:
           labels:
-            {{- include "dashboard-cronjob.selectorLabels" . | nindent 12 }}
+            {{- include "softmax-cronjob.selectorLabels" . | nindent 12 }}
         spec:
-          serviceAccountName: {{ include "dashboard-cronjob.serviceAccountName" . }}
+          serviceAccountName: {{ include "softmax-cronjob.serviceAccountName" . }}
           restartPolicy: {{ .Values.restartPolicy }}
           containers:
           - name: {{ .Chart.Name }}
@@ -29,7 +30,7 @@ spec:
             - name: DD_ENV
               value: {{ .Values.datadog.env | quote }}
             - name: DD_SERVICE
-              value: {{ .Values.datadog.service | quote }}
+              value: {{ default .Release.Name .Values.datadog.service | quote }}
             - name: DD_VERSION
               value: {{ .Values.image.tag | quote }}
             - name: DD_SITE
@@ -38,3 +39,4 @@ spec:
             # The softmax.aws.secrets_manager module handles fetching them at runtime
             resources:
               {{- toYaml .Values.resources | nindent 14 }}
+{{- end }}
