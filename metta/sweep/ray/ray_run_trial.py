@@ -6,7 +6,7 @@ import time
 from datetime import datetime
 from typing import Any
 
-from ray import tune
+from ray import get_gpu_ids, tune
 from ray.runtime_context import get_runtime_context
 
 from metta.adaptive.dispatcher import LocalDispatcher
@@ -44,7 +44,8 @@ def metta_train_fn(config: dict[str, Any]) -> None:
 
     runtime_ctx = get_runtime_context()
     assigned_resources = None
-    gpu_ids = None
+    resource_ids = None
+    gpu_id_strings: list[str] = []
 
     if runtime_ctx is not None:
         get_assigned = getattr(runtime_ctx, "get_assigned_resources", None)
@@ -54,25 +55,52 @@ def metta_train_fn(config: dict[str, Any]) -> None:
             except Exception as exc:
                 logging.warning("Failed to read assigned resources from runtime context: %s", exc)
 
-        get_ids = getattr(runtime_ctx, "get_resource_ids", None)
-        if callable(get_ids):
+        get_resource_ids = getattr(runtime_ctx, "get_resource_ids", None)
+        if callable(get_resource_ids):
             try:
-                resource_ids = get_ids()
-                gpu_ids = resource_ids.get("GPU")
+                resource_ids = get_resource_ids()
+                raw_gpu_ids = resource_ids.get("GPU")
+                if raw_gpu_ids:
+                    gpu_id_strings = [str(int(g)) for g in raw_gpu_ids]
             except Exception as exc:
                 logging.warning("Failed to read resource IDs from runtime context: %s", exc)
         else:
             legacy_get_gpu_ids = getattr(runtime_ctx, "get_gpu_ids", None)
             if callable(legacy_get_gpu_ids):
                 try:
-                    gpu_ids = legacy_get_gpu_ids()
+                    raw_legacy_ids = legacy_get_gpu_ids()
+                    if raw_legacy_ids:
+                        gpu_id_strings = [str(int(g)) for g in raw_legacy_ids]
                 except Exception as exc:
                     logging.warning("Failed to read GPU IDs from runtime context: %s", exc)
 
+    if not gpu_id_strings:
+        try:
+            ray_gpu_ids = get_gpu_ids()
+            if ray_gpu_ids:
+                gpu_id_strings = [str(int(g)) for g in ray_gpu_ids]
+        except Exception as exc:
+            logging.warning("ray.get_gpu_ids() failed: %s", exc)
+
+    if gpu_id_strings:
+        cuda_visible = ",".join(gpu_id_strings)
+        os.environ["CUDA_VISIBLE_DEVICES"] = cuda_visible
+        os.environ["RAY_GPU_IDS"] = cuda_visible
+        os.environ["NUM_GPUS"] = str(len(gpu_id_strings))
+        logging.info(
+            "Configured CUDA visibility for trial %s: %s (num_gpus=%s)",
+            sweep_config.get("sweep_id"),
+            cuda_visible,
+            len(gpu_id_strings),
+        )
+    else:
+        logging.warning("Ray did not provide GPU IDs; CUDA visibility remains unchanged for this trial.")
+
     logging.info(
-        "Ray runtime assigned resources: %s; gpu_ids: %s",
+        "Ray runtime assigned resources: %s; resource_ids: %s; gpu_id_strings: %s",
         assigned_resources,
-        gpu_ids,
+        resource_ids,
+        gpu_id_strings,
     )
 
     # Get run name from Ray Tune
@@ -82,11 +110,16 @@ def metta_train_fn(config: dict[str, Any]) -> None:
     merged_overrides = dict(sweep_config.get("train_overrides", {}))
     merged_overrides.update(config["params"])
 
+    requested_gpus = sweep_config.get("gpus_per_trial")
+    if (requested_gpus is None or requested_gpus == 0) and gpu_id_strings:
+        requested_gpus = len(gpu_id_strings)
+
     job = create_training_job(
         run_id=trial_name,
         experiment_id=sweep_config.get("sweep_id"),
         recipe_module=sweep_config.get("recipe_module"),
         train_entrypoint=sweep_config.get("train_entrypoint"),
+        gpus=requested_gpus or 0,
         stats_server_uri=sweep_config.get("stats_server_uri"),
         train_overrides=merged_overrides,
     )
