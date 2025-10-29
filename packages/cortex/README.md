@@ -211,15 +211,16 @@ u_t &:= \mathrm{RMSNorm}(x_t) \\
 y_{t,i} &= \mathrm{Block}_i(u_t) \\
 \Delta_{t,i} &= y_{t,i} - u_t \\
 \tilde{\Delta}_{t,i} &= \Delta_{t,i} + \mathrm{Mixer}(\Delta)_{t,i}
-\quad\text{(cross-attention over experts \(E\))} \\
+\quad\text{(cross-attention over experts }E\text{)} \\
 \alpha_t &= \mathrm{softmax}\!\big(\log \mathrm{softmax}(z_g) + \lambda\, \hat{p}_t\big)
 \quad (\alpha_{t,i}\ge 0,\ \sum_i \alpha_{t,i}=1) \\
 r_t &= \sum_i \alpha_{t,i}\,\tilde{\Delta}_{t,i} + (u_t - x_t)
-\quad\text{(align from normalized space \(u_t\) back to \(x_t\))} \\
+\quad\text{(align from normalized space }u_t\text{ back to }x_t\text{)} \\
 y_{\mathrm{total}}(t) &= x_t + r_t \\
 \mathrm{out}_t &= y_{\mathrm{total}}(t) + \alpha_{\mathrm{col}} \cdot \rho(r_t)\, .
 \end{aligned}
 $$
+
 
 
 ## Quick Start

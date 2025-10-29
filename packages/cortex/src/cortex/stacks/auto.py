@@ -10,7 +10,7 @@ from cortex.stacks.base import CortexStack
 def build_cortex_auto_config(
     *,
     d_hidden: int,
-    num_layers: int = 4,
+    num_layers: int = 2,
     pattern: str | list[str] | None = "AXMS",
     custom_map: dict[str, BlockConfig] | None = None,
     router: RouterConfig | None = None,
