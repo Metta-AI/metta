@@ -77,6 +77,8 @@ dependencies = [
   "ray[client,tune]>=2.50.1",
   "optuna>=4.5.0",
   "tensorboard>=2.20.0",
+  "stable-baselines3>=2.3.0",
+  "gymnasium[box2d]>=1.0.0",
 ]
 name = "metta"
 version = "0.1"
