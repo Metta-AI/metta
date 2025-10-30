@@ -257,6 +257,11 @@ def train_cmd(
         help="Override vectorized environment batch size",
         min=1,
     ),
+    log_outputs: bool = typer.Option(
+        False,
+        "--log-outputs",
+        help="Log statistics to stdout, do not use Rich dashboard",
+    ),
 ) -> None:
     selected_missions = get_mission_names_and_configs(ctx, missions, variants_arg=variant, cogs=cogs)
     if len(selected_missions) == 1:
@@ -290,6 +295,7 @@ def train_cmd(
             vector_batch_size=vector_batch_size,
             env_cfg_supplier=supplier,
             missions_arg=missions,
+            log_outputs=log_outputs,
         )
 
     except ValueError as exc:  # pragma: no cover - user input
@@ -333,6 +339,11 @@ def evaluate_cmd(
         min=1,
     ),
     steps: Optional[int] = typer.Option(1000, "--steps", "-s", help="Max steps per episode", min=1),
+    format_: Optional[Literal["yaml", "json"]] = typer.Option(
+        None,
+        "--format",
+        help="Serialize evaluation summary to YAML or JSON",
+    ),
 ) -> None:
     selected_missions = get_mission_names_and_configs(ctx, missions, variants_arg=variant, cogs=cogs)
     policy_specs = get_policy_specs(ctx, policies)
@@ -348,6 +359,7 @@ def evaluate_cmd(
         action_timeout_ms=action_timeout_ms,
         episodes=episodes,
         max_steps=steps,
+        output_format=format_,
     )
 
 
@@ -394,12 +406,11 @@ def login_cmd(
     from cogames.auth import BaseCLIAuthenticator
 
     temp_auth = BaseCLIAuthenticator(
-        auth_server_url=server,
         token_file_name="cogames.yaml",
         token_storage_key="login_tokens",
     )
 
-    if temp_auth.has_saved_token() and not force:
+    if temp_auth.has_saved_token(server) and not force:
         console.print(f"[green]Already authenticated with {urlparse(server).hostname}[/green]")
         return
 

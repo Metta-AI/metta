@@ -35,8 +35,8 @@ type
     vel*: Vec2
     zoom*: float32 = 10
     zoomVel*: float32
-    minZoom*: float32 = 2
-    maxZoom*: float32 = 1000
+    minZoom*: float32 = 0.5
+    maxZoom*: float32 = 50
     scrollArea*: Rect
     hasMouse*: bool = false
 
@@ -101,7 +101,6 @@ type
   ActionRequest* = object
     agentId*: int
     actionId*: int
-    argument*: int
 
   ObjectiveKind* = enum
     Move # Move to a specific position.

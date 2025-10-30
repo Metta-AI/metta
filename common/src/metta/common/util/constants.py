@@ -8,6 +8,7 @@ from metta.common.util.lazypath import LazyPath
 # Repo root path calculation
 REPO_ROOT = Path(__file__).resolve().parents[5]  # Navigate up to repo root
 
+OBSERVATORY_AUTH_SERVER_URL = "https://observatory.softmax-research.net/api"
 PROD_STATS_SERVER_URI = "https://api.observatory.softmax-research.net"
 DEV_STATS_SERVER_URI = "http://localhost:8000"
 PROD_OBSERVATORY_FRONTEND_URL = "https://observatory.softmax-research.net"
@@ -26,6 +27,8 @@ METTA_ENV_FILE = LazyPath(os.path.expanduser("~/.metta_env_path"))
 SOFTMAX_S3_BUCKET = "softmax-public"
 SOFTMAX_S3_BASE = f"s3://{SOFTMAX_S3_BUCKET}"
 SOFTMAX_S3_POLICY_PREFIX = f"{SOFTMAX_S3_BASE}/policies"
+SOFTMAX_S3_DATASET_PREFIX = f"{SOFTMAX_S3_BASE}/datasets"
+SOFTMAX_S3_REPLAYS_PREFIX = f"{SOFTMAX_S3_DATASET_PREFIX}/replays"
 RANK_ENV_VARS = [
     "SKYPILOT_NODE_RANK",  # SkyPilot clusters
     "RANK",  # PyTorch DDP

@@ -16,7 +16,6 @@
 #include "actions/get_output.hpp"
 #include "actions/move.hpp"
 #include "actions/noop.hpp"
-#include "actions/put_recipe_items.hpp"
 #include "actions/resource_mod.hpp"
 #include "actions/rotate.hpp"
 #include "actions/swap.hpp"
@@ -25,6 +24,7 @@
 #include "core/hash.hpp"
 #include "core/types.hpp"
 #include "objects/agent.hpp"
+#include "objects/agent_config.hpp"
 #include "objects/assembler.hpp"
 #include "objects/assembler_config.hpp"
 #include "objects/chest.hpp"
@@ -35,6 +35,9 @@
 #include "objects/production_handler.hpp"
 #include "objects/recipe.hpp"
 #include "objects/wall.hpp"
+#include "supervisors/agent_supervisor.hpp"  // Need full definition for supervisor usage
+#include "supervisors/supervisor_bindings.hpp"
+#include "supervisors/supervisor_factory.hpp"
 #include "systems/clipper.hpp"
 #include "systems/clipper_config.hpp"
 #include "systems/observation_encoder.hpp"
@@ -88,9 +91,7 @@ MettaGrid::MettaGrid(const GameConfig& game_config, const py::list map, unsigned
   _action_success.resize(num_agents);
 
   for (const auto& [action_name, action_config] : game_config.actions) {
-    if (action_name == "put_items") {
-      _action_handlers.push_back(std::make_unique<PutRecipeItems>(*action_config));
-    } else if (action_name == "get_items") {
+    if (action_name == "get_items") {
       _action_handlers.push_back(std::make_unique<GetOutput>(*action_config));
     } else if (action_name == "noop") {
       _action_handlers.push_back(std::make_unique<Noop>(*action_config));
@@ -198,6 +199,12 @@ MettaGrid::MettaGrid(const GameConfig& game_config, const py::list map, unsigned
         if (_global_obs_config.visitation_counts) {
           agent->init_visitation_grid(height, width);
         }
+
+        // Create and initialize supervisor if configured
+        if (agent_config->supervisor_config) {
+          agent->supervisor = SupervisorFactory::create(agent_config->supervisor_config.get(), _grid.get(), agent);
+        }
+
         add_agent(agent);
         _group_sizes[agent->group] += 1;
         continue;
@@ -489,8 +496,50 @@ void MettaGrid::_handle_invalid_action(size_t agent_idx, const std::string& stat
   *agent->reward -= agent->action_failure_penalty;
 }
 
+void MettaGrid::_apply_supervisor_overrides(Actions& actions) {
+  auto actions_view = actions.mutable_unchecked<2>();
+  auto obs_view = _observations.unchecked<3>();
+
+  for (size_t agent_idx = 0; agent_idx < _agents.size(); ++agent_idx) {
+    auto* agent = _agents[agent_idx];
+
+    // Skip if agent doesn't have a supervisor
+    if (!agent->supervisor) {
+      continue;
+    }
+
+    ActionType* action_ptr = &actions_view(agent_idx, 0);
+    ActionArg* arg_ptr = &actions_view(agent_idx, 1);
+
+    // Find the number of valid tokens for this agent
+    size_t num_tokens = 0;
+    for (size_t token_idx = 0; token_idx < static_cast<size_t>(obs_view.shape(1)); ++token_idx) {
+      // Check if token is empty (first byte is EmptyTokenByte)
+      if (obs_view(agent_idx, token_idx, 0) != EmptyTokenByte) {
+        num_tokens++;
+      } else {
+        break;  // Stop at first empty token
+      }
+    }
+
+    // Create ObservationTokens pointing to the agent's observations
+    ObservationToken* obs_ptr = nullptr;
+    if (num_tokens > 0) {
+      obs_ptr = reinterpret_cast<ObservationToken*>(_observations.mutable_data(agent_idx, 0, 0));
+    }
+    ObservationTokens agent_obs(obs_ptr, num_tokens);
+
+    // Let supervisor evaluate and potentially override the action
+    agent->supervisor->supervise(action_ptr, arg_ptr, agent_obs);
+  }
+}
+
 void MettaGrid::_step(Actions actions) {
   _actions = actions;
+
+  // Apply supervisor overrides before processing actions
+  _apply_supervisor_overrides(actions);
+
   auto actions_view = actions.unchecked<2>();
 
   // Reset rewards and observations
@@ -540,9 +589,15 @@ void MettaGrid::_step(Actions actions) {
       }
 
       auto* agent = _agents[agent_idx];
+
       // handle_action expects a GridObjectId, rather than an agent_id, because of where it does its lookup
       // note that handle_action will assign a penalty for attempting invalid actions as a side effect
       _action_success[agent_idx] = handler->handle_action(*agent, arg);
+
+      // Notify supervisor of action result
+      if (agent->supervisor) {
+        agent->supervisor->post_action(_action_success[agent_idx]);
+      }
     }
   }
 
@@ -1183,6 +1238,7 @@ PYBIND11_MODULE(mettagrid_c, m) {
   // We're, like 80% sure on this reasoning.
 
   bind_inventory_config(m);
+  bind_supervisor_configs(m);
   bind_agent_config(m);
   bind_converter_config(m);
   bind_assembler_config(m);
