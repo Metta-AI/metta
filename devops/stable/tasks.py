@@ -197,11 +197,12 @@ def get_all_tasks() -> list[Task]:
         steps=10_214_400,  # Reach epoch 600
         timeout_s=1800,  # 30 minutes
         remote=RemoteConfig(gpus=1, nodes=1),
-        stats_to_track=["SPS", "agent_steps", "epoch", "losses/entropy"],
+        stats_to_track=["SPS", "agent_steps", "epoch", "losses/entropy", "environment/agent/heart.gained"],
         acceptance=[
             ("SPS", ge, 8000),  # Permissive but ensure GPU acceleration is working
             ("epoch", ge, 550),  # Permissive - close to 600 epochs
             ("losses/entropy", ge, 2.0),  # Entropy should be reasonable (learning is happening)
+            ("environment/agent/heart.gained", ge, 0.5),  # Agent should gain hearts
         ],
     )
 
