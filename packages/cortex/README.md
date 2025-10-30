@@ -21,12 +21,12 @@ from cortex import build_cortex, CortexStackConfig
 - [Architecture](#architecture)
   - [Why This Design?](#why-this-design)
   - [Uniform Interface Design](#uniform-interface-design)
+- [Quick Start](#quick-start)
 - [Supported Components](#supported-components)
   - [Memory Cells](#memory-cells)
   - [Blocks](#blocks)
   - [Column](#column)
 - [MoE using Column](#how-column-works-high-level)
-- [Quick Start](#quick-start)
 - [Advanced Setup](#advanced-setup)
 - [Metta Framework Integration](#metta-framework-integration)
 - [AxonLayer: A Generalized Linear Operator with Stateful Dynamics](#axonlayer-a-generalized-linear-operator-with-stateful-dynamics)
@@ -116,6 +116,55 @@ def reset_state(state: TensorDict, mask: ResetMask) -> TensorDict:
 This uniformity means you can treat a complex multi-layer stack exactly like a single cell, enabling arbitrary
 composition without changing your code interface.
 
+## Quick Start
+
+Use the auto stack DSL in `packages/cortex/src/cortex/stacks/auto.py`, which builds a stack of Column layers from
+compact patterns of expert tokens. Each layer is a Column whose experts are chosen by a pattern such as "AXMS".
+
+Built‑in expert tokens:
+
+- `A` = Axon (PostUp)
+- `X` = Transformer‑XL (PostUp)
+- `M` = mLSTM (PreUp)
+- `S` = sLSTM (PostUp)
+- Suffix `^` enables Axon projections for that expert where supported (e.g., `M^`, `X^`, `S^`).
+
+```python
+import torch
+from cortex.stacks import build_cortex_auto_stack  # packages/cortex/src/cortex/stacks/auto.py
+from cortex.config import RouterConfig
+
+# Build a 4-layer Column stack; each layer mixes A, X, M, S experts
+stack = build_cortex_auto_stack(
+    d_hidden=256,
+    num_layers=4,
+    pattern="AXMS",                 # per-layer expert set (can be a list for per-layer patterns)
+    router=RouterConfig(             # global prior + optional per-token refinement
+        top_k=2,
+        whisper_lambda=0.1,          # 0 disables per-token refinement
+    ),
+    post_norm=True,
+    compile_blocks=True,             # torch.compile blocks (and Column experts) when grad-enabled
+)
+
+# Initialize and run
+B, T = 4, 16
+state = stack.init_state(batch=B, device="cuda", dtype=torch.float32)
+x = torch.randn(B, T, 256, device="cuda")
+out, state = stack(x, state)
+
+# Single-step inference
+x_step = torch.randn(B, 256, device="cuda")
+out_step, state = stack.step(x_step, state)
+```
+
+Advanced control:
+
+- Per‑layer patterns: pass a list like `["AXMS", "AM^S", "XXS", "M^"]`; or a single pattern "XXS" repeated with `num_layers`.
+- Custom symbols: supply `custom_map={"Q": PreUpBlockConfig(cell=mLSTMCellConfig(...))}` and use "Q" in patterns.
+- Column implementation: `packages/cortex/src/cortex/blocks/column/column.py`; pattern builder:
+  `packages/cortex/src/cortex/blocks/column/auto.py`.
+
 ## Supported Components
 
 ### Memory Cells
@@ -178,32 +227,6 @@ PreUpBlockConfig(
 This override happens only when building via `CortexStackConfig`/`build_cortex`. If you instantiate blocks and cells
 directly (without the stack builder), you must provide concrete sizes that satisfy these relationships manually.
 
-### Column
-
-A Column mixes multiple expert blocks in parallel and combines their residual deltas using a router. It includes an
-E‑axis cross‑attention mixer and a small outer ReZero head for stability and controllable gradient flow.
-
-- Code: `packages/cortex/src/cortex/blocks/column/column.py`
-- Pattern/auto helpers: `packages/cortex/src/cortex/blocks/column/auto.py`
-- Quick‑build DSL stack: `packages/cortex/src/cortex/stacks/auto.py`
-
-## MoE using Column
-
-This describes what happens inside a single Column block—high level.
-
-- Input `x` has shape `[B, T, H]` (or `[B, H]` for step mode).
-- A Column runs several expert Blocks in parallel and blends their proposals per token with a router.
-- Within a layer:
-  1) Boundary‑normalize: take a light RMSNorm of the residual stream to get a stable working copy `u`.
-  2) Experts compute proposals: each expert transforms `u` and proposes a “delta” (how it would change the token).
-  3) Mix experts (Column only): an E‑axis mixer lets experts look at each other’s proposals before combining them.
-  4) Route per token (Column only): a global prior over experts is refined per token to produce weights for the mix; a
-     Top‑K option keeps routing sparse and stable.
-  5) Residual update: the blended expert change is aligned back to the raw residual stream and added to `x`.
-  6) Gentle correction: a tiny head (outer ReZero) adds a small, learnable tweak scaled by `α_col` (starts near zero).
-  7) Return the updated representation; the external hidden size `H` is preserved.
-
-
 ### Compact Forward Pass (per token t)
 
 $$
@@ -223,57 +246,6 @@ y_{\mathrm{total}}(t) &= x_t + r_t \\
 $$
 
 
-
-## Quick Start
-
-Use the auto stack DSL in `packages/cortex/src/cortex/stacks/auto.py`, which builds a stack of Column layers from
-compact patterns of expert tokens. Each layer is a Column whose experts are chosen by a pattern such as `"AXMS"`.
-
-Built‑in expert tokens:
-
-- `A` = Axon (PostUp)
-- `X` = Transformer‑XL (PostUp)
-- `M` = mLSTM (PreUp)
-- `S` = sLSTM (PostUp)
-- Suffix `^` enables Axon projections for that expert where supported (e.g., `M^`, `X^`, `S^`).
-
-```python
-import torch
-from cortex.stacks import build_cortex_auto_stack  # packages/cortex/src/cortex/stacks/auto.py
-from cortex.config import RouterConfig
-
-# Build a 4-layer Column stack; each layer mixes A, X, M, S experts
-stack = build_cortex_auto_stack(
-    d_hidden=256,
-    num_layers=4,
-    pattern="AXMS",                 # per-layer expert set (can be a list for per-layer patterns)
-    router=RouterConfig(             # global prior + optional per-token refinement
-        top_k=2,
-        whisper_lambda=0.1,          # 0 disables per-token refinement
-    ),
-    post_norm=True,
-    compile_blocks=True,             # torch.compile blocks (and Column experts) when grad-enabled
-)
-
-# Initialize and run
-B, T = 4, 16
-state = stack.init_state(batch=B, device="cuda", dtype=torch.float32)
-x = torch.randn(B, T, 256, device="cuda")
-out, state = stack(x, state)
-
-# Single-step inference
-x_step = torch.randn(B, 256, device="cuda")
-out_step, state = stack.step(x_step, state)
-```
-
-Advanced control:
-
-- Per‑layer patterns: pass a list like `["AXMS", "AM^S", "XXS", "M^"]`; or a single pattern `"XXS"` repeated with `num_layers`.
-- Custom symbols: supply `custom_map={"Q": PreUpBlockConfig(cell=mLSTMCellConfig(...))}` and use `"Q"` in patterns.
-- Column implementation: `packages/cortex/src/cortex/blocks/column/column.py`; pattern builder:
-  `packages/cortex/src/cortex/blocks/column/auto.py`.
-
-This DSL is the recommended “easy configuration” path for new users.
 
 ## Advanced Setup
 
@@ -394,33 +366,9 @@ alternative to `nn.Linear` that wraps `AxonCell` and updates per-layer state ins
 | XL (`cortex.cells.xl.XLCell`)          | Q/K/V projections (optional)                                                            | `use_axon_qkv`                   | group=`xl_qkv`, keys=`q`, `k`, `v`                                                                             |
 
 Note: AxonLayer usage is opt-in per cell via its config (e.g., `use_axon_layer`, `use_axon_qkv`). The layer mutates the
-provided parent TensorDict state in place.
-
-## Easy Configuration
-
-Quick Start already uses the recommended auto stack DSL. Here are a couple of extra variations using the same builder:
-
-```python
-from cortex.stacks import build_cortex_auto_stack
-from cortex.config import RouterConfig
-
-# Default: 3 layers, pattern repeats per layer
-stack = build_cortex_auto_stack(d_hidden=128, num_layers=3, pattern="AXMS")
-
-# Per-layer patterns and a Top‑K router with token refinement
-stack = build_cortex_auto_stack(
-    d_hidden=128,
-    num_layers=3,
-    pattern=["AXMS", "AM^S", "XS"],
-    router=RouterConfig(top_k=2, whisper_lambda=0.1),
-)
-```
-
-Run the registered template in the evaluation harness:
-
-```bash
-uv run python packages/cortex/evaluations/run.py --task delayed_recall --stack cortex_auto
-```
+provided parent TensorDict state in place. When building stacks with the auto-pattern DSL, you can enable these Axon
+augmentations inline by using the `^` suffix on supported experts (for example, `M^`, `S^`, or `X^`). The suffix routes
+through the AxonLayer-enabled variant of that expert without manually toggling the config flags.
 
 ## Metta Framework Integration
 
