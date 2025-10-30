@@ -22,101 +22,9 @@ from cogames.cogs_vs_clips.stations import (
 )
 
 # =============================================================================
-# Experiment Sites
+# Experiment Sites - Removed to avoid import-time map loading
+# Sites are not needed for evaluation script
 # =============================================================================
-
-EXP1_SITE = Site(
-    name="exp1",
-    description="Baseline: Standard settings, sparse outside resources",
-    map_builder=get_map("extractor_hub_30x30.map"),
-    min_cogs=1,
-    max_cogs=1,
-)
-
-EXP2_SITE = Site(
-    name="exp2",
-    description="Oxygen Abundance: Breaking the cooldown bottleneck (13 oxygen sources)",
-    map_builder=get_map("extractor_hub_80x80.map"),
-    min_cogs=1,
-    max_cogs=1,
-)
-
-EXP3_SITE = Site(
-    name="exp3",
-    description="Low Efficiency: Energy management challenge",
-    map_builder=get_map("extractor_hub_50x50.map"),
-    min_cogs=1,
-    max_cogs=1,
-)
-
-EXP4_SITE = Site(
-    name="exp4",
-    description="Fast Depletion: Resource scarcity drives exploration",
-    map_builder=get_map("extractor_hub_70x70.map"),
-    min_cogs=1,
-    max_cogs=1,
-)
-
-EXP5_SITE = Site(
-    name="exp5",
-    description="Energy Abundance: High regeneration enables aggressive exploration",
-    map_builder=get_map("extractor_hub_70x70.map"),
-    min_cogs=1,
-    max_cogs=1,
-)
-
-EXP6_SITE = Site(
-    name="exp6",
-    description="Energy Scarcity: Charger network navigation (6 chargers)",
-    map_builder=get_map("extractor_hub_50x50.map"),
-    min_cogs=1,
-    max_cogs=1,
-)
-
-EXP7_SITE = Site(
-    name="exp7",
-    description="High Efficiency: Fast gathering enables more exploration",
-    map_builder=get_map("extractor_hub_50x50.map"),
-    min_cogs=1,
-    max_cogs=1,
-)
-
-EXP8_SITE = Site(
-    name="exp8",
-    description="Zoned Resources: Spatial clustering with distance tradeoffs",
-    map_builder=get_map("extractor_hub_100x100.map"),
-    min_cogs=1,
-    max_cogs=1,
-)
-
-EXP9_SITE = Site(
-    name="exp9",
-    description="Resource Abundance: No scarcity constraints",
-    map_builder=get_map("extractor_hub_100x100.map"),
-    min_cogs=1,
-    max_cogs=1,
-)
-
-EXP10_SITE = Site(
-    name="exp10",
-    description="Complex Mixed: Multi-factor optimization",
-    map_builder=get_map("extractor_hub_80x80.map"),
-    min_cogs=1,
-    max_cogs=1,
-)
-
-EXPLORATION_SITES = [
-    EXP1_SITE,
-    EXP2_SITE,
-    EXP3_SITE,
-    EXP4_SITE,
-    EXP5_SITE,
-    EXP6_SITE,
-    EXP7_SITE,
-    EXP8_SITE,
-    EXP9_SITE,
-    EXP10_SITE,
-]
 
 # =============================================================================
 # Experiment Missions
@@ -133,7 +41,7 @@ class Experiment1Mission(Mission):
 
     name: str = "baseline"
     description: str = "Baseline with standard settings and sparse outside resources"
-    site: Site = EXP1_SITE
+    site: Site = None  # Site not needed for evaluation
 
     # Standard efficiency (100%), standard max_uses (1000)
     carbon_extractor: CarbonExtractorConfig = CarbonExtractorConfig(efficiency=100, max_uses=1000)
@@ -155,7 +63,7 @@ class Experiment2Mission(Mission):
 
     name: str = "oxygen_abundance"
     description: str = "Multiple oxygen sources to break the cooldown bottleneck"
-    site: Site = EXP2_SITE
+    site: Site = None  # Site not needed for evaluation
 
     carbon_extractor: CarbonExtractorConfig = CarbonExtractorConfig(efficiency=100, max_uses=1000)
     oxygen_extractor: OxygenExtractorConfig = OxygenExtractorConfig(efficiency=100, max_uses=1000)
@@ -176,7 +84,7 @@ class Experiment3Mission(Mission):
 
     name: str = "low_efficiency"
     description: str = "75% efficiency requires more harvests and careful energy management"
-    site: Site = EXP3_SITE
+    site: Site = None  # Site not needed for evaluation
 
     # 75% efficiency across all extractors
     carbon_extractor: CarbonExtractorConfig = CarbonExtractorConfig(efficiency=75, max_uses=1000)
@@ -198,7 +106,7 @@ class Experiment4Mission(Mission):
 
     name: str = "fast_depletion"
     description: str = "Resources deplete quickly (max_uses=50), forcing exploration"
-    site: Site = EXP4_SITE
+    site: Site = None  # Site not needed for evaluation
 
     # Low max_uses causes fast depletion
     carbon_extractor: CarbonExtractorConfig = CarbonExtractorConfig(efficiency=100, max_uses=50)
@@ -220,7 +128,7 @@ class Experiment5Mission(Mission):
 
     name: str = "energy_abundance"
     description: str = "Double energy regeneration (2/turn) removes energy constraint"
-    site: Site = EXP5_SITE
+    site: Site = None  # Site not needed for evaluation
 
     carbon_extractor: CarbonExtractorConfig = CarbonExtractorConfig(efficiency=100, max_uses=1000)
     oxygen_extractor: OxygenExtractorConfig = OxygenExtractorConfig(efficiency=100, max_uses=1000)
@@ -241,7 +149,7 @@ class Experiment6Mission(Mission):
 
     name: str = "energy_scarcity"
     description: str = "Minimal energy regeneration (1/turn) requires frequent charging"
-    site: Site = EXP6_SITE
+    site: Site = None  # Site not needed for evaluation
 
     carbon_extractor: CarbonExtractorConfig = CarbonExtractorConfig(efficiency=100, max_uses=1000)
     oxygen_extractor: OxygenExtractorConfig = OxygenExtractorConfig(efficiency=100, max_uses=1000)
@@ -262,7 +170,7 @@ class Experiment7Mission(Mission):
 
     name: str = "high_efficiency"
     description: str = "Double efficiency (200%) means faster gathering and more exploration time"
-    site: Site = EXP7_SITE
+    site: Site = None  # Site not needed for evaluation
 
     # 200% efficiency across all extractors
     carbon_extractor: CarbonExtractorConfig = CarbonExtractorConfig(efficiency=200, max_uses=1000)
@@ -286,7 +194,7 @@ class Experiment8Mission(Mission):
 
     name: str = "zoned_resources"
     description: str = "Resources clustered by type in zones, north zone is farther but more efficient"
-    site: Site = EXP8_SITE
+    site: Site = None  # Site not needed for evaluation
 
     # Standard efficiency for most zones
     # North zone will use high-efficiency variants marked in map
@@ -309,7 +217,7 @@ class Experiment9Mission(Mission):
 
     name: str = "resource_abundance"
     description: str = "Abundant resources (5 of each) eliminate scarcity bottlenecks"
-    site: Site = EXP9_SITE
+    site: Site = None  # Site not needed for evaluation
 
     carbon_extractor: CarbonExtractorConfig = CarbonExtractorConfig(efficiency=100, max_uses=1000)
     oxygen_extractor: OxygenExtractorConfig = OxygenExtractorConfig(efficiency=100, max_uses=1000)
@@ -338,7 +246,7 @@ class Experiment10Mission(Mission):
 
     name: str = "complex_mixed"
     description: str = "Mixed efficiency and depletion rates require strategic prioritization"
-    site: Site = EXP10_SITE
+    site: Site = None  # Site not needed for evaluation
 
     # Mixed parameters create complex optimization
     carbon_extractor: CarbonExtractorConfig = CarbonExtractorConfig(efficiency=150, max_uses=500)

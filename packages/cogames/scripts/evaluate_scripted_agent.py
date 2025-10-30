@@ -36,22 +36,14 @@ from typing import List, Optional
 
 import numpy as np
 
-from cogames.cogs_vs_clips.difficulty_variants import DIFFICULTY_LEVELS, apply_difficulty
-from cogames.cogs_vs_clips.eval_missions import (
+from cogames.cogs_vs_clips.evals import (
+    DIFFICULTY_LEVELS,
     CarbonDesert,
     ClipCarbon,
     ClipCharger,
     ClipGermanium,
     ClipOxygen,
     ClipSilicon,
-    GermaniumRush,
-    HighRegenSprint,
-    OxygenBottleneck,
-    SiliconWorkbench,
-    SlowOxygen,
-    SparseBalanced,
-)
-from cogames.cogs_vs_clips.exploration_experiments import (
     Experiment1Mission,
     Experiment2Mission,
     Experiment4Mission,
@@ -61,6 +53,13 @@ from cogames.cogs_vs_clips.exploration_experiments import (
     Experiment8Mission,
     Experiment9Mission,
     Experiment10Mission,
+    GermaniumRush,
+    HighRegenSprint,
+    OxygenBottleneck,
+    SiliconWorkbench,
+    SlowOxygen,
+    SparseBalanced,
+    apply_difficulty,
 )
 from cogames.cogs_vs_clips.missions import make_game
 from cogames.policy.scripted_agent import HYPERPARAMETER_PRESETS, ScriptedAgentPolicy
@@ -253,7 +252,9 @@ def run_outpost_suite(
 
             try:
                 mission = mission_class()
-                mission = mission.instantiate(mission.site.map_builder, num_cogs=1)
+                # Eval missions load their own maps in instantiate(), so we pass None
+                map_builder = mission.site.map_builder if mission.site else None
+                mission = mission.instantiate(map_builder, num_cogs=1)
                 env_config = mission.make_env()
                 env_config.game.max_steps = max_steps
 
@@ -374,7 +375,9 @@ def run_difficulty_suite(
                     difficulty = DIFFICULTY_LEVELS[difficulty_name]
                     apply_difficulty(mission, difficulty)
 
-                    mission = mission.instantiate(mission.site.map_builder, num_cogs=1)
+                    # Eval missions load their own maps in instantiate(), so we pass None
+                    map_builder = mission.site.map_builder if mission.site else None
+                    mission = mission.instantiate(map_builder, num_cogs=1)
                     env_config = mission.make_env()
                     env_config.game.max_steps = max_steps
 
@@ -514,7 +517,9 @@ def run_clipped_suite(
                         difficulty = DIFFICULTY_LEVELS[difficulty_name]
                         apply_difficulty(mission, difficulty)
 
-                        mission = mission.instantiate(mission.site.map_builder, num_cogs=1)
+                        # Eval missions load their own maps in instantiate(), so we pass None
+                        map_builder = mission.site.map_builder if mission.site else None
+                        mission = mission.instantiate(map_builder, num_cogs=1)
                         env_config = mission.make_env()
                         env_config.game.max_steps = max_steps
 
