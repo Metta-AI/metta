@@ -321,11 +321,13 @@ class RemoteJob(Job):
         if not config.remote and not job_id:
             raise ValueError("RemoteJob requires config.remote to be set (or job_id for resuming)")
 
+        # Build arg list only for tool-based jobs (cmd-based jobs have everything in the cmd string)
         arg_list = []
-        for k, v in config.args.items():
-            arg_list.append(f"{k}={v}")
-        for k, v in config.overrides.items():
-            arg_list.append(f"{k}={v}")
+        if config.tool:
+            for k, v in config.args.items():
+                arg_list.append(f"{k}={v}")
+            for k, v in config.overrides.items():
+                arg_list.append(f"{k}={v}")
 
         if config.remote:
             base_args = [f"--gpus={config.remote.gpus}", f"--nodes={config.remote.nodes}"]
@@ -335,7 +337,7 @@ class RemoteJob(Job):
             base_args = ["--no-spot", "--gpus=4", "--nodes", "1"]
 
         self.config = config
-        self.module = config.module
+        self.tool = config.tool
         self.args = arg_list
         self.base_args = base_args
         self.skip_git_check = skip_git_check
@@ -375,11 +377,11 @@ class RemoteJob(Job):
                 *self.base_args,
             ]
         else:
-            # Build command for module-based execution using --tool flag
+            # Build command for tool-based execution using --tool flag
             cmd = [
                 "devops/skypilot/launch.py",
                 "--tool",
-                self.module,
+                self.tool,
             ]
 
             # Add run= for training jobs
