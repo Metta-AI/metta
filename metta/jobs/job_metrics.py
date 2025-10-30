@@ -1,9 +1,12 @@
 """Simple log parsing and WandB metrics fetching for job monitoring."""
 
+import logging
 import re
 from typing import Optional
 
 import wandb
+
+logger = logging.getLogger(__name__)
 
 
 def extract_skypilot_job_id(log_text: str) -> Optional[str]:
@@ -54,7 +57,7 @@ def fetch_wandb_metrics(
         run = next(iter(runs), None)
 
         if not run:
-            print(f"     Warning: WandB run not found: {run_name}")
+            logger.warning(f"WandB run not found: {run_name}")
             return metrics, current_step
 
         for metric_key in metric_keys:
@@ -62,13 +65,13 @@ def fetch_wandb_metrics(
                 history = run.history(keys=[metric_key], pandas=False)
 
                 if not history:
-                    print(f"     Warning: No history found for metric {metric_key}")
+                    logger.debug(f"No history found for metric {metric_key}")
                     continue
 
                 values = [row.get(metric_key) for row in history if metric_key in row and row[metric_key] is not None]
 
                 if not values:
-                    print(f"     Warning: No values found for metric {metric_key}")
+                    logger.debug(f"No values found for metric {metric_key}")
                     continue
 
                 # Average over last N%
@@ -76,11 +79,11 @@ def fetch_wandb_metrics(
                 last_values = values[-n_samples:]
                 avg = sum(last_values) / len(last_values)
 
-                print(f"     WandB metric {metric_key}: {avg:.2f} (avg of last {len(last_values)} samples)")
+                logger.info(f"WandB metric {metric_key}: {avg:.2f} (avg of last {len(last_values)} samples)")
                 metrics[metric_key] = {"value": avg, "count": len(last_values)}
 
             except Exception as e:
-                print(f"     Warning: Failed to fetch metric {metric_key}: {e}")
+                logger.warning(f"Failed to fetch metric {metric_key}: {e}")
                 continue
 
         # Always fetch current training step
@@ -94,11 +97,11 @@ def fetch_wandb_metrics(
                 ]
                 if step_values:
                     current_step = int(step_values[-1])  # Get latest step
-                    print(f"     Current training step: {current_step}")
+                    logger.info(f"Current training step: {current_step}")
         except Exception as e:
-            print(f"     Warning: Failed to fetch current step: {e}")
+            logger.debug(f"Failed to fetch current step: {e}")
 
     except Exception as e:
-        print(f"     Error fetching from WandB: {e}")
+        logger.warning(f"Error fetching from WandB: {e}")
 
     return metrics, current_step
