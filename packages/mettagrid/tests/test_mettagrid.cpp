@@ -26,7 +26,6 @@ constexpr uint8_t ORE = 0;
 constexpr uint8_t LASER = 1;
 constexpr uint8_t ARMOR = 2;
 constexpr uint8_t HEART = 3;
-constexpr uint8_t CONVERTER = 4;
 }  // namespace TestItems
 
 namespace TestItemStrings {
@@ -1656,7 +1655,7 @@ TEST_F(MettaGridCppTest, ResourceModProbabilistic) {
                                {{TestItems::ORE, 0.5f}},    // 50% chance to consume
                                {{TestItems::HEART, 0.3f}},  // 30% chance to add 1 heart
                                1,
-                               false);  // radius 1, no converters, no scaling
+                               false);  // radius 1, no scaling
   ResourceMod modify(modify_cfg);
   modify.init(&grid, &rng);
 
