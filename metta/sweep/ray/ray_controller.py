@@ -74,15 +74,10 @@ def ray_sweep(
     # Handle "auto" values for cpus_per_trial and gpus_per_trial
     # These environment variables are detected and set by our launch script, not provided by SkyPilot
     if sweep_config.cpus_per_trial == "auto":
-        cpus_from_env = os.getenv("METTA_DETECTED_CPUS_PER_NODE")
-        if cpus_from_env:
-            sweep_config.cpus_per_trial = int(cpus_from_env)
-            logger.info(f"Auto-detected CPUs per trial from node hardware: {sweep_config.cpus_per_trial}")
-        else:
-            logger.warning(
-                "'auto' specified for cpus_per_trial but METTA_DETECTED_CPUS_PER_NODE not set, defaulting to 1"
-            )
-            sweep_config.cpus_per_trial = 1
+        # For "auto", don't specify CPU requirements - let Ray manage allocation
+        # Setting to 0 means no CPU resource constraint will be added
+        sweep_config.cpus_per_trial = 0
+        logger.info("Using 'auto' CPU allocation - Ray Tune will manage CPU resources dynamically")
 
     if sweep_config.gpus_per_trial == "auto":
         gpus_from_env = os.getenv("METTA_DETECTED_GPUS_PER_NODE")
