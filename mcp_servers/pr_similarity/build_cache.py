@@ -9,6 +9,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, List, Tuple
 
+import boto3
 import numpy as np
 from google import genai
 from google.genai import types
@@ -339,12 +340,27 @@ def write_cache(
     )
 
 
+def _get_api_key() -> str:
+    """Get API key from environment variable or AWS Secrets Manager."""
+    api_key = os.getenv(API_KEY_ENV)
+    if api_key:
+        return api_key
+
+    # Try AWS Secrets Manager
+    try:
+        client = boto3.client("secretsmanager", region_name="us-east-1")
+        response = client.get_secret_value(SecretId="GEMINI-API-KEY")
+        return response["SecretString"].strip()
+    except Exception as e:
+        raise EnvironmentError(
+            f"Set {API_KEY_ENV} environment variable or ensure AWS Secrets Manager access to 'GEMINI-API-KEY': {e}"
+        ) from e
+
+
 def main() -> None:
     args = parse_args()
 
-    api_key = os.getenv(API_KEY_ENV)
-    if not api_key:
-        raise EnvironmentError(f"Set {API_KEY_ENV} before running this script.")
+    api_key = _get_api_key()
 
     existing_records, metadata = load_existing_cache(args.cache_path)
     metadata["model"] = args.model
