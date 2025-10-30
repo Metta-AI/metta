@@ -35,8 +35,6 @@ def basic_env() -> MettaGridCore:
             actions=ActionsConfig(
                 noop=ActionConfig(),
                 move=ActionConfig(),
-                rotate=ActionConfig(),
-                get_items=ActionConfig(),
             ),
             objects={"wall": WallConfig(type_id=TokenTypes.WALL_TYPE_ID)},
             resource_names=["laser", "armor", "heart"],
@@ -68,8 +66,6 @@ def adjacent_agents_env() -> MettaGridCore:
             actions=ActionsConfig(
                 noop=ActionConfig(),
                 move=ActionConfig(),
-                rotate=ActionConfig(),
-                get_items=ActionConfig(),
             ),
             objects={"wall": WallConfig(type_id=TokenTypes.WALL_TYPE_ID)},
             resource_names=["laser", "armor", "heart"],
@@ -281,8 +277,6 @@ class TestGlobalTokens:
                 actions=ActionsConfig(
                     noop=ActionConfig(),
                     move=ActionConfig(),
-                    rotate=ActionConfig(),
-                    get_items=ActionConfig(),
                 ),
                 objects={"wall": WallConfig(type_id=TokenTypes.WALL_TYPE_ID)},
                 global_obs=GlobalObsConfig(
@@ -369,8 +363,6 @@ class TestGlobalTokens:
                 actions=ActionsConfig(
                     noop=ActionConfig(),
                     move=ActionConfig(),
-                    rotate=ActionConfig(),
-                    get_items=ActionConfig(),
                     change_glyph=ChangeGlyphActionConfig(enabled=True, number_of_glyphs=8),
                 ),
                 objects={"wall": WallConfig(type_id=TokenTypes.WALL_TYPE_ID)},
@@ -486,8 +478,6 @@ class TestEdgeObservations:
                 actions=ActionsConfig(
                     noop=ActionConfig(),
                     move=ActionConfig(),
-                    rotate=ActionConfig(),
-                    get_items=ActionConfig(),
                 ),
                 objects={
                     "wall": WallConfig(type_id=TokenTypes.WALL_TYPE_ID),

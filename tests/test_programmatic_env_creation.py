@@ -100,7 +100,7 @@ class TestProgrammaticEnvironments:
                 },
                 actions=ActionsConfig(
                     move=ActionConfig(),
-                    get_items=ActionConfig(),
+                    noop=ActionConfig(),
                 ),
                 agent=AgentConfig(
                     rewards=AgentRewards(
