@@ -191,7 +191,7 @@ class GameConfig:
         resource_loss_prob: float = 0.0,
         tag_id_map: dict[int, str] | None = None,
         track_movement_metrics: bool = False,
-        recipe_details_obs: bool = False,
+        protocol_details_obs: bool = False,
         allow_diagonals: bool = False,
         reward_estimates: Optional[dict[str, float]] = None,
         inventory_regen_amounts: dict[int, int] | None = None,
@@ -209,7 +209,7 @@ class GameConfig:
     resource_loss_prob: float
     # FEATURE FLAGS
     track_movement_metrics: bool
-    recipe_details_obs: bool
+    protocol_details_obs: bool
     allow_diagonals: bool
     reward_estimates: Optional[dict[str, float]]
     tag_id_map: dict[int, str]
