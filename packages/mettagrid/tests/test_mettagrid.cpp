@@ -6,7 +6,6 @@
 
 #include "actions/attack.hpp"
 #include "actions/change_glyph.hpp"
-#include "actions/get_output.hpp"
 #include "actions/noop.hpp"
 #include "actions/resource_mod.hpp"
 #include "config/mettagrid_config.hpp"
@@ -500,52 +499,6 @@ TEST_F(MettaGridCppTest, AttackAction) {
   // Humorously, the defender's armor was also stolen!
   EXPECT_EQ(target->inventory.amount(TestItems::ARMOR), 0);
   EXPECT_EQ(attacker->inventory.amount(TestItems::ARMOR), 2);
-}
-
-TEST_F(MettaGridCppTest, GetOutput) {
-  Grid grid(10, 10);
-
-  AgentConfig agent_cfg = create_test_agent_config();
-  agent_cfg.group_name = "red";
-  agent_cfg.group_id = 1;
-  auto resource_names = create_test_resource_names();
-  Agent* agent = new Agent(1, 0, agent_cfg, &resource_names);
-  float agent_reward = 0.0f;
-  agent->init(&agent_reward);
-
-  grid.add_object(agent);
-
-  // Create a generator with initial output
-  ConverterConfig generator_cfg(TestItems::CONVERTER,     // type_id
-                                "generator",              // type_name
-                                {{TestItems::ORE, 1}},    // input_resources
-                                {{TestItems::ARMOR, 1}},  // output_resources
-                                1,                        // max_output
-                                -1,                       // max_conversions
-                                1,                        // conversion_ticks
-                                {10},                     // cooldown
-                                1,                        // initial_items
-                                false);                   // recipe_details_obs
-  EventManager event_manager;
-  Converter* generator = new Converter(0, 0, generator_cfg);
-  grid.add_object(generator);
-  generator->set_event_manager(&event_manager);
-
-  // Give agent some items
-  agent->update_inventory(TestItems::ORE, 1);
-
-  // Create get_output action handler
-  ActionConfig get_cfg({}, {});
-  GetOutput get(get_cfg);
-  std::mt19937 rng(42);
-  get.init(&grid, &rng);
-
-  // Test getting output
-  bool success = get.handle_action(*agent, 0);
-  EXPECT_TRUE(success);
-  EXPECT_EQ(agent->inventory.amount(TestItems::ORE), 1);        // Still have ore
-  EXPECT_EQ(agent->inventory.amount(TestItems::ARMOR), 1);      // Also have armor
-  EXPECT_EQ(generator->inventory.amount(TestItems::ARMOR), 0);  // Generator gave away its armor
 }
 
 // ==================== Action Tracking ====================
