@@ -342,7 +342,7 @@ def step_task_validation(
         job_state = job_manager.get_job_state(f"{state_version}_{task.name}")
         if not job_state:
             skipped += 1
-        elif check_task_passed(job_state, task):
+        elif check_task_passed(job_state):
             passed += 1
         else:
             failed += 1
@@ -393,7 +393,7 @@ def step_summary(version: str, **_kwargs) -> None:
         job_name = f"{state_version}_{task.name}"
         job_state = job_manager.get_job_state(job_name)
         if job_state:
-            if check_task_passed(job_state, task):
+            if check_task_passed(job_state):
                 icon = "✅"
             else:
                 icon = "❌"
@@ -461,7 +461,7 @@ def step_release(version: str, **_kwargs) -> None:
         job_state = job_manager.get_job_state(job_name)
         if not job_state:
             failed_tasks.append(f"{task.name} (not run)")
-        elif not check_task_passed(job_state, task):
+        elif not check_task_passed(job_state):
             failed_tasks.append(task.name)
 
     if failed_tasks:
@@ -489,7 +489,7 @@ def step_release(version: str, **_kwargs) -> None:
         job_name = f"{state_version}_{task.name}"
         job_state = job_manager.get_job_state(job_name)
         if job_state:
-            if check_task_passed(job_state, task):
+            if check_task_passed(job_state):
                 icon = "✅"
             else:
                 icon = "❌"

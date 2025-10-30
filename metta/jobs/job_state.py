@@ -48,6 +48,7 @@ class JobState(SQLModel, table=True):
     # Results
     exit_code: Optional[int] = None
     logs_path: Optional[str] = None
+    acceptance_passed: Optional[bool] = None  # None = not evaluated, True/False = result
 
     # Extracted artifacts
     wandb_url: Optional[str] = None

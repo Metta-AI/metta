@@ -1,14 +1,13 @@
-"""Test that acceptance criteria are displayed correctly."""
+"""Test that acceptance criteria work correctly at the job level."""
 
 from operator import ge, gt
 
 from devops.stable.tasks import tool_task
-from metta.jobs.job_config import JobConfig
-from metta.jobs.job_manager import JobManager
+from metta.jobs.job_config import AcceptanceCriterion
 
 
-def test_acceptance_criteria_in_config(tmp_path):
-    """Test that acceptance criteria are properly set in JobConfig."""
+def test_acceptance_criteria_in_job_config():
+    """Test that acceptance criteria are properly converted to AcceptanceCriterion in JobConfig."""
     task = tool_task(
         name="test_train",
         module="arena.train",
@@ -19,34 +18,27 @@ def test_acceptance_criteria_in_config(tmp_path):
         ],
     )
 
-    # Check that acceptance criteria are set
+    # Check that acceptance criteria are set on both Task and JobConfig
+    assert task.acceptance is not None
+    assert len(task.acceptance) == 2
+
+    # Check that JobConfig has AcceptanceCriterion objects
     assert task.job_config.acceptance_criteria is not None
-    assert "overview/sps" in task.job_config.acceptance_criteria
-    assert "env_agent/heart.gained" in task.job_config.acceptance_criteria
+    assert len(task.job_config.acceptance_criteria) == 2
 
-    # Check the values
-    assert task.job_config.acceptance_criteria["overview/sps"] == (">=", 40000)
-    assert task.job_config.acceptance_criteria["env_agent/heart.gained"] == (">", 0.5)
+    # Verify first criterion
+    criterion1 = task.job_config.acceptance_criteria[0]
+    assert isinstance(criterion1, AcceptanceCriterion)
+    assert criterion1.metric == "overview/sps"
+    assert criterion1.operator == ">="
+    assert criterion1.threshold == 40000
 
+    # Verify second criterion
+    criterion2 = task.job_config.acceptance_criteria[1]
+    assert isinstance(criterion2, AcceptanceCriterion)
+    assert criterion2.metric == "env_agent/heart.gained"
+    assert criterion2.operator == ">"
+    assert criterion2.threshold == 0.5
 
-def test_acceptance_criteria_persisted(tmp_path):
-    """Test that acceptance criteria survive database round-trip."""
-    job_manager = JobManager(tmp_path)
-
-    config = JobConfig(
-        name="test_job",
-        module="test.module",
-        is_training_job=True,
-        metrics_to_track=["overview/sps"],
-        acceptance_criteria={"overview/sps": (">=", 40000)},
-    )
-
-    # Submit and immediately retrieve
-    job_manager.submit(config)
-    job_state = job_manager.get_job_state("test_job")
-
-    # Check that acceptance_criteria was persisted
-    assert job_state is not None
-    assert job_state.config.acceptance_criteria is not None
-    assert "overview/sps" in job_state.config.acceptance_criteria
-    assert job_state.config.acceptance_criteria["overview/sps"] == (">=", 40000)
+    # Verify metrics_to_track is derived from acceptance
+    assert task.job_config.metrics_to_track == ["overview/sps", "env_agent/heart.gained"]

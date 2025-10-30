@@ -1,6 +1,6 @@
 """Core job specification models shared across Metta job systems."""
 
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import Field
 
@@ -15,13 +15,39 @@ class RemoteConfig(Config):
     spot: bool = True
 
 
+class AcceptanceCriterion(Config):
+    """Single acceptance criterion for a metric.
+
+    Defines a threshold that a metric must meet for the job to be considered successful.
+    Example: AcceptanceCriterion(metric="overview/sps", operator=">=", threshold=40000)
+    """
+
+    metric: str
+    operator: Literal[">=", ">", "<=", "<", "=="]
+    threshold: float
+
+    def evaluate(self, actual: float) -> bool:
+        """Evaluate if the actual value meets this criterion."""
+        if self.operator == ">=":
+            return actual >= self.threshold
+        elif self.operator == ">":
+            return actual > self.threshold
+        elif self.operator == "<=":
+            return actual <= self.threshold
+        elif self.operator == "<":
+            return actual < self.threshold
+        elif self.operator == "==":
+            return actual == self.threshold
+        return False
+
+
 class JobConfig(Config):
     """Job specification combining execution config with task parameters.
 
     remote=None runs locally, remote=RemoteConfig(...) runs remotely.
     is_training_job=True enables WandB tracking and run name generation.
     metrics_to_track tracks which WandB metrics to fetch periodically (training jobs only).
-    acceptance_criteria stores metric thresholds for validation (e.g., {"overview/sps": (">=", 40000)}).
+    acceptance_criteria defines thresholds that metrics must meet for job success.
     """
 
     name: str
@@ -34,4 +60,4 @@ class JobConfig(Config):
     metadata: dict[str, Any] = Field(default_factory=dict)
     is_training_job: bool = False  # Explicit flag for WandB tracking
     metrics_to_track: list[str] = Field(default_factory=list)  # Metrics to fetch from WandB (training only)
-    acceptance_criteria: dict[str, tuple[str, float]] | None = None  # Metric thresholds: {metric: (op, value)}
+    acceptance_criteria: list[AcceptanceCriterion] = Field(default_factory=list)  # Thresholds for job success
