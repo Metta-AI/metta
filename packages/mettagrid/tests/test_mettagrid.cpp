@@ -1626,7 +1626,6 @@ TEST_F(MettaGridCppTest, ResourceModBasic) {
                                {{TestItems::ORE, 1.0f}},    // consumed_resources
                                {{TestItems::HEART, 1.0f}},  // modifies - adds 1 heart
                                1,                           // agent_radius
-                               0,                           // converter_radius
                                false);                      // scales
   ResourceMod modify(modify_cfg);
   modify.init(&grid, &rng);
@@ -1667,7 +1666,6 @@ TEST_F(MettaGridCppTest, ResourceModProbabilistic) {
                                {{TestItems::ORE, 0.5f}},    // 50% chance to consume
                                {{TestItems::HEART, 0.3f}},  // 30% chance to add 1 heart
                                1,
-                               0,
                                false);  // radius 1, no converters, no scaling
   ResourceMod modify(modify_cfg);
   modify.init(&grid, &rng);
@@ -1700,53 +1698,6 @@ TEST_F(MettaGridCppTest, ResourceModProbabilistic) {
   EXPECT_LE(hearts_added, 40);  // At most 40
   EXPECT_GE(ore_consumed, 40);  // At least 40
   EXPECT_LE(ore_consumed, 60);  // At most 60
-}
-
-TEST_F(MettaGridCppTest, ResourceModConverter) {
-  Grid grid(5, 5);
-  std::mt19937 rng(42);
-  EventManager event_manager;
-  auto resource_names = create_test_resource_names();
-
-  // Create actor
-  AgentConfig actor_cfg = create_test_agent_config();
-  Agent* actor = new Agent(2, 2, actor_cfg, &resource_names);
-  float actor_reward = 0.0f;
-  actor->init(&actor_reward);
-  grid.add_object(actor);
-
-  // Create converter nearby
-  ConverterConfig converter_cfg(TestItems::CONVERTER,  // type_id
-                                "converter",           // type_name
-                                {},                    // input_resources
-                                {},                    // output_resources
-                                -1,                    // max_output
-                                -1,                    // max_conversions
-                                0,                     // conversion_ticks
-                                {0},                   // cooldown
-                                0,                     // initial_items
-                                false);                // recipe_details_obs
-  Converter* converter = new Converter(3, 2, converter_cfg);
-  grid.add_object(converter);
-  converter->set_event_manager(&event_manager);
-
-  // Create action that modifies converter resources
-  ResourceModConfig modify_cfg({},
-                               {},
-                               {{TestItems::ORE, 1.0f}},  // Add 1 ore to converter
-                               0,
-                               1,
-                               false);  // No agents, converters within radius 1
-  ResourceMod modify(modify_cfg);
-  modify.init(&grid, &rng);
-
-  // Target converter at (3, 2) from actor at (2, 2)
-  ActionArg arg = 0;  // Unused
-  bool success = modify.handle_action(*actor, arg);
-  EXPECT_TRUE(success);
-
-  // Check that converter gained 1 ore
-  EXPECT_EQ(converter->inventory.amount(TestItems::ORE), 1);
 }
 
 TEST_F(MettaGridCppTest, ConverterCooldownSequenceCycles) {
