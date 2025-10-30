@@ -104,14 +104,14 @@ class FastPolicy(Policy):
 
     def initialize_to_environment(
         self,
-        env,
-        device,
+        policy_env_info: PolicyEnvInterface,
+        device: torch.device,
     ) -> List[str]:
         device = torch.device(device)
         self.to(device)
 
-        log = self.obs_shim.initialize_to_environment(env, device)
-        self.action_probs.initialize_to_environment(env, device)
+        log = self.obs_shim.initialize_to_environment(policy_env_info, device)
+        self.action_probs.initialize_to_environment(policy_env_info, device)
         return [log]
 
     def reset_memory(self):

@@ -31,7 +31,13 @@ class CNNEncoder(nn.Module):
         super().__init__()
         self.config = config
 
-        num_inputs = policy_env_interface.observation_space.shape[0]
+        # Determine num_inputs from obs_features (for box observations)
+        # Box observations have shape [B, num_layers, H, W] where num_layers = max(feat.id) + 1
+        if policy_env_interface.obs_features:
+            num_inputs = max(feat.id for feat in policy_env_interface.obs_features) + 1
+        else:
+            # Fallback to observation_space if obs_features is empty
+            num_inputs = policy_env_interface.observation_space.shape[0]
 
         self.cnn1 = pufferlib.pytorch.layer_init(
             nn.Conv2d(num_inputs, **self.config.cnn1_cfg),
