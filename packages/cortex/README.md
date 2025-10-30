@@ -130,6 +130,7 @@ sequences, `[B, H]` for single-step.
 | `sLSTMCell`    | Structured LSTM with per-head gating, stabilized accumulators (`c`, `n`, `m`), and optional causal Conv1D. | Yes                       | No                       |
 | `CausalConv1d` | Depthwise causal Conv1D cell (ring-buffer state); supports optional channel-mixing mode.                   | Yes (channel-mixing only) | No                       |
 | `AxonCell`     | Streaming RTU with diagonal input weights (per-channel local recurrence, 2H→H→out_dim projection).         | Yes                       | Yes (seq‑allin, short‑T) |
+| `XLCell`       | Transformer‑XL style multi‑head attention with rolling memory; optional AxonLayer‑backed Q/K/V projections. | No                        | No                       |
 
 **Notes:**
 
@@ -390,6 +391,7 @@ alternative to `nn.Linear` that wraps `AxonCell` and updates per-layer state ins
 | -------------------------------------- | --------------------------------------------------------------------------------------- | -------------------------------- | -------------------------------------------------------------------------------------------------------------- |
 | sLSTM (`cortex.cells.slstm.sLSTMCell`) | Fused gate projections: `if_fused` (i,f) from conv path; `zo_fused` (z,o) from seq path | `use_axon_layer`                 | group=`slstm`, keys=`if_fused`, `zo_fused` (compat keys like `{igate,fgate,zgate,ogate}_h{i}` may also appear) |
 | mLSTM (`cortex.cells.mlstm.mLSTMCell`) | Input/forget gates; optional QKV path                                                   | `use_axon_layer`, `use_axon_qkv` | group=`mlstm` keys=`igate`,`fgate`; optional group=`mlstm_qkv` keys=`qk`,`v`                                   |
+| XL (`cortex.cells.xl.XLCell`)          | Q/K/V projections (optional)                                                            | `use_axon_qkv`                   | group=`xl_qkv`, keys=`q`, `k`, `v`                                                                             |
 
 Note: AxonLayer usage is opt-in per cell via its config (e.g., `use_axon_layer`, `use_axon_qkv`). The layer mutates the
 provided parent TensorDict state in place.
