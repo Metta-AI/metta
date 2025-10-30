@@ -320,3 +320,43 @@ def test_dependency_injection(tmp_path, monkeypatch):
     # Verify checkpoint_uri was injected into eval task
     submitted_config = job_manager.submit.call_args[0][0]
     assert submitted_config.args.get("policy_uri") == "wandb://run/abc123"
+
+
+def test_jobs_from_same_group_are_included_in_summary(tmp_path, monkeypatch):
+    """Jobs with the same group are all included in status summary.
+
+    This verifies that JobManager correctly includes all jobs when filtering by group,
+    regardless of their completion status. This is important for the release system
+    which uses version as the group identifier.
+    """
+    monkeypatch.setattr("metta.common.util.fs.get_repo_root", lambda: tmp_path)
+
+    version = "v2025.10.30-111945"
+
+    # Create a completed job (from previous task)
+    completed_job_state = JobState(
+        name=f"{version}_python_ci",
+        config=JobConfig(name=f"{version}_python_ci", module="fake", group=version),
+        status="completed",
+        started_at="2025-10-30T11:19:00",
+        completed_at="2025-10-30T11:19:30",
+        exit_code=0,
+        logs_path="/fake/log.txt",
+    )
+
+    job_manager = make_mock_job_manager(tmp_path, existing_states={f"{version}_python_ci": completed_job_state})
+
+    # Submit a new running job in the same group
+    new_task = FakeTask(name="arena_smoke", exit_code=0)
+    new_task.job_config.group = version
+    new_task.job_config.name = f"{version}_arena_smoke"
+
+    job_manager.submit(new_task.job_config)
+
+    # Get summary for this version/group
+    summary = job_manager.get_status_summary(group=version)
+
+    # Both jobs should appear in the summary
+    assert summary["total"] == 2, "Should include both jobs in the group"
+    assert summary["succeeded"] == 1, "Completed job with exit_code=0"
+    assert summary["running"] == 1, "New job is running"
