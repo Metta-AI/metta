@@ -42,7 +42,7 @@ find "/UI/Main/**/VibePanel":
             ]
       else:
         # Execute immediately.
-        sendAction(selection.agentId, vibeActionId, -1)
+        sendAction(selection.agentId, vibeActionId)
 
 proc updateVibePanel*() =
   ## Updates the vibe panel to display the current vibe frequency for the agent.
