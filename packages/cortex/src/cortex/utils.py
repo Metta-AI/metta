@@ -125,7 +125,6 @@ def configure_tf32_precision() -> None:
 
     torch.backends.cuda.matmul.fp32_precision = "tf32"  # type: ignore[attr-defined]
     torch.backends.cudnn.conv.fp32_precision = "tf32"  # type: ignore[attr-defined]
-    torch.set_float32_matmul_precision("high")
     torch.backends.cuda.matmul.allow_tf32 = True  # type: ignore[attr-defined]
     torch.backends.cudnn.allow_tf32 = True  # type: ignore[attr-defined]
 
