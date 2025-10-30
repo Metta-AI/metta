@@ -13,6 +13,7 @@ from pathlib import Path
 from sky.server.common import get_server_url
 from sqlmodel import Session
 
+from metta.jobs.job_config import MetricsSource
 from metta.jobs.job_manager import JobManager
 from metta.jobs.job_state import JobState
 
@@ -24,8 +25,9 @@ class JobDisplay:
         self._start_time = time.time()
 
     def _should_show_training_artifacts(self, job_name: str) -> bool:
+        """Check if job has training artifacts (WandB runs, checkpoints)."""
         job_state = self.job_manager.get_job_state(job_name)
-        return job_state.config.is_training_job if job_state else False
+        return job_state.config.metrics_source == MetricsSource.WANDB if job_state else False
 
     def _get_display_name(self, job_name: str) -> str:
         """Strip version prefix for cleaner display.

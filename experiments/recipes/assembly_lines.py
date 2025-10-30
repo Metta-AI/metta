@@ -382,14 +382,17 @@ def replay(
 
 def experiment():
     for curriculum_style in curriculum_args:
+        run_name = f"assembly_lines_{curriculum_style}.{time.strftime('%Y-%m-%d')}"
+
         subprocess.run(
             [
                 "./devops/skypilot/launch.py",
+                "--tool",
                 "experiments.recipes.assembly_lines.train",
-                f"run=assembly_lines_{curriculum_style}.{time.strftime('%Y-%m-%d')}",
+                f"run={run_name}",
                 f"curriculum_style={curriculum_style}",
                 "--gpus=4",
-                "--heartbeat-timeout=3600",
+                "--heartbeat-timeout-seconds=3600",
                 "--skip-git-check",
             ]
         )

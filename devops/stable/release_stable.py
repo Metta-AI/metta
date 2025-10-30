@@ -42,9 +42,9 @@ from devops.stable.state import (
 )
 from metta.common.util.fs import get_repo_root
 from metta.common.util.text_styles import bold, cyan, green, red, yellow
-from metta.jobs.job_config import JobConfig
+from metta.jobs.job_config import JobConfig, MetricsSource
 from metta.jobs.job_display import JobDisplay, format_progress_bar
-from metta.jobs.job_manager import ExitCode, JobManager
+from metta.jobs.job_manager import JobManager
 
 # ============================================================================
 # Constants
@@ -532,7 +532,7 @@ def step_job_validation(
         job_state = job_manager.get_job_state(f"{state_version}_{job_config.name}")
         if not job_state:
             skipped += 1
-        elif job_state.exit_code == ExitCode.SKIPPED:
+        elif job_state.exit_code == -2:  # SKIPPED (job skipped due to failed dependency)
             skipped += 1
         elif job_state.is_successful:
             passed += 1
@@ -600,8 +600,8 @@ def step_summary(version: str, skip_commit_match: bool = False, **_kwargs) -> No
                 if metrics_str:
                     print(f"       Metrics: {metrics_str}")
 
-            # Collect training job info
-            if job_config.is_training_job:
+            # Collect training job info (jobs with metrics)
+            if job_config.metrics_source != MetricsSource.NONE:
                 training_jobs.append((job_config.name, job_state))
 
     # Print release notes template
@@ -696,8 +696,8 @@ def step_release(version: str, skip_commit_match: bool = False, **_kwargs) -> No
                 metrics_str = ", ".join(f"{k}={v:.1f}" for k, v in job_state.metrics.items())
                 release_notes_content += f"  - Metrics: {metrics_str}\n"
 
-            # Collect training jobs
-            if job_config.is_training_job:
+            # Collect training jobs (jobs with metrics)
+            if job_config.metrics_source != MetricsSource.NONE:
                 training_jobs.append((job_config.name, job_state))
 
     release_notes_content += f"""
