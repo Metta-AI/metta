@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 
 
 class PlayTool(Tool):
-    """Interactive play tool for Metta simulations using MettaScope2."""
+    """Interactive play tool for Metta simulations using MettaScope."""
 
     wandb: WandbConfig = auto_wandb_config()
     sim: SimulationConfig

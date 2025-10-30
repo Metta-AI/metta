@@ -90,6 +90,6 @@ exportProcs:
   init
   render
 
-writeFiles("bindings/generated", "Mettascope2")
+writeFiles("bindings/generated", "Mettascope")
 
 include generated/internal

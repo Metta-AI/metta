@@ -141,10 +141,10 @@ def _nim_artifacts_up_to_date() -> bool:
     existing_outputs = {
         generated_dir / name
         for name in (
-            "mettascope2.py",
-            "libmettascope2.dylib",
-            "libmettascope2.so",
-            "libmettascope2.dll",
+            "mettascope.py",
+            "libmettascope.dylib",
+            "libmettascope.so",
+            "libmettascope.dll",
         )
         if (generated_dir / name).exists()
     }

@@ -16,8 +16,8 @@ task bindings, "Generate bindings":
     exec "nim c -d:release --app:lib -d:fidgetUseCached=true --tlsEmulation:off --out:" & libName & " --outdir:bindings/generated bindings/bindings.nim"
 
   when defined(windows):
-    compile "mettascope2.dll"
+    compile "mettascope.dll"
   elif defined(macosx):
-    compile "libmettascope2.dylib"
+    compile "libmettascope.dylib"
   else:
-    compile "libmettascope2.so"
+    compile "libmettascope.so"
