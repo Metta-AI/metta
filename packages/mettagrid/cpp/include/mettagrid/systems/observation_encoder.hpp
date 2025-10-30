@@ -7,14 +7,14 @@
 #include <vector>
 
 #include "core/grid_object.hpp"
+#include "core/types.hpp"
 #include "objects/agent.hpp"
 #include "objects/constants.hpp"
-#include "objects/wall.hpp"
 
 class ObservationEncoder {
 public:
-  explicit ObservationEncoder(const std::vector<std::string>& resource_names, bool recipe_details_obs = false)
-      : recipe_details_obs(recipe_details_obs), resource_count(resource_names.size()) {
+  explicit ObservationEncoder(const std::vector<std::string>& resource_names, bool protocol_details_obs = false)
+      : protocol_details_obs(protocol_details_obs), resource_count(resource_names.size()) {
     _feature_normalizations = FeatureNormalizations;
     _feature_names = FeatureNames;
     assert(_feature_names.size() == InventoryFeatureOffset);
@@ -27,21 +27,23 @@ public:
       _feature_names.insert({observation_feature, "inv:" + resource_names[i]});
     }
 
-    if (this->recipe_details_obs) {
+    if (this->protocol_details_obs) {
       // Define offsets based on actual inventory item count
-      const ObservationType input_recipe_offset = InventoryFeatureOffset + static_cast<ObservationType>(resource_count);
-      const ObservationType output_recipe_offset = input_recipe_offset + static_cast<ObservationType>(resource_count);
+      const ObservationType input_protocol_offset =
+          InventoryFeatureOffset + static_cast<ObservationType>(resource_count);
+      const ObservationType output_protocol_offset =
+          input_protocol_offset + static_cast<ObservationType>(resource_count);
 
       // Add input recipe features
       for (size_t i = 0; i < resource_names.size(); i++) {
-        auto input_feature = input_recipe_offset + static_cast<ObservationType>(i);
+        auto input_feature = input_protocol_offset + static_cast<ObservationType>(i);
         _feature_normalizations.insert({input_feature, DEFAULT_INVENTORY_NORMALIZATION});
         _feature_names.insert({input_feature, "input:" + resource_names[i]});
       }
 
       // Add output recipe features
       for (size_t i = 0; i < resource_names.size(); i++) {
-        auto output_feature = output_recipe_offset + static_cast<ObservationType>(i);
+        auto output_feature = output_protocol_offset + static_cast<ObservationType>(i);
         _feature_normalizations.insert({output_feature, DEFAULT_INVENTORY_NORMALIZATION});
         _feature_names.insert({output_feature, "output:" + resource_names[i]});
       }
@@ -78,15 +80,15 @@ public:
     return resource_count;
   }
 
-  ObservationType get_input_recipe_offset() const {
+  ObservationType get_input_protocol_offset() const {
     return InventoryFeatureOffset + static_cast<ObservationType>(resource_count);
   }
 
-  ObservationType get_output_recipe_offset() const {
+  ObservationType get_output_protocol_offset() const {
     return InventoryFeatureOffset + static_cast<ObservationType>(2 * resource_count);
   }
 
-  bool recipe_details_obs;
+  bool protocol_details_obs;
 
 private:
   size_t resource_count;
