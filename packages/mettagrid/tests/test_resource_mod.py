@@ -219,7 +219,8 @@ def test_resource_mod_aoe_agents():
     for oid, obj in objects.items():
         if obj.get("type_name") == "agent":
             agent_healths_before[oid] = obj.get("inventory", {}).get(1, 0)
-            if obj["c"] == 1:  # Red agent
+            locations = obj["locations"]
+            if locations and locations[0][0] == 1:  # Red agent at column 1
                 red_energy_before = obj.get("inventory", {}).get(0, 0)
 
     # Red agent uses resource_mod (affects all 3 agents within radius 2)
@@ -237,7 +238,8 @@ def test_resource_mod_aoe_agents():
     for oid, obj in objects.items():
         if obj.get("type_name") == "agent":
             agent_healths_after[oid] = obj.get("inventory", {}).get(1, 0)
-            if obj["c"] == 1:  # Red agent
+            locations = obj["locations"]
+            if locations and locations[0][0] == 1:  # Red agent at column 1
                 red_energy_after = obj.get("inventory", {}).get(0, 0)
 
     # Red should have consumed energy

@@ -420,8 +420,8 @@ TEST_F(MettaGridCppTest, GridObjectManagement) {
   grid.add_object(agent);
 
   EXPECT_NE(agent->id, 0);  // Should have been assigned a valid ID
-  EXPECT_EQ(agent->location.r, 2);
-  EXPECT_EQ(agent->location.c, 3);
+  EXPECT_EQ(agent->locations[0].r, 2);
+  EXPECT_EQ(agent->locations[0].c, 3);
 
   // Verify we can retrieve the agent
   auto retrieved_agent = grid.object(agent->id);
@@ -621,17 +621,17 @@ TEST_F(MettaGridCppTest, ActionTracking) {
 
   EXPECT_FLOAT_EQ(agent->stats.get("status.max_steps_without_motion"), 0.0f);
   noop.handle_action(*agent, 0);  // count 1, max 1
-  EXPECT_EQ(agent->location.r, 5);
-  EXPECT_EQ(agent->location.c, 5);
+  EXPECT_EQ(agent->locations[0].r, 5);
+  EXPECT_EQ(agent->locations[0].c, 5);
   EXPECT_EQ(agent->prev_location.r, 5);
   EXPECT_EQ(agent->prev_location.c, 5);
   EXPECT_EQ(agent->prev_action_name, "noop");
   EXPECT_FLOAT_EQ(agent->stats.get("status.max_steps_without_motion"), 1.0f);
-  agent->location.r = 6;
-  agent->location.c = 6;
+  agent->locations[0].r = 6;
+  agent->locations[0].c = 6;
   noop.handle_action(*agent, 0);  // count 0, max 1
-  EXPECT_EQ(agent->location.r, 6);
-  EXPECT_EQ(agent->location.c, 6);
+  EXPECT_EQ(agent->locations[0].r, 6);
+  EXPECT_EQ(agent->locations[0].c, 6);
   EXPECT_EQ(agent->prev_location.r, 6);
   EXPECT_EQ(agent->prev_location.c, 6);
   EXPECT_FLOAT_EQ(agent->stats.get("status.max_steps_without_motion"), 1.0f);
@@ -640,11 +640,11 @@ TEST_F(MettaGridCppTest, ActionTracking) {
   noop.handle_action(*agent, 0);  // count 2, max 2
   noop.handle_action(*agent, 0);  // count 3, max 3
   EXPECT_FLOAT_EQ(agent->stats.get("status.max_steps_without_motion"), 3.0f);
-  agent->location.r = 7;
-  agent->location.c = 7;
+  agent->locations[0].r = 7;
+  agent->locations[0].c = 7;
   noop.handle_action(*agent, 0);  // count 0, max 3
-  EXPECT_EQ(agent->location.r, 7);
-  EXPECT_EQ(agent->location.c, 7);
+  EXPECT_EQ(agent->locations[0].r, 7);
+  EXPECT_EQ(agent->locations[0].c, 7);
   EXPECT_EQ(agent->prev_location.r, 7);
   EXPECT_EQ(agent->prev_location.c, 7);
   noop.handle_action(*agent, 0);  // count 1, max 3
@@ -2212,4 +2212,39 @@ TEST_F(MettaGridCppTest, SharedUpdate_MixedLimits) {
   EXPECT_EQ(agent1.inventory.amount(TestItems::ORE), 10);  // Hit limit
   EXPECT_EQ(agent2.inventory.amount(TestItems::ORE), 18);  // Gets more due to being earlier
   EXPECT_EQ(agent3.inventory.amount(TestItems::ORE), 17);
+}
+
+// Test border behavior with relative_location
+// Verifies that moving off-grid returns out-of-bounds coordinates
+// which should then be caught by action validation
+TEST_F(MettaGridCppTest, RelativeLocationBorderBehavior) {
+  Grid grid(5, 5);
+
+  // Test all four edges - relative_location should return out-of-bounds coords
+  // which will then fail validation when used in actions
+
+  // Top edge - moving north should go off-grid
+  GridLocation top_edge(0, 2, 0);
+  GridLocation target_north = grid.relative_location(top_edge, Orientation::North, 1, 0);
+  // With clamping removed, this would be out of bounds
+  // The coordinates wrap due to GridCoord being unsigned, but validation catches it
+  EXPECT_FALSE(grid.is_valid_location(target_north));
+
+  // Bottom edge - moving south should go off-grid
+  GridLocation bottom_edge(4, 2, 0);
+  GridLocation target_south = grid.relative_location(bottom_edge, Orientation::South, 1, 0);
+  EXPECT_EQ(target_south.r, 5);
+  EXPECT_FALSE(grid.is_valid_location(target_south));
+
+  // Left edge - moving west should go off-grid
+  GridLocation left_edge(2, 0, 0);
+  GridLocation target_west = grid.relative_location(left_edge, Orientation::West, 1, 0);
+  // With unsigned underflow, c becomes very large
+  EXPECT_FALSE(grid.is_valid_location(target_west));
+
+  // Right edge - moving east should go off-grid
+  GridLocation right_edge(2, 4, 0);
+  GridLocation target_east = grid.relative_location(right_edge, Orientation::East, 1, 0);
+  EXPECT_EQ(target_east.c, 5);
+  EXPECT_FALSE(grid.is_valid_location(target_east));
 }

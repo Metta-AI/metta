@@ -1,16 +1,24 @@
 """Shared utilities for formatting grid object data in replays and play streams."""
 
+import logging
 from typing import Callable, Optional, Tuple, Union
 
 import numpy as np
 
+_logger = logging.getLogger(__name__)
+_malformed_cells_count = 0
+
 
 def format_grid_object_base(grid_object: dict) -> dict:
-    """Format the base properties common to all grid objects."""
-    update_object = {}
+    """Format the base fields of a grid object into a stable schema used by UIs.
+
+    This normalizes types and ensures the presence of common keys.
+    """
+    update_object: dict = {}
     update_object["id"] = grid_object["id"]
     update_object["type_name"] = grid_object["type_name"]
-    update_object["location"] = grid_object["location"]
+    # Always expose locations; single-cell objects have a single entry
+    update_object["locations"] = grid_object.get("locations", [])
     update_object["orientation"] = grid_object.get("orientation", 0)
     update_object["inventory"] = list(grid_object.get("inventory", {}).items())
     update_object["inventory_max"] = grid_object.get("inventory_max", 0)
@@ -64,10 +72,10 @@ def format_converter_properties(grid_object: dict, update_object: dict) -> None:
     update_object["input_resources"] = list(grid_object.get("input_resources", {}).items())
     update_object["output_resources"] = list(grid_object.get("output_resources", {}).items())
     update_object["output_limit"] = grid_object.get("output_limit", 0)
-    update_object["conversion_remaining"] = 0  # TODO: Waiting for env to support this
+    update_object["conversion_remaining"] = 0  # TODO: Waiting for env support
     update_object["is_converting"] = grid_object.get("is_converting", False)
     update_object["conversion_duration"] = grid_object.get("conversion_duration", 0)
-    update_object["cooldown_remaining"] = 0  # TODO: Waiting for env to support this
+    update_object["cooldown_remaining"] = 0  # TODO: Waiting for env support
     update_object["is_cooling_down"] = grid_object.get("is_cooling_down", False)
     update_object["cooldown_duration"] = grid_object.get("cooldown_duration", 0)
 
@@ -84,7 +92,7 @@ def format_assembler_properties(grid_object: dict, update_object: dict) -> None:
 
     update_object["recipes"] = []
     for recipe in grid_object.get("recipes", []):
-        update_recipe = {}
+        update_recipe: dict = {}
         update_recipe["inputs"] = list(recipe.get("inputs", {}).items())
         update_recipe["outputs"] = list(recipe.get("outputs", {}).items())
         update_recipe["cooldown"] = recipe["cooldown"]
@@ -99,7 +107,7 @@ def format_grid_object(
     total_rewards: np.ndarray,
     decode_flat_action: Optional[Callable[[int], Tuple[int, int]]] = None,
 ) -> dict:
-    """Format a grid object with validation for both replay recording and play streaming."""
+    """Format a grid object with validation for replay recording and streaming."""
     # Validate basic object properties
     assert isinstance(grid_object["id"], int), (
         f"Expected grid_object['id'] to be an integer, got {type(grid_object['id'])}"
@@ -107,11 +115,8 @@ def format_grid_object(
     assert isinstance(grid_object["type_name"], str), (
         f"Expected grid_object['type_name'] to be a string, got {type(grid_object['type_name'])}"
     )
-    assert isinstance(grid_object["location"], (tuple, list)) and len(grid_object["location"]) == 3, (
-        f"Expected location to be tuple/list of 3 elements, got {type(grid_object['location'])}"
-    )
-    assert all(isinstance(coord, (int, float)) for coord in grid_object["location"]), (
-        "Expected all location coordinates to be numbers"
+    assert isinstance(grid_object.get("locations", []), list), (
+        f"Expected locations to be a list, got {type(grid_object.get('locations', []))}"
     )
 
     update_object = format_grid_object_base(grid_object)
@@ -133,10 +138,8 @@ def format_grid_object(
             total_rewards,
             decode_flat_action=decode_flat_action,
         )
-
     elif "input_resources" in grid_object:
         format_converter_properties(grid_object, update_object)
-
     elif "recipes" in grid_object:
         format_assembler_properties(grid_object, update_object)
 

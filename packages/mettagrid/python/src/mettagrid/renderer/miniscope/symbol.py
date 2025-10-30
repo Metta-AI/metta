@@ -23,12 +23,23 @@ DEFAULT_SYMBOL_MAP = {
 
 
 def get_symbol_for_object(obj: dict, object_type_names: list[str], symbol_map: dict[str, str]) -> str:
-    """Resolve the display symbol for an object dictionary."""
-    # Prefer type_name field if available, otherwise look up by type ID
-    if "type_name" in obj:
-        type_name = obj["type_name"]
-    else:
-        type_name = object_type_names[obj["type"]]
+    """Get the emoji symbol for an object.
+
+    Args:
+        obj: Object dict with type metadata and optional agent_id
+        object_type_names: List mapping type IDs to names
+        symbol_map: Map from object type names to render symbols
+
+    Returns:
+        Emoji symbol string
+    """
+    type_name = obj.get("type_name")
+    if type_name is None:
+        type_idx = obj.get("type")
+        if isinstance(type_idx, int) and 0 <= type_idx < len(object_type_names):
+            type_name = object_type_names[type_idx]
+        else:
+            type_name = "?"
 
     # Handle numbered agents specially
     if type_name.startswith("agent"):

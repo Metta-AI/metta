@@ -66,7 +66,7 @@ TEST_F(GridObjectTest, InitWithLocation) {
 
   EXPECT_EQ(1, obj.type_id);
   EXPECT_EQ("object", obj.type_name);
-  EXPECT_EQ(5, obj.location.r);
-  EXPECT_EQ(10, obj.location.c);
-  EXPECT_EQ(2, obj.location.layer);
+  EXPECT_EQ(5, obj.locations[0].r);
+  EXPECT_EQ(10, obj.locations[0].c);
+  EXPECT_EQ(2, obj.locations[0].layer);
 }

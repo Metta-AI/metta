@@ -487,7 +487,7 @@ void MettaGrid::_compute_observations(const py::array_t<ActionType, py::array::c
   for (size_t idx = 0; idx < _agents.size(); idx++) {
     auto& agent = _agents[idx];
     _compute_observation(
-        agent->location.r, agent->location.c, obs_width, obs_height, idx, actions_view(idx, 0), actions_view(idx, 1));
+        agent->locations[0].r, agent->locations[0].c, obs_width, obs_height, idx, actions_view(idx, 0), actions_view(idx, 1));
   }
 }
 
@@ -889,26 +889,25 @@ py::dict MettaGrid::grid_objects(int min_row, int max_row, int min_col, int max_
       }
     }
 
-    // Filter by bounding box if specified
+    // Filter by bounding box if specified: include object if any occupied location intersects
+    // Off-grid objects (present_on_grid=false) are excluded from bounded queries
     if (use_bounds) {
-      if (obj->location.r < min_row || obj->location.r >= max_row || obj->location.c < min_col ||
-          obj->location.c >= max_col) {
-        continue;
+      if (!obj->present_on_grid) continue;
+      bool in_bounds = false;
+      // Check occupied locations for intersection with bounding box
+      for (const auto& loc : obj->locations) {
+        if (loc.r >= min_row && loc.r < max_row && loc.c >= min_col && loc.c < max_col) {
+          in_bounds = true;
+          break;
+        }
       }
+      if (!in_bounds) continue;
     }
 
     py::dict obj_dict;
     obj_dict["id"] = obj_id;
     obj_dict["type_name"] = object_type_names[obj->type_id];
-    // Location here is defined as XYZ coordinates specifically to be used by MettaScope.
-    // We define that for location: x is column, y is row, and z is layer.
-    // Note: it might be different for matrix computations.
-    obj_dict["location"] = py::make_tuple(obj->location.c, obj->location.r, obj->location.layer);
     obj_dict["is_swappable"] = obj->swappable();
-
-    obj_dict["r"] = obj->location.r;          // To remove
-    obj_dict["c"] = obj->location.c;          // To remove
-    obj_dict["layer"] = obj->location.layer;  // To remove
 
     // Inject observation features
     auto features = obj->obs_features();
@@ -1037,10 +1036,49 @@ py::dict MettaGrid::grid_objects(int min_row, int max_row, int min_col, int max_
       obj_dict["position_deltas"] = position_deltas_dict;
     }
 
+    // Locations and presence: collect all occupied locations from vector
+    py::list locs;
+    if (obj->present_on_grid) {
+      for (const auto& loc : obj->locations) {
+        locs.append(py::make_tuple(loc.c, loc.r, loc.layer));
+      }
+    }
+    obj_dict["locations"] = locs;
+    obj_dict["present_on_grid"] = py::bool_(obj->present_on_grid);
+
     objects[py::int_(obj_id)] = obj_dict;
   }
 
   return objects;
+}
+
+bool MettaGrid::add_object_location(GridObjectId obj_id, GridCoord r, GridCoord c, Layer layer) {
+  auto* obj = _grid->object(obj_id);
+  if (!obj) return false;
+  GridLocation loc(r, c, layer);
+  bool ok = _grid->occupy_location(*obj, loc);
+  if (ok) obj->present_on_grid = true;
+  return ok;
+}
+
+bool MettaGrid::remove_object_location(GridObjectId obj_id, GridCoord r, GridCoord c, Layer layer) {
+  auto* obj = _grid->object(obj_id);
+  if (!obj) return false;
+  GridLocation loc(r, c, layer);
+  bool ok = _grid->release_location(*obj, loc);
+  // Presence is not toggled by removing an occupied location. Only
+  // set_object_present() changes present_on_grid.
+  return ok;
+}
+
+bool MettaGrid::set_object_present(GridObjectId obj_id, bool present) {
+  auto* obj = _grid->object(obj_id);
+  if (!obj) return false;
+  if (present) {
+    return _grid->activate_object(*obj);
+  } else {
+    return _grid->deactivate_object(*obj);
+  }
 }
 
 py::list MettaGrid::action_names() {
@@ -1205,6 +1243,20 @@ PYBIND11_MODULE(mettagrid_c, m) {
            py::arg("min_col") = -1,
            py::arg("max_col") = -1,
            py::arg("ignore_types") = py::list())
+      // Multi-location object management helpers
+      .def("add_object_location",
+           &MettaGrid::add_object_location,
+           py::arg("obj_id"),
+           py::arg("r"),
+           py::arg("c"),
+           py::arg("layer"))
+      .def("remove_object_location",
+           &MettaGrid::remove_object_location,
+           py::arg("obj_id"),
+           py::arg("r"),
+           py::arg("c"),
+           py::arg("layer"))
+      .def("set_object_present", &MettaGrid::set_object_present, py::arg("obj_id"), py::arg("present"))
       .def("action_names", &MettaGrid::action_names)
       .def_property_readonly("map_width", &MettaGrid::map_width)
       .def_property_readonly("map_height", &MettaGrid::map_height)

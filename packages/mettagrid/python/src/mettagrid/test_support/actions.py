@@ -291,7 +291,10 @@ def attack(env: MettaGrid, target_arg: int = 0, agent_idx: int = 0) -> dict[str,
                     result["target_frozen"] = True
                     result["frozen_agent_id"] = obj_id
                     result["freeze_duration"] = freeze_after
-                    result["target_position"] = (obj_data["r"], obj_data["c"])
+                    locations = obj_data["locations"]
+                    if locations:
+                        loc = locations[0]
+                        result["target_position"] = (loc[1], loc[0])
 
                     # Check for stolen resources
                     target_resources_before = obj_before.get("resources", {})
@@ -400,7 +403,11 @@ def get_agent_position(env: MettaGrid, agent_idx: int = 0) -> tuple[int, int]:
     grid_objects = env.grid_objects()
     for _obj_id, obj_data in grid_objects.items():
         if "agent_id" in obj_data and obj_data.get("agent_id") == agent_idx:
-            return (obj_data["r"], obj_data["c"])
+            locations = obj_data["locations"]
+            if not locations:
+                raise ValueError(f"Agent {agent_idx} has no locations")
+            c, r, _layer = locations[0]
+            return r, c
     raise ValueError(f"Agent {agent_idx} not found in grid objects")
 
 

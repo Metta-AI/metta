@@ -73,18 +73,18 @@ void Agent::increment_visitation_count(GridCoord r, GridCoord c) {
 std::array<unsigned int, 5> Agent::get_visitation_counts() const {
   std::array<unsigned int, 5> counts = {0, 0, 0, 0, 0};
   if (!visitation_grid.empty()) {
-    counts[0] = get_visitation_count(location.r, location.c);  // center
+    counts[0] = get_visitation_count(locations[0].r, locations[0].c);  // center
 
     // Handle potential underflow at map edge
-    if (location.r > 0) {
-      counts[1] = get_visitation_count(location.r - 1, location.c);  // up
+    if (locations[0].r > 0) {
+      counts[1] = get_visitation_count(locations[0].r - 1, locations[0].c);  // up
     }
-    counts[2] = get_visitation_count(location.r + 1, location.c);  // down
+    counts[2] = get_visitation_count(locations[0].r + 1, locations[0].c);  // down
 
-    if (location.c > 0) {
-      counts[3] = get_visitation_count(location.r, location.c - 1);  // left
+    if (locations[0].c > 0) {
+      counts[3] = get_visitation_count(locations[0].r, locations[0].c - 1);  // left
     }
-    counts[4] = get_visitation_count(location.r, location.c + 1);  // right
+    counts[4] = get_visitation_count(locations[0].r, locations[0].c + 1);  // right
   }
   return counts;
 }

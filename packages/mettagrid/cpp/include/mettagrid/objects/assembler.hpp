@@ -23,8 +23,8 @@ class Assembler : public GridObject, public Usable {
 private:
   // Surrounding positions in deterministic order: NW, N, NE, W, E, SW, S, SE
   std::vector<std::pair<GridCoord, GridCoord>> get_surrounding_positions() const {
-    GridCoord r = location.r;
-    GridCoord c = location.c;
+    GridCoord r = locations[0].r;
+    GridCoord c = locations[0].c;
     std::vector<std::pair<GridCoord, GridCoord>> positions;
     for (int i = -1; i <= 1; ++i) {
       for (int j = -1; j <= 1; ++j) {
@@ -49,8 +49,12 @@ private:
     // Find the starting agent's position in the surrounding positions
     int start_index = -1;
     if (starting_agent) {
+      // Agents must be single-cell
+      assert(starting_agent->locations.size() == 1 && "Agent must be single-cell");
+
       for (size_t i = 0; i < positions.size(); i++) {
-        if (positions[i].first == starting_agent->location.r && positions[i].second == starting_agent->location.c) {
+        if (positions[i].first == starting_agent->locations[0].r &&
+            positions[i].second == starting_agent->locations[0].c) {
           start_index = i;
           break;
         }
@@ -205,6 +209,11 @@ public:
     GridObject::init(cfg.type_id, cfg.type_name, GridLocation(r, c, GridLayer::ObjectLayer), cfg.tag_ids);
   }
   virtual ~Assembler() = default;
+
+  // Assemblers support multi-cell footprints (e.g., 2x2)
+  bool supports_multi_cell() const override {
+    return true;
+  }
 
   // Set grid access
   void set_grid(class Grid* grid_ptr) {

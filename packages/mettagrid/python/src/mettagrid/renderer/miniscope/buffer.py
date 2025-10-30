@@ -5,6 +5,24 @@ from typing import Dict, Optional
 from .symbol import get_symbol_for_object
 
 
+def _cells_for_object(obj: dict) -> list[tuple[int, int, int]]:
+    """Return normalized location coordinates for rendering."""
+    locs = obj.get("locations")
+    if isinstance(locs, list) and locs:
+        normalized: list[tuple[int, int, int]] = []
+        for entry in locs:
+            if not isinstance(entry, (list, tuple)) or len(entry) != 3:
+                continue
+            c, r, layer = entry
+            try:
+                normalized.append((int(c), int(r), int(layer)))
+            except (TypeError, ValueError):
+                continue
+        return normalized
+
+    return []
+
+
 class MapBuffer:
     """Encapsulates map buffer handling logic for miniscope rendering."""
 
@@ -115,20 +133,28 @@ class MapBuffer:
             self._last_grid_objects = grid_objects
 
     def _compute_bounds(self, grid_objects: Dict[int, dict]) -> tuple[int, int, int, int]:
-        """Compute a bounding box for the provided grid objects."""
-        rows = []
-        cols = []
+        """Compute bounding box for grid objects."""
+        rows: list[int] = []
+        cols: list[int] = []
+
+        # Prefer walls to set bounds if present, otherwise use all cells
         for obj in grid_objects.values():
-            type_name = obj["type_name"]
+            type_name = obj.get("type_name")
+            if type_name is None:
+                type_idx = obj.get("type")
+                if isinstance(type_idx, int) and 0 <= type_idx < len(self._object_type_names):
+                    type_name = self._object_type_names[type_idx]
             if type_name == "wall":
-                rows.append(obj["r"])
-                cols.append(obj["c"])
+                for c_loc, r_loc, _ in _cells_for_object(obj):
+                    rows.append(r_loc)
+                    cols.append(c_loc)
+
         if not rows or not cols:
             for obj in grid_objects.values():
-                rows.append(obj["r"])
-                cols.append(obj["c"])
+                for c_loc, r_loc, _ in _cells_for_object(obj):
+                    rows.append(r_loc)
+                    cols.append(c_loc)
 
-        # Handle empty grid case
         if not rows or not cols:
             return (0, 0, 1, 1)
 
@@ -139,15 +165,7 @@ class MapBuffer:
         return (min_row, min_col, height, width)
 
     def _build_grid_buffer(self, grid_objects: Dict[int, dict], use_viewport: bool = True) -> str:
-        """Build the emoji grid buffer using instance attributes.
-
-        Args:
-            grid_objects: Dictionary of grid objects to render
-            use_viewport: Whether to use viewport settings (False for full map)
-
-        Returns:
-            Buffer string with newlines
-        """
+        """Build the emoji grid buffer using instance attributes."""
         # Use instance attributes for viewport settings
         viewport_center_row = self._viewport_center_row if use_viewport else None
         viewport_center_col = self._viewport_center_col if use_viewport else None
@@ -185,20 +203,28 @@ class MapBuffer:
         empty_symbol = self._symbol_map.get("empty", "⬜")
         grid = [[empty_symbol for _ in range(view_width)] for _ in range(view_height)]
 
-        # Place objects in viewport
+        # Place objects in viewport using all occupied cells
         for obj in grid_objects.values():
-            obj_r = obj["r"]
-            obj_c = obj["c"]
-            r = obj_r - view_min_row
-            c = obj_c - view_min_col
-            # Skip objects outside viewport bounds
-            if 0 <= r < view_height and 0 <= c < view_width:
-                # Check if this is the highlighted agent
-                if self._highlighted_agent_id is not None and obj.get("agent_id") == self._highlighted_agent_id:
-                    # Use a distinctive symbol for highlighted agent
-                    grid[r][c] = "⭐"
-                else:
-                    grid[r][c] = get_symbol_for_object(obj, self._object_type_names, self._symbol_map)
+            locations = obj.get("locations", [])
+            obj_r, obj_c = (None, None)
+            if locations:
+                obj_c, obj_r, _ = locations[0]
+            for obj_c_cell, obj_r_cell, _ in _cells_for_object(obj):
+                r = obj_r_cell - view_min_row
+                c = obj_c_cell - view_min_col
+                if 0 <= r < view_height and 0 <= c < view_width:
+                    # If this is the highlighted agent, mark its location with a star
+                    if (
+                        self._highlighted_agent_id is not None
+                        and obj.get("agent_id") == self._highlighted_agent_id
+                        and obj_r is not None
+                        and obj_c is not None
+                        and obj_r_cell == obj_r
+                        and obj_c_cell == obj_c
+                    ):
+                        grid[r][c] = "⭐"
+                    else:
+                        grid[r][c] = get_symbol_for_object(obj, self._object_type_names, self._symbol_map)
 
         # Add selection cursor if in select mode
         if self._cursor_row is not None and self._cursor_col is not None:
@@ -251,12 +277,14 @@ class MapBuffer:
         return self._build_grid_buffer(grid_objects, use_viewport)
 
     def render_full_map(self, grid_objects: Dict[int, dict]) -> str:
-        """Render the full map without viewport restrictions.
-
-        Args:
-            grid_objects: Dictionary of grid objects to render
-
-        Returns:
-            Buffer string with newlines
-        """
+        """Render the full map without viewport restrictions."""
         return self.render(grid_objects, use_viewport=False)
+
+
+def compute_bounds(grid_objects: Dict[int, dict], object_type_names: list[str]) -> tuple[int, int, int, int]:
+    """Compute bounding box for grid objects using helper logic shared with MapBuffer."""
+    buffer = MapBuffer(
+        object_type_names=object_type_names,
+        symbol_map={},
+    )
+    return buffer._compute_bounds(grid_objects)

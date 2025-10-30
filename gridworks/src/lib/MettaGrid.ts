@@ -30,17 +30,64 @@ export type Cell = {
   // these are intentionally `r` and `c` instead of `x` and `y` so that we don't confuse them with screen coordinates
   r: number;
   c: number;
+  layer?: number;
 };
+
+type RawCell = Cell | [number, number, number?];
+
+function normalizeCell(entry: RawCell): Cell | undefined {
+  if (Array.isArray(entry)) {
+    // Tuple form is [c, r, layer]; convert to {r, c, layer?}
+    const [col, row, layer] = entry;
+    if (typeof row === "number" && typeof col === "number") {
+      const cell: Cell = { r: row, c: col };
+      if (typeof layer === "number") {
+        cell.layer = layer;
+      }
+      return cell;
+    }
+    return undefined;
+  }
+
+  if (typeof entry === "object" && entry !== null) {
+    const { r, c, layer } = entry;
+    if (typeof r === "number" && typeof c === "number") {
+      const cell: Cell = { r, c };
+      if (typeof layer === "number") {
+        cell.layer = layer;
+      }
+      return cell;
+    }
+  }
+
+  return undefined;
+}
 
 export class MettaObject {
   readonly name: string;
   readonly r: number;
   readonly c: number;
+  readonly cells: Cell[];
 
-  private constructor(data: { name: string; r: number; c: number }) {
+  private constructor(data: { name: string; r: number; c: number; cells?: RawCell[] }) {
     this.name = data.name;
     this.r = data.r;
     this.c = data.c;
+
+    const dedup = new Map<string, Cell>();
+    const addCell = (cell: Cell | undefined) => {
+      if (!cell) return;
+      const layerKey = typeof cell.layer === "number" ? cell.layer : -1;
+      const key = `${cell.r}:${cell.c}:${layerKey}`;
+      if (dedup.has(key)) return;
+      dedup.set(key, cell);
+    };
+
+    for (const raw of data.cells ?? []) addCell(normalizeCell(raw));
+
+    addCell({ r: data.r, c: data.c });
+
+    this.cells = Array.from(dedup.values());
   }
 
   static fromObjectName(
@@ -51,7 +98,7 @@ export class MettaObject {
     if (name === "empty") {
       return undefined;
     }
-    return new MettaObject({ name, r, c });
+    return new MettaObject({ name, r, c, cells: [{ r, c }] });
   }
 }
 
@@ -70,7 +117,10 @@ export class MettaGrid {
       .map(() => new Array(data.width).fill(null));
 
     for (const object of data.objects) {
-      this.grid[object.r][object.c] = object;
+      const cells = object.cells ?? [{ r: object.r, c: object.c }];
+      for (const cell of cells) {
+        if (this.cellInGrid(cell)) this.grid[cell.r][cell.c] = object;
+      }
     }
   }
 

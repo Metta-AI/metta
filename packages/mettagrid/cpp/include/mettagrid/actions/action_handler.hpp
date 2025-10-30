@@ -79,6 +79,8 @@ public:
   }
 
   bool handle_action(Agent& actor, ActionArg arg) {
+    assert(actor.locations.size() == 1 && "Agents must be single-cell");
+
     // Handle frozen status
     if (actor.frozen != 0) {
       actor.stats.incr("status.frozen.ticks");
@@ -102,7 +104,7 @@ public:
 
     // The intention here is to provide a metric that reports when an agent has stayed in one location for a long
     // period, perhaps spinning in circles. We think this could be a good indicator that a policy has collapsed.
-    if (actor.location == actor.prev_location) {
+    if (actor.locations[0] == actor.prev_location) {
       actor.steps_without_motion += 1;
       if (actor.steps_without_motion > actor.stats.get("status.max_steps_without_motion")) {
         actor.stats.set("status.max_steps_without_motion", actor.steps_without_motion);
@@ -113,7 +115,7 @@ public:
 
     // Update tracking for this agent
     actor.prev_action_name = _action_name;
-    actor.prev_location = actor.location;
+    actor.prev_location = actor.locations[0];
 
     // Track success/failure
     if (success) {

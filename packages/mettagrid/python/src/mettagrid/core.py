@@ -136,8 +136,69 @@ class MettaGridCore:
         # Validate that C++ environment conforms to expected types
         self._validate_c_env_types(c_env)
 
+        # Apply multi-cell groups if present
+        if game_map.multi_cell_groups:
+            self._apply_multi_cell_groups(c_env, game_map.multi_cell_groups)
+
         self.__c_env_instance = c_env
         return c_env
+
+    def _apply_multi_cell_groups(
+        self,
+        c_env: MettaGridCpp,
+        groups: list[tuple[int, int, int, list[tuple[int, int]]]],
+    ) -> None:
+        """Apply multi-cell grouping to the environment after creation."""
+        # Get all grid objects to find object IDs by position
+        grid_objects = c_env.grid_objects()
+
+        # Build a map from (row, col, layer) to object ID
+        position_to_obj_id: dict[tuple[int, int, int], int] = {}
+        for obj_id, obj_data in grid_objects.items():
+            locations = obj_data["locations"]
+            if locations:
+                c, r, layer = locations[0]  # First location is primary
+                position_to_obj_id[(r, c, layer)] = obj_id
+
+        # Apply each group
+        for primary_r, primary_c, layer, extra_cells in groups:
+            primary_key = (primary_r, primary_c, layer)
+            if primary_key not in position_to_obj_id:
+                logger.warning(
+                    "Multi-cell group primary location not found at (%s, %s, %s). Skipping group.",
+                    primary_r,
+                    primary_c,
+                    layer,
+                )
+                continue
+
+            primary_obj_id = position_to_obj_id[primary_key]
+
+            for extra_r, extra_c in extra_cells:
+                # Try to add each extra cell to the primary object's occupied locations.
+                success = c_env.add_object_location(primary_obj_id, extra_r, extra_c, layer)
+                if not success:
+                    logger.warning(
+                        "Failed to add cell (%s, %s, %s) to object %s. "
+                        "Cell may not be empty or may violate layer constraints.",
+                        extra_r,
+                        extra_c,
+                        layer,
+                        primary_obj_id,
+                    )
+
+        render_mode = getattr(self, "_render_mode", None)
+        renderer = getattr(self, "_renderer", None)
+        renderer_class = getattr(self, "_renderer_class", None)
+        renderer_native = getattr(self, "_renderer_native", False)
+
+        if render_mode is not None and renderer is None and renderer_class is not None:
+            if renderer_native:
+                self._renderer = renderer_class()
+            else:
+                self._renderer = renderer_class(
+                    c_env.object_type_names(), self.__mg_config.game, c_env.map_height, c_env.map_width
+                )
 
     def _validate_c_env_types(self, c_env: MettaGridCpp) -> None:
         """Validate that the C++ environment conforms to expected MettaGrid types."""
@@ -232,8 +293,11 @@ class MettaGridCore:
 
     @property
     def _observation_space(self) -> spaces.Box:
-        """Internal observation space - use single_observation_space for PufferEnv compatibility."""
-        return self.__c_env_instance.observation_space
+        """Get an observation space for a single agent (Box[uint8])."""
+        # Mirror the C++ observation token shape (num_tokens, 3)
+        num_tokens = int(self.__c_env_instance.observation_space.shape[0])
+        shape = (num_tokens, 3)
+        return spaces.Box(low=0, high=255, shape=shape, dtype=dtype_observations)
 
     @property
     def _action_space(self) -> spaces.Discrete:
@@ -292,17 +356,43 @@ class MettaGridCore:
         """Get grid objects information, optionally filtered by bounding box and type.
 
         Args:
-            bbox: Bounding box, None for no limit
+            bbox: Bounding box, None for no limit. Bounding boxes follow
+                half-open `[min_row, max_row)` / `[min_col, max_col)` semantics,
+                so the `max_*` values are exclusive.
             ignore_types: List of type names to exclude from results (e.g., ["wall"])
 
         Returns:
-            Dictionary mapping object IDs to object dictionaries
+            Dictionary mapping object IDs to object dictionaries.
+            Each object dict contains a 'locations' array with (c, r, layer) tuples.
+
+        API Contract: The 'locations' array is ALWAYS present but MAY be empty to
+        indicate an off-grid object. For single-cell objects, locations contain
+        one location. For multi-cell objects, locations contain all occupied
+        locations. 'present_on_grid' is a boolean indicating whether the
+        object currently occupies any cells. Bounded queries exclude off-grid
+        objects.
         """
         if bbox is None:
             bbox = BoundingBox(min_row=-1, max_row=-1, min_col=-1, max_col=-1)
+        ignore_list = list(ignore_types) if ignore_types else []
+        objs = self.__c_env_instance.grid_objects(bbox.min_row, bbox.max_row, bbox.min_col, bbox.max_col, ignore_list)
+        return objs
 
-        ignore_list = ignore_types if ignore_types is not None else []
-        return self.__c_env_instance.grid_objects(bbox.min_row, bbox.max_row, bbox.min_col, bbox.max_col, ignore_list)
+    # Multi-location occupancy helpers
+    # Multi-location occupancy helpers
+    def add_object_location(self, obj_id: int, r: int, c: int, layer: int) -> bool:
+        return bool(self.__c_env_instance.add_object_location(int(obj_id), int(r), int(c), int(layer)))
+
+    def remove_object_location(self, obj_id: int, r: int, c: int, layer: int) -> bool:
+        return bool(self.__c_env_instance.remove_object_location(int(obj_id), int(r), int(c), int(layer)))
+
+    def set_object_present(self, obj_id: int, present: bool) -> bool:
+        """Toggle object presence on the grid.
+
+        When present=False, removes all occupancy (object becomes off-grid).
+        When present=True, restores previous occupancy if locations are free.
+        """
+        return bool(self.__c_env_instance.set_object_present(int(obj_id), bool(present)))
 
     def set_inventory(self, agent_id: int, inventory: Dict[str, int]) -> None:
         """Set an agent's inventory by resource name.

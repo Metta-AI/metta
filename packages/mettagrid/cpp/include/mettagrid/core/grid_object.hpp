@@ -18,17 +18,12 @@ struct PartialObservationToken {
   ObservationType value = EmptyTokenByte;
 };
 
-// These may make more sense in observation_encoder.hpp, but we need to include that
-// header in a lot of places, and it's nice to have these types defined in one place.
 struct alignas(1) ObservationToken {
   ObservationType location = EmptyTokenByte;
   ObservationType feature_id = EmptyTokenByte;
   ObservationType value = EmptyTokenByte;
 };
 
-// The alignas should make sure of this, but let's be explicit.
-// We're going to be reinterpret_casting things to this type, so
-// it'll be bad if the compiler pads this type.
 static_assert(sizeof(ObservationToken) == 3 * sizeof(uint8_t), "ObservationToken must be 3 bytes");
 
 using ObservationTokens = std::span<ObservationToken>;
@@ -53,8 +48,8 @@ struct GridObjectConfig {
   std::string type_name;
   std::vector<int> tag_ids;
 
-  GridObjectConfig(TypeId type_id, const std::string& type_name)
-      : type_id(type_id), type_name(type_name), tag_ids({}) {}
+  GridObjectConfig(TypeId type_id, const std::string& type_name, const std::vector<int>& tag_ids = {})
+      : type_id(type_id), type_name(type_name), tag_ids(tag_ids) {}
 
   virtual ~GridObjectConfig() = default;
 };
@@ -62,29 +57,50 @@ struct GridObjectConfig {
 class GridObject {
 public:
   GridObjectId id{};
-  GridLocation location{};
   TypeId type_id{};
   std::string type_name;
   std::vector<int> tag_ids;
+  // All occupied locations. May be empty (off-grid).
+  std::vector<GridLocation> locations;
+  // Previous locations preserved across deactivation for reactivation
+  std::vector<GridLocation> previous_locations;
+  bool present_on_grid{false};
 
   virtual ~GridObject() = default;
 
+  // Init without initial locations
+  void init(TypeId object_type_id, const std::string& object_type_name, const std::vector<int>& tags) {
+    this->type_id = object_type_id;
+    this->type_name = object_type_name;
+    this->tag_ids = tags;
+    this->present_on_grid = false;
+  }
+
+  // Backward-compatible init that seeds with a single initial location
   void init(TypeId object_type_id,
             const std::string& object_type_name,
-            const GridLocation& object_location,
+            const GridLocation& initial_location,
             const std::vector<int>& tags) {
     this->type_id = object_type_id;
     this->type_name = object_type_name;
-    this->location = object_location;
     this->tag_ids = tags;
+    this->present_on_grid = false;
+    this->locations.clear();
+    this->locations.push_back(initial_location);
+    this->previous_locations = this->locations;
   }
 
   virtual bool swappable() const {
     return false;
   }
-
   virtual std::vector<PartialObservationToken> obs_features() const {
-    return {};  // Default: no observable features
+    return {};
+  }
+
+  // Whether this object type supports occupying multiple cells.
+  // Default: false. Only Assembler overrides to true.
+  virtual bool supports_multi_cell() const {
+    return false;
   }
 };
 

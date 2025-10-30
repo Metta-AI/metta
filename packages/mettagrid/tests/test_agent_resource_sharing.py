@@ -77,8 +77,12 @@ class TestAgentResourceSharing:
         agent0_after = agents_after[0]
         agent1_after = agents_after[1]
 
-        assert (agent0_after["r"], agent0_after["c"]) == (1, 1), "Agent 0 should still be at (1,1)"
-        assert (agent1_after["r"], agent1_after["c"]) == (1, 2), "Agent 1 should still be at (1,2)"
+        locations0 = agent0_after["locations"]
+        loc0 = locations0[0] if locations0 else (0, 0, 0)
+        locations1 = agent1_after["locations"]
+        loc1 = locations1[0] if locations1 else (0, 0, 0)
+        assert (loc0[1], loc0[0]) == (1, 1), "Agent 0 should still be at (1,1)"
+        assert (loc1[1], loc1[0]) == (1, 2), "Agent 1 should still be at (1,2)"
 
         # Agent 0 should have given half of shareable resources to agent 1
         # Energy: 10 -> 5 (agent 0), 10 -> 15 (agent 1)

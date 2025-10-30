@@ -73,11 +73,22 @@ public:
                    const py::array_t<TruncationType, py::array::c_style>& truncations,
                    const py::array_t<RewardType, py::array::c_style>& rewards);
   void validate_buffers();
+  // Return object dictionaries for the current grid state. When bounds are supplied,
+  // an object is included if any occupied location intersects the requested rectangle.
+  // Bounds follow [min_row, max_row) and [min_col, max_col) semantics (max values exclusive).
+  // Every object dict includes a 'locations' array listing occupied (c, r, layer) tuples.
+  // If an object is temporarily off-grid, 'locations' will be an empty list and
+  // 'present_on_grid' will be false.
   py::dict grid_objects(int min_row = -1,
                         int max_row = -1,
                         int min_col = -1,
                         int max_col = -1,
                         const py::list& ignore_types = py::list());
+  // Multi-location occupancy management
+  bool add_object_location(GridObjectId obj_id, GridCoord r, GridCoord c, Layer layer);
+  bool remove_object_location(GridObjectId obj_id, GridCoord r, GridCoord c, Layer layer);
+  // Toggle object presence on the grid (off-grid has no occupied locations)
+  bool set_object_present(GridObjectId obj_id, bool present);
   py::list action_names();
 
   GridCoord map_width();

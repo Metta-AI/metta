@@ -57,16 +57,30 @@ public:
   }
 
   inline bool add_object(GridObject* obj) {
-    if (!is_valid_location(obj->location)) {
+    if (obj == nullptr) {
       return false;
     }
-    if (this->grid[obj->location.r][obj->location.c][obj->location.layer] != nullptr) {
+    if (obj->present_on_grid) {
       return false;
     }
-
-    obj->id = static_cast<GridObjectId>(this->objects.size());
-    this->objects.push_back(std::unique_ptr<GridObject>(obj));
-    this->grid[obj->location.r][obj->location.c][obj->location.layer] = obj;
+    if (obj->locations.empty()) {
+      return false;
+    }
+    obj->previous_locations = obj->locations;
+    for (const auto& loc : obj->locations) {
+      if (!is_valid_location(loc)) {
+        return false;
+      }
+      if (grid[loc.r][loc.c][loc.layer] != nullptr) {
+        return false;
+      }
+    }
+    obj->id = static_cast<GridObjectId>(objects.size());
+    objects.push_back(std::unique_ptr<GridObject>(obj));
+    for (const auto& loc : obj->locations) {
+      grid[loc.r][loc.c][loc.layer] = obj;
+    }
+    obj->present_on_grid = true;
     return true;
   }
 
@@ -74,33 +88,112 @@ public:
     if (!is_valid_location(loc)) {
       return false;
     }
-
+    if (!obj.present_on_grid) {
+      return false;
+    }
+    if (obj.locations.size() != 1) {
+      return false;
+    }
     if (grid[loc.r][loc.c][loc.layer] != nullptr) {
       return false;
     }
 
+    GridLocation old = obj.locations[0];
+    grid[old.r][old.c][old.layer] = nullptr;
+    obj.locations[0] = loc;
     grid[loc.r][loc.c][loc.layer] = &obj;
-    grid[obj.location.r][obj.location.c][obj.location.layer] = nullptr;
-    obj.location = loc;
     return true;
   }
 
-  inline void swap_objects(GridObject& obj1, GridObject& obj2) {
-    // Store the original locations.
-    GridLocation loc1 = obj1.location;
-    GridLocation loc2 = obj2.location;
+  inline bool swap_objects(GridObject& obj1, GridObject& obj2) {
+    if (!obj1.present_on_grid || !obj2.present_on_grid) {
+      return false;
+    }
+    if (obj1.locations.size() != 1 || obj2.locations.size() != 1) {
+      return false;
+    }
+    GridLocation loc1 = obj1.locations[0];
+    GridLocation loc2 = obj2.locations[0];
 
-    // Clear the objects from their original positions in the grid.
     grid[loc1.r][loc1.c][loc1.layer] = nullptr;
     grid[loc2.r][loc2.c][loc2.layer] = nullptr;
 
-    // Update the location property of each object, preserving their original layers.
-    obj1.location = {loc2.r, loc2.c, loc1.layer};
-    obj2.location = {loc1.r, loc1.c, loc2.layer};
+    obj1.locations[0] = {loc2.r, loc2.c, loc1.layer};
+    obj2.locations[0] = {loc1.r, loc1.c, loc2.layer};
 
-    // Place the objects in their new positions in the grid.
-    grid[obj1.location.r][obj1.location.c][obj1.location.layer] = &obj1;
-    grid[obj2.location.r][obj2.location.c][obj2.location.layer] = &obj2;
+    grid[obj1.locations[0].r][obj1.locations[0].c][obj1.locations[0].layer] = &obj1;
+    grid[obj2.locations[0].r][obj2.locations[0].c][obj2.locations[0].layer] = &obj2;
+    return true;
+  }
+
+  inline bool can_occupy(const GridObject& obj, const GridLocation& loc) const {
+    if (!is_valid_location(loc)) {
+      return false;
+    }
+    if (grid[loc.r][loc.c][loc.layer] != nullptr) {
+      return false;
+    }
+    if (!obj.locations.empty() && obj.locations[0].layer != loc.layer) {
+      return false;
+    }
+    return true;
+  }
+
+  // Get full set of occupied locations for an object.
+  inline std::vector<GridLocation> occupied_locations(const GridObject& obj) const {
+    if (!obj.present_on_grid) return {};
+    return obj.locations;
+  }
+
+  // Occupy a new location for an existing object. Returns true on success.
+  // Returns false if: location invalid/occupied or wrong layer.
+  // If object is deactivated, this will reactivate it first.
+  // Objects that don't support multi-cell will be rejected if already occupying a cell.
+  inline bool occupy_location(GridObject& obj, const GridLocation& loc) {
+    // Enforce single-cell for objects that don't support multi-cell
+    if (!obj.supports_multi_cell() && obj.locations.size() >= 1) {
+      return false;  // Cannot add cells to single-cell-only objects
+    }
+
+    // If object is deactivated, reactivate it first
+    if (!obj.present_on_grid) {
+      if (!activate_object(obj)) {
+        return false;
+      }
+    }
+    if (!can_occupy(obj, loc)) {
+      return false;
+    }
+    grid[loc.r][loc.c][loc.layer] = &obj;
+    obj.locations.push_back(loc);
+    return true;
+  }
+
+  // Release an occupied location. Returns true on success.
+  // Cannot remove the last cell; use deactivate_object() to go off-grid.
+  // Cannot remove the anchor cell (locations[0]) to maintain invariant.
+  inline bool release_location(GridObject& obj, const GridLocation& loc) {
+    // Disallow removing the last cell
+    if (obj.locations.size() <= 1) {
+      return false;
+    }
+    // Find in current locations
+    auto it = std::find_if(obj.locations.begin(), obj.locations.end(), [&](const GridLocation& l) {
+      return l.r == loc.r && l.c == loc.c && l.layer == loc.layer;
+    });
+    if (it == obj.locations.end()) return false;
+
+    // Disallow removing the anchor cell (locations[0])
+    if (it == obj.locations.begin()) {
+      return false;
+    }
+
+    // Apply removal in grid and object state
+    if (is_valid_location(loc) && grid[loc.r][loc.c][loc.layer] == &obj) {
+      grid[loc.r][loc.c][loc.layer] = nullptr;
+    }
+    obj.locations.erase(it);
+    return true;
   }
 
   inline GridObject* object(GridObjectId obj_id) const {
@@ -113,6 +206,42 @@ public:
       return nullptr;
     }
     return grid[loc.r][loc.c][loc.layer];
+  }
+
+  // Deactivate an object: remove all occupancy; clears locations.
+  inline bool deactivate_object(GridObject& obj) {
+    for (const auto& loc : obj.locations) {
+      if (is_valid_location(loc) && grid[loc.r][loc.c][loc.layer] == &obj) {
+        grid[loc.r][loc.c][loc.layer] = nullptr;
+      }
+    }
+    obj.previous_locations = obj.locations;
+    obj.locations.clear();
+    obj.present_on_grid = false;
+    return true;
+  }
+
+  // Activate an object: if it has locations, place them; else restore from previous_locations
+  inline bool activate_object(GridObject& obj) {
+    if (obj.present_on_grid) return true;
+    // Determine candidate locations to place
+    const std::vector<GridLocation>* candidates = &obj.locations;
+    if (obj.locations.empty()) {
+      if (obj.previous_locations.empty()) return false;
+      candidates = &obj.previous_locations;
+    }
+    // Validate candidates before placing
+    for (const auto& loc : *candidates) {
+      if (!is_valid_location(loc)) return false;
+      if (grid[loc.r][loc.c][loc.layer] != nullptr) return false;
+    }
+    // Place all candidate locations
+    obj.locations = *candidates;
+    for (const auto& loc : obj.locations) {
+      grid[loc.r][loc.c][loc.layer] = &obj;
+    }
+    obj.present_on_grid = true;
+    return true;
   }
 
   inline const GridLocation relative_location(const GridLocation& loc,
@@ -145,10 +274,6 @@ public:
       new_r += right_dr * lateral_offset;
       new_c += right_dc * lateral_offset;
     }
-
-    // Clamp to grid bounds
-    new_r = std::clamp(new_r, 0, static_cast<int>(this->height - 1));
-    new_c = std::clamp(new_c, 0, static_cast<int>(this->width - 1));
 
     return GridLocation(static_cast<GridCoord>(new_r), static_cast<GridCoord>(new_c), loc.layer);
   }

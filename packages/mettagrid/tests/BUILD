@@ -36,6 +36,32 @@ cc_binary(
     ],
 )
 
+cc_binary(
+    name="test_grid_multicell_bin",
+    srcs=["test_grid_multicell.cpp"],
+    copts=COPTS + ["-Icpp/include/mettagrid", "-Itests"],
+    linkopts=["-fsanitize=address"],
+    linkstatic=False,
+    deps=[
+        "//:mettagrid_lib",
+        "@googletest//:gtest_main",
+        "@rules_python//python/cc:current_py_cc_libs",
+    ],
+)
+
+cc_binary(
+    name="test_grid_presence_bin",
+    srcs=["test_grid_presence.cpp"],
+    copts=COPTS + ["-Icpp/include/mettagrid", "-Itests"],
+    linkopts=["-fsanitize=address"],
+    linkstatic=False,
+    deps=[
+        "//:mettagrid_lib",
+        "@googletest//:gtest_main",
+        "@rules_python//python/cc:current_py_cc_libs",
+    ],
+)
+
 filegroup(
     name="mettagrid_sources",
     srcs=[
@@ -103,6 +129,24 @@ py_test(
 )
 
 py_test(
+    name="test_grid_multicell",
+    srcs=["run_test.py"],
+    main="run_test.py",
+    args=["--bin=test_grid_multicell_bin"],
+    data=[":test_grid_multicell_bin"],
+    size="small",
+)
+
+py_test(
+    name="test_grid_presence",
+    srcs=["run_test.py"],
+    main="run_test.py",
+    args=["--bin=test_grid_presence_bin"],
+    data=[":test_grid_presence_bin"],
+    size="small",
+)
+
+py_test(
     name="test_mettagrid",
     srcs=["run_test.py"],
     main="run_test.py",
@@ -135,6 +179,8 @@ test_suite(
     tests=[
         ":test_stats_tracker",
         ":test_grid_object",
+        ":test_grid_multicell",
+        ":test_grid_presence",
         ":test_mettagrid",
         ":test_observations",
         ":test_clipper",

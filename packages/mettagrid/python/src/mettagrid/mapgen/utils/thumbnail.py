@@ -52,8 +52,14 @@ def get_position_component(object, step, component):
 
 
 def get_position_component_v2(object, step, component):
-    """Get position component for version 2 replay format (uses location array)."""
-    location = object["location"]
+    """Get position component for version 2 replay format (uses locations array)."""
+    locations = object.get("locations", [])
+
+    # For off-grid objects or empty locations
+    if not locations:
+        return 0
+
+    location = locations[0]  # Use first location as primary
 
     # Check if it's animated (list of [frame, value] pairs) or simple location array
     if isinstance(location, list) and len(location) > 0 and isinstance(location[0], list):

@@ -124,6 +124,38 @@ class ConverterConfig(GridObjectConfig):
     initial_resource_count: int
     recipe_details_obs: bool
 
+class AssemblerConfig(GridObjectConfig):
+    def __init__(self, type_id: int, type_name: str, tag_ids: list[int] = []): ...
+    type_id: int
+    type_name: str
+    tag_ids: list[int]
+    recipes: list[Optional[Recipe]]
+    recipe_details_obs: bool
+    allow_partial_usage: bool
+    max_uses: int
+    exhaustion: float
+    clip_immune: bool
+    start_clipped: bool
+
+class ChestConfig(GridObjectConfig):
+    def __init__(
+        self,
+        type_id: int,
+        type_name: str,
+        resource_type: int,
+        position_deltas: dict[int, int],
+        initial_inventory: int = 0,
+        max_inventory: int = 255,
+        tag_ids: list[int] = [],
+    ) -> None: ...
+    type_id: int
+    type_name: str
+    resource_type: int
+    position_deltas: dict[int, int]
+    initial_inventory: int
+    max_inventory: int
+    tag_ids: list[int]
+
 class ActionConfig:
     def __init__(
         self,
@@ -270,9 +302,25 @@ class MettaGrid:
         min_col: int = -1,
         max_col: int = -1,
         ignore_types: list[str] = [],
-    ) -> dict[int, dict]: ...
-    def action_names(self) -> list[str]: ...
-    def action_catalog(self) -> list[dict[str, int | str]]: ...
+    ) -> dict[int, dict]:
+        """Get grid objects, optionally filtered by bounding box and type.
+
+        Bounding boxes use half-open intervals: rows in [min_row, max_row) and
+        columns in [min_col, max_col). Passing -1 for all bounds returns the
+        complete grid.
+
+        Returns a dictionary mapping object IDs to object dictionaries.
+        Each object dict contains a 'locations' key with a list of (c, r, layer) tuples.
+
+        API Contract: The 'locations' array is ALWAYS present but MAY be empty to
+        indicate an off-grid object. 'present_on_grid' is a boolean indicating whether the
+        object currently occupies any locations. Bounded queries exclude off-grid
+        objects.
+        """
+        ...
+    def add_object_location(self, obj_id: int, r: int, c: int, layer: int) -> bool: ...
+    def remove_object_location(self, obj_id: int, r: int, c: int, layer: int) -> bool: ...
+    def set_object_present(self, obj_id: int, present: bool) -> bool: ...
     def get_episode_rewards(self) -> np.ndarray: ...
     def get_episode_stats(self) -> EpisodeStats: ...
     def action_success(self) -> list[bool]: ...

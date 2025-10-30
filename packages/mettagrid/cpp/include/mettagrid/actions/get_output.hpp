@@ -20,7 +20,7 @@ public:
 
 protected:
   bool _handle_action(Agent& actor, ActionArg /*arg*/) override {
-    GridLocation target_loc = _grid->relative_location(actor.location, static_cast<Orientation>(actor.orientation));
+    GridLocation target_loc = _grid->relative_location(actor.locations[0], static_cast<Orientation>(actor.orientation));
     target_loc.layer = GridLayer::ObjectLayer;
     // get_output only works on Converters, since only Converters have an output.
     // Once we generalize this to `get`, we should be able to get from any HasInventory object, which

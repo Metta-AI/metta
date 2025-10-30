@@ -33,7 +33,7 @@ protected:
       return false;
     }
 
-    GridLocation current_location = actor.location;
+    GridLocation current_location = actor.locations[0];
     GridLocation target_location = current_location;
 
     // Get movement deltas for the direction

@@ -48,6 +48,10 @@ public:
   bool swappable() const override {
     return this->_swappable;
   }
+
+  bool supports_multi_cell() const override {
+    return true;  // Walls can be grouped via auto_group_types
+  }
 };
 
 namespace py = pybind11;

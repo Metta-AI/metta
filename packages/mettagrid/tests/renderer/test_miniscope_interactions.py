@@ -105,7 +105,7 @@ def test_highlighted_agent_renders_star() -> None:
     symbol_map = {"agent": "A", "empty": "."}
     buffer = MapBuffer(object_type_names, symbol_map)
 
-    grid_objects = {1: {"r": 0, "c": 0, "type_name": "agent", "agent_id": 7}}
+    grid_objects = {1: {"location": (0, 0, 0), "locations": [(0, 0, 0)], "type_name": "agent", "agent_id": 7}}
     buffer.set_highlighted_agent(7)
 
     rendered = buffer.render(grid_objects, use_viewport=False)

@@ -25,10 +25,14 @@ private:
   int get_agent_relative_position_index(const Agent& agent) const {
     if (!grid) return -1;
 
-    GridCoord chest_r = location.r;
-    GridCoord chest_c = location.c;
-    GridCoord agent_r = agent.location.r;
-    GridCoord agent_c = agent.location.c;
+    // Chest and agent must be single-cell for relative position
+    assert(locations.size() == 1 && "Chest must be single-cell");
+    assert(agent.locations.size() == 1 && "Agent must be single-cell");
+
+    GridCoord chest_r = locations[0].r;
+    GridCoord chest_c = locations[0].c;
+    GridCoord agent_r = agent.locations[0].r;
+    GridCoord agent_c = agent.locations[0].c;
 
     int delta_r = agent_r - chest_r;
     int delta_c = agent_c - chest_c;

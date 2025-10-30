@@ -211,6 +211,10 @@ public:
   unsigned short next_cooldown_time() const {
     return this->cooldown_value_for_cycle(this->conversions_completed);
   }
+
+  bool supports_multi_cell() const override {
+    return true;  // Converters have no position-dependent logic
+  }
 };
 
 #endif  // PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_OBJECTS_CONVERTER_HPP_

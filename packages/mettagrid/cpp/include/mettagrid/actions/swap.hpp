@@ -20,7 +20,7 @@ public:
 protected:
   bool _handle_action(Agent& actor, ActionArg /*arg*/) override {
     // target the square we are facing
-    GridLocation target_loc = _grid->relative_location(actor.location, actor.orientation);
+    GridLocation target_loc = _grid->relative_location(actor.locations[0], actor.orientation);
 
     // Check layers in swap priority order
     const auto layers = {GridLayer::ObjectLayer, GridLayer::AgentLayer};
@@ -29,8 +29,10 @@ protected:
       target_loc.layer = layer;
       GridObject* target = this->_grid->object_at(target_loc);
       if (target && target->swappable()) {
+        if (!this->_grid->swap_objects(actor, *target)) {
+          return false;
+        }
         actor.stats.incr("action." + this->_action_name + "." + target->type_name);
-        this->_grid->swap_objects(actor, *target);
         return true;
       }
     }

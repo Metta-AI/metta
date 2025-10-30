@@ -61,7 +61,7 @@ protected:
 
       for (short distance = 1; distance <= 3; distance++) {
         for (short offset : COL_OFFSETS) {
-          GridLocation target_loc = _grid->relative_location(actor.location, actor.orientation, distance, offset);
+          GridLocation target_loc = _grid->relative_location(actor.locations[0], actor.orientation, distance, offset);
           target_loc.layer = GridLayer::AgentLayer;
 
           Agent* target_agent = static_cast<Agent*>(_grid->object_at(target_loc));
@@ -99,7 +99,8 @@ protected:
       };
 
       for (const auto& pos : DIAGONAL_POSITIONS) {
-        GridLocation target_loc = _grid->relative_location(actor.location, actor.orientation, pos.forward, pos.lateral);
+        GridLocation target_loc =
+            _grid->relative_location(actor.locations[0], actor.orientation, pos.forward, pos.lateral);
         target_loc.layer = GridLayer::AgentLayer;
 
         Agent* target_agent = static_cast<Agent*>(_grid->object_at(target_loc));

@@ -119,6 +119,17 @@ def env_with_walls():
     return MettaGridCore(config)
 
 
+def _find_object_primary(env: MettaGridCore, type_name: str) -> tuple[int, tuple[int, int, int]]:
+    env_objects = env.grid_objects()
+    for object_id, obj in env_objects.items():
+        if obj.get("type_name") == type_name:
+            locations = obj["locations"]
+            if locations:
+                c, r, layer = locations[0]
+                return object_id, (r, c, layer)
+    raise AssertionError(f"Expected to find object of type '{type_name}'")
+
+
 class TestIgnoreTypes:
     """Test ignore_types parameter for filtering objects."""
 
@@ -271,6 +282,177 @@ class TestAssemblerProperties:
             assert isinstance(recipe["inputs"], dict)
             assert isinstance(recipe["outputs"], dict)
             assert isinstance(recipe["cooldown"], int)
+
+    @staticmethod
+    def _add_linear_locations(
+        env: MettaGridCore,
+        object_id: int,
+        r: int,
+        c: int,
+        layer: int,
+    ) -> tuple[tuple[int, int], tuple[int, int]]:
+        directions = ((0, 1), (1, 0), (0, -1), (-1, 0))
+        for dr, dc in directions:
+            first = (r + dr, c + dc)
+            ok_first = env.add_object_location(object_id, first[0], first[1], layer)
+            if not ok_first:
+                continue
+            second = (r + 2 * dr, c + 2 * dc)
+            ok_second = env.add_object_location(object_id, second[0], second[1], layer)
+            if ok_second:
+                return first, second
+            removed = env.remove_object_location(object_id, first[0], first[1], layer)
+            assert removed, "Failed to remove temporary cell after unsuccessful attempt"
+        raise AssertionError("Could not add two linear locations for assembler test")
+
+    def test_assembler_multi_cell_add_remove_and_bbox(self, env_with_assembler):
+        env_with_assembler.reset()
+
+        assembler_id, (r, c, layer) = _find_object_primary(env_with_assembler, "assembler")
+
+        first_cell, second_cell = self._add_linear_locations(env_with_assembler, assembler_id, r, c, layer)
+
+        objects = env_with_assembler.grid_objects()
+        assembler = objects[assembler_id]
+        locations = set((rr, cc, ll) for cc, rr, ll in assembler.get("locations", []))
+        assert (r, c, layer) in locations
+        assert (first_cell[0], first_cell[1], layer) in locations
+        assert (second_cell[0], second_cell[1], layer) in locations
+
+        removed_middle = env_with_assembler.remove_object_location(assembler_id, first_cell[0], first_cell[1], layer)
+        assert removed_middle, "Removing middle cell should now succeed"
+
+        removed_far = env_with_assembler.remove_object_location(assembler_id, second_cell[0], second_cell[1], layer)
+        assert removed_far, "Removing outer cell should succeed"
+
+        bbox_far = BoundingBox(
+            min_row=second_cell[0],
+            max_row=second_cell[0] + 1,
+            min_col=second_cell[1],
+            max_col=second_cell[1] + 1,
+        )
+        objs_far = env_with_assembler.grid_objects(bbox=bbox_far)
+        assert assembler_id not in objs_far, (
+            "Assembler should be excluded when only far cell area is queried after removal"
+        )
+
+        bbox_adj = BoundingBox(
+            min_row=min(r, first_cell[0]),
+            max_row=max(r, first_cell[0]) + 1,
+            min_col=min(c, first_cell[1]),
+            max_col=max(c, first_cell[1]) + 1,
+        )
+        objs_adj = env_with_assembler.grid_objects(bbox=bbox_adj)
+        assert assembler_id in objs_adj, "Assembler should be included when any occupied cell intersects bbox"
+
+    def test_assembler_add_object_cell_rejects_diagonal_only_connection(self, env_with_assembler):
+        env_with_assembler.reset()
+
+        assembler_id, (r, c, layer) = _find_object_primary(env_with_assembler, "assembler")
+        height = env_with_assembler.map_height
+        width = env_with_assembler.map_width
+
+        occupied = set()
+        objects = env_with_assembler.grid_objects()
+        for obj in objects.values():
+            for c_loc, r_loc, layer_loc in obj.get("locations", []):
+                occupied.add((r_loc, c_loc, layer_loc))
+
+        diagonal_target = None
+        for dr, dc in ((1, 1), (1, -1), (-1, 1), (-1, -1)):
+            nr = r + dr
+            nc = c + dc
+            if nr < 0 or nr >= height:
+                continue
+            if nc < 0 or nc >= width:
+                continue
+            if (nr, nc, layer) in occupied:
+                continue
+            diagonal_target = (nr, nc)
+            break
+        assert diagonal_target is not None, "Expected a free diagonal cell near assembler for test setup"
+
+        ok = env_with_assembler.add_object_location(assembler_id, diagonal_target[0], diagonal_target[1], layer)
+        assert ok, "Diagonal connections should now be allowed"
+
+    def test_assembler_add_object_cell_rejects_other_layer(self, env_with_assembler):
+        env_with_assembler.reset()
+
+        assembler_id, (r, c, layer) = _find_object_primary(env_with_assembler, "assembler")
+        other_layer = 1 if layer == 0 else 0
+        height = env_with_assembler.map_height
+        width = env_with_assembler.map_width
+
+        occupied = set()
+        objects = env_with_assembler.grid_objects()
+        for obj in objects.values():
+            for c_loc, r_loc, layer_loc in obj.get("locations", []):
+                occupied.add((r_loc, c_loc, layer_loc))
+
+        adjacent_target = None
+        for dr, dc in ((0, 1), (1, 0), (0, -1), (-1, 0)):
+            nr = r + dr
+            nc = c + dc
+            if nr < 0 or nr >= height:
+                continue
+            if nc < 0 or nc >= width:
+                continue
+            if (nr, nc, layer) in occupied:
+                continue
+            adjacent_target = (nr, nc)
+            break
+        assert adjacent_target is not None, "Expected a free adjacent cell near assembler for test setup"
+
+        ok = env_with_assembler.add_object_location(assembler_id, adjacent_target[0], adjacent_target[1], other_layer)
+        assert not ok, "Adding locations on a different layer should be rejected"
+
+    def test_assembler_remove_object_cell_rejects_last_cell(self, env_with_assembler):
+        env_with_assembler.reset()
+
+        assembler_id, (r, c, layer) = _find_object_primary(env_with_assembler, "assembler")
+
+        removed = env_with_assembler.remove_object_location(assembler_id, r, c, layer)
+        assert not removed, "Removing the last cell should be rejected"
+
+    def test_assembler_supports_large_shapes(self, env_with_assembler):
+        env_with_assembler.reset()
+
+        assembler_id, (r, c, layer) = _find_object_primary(env_with_assembler, "assembler")
+
+        directions = ((0, 1), (1, 0), (0, -1), (-1, 0))
+        height = env_with_assembler.map_height
+        width = env_with_assembler.map_width
+
+        target_total = 12  # 11 extra locations beyond primary location
+        visited = {(r, c)}
+        queue = [(r, c)]
+        attempted = {(r, c)}
+
+        while queue and len(visited) < target_total:
+            base_r, base_c = queue.pop(0)
+            for dr, dc in directions:
+                nr = base_r + dr
+                nc = base_c + dc
+                if nr < 0 or nr >= height:
+                    continue
+                if nc < 0 or nc >= width:
+                    continue
+                if (nr, nc) in attempted:
+                    continue
+                attempted.add((nr, nc))
+                ok = env_with_assembler.add_object_location(assembler_id, nr, nc, layer)
+                if ok:
+                    visited.add((nr, nc))
+                    queue.append((nr, nc))
+                if len(visited) >= target_total:
+                    break
+
+        assembler = env_with_assembler.grid_objects()[assembler_id]
+        locations = assembler.get("locations", [])
+        assert "max_locations" not in assembler, "max_locations should no longer be exposed"
+        assert len(locations) == len(visited), "Reported locations should match locations tracked in the environment"
+        assert len(locations) == len({(rr, cc) for cc, rr, _ in locations}), "Cells should remain unique"
+        assert len(locations) >= 8, "Assembler should be able to occupy well beyond 5 locations"
 
 
 class TestChestProperties:
