@@ -11,6 +11,7 @@
 
 #include "core/grid.hpp"
 #include "objects/assembler.hpp"
+#include "objects/protocol.hpp"
 
 class Clipper {
 public:
