@@ -94,8 +94,10 @@ def train(
 
     # Configure console based on log_outputs flag
     if log_outputs:
-        # Plain console for machine-readable output (no colors, no markup)
-        console = Console(force_terminal=True, no_color=True, markup=False, highlight=False)
+        # Plain console for machine-readable output (no colors, no markup, no wrapping)
+        console = Console(
+            force_terminal=True, no_color=True, markup=False, highlight=False, width=999999, soft_wrap=False
+        )
     else:
         # Rich console with colors and formatting for human-readable output
         console = Console()
@@ -330,12 +332,10 @@ def train(
             while trainer.global_step < num_steps:
                 eval_stats = trainer.evaluate()
                 if log_outputs and eval_stats:
-                    console.log(f"Evaluation: {datetime.now(UTC)}")
-                    console.log(dict(eval_stats))
+                    console.print(f"Evaluation: {datetime.now(UTC)} {repr(dict(eval_stats))}")
                 trainer_stats = trainer.train()
                 if log_outputs and trainer_stats:
-                    console.log(f"Training: {datetime.now(UTC)}")
-                    console.log(dict(trainer_stats))
+                    console.print(f"Training: {datetime.now(UTC)} {repr(dict(trainer_stats))}")
                 # Check for NaN in network parameters after each training step
                 network = policy.network()
                 has_nan = False

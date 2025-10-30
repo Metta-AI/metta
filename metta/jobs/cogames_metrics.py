@@ -9,25 +9,10 @@ logger = logging.getLogger(__name__)
 
 
 def _strip_ansi_codes(text: str) -> str:
-    """Remove ANSI escape codes and Rich formatting."""
-    # Pattern matches:
-    # - Actual ANSI escape sequences: \x1b[...m
-    # - Rich literal formatting: [2m, [0m, etc.
-    # - Timestamps: [HH:MM:SS]
-    ansi_pattern = re.compile(r"\x1b\[[0-9;]*[mGKHJh]|\[[0-9;]*m|\[\d{2}:\d{2}:\d{2}\]")
-    text = ansi_pattern.sub("", text)
-
-    # Remove OSC hyperlink sequences (both actual and literal)
-    # Format: ]8;id=...;file://...\  and  ]8;;\
-    hyperlink_pattern = re.compile(r"]8;[^\\]*\\")
-    text = hyperlink_pattern.sub("", text)
-
-    # Also remove file references like "train.py:337" that appear after values
-    # These show up even after ANSI stripping from Rich console.log() hyperlinks
-    file_ref_pattern = re.compile(r"\s+[a-z_]+\.py:\d+")
-    text = file_ref_pattern.sub("", text)
-
-    return text
+    """Remove ANSI escape codes."""
+    # Pattern matches ANSI escape sequences: \x1b[...m
+    ansi_pattern = re.compile(r"\x1b\[[0-9;]*[mGKHJh]")
+    return ansi_pattern.sub("", text)
 
 
 def parse_cogames_stats_from_logs(
@@ -44,7 +29,8 @@ def parse_cogames_stats_from_logs(
         Dictionary mapping metric names to dicts with 'value' and 'count' keys
         Example: {"SPS": {"value": 42000.0, "count": 10}}
 
-    The --log-outputs format produces multi-line dicts after "Training:" markers.
+    The --log-outputs format produces single-line dicts after "Training:" or "Evaluation:" markers.
+    Format: "Training: 2025-10-30 17:14:12.212417+00:00 {'SPS': 35000.0, ...}"
     """
     metrics: dict[str, dict[str, float]] = {}
 
@@ -54,59 +40,39 @@ def parse_cogames_stats_from_logs(
     # Strip ANSI codes first
     clean_text = _strip_ansi_codes(log_text)
 
-    # Extract multi-line dicts: collect lines between "Training:" or "Evaluation:" markers
-    stats_blocks = []
-    current_block = []
-    in_block = False
+    # Parse single-line format: "Training: <timestamp> {dict}" or "Evaluation: <timestamp> {dict}"
+    # Pattern matches lines starting with Training: or Evaluation: followed by timestamp and dict
+    pattern = re.compile(r"(?:Training|Evaluation):\s+[\d\-:+.\s]+\s+(\{.*\})")
 
-    for line in clean_text.splitlines():
-        if "Training:" in line or "Evaluation:" in line:
-            if current_block:
-                stats_blocks.append("\n".join(current_block))
-            current_block = []
-            in_block = True
-        elif in_block:
-            current_block.append(line)
-
-    # Don't forget the last block
-    if current_block:
-        stats_blocks.append("\n".join(current_block))
-
-    # Parse each stats block to extract the dict
-    for block in stats_blocks:
+    for match in pattern.finditer(clean_text):
+        dict_str = match.group(1)
         try:
-            # Find the dict portion - starts with '{' and ends with '}'
-            start_idx = block.find("{")
-            end_idx = block.rfind("}")
-            if start_idx != -1 and end_idx != -1:
-                dict_str = block[start_idx : end_idx + 1]
+            # Remove numpy type wrappers like np.float64(), np.int64(), etc.
+            # These appear in Training blocks from pufferlib's mean_and_log()
+            dict_str = re.sub(r"np\.\w+\(([^)]+)\)", r"\1", dict_str)
 
-                # Remove numpy type wrappers like np.float64(), np.int64(), etc.
-                # These appear in Training blocks from pufferlib's mean_and_log()
-                dict_str = re.sub(r"np\.\w+\(([^)]+)\)", r"\1", dict_str)
+            stats_dict = ast.literal_eval(dict_str)
 
-                stats_dict = ast.literal_eval(dict_str)
-
-                # Extract requested metrics
-                for key in metric_keys:
-                    if key in stats_dict:
-                        value = stats_dict[key]
-                        if value is not None:
-                            try:
-                                # Handle both single values and lists
-                                if isinstance(value, list):
-                                    # For lists, take the mean
-                                    if value:  # Non-empty list
-                                        numeric_values = [float(v) for v in value]
-                                        all_values[key].append(sum(numeric_values) / len(numeric_values))
-                                else:
-                                    # Single value
-                                    all_values[key].append(float(value))
-                            except (ValueError, TypeError) as e:
-                                logger.debug(f"Skipping non-numeric value for {key}: {value} ({e})")
+            # Extract requested metrics
+            for key in metric_keys:
+                if key in stats_dict:
+                    value = stats_dict[key]
+                    if value is not None:
+                        try:
+                            # Handle both single values and lists
+                            if isinstance(value, list):
+                                # For lists, take the mean
+                                if value:  # Non-empty list
+                                    numeric_values = [float(v) for v in value]
+                                    all_values[key].append(sum(numeric_values) / len(numeric_values))
+                            else:
+                                # Single value
+                                all_values[key].append(float(value))
+                        except (ValueError, TypeError) as e:
+                            logger.debug(f"Skipping non-numeric value for {key}: {value} ({e})")
 
         except (SyntaxError, ValueError) as e:
-            logger.debug(f"Failed to parse training block: {e}")
+            logger.debug(f"Failed to parse stats dict: {e}")
             continue
 
     # Compute averages over last N% of samples
