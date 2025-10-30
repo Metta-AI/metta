@@ -45,7 +45,7 @@ jobs:
       - name: Setup Emscripten
         uses: mymindstorm/setup-emsdk@v14
 
-      - name: Build mettascope2
+      - name: Build mettascope
         run: |
           cd packages/mettagrid/nim/mettascope
           nimble install -y
@@ -67,9 +67,9 @@ jobs:
       - name: Create deployment directory
         run: |
           mkdir -p deploy/observatory
-          mkdir -p deploy/mettascope2
+          mkdir -p deploy/mettascope
           cp -r observatory/dist/* deploy/observatory/
-          cp -r packages/mettagrid/nim/mettascope/dist/* deploy/mettascope2/
+          cp -r packages/mettagrid/nim/mettascope/dist/* deploy/mettascope/
 
       - name: Upload artifact
         # Only upload artifact for main branch
