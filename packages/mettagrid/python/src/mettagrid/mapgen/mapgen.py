@@ -15,147 +15,148 @@ from mettagrid.mapgen.scenes.room_grid import RoomGrid
 from mettagrid.mapgen.scenes.transplant_scene import TransplantScene
 
 
-class MapGen(MapBuilder):
-    class Config(MapBuilderConfig["MapGen"]):
-        ########## Global parameters ##########
+class MapGenConfig(MapBuilderConfig["MapGen"]):
+    ########## Global parameters ##########
 
-        border_width: int = Field(
-            default=5,
-            ge=0,
-            description="Default value guarantees that agents don't see beyond the outer walls. This value usually "
-            "shouldn't be changed.",
-        )
+    border_width: int = Field(
+        default=5,
+        ge=0,
+        description="Default value guarantees that agents don't see beyond the outer walls. This value usually "
+        "shouldn't be changed.",
+    )
 
-        seed: int | None = Field(
-            default=None,
-            ge=0,
-            description="Random seed. If not set, a random seed will be generated. Seeds for root"
-            " scene and all its children will be derived from this seed, unless they set their own seeds.",
-        )
+    seed: int | None = Field(
+        default=None,
+        ge=0,
+        description="Random seed. If not set, a random seed will be generated. Seeds for root"
+        " scene and all its children will be derived from this seed, unless they set their own seeds.",
+    )
 
-        ########## Single instance parameters ##########
+    ########## Single instance parameters ##########
 
-        # Configuration of the instance scene.
-        # Can be either a scene config or another MapBuilder config.
-        # If it's a scene config, you need to set `width` and `height` explicitly.
-        # If `instances` or `num_agents` are set, this configuration will be used multiple times.
-        instance: SceneConfig | AnyMapBuilderConfig | None = Field(default=None)
+    # Configuration of the instance scene.
+    # Can be either a scene config or another MapBuilder config.
+    # If it's a scene config, you need to set `width` and `height` explicitly.
+    # If `instances` or `num_agents` are set, this configuration will be used multiple times.
+    instance: SceneConfig | AnyMapBuilderConfig | None = Field(default=None)
 
-        # Legacy fields, to be removed soon.
-        instance_map: AnyMapBuilderConfig | None = Field(default=None, deprecated="Use `instance` instead")
-        root: SceneConfig | None = Field(default=None, deprecated="Use `instance` instead")
+    # Legacy fields, to be removed soon.
+    instance_map: AnyMapBuilderConfig | None = Field(default=None, deprecated="Use `instance` instead")
+    root: SceneConfig | None = Field(default=None, deprecated="Use `instance` instead")
 
-        @model_validator(mode="before")
-        @classmethod
-        def validate_legacy_instance_fields(cls, data):
-            # Temporary validation for legacy fields, to avoid merge collisions with other PRs.
-            if isinstance(data, cls) or not isinstance(data, dict):
-                return data
-
-            if data.get("instance") is not None:
-                if data.get("instance_map") is not None or data.get("root") is not None:
-                    raise ValueError("instance, instance_map, and root cannot be set at the same time")
-                return data
-
-            if data.get("instance_map") is not None:
-                data["instance"] = data["instance_map"]
-                del data["instance_map"]
-
-            if data.get("root") is not None:
-                if data.get("instance") is not None:
-                    raise ValueError("instance_map and root cannot be set at the same time")
-                data["instance"] = data["root"]
-                del data["root"]
-
+    @model_validator(mode="before")
+    @classmethod
+    def validate_legacy_instance_fields(cls, data):
+        # Temporary validation for legacy fields, to avoid merge collisions with other PRs.
+        if isinstance(data, cls) or not isinstance(data, dict):
             return data
 
-        @field_validator("instance", mode="wrap")
-        @classmethod
-        def _validate_instance(cls, v: Any, handler: ValidatorFunctionWrapHandler) -> SceneConfig | MapBuilderConfig:
-            if isinstance(v, SceneConfig):
-                return v
-            elif isinstance(v, MapBuilderConfig):
-                return v
-            elif isinstance(v, dict):
-                # We need to decide whether it's a scene config or a MapBuilder config.
-                # Either of them can be polymorphic, so Pydantic won't decide this for us.
-                t = v.get("type")
-                if t is None:
-                    raise ValueError("'type' is required")
-                target = load_symbol(t) if isinstance(t, str) else t
-                if isinstance(target, type) and issubclass(target, Scene):
-                    return validate_any_scene_config(v)
-                elif isinstance(target, type) and issubclass(target, MapBuilder):
-                    return MapBuilderConfig.model_validate(v)
-                else:
-                    raise ValueError(f"Invalid instance type: {target!r}")
+        if data.get("instance") is not None:
+            if data.get("instance_map") is not None or data.get("root") is not None:
+                raise ValueError("instance, instance_map, and root cannot be set at the same time")
+            return data
+
+        if data.get("instance_map") is not None:
+            data["instance"] = data["instance_map"]
+            del data["instance_map"]
+
+        if data.get("root") is not None:
+            if data.get("instance") is not None:
+                raise ValueError("instance_map and root cannot be set at the same time")
+            data["instance"] = data["root"]
+            del data["root"]
+
+        return data
+
+    @field_validator("instance", mode="wrap")
+    @classmethod
+    def _validate_instance(cls, v: Any, handler: ValidatorFunctionWrapHandler) -> SceneConfig | MapBuilderConfig:
+        if isinstance(v, SceneConfig):
+            return v
+        elif isinstance(v, MapBuilderConfig):
+            return v
+        elif isinstance(v, dict):
+            # We need to decide whether it's a scene config or a MapBuilder config.
+            # Either of them can be polymorphic, so Pydantic won't decide this for us.
+            t = v.get("type")
+            if t is None:
+                raise ValueError("'type' is required")
+            target = load_symbol(t) if isinstance(t, str) else t
+            if isinstance(target, type) and issubclass(target, Scene):
+                return validate_any_scene_config(v)
+            elif isinstance(target, type) and issubclass(target, MapBuilder):
+                return MapBuilderConfig.model_validate(v)
             else:
-                raise ValueError(f"Invalid instance configuration: {v!r}")
+                raise ValueError(f"Invalid instance type: {target!r}")
+        else:
+            raise ValueError(f"Invalid instance configuration: {v!r}")
 
-        width: int | None = Field(
-            default=None,
-            ge=0,
-            description="""Inner grid width. Doesn't take outer border into account. If `instance` is a MapBuilder
-            config, this field must be None; otherwise, it must be set. If `instances` is set, this is the size used for
-            each instance.""",
-        )
-        height: int | None = Field(
-            default=None,
-            ge=0,
-            description="""Inner grid width. Doesn't take outer border into account. If `instance` is a MapBuilder
-            config, this field must be None; otherwise, it must be set. If `instances` is set, this is the size used for
-            each instance.""",
-        )
+    width: int | None = Field(
+        default=None,
+        ge=0,
+        description="""Inner grid width. Doesn't take outer border into account. If `instance` is a MapBuilder
+        config, this field must be None; otherwise, it must be set. If `instances` is set, this is the size used for
+        each instance.""",
+    )
+    height: int | None = Field(
+        default=None,
+        ge=0,
+        description="""Inner grid width. Doesn't take outer border into account. If `instance` is a MapBuilder
+        config, this field must be None; otherwise, it must be set. If `instances` is set, this is the size used for
+        each instance.""",
+    )
 
-        ########## Multiple instances parameters ##########
+    ########## Multiple instances parameters ##########
 
-        # MapGen can place multiple instances of the given instance configuration on the grid.
-        #
-        # This is useful for additional parallelization. By default, the map will be generated as a single instance
-        # scene, with the given width and height.
-        #
-        # There are two ways to get multiple instances:
-        # 1. Set `instances` explicitly to the number of instances that you need.
-        # 2. Set `num_agents` and allow MapGen to compute the number of instances based on it.
-        #
-        # In either case, if the number of instances is larger than 1, MapGen will organize them in a grid separated by
-        # borders, and make the overall grid as square as possible.
+    # MapGen can place multiple instances of the given instance configuration on the grid.
+    #
+    # This is useful for additional parallelization. By default, the map will be generated as a single instance
+    # scene, with the given width and height.
+    #
+    # There are two ways to get multiple instances:
+    # 1. Set `instances` explicitly to the number of instances that you need.
+    # 2. Set `num_agents` and allow MapGen to compute the number of instances based on it.
+    #
+    # In either case, if the number of instances is larger than 1, MapGen will organize them in a grid separated by
+    # borders, and make the overall grid as square as possible.
 
-        # Number of instances to generate. If set, the map will be generated as a grid of instances, separated by the
-        # given `instance_border_width`.
-        instances: int | None = Field(default=None, ge=1)
+    # Number of instances to generate. If set, the map will be generated as a grid of instances, separated by the
+    # given `instance_border_width`.
+    instances: int | None = Field(default=None, ge=1)
 
-        # Number of agents to generate. If set, MapGen will automatically compute the number of instances based on how
-        # many agents there are in the instance scene. (It will assume that the instance always places the same number
-        # of agents.)
-        num_agents: int | None = Field(default=None, ge=0)
+    # Number of agents to generate. If set, MapGen will automatically compute the number of instances based on how
+    # many agents there are in the instance scene. (It will assume that the instance always places the same number
+    # of agents.)
+    num_agents: int | None = Field(default=None, ge=0)
 
-        # Inner border width between instances. This value usually shouldn't be changed.
-        instance_border_width: int = Field(default=5, ge=0)
+    # Inner border width between instances. This value usually shouldn't be changed.
+    instance_border_width: int = Field(default=5, ge=0)
 
-        # Create a unique team comprising all agents in each instance
-        set_team_by_instance: bool = Field(
-            default=False,
-            description="If True, automatically assign agents to teams based on instance number"
-            " (agent.team_0, agent.team_1, etc.)",
-        )
+    # Create a unique team comprising all agents in each instance
+    set_team_by_instance: bool = Field(
+        default=False,
+        description="If True, automatically assign agents to teams based on instance number"
+        " (agent.team_0, agent.team_1, etc.)",
+    )
 
-        @model_validator(mode="after")
-        def validate_required_fields(self) -> MapGen.Config:
-            if not self.instance:
-                raise ValueError("instance is required")
+    @model_validator(mode="after")
+    def validate_required_fields(self) -> MapGenConfig:
+        if not self.instance:
+            raise ValueError("instance is required")
 
-            if isinstance(self.instance, MapBuilderConfig):
-                if self.width is not None or self.height is not None:
-                    raise ValueError("width and height must be None if instance is a MapBuilder config")
+        if isinstance(self.instance, MapBuilderConfig):
+            if self.width is not None or self.height is not None:
+                raise ValueError("width and height must be None if instance is a MapBuilder config")
 
-            # The opposite situation, when `instance` is a scene config, but width and height are set,
-            # could be valid, if the scene has an intrinsic size.
+        # The opposite situation, when `instance` is a scene config, but width and height are set,
+        # could be valid, if the scene has an intrinsic size.
 
-            return self
+        return self
 
-    def __init__(self, config: Config):
-        self.config = config
+
+class MapGen(MapBuilder[MapGenConfig]):
+    def __init__(self, config: MapGenConfig):
+        super().__init__(config)
 
         self.rng = np.random.default_rng(self.config.seed)
         self.grid = None
