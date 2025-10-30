@@ -10,9 +10,17 @@ logger = logging.getLogger(__name__)
 
 def _strip_ansi_codes(text: str) -> str:
     """Remove ANSI escape codes and Rich formatting."""
-    # Pattern matches ANSI escape sequences and hyperlinks
-    ansi_pattern = re.compile(r"\x1b\[[0-9;]*[mGKHJh]|\x1b]8;[^\x1b]*\x1b\\|\[2m|\[0m")
+    # Pattern matches:
+    # - Actual ANSI escape sequences: \x1b[...m
+    # - Rich literal formatting: [2m, [0m, etc.
+    # - Timestamps: [HH:MM:SS]
+    ansi_pattern = re.compile(r"\x1b\[[0-9;]*[mGKHJh]|\[[0-9;]*m|\[\d{2}:\d{2}:\d{2}\]")
     text = ansi_pattern.sub("", text)
+
+    # Remove OSC hyperlink sequences (both actual and literal)
+    # Format: ]8;id=...;file://...\  and  ]8;;\
+    hyperlink_pattern = re.compile(r"]8;[^\\]*\\")
+    text = hyperlink_pattern.sub("", text)
 
     # Also remove file references like "train.py:337" that appear after values
     # These show up even after ANSI stripping from Rich console.log() hyperlinks
@@ -72,6 +80,11 @@ def parse_cogames_stats_from_logs(
             end_idx = block.rfind("}")
             if start_idx != -1 and end_idx != -1:
                 dict_str = block[start_idx : end_idx + 1]
+
+                # Remove numpy type wrappers like np.float64(), np.int64(), etc.
+                # These appear in Training blocks from pufferlib's mean_and_log()
+                dict_str = re.sub(r"np\.\w+\(([^)]+)\)", r"\1", dict_str)
+
                 stats_dict = ast.literal_eval(dict_str)
 
                 # Extract requested metrics
@@ -80,9 +93,17 @@ def parse_cogames_stats_from_logs(
                         value = stats_dict[key]
                         if value is not None:
                             try:
-                                all_values[key].append(float(value))
-                            except (ValueError, TypeError):
-                                logger.debug(f"Skipping non-numeric value for {key}: {value}")
+                                # Handle both single values and lists
+                                if isinstance(value, list):
+                                    # For lists, take the mean
+                                    if value:  # Non-empty list
+                                        numeric_values = [float(v) for v in value]
+                                        all_values[key].append(sum(numeric_values) / len(numeric_values))
+                                else:
+                                    # Single value
+                                    all_values[key].append(float(value))
+                            except (ValueError, TypeError) as e:
+                                logger.debug(f"Skipping non-numeric value for {key}: {value} ({e})")
 
         except (SyntaxError, ValueError) as e:
             logger.debug(f"Failed to parse training block: {e}")

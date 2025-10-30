@@ -26,11 +26,13 @@ sky api info
 ```
 
 The `--tool` flag is the recommended way to launch jobs. It automatically:
+
 - Prefixes your command with `uv run ./tools/run.py`
 - Validates the module path
 - Wraps execution with torchrun for multi-GPU/multi-node training
 
 **Example:**
+
 ```bash
 ./devops/skypilot/launch.py --tool arena.train run=my_experiment trainer.steps=1000 --gpus 2
 ```
@@ -44,6 +46,7 @@ The `--tool` flag is the recommended way to launch jobs. It automatically:
 For arbitrary commands (non-tools/run.py), pass a quoted command string.
 
 **Example:**
+
 ```bash
 ./devops/skypilot/launch.py "pytest tests/rl/" --gpus 1
 ```
