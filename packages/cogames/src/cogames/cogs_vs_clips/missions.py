@@ -218,11 +218,24 @@ MACHINA_1 = Site(
     max_cogs=20,
 )
 
+
+MACHINA_1_SMALL = Site(
+    name="machina_1_small",
+    description="Your first mission. Collect resources and assemble HEARTs.",
+    map_builder=get_map("machina_200_stations_small.map"),
+    min_cogs=1,
+    max_cogs=20,
+)
+
 SITES = [
     TRAINING_FACILITY,
     HELLO_WORLD,
     MACHINA_1,
+    MACHINA_1_SMALL,
 ]
+
+# Sites will be updated after exploration/eval experiments imports
+# This happens after the imports below
 
 
 # Training Facility Missions
@@ -285,6 +298,32 @@ class Machina1OpenWorldMission(Mission):
     site: Site = MACHINA_1
 
 
+class Machina1SmallOpenWorldMission(Mission):
+    name: str = "open_world"
+    description: str = "Collect resources and assemble HEARTs."
+    site: Site = MACHINA_1_SMALL
+
+
+# Import exploration experiments
+try:
+    from cogames.cogs_vs_clips.exploration_experiments import (
+        EXPLORATION_MISSIONS,
+        EXPLORATION_SITES,
+    )
+
+    _exploration_available = True
+except ImportError:
+    EXPLORATION_MISSIONS = []
+    EXPLORATION_SITES = []
+    _exploration_available = False
+
+# Defer eval missions import until after _add_make_env_modifier is defined (line 360)
+# to avoid circular import
+EVAL_MISSIONS = []
+MACHINA_EVAL = None
+_eval_available = False
+
+
 MISSIONS = [
     HarvestMission,
     AssembleMission,
@@ -295,7 +334,16 @@ MISSIONS = [
     TreasureHuntMission,
     HelloWorldOpenWorldMission,
     Machina1OpenWorldMission,
+    Machina1SmallOpenWorldMission,
+    *EXPLORATION_MISSIONS,  # Add exploration experiments
+    *EVAL_MISSIONS,  # Add eval missions (will be empty initially, populated later)
 ]
+
+# Update SITES with exploration sites
+if _exploration_available:
+    SITES.extend(EXPLORATION_SITES)
+
+# Eval missions will be added later after _add_make_env_modifier is defined
 
 
 def _get_default_map_objects() -> dict[str, GridObjectConfig]:
@@ -309,6 +357,12 @@ def _get_default_map_objects() -> dict[str, GridObjectConfig]:
     wall = CvCWallConfig()
     assembler = CvCAssemblerConfig()
 
+    # Clipped variants (start_clipped=True)
+    clipped_carbon = CarbonExtractorConfig(start_clipped=True)
+    clipped_oxygen = OxygenExtractorConfig(start_clipped=True)
+    clipped_germanium = GermaniumExtractorConfig(start_clipped=True)
+    clipped_silicon = SiliconExtractorConfig(start_clipped=True)
+
     return {
         "carbon_extractor": carbon_extractor.station_cfg(),
         "oxygen_extractor": oxygen_extractor.station_cfg(),
@@ -318,6 +372,10 @@ def _get_default_map_objects() -> dict[str, GridObjectConfig]:
         "chest": chest.station_cfg(),
         "wall": wall.station_cfg(),
         "assembler": assembler.station_cfg(),
+        "clipped_carbon_extractor": clipped_carbon.station_cfg(),
+        "clipped_oxygen_extractor": clipped_oxygen.station_cfg(),
+        "clipped_germanium_extractor": clipped_germanium.station_cfg(),
+        "clipped_silicon_extractor": clipped_silicon.station_cfg(),
     }
 
 
@@ -359,3 +417,18 @@ def _add_make_env_modifier(mission: Mission, modifier: Callable[[MettaGridConfig
 
     modifiers.append(modifier)
     return mission
+
+
+# Import eval missions AFTER _add_make_env_modifier is defined to avoid circular import
+try:
+    from cogames.cogs_vs_clips.eval_missions import EVAL_MISSIONS as _EVAL_MISSIONS
+    from cogames.cogs_vs_clips.eval_missions import MACHINA_EVAL as _MACHINA_EVAL
+
+    # Add eval missions to the global lists
+    MISSIONS.extend(_EVAL_MISSIONS)
+    if _MACHINA_EVAL is not None:
+        SITES.append(_MACHINA_EVAL)
+    _eval_available = True
+except ImportError:
+    # Silently fail if eval_missions can't be imported
+    pass

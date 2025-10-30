@@ -1,0 +1,13 @@
+[
+  {
+    "suite": "difficulty",
+    "test_name": "EVAL1_EnergyStarved_easy",
+    "preset": "adaptive",
+    "total_reward": 2.0,
+    "hearts_assembled": 2,
+    "steps_taken": 800,
+    "max_steps": 800,
+    "final_energy": 78,
+    "success": true
+  }
+]

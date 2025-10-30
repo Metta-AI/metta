@@ -135,7 +135,7 @@ class GermaniumExtractorConfig(ExtractorConfig):
             map_char="G",
             render_symbol=vibes.VIBE_BY_NAME["germanium"].symbol,
             # Protocols
-            max_uses=1,
+            max_uses=self.max_uses,
             recipes=[
                 (
                     [],
@@ -180,6 +180,31 @@ class SiliconExtractorConfig(ExtractorConfig):
         )
 
 
+class DepletedGermaniumExtractorConfig(ExtractorConfig):
+    type: Literal["depleted_germanium_extractor"] = Field(default="depleted_germanium_extractor")
+    synergy: int = 0
+    efficiency: int = 1
+    max_uses: int = Field(default=1)
+
+    def station_cfg(self) -> AssemblerConfig:
+        return AssemblerConfig(
+            name="depleted_germanium_extractor",
+            map_char="g",
+            render_symbol=vibes.VIBE_BY_NAME["germanium"].symbol,
+            # Protocols
+            max_uses=self.max_uses,
+            recipes=[
+                (
+                    [],
+                    ProtocolConfig(output_resources={"germanium": max(1, self.efficiency)}),
+                ),
+            ],
+            # Clipping
+            start_clipped=self.start_clipped,
+            clip_immune=self.clip_immune,
+        )
+
+
 class CvCChestConfig(CvCStationConfig):
     type: Literal["communal_chest"] = Field(default="communal_chest")
     default_resource: str = Field(default="heart")
@@ -190,7 +215,7 @@ class CvCChestConfig(CvCStationConfig):
             map_char="C",
             render_symbol=vibes.VIBE_BY_NAME["chest"].symbol,
             resource_type=self.default_resource,
-            position_deltas=[("E", 1), ("W", -1), ("N", 5), ("S", -5)],
+            position_deltas=[("E", 1), ("W", 1), ("N", 1), ("S", 1)],  # Accept deposits from any direction
         )
 
 
