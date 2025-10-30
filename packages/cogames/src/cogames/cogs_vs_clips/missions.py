@@ -16,6 +16,10 @@ from cogames.cogs_vs_clips.stations import (
 from mettagrid.config.mettagrid_config import GridObjectConfig, MettaGridConfig, ProtocolConfig
 from mettagrid.map_builder.map_builder import MapBuilderConfig
 
+# Import MapBuilder subclasses to register them
+import mettagrid.map_builder.ascii  # noqa: F401
+import mettagrid.map_builder.random  # noqa: F401
+
 
 def get_map(site: str) -> MapBuilderConfig:
     maps_dir = Path(__file__).parent.parent / "maps"
@@ -193,30 +197,36 @@ VARIANTS = [
 ]
 
 
-# Define Sites
-TRAINING_FACILITY = Site(
-    name="training_facility",
-    description="COG Training Facility. Basic training facility with open spaces and no obstacles.",
-    map_builder=get_map("training_facility_open_1.map"),
-    min_cogs=1,
-    max_cogs=4,
-)
+# Define Sites - Commented out to avoid import-time map loading
+# These are not used by the evaluation script
+# TRAINING_FACILITY = Site(
+#     name="training_facility",
+#     description="COG Training Facility. Basic training facility with open spaces and no obstacles.",
+#     map_builder=get_map("training_facility_open_1.map"),
+#     min_cogs=1,
+#     max_cogs=4,
+# )
+#
+# HELLO_WORLD = Site(
+#     name="hello_world",
+#     description="Welcome to space..",
+#     map_builder=get_map("machina_100_stations.map"),
+#     min_cogs=1,
+#     max_cogs=20,
+# )
+#
+# MACHINA_1 = Site(
+#     name="machina_1",
+#     description="Your first mission. Collect resources and assemble HEARTs.",
+#     map_builder=get_map("machina_200_stations.map"),
+#     min_cogs=1,
+#     max_cogs=20,
+# )
 
-HELLO_WORLD = Site(
-    name="hello_world",
-    description="Welcome to space..",
-    map_builder=get_map("machina_100_stations.map"),
-    min_cogs=1,
-    max_cogs=20,
-)
-
-MACHINA_1 = Site(
-    name="machina_1",
-    description="Your first mission. Collect resources and assemble HEARTs.",
-    map_builder=get_map("machina_200_stations.map"),
-    min_cogs=1,
-    max_cogs=20,
-)
+# Placeholder values for now
+TRAINING_FACILITY = None
+HELLO_WORLD = None
+MACHINA_1 = None
 
 SITES = [
     TRAINING_FACILITY,
