@@ -5,12 +5,12 @@ import torch
 import torch.nn as nn
 
 import pufferlib.pytorch
+from mettagrid.config.id_map import ObservationFeatureSpec
 from mettagrid.config.mettagrid_config import ActionsConfig
 from mettagrid.mettagrid_c import dtype_actions
 from mettagrid.policy.policy import AgentPolicy, TrainablePolicy
 from mettagrid.simulator import Action as MettaGridAction
 from mettagrid.simulator import AgentObservation as MettaGridObservation
-from mettagrid.simulator import ObservationFeature
 
 logger = logging.getLogger("mettagrid.policy.token_policy")
 
@@ -18,12 +18,12 @@ logger = logging.getLogger("mettagrid.policy.token_policy")
 class TokenPolicyNet(torch.nn.Module):
     """Token-aware per-step encoder inspired by Metta's basic baseline."""
 
-    def __init__(self, features: list[ObservationFeature], actions_cfg: ActionsConfig):
+    def __init__(self, features: list[ObservationFeatureSpec], actions_cfg: ActionsConfig):
         super().__init__()
 
         self.hidden_size = 192
 
-        feature_norms = {feature.feature_id: feature.normalization for feature in features}
+        feature_norms = {feature.id: feature.normalization for feature in features}
         max_feature_id = max((int(feature_id) for feature_id in feature_norms.keys()), default=-1)
         num_feature_embeddings = max(256, max_feature_id + 1)
         feature_scale = torch.ones(num_feature_embeddings, dtype=torch.float32)
@@ -136,7 +136,7 @@ class TokenAgentPolicyImpl(AgentPolicy):
 class TokenPolicy(TrainablePolicy):
     """Feed-forward token encoder baseline derived from Metta's token-based basic policy."""
 
-    def __init__(self, features: list[ObservationFeature], actions_cfg: ActionsConfig, device: torch.device):
+    def __init__(self, features: list[ObservationFeatureSpec], actions_cfg: ActionsConfig, device: torch.device):
         super().__init__(actions_cfg)
         self._net = TokenPolicyNet(features, actions_cfg).to(device)
         self._device = device
