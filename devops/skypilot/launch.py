@@ -260,8 +260,8 @@ Examples:
         logger.info(f"Using auto-generated run ID: {run_id}")
         logger.info("To specify a run ID, add 'run=foo' to your command or use --run flag")
 
-    # Ensure command includes run= (append if missing)
-    if "run=" not in command:
+    # Ensure command includes run= (append if missing) - only for tool-based commands
+    if args.tool and "run=" not in command:
         command = f"{command} run={run_id}"
 
     cd_repo_root()
