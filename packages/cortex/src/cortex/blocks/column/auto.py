@@ -1,4 +1,4 @@
-"""Auto-build Column from a simple AXMS pattern with optional overrides."""
+"""Auto-build Column from AXMS-like patterns; built-ins live in tokens.py."""
 
 from __future__ import annotations
 
@@ -7,13 +7,15 @@ from typing import Dict, List
 from pydantic import BaseModel
 
 from cortex.blocks.column import ColumnBlock
+from cortex.blocks.column.tokens import (
+    builtin_block_for_token,
+    can_use_caret,
+    get_single_char_builtin_symbols,
+)
 from cortex.blocks.registry import build_block
 from cortex.config import (
-    AxonConfig,
     BlockConfig,
     ColumnBlockConfig,
-    PostUpBlockConfig,
-    PreUpBlockConfig,
     RouterConfig,
     XLCellConfig,
     mLSTMCellConfig,
@@ -28,34 +30,7 @@ def _clone_model(model: BaseModel) -> BaseModel:
 
 
 def _builtin_for_token(token: str) -> BlockConfig | None:
-    base = token.rstrip("^")
-    ax = token.endswith("^")
-
-    if base == "A":
-        return PostUpBlockConfig(cell=AxonConfig())
-    if base == "X":
-        cell = XLCellConfig()
-        if ax:
-            dumped = cell.model_dump()
-            dumped["use_axon_qkv"] = True
-            cell = XLCellConfig(**dumped)
-        return PostUpBlockConfig(cell=cell)
-    if base == "M":
-        cell = mLSTMCellConfig()
-        if ax:
-            dumped = cell.model_dump()
-            dumped["use_axon_layer"] = True
-            dumped["use_axon_qkv"] = True
-            cell = mLSTMCellConfig(**dumped)
-        return PreUpBlockConfig(cell=cell)
-    if base == "S":
-        cell = sLSTMCellConfig()
-        if ax:
-            dumped = cell.model_dump()
-            dumped["use_axon_layer"] = True
-            cell = sLSTMCellConfig(**dumped)
-        return PostUpBlockConfig(cell=cell)
-    return None
+    return builtin_block_for_token(token)
 
 
 def _parse_tokens(pattern: str, custom_map: Dict[str, BlockConfig] | None) -> List[str]:
@@ -68,13 +43,14 @@ def _parse_tokens(pattern: str, custom_map: Dict[str, BlockConfig] | None) -> Li
     # Single concatenated run: scan for built-ins only
     tokens: List[str] = []
     i = 0
+    allowed = set(get_single_char_builtin_symbols())
     while i < len(s):
         ch = s[i]
-        if ch not in ("A", "X", "M", "S"):
+        if ch not in allowed:
             raise ValueError(
                 f"Unknown token at position {i}: '{ch}'. Use separators for custom symbols or allowed built-ins."
             )
-        if i + 1 < len(s) and s[i + 1] == "^" and ch in ("M", "X", "S"):
+        if i + 1 < len(s) and s[i + 1] == "^" and can_use_caret(ch):
             tokens.append(ch + "^")
             i += 2
         else:
