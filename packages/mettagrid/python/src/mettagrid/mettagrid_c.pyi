@@ -107,7 +107,7 @@ class ActionConfig:
     required_resources: dict[int, int]
     consumed_resources: dict[int, float]
 
-class Recipe:
+class Protocol:
     def __init__(self) -> None: ...
     vibes: list[int]
     input_resources: dict[int, int]
@@ -117,12 +117,12 @@ class Recipe:
 class ClipperConfig:
     def __init__(
         self,
-        unclipping_recipes: list[Recipe],
+        unclipping_protocols: list[Protocol],
         length_scale: float,
         cutoff_distance: float,
         clip_rate: float,
     ) -> None: ...
-    unclipping_recipes: list[Recipe]
+    unclipping_protocols: list[Protocol]
     length_scale: float
     cutoff_distance: float
     clip_rate: float
