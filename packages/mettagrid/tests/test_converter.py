@@ -40,7 +40,6 @@ class TestConverterObservations:
             actions=ActionsConfig(
                 noop=ActionConfig(enabled=True),
                 move=ActionConfig(enabled=True),
-                put_items=ActionConfig(enabled=True),
                 get_items=ActionConfig(enabled=True),
                 attack=AttackActionConfig(enabled=False),
                 swap=ActionConfig(enabled=False),

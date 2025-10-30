@@ -4,6 +4,7 @@ import logging
 import math
 import multiprocessing
 import platform
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable, Optional
 
@@ -87,6 +88,7 @@ def train(
     vector_batch_size: Optional[int] = None,
     vector_num_workers: Optional[int] = None,
     env_cfg_supplier: Optional[Callable[[], MettaGridConfig]] = None,
+    log_outputs: bool = False,
 ) -> None:
     import pufferlib.pytorch  # noqa: F401 - ensure modules register with torch
 
@@ -308,14 +310,24 @@ def train(
     )
 
     trainer = pufferl.PuffeRL(train_args, vecenv, policy.network())
+    if log_outputs:
+        console.clear()
+        console.print("[dim]Evaluation stats will stream below; disabling Rich dashboard.[/dim]")
+        trainer.print_dashboard = lambda *_, **__: None  # type: ignore[assignment]
 
     training_diverged = False
 
     with DeferSigintContextManager():
         try:
             while trainer.global_step < num_steps:
-                trainer.evaluate()
-                trainer.train()
+                eval_stats = trainer.evaluate()
+                if log_outputs and eval_stats:
+                    console.log(f"Evaluation: {datetime.now(UTC)}")
+                    console.log(dict(eval_stats))
+                trainer_stats = trainer.train()
+                if log_outputs and trainer_stats:
+                    console.log(f"Training: {datetime.now(UTC)}")
+                    console.log(dict(trainer_stats))
                 # Check for NaN in network parameters after each training step
                 network = policy.network()
                 has_nan = False
