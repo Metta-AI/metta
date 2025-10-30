@@ -19,7 +19,7 @@ class RemoteConfig(Config):
 class JobConfig(Config):
     """Job specification combining execution config with task parameters.
 
-    Use either `module` (for tools/run.py) or `cmd` (for arbitrary commands), not both.
+    Use either `tool` (for tools/run.py) or `cmd` (for arbitrary commands), not both.
     remote=None runs locally, remote=RemoteConfig(...) runs remotely.
     is_training_job=True enables WandB tracking and run name generation.
     metrics_to_track tracks which WandB metrics to fetch periodically (training jobs only).
@@ -27,7 +27,7 @@ class JobConfig(Config):
     """
 
     name: str
-    module: str | None = None  # Module for tools/run.py (e.g., "arena.train")
+    tool: str | None = None  # Tool for tools/run.py (e.g., "arena.train")
     cmd: str | None = None  # Arbitrary command string (e.g., "pytest tests/")
     args: dict[str, Any] = Field(default_factory=dict)
     overrides: dict[str, Any] = Field(default_factory=dict)
@@ -39,13 +39,21 @@ class JobConfig(Config):
     metrics_to_track: list[str] = Field(default_factory=list)  # Metrics to fetch from WandB (training only)
     acceptance_criteria: dict[str, tuple[str, float]] | None = None  # Metric thresholds: {metric: (op, value)}
 
+    @model_validator(mode="before")
+    @classmethod
+    def migrate_module_to_tool(cls, data: Any) -> Any:
+        """Backwards compatibility: migrate old 'module' field to 'tool'."""
+        if isinstance(data, dict) and "module" in data:
+            data["tool"] = data.pop("module")
+        return data
+
     @model_validator(mode="after")
-    def validate_module_or_cmd(self):
-        """Validate that exactly one of module or cmd is provided."""
-        if self.module and self.cmd:
-            raise ValueError("Cannot specify both 'module' and 'cmd'. Use one or the other.")
-        if not self.module and not self.cmd:
-            raise ValueError("Must specify either 'module' or 'cmd'.")
+    def validate_tool_or_cmd(self):
+        """Validate that exactly one of tool or cmd is provided."""
+        if self.tool and self.cmd:
+            raise ValueError("Cannot specify both 'tool' and 'cmd'. Use one or the other.")
+        if not self.tool and not self.cmd:
+            raise ValueError("Must specify either 'tool' or 'cmd'.")
 
         # If using cmd, args and overrides should be empty
         if self.cmd and (self.args or self.overrides):
@@ -64,8 +72,8 @@ class JobConfig(Config):
             # Parse arbitrary command string into list
             return shlex.split(self.cmd)
         else:
-            # Build tools/run.py command from module + args + overrides
-            cmd = ["uv", "run", "./tools/run.py", self.module]
+            # Build tools/run.py command from tool + args + overrides
+            cmd = ["uv", "run", "./tools/run.py", self.tool]
             for k, v in self.args.items():
                 cmd.append(f"{k}={v}")
             for k, v in self.overrides.items():

@@ -395,8 +395,9 @@ class JobManager:
             session.commit()
 
         job_type = "remote" if config.remote else "local"
+        task_spec = config.tool if config.tool else config.cmd
         logger.info(
-            f"Job submitted: {config.name} | type={job_type} | module={config.module} | "
+            f"Job submitted: {config.name} | type={job_type} | task={task_spec} | "
             f"is_training={config.is_training_job} | metrics={config.metrics_to_track}"
         )
 

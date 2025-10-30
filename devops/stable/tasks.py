@@ -44,14 +44,21 @@ class Task:
         self.dependency_names = dependency_names or []
 
 
-def ci_task(name: str, cmd: str, timeout_s: int = 1800) -> Task:
-    """Create a CI task that runs a shell command."""
-    return Task(JobConfig(name=name, cmd=cmd, timeout_s=timeout_s))
+def cmd_task(name: str, cmd: str, timeout_s: int = 1800, remote: RemoteConfig | None = None) -> Task:
+    """Create a task that runs a shell command (local or remote).
+
+    Args:
+        name: Task name
+        cmd: Shell command to execute
+        timeout_s: Timeout in seconds
+        remote: Remote execution config (None = local)
+    """
+    return Task(JobConfig(name=name, cmd=cmd, timeout_s=timeout_s, remote=remote))
 
 
 def tool_task(
     name: str,
-    module: str,
+    tool: str,
     args: list[str] | None = None,
     timeout_s: int = 1800,
     remote: RemoteConfig | None = None,
@@ -62,7 +69,7 @@ def tool_task(
 
     Args:
         name: Task name
-        module: Python module to run (e.g., "arena.train")
+        tool: Tool to run via tools/run.py (e.g., "arena.train")
         args: Arguments as list of "key=value" strings
         timeout_s: Timeout in seconds
         remote: Remote execution config (None = local)
@@ -70,8 +77,8 @@ def tool_task(
         dependency_names: Names of tasks this depends on
     """
     args_dict, overrides_dict = _parse_args_list(args or [])
-    # Automatically detect training jobs by module path (e.g., "arena.train", "navigation.train")
-    is_training = module.endswith(".train")
+    # Automatically detect training jobs by tool name (e.g., "arena.train", "navigation.train")
+    is_training = tool.endswith(".train")
 
     # Extract metric keys from acceptance criteria for training jobs
     metrics_to_track = []
@@ -91,7 +98,7 @@ def tool_task(
 
     job_config = JobConfig(
         name=name,
-        module=module,
+        tool=tool,
         args=args_dict,
         overrides=overrides_dict,
         timeout_s=timeout_s,
@@ -106,23 +113,47 @@ def tool_task(
 def get_all_tasks() -> list[Task]:
     """Define all release validation tasks with explicit dependencies."""
     # CI checks
-    python_ci_task = ci_task("python_ci", "metta pytest --ci")
-    cpp_ci_task = ci_task("cpp_ci", "metta cpptest --test")
-    cpp_benchmark_task = ci_task("cpp_benchmark", "metta cpptest --benchmark")
+    python_ci_task = cmd_task("python_ci", "metta pytest --ci")
+    cpp_ci_task = cmd_task("cpp_ci", "metta cpptest --test")
+    cpp_benchmark_task = cmd_task("cpp_benchmark", "metta cpptest --benchmark")
 
     # Local smoke test
     smoke_run = f"stable.smoke.{datetime.now().strftime('%Y%m%d_%H%M%S')}"
     smoke = tool_task(
         name="arena_local_smoke",
-        module="arena_basic_easy_shaped.train",
+        tool="arena_basic_easy_shaped.train",
         args=[f"run={smoke_run}", "trainer.total_timesteps=1000"],
         timeout_s=600,
+    )
+
+    # Cogames smoke tests (100k steps = ~3 epochs in ~3 seconds)
+    cogames_local_smoke = cmd_task(
+        name="cogames_local_smoke",
+        cmd=(
+            "uv run cogames train "
+            "--mission training_facility.harvest "
+            "--variant lonely_heart --variant heart_chorus "
+            "--steps 100000"
+        ),
+        timeout_s=10,
+    )
+
+    cogames_remote_smoke = cmd_task(
+        name="cogames_remote_smoke",
+        cmd=(
+            "uv run cogames train "
+            "--mission training_facility.harvest "
+            "--variant lonely_heart --variant heart_chorus "
+            "--steps 10000000"
+        ),
+        remote=RemoteConfig(gpus=1, nodes=1),
+        timeout_s=1800,  # 30 minutes
     )
 
     # Single GPU training - 100M timesteps
     train_100m = tool_task(
         name="arena_single_gpu_100m",
-        module="arena_basic_easy_shaped.train",
+        tool="arena_basic_easy_shaped.train",
         args=["trainer.total_timesteps=100000000"],
         timeout_s=7200,
         remote=RemoteConfig(gpus=1, nodes=1),
@@ -135,7 +166,7 @@ def get_all_tasks() -> list[Task]:
     # Multi-GPU training - 2B timesteps
     train_2b = tool_task(
         name="arena_multi_gpu_2b",
-        module="arena_basic_easy_shaped.train",
+        tool="arena_basic_easy_shaped.train",
         args=["trainer.total_timesteps=2000000000"],
         timeout_s=172800,  # 48 hours
         remote=RemoteConfig(gpus=4, nodes=4),
@@ -148,9 +179,19 @@ def get_all_tasks() -> list[Task]:
     # Evaluation - depends on single-GPU 100M training run
     eval_task = tool_task(
         name="arena_evaluate",
-        module="arena_basic_easy_shaped.evaluate",
+        tool="arena_basic_easy_shaped.evaluate",
         dependency_names=["arena_single_gpu_100m"],  # Dependency by name
         timeout_s=1800,
     )
 
-    return [python_ci_task, cpp_ci_task, cpp_benchmark_task, smoke, train_100m, train_2b, eval_task]
+    return [
+        python_ci_task,
+        cpp_ci_task,
+        cpp_benchmark_task,
+        smoke,
+        cogames_local_smoke,
+        cogames_remote_smoke,
+        train_100m,
+        train_2b,
+        eval_task,
+    ]
