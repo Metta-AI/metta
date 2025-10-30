@@ -6,7 +6,6 @@ from mettagrid.config.mettagrid_config import (
     ActionConfig,
     ActionsConfig,
     AgentConfig,
-    AttackActionConfig,
     ChangeGlyphActionConfig,
     GameConfig,
     WallConfig,
@@ -60,10 +59,6 @@ def create_minimal_mettagrid_c_env(max_steps=10, width=5, height=5, config_overr
         actions=ActionsConfig(
             noop=ActionConfig(enabled=True),
             move=ActionConfig(enabled=True),
-            attack=AttackActionConfig(enabled=False),
-            put_items=ActionConfig(enabled=False),
-            get_items=ActionConfig(enabled=False),
-            swap=ActionConfig(enabled=False),
             change_glyph=ChangeGlyphActionConfig(enabled=True, number_of_glyphs=4),
         ),
         objects={"wall": WallConfig()},

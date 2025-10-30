@@ -35,7 +35,6 @@ class TestProgrammaticEnvironments:
                 },
                 actions=ActionsConfig(
                     move=ActionConfig(),
-                    rotate=ActionConfig(),
                     noop=ActionConfig(),
                 ),
                 agent=AgentConfig(

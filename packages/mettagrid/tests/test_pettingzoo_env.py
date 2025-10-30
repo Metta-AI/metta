@@ -64,7 +64,6 @@ def make_pettingzoo_env(num_agents=3, max_steps=100):
             actions=ActionsConfig(
                 move=ActionConfig(),
                 noop=ActionConfig(),
-                rotate=ActionConfig(),
             ),
             objects={"wall": WallConfig()},
             agents=agents,

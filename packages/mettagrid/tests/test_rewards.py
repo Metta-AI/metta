@@ -56,8 +56,6 @@ def create_heart_reward_test_env(max_steps=50, num_agents=NUM_AGENTS):
             noop=ActionConfig(enabled=True),
             get_items=ActionConfig(enabled=True),
             move=ActionConfig(enabled=True),
-            rotate=ActionConfig(enabled=True),
-            put_items=ActionConfig(enabled=True),
             attack=AttackActionConfig(
                 enabled=True,
                 consumed_resources={"laser": 1},
