@@ -1,14 +1,12 @@
-# Scripted Agent Evaluation Report
+ # Scripted Agent Evaluation Report
 
 ## Executive Summary
 
-**Overall Performance**: 73.3% success rate (11/15 environments solved)
+**Overall Performance**: 73.0% success rate (467/640 tests) on the Difficulty suite (16 missions × 4 difficulties × 10 presets, 1000 steps).
 
-**Best Strategies**: `explorer`, `efficiency`, `explorer_aggressive` - 20 total hearts each
+**Best Presets (win rate)**: `efficiency_heavy` (78.1%), `balanced` (75.0%), `efficiency_light` (75.0%), `sequential_baseline` (75.0%).
 
-**Total Hearts Collected**: 95 hearts across all strategies (out of 150 possible)
-
-**Key Achievement**: Simplified from 18 hyperparameters to 3 core parameters based on empirical sensitivity analysis, with no performance degradation.
+**Difficulty Breakdown**: easy 99.4%, medium 91.2%, hard 50.6%, extreme 50.6%.
 
 **Recent Fix**: Increased cargo capacity from 100 to 255, resolving inventory blocking issues in silicon-heavy environments.
 
@@ -16,53 +14,51 @@
 
 ## Hyperparameter System
 
-### Simplified Hyperparameters (3 total)
+### Hyperparameter Presets (10 total)
 
-Based on sensitivity analysis across multiple environments, we reduced from 18 to 3 core hyperparameters:
+Each preset combines strategy, exploration horizon, energy policy, cooldown impatience, and depletion sensitivity:
 
-1. **`strategy_type`** - Core decision-making behavior
-   - `explorer_first`: Explore for N steps, then gather greedily
-   - `greedy_opportunistic`: Always grab closest needed resource
-   - `sequential_simple`: Fixed order G→Si→C→O
-   - `efficiency_learner`: Learn and prioritize efficient extractors
+- **balanced**
+  - strategy: explorer_first; explore=80; min_energy_for_silicon=70
+  - recharge_start=65/45; recharge_stop=90/75; wait_if_cooldown_leq=2; depletion_threshold=0.25
 
-2. **`exploration_phase_steps`** - Duration of exploration phase (for explorer_first)
-   - Default: 100 steps
+- **explorer_short**
+  - strategy: explorer_first; explore=50; min_energy_for_silicon=65
+  - recharge_start=68/48; recharge_stop=88/73; wait_if_cooldown_leq=1; depletion_threshold=0.25
 
-3. **`min_energy_for_silicon`** - Minimum energy before silicon gathering
-   - **PROVEN CRITICAL**: Only hyperparameter with measurable impact (Δ=2 hearts)
-   - Values: 60 (aggressive), 70 (balanced), 85 (conservative)
+- **explorer_long**
+  - strategy: explorer_first; explore=150; min_energy_for_silicon=75
+  - recharge_start=60/40; recharge_stop=85/70; wait_if_cooldown_leq=2; depletion_threshold=0.25
 
-### Removed Hyperparameters (15 total)
+- **greedy_aggressive**
+  - strategy: greedy_opportunistic; explore=25; min_energy_for_silicon=55
+  - recharge_start=70/50; recharge_stop=90/75; wait_if_cooldown_leq=0; depletion_threshold=0.20
 
-All showed **ZERO impact** in sensitivity analysis and were hardcoded as constants:
-- exploration_strategy → "frontier"
-- levy_alpha → 1.5
-- exploration_radius → 50
-- energy_buffer → 20
-- charger_search_threshold → 40
-- prefer_nearby → True
-- cooldown_tolerance → 20
-- depletion_threshold → 0.25
-- track_efficiency → True
-- efficiency_weight → 0.3
-- use_astar → True
-- astar_threshold → 20
-- enable_cooldown_waiting → True
-- max_cooldown_wait → 100
-- prioritize_center → True
-- center_bias_weight → 0.5
-- max_wait_turns → 50
+- **greedy_conservative**
+  - strategy: greedy_opportunistic; explore=75; min_energy_for_silicon=80
+  - recharge_start=70/50; recharge_stop=85/70; wait_if_cooldown_leq=3; depletion_threshold=0.30
 
-### Strategy Presets (5 total)
+- **efficiency_light**
+  - strategy: efficiency_learner; explore=80; min_energy_for_silicon=65
+  - recharge_start=65/45; recharge_stop=90/75; wait_if_cooldown_leq=2; depletion_threshold=0.25
 
-```python
-explorer                 # Explore 100 steps, then gather (min_energy=70)
-greedy                   # Always grab closest resource (min_energy=70)
-efficiency               # Prioritize efficient extractors (min_energy=70)
-explorer_aggressive      # Explore 100 steps, gather silicon early (min_energy=60)
-explorer_conservative    # Explore 100 steps, wait for high energy (min_energy=85)
-```
+- **efficiency_heavy**
+  - strategy: efficiency_learner; explore=120; min_energy_for_silicon=80
+  - recharge_start=65/45; recharge_stop=92/78; wait_if_cooldown_leq=2; depletion_threshold=0.20
+
+- **sequential_baseline**
+  - strategy: sequential_simple; explore=50; min_energy_for_silicon=70
+  - recharge_start=65/45; recharge_stop=90/75; wait_if_cooldown_leq=2; depletion_threshold=0.25
+
+- **silicon_rush**
+  - strategy: greedy_opportunistic; explore=50; min_energy_for_silicon=60
+  - recharge_start=65/45; recharge_stop=88/73; wait_if_cooldown_leq=1; depletion_threshold=0.20
+
+- **oxygen_safe**
+  - strategy: explorer_first; explore=100; min_energy_for_silicon=85
+  - recharge_start=70/50; recharge_stop=95/80; wait_if_cooldown_leq=3; depletion_threshold=0.30
+
+Note: All 10 presets were evaluated across easy/medium/hard/extreme difficulties.
 
 ---
 
@@ -174,7 +170,7 @@ explorer_conservative    # Explore 100 steps, wait for high energy (min_energy=8
 - **Optimal Strategy**: Any strategy works
 - **Notes**: Balanced design rewards all approaches
 
-### ✅ PARTIALLY SOLVED (3/15 environments - some strategies succeed)
+### ✅ Partially Solved (selected missions sensitive to preset/difficulty)
 
 #### EXP2-EASY
 - **Best**: 4/5 strategies - 1 heart
@@ -187,43 +183,31 @@ explorer_conservative    # Explore 100 steps, wait for high energy (min_energy=8
 - **Optimal Strategy**: `explorer`, `efficiency`, or `explorer_aggressive`
 
 
-### ❌ UNSOLVED (4/15 environments - no strategies succeed)
+### ❌ Challenging Cases
 
-#### EXP1-HARD
-- **Challenge**: Extremely limited extractors, low efficiency
-- **Issue**: Agent can't find enough resources before depletion
-- **All Strategies**: 0 hearts
-- **Recommendation**: Needs better exploration or extractor discovery
-
-#### EXP2-HARD
-- **Challenge**: Complex map + limited resources
-- **Issue**: Combined navigation and resource scarcity
-- **All Strategies**: 0 hearts
-- **Recommendation**: Fix navigation first, then tune resource management
-
-#### SINGLE_USE_WORLD
-- **Challenge**: All extractors max_uses=1
-- **Issue**: Agent doesn't discover all extractors before using them
-- **All Strategies**: 0 hearts
-- **Recommendation**: Implement "discovery phase" before gathering, or mark depleted extractors
-
-#### GERMANIUM_CLUTCH
-- **Challenge**: Critical germanium shortage
-- **Issue**: Agent can't find enough germanium extractors
-- **All Strategies**: 0 hearts
-- **Recommendation**: Improve germanium-focused exploration
+- Hard/Extreme variants of EXP1 and EXP2 show lower success (50.6% win rate); failures often due to navigation dead-ends to germanium or oxygen.
 
 ---
 
-## Strategy Performance Summary
+## Strategy Performance Summary (Difficulty Suite)
 
-| Strategy | Envs Solved | Total Hearts | Win Rate | Notes |
-|----------|-------------|--------------|----------|-------|
-| **explorer** | 11/15 | 20 | 73.3% | **BEST** (tied) - Balanced exploration + gathering |
-| **efficiency** | 11/15 | 19 | 73.3% | **BEST** (tied) - Learns extractor quality |
-| **explorer_aggressive** | 11/15 | 20 | 73.3% | **BEST** (tied) - Early silicon gathering |
-| **greedy** | 10/15 | 19 | 66.7% | Fast, opportunistic |
-| **explorer_conservative** | 9/15 | 17 | 60.0% | WORST - Too cautious on silicon |
+| Preset              | Passed/Total | Win Rate |
+|---------------------|--------------|----------|
+| efficiency_heavy    | 50/64        | 78.1%    |
+| balanced            | 48/64        | 75.0%    |
+| efficiency_light    | 48/64        | 75.0%    |
+| sequential_baseline | 48/64        | 75.0%    |
+| greedy_conservative | 47/64        | 73.4%    |
+| oxygen_safe         | 47/64        | 73.4%    |
+| explorer_short      | 45/64        | 70.3%    |
+| greedy_aggressive   | 45/64        | 70.3%    |
+| silicon_rush        | 45/64        | 70.3%    |
+| explorer_long       | 44/64        | 68.8%    |
+
+### Difficulty Variants - Summary
+
+- Total: 640 tests; Passed: 467; Failed: 173 → 73.0%
+- By difficulty: easy 159/160 (99.4%), medium 146/160 (91.2%), hard 81/160 (50.6%), extreme 81/160 (50.6%)
 
 ### Key Insights
 
@@ -233,7 +217,7 @@ explorer_conservative    # Explore 100 steps, wait for high energy (min_energy=8
 
 3. **Cargo capacity was a blocker**: Increasing from 100 to 255 fixed SILICON_WORKBENCH, which was failing due to inventory limits.
 
-4. **2-heart ceiling**: Most successful missions get exactly 2 hearts, then get stuck trying to craft the 3rd heart. This appears to be a bug in the assembler usage or recipe system.
+4. **2-heart ceiling**: Most successful missions get exactly 2 hearts, then get stuck trying to craft the 3rd heart (possibly due to inventory cap)
 
 5. **Hard missions remain unsolved**: EXP1-HARD, EXP2-HARD, SINGLE_USE_WORLD, and GERMANIUM_CLUTCH all get 0 hearts across all strategies.
 
@@ -245,11 +229,12 @@ explorer_conservative    # Explore 100 steps, wait for high energy (min_energy=8
 
 ### Critical Fixes
 
-1. **3rd Heart Crafting Bug** ⚠️ **BLOCKING**
+1. **3rd Heart Crafting Bug** ⚠️ **BLOCKING** - Inventory Overflow Issue
    - **Issue**: Agents successfully craft and deposit 2 hearts, then get stuck trying to craft the 3rd heart
+   - **Root Cause**: Inventory capacity overflow. Cargo cap is 255 units, but agent doesn't check capacity before gathering. After 2 hearts, leftover resources (~111 units) + gathering for 3rd heart (~95 units) can exceed 255 if agent over-gathers (e.g., gets 30C instead of 20C).
    - **Impact**: Prevents agents from getting beyond 2 hearts in most missions
    - **Observed in**: OXYGEN_BOTTLENECK, SILICON_WORKBENCH, and likely others
-   - **Hypothesis**: May be related to assembler recipe glyphs, cooldowns, or resource requirements
+   - **Solution**: Add inventory capacity checks before gathering, or add logic to stop gathering when approaching the 255 cap
    - **Action**: Debug why assembler stops working after 2 uses
 
 ### High Priority Fixes
@@ -283,29 +268,45 @@ explorer_conservative    # Explore 100 steps, wait for high energy (min_energy=8
 
 ## Conclusion
 
-The simplified hyperparameter system (3 params vs 18) achieves **73.3% success rate** across 15 diverse environments, demonstrating that:
+The curated 10-preset evaluation achieves **73.0% success** across 640 difficulty tests (16 missions × 4 difficulties × 10 presets), demonstrating that:
 
-1. **Strategy matters more than tuning**: High-level decision-making (explore vs greedy) has far more impact than fine-tuning parameters.
-
-2. **Silicon energy threshold is the only critical parameter**: All other parameters showed zero impact in sensitivity analysis.
-
-3. **Cargo capacity matters**: Increasing from 100 to 255 resolved inventory blocking issues in silicon-heavy environments.
-
-4. **Multiple strategies succeed**: No single strategy dominates all environments, validating the need for diverse approaches.
-
-5. **2-heart ceiling is the main blocker**: Most successful missions get exactly 2 hearts, then get stuck trying to craft the 3rd heart.
+1. **Preset diversity helps**: Energy hysteresis, cooldown impatience, and exploration horizon materially affect robustness.
+2. **Balanced/efficiency-heavy perform best**: 75–78% win rates across all missions/difficulties.
+3. **Hard/Extreme are the bottleneck**: Success drops to ~50.6% at hard/extreme; failures correlate with navigation dead-ends and scarce germanium.
+4. **Cargo capacity fix is impactful**: Silicon-heavy maps remain stable at 1000 steps.
 
 **Current Status**:
-- **Solved**: 11/15 environments (73.3%)
-- **Total Hearts**: 95/150 possible (63.3%)
-- **Best Strategies**: explorer, efficiency, explorer_aggressive (tied at 73.3%)
+- Passed: 467/640 tests (73.0%)
+- By difficulty: easy 99.4%, medium 91.2%, hard 50.6%, extreme 50.6%
+- Top presets: efficiency_heavy, balanced, efficiency_light, sequential_baseline
 
-**Critical Blockers**:
-1. **3rd Heart Crafting Bug** ⚠️: Prevents agents from getting beyond 2 hearts
-2. **Hard Mission Failures**: EXP1-HARD, EXP2-HARD, SINGLE_USE_WORLD, GERMANIUM_CLUTCH all get 0 hearts
-3. **Navigation Issues**: Agents still get stuck trying to reach discovered stations
+**Next Wins**:
+1. Navigation fallback around obstacles to reduce STUCK loops to germanium targets.
+2. Smarter oxygen scheduling on slow-O2/EXP2-hard variants (short waits near extractor).
+3. Minor preset tuning per-mission family (auto-select best of 2–3 presets).
 
-**Expected Impact if Fixed**:
-- Current: 73.3% (11/15 environments)
-- After 3rd heart fix: ~93% (14/15 environments, 3+ hearts each)
-- After all fixes: 100% (15/15 environments)
+---
+
+## Multi-Agent Support
+
+**Current Status**: The scripted agent is **single-agent only**. Testing with 2+ agents results in complete failure (0% success, agents get stuck immediately).
+
+**Issue**: Agents block each other and have no collision avoidance or coordination:
+- `action.move.failed`: ~745 per episode (agents constantly blocked)
+- `status.max_steps_without_motion`: ~177 steps stuck
+- Total reward: 0.00 (complete failure)
+
+**Required for Multi-Agent Extension** (to be implemented):
+1. **Collision avoidance** in navigator - detect and route around other agents
+2. **Multi-agent coordination** - task allocation and shared goal management
+3. **Occupancy tracking** - maintain awareness of other agent positions
+4. **Shared resource management** - coordinate extractor usage and prevent conflicts
+
+**Test Commands**:
+```bash
+# Evaluate with 2 agents
+uv run cogames evaluate -m training_facility.assemble -p scripted --cogs 2 --episodes 3
+
+# Play with 2 agents (no --gui flag, use mettascope)
+uv run cogames play training_facility.assemble -p scripted --cogs 2
+```

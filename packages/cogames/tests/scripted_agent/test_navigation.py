@@ -11,8 +11,9 @@ These tests verify that the agent correctly:
 import pytest
 
 from cogames.cogs_vs_clips.missions import HarvestMission, get_map
-from cogames.policy.scripted_agent import AgentState, ScriptedAgentPolicy
-from cogames.policy.navigator import Navigator
+from cogames.policy.scripted_agent import ScriptedAgentPolicy
+from cogames.policy.scripted_agent.agent import AgentState
+from cogames.policy.scripted_agent.navigator import Navigator
 from mettagrid import MettaGridEnv
 
 
