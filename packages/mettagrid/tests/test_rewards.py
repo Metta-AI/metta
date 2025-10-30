@@ -6,10 +6,9 @@ from mettagrid.config.mettagrid_config import (
     ActionsConfig,
     AgentConfig,
     AgentRewards,
-    AttackActionConfig,
-    ChangeGlyphActionConfig,
-    ConverterConfig,
+    AssemblerConfig,
     GameConfig,
+    ProtocolConfig,
     WallConfig,
 )
 from mettagrid.mettagrid_c import (
@@ -54,24 +53,20 @@ def create_heart_reward_test_env(max_steps=50, num_agents=NUM_AGENTS):
         resource_names=["laser", "armor", "heart"],
         actions=ActionsConfig(
             noop=ActionConfig(enabled=True),
-            get_items=ActionConfig(enabled=True),
             move=ActionConfig(enabled=True),
-            attack=AttackActionConfig(
-                enabled=True,
-                consumed_resources={"laser": 1},
-                defense_resources={"armor": 1},
-            ),
-            swap=ActionConfig(enabled=True),
-            change_glyph=ChangeGlyphActionConfig(enabled=False, number_of_glyphs=4),
         ),
         objects={
             "wall": WallConfig(),
-            "altar": ConverterConfig(
-                output_resources={"heart": 1},
-                initial_resource_count=5,
-                max_output=50,
-                conversion_ticks=1,
-                cooldown=[10],
+            "altar": AssemblerConfig(
+                recipes=[
+                    (
+                        [],
+                        ProtocolConfig(
+                            output_resources={"heart": 1},
+                            cooldown=10,
+                        ),
+                    )
+                ],
             ),
         },
         agent=AgentConfig(
@@ -99,27 +94,23 @@ def perform_action(env, action_name):
 
 
 def wait_for_heart_production(env, steps=5):
-    """Wait for altar to produce hearts by performing noop actions."""
+    """Wait for assembler cooldown by performing noop actions."""
     for _ in range(steps):
         noop(env)
 
 
 def collect_heart_from_altar(env):
-    """Move agent to altar (if needed) and collect a heart. Returns (success, reward)."""
+    """Move agent onto the assembler to trigger heart production. Returns (success, reward)."""
     agent_pos = get_agent_position(env, 0)
-    # Agent starts at (1, 1), altar is at (1, 3)
-    # Position (1, 2) is directly left of altar
-    target_pos = (1, 2)
-
-    # Move to target position if not already there
-    if agent_pos != target_pos:
-        # Agent starts at (1, 1), needs to move right to (1, 2)
+    if agent_pos == (1, 1):
         move_result = move(env, Orientation.EAST, agent_idx=0)
-        if not move_result["success"]:
-            return False, 0.0
+        assert move_result["success"], "Failed to move from (1, 1) to (1, 2)"
+        agent_pos = get_agent_position(env, 0)
 
-    # Collect heart from adjacent altar
-    _obs, reward, success = perform_action(env, "get_items")
+    assert agent_pos == (1, 2), f"Expected agent at (1, 2), but found at {agent_pos}"
+
+    # Move right from (1, 2) into assembler at (1, 3) - this triggers the assembler
+    _obs, reward, success = perform_action(env, "move_east")
     return success, reward
 
 
@@ -149,7 +140,6 @@ class TestRewards:
 
         # Check that step rewards are accessible and match buffer
         assert np.array_equal(step_rewards, rewards), "Step rewards should match buffer rewards"
-        print(f"✅ Step rewards properly initialized: {step_rewards}")
 
     def test_heart_collection_rewards(self):
         """Test that collecting hearts generates real rewards."""
@@ -174,8 +164,6 @@ class TestRewards:
         episode_rewards = env.get_episode_rewards()
         assert episode_rewards[0] > 0, f"Episode rewards should be positive, got {episode_rewards[0]}"
 
-        print(f"✅ Heart collection successful! Reward: {reward}, Episode total: {episode_rewards[0]}")
-
     def test_multiple_heart_collections(self):
         """Test collecting multiple hearts and verifying cumulative rewards."""
         env = create_heart_reward_test_env()
@@ -193,12 +181,13 @@ class TestRewards:
         success1, reward1 = collect_heart_from_altar(env)
         episode_rewards_1 = env.get_episode_rewards()[0]
 
-        # Wait and collect again
+        # Wait for cooldown
         wait_for_heart_production(env, steps=10)
+
+        # Move back onto the assembler for second collection
         success2, reward2 = collect_heart_from_altar(env)
         episode_rewards_2 = env.get_episode_rewards()[0]
 
-        # Verify both collections worked
         assert success1, "First collection should succeed"
         assert success2, "Second collection should succeed"
         assert reward1 > 0, f"First collection should give positive reward, got {reward1}"
@@ -210,7 +199,3 @@ class TestRewards:
         assert abs(episode_rewards_2 - expected_total) < 1e-6, (
             f"Episode rewards should accumulate correctly: {episode_rewards_2} vs {expected_total}"
         )
-
-        print("✅ Multiple collections successful!")
-        print(f"   Collection 1: reward={reward1}, episode_total={episode_rewards_1}")
-        print(f"   Collection 2: reward={reward2}, episode_total={episode_rewards_2}")
