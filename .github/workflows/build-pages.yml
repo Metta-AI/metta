@@ -1,4 +1,3 @@
-# Does the cache work?
 name: "Build (and sometimes Deploy) to GitHub Pages"
 on:
   push:
