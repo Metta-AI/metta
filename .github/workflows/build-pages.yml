@@ -2,7 +2,6 @@ name: "Build (and sometimes Deploy) to GitHub Pages"
 on:
   push:
     paths: &site_paths
-      - "mettascope/**"
       - "packages/mettagrid/nim/mettascope/**"
       - "observatory/**"
       - ".github/workflows/**"
@@ -43,10 +42,6 @@ jobs:
         with:
           install-mode: "minimal"
 
-      - name: Install Mettascope
-        run: |
-          ./mettascope/install.sh
-
       - name: Setup Emscripten
         uses: mymindstorm/setup-emsdk@v14
 
@@ -66,22 +61,6 @@ jobs:
           pnpm install
           pnpm run build
 
-      - name: Debug Output
-        if: github.event_name == 'workflow_dispatch'
-        run: |
-          echo "=== UV Environment ==="
-          which uv
-          uv --version
-
-          echo "=== Directory Structure ==="
-          echo "Current directory: $(pwd)"
-          ls -la
-
-          echo "=== Player Directory ==="
-          cd mettascope
-          echo "Player directory: $(pwd)"
-          ls -la
-
       - name: Setup Pages
         uses: actions/configure-pages@v4
 
@@ -89,7 +68,6 @@ jobs:
         run: |
           mkdir -p deploy/observatory
           mkdir -p deploy/mettascope2
-          cp -r mettascope/* deploy/
           cp -r observatory/dist/* deploy/observatory/
           cp -r packages/mettagrid/nim/mettascope/dist/* deploy/mettascope2/
 
