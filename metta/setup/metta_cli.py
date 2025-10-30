@@ -622,6 +622,10 @@ def cmd_lint(
         metta lint --check            # Check formatting without modifying
         metta lint --staged --fix     # Format and lint only staged files
     """
+    if check and fix:
+        error("Cannot use --check and --fix together. Choose one mode.")
+        raise typer.Exit(1)
+
     # Get available formatters
     formatters = get_formatters(cli.repo_root)
 
@@ -678,12 +682,11 @@ def cmd_lint(
             continue
 
         # Run formatter
-        check_mode = check or not fix
         success_fmt = run_formatter(
             file_type,
             formatter,
             cli.repo_root,
-            check_only=check_mode,
+            check_only=check,
             files=type_files,
         )
 
@@ -691,7 +694,7 @@ def cmd_lint(
         # If check_mode is True and formatter doesn't support check, it returns False but that's not a failure
         if not success_fmt:
             # If we're in check mode and the formatter doesn't have a check_cmd, ignore the failure
-            if check_mode and formatter.check_cmd is None:
+            if check and formatter.check_cmd is None:
                 # This is expected - formatter doesn't support check mode, was skipped
                 pass
             else:
@@ -737,6 +740,8 @@ def cmd_lint(
             error(f"Formatting failed for: {', '.join(failed_formatters)}")
         if failed_linters:
             error(f"Linting failed for: {', '.join(failed_linters)}")
+        if not fix:
+            info("Re-run with --fix to apply automatic fixes where supported.")
         raise typer.Exit(1)
     else:
         success("All linting and formatting complete")
