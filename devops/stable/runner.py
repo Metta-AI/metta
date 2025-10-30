@@ -16,7 +16,6 @@ from contextlib import redirect_stdout
 
 from devops.stable.display import (
     check_task_passed,
-    evaluate_acceptance,
     format_task_result,
     format_task_with_acceptance,
 )
@@ -97,7 +96,7 @@ class TaskRunner:
         job_state = self.job_manager.get_job_state(job_name)
         if not job_state:
             return False
-        return check_task_passed(job_state, task)
+        return check_task_passed(job_state)
 
     def _dependencies_satisfied(self, task: Task, task_by_name: dict[str, Task]) -> bool:
         """Check if all dependencies are resolved (completed with any outcome)."""
@@ -155,8 +154,9 @@ class TaskRunner:
         if not job_state:
             return
 
-        # Evaluate acceptance
-        acceptance_passed, acceptance_error = evaluate_acceptance(job_state, task.acceptance)
+        # Use job-level acceptance evaluation
+        acceptance_passed = job_state.acceptance_passed if job_state.acceptance_passed is not None else True
+        acceptance_error = None if acceptance_passed else "Acceptance criteria not met (see logs for details)"
 
         # Format and print result
         result = format_task_result(job_state, task, acceptance_passed, acceptance_error)
@@ -337,7 +337,7 @@ class TaskRunner:
                 continue
 
             # Use composable display
-            display = format_task_with_acceptance(job_dict, task, job_state)
+            display = format_task_with_acceptance(job_dict, job_state)
             print(display)
             print()
 

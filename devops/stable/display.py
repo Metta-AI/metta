@@ -201,31 +201,28 @@ def evaluate_acceptance(job_state: JobState, rules: list[AcceptanceRule]) -> tup
     return (True, None)
 
 
-def check_task_passed(job_state: JobState, task: Task) -> bool:
+def check_task_passed(job_state: JobState) -> bool:
     """Check if task passed (exit_code 0 + acceptance criteria).
 
     Args:
         job_state: Job state from JobManager
-        task: Task with acceptance criteria
 
     Returns:
         True if task passed (exit code 0 and acceptance criteria met)
     """
     if job_state.exit_code != 0:
         return False
-    passed, _ = evaluate_acceptance(job_state, task.acceptance)
-    return passed
+    return job_state.acceptance_passed is not False
 
 
-def format_task_with_acceptance(job_dict: dict, task: Task, job_state: JobState) -> str:
+def format_task_with_acceptance(job_dict: dict, job_state: JobState) -> str:
     """Format job status integrated with acceptance criteria.
 
-    Composes job_monitor primitives with task-specific acceptance logic.
+    Composes job_monitor primitives with job-level acceptance logic.
 
     Args:
         job_dict: Job dict from get_status_summary()
-        task: Task with acceptance criteria
-        job_state: Full job state for metrics
+        job_state: Full job state for metrics and acceptance
 
     Returns:
         Multi-line formatted string with job status + acceptance + artifacts
@@ -236,19 +233,40 @@ def format_task_with_acceptance(job_dict: dict, task: Task, job_state: JobState)
     status_line = format_job_status_line(job_dict, show_duration=True)
     lines.append(status_line)
 
-    # Acceptance criteria (if task has them)
-    if task.acceptance and job_dict["status"] == "completed":
-        acceptance_passed, error = evaluate_acceptance(job_state, task.acceptance)
+    # Acceptance criteria
+    if job_state.config.acceptance_criteria:
+        if job_dict["status"] == "completed":
+            # For completed jobs: show pass/fail with indicators
+            if job_state.acceptance_passed:
+                lines.append(green("  ✓ Acceptance criteria passed"))
+            else:
+                lines.append(red("  ✗ ACCEPTANCE CRITERIA FAILED"))
 
-        if acceptance_passed:
-            lines.append(green("  ✓ Acceptance criteria passed"))
-            # Show which metrics passed
-            for key, op, expected in task.acceptance:
-                if key in job_state.metrics:
-                    actual = job_state.metrics[key]
-                    lines.append(f"    • {key}: {actual:.1f} (expected {op.__name__} {expected})")
-        else:
-            lines.append(red(f"  ✗ Acceptance criteria failed: {error}"))
+            # Show ALL criteria with pass/fail indicators
+            for criterion in job_state.config.acceptance_criteria:
+                if criterion.metric not in job_state.metrics:
+                    lines.append(
+                        red(f"    ✗ {criterion.metric}: MISSING (expected {criterion.operator} {criterion.threshold})")
+                    )
+                else:
+                    actual = job_state.metrics[criterion.metric]
+                    target_str = f"{criterion.operator} {criterion.threshold}"
+                    # Use criterion's evaluate method
+                    if criterion.evaluate(actual):
+                        lines.append(green(f"    ✓ {criterion.metric}: {actual:.1f} (target: {target_str})"))
+                    else:
+                        lines.append(red(f"    ✗ {criterion.metric}: {actual:.1f} (target: {target_str})"))
+        elif job_dict["status"] == "running":
+            # For running jobs: show criteria without pass/fail (not decided yet)
+            lines.append("  🎯 Acceptance criteria:")
+            for criterion in job_state.config.acceptance_criteria:
+                if criterion.metric in job_state.metrics:
+                    actual = job_state.metrics[criterion.metric]
+                    lines.append(
+                        f"    • {criterion.metric}: {actual:.1f} (target: {criterion.operator} {criterion.threshold})"
+                    )
+                else:
+                    lines.append(f"    • {criterion.metric}: (target: {criterion.operator} {criterion.threshold})")
 
     # Artifacts (using primitives)
     if job_dict.get("wandb_url"):
