@@ -236,7 +236,9 @@ class TestTypeIdAllocation:
     def test_auto_assign_type_ids_raises_when_pool_exhausted(self):
         objects = {f"object_{index:03d}": WallConfig() for index in range(256)}
 
+        config = GameConfig(objects=objects)
         with pytest.raises(ValueError) as err:
-            GameConfig(objects=objects)
+            # Trigger lazy assignment by accessing objects
+            _ = config.objects
 
         assert "auto-generated type_id exceeds uint8 range" in str(err.value)

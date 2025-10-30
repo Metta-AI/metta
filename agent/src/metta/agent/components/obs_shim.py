@@ -1,5 +1,5 @@
 import warnings
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
 
 import torch
 import torch.nn as nn
@@ -7,11 +7,12 @@ from tensordict import TensorDict
 
 from metta.agent.components.component_config import ComponentConfig
 
+if TYPE_CHECKING:
+    from metta.rl.training.training_environment import PolicyEnvInterface
+
 # =========================== Token-based observation shaping ===========================
 # The two nn.Module-based classes below are composed into ObsShaperTokens. You can simply call that class in your policy
 # for token-based observation shaping. Or you can manipulate the two classes below directly in your policy.
-
-# xcxc
 
 
 class ObsTokenPadStrip(nn.Module):
@@ -44,14 +45,23 @@ class ObsTokenPadStrip(nn.Module):
 
     def initialize_to_environment(
         self,
-        env,
-        device,
+        policy_env_info: "PolicyEnvInterface",
+        device: torch.device,
     ) -> str:
         # Build feature mappings
-        features = env.obs_features
-        self.feature_id_to_name = {props.id: name for name, props in features.items()}
+        # obs_features can be a list[ObservationFeatureSpec] or dict[str, ObservationFeatureSpec]
+        obs_features = policy_env_info.obs_features
+        if isinstance(obs_features, dict):
+            features_list = list(obs_features.values())
+            features = obs_features
+            # For dict format, names come from keys
+            self.feature_id_to_name = {props.id: name for name, props in obs_features.items()}
+        else:
+            features_list = obs_features
+            features = {props.name: props for props in features_list}
+            self.feature_id_to_name = {props.id: props.name for props in features_list}
         self.feature_normalizations = {
-            props.id: props.normalization for props in features.values() if hasattr(props, "normalization")
+            props.id: props.normalization for props in features_list if hasattr(props, "normalization")
         }
 
         if not hasattr(self, "original_feature_mapping"):
@@ -163,18 +173,21 @@ class ObsAttrValNorm(nn.Module):
 
     def initialize_to_environment(
         self,
-        env,
-        device,
+        policy_env_info: "PolicyEnvInterface",
+        device: torch.device,
     ) -> None:
-        self._set_feature_normalizations(env, device)
+        self._set_feature_normalizations(policy_env_info, device)
 
-    def _set_feature_normalizations(self, env_or_policy_env_info, device: Optional[torch.device] = None):
-        # Handle both env (with feature_normalizations) and policy_env_info (with obs_features)
-        if hasattr(env_or_policy_env_info, "feature_normalizations"):
-            features = env_or_policy_env_info.feature_normalizations
+    def _set_feature_normalizations(self, policy_env_info, device: Optional[torch.device] = None):
+        # Extract features consistently from obs_features
+        # Handle both list[ObservationFeatureSpec] (real PolicyEnvInterface) and dict (test fixtures)
+        obs_features = policy_env_info.obs_features
+        if isinstance(obs_features, dict):
+            # Test fixture format: dict[name: SimpleNamespace(id=..., normalization=...)]
+            features = {feat.id: feat.normalization for feat in obs_features.values()}
         else:
-            # It's policy_env_info, compute from obs_features
-            features = {feat.id: feat.normalization for feat in env_or_policy_env_info.obs_features}
+            # Real format: list[ObservationFeatureSpec]
+            features = {feat.id: feat.normalization for feat in obs_features}
         self._feature_normalizations = features
         self._update_norm_factors(device)
         return None
@@ -184,8 +197,7 @@ class ObsAttrValNorm(nn.Module):
         # We need to handle the case where attr_idx might be 0 (padding) or larger than defined normalizations.
         # Assuming max attr_idx is 256 (same as attr_embeds size - 1 for padding_idx).
         # Initialize with 1.0 to avoid division by zero for unmapped indices.
-        if device is None:
-            device = "cpu"  # assume that the policy is sent to device after its built for the first time.
+        device = device or torch.device("cpu")
         norm_tensor = torch.ones(self._max_embeds, dtype=torch.float32, device=device)
         for i, val in self._feature_normalizations.items():
             if i < len(norm_tensor):  # Ensure we don't go out of bounds
@@ -227,11 +239,11 @@ class ObsShimTokens(nn.Module):
 
     def initialize_to_environment(
         self,
-        env,
-        device,
+        policy_env_info: "PolicyEnvInterface",
+        device: torch.device,
     ) -> str:
-        log = self.token_pad_striper.initialize_to_environment(env, device)
-        self.attr_val_normer.initialize_to_environment(env, device)
+        log = self.token_pad_striper.initialize_to_environment(policy_env_info, device)
+        self.attr_val_normer.initialize_to_environment(policy_env_info, device)
         return log
 
     def forward(self, td: TensorDict) -> TensorDict:
@@ -368,15 +380,11 @@ class ObservationNormalizer(nn.Module):
 
     def initialize_to_environment(
         self,
-        env,
-        device,
+        policy_env_info: "PolicyEnvInterface",
+        device: torch.device,
     ) -> None:
-        # Handle both env (with feature_normalizations) and policy_env_info (with obs_features)
-        if hasattr(env, "feature_normalizations"):
-            features = env.feature_normalizations
-        else:
-            # It's policy_env_info, compute from obs_features
-            features = {feat.id: feat.normalization for feat in env.obs_features}
+        # Extract features consistently from obs_features
+        features = {feat.id: feat.normalization for feat in policy_env_info.obs_features}
         self._initialize_to_environment(features, device)
 
     def _initialize_to_environment(self, features: dict[str, dict], device: Optional[torch.device] = None):
@@ -414,10 +422,10 @@ class ObsShimBox(nn.Module):
 
     def initialize_to_environment(
         self,
-        env,
-        device,
+        policy_env_info: "PolicyEnvInterface",
+        device: torch.device,
     ) -> None:
-        self.observation_normalizer.initialize_to_environment(env, device)
+        self.observation_normalizer.initialize_to_environment(policy_env_info, device)
 
     def forward(self, td: TensorDict):
         td = self.token_to_box_shim(td)
