@@ -9,6 +9,7 @@ from mettagrid.config.mettagrid_config import (
     AssemblerConfig,
     ChestConfig,
     MettaGridConfig,
+    ProtocolConfig,
 )
 from mettagrid.map_builder.map_builder import MapBuilderConfig
 from mettagrid.mapgen.mapgen import MapGen
@@ -354,16 +355,16 @@ class VibeCheckMission(Mission):
         # Require exactly 4 heart vibes for HEART crafting; keep gear recipes intact
         assembler_cfg = env.game.objects.get("assembler")
         if isinstance(assembler_cfg, AssemblerConfig):
-            filtered: list[tuple[list[str], Any]] = []
-            for vibes_list, recipe in assembler_cfg.recipes:
-                if any(v == "heart" for v in vibes_list):
+            filtered: list[ProtocolConfig] = []
+            for protocol in assembler_cfg.protocols:
+                if "heart" in protocol.vibes:
                     # Keep only the 4-heart recipe for heart crafting
-                    if len(vibes_list) == 4 and all(v == "heart" for v in vibes_list):
-                        filtered.append((vibes_list, recipe))
+                    if len(protocol.vibes) == 4 and all(v == "heart" for v in protocol.vibes):
+                        filtered.append(protocol)
                 else:
                     # Preserve non-heart (e.g., gear) recipes
-                    filtered.append((vibes_list, recipe))
-            assembler_cfg.recipes = filtered
+                    filtered.append(protocol)
+            assembler_cfg.protocols = filtered
         return env
 
     def instantiate(
