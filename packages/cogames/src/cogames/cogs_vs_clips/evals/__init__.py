@@ -3,17 +3,13 @@
 from cogames.cogs_vs_clips.evals.difficulty_variants import DIFFICULTY_LEVELS, apply_difficulty
 from cogames.cogs_vs_clips.evals.eval_missions import (
     CarbonDesert,
-    ClipCarbon,
-    ClipCharger,
-    ClipGermanium,
-    ClipOxygen,
-    ClipSilicon,
     GermaniumRush,
     HighRegenSprint,
     OxygenBottleneck,
     SiliconWorkbench,
     SlowOxygen,
     SparseBalanced,
+    apply_clip_profile,
 )
 from cogames.cogs_vs_clips.evals.exploration_evals import (
     Experiment1Mission,
@@ -31,13 +27,9 @@ __all__ = [
     # Difficulty variants
     "DIFFICULTY_LEVELS",
     "apply_difficulty",
+    "apply_clip_profile",
     # Eval missions
     "CarbonDesert",
-    "ClipCarbon",
-    "ClipCharger",
-    "ClipGermanium",
-    "ClipOxygen",
-    "ClipSilicon",
     "GermaniumRush",
     "HighRegenSprint",
     "OxygenBottleneck",
@@ -55,4 +47,3 @@ __all__ = [
     "Experiment9Mission",
     "Experiment10Mission",
 ]
-

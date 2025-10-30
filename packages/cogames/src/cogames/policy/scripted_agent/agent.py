@@ -259,6 +259,8 @@ class AgentState:
     blocked_by_clipped_extractor: Optional[Tuple[int, int]] = (
         None  # Position of clipped extractor blocking current phase
     )
+    # Exploration goal tracking
+    explore_goal: Optional[str] = None  # Why we're exploring: "find_charger", "find_assembler", "find_extractor", "find_unclipped", "unstuck"
     # Progress bookkeeping
     phase_entry_step: int = 0
     phase_entry_inventory: Dict[str, int] = field(default_factory=dict)
@@ -517,10 +519,9 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
         if gathering and s.agent_row != -1:
             target = self._find_best_extractor_for_phase(s.current_phase, s)
             if target is None:
-                self._last_attempt_was_use = False
-                logger.info(f"[Phase] {s.current_phase.value}: no available extractors → exploring")
-                plan = self._plan_to_frontier_action(s)
-                return plan if plan is not None else self._explore_simple(s)
+                # No extractor available - phase controller will transition to EXPLORE
+                logger.info(f"[Phase] {s.current_phase.value}: no available extractors, waiting for phase transition")
+                return self._action_lookup.get("noop", 0)
             logger.info(f"[Phase] {s.current_phase.value}: using extractor at {target}")
 
         # Fallback to known station position
