@@ -334,5 +334,6 @@ def sweep_muon(sweep_name: str) -> SweepTool:
         train_overrides=train_overrides,
         max_trials=80,
         num_parallel_trials=2,
-        gpus=16,
+        gpus=8,
+        nodes=2
     )
