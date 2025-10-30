@@ -21,7 +21,7 @@ class _EvalMissionBase(Mission):
     # Tunables (defaults; override in subclasses)
     map_name: str = "machina_eval_template.map"
     # Clipping
-    clip_rate: float = 0.0
+    clip_spread_rate: float = 0.0  # Rate at which clipping spreads to adjacent extractors (0.0 = no spreading)
     charger_eff: int = 100
     carbon_eff: int = 100
     oxygen_eff: int = 100
@@ -116,15 +116,7 @@ class CarbonDesert(_EvalMissionBase):
     max_uses_charger: int = 0
 
 
-class SingleUseWorld(_EvalMissionBase):
-    name: str = "single_use_world"
-    description: str = "Every station can be used exactly once."
-    map_name: str = "machina_eval_exp06.map"
-    max_uses_charger: int = 1
-    max_uses_carbon: int = 1
-    max_uses_oxygen: int = 1
-    max_uses_germanium: int = 1
-    max_uses_silicon: int = 1
+## (Removed) SingleUseWorld
 
 
 class SlowOxygen(_EvalMissionBase):
@@ -163,15 +155,7 @@ class SparseBalanced(_EvalMissionBase):
     max_uses_charger: int = 0
 
 
-class GermaniumClutch(_EvalMissionBase):
-    name: str = "germanium_clutch"
-    description: str = "A single germanium line determines success."
-    map_name: str = "machina_eval_exp10.map"
-    max_uses_germanium: int = 2
-    max_uses_carbon: int = 100
-    max_uses_oxygen: int = 50
-    max_uses_silicon: int = 100
-    max_uses_charger: int = 0
+## (Removed) GermaniumClutch
 
 
 # -----------------------------
@@ -214,11 +198,9 @@ EVAL_MISSIONS: list[type[Mission]] = [
     GermaniumRush,
     SiliconWorkbench,
     CarbonDesert,
-    SingleUseWorld,
     SlowOxygen,
     HighRegenSprint,
     SparseBalanced,
-    GermaniumClutch,
     ExtractorHub30,
     ExtractorHub50,
     ExtractorHub70,
@@ -236,13 +218,13 @@ class ClipCarbon(_EvalMissionBase):
     name: str = "clip_carbon"
     description: str = "Carbon extractor starts clipped; unclip using gear crafted from another resource."
     map_name: str = "machina_eval_exp01.map"
-    clip_rate: float = 0.0
+    clip_spread_rate: float = 0.0
 
     def instantiate(
         self, map_builder: MapBuilderConfig, num_cogs: int, variant: MissionVariant | None = None
     ) -> "Mission":
         mission = super().instantiate(map_builder, num_cogs, variant)
-        # Ensure carbon is initially clipped; O2/G/Si remain available to craft gear
+        # Carbon extractor always starts clipped for this mission
         mission.carbon_extractor.start_clipped = True
 
         # Deterministic unclipping: require modulator (crafted from oxygen)
@@ -273,12 +255,13 @@ class ClipOxygen(_EvalMissionBase):
     name: str = "clip_oxygen"
     description: str = "Oxygen extractor starts clipped; unclip via gear crafted from carbon/silicon/germanium."
     map_name: str = "machina_eval_exp02.map"
-    clip_rate: float = 0.0
+    clip_rate: float = 0.0  # No spreading; only oxygen starts clipped
 
     def instantiate(
         self, map_builder: MapBuilderConfig, num_cogs: int, variant: MissionVariant | None = None
     ) -> "Mission":
         mission = super().instantiate(map_builder, num_cogs, variant)
+        # Oxygen extractor always starts clipped for this mission
         mission.oxygen_extractor.start_clipped = True
 
         # Deterministic unclipping: require decoder (crafted from carbon)
@@ -307,12 +290,13 @@ class ClipGermanium(_EvalMissionBase):
     name: str = "clip_germanium"
     description: str = "Germanium extractor starts clipped; craft gear from carbon/oxygen/silicon to unclip."
     map_name: str = "machina_eval_exp03.map"
-    clip_rate: float = 0.0
+    clip_rate: float = 0.0  # No spreading; only germanium starts clipped
 
     def instantiate(
         self, map_builder: MapBuilderConfig, num_cogs: int, variant: MissionVariant | None = None
     ) -> "Mission":
         mission = super().instantiate(map_builder, num_cogs, variant)
+        # Germanium extractor always starts clipped for this mission
         mission.germanium_extractor.start_clipped = True
 
         # Deterministic unclipping: require resonator (crafted from silicon)
@@ -343,12 +327,13 @@ class ClipSilicon(_EvalMissionBase):
     name: str = "clip_silicon"
     description: str = "Silicon extractor starts clipped; unclip using gear crafted from carbon/oxygen/germanium."
     map_name: str = "machina_eval_exp04.map"
-    clip_rate: float = 0.0
+    clip_rate: float = 0.0  # No spreading; only silicon starts clipped
 
     def instantiate(
         self, map_builder: MapBuilderConfig, num_cogs: int, variant: MissionVariant | None = None
     ) -> "Mission":
         mission = super().instantiate(map_builder, num_cogs, variant)
+        # Silicon extractor always starts clipped for this mission
         mission.silicon_extractor.start_clipped = True
 
         # Deterministic unclipping: require scrambler (crafted from germanium)
@@ -379,12 +364,13 @@ class ClipCharger(_EvalMissionBase):
     name: str = "clip_charger"
     description: str = "Charger starts clipped; craft any gear to unclip and manage energy carefully."
     map_name: str = "machina_eval_exp05.map"
-    clip_rate: float = 0.0
+    clip_rate: float = 0.0  # No spreading; only charger starts clipped
 
     def instantiate(
         self, map_builder: MapBuilderConfig, num_cogs: int, variant: MissionVariant | None = None
     ) -> "Mission":
         mission = super().instantiate(map_builder, num_cogs, variant)
+        # Charger always starts clipped for this mission
         mission.charger.start_clipped = True
         return mission
 
