@@ -28,7 +28,7 @@ from devops.skypilot.utils.job_helpers import (
 )
 from metta.common.util.fs import get_repo_root
 from metta.common.util.retry import retry_function
-from metta.jobs.job_config import JobConfig
+from metta.jobs.job_config import JobConfig, MetricsSource
 
 
 @dataclass
@@ -450,9 +450,9 @@ class RemoteJob(Job):
         log_path.parent.mkdir(parents=True, exist_ok=True)
 
         try:
-            # Only generate run_name for training jobs (they use WandB)
-            run_name = self._generate_run_name() if self.config.is_training_job else None
-            self._run_name = run_name  # Store for WandB URL construction (None for non-training)
+            # Only generate run_name for WandB-tracked jobs
+            run_name = self._generate_run_name() if self.config.metrics_source == MetricsSource.WANDB else None
+            self._run_name = run_name  # Store for WandB URL construction (None for non-WandB jobs)
             request_id, job_id, _ = retry_function(
                 lambda: self._launch_via_script(run_name),
                 max_retries=max_attempts - 1,

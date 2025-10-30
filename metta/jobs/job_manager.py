@@ -10,8 +10,9 @@ from sqlmodel import Session, SQLModel, create_engine, select
 
 from devops.skypilot.utils.job_helpers import check_job_statuses
 from metta.common.util.constants import METTA_WANDB_ENTITY, METTA_WANDB_PROJECT
-from metta.jobs.job_config import JobConfig
-from metta.jobs.job_metrics import fetch_wandb_metrics
+from metta.jobs.cogames_metrics import parse_cogames_stats_from_logs
+from metta.jobs.job_config import JobConfig, MetricsSource
+from metta.jobs.job_metrics import extract_skypilot_job_id, fetch_wandb_metrics
 from metta.jobs.job_runner import LocalJob, RemoteJob
 from metta.jobs.job_state import JobState, JobStatus
 
@@ -57,7 +58,6 @@ class JobManager:
         self.metrics_fetch_interval_s = metrics_fetch_interval_s  # How often to fetch WandB metrics
         self._active_jobs: dict[str, LocalJob | RemoteJob] = {}
         self._monitor_threads: dict[str, threading.Thread] = {}  # Job monitoring threads
-        self._jobs_lock = threading.Lock()  # Protects _active_jobs and _monitor_threads from concurrent access
         self._init_db()
         self._validate_job_states()
 
@@ -70,99 +70,44 @@ class JobManager:
         """Validate and reattach to running jobs on startup.
 
         Local jobs: Mark all as stale (can't reattach to subprocesses).
-        Remote jobs: Batch check status, mark completed if finished, or reattach if still running.
+        Remote jobs: Reattach and start monitoring threads.
         """
         with Session(self._engine) as session:
             running_jobs = session.exec(select(JobState).where(JobState.status == "running")).all()
 
-            local_stale = []
-            remote_job_map: dict[int, tuple[str, JobState]] = {}  # job_id -> (job_name, job_state)
+            local_stale_count = 0
+            remote_jobs = []
 
-            # First pass: categorize jobs
             for job_state in running_jobs:
                 is_remote = job_state.config.remote is not None
 
                 if not is_remote:
-                    local_stale.append(job_state)
-                elif job_state.job_id:
-                    try:
-                        job_id_int = int(job_state.job_id)
-                        remote_job_map[job_id_int] = (job_state.name, job_state)
-                    except (ValueError, TypeError):
-                        logger.warning(f"Invalid job_id for {job_state.name}: {job_state.job_id}")
-
-            # Batch query all remote job statuses at once (single API call!)
-            if remote_job_map:
-                job_ids = list(remote_job_map.keys())
-                logger.info(f"Batch checking status for {len(job_ids)} remote job(s)")
-                try:
-                    statuses = check_job_statuses(job_ids)
-                except Exception as e:
-                    logger.error(f"Failed to batch check job statuses: {e}")
-                    statuses = {}
-
-                # Process each remote job based on its status
-                reattached_count = 0
-                completed_count = 0
-                for job_id, (job_name, job_state) in remote_job_map.items():
-                    status_info = statuses.get(job_id, {})
-                    status = status_info.get("status")
-
-                    if status in (
-                        "SUCCEEDED",
-                        "FAILED",
-                        "FAILED_SETUP",
-                        "FAILED_DRIVER",
-                        "CANCELLED",
-                        "UNKNOWN",
-                        "ERROR",
-                    ):
-                        # Job finished while we were down - mark complete immediately
-                        job_state.status = "completed"
-                        job_state.skypilot_status = status
-                        job_state.exit_code = self._map_skypilot_status_to_exit_code(status)
-                        job_state.completed_at = datetime.now().isoformat(timespec="seconds")
-                        session.add(job_state)
-                        completed_count += 1
-                        logger.info(f"Job {job_name} finished while down: {status}")
-                    else:
-                        # Still running or status unknown - reattach and monitor
+                    # Mark all local running jobs as stale on startup (can't reattach to subprocesses)
+                    job_state.status = "completed"
+                    job_state.exit_code = -1  # Abnormal termination
+                    job_state.completed_at = datetime.now().isoformat(timespec="seconds")
+                    session.add(job_state)
+                    local_stale_count += 1
+                else:
+                    # Reattach remote jobs - monitoring thread will validate status
+                    if job_state.job_id:
                         try:
-                            job = RemoteJob(job_state.config, str(self.log_dir), job_id=job_id)
-                            with self._jobs_lock:
-                                self._active_jobs[job_name] = job
-                            # Fetch metrics immediately for reattached jobs
-                            self._start_remote_monitor(job_name, job_id, fetch_immediately=True)
-                            reattached_count += 1
-                            logger.debug(f"Reattached to running job: {job_name} (status: {status or 'unknown'})")
-                        except Exception as e:
-                            logger.error(f"Failed to reattach to {job_name}: {e}")
-
-                if completed_count > 0:
-                    logger.info(f"Marked {completed_count} remote job(s) as completed (finished while down)")
-                if reattached_count > 0:
-                    logger.info(f"Reattached to {reattached_count} running remote job(s)")
-
-            # Mark local jobs as stale (can't reattach to subprocesses)
-            for job_state in local_stale:
-                job_state.status = "completed"
-                job_state.exit_code = -1  # Abnormal termination
-                job_state.completed_at = datetime.now().isoformat(timespec="seconds")
-                session.add(job_state)
+                            job_id_int = int(job_state.job_id)
+                            job = RemoteJob(job_state.config, str(self.log_dir), job_id=job_id_int)
+                            self._active_jobs[job_state.name] = job
+                            # Fetch metrics immediately for reattached jobs (they've been running for a while)
+                            self._start_remote_monitor(job_state.name, job_id_int, fetch_immediately=True)
+                            remote_jobs.append(job_state.name)
+                        except (ValueError, TypeError):
+                            # Invalid job_id, will be cleaned up by validation
+                            remote_jobs.append((job_state.name, job_state.job_id))
 
             session.commit()
 
-            if local_stale:
-                logger.info(f"Marked {len(local_stale)} local job(s) as stale (cannot reattach to subprocesses)")
-
-    def _map_skypilot_status_to_exit_code(self, status: str) -> int:
-        """Map SkyPilot job status to exit code."""
-        if status == "SUCCEEDED":
-            return 0
-        elif status == "CANCELLED":
-            return 130  # Standard exit code for SIGINT
-        else:
-            return 1  # Generic failure
+            if local_stale_count > 0:
+                logger.info(f"Marked {local_stale_count} local job(s) as stale (cannot reattach to subprocesses)")
+            if remote_jobs:
+                logger.info(f"Reattached to {len(remote_jobs)} remote job(s)")
 
     def _get_total_timesteps(self, job_config: JobConfig) -> int | None:
         """Extract total_timesteps from job config overrides."""
@@ -173,52 +118,72 @@ class JobManager:
                 return None
         return None
 
-    def _evaluate_acceptance(self, job_state: JobState) -> bool:
-        """Evaluate acceptance criteria against job metrics.
+    def _fetch_metrics(self, job_name: str, job_state: JobState) -> None:
+        """Fetch and update metrics for a job based on its metrics_source.
 
-        Returns True if all criteria pass, False if any fail.
-        Returns True if no criteria defined (vacuous truth).
-        Returns False if criteria defined but metrics missing.
-        """
-        if not job_state.config.acceptance_criteria:
-            return True  # No criteria = pass
-
-        if not job_state.metrics:
-            logger.warning(
-                f"Cannot evaluate acceptance for {job_state.name}: criteria defined but no metrics available"
-            )
-            return False
-
-        failures = []
-        for criterion in job_state.config.acceptance_criteria:
-            metric_value = job_state.metrics.get(criterion.metric)
-            if metric_value is None:
-                failures.append(f"{criterion.metric}: metric missing")
-                continue
-
-            # Use criterion's evaluate method
-            if not criterion.evaluate(metric_value):
-                failures.append(
-                    f"{criterion.metric}: expected {criterion.operator} {criterion.threshold}, got {metric_value:.4f}"
-                )
-
-        if failures:
-            logger.info(f"Acceptance criteria failed for {job_state.name}: {'; '.join(failures)}")
-            return False
-
-        logger.info(f"Acceptance criteria passed for {job_state.name}")
-        return True
-
-    def _fetch_metrics(self, job_name: str, job_state: JobState, session: Session) -> None:
-        """Fetch and update metrics for a training job.
-
-        NOTE: This method updates job_state.metrics but does NOT commit the session.
-        The caller is responsible for committing the session.
+        Routes to the appropriate metrics handler:
+        - MetricsSource.WANDB: Fetch from WandB API
+        - MetricsSource.COGAMES_LOG: Parse from cogames log output
+        - MetricsSource.NONE: No-op
         """
         if not job_state.config.metrics_to_track:
             logger.debug(f"Skipping metrics fetch for {job_name}: no metrics_to_track configured")
             return
 
+        # Route to appropriate metrics handler based on source
+        if job_state.config.metrics_source == MetricsSource.COGAMES_LOG:
+            self._fetch_cogames_metrics(job_name, job_state)
+        elif job_state.config.metrics_source == MetricsSource.WANDB:
+            self._fetch_wandb_metrics(job_name, job_state)
+        else:
+            logger.debug(f"Skipping metrics fetch for {job_name}: metrics_source={job_state.config.metrics_source}")
+
+    def _fetch_cogames_metrics(self, job_name: str, job_state: JobState) -> None:
+        """Parse cogames stats from log output."""
+        if not job_state.logs_path:
+            logger.debug(f"Cannot parse cogames metrics for {job_name}: no logs_path set")
+            return
+
+        try:
+            # Read log file
+            log_path = Path(job_state.logs_path)
+            if not log_path.exists():
+                logger.debug(f"Cannot parse cogames metrics for {job_name}: log file not found at {log_path}")
+                return
+
+            log_text = log_path.read_text(errors="ignore")
+
+            # Parse metrics from logs
+            metrics_data = parse_cogames_stats_from_logs(
+                log_text=log_text,
+                metric_keys=job_state.config.metrics_to_track,
+                last_n_percent=0.25,
+            )
+
+            if metrics_data:
+                # Extract just the values for storage (backward compatible with display)
+                metrics_values = {key: data["value"] for key, data in metrics_data.items()}
+
+                with Session(self._engine) as session:
+                    job_state_fresh = session.get(JobState, job_name)
+                    if job_state_fresh:
+                        job_state_fresh.metrics = metrics_values
+                        session.add(job_state_fresh)
+                        session.commit()
+
+                        # Log with value and count
+                        metrics_info = ", ".join(
+                            f"{key}={data['value']:.2f} (n={int(data['count'])})" for key, data in metrics_data.items()
+                        )
+                        logger.info(f"Parsed cogames metrics for {job_name}: {metrics_info}")
+            else:
+                logger.debug(f"No cogames metrics found in logs for {job_name}")
+
+        except Exception as e:
+            logger.warning(f"Failed to parse cogames metrics for {job_name}: {e}")
+
+    def _fetch_wandb_metrics(self, job_name: str, job_state: JobState) -> None:
+        """Fetch metrics from WandB API for tool-based training jobs."""
         if not job_state.wandb_run_id:
             logger.warning(f"Cannot fetch metrics for {job_name}: no wandb_run_id set")
             return
@@ -249,20 +214,23 @@ class JobManager:
                         "total_steps": total_timesteps,
                     }
 
-                # Update metrics in place (caller commits)
-                job_state.metrics = metrics_values
-                session.add(job_state)
+                with Session(self._engine) as session:
+                    job_state_fresh = session.get(JobState, job_name)
+                    if job_state_fresh:
+                        job_state_fresh.metrics = metrics_values
+                        session.add(job_state_fresh)
+                        session.commit()
 
-                # Log with value, count, and progress
-                metrics_info = ", ".join(
-                    f"{key}={data['value']:.2f} (n={int(data['count'])})" for key, data in metrics_data.items()
-                )
-                progress_info = ""
-                if current_step is not None and total_timesteps is not None:
-                    progress_pct = (current_step / total_timesteps) * 100
-                    progress_info = f" | progress={current_step}/{total_timesteps} ({progress_pct:.1f}%)"
+                        # Log with value, count, and progress
+                        metrics_info = ", ".join(
+                            f"{key}={data['value']:.2f} (n={int(data['count'])})" for key, data in metrics_data.items()
+                        )
+                        progress_info = ""
+                        if current_step is not None and total_timesteps is not None:
+                            progress_pct = (current_step / total_timesteps) * 100
+                            progress_info = f" | progress={current_step}/{total_timesteps} ({progress_pct:.1f}%)"
 
-                logger.info(f"Fetched metrics for {job_name}: {metrics_info}{progress_info}")
+                        logger.info(f"Fetched metrics for {job_name}: {metrics_info}{progress_info}")
             else:
                 logger.warning(f"No metrics returned for {job_name} (run may not have data yet)")
         except Exception as e:
@@ -285,9 +253,7 @@ class JobManager:
 
             try:
                 while True:
-                    # Get job from active_jobs (protected by lock)
-                    with self._jobs_lock:
-                        job = self._active_jobs.get(job_name)
+                    job = self._active_jobs.get(job_name)
                     if not job:
                         break
 
@@ -314,44 +280,15 @@ class JobManager:
                                         f"logs={job_result.logs_path})"
                                     )
 
-                                    # Fetch final metrics (inline to avoid session detachment)
-                                    if job_state.config.metrics_to_track and job_state.wandb_run_id:
+                                    # Fetch final metrics
+                                    if job_state.config.metrics_to_track:
                                         logger.debug(f"Fetching final metrics for {job_name}")
-                                        try:
-                                            total_timesteps = self._get_total_timesteps(job_state.config)
-                                            metrics_data, current_step = fetch_wandb_metrics(
-                                                entity=METTA_WANDB_ENTITY,
-                                                project=METTA_WANDB_PROJECT,
-                                                run_name=job_state.wandb_run_id,
-                                                metric_keys=job_state.config.metrics_to_track,
-                                            )
-                                            if metrics_data:
-                                                metrics_values = {
-                                                    key: data["value"] for key, data in metrics_data.items()
-                                                }
-                                                if current_step is not None and total_timesteps is not None:
-                                                    metrics_values["_progress"] = {
-                                                        "current_step": current_step,
-                                                        "total_steps": total_timesteps,
-                                                    }
-                                                job_state.metrics = metrics_values
-                                                logger.debug(f"Fetched final metrics for {job_name}")
-                                        except Exception as e:
-                                            logger.warning(f"Failed to fetch metrics for {job_name}: {e}")
-
-                                    # Evaluate acceptance criteria
-                                    if job_state.config.acceptance_criteria:
-                                        job_state.acceptance_passed = self._evaluate_acceptance(job_state)
-                                    else:
-                                        job_state.acceptance_passed = None  # No criteria defined
+                                        self._fetch_metrics(job_name, job_state)
 
                                     session.add(job_state)
                                     session.commit()
 
-                            # Clean up active jobs (protected by lock)
-                            with self._jobs_lock:
-                                if job_name in self._active_jobs:
-                                    del self._active_jobs[job_name]
+                            del self._active_jobs[job_name]
                         break
 
                     # Fetch metrics periodically while running
@@ -360,8 +297,7 @@ class JobManager:
                         with Session(self._engine) as session:
                             job_state = session.get(JobState, job_name)
                             if job_state and job_state.status == "running":
-                                self._fetch_metrics(job_name, job_state, session)
-                                session.commit()
+                                self._fetch_metrics(job_name, job_state)
                         last_metrics_fetch = now
 
                     time.sleep(1.0)  # Check every second
@@ -369,15 +305,12 @@ class JobManager:
             except Exception as e:
                 logger.warning(f"Local monitor thread for {job_name} failed: {e}")
             finally:
-                # Clean up monitor thread (protected by lock)
-                with self._jobs_lock:
-                    if job_name in self._monitor_threads:
-                        del self._monitor_threads[job_name]
+                if job_name in self._monitor_threads:
+                    del self._monitor_threads[job_name]
 
         thread = threading.Thread(target=monitor_loop, daemon=True, name=f"monitor-{job_name}")
         thread.start()
-        with self._jobs_lock:
-            self._monitor_threads[job_name] = thread
+        self._monitor_threads[job_name] = thread
         logger.info(f"Started monitoring thread for local job: {job_name}")
 
     def _start_remote_monitor(self, job_name: str, job_id: int, fetch_immediately: bool = False) -> None:
@@ -430,8 +363,7 @@ class JobManager:
                                 with Session(self._engine) as session:
                                     job_state = session.get(JobState, job_name)
                                     if job_state:
-                                        self._fetch_metrics(job_name, job_state, session)
-                                        session.commit()
+                                        self._fetch_metrics(job_name, job_state)
                                 last_metrics_fetch = now
 
                         # Check if terminal state reached
@@ -444,91 +376,48 @@ class JobManager:
                             "UNKNOWN",
                             "ERROR",
                         ):
-                            # Try to fetch final logs before marking complete
-                            with self._jobs_lock:
-                                job = self._active_jobs.get(job_name)
-                            if job:
+                            # Mark job complete
+                            if job_name in self._active_jobs:
+                                job = self._active_jobs[job_name]
                                 try:
                                     job.get_logs()
                                 except Exception:
                                     pass
 
-                            # Mark complete in database
-                            with Session(self._engine) as session:
-                                job_state = session.get(JobState, job_name)
-                                if job_state and job_state.status != "completed":
-                                    # Determine exit code from SkyPilot status
-                                    exit_code = self._map_skypilot_status_to_exit_code(status)
+                                job_result = job.get_result()
+                                if job_result:
+                                    with Session(self._engine) as session:
+                                        job_state = session.get(JobState, job_name)
+                                        if job_state:
+                                            job_state.status = "completed"
+                                            job_state.completed_at = datetime.now().isoformat(timespec="seconds")
+                                            job_state.exit_code = job_result.exit_code
+                                            job_state.logs_path = job_result.logs_path
+                                            job_state.job_id = str(job_result.job_id) if job_result.job_id else None
 
-                                    job_state.status = "completed"
-                                    job_state.completed_at = datetime.now().isoformat(timespec="seconds")
-                                    job_state.exit_code = exit_code
-                                    if not job_state.job_id:
-                                        job_state.job_id = str(job_id)
-
-                                    logger.info(
-                                        f"Job completed: {job_name} (skypilot_status={status}, "
-                                        f"exit_code={exit_code}, job_id={job_id})"
-                                    )
-
-                                    # Fetch final metrics (inline to avoid session detachment)
-                                    if job_state.config.metrics_to_track and job_state.wandb_run_id:
-                                        logger.debug(f"Fetching final metrics for {job_name}")
-                                        try:
-                                            total_timesteps = self._get_total_timesteps(job_state.config)
-                                            metrics_data, current_step = fetch_wandb_metrics(
-                                                entity=METTA_WANDB_ENTITY,
-                                                project=METTA_WANDB_PROJECT,
-                                                run_name=job_state.wandb_run_id,
-                                                metric_keys=job_state.config.metrics_to_track,
+                                            logger.info(
+                                                f"Job completed: {job_name} (skypilot_status={status}, "
+                                                f"exit_code={job_result.exit_code}, job_id={job_id})"
                                             )
-                                            if metrics_data:
-                                                # Extract values and add progress
-                                                metrics_values = {
-                                                    key: data["value"] for key, data in metrics_data.items()
-                                                }
-                                                if current_step is not None and total_timesteps is not None:
-                                                    metrics_values["_progress"] = {
-                                                        "current_step": current_step,
-                                                        "total_steps": total_timesteps,
-                                                    }
-                                                job_state.metrics = metrics_values
 
-                                                # Log metrics
-                                                metrics_info = ", ".join(
-                                                    f"{key}={data['value']:.2f} (n={int(data['count'])})"
-                                                    for key, data in metrics_data.items()
-                                                )
-                                                progress_info = ""
-                                                if current_step is not None and total_timesteps is not None:
-                                                    progress_pct = (current_step / total_timesteps) * 100
-                                                    progress_info = (
-                                                        f" | progress={current_step}/{total_timesteps}"
-                                                        f" ({progress_pct:.1f}%)"
-                                                    )
-                                                logger.info(
-                                                    f"Fetched metrics for {job_name}: {metrics_info}{progress_info}"
-                                                )
-                                        except Exception as e:
-                                            logger.warning(f"Failed to fetch metrics for {job_name}: {e}")
+                                            # Extract job ID from logs if not set
+                                            if job_state.logs_path and not job_state.job_id:
+                                                try:
+                                                    logs = Path(job_state.logs_path).read_text(errors="ignore")
+                                                    skypilot_id = extract_skypilot_job_id(logs)
+                                                    if skypilot_id:
+                                                        job_state.job_id = skypilot_id
+                                                except Exception:
+                                                    pass
 
-                                    # Evaluate acceptance criteria
-                                    if job_state.config.acceptance_criteria:
-                                        job_state.acceptance_passed = self._evaluate_acceptance(job_state)
-                                    else:
-                                        job_state.acceptance_passed = None
+                                            # Fetch final metrics
+                                            if job_state.config.metrics_to_track:
+                                                logger.debug(f"Fetching final metrics for {job_name}")
+                                                self._fetch_metrics(job_name, job_state)
 
-                                    session.add(job_state)
-                                    session.commit()
-                                    logger.info(
-                                        f"Committed completion for {job_name}: status={job_state.status}, "
-                                        f"exit_code={job_state.exit_code}, "
-                                        f"acceptance_passed={job_state.acceptance_passed}"
-                                    )
+                                            session.add(job_state)
+                                            session.commit()
 
-                            # Clean up active jobs (protected by lock)
-                            with self._jobs_lock:
-                                if job_name in self._active_jobs:
                                     del self._active_jobs[job_name]
                             break
 
@@ -539,15 +428,12 @@ class JobManager:
                         time.sleep(self.remote_poll_interval_s)
 
             finally:
-                # Clean up monitor thread (protected by lock)
-                with self._jobs_lock:
-                    if job_name in self._monitor_threads:
-                        del self._monitor_threads[job_name]
+                if job_name in self._monitor_threads:
+                    del self._monitor_threads[job_name]
 
         thread = threading.Thread(target=monitor_loop, daemon=True, name=f"monitor-{job_name}")
         thread.start()
-        with self._jobs_lock:
-            self._monitor_threads[job_name] = thread
+        self._monitor_threads[job_name] = thread
         logger.info(f"Started monitoring thread for remote job: {job_name} (job_id={job_id})")
 
     def submit(self, config: JobConfig) -> None:
@@ -573,7 +459,7 @@ class JobManager:
         task_spec = config.tool if config.tool else config.cmd
         logger.info(
             f"Job submitted: {config.name} | type={job_type} | task={task_spec} | "
-            f"is_training={config.is_training_job} | metrics={config.metrics_to_track}"
+            f"metrics_source={config.metrics_source.value} | metrics={config.metrics_to_track}"
         )
 
         self._try_start_job(config.name)
@@ -588,45 +474,37 @@ class JobManager:
             if not self._has_available_slot(is_remote):
                 return False
 
-            # Spawn job and add to active jobs (protected by lock)
             job = self._spawn_job(job_state)
-            with self._jobs_lock:
-                self._active_jobs[name] = job
-
+            self._active_jobs[name] = job
             job_state.status = "running"
             job_state.started_at = datetime.now().isoformat(timespec="seconds")
             session.add(job_state)
-
-            # Get job_id before session closes (to avoid DetachedInstanceError)
-            job_id_value = job_state.job_id
-
             session.commit()
 
             job_type = "remote" if is_remote else "local"
             logger.info(f"Job started: {name} (type={job_type})")
 
-        # Start monitoring thread outside the lock to avoid holding lock during thread creation
-        if is_remote:
-            # Remote job: start monitor once we have job_id
-            if job_id_value:
-                try:
-                    job_id_int = int(job_id_value)
-                    self._start_remote_monitor(name, job_id_int)
-                except ValueError:
-                    pass  # Job ID not available yet
-        else:
-            # Local job: start monitor immediately
-            self._start_local_monitor(name)
+            # Start background monitoring thread
+            if is_remote:
+                # Remote job: start monitor once we have job_id
+                if job_state.job_id:
+                    try:
+                        job_id_int = int(job_state.job_id)
+                        self._start_remote_monitor(name, job_id_int)
+                    except ValueError:
+                        pass  # Job ID not available yet, will start monitor when it becomes available
+            else:
+                # Local job: start monitor immediately
+                self._start_local_monitor(name)
 
-        return True
+            return True
 
     def _has_available_slot(self, is_remote: bool) -> bool:
-        with self._jobs_lock:
-            active_count = sum(
-                1
-                for job in self._active_jobs.values()
-                if (not is_remote and isinstance(job, LocalJob)) or (is_remote and isinstance(job, RemoteJob))
-            )
+        active_count = sum(
+            1
+            for job in self._active_jobs.values()
+            if (not is_remote and isinstance(job, LocalJob)) or (is_remote and isinstance(job, RemoteJob))
+        )
 
         if not is_remote:
             return active_count < self.max_local_jobs
@@ -653,8 +531,8 @@ class JobManager:
             if isinstance(job, RemoteJob):
                 if job.request_id:
                     job_state.request_id = job.request_id
-                # Only set WandB info for training jobs (they use run= param and log to WandB)
-                if job.run_name and config.is_training_job:
+                # Only set WandB info for WandB-tracked jobs
+                if job.run_name and config.metrics_source == MetricsSource.WANDB:
                     job_state.wandb_run_id = job.run_name
                     job_state.wandb_url = (
                         f"https://wandb.ai/{METTA_WANDB_ENTITY}/{METTA_WANDB_PROJECT}/runs/{job.run_name}"
@@ -675,11 +553,7 @@ class JobManager:
 
         # Update job_id for remote jobs once available, and start their monitoring threads
         with Session(self._engine) as session:
-            # Get snapshot of active jobs (protected by lock)
-            with self._jobs_lock:
-                active_jobs_snapshot = list(self._active_jobs.items())
-
-            for name, job in active_jobs_snapshot:
+            for name, job in list(self._active_jobs.items()):
                 if isinstance(job, RemoteJob):
                     job_state = session.get(JobState, name)
                     if job_state and job.job_id and not job_state.job_id:
@@ -690,9 +564,7 @@ class JobManager:
                         logger.info(f"Remote job ID available: {name} (job_id={job.job_id})")
 
                         # Start monitoring thread if not already running
-                        with self._jobs_lock:
-                            monitor_exists = name in self._monitor_threads
-                        if not monitor_exists:
+                        if name not in self._monitor_threads:
                             try:
                                 job_id_int = int(job.job_id)
                                 self._start_remote_monitor(name, job_id_int)
@@ -859,15 +731,11 @@ class JobManager:
                     if local_only and is_remote:
                         continue
 
-                    # Cancel the job if it's active (protected by lock)
-                    job_to_cancel = None
-                    with self._jobs_lock:
-                        if job_state.name in self._active_jobs:
-                            job_to_cancel = self._active_jobs[job_state.name]
-                            del self._active_jobs[job_state.name]
-                    # Cancel outside lock to avoid blocking
-                    if job_to_cancel:
-                        job_to_cancel.cancel()
+                    # Cancel the job if it's active
+                    if job_state.name in self._active_jobs:
+                        job = self._active_jobs[job_state.name]
+                        job.cancel()
+                        del self._active_jobs[job_state.name]
 
                     # Mark as completed with SIGINT exit code
                     job_state.status = "completed"
