@@ -2,12 +2,14 @@ from typing import Any
 
 import einops
 import torch
+import torch.nn.functional as F
 from pydantic import Field
 from tensordict import TensorDict
 from torch import Tensor
 from torchrl.data import Composite
 
 from metta.agent.policy import Policy
+from metta.rl.checkpoint_manager import CheckpointManager
 from metta.rl.loss import Loss
 from metta.rl.trainer_config import TrainerConfig
 from metta.rl.training import ComponentContext
@@ -19,8 +21,6 @@ class SLKickstarterConfig(Config):
     action_loss_coef: float = Field(default=0.995, ge=0, le=1.0)
     value_loss_coef: float = Field(default=1.0, ge=0, le=1.0)
 
-    use_kl_div: bool = Field(default=True)
-
     def create(
         self,
         policy: Policy,
@@ -29,6 +29,7 @@ class SLKickstarterConfig(Config):
         device: torch.device,
         instance_name: str,
         loss_config: Any,
+        temperature: float = 2.0,
     ):
         """Create SLKickstarter loss instance."""
         return SLKickstarter(policy, trainer_cfg, vec_env, device, instance_name=instance_name, loss_config=loss_config)
@@ -40,7 +41,7 @@ class SLKickstarter(Loss):
         "teacher_policy_spec",
         "action_loss_coef",
         "value_loss_coef",
-        "use_kl_div",
+        "temperature",
     )
 
     def __init__(
@@ -58,10 +59,8 @@ class SLKickstarter(Loss):
         super().__init__(policy, trainer_cfg, vec_env, device, instance_name, loss_config)
         self.action_loss_coef = self.loss_cfg.action_loss_coef
         self.value_loss_coef = self.loss_cfg.value_loss_coef
-        self.use_kl_div = self.loss_cfg.use_kl_div
-
+        self.temperature = self.loss_cfg.temperature
         # load teacher policy
-        from metta.rl.checkpoint_manager import CheckpointManager
 
         game_rules = getattr(self.env, "game_rules", getattr(self.env, "meta_data", None))
         if game_rules is None:
@@ -92,16 +91,17 @@ class SLKickstarter(Loss):
         student_td = policy_td.select(*self.policy_experience_spec.keys(include_nested=True))
         student_td = self.policy(student_td, action=None)
 
-        if self.use_kl_div:
-            student_log_probs = student_td["full_log_probs"].to(dtype=torch.float32)
-            teacher_log_probs = teacher_td["full_log_probs"].to(dtype=torch.float32).detach()
-            student_probs = torch.exp(student_log_probs)
-            ks_action_loss = (student_probs * (student_log_probs - teacher_log_probs)).sum(dim=-1).mean()
-        else:
-            student_action = student_td["action"].to(dtype=torch.int32)
-            teacher_action = teacher_td["action"].to(dtype=torch.int32).detach()
-            matching_actions = (teacher_action == student_action).float()
-            ks_action_loss = (1.0 - matching_actions).mean()
+        temperature = self.temperature
+        teacher_logits = teacher_td["logits"].to(dtype=torch.float32)
+        student_logits = student_td["logits"].to(dtype=torch.float32)
+
+        teacher_log_probs = F.log_softmax(teacher_logits / temperature, dim=-1).detach()
+        student_log_probs = F.log_softmax(student_logits / temperature, dim=-1)
+        student_probs = torch.exp(student_log_probs)
+
+        ks_action_loss = (temperature**2) * (
+            (student_probs * (student_log_probs - teacher_log_probs)).sum(dim=-1).mean()
+        )
 
         # Value loss
         student_value = student_td["values"].to(dtype=torch.float32)

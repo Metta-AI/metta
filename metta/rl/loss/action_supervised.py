@@ -2,6 +2,7 @@ from typing import Any
 
 import numpy as np
 import torch
+import torch.nn.functional as F
 from pydantic import Field
 from tensordict import TensorDict
 from torch import Tensor
@@ -19,9 +20,9 @@ class ActionSupervisedConfig(Config):
     action_loss_coef: float = Field(default=0.995, ge=0, le=1.0)
     value_loss_coef: float = Field(default=1.0, ge=0, le=1.0)
     use_own_sampling: bool = (True,)
-    use_kl_div: bool = (False,)
     use_own_rollout: bool = (True,)
     student_led: bool = (True,)  # sigma as per Matt's document
+    loss_type: str = Field(default="BCE")  # one of {"BCE", "MSE", "COSINE"}. Eliminate this hyper after testing
 
     def create(
         self,
@@ -38,11 +39,25 @@ class ActionSupervisedConfig(Config):
         )
 
 
-# helper to extract teacher actions from env obs
+# helper to extract teacher actions from env obs. Then infer full logits and return.
+def extract_teacher_logits_from_env_obs(env_obs: Tensor, action_space: Any) -> Tensor:
+    # --> Run helper to extract teacher actions from env obs
+    pass
+
+
+# helper to delete teacher tokens from env obs
+def delete_teacher_tokens_from_env_obs(env_obs: Tensor, teacher_tokens: Tensor) -> Tensor:
+    pass
+
 
 # helper to translate teacher logits (centering)
+def translate_teacher_logits(teacher_logits: Tensor) -> Tensor:
+    pass
+
 
 # helper to multinomial sample teacher actions
+def multinomial_sample_teacher_actions(teacher_logits: Tensor) -> Tensor:
+    pass
 
 
 class ActionSupervised(Loss):
@@ -53,7 +68,7 @@ class ActionSupervised(Loss):
         "value_loss_coef",
         "use_own_rollout",
         "use_own_sampling",
-        "use_kl_div",
+        "loss_type",
         "teacher_has_action_log_prob",
     )
 
@@ -74,7 +89,7 @@ class ActionSupervised(Loss):
         self.value_loss_coef = self.loss_cfg.value_loss_coef
         self.use_own_rollout = self.loss_cfg.use_own_rollout
         self.use_own_sampling = self.loss_cfg.use_own_sampling
-        self.use_kl_div = self.loss_cfg.use_kl_div
+        self.loss_type = self.loss_cfg.loss_type
 
     def get_experience_spec(self) -> Composite:
         act_space = self.env.single_action_space
@@ -82,22 +97,27 @@ class ActionSupervised(Loss):
         scalar_f32 = UnboundedContinuous(shape=torch.Size([]), dtype=torch.float32)
 
         return Composite(
-            dones=scalar_f32,
-            truncateds=scalar_f32,
             actions=UnboundedDiscrete(shape=torch.Size([]), dtype=act_dtype),
-            act_log_prob=scalar_f32,
-            full_log_probs=scalar_f32,
-            teacher_actions=UnboundedDiscrete(shape=torch.Size([]), dtype=act_dtype),
+            logits=scalar_f32,  # student logits
+            full_log_probs=scalar_f32,  # student full log_probs
+            teacher_logits=scalar_f32,
         )
 
     def run_rollout(self, td: TensorDict, context: ComponentContext) -> None:
         if not self.use_own_rollout:
             return
 
-        # !!!!! Need to extract teacher output from env obs and store in td["teacher_actions"]
+        # extract teacher output from env obs, construct teacher logits, and remove teacher tokens from env obs
+        teacher_logits, env_obs_without_teacher_tokens = extract_teacher_logits_from_env_obs(
+            td["env_obs"], self.env.single_action_space
+        )
+        td["teacher_logits"] = teacher_logits
+        td["env_obs"] = env_obs_without_teacher_tokens
 
-        with torch.no_grad():
-            self.policy.forward(td)
+        # running with grad on in rollout since this is the only place we run student's forward. this is faster than
+        # running it in training as per usual. we'll likely revert once including PPO. see note under
+        # `if not student_led` below.
+        self.policy.forward(td)
 
         if self.burn_in_steps_iter < self.burn_in_steps:
             self.burn_in_steps_iter += 1
@@ -109,14 +129,14 @@ class ActionSupervised(Loss):
         self.replay.store(data_td=td, env_id=env_slice)
 
         if not self.student_led:
-        # we'll need to modify this logic when we move to including PPO by calling the student forward under run_train()
-        # for now, we save td["action"] into the td that goes to the replay buffer but then overwrite it with teacher
-        # actions when sending to the environment. After it gets sent to env it is no longer used.
-            pass
-            # multinomial sample here
-            # overwrite td["actions"] with sampled actions
+            # we'll need to modify this logic when we move to including PPO by calling the student forward under
+            # run_train(). For now, we save td["action"] into the td that goes to the replay buffer but then overwrite
+            # it with teacher actions when sending to the environment. After it gets sent to env it is no longer used.
 
-        # NOTE: teacher-leading means actions reported to wandb are teacher actions, not student actions
+            # NOTE: teacher-leading means actions reported to wandb are teacher actions, not student actions
+
+            teacher_actions = multinomial_sample_teacher_actions(teacher_logits)
+            td["actions"] = teacher_actions
 
     def run_train(
         self,
@@ -131,19 +151,25 @@ class ActionSupervised(Loss):
 
         minibatch = shared_loss_data["sampled_mb"]
 
-        if self.use_kl_div:
-            # need to be updated based on translation method, softmax of teacher, etc.
-            student_log_probs = minibatch["full_log_probs"].to(dtype=torch.float32)
-            teacher_log_probs = minibatch["teacher_act_log_prob"].to(dtype=torch.float32).detach()
-            student_probs = torch.exp(student_log_probs)
-            ks_action_loss = (student_probs * (student_log_probs - teacher_log_probs)).sum(dim=-1).mean()
+        # downselect to one of these after testing
+        if self.loss_type == "BCE":
+            student_logits = minibatch["logits"].to(dtype=torch.float32)
+            teacher_logits = minibatch["teacher_logits"].to(dtype=torch.float32).detach()
+            targets = F.softmax(teacher_logits, dim=-1)
+            ks_action_loss = F.binary_cross_entropy_with_logits(student_logits, targets)
+        elif self.loss_type == "MSE":
+            student_logits = minibatch["logits"].to(dtype=torch.float32)
+            teacher_logits = minibatch["teacher_logits"].to(dtype=torch.float32).detach()
+            # --> Run helper to translate teacher logits
+            teacher_logits = translate_teacher_logits(teacher_logits)
+            ks_action_loss = F.mse_loss(student_logits, teacher_logits)
+        elif self.loss_type == "COSINE":
+            # --> Run helper to translate teacher logits
+            student_logits = minibatch["logits"].to(dtype=torch.float32)
+            teacher_logits = minibatch["teacher_logits"].to(dtype=torch.float32).detach()
+            ks_action_loss = (1.0 - F.cosine_similarity(student_logits, teacher_logits, dim=-1)).mean()
         else:
-            # MSE distance between student and teacher actions
-            # need to be updated based on translation method
-            student_action = minibatch["action"].to(dtype=torch.int32)
-            teacher_action = minibatch["teacher_actions"].to(dtype=torch.int32).detach()
-            matching_actions = (teacher_action == student_action).float()
-            ks_action_loss = (1.0 - matching_actions).mean()
+            raise ValueError(f"Unsupported loss_type: {self.loss_type}")
 
         loss = ks_action_loss * self.action_loss_coef
 
