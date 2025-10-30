@@ -45,9 +45,7 @@ def base_config():
             noop=ActionConfig(),
             move=ActionConfig(),
             rotate=ActionConfig(),
-            get_items=ActionConfig(),
             attack=AttackActionConfig(enabled=True, consumed_resources={"laser": 1}, defense_resources={"armor": 1}),
-            put_items=ActionConfig(),
             swap=ActionConfig(),
         ),
         objects={

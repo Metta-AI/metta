@@ -1,7 +1,11 @@
+from typing import Any
+
 from pydantic import Field
 
 from cogames.cogs_vs_clips import vibes
+from cogames.cogs_vs_clips.procedural import apply_procedural_overrides_to_builder
 from cogames.cogs_vs_clips.stations import (
+    RESOURCE_CHESTS,
     CarbonExtractorConfig,
     ChargerConfig,
     CvCAssemblerConfig,
@@ -39,6 +43,7 @@ class Site(Config):
     name: str
     description: str
     map_builder: MapBuilderConfig
+
     min_cogs: int = Field(default=1, ge=1)
     max_cogs: int = Field(default=1000, ge=1)
 
@@ -57,6 +62,7 @@ class Mission(Config):
     # Map and num_cogs are optional for template missions, required for instantiated missions
     map: MapBuilderConfig | None = Field(default=None)
     num_cogs: int | None = Field(default=None)
+    procedural_overrides: dict[str, Any] = Field(default_factory=dict)
 
     carbon_extractor: CarbonExtractorConfig = Field(default_factory=CarbonExtractorConfig)
     oxygen_extractor: OxygenExtractorConfig = Field(default_factory=OxygenExtractorConfig)
@@ -74,9 +80,20 @@ class Mission(Config):
     gear_capacity: int = Field(default=5)
     move_energy_cost: int = Field(default=2)
     heart_capacity: int = Field(default=1)
+    # Control glyph swapping in variants
+    enable_glyph_change: bool = Field(default=True)
+    glyph_count: int | None = Field(default=None)
+
+    def configure(self):
+        pass
 
     def instantiate(
-        self, map_builder: MapBuilderConfig, num_cogs: int, variant: MissionVariant | None = None
+        self,
+        map_builder: MapBuilderConfig,
+        num_cogs: int,
+        variant: MissionVariant | None = None,
+        *,
+        cli_override: bool = False,
     ) -> "Mission":
         """Create an instantiated mission with specific map and num_cogs.
 
@@ -84,16 +101,29 @@ class Mission(Config):
             map_builder: Map configuration
             num_cogs: Number of cogs (agents)
             variant: Optional variant to apply
+            cli_override: If True, prefer the provided num_cogs over mission/variant settings
 
         Returns:
             New Mission instance with map and num_cogs set
         """
         mission = self.model_copy(deep=True)
+        mission.configure()
         mission.map = map_builder
-        mission.num_cogs = num_cogs
 
         if variant:
             mission = variant.apply(mission)
+
+        if cli_override:
+            mission.num_cogs = num_cogs
+        elif mission.num_cogs is None:
+            mission.num_cogs = num_cogs
+
+        # Apply mission-level procedural overrides to supported builders (hub-only, machina, etc.)
+        mission.map = apply_procedural_overrides_to_builder(
+            mission.map or map_builder,
+            num_cogs=int(mission.num_cogs or 0),
+            overrides=getattr(mission, "procedural_overrides", {}) or {},
+        )
 
         return mission
 
@@ -127,7 +157,13 @@ class Mission(Config):
             actions=ActionsConfig(
                 move=ActionConfig(consumed_resources={"energy": self.move_energy_cost}),
                 noop=ActionConfig(),
-                change_glyph=ChangeGlyphActionConfig(number_of_glyphs=len(vibes.VIBES)),
+                change_glyph=ChangeGlyphActionConfig(
+                    number_of_glyphs=(
+                        0
+                        if not self.enable_glyph_change
+                        else (self.glyph_count if self.glyph_count is not None else len(vibes.VIBES))
+                    )
+                ),
             ),
             agent=AgentConfig(
                 resource_limits={
@@ -178,6 +214,28 @@ class Mission(Config):
                 "oxygen_extractor": self.oxygen_extractor.station_cfg(),
                 "germanium_extractor": self.germanium_extractor.station_cfg(),
                 "silicon_extractor": self.silicon_extractor.station_cfg(),
+                **RESOURCE_CHESTS,
             },
         )
+
+        # if hasattr(self, "heart_chorus_length"):
+        #     length_raw = self.heart_chorus_length
+        #     try:
+        #         chorus_len = max(1, int(length_raw))
+        #     except Exception:
+        #         chorus_len = 4
+        #     inputs = getattr(
+        #         self,
+        #         "heart_chorus_inputs",
+        #         {"carbon": 1, "oxygen": 1, "germanium": 1, "silicon": 1, "energy": 1},
+        #     )
+        #     assembler_cfg = game.objects.get("assembler")
+        #     if isinstance(assembler_cfg, CvCAssemblerConfig):
+        #         chorus = ProtocolConfig(input_resources=dict(inputs), output_resources={"heart": 1}, cooldown=1)
+        #         non_heart = [
+        #             (vibes_list, recipe)
+        #             for vibes_list, recipe in assembler_cfg.recipes
+        #             if recipe.output_resources.get("heart", 0) == 0
+        #         ]
+        #         assembler_cfg.recipes = [(["heart"] * chorus_len, chorus), *non_heart]
         return MettaGridConfig(game=game)
