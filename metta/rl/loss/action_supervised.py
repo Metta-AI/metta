@@ -155,8 +155,7 @@ class ActionSupervised(Loss):
         if self.loss_type == "BCE":
             student_logits = minibatch["logits"].to(dtype=torch.float32)
             teacher_logits = minibatch["teacher_logits"].to(dtype=torch.float32).detach()
-            targets = F.softmax(teacher_logits, dim=-1)
-            ks_action_loss = F.binary_cross_entropy_with_logits(student_logits, targets)
+            ks_action_loss = F.binary_cross_entropy_with_logits(student_logits, teacher_logits)
         elif self.loss_type == "MSE":
             student_logits = minibatch["logits"].to(dtype=torch.float32)
             teacher_logits = minibatch["teacher_logits"].to(dtype=torch.float32).detach()
