@@ -28,16 +28,26 @@ class ColumnBlock(BaseBlock):
         self.config = config
         self.d_hidden = d_hidden
         self.experts = nn.ModuleList(self._build_experts(config.experts, d_hidden))
-        self.router = GlobalContextDotRouter(d_hidden, len(self.experts), config.router)
-        lam0 = float(getattr(config.router, "whisper_lambda", 0.0))
-        self.refiner: TokenRefiner | None = (
-            TokenRefiner(d_hidden, len(self.experts), config.router) if lam0 > 0.0 else None
-        )
-
+        num_experts = len(self.experts)
+        # Keep boundary norm regardless of expert count.
         self.boundary_norm = nn.RMSNorm(d_hidden)
 
-        d_k_mix = int(config.router.d_key or d_hidden)
-        self.e_mixer = _EAxisCrossAttention(d_hidden=d_hidden, num_experts=len(self.experts), d_key=d_k_mix)
+        # Initialize router/refiner/mixer only when there is actual expert mixing.
+        if num_experts > 1:
+            self.router: GlobalContextDotRouter | None = GlobalContextDotRouter(d_hidden, num_experts, config.router)
+            lam0 = float(getattr(config.router, "whisper_lambda", 0.0))
+            self.refiner: TokenRefiner | None = (
+                TokenRefiner(d_hidden, num_experts, config.router) if lam0 > 0.0 else None
+            )
+            d_k_mix = int(config.router.d_key or d_hidden)
+            self.e_mixer: _EAxisCrossAttention | None = _EAxisCrossAttention(
+                d_hidden=d_hidden, num_experts=num_experts, d_key=d_k_mix
+            )
+        else:
+            # Avoid allocating unused parameters when E=1; fast path in forward will bypass them.
+            self.router = None
+            self.refiner = None
+            self.e_mixer = None
 
         self.head = _ColumnReZeroHead(d_hidden=d_hidden, hidden_mult=2)
         init_alpha = float(getattr(config, "alpha_init", 0.01))
@@ -169,6 +179,24 @@ class ColumnBlock(BaseBlock):
         expert_outs_tensors: list[Tensor] = [
             (y if isinstance(y, torch.Tensor) else torch.empty(0, device=x.device)) for y in expert_outs
         ]
+
+        # Fast‑path for a single expert: keep RMSNorm + ReZero semantics but
+        # bypass E‑axis mixer and router/refiner overhead. Algebraically,
+        # with E=1 the mixture reduces to y_minus_x = (y - u) + (u - x) = (y - x).
+        if len(expert_outs_tensors) == 1:
+            y_single = expert_outs_tensors[0]
+            if is_step:
+                y_minus_x = y_single - x  # [B,H]
+                y_total = x + self.alpha_main.to(y_minus_x.dtype) * y_minus_x
+                h = self.head(y_minus_x)
+                out = y_total + self.alpha_col.to(h.dtype) * h
+                return out, next_state
+            else:
+                y_minus_x = y_single - x  # [B,T,H]
+                y_total = x + self.alpha_main.to(y_minus_x.dtype) * y_minus_x
+                h = self.head(y_minus_x)
+                out = y_total + self.alpha_col.to(h.dtype) * h
+                return out, next_state
 
         # Build deltas across experts
         if is_step:
