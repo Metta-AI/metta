@@ -592,6 +592,25 @@ class JobManager:
             with self._jobs_lock:
                 self._active_jobs[name] = job
 
+            # Check if remote job failed to launch (job_id will be None)
+            if is_remote and not job_state.job_id:
+                # Launch failed - mark as completed with exit code from job
+                job_state.status = "completed"
+                job_state.started_at = datetime.now().isoformat(timespec="seconds")
+                job_state.completed_at = datetime.now().isoformat(timespec="seconds")
+                job_state.exit_code = getattr(job, "exit_code", 1)  # Default to 1 if not set
+                session.add(job_state)
+                session.commit()
+
+                logger.error(f"Job {name} failed to launch (no job_id)")
+
+                # Clean up from active jobs
+                with self._jobs_lock:
+                    if name in self._active_jobs:
+                        del self._active_jobs[name]
+
+                return False
+
             job_state.status = "running"
             job_state.started_at = datetime.now().isoformat(timespec="seconds")
             session.add(job_state)
