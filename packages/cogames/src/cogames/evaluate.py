@@ -6,6 +6,7 @@ import math
 import re
 from collections import defaultdict
 from dataclasses import dataclass
+from datetime import datetime
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -268,3 +269,96 @@ def _evaluate_single_mission(
         per_policy_timeouts=dict(per_policy_timeouts),
         episodes=episodes,
     )
+
+
+@dataclass
+class PolicySummary:
+    """Summary of a policy's performance across episodes."""
+
+    policy_name: str
+    agent_count: int
+    avg_agent_metrics: dict[str, float]
+    action_timeouts: int
+
+
+@dataclass
+class MissionSummary:
+    """Summary of a mission's evaluation results."""
+
+    mission_name: str
+    episodes: int
+    avg_game_stats: dict[str, float]
+    per_episode_per_policy_avg_rewards: list[list[float]]
+    policy_summaries: list[PolicySummary]
+
+
+@dataclass
+class EvaluationSummary:
+    """Summary of evaluation results across multiple missions."""
+
+    generated_at: datetime
+    missions: list[MissionSummary]
+
+
+def _build_results_summary(
+    mission_results: list[MissionEvaluationResult],
+    policy_specs: list[PolicySpec],
+) -> EvaluationSummary:
+    """Build a summary of evaluation results from mission results."""
+    mission_summaries: list[MissionSummary] = []
+
+    for result in mission_results:
+        # Calculate per-episode, per-policy average rewards
+        per_episode_per_policy_avg_rewards: list[list[float]] = []
+        for episode_idx, rewards in enumerate(result.per_episode_rewards):
+            episode_assignments = result.per_episode_assignments[episode_idx]
+            episode_rewards_per_policy: list[float] = []
+            for policy_idx in range(len(policy_specs)):
+                policy_rewards = [
+                    float(rewards[agent_id])
+                    for agent_id in range(len(rewards))
+                    if int(episode_assignments[agent_id]) == policy_idx
+                ]
+                count = result.policy_counts[policy_idx]
+                avg_reward = sum(policy_rewards) / count if count > 0 else 0.0
+                episode_rewards_per_policy.append(avg_reward)
+            per_episode_per_policy_avg_rewards.append(episode_rewards_per_policy)
+
+        # Calculate average game stats (divide aggregated by episodes)
+        avg_game_stats = {
+            key: value / result.episodes if result.episodes > 0 else 0.0
+            for key, value in result.aggregated_game_stats.items()
+        }
+
+        # Build policy summaries
+        policy_summaries: list[PolicySummary] = []
+        for policy_idx in range(len(policy_specs)):
+            policy_name = result.policy_names[policy_idx]
+            agent_count = result.policy_counts[policy_idx]
+            aggregated_stats = result.aggregated_policy_stats[policy_idx]
+            # Calculate average metrics (divide aggregated by agent count)
+            avg_agent_metrics = {
+                key: value / agent_count if agent_count > 0 else 0.0 for key, value in aggregated_stats.items()
+            }
+            action_timeouts = result.per_policy_timeouts.get(policy_idx, 0)
+
+            policy_summaries.append(
+                PolicySummary(
+                    policy_name=policy_name,
+                    agent_count=agent_count,
+                    avg_agent_metrics=avg_agent_metrics,
+                    action_timeouts=action_timeouts,
+                )
+            )
+
+        mission_summaries.append(
+            MissionSummary(
+                mission_name=result.mission_name,
+                episodes=result.episodes,
+                avg_game_stats=avg_game_stats,
+                per_episode_per_policy_avg_rewards=per_episode_per_policy_avg_rewards,
+                policy_summaries=policy_summaries,
+            )
+        )
+
+    return EvaluationSummary(generated_at=datetime.now(), missions=mission_summaries)

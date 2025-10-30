@@ -13,7 +13,7 @@ from rich.console import Console
 
 from cogames.cli.policy import POLICY_ARG_DELIMITER
 from cogames.policy.signal_handler import DeferSigintContextManager
-from mettagrid import MettaGridConfig, MettaGridEnv
+from mettagrid import MettaGridConfig, PufferMettaGridEnv
 from mettagrid.policy.policy import TrainablePolicy
 from mettagrid.policy.utils import (
     find_policy_checkpoints,
@@ -193,7 +193,7 @@ def train(
     ):
         target_cfg = cfg.model_copy(deep=True) if cfg is not None else _clone_cfg()
         simulator = Simulator()
-        env = MettaGridEnv(simulator, target_cfg, buf, seed if seed is not None else 0)
+        env = PufferMettaGridEnv(simulator, target_cfg, buf, seed if seed is not None else 0)
         set_buffers(env, buf)
         return env
 

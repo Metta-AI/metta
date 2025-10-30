@@ -162,15 +162,15 @@ The underlying environment follows the Gymnasium API:
 
 ```python
 from cogames.cli.mission import get_mission
-from mettagrid.envs import MettaGridEnv
-from mettagrid.simulator.simulator import Simulator
+from mettagrid import PufferMettaGridEnv
+from mettagrid.simulator import Simulator
 
 # Load a mission configuration
 _, config = get_mission("assembler_2_complex")
 
 # Create environment
 simulator = Simulator()
-env = MettaGridEnv(simulator, config)
+env = PufferMettaGridEnv(simulator, config)
 
 # Reset environment
 obs, info = env.reset()

@@ -194,7 +194,7 @@ def make_mission(
 
         # Validate the environment configuration
 
-        _ = Simulator().make_simulation(env_cfg)
+        _ = Simulator().new_simulation(env_cfg)
 
         if output:
             game.save_mission_config(env_cfg, output)
