@@ -179,7 +179,7 @@ STACKS: Dict[str, StackSpec] = {
     # Variant with per-block torch.compile enabled for A/B comparisons
     "cortex_auto_compiled": StackSpec(
         name="cortex_auto_stack",
-        builder=lambda: build_cortex_auto_stack(d_hidden=128, num_layers=2, compile_blocks=True, pattern="AMS"),
+        builder=lambda: build_cortex_auto_stack(d_hidden=128, num_layers=2, compile_blocks=True, pattern="AXMS"),
         d_hidden=128,
     ),
     "cortex_auto_axon": StackSpec(
