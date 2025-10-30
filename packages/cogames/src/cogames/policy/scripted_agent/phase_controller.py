@@ -308,6 +308,65 @@ def exit_unclip_station(state, ctx):
     state.blocked_by_clipped_extractor = None
 
 
+# Explore entry/exit hooks - set the goal for why we're exploring
+def enter_explore(goal: str):
+    """Create an explore entry hook that sets the given goal."""
+
+    def _hook(state, ctx):
+        state.explore_goal = goal
+
+    return _hook
+
+
+def exit_explore(state, ctx):
+    """Exit explore phase - clear the goal."""
+    state.explore_goal = None
+
+
+# Guards for detecting when to explore
+def no_extractors_available(phase: GamePhase) -> Guard:
+    """Check if no extractors are available for the given gathering phase."""
+    resource_map = {
+        GamePhase.GATHER_GERMANIUM: "germanium",
+        GamePhase.GATHER_SILICON: "silicon",
+        GamePhase.GATHER_CARBON: "carbon",
+        GamePhase.GATHER_OXYGEN: "oxygen",
+        GamePhase.RECHARGE: "charger",
+    }
+
+    def _g(state, ctx):
+        resource = resource_map.get(phase)
+        if not resource:
+            return False
+
+        # Check if policy_impl has extractor memory
+        if not hasattr(ctx, "policy_impl") or not hasattr(ctx.policy_impl, "extractor_memory"):
+            return False
+
+        # Get all extractors for this resource
+        extractors = ctx.policy_impl.extractor_memory.get_by_type(resource)
+        if not extractors:
+            return True  # No extractors discovered yet
+
+        # Check if any are available (not depleted, not clipped, cooldown ready)
+        available = [
+            e
+            for e in extractors
+            if not e.is_depleted() and e.is_available(ctx.step, ctx.policy_impl.cooldown_remaining)
+        ]
+        return len(available) == 0
+
+    return _g
+
+
+def have_charger_discovered(state, ctx):
+    """Check if charger has been discovered."""
+    if not hasattr(ctx, "policy_impl") or not hasattr(ctx.policy_impl, "extractor_memory"):
+        return False
+    chargers = ctx.policy_impl.extractor_memory.get_by_type("charger")
+    return len(chargers) > 0
+
+
 # Define all transitions
 def create_transitions() -> List[Transition]:
     """Create the complete transition table."""
@@ -323,9 +382,22 @@ def create_transitions() -> List[Transition]:
         )
         for p in GamePhase
     ] + [
-        # Recharge transitions
+        # Recharge transitions - if no charger found, explore to find it
         Transition(
-            GamePhase.RECHARGE, GamePhase.EXPLORE, guard=recharged_enough, priority=50, on_enter=enter_gather_any
+            GamePhase.RECHARGE,
+            GamePhase.EXPLORE,
+            guard=lambda s, c: recharged_enough(s, c) and not have_charger_discovered(s, c),
+            priority=60,
+            on_enter=enter_explore("find_charger"),
+            on_exit=exit_explore,
+        ),
+        # If charger found and recharged, resume gathering
+        Transition(
+            GamePhase.RECHARGE,
+            GamePhase.GATHER_GERMANIUM,
+            guard=lambda s, c: recharged_enough(s, c) and have_charger_discovered(s, c),
+            priority=50,
+            min_dwell_steps=1,
         ),
         # Any → RECHARGE when low
         *[
@@ -487,7 +559,27 @@ def create_transitions() -> List[Transition]:
             guard=lambda s, c: not have_assembler_discovered(s, c),
             priority=75,
             min_dwell_steps=1,
+            on_enter=enter_explore("find_assembler"),
+            on_exit=exit_explore,
         ),
+        # Gathering phases → EXPLORE: If no extractors available, explore to find them
+        *[
+            Transition(
+                src=phase,
+                dst=GamePhase.EXPLORE,
+                guard=no_extractors_available(phase),
+                priority=50,
+                min_dwell_steps=5,
+                on_enter=enter_explore("find_extractor"),
+                on_exit=exit_explore,
+            )
+            for phase in [
+                GamePhase.GATHER_GERMANIUM,
+                GamePhase.GATHER_SILICON,
+                GamePhase.GATHER_CARBON,
+                GamePhase.GATHER_OXYGEN,
+            ]
+        ],
         # CRAFT_DECODER → UNCLIP_STATION: After crafting the unclip item, go unclip
         Transition(
             GamePhase.CRAFT_DECODER,
@@ -531,41 +623,89 @@ def create_transitions() -> List[Transition]:
             min_dwell_steps=10,
             on_exit=exit_unclip_station,
         ),
-        # EXPLORE → gathering phases
+        # EXPLORE → gathering phases (goal-aware and inventory-aware)
+        # If exploring to find assembler, go back to crafting once found
+        Transition(
+            GamePhase.EXPLORE,
+            GamePhase.CRAFT_DECODER,
+            guard=lambda s, c: s.explore_goal == "find_assembler" and have_assembler_discovered(s, c),
+            priority=75,
+            min_dwell_steps=5,
+        ),
+        # If exploring to find charger, resume gathering once found
         Transition(
             GamePhase.EXPLORE,
             GamePhase.GATHER_GERMANIUM,
-            guard=lambda s, c: not low_energy(s, c),
-            priority=30,
+            guard=lambda s, c: s.explore_goal == "find_charger"
+            and have_charger_discovered(s, c)
+            and not low_energy(s, c),
+            priority=40,
             min_dwell_steps=5,
         ),
+        # If exploring to find extractors, resume gathering based on inventory needs
         Transition(
             GamePhase.EXPLORE,
-            GamePhase.GATHER_CARBON,
-            guard=lambda s, c: not low_energy(s, c),
-            priority=20,
-            min_dwell_steps=5,
+            GamePhase.GATHER_GERMANIUM,
+            guard=lambda s, c: s.explore_goal == "find_extractor" and s.germanium < 5 and not low_energy(s, c),
+            priority=30,
+            min_dwell_steps=10,
         ),
         Transition(
             GamePhase.EXPLORE,
             GamePhase.GATHER_SILICON,
-            guard=lambda s, c: not low_energy(s, c),
-            priority=15,
-            min_dwell_steps=5,
-        ),
-        # Stalls → explore
-        Transition(
-            GamePhase.GATHER_GERMANIUM, GamePhase.EXPLORE, guard=progress_stalled(60), priority=10, min_dwell_steps=10
-        ),
-        Transition(
-            GamePhase.GATHER_SILICON, GamePhase.EXPLORE, guard=progress_stalled(80), priority=10, min_dwell_steps=10
+            guard=lambda s, c: s.explore_goal == "find_extractor"
+            and s.germanium >= 5
+            and s.silicon < 50
+            and not low_energy(s, c),
+            priority=30,
+            min_dwell_steps=10,
         ),
         Transition(
-            GamePhase.GATHER_CARBON, GamePhase.EXPLORE, guard=progress_stalled(60), priority=10, min_dwell_steps=10
+            GamePhase.EXPLORE,
+            GamePhase.GATHER_CARBON,
+            guard=lambda s, c: s.explore_goal == "find_extractor"
+            and s.silicon >= 50
+            and s.carbon < 20
+            and not low_energy(s, c),
+            priority=30,
+            min_dwell_steps=10,
         ),
         Transition(
-            GamePhase.GATHER_OXYGEN, GamePhase.EXPLORE, guard=progress_stalled(60), priority=10, min_dwell_steps=10
+            GamePhase.EXPLORE,
+            GamePhase.GATHER_OXYGEN,
+            guard=lambda s, c: s.explore_goal == "find_extractor"
+            and s.carbon >= 20
+            and s.oxygen < 20
+            and not low_energy(s, c),
+            priority=30,
+            min_dwell_steps=10,
         ),
+        # If exploring to get unstuck, resume gathering after a while
+        Transition(
+            GamePhase.EXPLORE,
+            GamePhase.GATHER_GERMANIUM,
+            guard=lambda s, c: s.explore_goal == "unstuck" and not low_energy(s, c),
+            priority=20,
+            min_dwell_steps=20,
+        ),
+        # Stalls → explore (to get unstuck)
+        *[
+            Transition(
+                src=phase,
+                dst=GamePhase.EXPLORE,
+                guard=progress_stalled(60 if phase != GamePhase.GATHER_SILICON else 80),
+                priority=10,
+                min_dwell_steps=10,
+                on_enter=enter_explore("unstuck"),
+                on_exit=exit_explore,
+            )
+            for phase in [
+                GamePhase.GATHER_GERMANIUM,
+                GamePhase.GATHER_SILICON,
+                GamePhase.GATHER_CARBON,
+                GamePhase.GATHER_OXYGEN,
+            ]
+        ],
         # Transitions from DEPOSIT_HEART back to gathering phases
         Transition(
             GamePhase.DEPOSIT_HEART,

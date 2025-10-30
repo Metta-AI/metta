@@ -39,11 +39,6 @@ import numpy as np
 from cogames.cogs_vs_clips.evals import (
     DIFFICULTY_LEVELS,
     CarbonDesert,
-    ClipCarbon,
-    ClipCharger,
-    ClipGermanium,
-    ClipOxygen,
-    ClipSilicon,
     Experiment1Mission,
     Experiment2Mission,
     Experiment4Mission,
@@ -59,6 +54,7 @@ from cogames.cogs_vs_clips.evals import (
     SiliconWorkbench,
     SlowOxygen,
     SparseBalanced,
+    apply_clip_profile,
     apply_difficulty,
 )
 from cogames.cogs_vs_clips.missions import make_game
@@ -138,12 +134,14 @@ def run_training_facility_suite(
             agents = [policy.agent_policy(i) for i in range(env.num_agents)]
 
             episode_reward = 0.0
+            last_step = 0
             for step in range(max_steps):
                 actions = np.zeros(env.num_agents, dtype=dtype_actions)
                 for i in range(env.num_agents):
                     actions[i] = int(agents[i].step(obs[i]))
                 obs, rewards, done, truncated, _ = env.step(actions)
                 episode_reward += float(rewards.sum())
+                last_step = step
                 if all(done) or all(truncated):
                     break
 
@@ -151,7 +149,7 @@ def run_training_facility_suite(
             # Try to get hearts (may not be available in all envs)
             agent0_state = getattr(agents[0], "_state", None)
             total_hearts += int(getattr(agent0_state, "hearts_assembled", 0))
-            total_steps += step + 1
+            total_steps += last_step + 1
 
         env.close()
 
@@ -219,7 +217,8 @@ def get_max_steps_for_mission(mission_class) -> int:
 def run_outpost_suite(
     experiments: Optional[List[str]] = None,
     hyperparams: Optional[List[str]] = None,
-    clip_rate: float = 0.0,
+    clip_rates: Optional[List[float]] = None,
+    clip_modes: Optional[List[str]] = None,
 ) -> List[EvalResult]:
     """Run outpost experiments evaluation suite."""
     print("\n" + "=" * 80)
@@ -230,6 +229,10 @@ def run_outpost_suite(
         experiments = [name for name, _ in EXPERIMENTS]
     if hyperparams is None:
         hyperparams = list(HYPERPARAMETER_PRESETS.keys())  # Use all presets
+    if clip_rates is None:
+        clip_rates = [0.0, 0.25]
+    if clip_modes is None or clip_modes == ["all"]:
+        clip_modes = ["none", "carbon", "oxygen", "germanium", "silicon", "charger"]
 
     results = []
     success_count = 0
@@ -243,69 +246,74 @@ def run_outpost_suite(
         mission_class = EXPERIMENT_MAP[exp_name]
         max_steps = get_max_steps_for_mission(mission_class)
 
-        for preset_name in hyperparams:
-            if preset_name not in HYPERPARAMETER_PRESETS:
-                logger.error(f"Unknown preset: {preset_name}")
-                continue
+        for clip_rate in clip_rates:
+            for clip_mode in clip_modes:
+                for preset_name in hyperparams:
+                    if preset_name not in HYPERPARAMETER_PRESETS:
+                        logger.error(f"Unknown preset: {preset_name}")
+                        continue
 
-            test_name = f"{exp_name}_{preset_name}_clip{clip_rate}"
-            print(f"\n## [{success_count}/{total_count}] {test_name}")
+                test_name = f"{exp_name}_{clip_mode}_clip{clip_rate}_{preset_name}"
+                print(f"\n## [{success_count}/{total_count}] {test_name}")
 
-            try:
-                mission = mission_class()
-                mission.clip_rate = clip_rate
-                # Eval missions load their own maps in instantiate(), so we pass None
-                map_builder = mission.site.map_builder if mission.site else None
-                mission = mission.instantiate(map_builder, num_cogs=1)
-                env_config = mission.make_env()
-                env_config.game.max_steps = max_steps
+                try:
+                    mission = mission_class()
+                    # Apply generic clip profile to match explicit Clip* behavior
+                    mission = apply_clip_profile(mission, target=clip_mode, clip_rate=float(clip_rate))
+                    # Eval missions load their own maps in instantiate(), so we pass None
+                    map_builder = mission.site.map_builder if mission.site else None
+                    mission = mission.instantiate(map_builder, num_cogs=1)
+                    env_config = mission.make_env()
+                    env_config.game.max_steps = max_steps
 
-                env = MettaGridEnv(env_config)
-                hyperparams_obj = HYPERPARAMETER_PRESETS[preset_name]
-                policy = ScriptedAgentPolicy(env, hyperparams=hyperparams_obj)
+                    env = MettaGridEnv(env_config)
+                    hyperparams_obj = HYPERPARAMETER_PRESETS[preset_name]
+                    policy = ScriptedAgentPolicy(env, hyperparams=hyperparams_obj)
 
-                obs, info = env.reset()
-                policy.reset(obs, info)
-                agent_policy = policy.agent_policy(0)
+                    obs, info = env.reset()
+                    policy.reset(obs, info)
+                    agent_policy = policy.agent_policy(0)
 
-                total_reward = 0.0
-                for step in range(max_steps):
-                    action = agent_policy.step(obs[0])
-                    obs, rewards, dones, truncated, info = env.step(np.array([action], dtype=dtype_actions))
-                    total_reward += float(rewards[0])
-                    if dones[0] or truncated[0]:
-                        break
+                    total_reward = 0.0
+                    last_step = 0
+                    for step in range(max_steps):
+                        action = agent_policy.step(obs[0])
+                        obs, rewards, dones, truncated, info = env.step(np.array([action], dtype=dtype_actions))
+                        total_reward += float(rewards[0])
+                        last_step = step
+                        if dones[0] or truncated[0]:
+                            break
 
-                agent_state = getattr(agent_policy, "_state", None)
-                hearts_assembled = int(getattr(agent_state, "hearts_assembled", 0))
-                steps_taken = step + 1
-                final_energy = int(getattr(agent_state, "energy", 0))
-                success = total_reward > 0
+                    agent_state = getattr(agent_policy, "_state", None)
+                    hearts_assembled = int(getattr(agent_state, "hearts_assembled", 0))
+                    steps_taken = last_step + 1
+                    final_energy = int(getattr(agent_state, "energy", 0))
+                    success = total_reward > 0
 
-                result = EvalResult(
-                    suite="outpost",
-                    test_name=exp_name,
-                    preset=preset_name,
-                    total_reward=float(total_reward),
-                    hearts_assembled=int(hearts_assembled),
-                    steps_taken=int(steps_taken),
-                    max_steps=max_steps,
-                    final_energy=int(final_energy),
-                    success=success,
-                )
-                results.append(result)
-                total_count += 1
-                if success:
-                    success_count += 1
+                    result = EvalResult(
+                        suite="outpost",
+                        test_name=test_name,
+                        preset=preset_name,
+                        total_reward=float(total_reward),
+                        hearts_assembled=int(hearts_assembled),
+                        steps_taken=int(steps_taken),
+                        max_steps=max_steps,
+                        final_energy=int(final_energy),
+                        success=success,
+                    )
+                    results.append(result)
+                    total_count += 1
+                    if success:
+                        success_count += 1
 
-                print(f"  Reward: {total_reward:.1f}")
-                print(f"  Hearts: {hearts_assembled}")
-                print(f"  Steps: {steps_taken}/{max_steps}")
-                print(f"  {'✅ SUCCESS' if success else '❌ FAILED'}")
+                    print(f"  Reward: {total_reward:.1f}")
+                    print(f"  Hearts: {hearts_assembled}")
+                    print(f"  Steps: {steps_taken}/{max_steps}")
+                    print(f"  {'✅ SUCCESS' if success else '❌ FAILED'}")
 
-            except Exception as e:
-                logger.error(f"Error in {test_name}: {e}")
-                total_count += 1
+                except Exception as e:
+                    logger.error(f"Error in {test_name}: {e}")
+                    total_count += 1
 
     return results
 
@@ -392,16 +400,18 @@ def run_difficulty_suite(
                     agent_policy = policy.agent_policy(0)
 
                     total_reward = 0.0
+                    last_step = 0
                     for step in range(max_steps):
                         action = agent_policy.step(obs[0])
                         obs, rewards, dones, truncated, info = env.step(np.array([action], dtype=dtype_actions))
                         total_reward += float(rewards[0])
+                        last_step = step
                         if dones[0] or truncated[0]:
                             break
 
                     agent_state = getattr(agent_policy, "_state", None)
                     hearts_assembled = int(getattr(agent_state, "hearts_assembled", 0))
-                    steps_taken = step + 1
+                    steps_taken = last_step + 1
                     final_energy = int(getattr(agent_state, "energy", 0))
                     success = total_reward > 0
 
@@ -432,153 +442,6 @@ def run_difficulty_suite(
                     total_count += 1
 
     return results
-
-
-# =============================================================================
-# Test Suite 4: Clipped Variants (with clip_rate)
-# =============================================================================
-
-
-CLIPPED_EXPERIMENTS = [
-    ("CLIP_Carbon", ClipCarbon),
-    ("CLIP_Oxygen", ClipOxygen),
-    ("CLIP_Germanium", ClipGermanium),
-    ("CLIP_Silicon", ClipSilicon),
-    ("CLIP_Charger", ClipCharger),
-]
-
-CLIPPED_MAP = dict(CLIPPED_EXPERIMENTS)
-
-
-def get_max_steps_for_clipped(mission_class, difficulty_name: str, clip_rate: float) -> int:
-    """Standardize step limit for clipped runs."""
-    return 1000
-
-
-def run_clipped_suite(
-    experiments: Optional[List[str]] = None,
-    difficulties: Optional[List[str]] = None,
-    hyperparams: Optional[List[str]] = None,
-    clip_rates: Optional[List[float]] = None,
-) -> List[EvalResult]:
-    """Run clipped missions across difficulties, presets, and clip_rate values."""
-    print("\n" + "=" * 80)
-    print("CLIPPED VARIANTS SUITE")
-    print("=" * 80)
-
-    if experiments is None:
-        experiments = [name for name, _ in CLIPPED_EXPERIMENTS]
-    if difficulties is None:
-        difficulties = ["easy", "medium", "hard", "extreme"]
-    if hyperparams is None or hyperparams == ["all"]:
-        hyperparams = list(HYPERPARAMETER_PRESETS.keys())
-    if clip_rates is None:
-        clip_rates = [0.0, 0.25]  # baseline + moderate clipping
-
-    print(f"\nExperiments: {len(experiments)}")
-    print(f"Difficulties: {len(difficulties)}")
-    print(f"Presets: {len(hyperparams)}")
-    print(f"Clip rates: {clip_rates}")
-    print(f"Total tests: {len(experiments) * len(difficulties) * len(hyperparams) * len(clip_rates)}")
-
-    results = []
-    success_count = 0
-    total_count = 0
-
-    for exp_name in experiments:
-        if exp_name not in CLIPPED_MAP:
-            logger.error(f"Unknown clipped experiment: {exp_name}")
-            continue
-
-        mission_class = CLIPPED_MAP[exp_name]
-
-        for difficulty_name in difficulties:
-            if difficulty_name not in DIFFICULTY_LEVELS:
-                logger.error(f"Unknown difficulty: {difficulty_name}")
-                continue
-
-            for clip_rate in clip_rates:
-                for preset_name in hyperparams:
-                    if preset_name not in HYPERPARAMETER_PRESETS:
-                        logger.error(f"Unknown preset: {preset_name}")
-                        continue
-
-                    max_steps = get_max_steps_for_clipped(mission_class, difficulty_name, clip_rate)
-                    test_name = f"{exp_name}_{difficulty_name}_clip{clip_rate}_{preset_name}"
-
-                    print(f"\n{'=' * 80}")
-                    status = f"[{success_count}/{total_count}]"
-                    print(
-                        f"{status} {exp_name} | {difficulty_name} | clip_rate={clip_rate} | {preset_name} (max_steps={max_steps})"
-                    )
-                    print(f"{'=' * 80}")
-
-                    try:
-                        mission = mission_class()
-                        mission.clip_rate = float(clip_rate)
-                        difficulty = DIFFICULTY_LEVELS[difficulty_name]
-                        apply_difficulty(mission, difficulty)
-
-                        # Eval missions load their own maps in instantiate(), so we pass None
-                        map_builder = mission.site.map_builder if mission.site else None
-                        mission = mission.instantiate(map_builder, num_cogs=1)
-                        env_config = mission.make_env()
-                        env_config.game.max_steps = max_steps
-
-                        env = MettaGridEnv(env_config)
-                        hyperparams_obj = HYPERPARAMETER_PRESETS[preset_name]
-                        policy = ScriptedAgentPolicy(env, hyperparams=hyperparams_obj)
-
-                        obs, info = env.reset()
-                        policy.reset(obs, info)
-                        agent_policy = policy.agent_policy(0)
-
-                        total_reward = 0.0
-                        for step in range(max_steps):
-                            action = agent_policy.step(obs[0])
-                            obs, rewards, dones, truncated, info = env.step(np.array([action], dtype=dtype_actions))
-                            total_reward += float(rewards[0])
-                            if dones[0] or truncated[0]:
-                                break
-
-                        agent_state = getattr(agent_policy, "_state", None)
-                        hearts_assembled = int(getattr(agent_state, "hearts_assembled", 0))
-                        steps_taken = step + 1
-                        final_energy = int(getattr(agent_state, "energy", 0))
-                        success = total_reward > 0
-
-                        result = EvalResult(
-                            suite="clipped",
-                            test_name=f"{exp_name}_{difficulty_name}_clip{clip_rate}",
-                            preset=preset_name,
-                            total_reward=float(total_reward),
-                            hearts_assembled=int(hearts_assembled),
-                            steps_taken=int(steps_taken),
-                            max_steps=max_steps,
-                            final_energy=int(final_energy),
-                            success=success,
-                        )
-                        results.append(result)
-                        total_count += 1
-                        if success:
-                            success_count += 1
-
-                        print(f"  Reward: {total_reward:.1f}")
-                        print(f"  Hearts: {hearts_assembled}")
-                        print(f"  Steps: {steps_taken}/{max_steps}")
-                        print(f"  Energy: {final_energy}")
-                        print(f"  {'✅ SUCCESS' if success else '❌ FAILED'}")
-
-                    except Exception as e:
-                        logger.error(f"Error in {test_name}: {e}")
-                        total_count += 1
-
-    return results
-
-
-# =============================================================================
-# Main CLI
-# =============================================================================
 
 
 def print_summary(results: List[EvalResult], suite_name: str):
@@ -663,10 +526,17 @@ def main():
         help="Hyperparameter presets to test",
     )
     outpost_parser.add_argument(
-        "--clip-rate",
+        "--clip-modes",
+        nargs="*",
+        default=None,
+        help="Clip modes to test per mission (none carbon oxygen germanium silicon charger or 'all')",
+    )
+    outpost_parser.add_argument(
+        "--clip-rates",
+        nargs="*",
         type=float,
-        default=0.0,
-        help="Clip rate for random extractor clipping (0.0-1.0, default: 0.0)",
+        default=None,
+        help="List of clip_rate values to test with EXP/EVAL missions (e.g., 0.0 0.25)",
     )
 
     # Difficulty variants suite
@@ -693,33 +563,7 @@ def main():
     # All suites
     subparsers.add_parser("all", help="Run all evaluation suites")
 
-    # Clipped variants suite
-    clip_parser = subparsers.add_parser("clipped", help="Run clipped variants suite")
-    clip_parser.add_argument(
-        "--experiments",
-        nargs="*",
-        default=None,
-        help="Clipped experiments to test (e.g., CLIP_Carbon CLIP_Oxygen)",
-    )
-    clip_parser.add_argument(
-        "--difficulties",
-        nargs="*",
-        default=None,
-        help="Difficulties to test (e.g., easy medium hard)",
-    )
-    clip_parser.add_argument(
-        "--hyperparams",
-        nargs="*",
-        default=None,
-        help="Hyperparameter presets to test (use 'all' for all presets)",
-    )
-    clip_parser.add_argument(
-        "--clip-rates",
-        nargs="*",
-        type=float,
-        default=None,
-        help="List of clip_rate values to test (e.g., 0.0 0.25 0.5)",
-    )
+    # Clipped variants suite removed; use outpost with --clip-modes / --clip-rates
 
     # Output options
     parser.add_argument("--output", type=str, default=None, help="Output JSON file for results")
@@ -750,7 +594,8 @@ def main():
         outpost_results = run_outpost_suite(
             experiments=outpost_args.get("experiments"),
             hyperparams=outpost_args.get("hyperparams"),
-            clip_rate=outpost_args.get("clip_rate", 0.0),
+            clip_rates=outpost_args.get("clip_rates"),
+            clip_modes=outpost_args.get("clip_modes"),
         )
         all_results.extend(outpost_results)
         print_summary(outpost_results, "Outpost Experiments")
@@ -765,16 +610,7 @@ def main():
         all_results.extend(diff_results)
         print_summary(diff_results, "Difficulty Variants")
 
-    if args.suite in ["clipped", "all"]:
-        clip_args = {} if args.suite == "all" else vars(args)
-        clip_results = run_clipped_suite(
-            experiments=clip_args.get("experiments"),
-            difficulties=clip_args.get("difficulties"),
-            hyperparams=clip_args.get("hyperparams"),
-            clip_rates=clip_args.get("clip_rates"),
-        )
-        all_results.extend(clip_results)
-        print_summary(clip_results, "Clipped Variants")
+    # Clipped variants suite removed; use outpost with --clip-modes / --clip-rates
 
     # Save results if requested
     if args.output:
