@@ -71,15 +71,6 @@
           uv sync
           source .venv/bin/activate
 
-          # Build frontend
-          pushd mettascope
-          corepack enable
-          pnpm install
-          tsc
-          python tools/gen_atlas.py
-          echo "Frontend built"
-          popd
-
           echo "# Python version: $(python --version)"
           echo "# uv version: $(uv --version)"
           echo "# -------------------------------------------"
