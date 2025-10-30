@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from typing import Optional
 
 import torch
@@ -14,6 +15,8 @@ from cortex.cells import build_cell
 from cortex.config import CortexStackConfig
 from cortex.types import MaybeState, ResetMask, Tensor
 
+logger = logging.getLogger(__name__)
+
 
 class CortexStack(nn.Module):
     """Stack of blocks that preserves external hidden size."""
@@ -25,7 +28,12 @@ class CortexStack(nn.Module):
         self.norm = nn.LayerNorm(cfg.d_hidden) if cfg.post_norm else nn.Identity()
         self._compiled_blocks: list | None = None
 
-        if bool(getattr(cfg, "compile_blocks", False)) and hasattr(torch, "compile"):
+        compile_requested = bool(getattr(cfg, "compile_blocks", False))
+        if compile_requested and not torch.cuda.is_available():
+            logger.warning("Disabling block compilation for CortexStack: running on CPU.")
+            compile_requested = False
+
+        if compile_requested and hasattr(torch, "compile"):
             compiled: list[nn.Module] = []
             for b in self.blocks:
                 if isinstance(b, ColumnBlock):
