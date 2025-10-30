@@ -196,8 +196,8 @@ def ray_sweep(sweep_name: str):
         train_entrypoint="train",
         num_samples=100,  # Number of trials
         max_concurrent_trials=8,
-        gpus_per_trial=1 if torch.cuda.is_available() else 0,
-        cpus_per_trial=4,
+        gpus_per_trial="auto",  # Let Ray auto-allocate GPU resources
+        cpus_per_trial="auto",  # Let Ray auto-allocate CPU resources
         max_failures_per_trial=1,
         fail_fast=False,
     )
@@ -246,8 +246,8 @@ def mini_sweep(sweep_name: str):
         train_entrypoint="train",
         num_samples=10,  # Only 10 trials
         max_concurrent_trials=4,
-        gpus_per_trial=0,  # CPU only for testing
-        cpus_per_trial=2,
+        gpus_per_trial=0,  # CPU only for local testing
+        cpus_per_trial="auto",  # Let Ray auto-allocate CPU resources
         fail_fast=True,  # Stop on first failure
         max_failures_per_trial=0,
     )
