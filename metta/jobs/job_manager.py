@@ -10,7 +10,8 @@ from sqlmodel import Session, SQLModel, create_engine, select
 
 from devops.skypilot.utils.job_helpers import check_job_statuses
 from metta.common.util.constants import METTA_WANDB_ENTITY, METTA_WANDB_PROJECT
-from metta.jobs.job_config import JobConfig
+from metta.jobs.cogames_metrics import parse_cogames_stats_from_logs
+from metta.jobs.job_config import JobConfig, MetricsSource
 from metta.jobs.job_metrics import extract_skypilot_job_id, fetch_wandb_metrics
 from metta.jobs.job_runner import LocalJob, RemoteJob
 from metta.jobs.job_state import JobState, JobStatus
@@ -118,11 +119,71 @@ class JobManager:
         return None
 
     def _fetch_metrics(self, job_name: str, job_state: JobState) -> None:
-        """Fetch and update metrics for a training job."""
+        """Fetch and update metrics for a job based on its metrics_source.
+
+        Routes to the appropriate metrics handler:
+        - MetricsSource.WANDB: Fetch from WandB API
+        - MetricsSource.COGAMES_LOG: Parse from cogames log output
+        - MetricsSource.NONE: No-op
+        """
         if not job_state.config.metrics_to_track:
             logger.debug(f"Skipping metrics fetch for {job_name}: no metrics_to_track configured")
             return
 
+        # Route to appropriate metrics handler based on source
+        if job_state.config.metrics_source == MetricsSource.COGAMES_LOG:
+            self._fetch_cogames_metrics(job_name, job_state)
+        elif job_state.config.metrics_source == MetricsSource.WANDB:
+            self._fetch_wandb_metrics(job_name, job_state)
+        else:
+            logger.debug(f"Skipping metrics fetch for {job_name}: metrics_source={job_state.config.metrics_source}")
+
+    def _fetch_cogames_metrics(self, job_name: str, job_state: JobState) -> None:
+        """Parse cogames stats from log output."""
+        if not job_state.logs_path:
+            logger.debug(f"Cannot parse cogames metrics for {job_name}: no logs_path set")
+            return
+
+        try:
+            # Read log file
+            log_path = Path(job_state.logs_path)
+            if not log_path.exists():
+                logger.debug(f"Cannot parse cogames metrics for {job_name}: log file not found at {log_path}")
+                return
+
+            log_text = log_path.read_text(errors="ignore")
+
+            # Parse metrics from logs
+            metrics_data = parse_cogames_stats_from_logs(
+                log_text=log_text,
+                metric_keys=job_state.config.metrics_to_track,
+                last_n_percent=0.25,
+            )
+
+            if metrics_data:
+                # Extract just the values for storage (backward compatible with display)
+                metrics_values = {key: data["value"] for key, data in metrics_data.items()}
+
+                with Session(self._engine) as session:
+                    job_state_fresh = session.get(JobState, job_name)
+                    if job_state_fresh:
+                        job_state_fresh.metrics = metrics_values
+                        session.add(job_state_fresh)
+                        session.commit()
+
+                        # Log with value and count
+                        metrics_info = ", ".join(
+                            f"{key}={data['value']:.2f} (n={int(data['count'])})" for key, data in metrics_data.items()
+                        )
+                        logger.info(f"Parsed cogames metrics for {job_name}: {metrics_info}")
+            else:
+                logger.debug(f"No cogames metrics found in logs for {job_name}")
+
+        except Exception as e:
+            logger.warning(f"Failed to parse cogames metrics for {job_name}: {e}")
+
+    def _fetch_wandb_metrics(self, job_name: str, job_state: JobState) -> None:
+        """Fetch metrics from WandB API for tool-based training jobs."""
         if not job_state.wandb_run_id:
             logger.warning(f"Cannot fetch metrics for {job_name}: no wandb_run_id set")
             return
@@ -154,10 +215,10 @@ class JobManager:
                     }
 
                 with Session(self._engine) as session:
-                    job_state = session.get(JobState, job_name)
-                    if job_state:
-                        job_state.metrics = metrics_values
-                        session.add(job_state)
+                    job_state_fresh = session.get(JobState, job_name)
+                    if job_state_fresh:
+                        job_state_fresh.metrics = metrics_values
+                        session.add(job_state_fresh)
                         session.commit()
 
                         # Log with value, count, and progress
@@ -398,7 +459,7 @@ class JobManager:
         task_spec = config.tool if config.tool else config.cmd
         logger.info(
             f"Job submitted: {config.name} | type={job_type} | task={task_spec} | "
-            f"is_training={config.is_training_job} | metrics={config.metrics_to_track}"
+            f"metrics_source={config.metrics_source.value} | metrics={config.metrics_to_track}"
         )
 
         self._try_start_job(config.name)
@@ -470,8 +531,8 @@ class JobManager:
             if isinstance(job, RemoteJob):
                 if job.request_id:
                     job_state.request_id = job.request_id
-                # Only set WandB info for training jobs (they use run= param and log to WandB)
-                if job.run_name and config.is_training_job:
+                # Only set WandB info for WandB-tracked jobs
+                if job.run_name and config.metrics_source == MetricsSource.WANDB:
                     job_state.wandb_run_id = job.run_name
                     job_state.wandb_url = (
                         f"https://wandb.ai/{METTA_WANDB_ENTITY}/{METTA_WANDB_PROJECT}/runs/{job.run_name}"

@@ -1,11 +1,20 @@
 """Core job specification models shared across Metta job systems."""
 
 import shlex
+from enum import Enum
 from typing import Any
 
 from pydantic import Field, model_validator
 
 from mettagrid.base_config import Config
+
+
+class MetricsSource(str, Enum):
+    """Source for metrics collection and parsing strategy."""
+
+    NONE = "none"  # No metrics tracking
+    WANDB = "wandb"  # Fetch from WandB API
+    COGAMES_LOG = "cogames_log"  # Parse from cogames --log-outputs
 
 
 class RemoteConfig(Config):
@@ -21,8 +30,8 @@ class JobConfig(Config):
 
     Use either `tool` (for tools/run.py) or `cmd` (for arbitrary commands), not both.
     remote=None runs locally, remote=RemoteConfig(...) runs remotely.
-    is_training_job=True enables WandB tracking and run name generation.
-    metrics_to_track tracks which WandB metrics to fetch periodically (training jobs only).
+    metrics_source specifies where/how to collect metrics (wandb, cogames_log, or none).
+    metrics_to_track lists which metrics to monitor.
     acceptance_criteria stores metric thresholds for validation (e.g., {"overview/sps": (">=", 40000)}).
     """
 
@@ -35,8 +44,8 @@ class JobConfig(Config):
     remote: RemoteConfig | None = None
     group: str | None = None
     metadata: dict[str, Any] = Field(default_factory=dict)
-    is_training_job: bool = False  # Explicit flag for WandB tracking
-    metrics_to_track: list[str] = Field(default_factory=list)  # Metrics to fetch from WandB (training only)
+    metrics_source: MetricsSource = MetricsSource.NONE  # Where/how to collect metrics
+    metrics_to_track: list[str] = Field(default_factory=list)  # Metrics to track
     acceptance_criteria: dict[str, tuple[str, float]] | None = None  # Metric thresholds: {metric: (op, value)}
 
     @model_validator(mode="before")

@@ -6,7 +6,7 @@ from datetime import datetime
 from operator import ge, gt
 from typing import Callable
 
-from metta.jobs.job_config import JobConfig, RemoteConfig
+from metta.jobs.job_config import JobConfig, MetricsSource, RemoteConfig
 
 AcceptanceRule = tuple[str, Callable[[float, float], bool], float]
 
@@ -56,6 +56,57 @@ def cmd_task(name: str, cmd: str, timeout_s: int = 1800, remote: RemoteConfig | 
     return Task(JobConfig(name=name, cmd=cmd, timeout_s=timeout_s, remote=remote))
 
 
+def cogames_task(
+    name: str,
+    mission: str,
+    variants: list[str],
+    steps: int,
+    timeout_s: int = 1800,
+    remote: RemoteConfig | None = None,
+    stats_to_track: list[str] | None = None,
+    acceptance: list[AcceptanceRule] | None = None,
+) -> Task:
+    """Create a cogames training task with stats tracking.
+
+    Args:
+        name: Task name
+        mission: Mission name (e.g., "training_facility.harvest")
+        variants: List of variant names (e.g., ["lonely_heart", "heart_chorus"])
+        steps: Number of training steps
+        timeout_s: Timeout in seconds
+        remote: Remote execution config (None = local)
+        stats_to_track: Stats to parse from logs (e.g., ["avg_fps", "avg_ep_reward"])
+        acceptance: Acceptance criteria for validation
+    """
+    # Build cogames train command with --log-outputs
+    variants_args = " ".join(f"--variant {v}" for v in variants)
+    cmd = f"uv run cogames train --mission {mission} {variants_args} --steps {steps} --log-outputs"
+
+    # Extract metric keys from acceptance criteria
+    metrics_to_track = []
+    acceptance_criteria_dict = None
+    if acceptance:
+        metrics_to_track = [key for key, _op, _expected in acceptance]
+        # Convert AcceptanceRule list to dict format for JobConfig
+        op_to_symbol = {"ge": ">=", "gt": ">", "le": "<=", "lt": "<", "eq": "=="}
+        acceptance_criteria_dict = {
+            key: (op_to_symbol.get(op.__name__, op.__name__), expected) for key, op, expected in acceptance
+        }
+    elif stats_to_track:
+        metrics_to_track = stats_to_track
+
+    job_config = JobConfig(
+        name=name,
+        cmd=cmd,
+        timeout_s=timeout_s,
+        remote=remote,
+        metrics_source=MetricsSource.COGAMES_LOG,
+        metrics_to_track=metrics_to_track,
+        acceptance_criteria=acceptance_criteria_dict,
+    )
+    return Task(job_config=job_config, acceptance=acceptance, dependency_names=[])
+
+
 def tool_task(
     name: str,
     tool: str,
@@ -77,10 +128,8 @@ def tool_task(
         dependency_names: Names of tasks this depends on
     """
     args_dict, overrides_dict = _parse_args_list(args or [])
-    # Automatically detect training jobs by tool name (e.g., "arena.train", "navigation.train")
-    is_training = tool.endswith(".train")
 
-    # Extract metric keys from acceptance criteria for training jobs
+    # Extract metric keys from acceptance criteria
     metrics_to_track = []
     acceptance_criteria_dict = None
     if acceptance:
@@ -92,9 +141,8 @@ def tool_task(
             key: (op_to_symbol.get(op.__name__, op.__name__), expected) for key, op, expected in acceptance
         }
 
-    # Assert that only training jobs can have metrics to track
-    if metrics_to_track and not is_training:
-        raise ValueError(f"Task {name} has metrics_to_track but is not a training job")
+    # Determine metrics source: training tools use WandB, others have no metrics
+    metrics_source = MetricsSource.WANDB if tool.endswith(".train") else MetricsSource.NONE
 
     job_config = JobConfig(
         name=name,
@@ -103,7 +151,7 @@ def tool_task(
         overrides=overrides_dict,
         timeout_s=timeout_s,
         remote=remote,
-        is_training_job=is_training,
+        metrics_source=metrics_source,
         metrics_to_track=metrics_to_track,
         acceptance_criteria=acceptance_criteria_dict,
     )
@@ -127,27 +175,26 @@ def get_all_tasks() -> list[Task]:
     )
 
     # Cogames smoke tests (100k steps = ~3 epochs in ~3 seconds)
-    cogames_local_smoke = cmd_task(
+    cogames_local_smoke = cogames_task(
         name="cogames_local_smoke",
-        cmd=(
-            "uv run cogames train "
-            "--mission training_facility.harvest "
-            "--variant lonely_heart --variant heart_chorus "
-            "--steps 100000"
-        ),
+        mission="training_facility.harvest",
+        variants=["lonely_heart", "heart_chorus"],
+        steps=100000,
         timeout_s=10,
+        stats_to_track=["SPS", "agent_steps"],
     )
 
-    cogames_remote_smoke = cmd_task(
+    cogames_remote_smoke = cogames_task(
         name="cogames_remote_smoke",
-        cmd=(
-            "uv run cogames train "
-            "--mission training_facility.harvest "
-            "--variant lonely_heart --variant heart_chorus "
-            "--steps 10000000"
-        ),
-        remote=RemoteConfig(gpus=1, nodes=1),
+        mission="training_facility.harvest",
+        variants=["lonely_heart", "heart_chorus"],
+        steps=10000000,
         timeout_s=1800,  # 30 minutes
+        remote=RemoteConfig(gpus=1, nodes=1),
+        stats_to_track=["SPS", "agent_steps"],
+        acceptance=[
+            ("SPS", ge, 10000),  # At least 10k samples/sec on GPU
+        ],
     )
 
     # Single GPU training - 100M timesteps
