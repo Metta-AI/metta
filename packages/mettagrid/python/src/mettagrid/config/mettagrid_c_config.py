@@ -49,6 +49,14 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
         # mettagrid_config needs special handling for map_builder
         game_config = GameConfig(**mettagrid_config)
 
+    # Ensure type IDs are assigned even if objects were added/modified after construction
+    # This mirrors the behavior documented in GameConfig._resolve_object_type_ids.
+    try:
+        game_config._resolve_object_type_ids()
+    except Exception:
+        # Best-effort; if this fails for any reason, let downstream code surface errors
+        pass
+
     # Set up resource mappings
     resource_names = list(game_config.resource_names)
     resource_name_to_id = {name: i for i, name in enumerate(resource_names)}
