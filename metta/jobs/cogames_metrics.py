@@ -46,15 +46,15 @@ def parse_cogames_stats_from_logs(
     # Strip ANSI codes first
     clean_text = _strip_ansi_codes(log_text)
 
-    # Extract multi-line dicts: collect lines between "Training:" markers
-    training_blocks = []
+    # Extract multi-line dicts: collect lines between "Training:" or "Evaluation:" markers
+    stats_blocks = []
     current_block = []
     in_block = False
 
     for line in clean_text.splitlines():
-        if "Training:" in line:
+        if "Training:" in line or "Evaluation:" in line:
             if current_block:
-                training_blocks.append("\n".join(current_block))
+                stats_blocks.append("\n".join(current_block))
             current_block = []
             in_block = True
         elif in_block:
@@ -62,10 +62,10 @@ def parse_cogames_stats_from_logs(
 
     # Don't forget the last block
     if current_block:
-        training_blocks.append("\n".join(current_block))
+        stats_blocks.append("\n".join(current_block))
 
-    # Parse each training block to extract the dict
-    for block in training_blocks:
+    # Parse each stats block to extract the dict
+    for block in stats_blocks:
         try:
             # Find the dict portion - starts with '{' and ends with '}'
             start_idx = block.find("{")
