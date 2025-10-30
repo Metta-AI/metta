@@ -315,7 +315,7 @@ def sweep_muon(sweep_name: str) -> SweepTool:
             D.INT_UNIFORM,
             min=1e9,
             max=2e9,
-            search_center=7.5e8,
+            search_center=1.2e9,
         ),
     ]
 
