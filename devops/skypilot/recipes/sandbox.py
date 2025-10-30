@@ -1,6 +1,7 @@
 #!/usr/bin/env -S uv run
 import argparse
 import logging
+import math
 import os
 import subprocess
 import sys
@@ -16,6 +17,8 @@ from devops.skypilot.utils.job_helpers import set_task_secrets
 from metta.common.util.cli import spinner
 from metta.common.util.retry import retry_function
 from metta.common.util.text_styles import blue, bold, cyan, green, red, yellow
+
+DEFAULT_GPU_TYPE = "A100"
 
 
 class CredentialWarningHandler(logging.Handler):
@@ -135,13 +138,18 @@ def print_management_commands(clusters):
     print(f"  Delete:         {red(f'sky down {first_cluster_name}')}")
 
 
-def get_gpu_instance_info(num_gpus: int, gpu_type: str = "L4", region: str = "us-east-1", cloud: str = "aws"):
+def get_gpu_instance_info(
+    num_gpus: int,
+    gpu_type: str = DEFAULT_GPU_TYPE,
+    region: str = "us-east-1",
+    cloud: str = "aws",
+):
     """
     Determine the instance type and cost for GPU instances.
 
     Args:
         num_gpus: Number of GPUs requested
-        gpu_type: Type of GPU (default: L4)
+        gpu_type: Type of GPU (default: DEFAULT_GPU_TYPE)
         region: Cloud region
         cloud: Cloud provider (default: aws)
 
@@ -154,20 +162,26 @@ def get_gpu_instance_info(num_gpus: int, gpu_type: str = "L4", region: str = "us
 
     # Map GPU configurations to typical AWS instance types
     gpu_instance_map = {
-        ("L4", 1): "g6.xlarge",
-        ("L4", 2): "g6.2xlarge",
-        ("L4", 4): "g6.4xlarge",
-        ("L4", 8): "g6.8xlarge",
+        ("L4", 1): ("g6.xlarge", 1),
+        ("L4", 2): ("g6.2xlarge", 2),
+        ("L4", 4): ("g6.4xlarge", 4),
+        ("L4", 8): ("g6.8xlarge", 8),
+        ("A100", 8): ("p4d.24xlarge", 8),
+        ("A100", 16): ("p4de.24xlarge", 8),
+        ("A100", 32): ("p4de.24xlarge", 8),
     }
 
     # Get the instance type based on GPU configuration
-    instance_type = gpu_instance_map.get((gpu_type, num_gpus))
-    if not instance_type:
-        print(f"Warning: No instance mapping for {num_gpus} {gpu_type} GPU(s), using g6.xlarge as estimate")
-        instance_type = "g6.xlarge"
-        estimated_multiplier = num_gpus
+    instance_config = gpu_instance_map.get((gpu_type, num_gpus))
+    if not instance_config:
+        default_instance = "p4d.24xlarge" if gpu_type == "A100" else "g6.xlarge"
+        default_gpus_per_instance = 8 if gpu_type == "A100" else 1
+        print(f"Warning: No instance mapping for {num_gpus} {gpu_type} GPU(s), using {default_instance} as estimate")
+        instance_type = default_instance
+        estimated_multiplier = max(1, math.ceil(num_gpus / default_gpus_per_instance))
     else:
-        estimated_multiplier = 1
+        instance_type, gpus_per_instance = instance_config
+        estimated_multiplier = max(1, math.ceil(num_gpus / gpus_per_instance))
 
     # Try to calculate cost
     hourly_cost = None
@@ -185,7 +199,7 @@ def get_gpu_instance_info(num_gpus: int, gpu_type: str = "L4", region: str = "us
     return instance_type, region, hourly_cost
 
 
-def print_cost_info(hourly_cost, num_gpus):
+def print_cost_info(hourly_cost, num_gpus, gpu_type: str = DEFAULT_GPU_TYPE):
     """Print cost information in a consistent format."""
     if hourly_cost is not None:
         print(f"Approximate cost: {green(f'~${hourly_cost:.2f}/hour')} (on-demand pricing)")
@@ -198,7 +212,10 @@ def print_cost_info(hourly_cost, num_gpus):
             8: "~$5.60-7.20/hour",
         }
         estimate = gpu_cost_estimates.get(num_gpus, f"~${0.70 * num_gpus:.2f}-{0.90 * num_gpus:.2f}/hour")
-        print(f"Approximate cost: {yellow(estimate)} (estimated for {num_gpus} L4 GPU{'s' if num_gpus > 1 else ''})")
+        print(
+            f"Approximate cost: {yellow(estimate)} "
+            f"(estimated for {num_gpus} {gpu_type} GPU{'s' if num_gpus > 1 else ''})"
+        )
 
 
 def check_cluster_status(cluster_name: str) -> str:
@@ -384,7 +401,6 @@ Common management commands:
         print(f"\n🚀 Launching {blue(cluster_name)} in {bold('CPU-ONLY MODE')}")
         config_path = "./devops/skypilot/config/sandbox_cheap.yaml"
     else:
-        print(f"\n🚀 Launching {blue(cluster_name)} with {bold(str(args.gpus))} L4 GPU(s)")
         config_path = "./devops/skypilot/config/sandbox.yaml"
 
     print(f"🔌 Git ref: {cyan(git_ref)}")
@@ -419,9 +435,10 @@ Common management commands:
             else:
                 print("Approximate cost: (unavailable) – check AWS pricing for your region.")
     else:
-        # Parse GPU type from the config (e.g., "L4:1" -> "L4")
-        accelerators_str = resources.get("accelerators", "L4:1")
+        # Parse GPU type from the config (e.g., "A100:1" -> "A100")
+        accelerators_str = resources.get("accelerators", f"{DEFAULT_GPU_TYPE}:1")
         gpu_type = accelerators_str.split(":")[0]
+        print(f"\n🚀 Launching {blue(cluster_name)} with {bold(str(args.gpus))} {gpu_type} GPU(s)")
 
         # Get instance type and calculate cost
         instance_type, region, hourly_cost = get_gpu_instance_info(args.gpus, gpu_type, region, cloud)
@@ -429,7 +446,7 @@ Common management commands:
         if instance_type:
             print(f"Instance type: {bold(instance_type)} in {bold(region)}")
 
-        print_cost_info(hourly_cost, args.gpus)
+        print_cost_info(hourly_cost, args.gpus, gpu_type)
 
     autostop_hours = 48
 
