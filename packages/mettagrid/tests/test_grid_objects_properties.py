@@ -31,8 +31,6 @@ def env_with_assembler():
             actions=ActionsConfig(
                 noop=ActionConfig(),
                 move=ActionConfig(),
-                get_items=ActionConfig(),
-                put_items=ActionConfig(),
             ),
             objects={
                 "wall": WallConfig(),
@@ -71,8 +69,6 @@ def env_with_chest():
             actions=ActionsConfig(
                 noop=ActionConfig(),
                 move=ActionConfig(),
-                get_items=ActionConfig(),
-                put_items=ActionConfig(),
             ),
             objects={
                 "wall": WallConfig(),
