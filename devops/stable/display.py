@@ -233,8 +233,37 @@ def format_task_with_acceptance(job_dict: dict, job_state: JobState) -> str:
     status_line = format_job_status_line(job_dict, show_duration=True)
     lines.append(status_line)
 
-    # Acceptance criteria
-    if job_state.config.acceptance_criteria:
+    # Check for launch/execution failures first (exit_code != 0 with no metrics)
+    if job_dict["status"] == "completed" and job_dict["exit_code"] not in (0, None):
+        has_metrics = job_state.metrics and any(k for k in job_state.metrics.keys() if not k.startswith("_"))
+
+        if not has_metrics:
+            # Job failed before producing metrics - likely a launch failure
+            lines.append(red("  ✗ JOB FAILED TO LAUNCH"))
+            lines.append(f"    Exit code: {job_dict['exit_code']}")
+            lines.append(f"    Check logs for details: {job_dict.get('logs_path', 'N/A')}")
+        elif job_state.config.acceptance_criteria:
+            # Job ran but failed (has metrics) - show acceptance results
+            if job_state.acceptance_passed:
+                lines.append(green("  ✓ Acceptance criteria passed"))
+            else:
+                lines.append(red("  ✗ ACCEPTANCE CRITERIA FAILED"))
+
+            # Show ALL criteria with pass/fail indicators
+            for criterion in job_state.config.acceptance_criteria:
+                if criterion.metric not in job_state.metrics:
+                    lines.append(
+                        red(f"    ✗ {criterion.metric}: MISSING (expected {criterion.operator} {criterion.threshold})")
+                    )
+                else:
+                    actual = job_state.metrics[criterion.metric]
+                    target_str = f"{criterion.operator} {criterion.threshold}"
+                    if criterion.evaluate(actual):
+                        lines.append(green(f"    ✓ {criterion.metric}: {actual:.1f} (target: {target_str})"))
+                    else:
+                        lines.append(red(f"    ✗ {criterion.metric}: {actual:.1f} (target: {target_str})"))
+    # Acceptance criteria for successful jobs
+    elif job_state.config.acceptance_criteria:
         if job_dict["status"] == "completed":
             # For completed jobs: show pass/fail with indicators
             if job_state.acceptance_passed:

@@ -26,7 +26,7 @@ def test_resolve_version_continues_unreleased_state(monkeypatch, tmp_path):
 
     # Create an unreleased state
     state = ReleaseState(
-        version="v2025.10.09-1430",
+        version="v2025.10.09-143000",
         created_at=datetime.utcnow().isoformat(),
         commit_sha="abc123",
         released=False,
@@ -36,7 +36,7 @@ def test_resolve_version_continues_unreleased_state(monkeypatch, tmp_path):
     from devops.stable.release_stable import resolve_version
 
     version = resolve_version(explicit=None, force_new=False)
-    assert version == "2025.10.09-1430"
+    assert version == "2025.10.09-143000"
 
 
 def test_resolve_version_starts_new_when_previous_released(monkeypatch, tmp_path):
@@ -45,7 +45,7 @@ def test_resolve_version_starts_new_when_previous_released(monkeypatch, tmp_path
 
     # Create a released state
     state = ReleaseState(
-        version="v2025.10.09-1430",
+        version="v2025.10.09-143000",
         created_at=datetime.utcnow().isoformat(),
         commit_sha="abc123",
         released=True,
@@ -55,7 +55,7 @@ def test_resolve_version_starts_new_when_previous_released(monkeypatch, tmp_path
     from devops.stable.release_stable import resolve_version
 
     version = resolve_version(explicit=None, force_new=False)
-    assert version != "2025.10.09-1430"  # Should be a new version
+    assert version != "2025.10.09-143000"  # Should be a new version
     assert version.startswith("2025.")
 
 
@@ -75,7 +75,7 @@ def test_resolve_version_respects_force_new(monkeypatch, tmp_path):
 
     # Create an unreleased state
     state = ReleaseState(
-        version="v2025.10.09-1430",
+        version="v2025.10.09-143000",
         created_at=datetime.utcnow().isoformat(),
         commit_sha="abc123",
         released=False,
@@ -85,7 +85,7 @@ def test_resolve_version_respects_force_new(monkeypatch, tmp_path):
     from devops.stable.release_stable import resolve_version
 
     version = resolve_version(explicit=None, force_new=True)
-    assert version != "2025.10.09-1430"  # Should be different
+    assert version != "2025.10.09-143000"  # Should be different
     assert version.startswith("2025.")
 
 
@@ -97,7 +97,7 @@ def test_step_prepare_tag_skips_when_gate_passed(monkeypatch, tmp_path, capsys):
 
     # Create state with completed prepare_tag gate
     state = ReleaseState(
-        version="v2025.10.09-1430",
+        version="v2025.10.09-143000",
         created_at=datetime.utcnow().isoformat(),
         commit_sha="abc123",
     )
@@ -112,7 +112,7 @@ def test_step_prepare_tag_skips_when_gate_passed(monkeypatch, tmp_path, capsys):
     # Mock git operations so they don't actually run
     with patch("gitta.get_current_commit", return_value="abc123"):
         with patch("gitta.run_git"):
-            step_prepare_tag(version="2025.10.09-1430", state=state)
+            step_prepare_tag(version="2025.10.09-143000", state=state)
 
     captured = capsys.readouterr()
     assert "Step already completed" in captured.out
@@ -127,7 +127,7 @@ def test_step_bug_check_skips_when_gate_passed(monkeypatch, tmp_path, capsys):
 
     # Create state with completed bug_check gate
     state = ReleaseState(
-        version="v2025.10.09-1430",
+        version="v2025.10.09-143000",
         created_at=datetime.utcnow().isoformat(),
         commit_sha="abc123",
     )
@@ -142,7 +142,7 @@ def test_step_bug_check_skips_when_gate_passed(monkeypatch, tmp_path, capsys):
     # Mock RC commit verification and check_blockers
     with patch("devops.stable.release_stable.verify_on_rc_commit", return_value="abc123"):
         with patch("devops.stable.release_stable.check_blockers"):
-            step_bug_check(version="2025.10.09-1430", state=state)
+            step_bug_check(version="2025.10.09-143000", state=state)
 
     captured = capsys.readouterr()
     assert "Step already completed" in captured.out
@@ -156,7 +156,7 @@ def test_step_prepare_tag_marks_gate_when_complete(monkeypatch, tmp_path):
 
     # Create state without gates
     state = ReleaseState(
-        version="v2025.10.09-1430",
+        version="v2025.10.09-143000",
         created_at=datetime.utcnow().isoformat(),
         commit_sha="abc123",
     )
@@ -166,7 +166,7 @@ def test_step_prepare_tag_marks_gate_when_complete(monkeypatch, tmp_path):
         with patch("gitta.run_git") as mock_git:
             # Mock tag doesn't exist
             mock_git.return_value = ""
-            step_prepare_tag(version="2025.10.09-1430", state=state)
+            step_prepare_tag(version="2025.10.09-143000", state=state)
 
     # Verify gate was added
     assert len(state.gates) == 1
@@ -182,7 +182,7 @@ def test_step_bug_check_marks_gate_when_complete(monkeypatch, tmp_path):
 
     # Create state without gates
     state = ReleaseState(
-        version="v2025.10.09-1430",
+        version="v2025.10.09-143000",
         created_at=datetime.utcnow().isoformat(),
         commit_sha="abc123",
     )
@@ -190,7 +190,7 @@ def test_step_bug_check_marks_gate_when_complete(monkeypatch, tmp_path):
     # Mock RC commit verification and check_blockers to return True (passed)
     with patch("devops.stable.release_stable.verify_on_rc_commit", return_value="abc123"):
         with patch("devops.stable.release_stable.check_blockers", return_value=True):
-            step_bug_check(version="2025.10.09-1430", state=state)
+            step_bug_check(version="2025.10.09-143000", state=state)
 
     # Verify gate was added
     assert len(state.gates) == 1
@@ -208,7 +208,7 @@ def test_cmd_validate_runs_validation_pipeline(monkeypatch, tmp_path):
     with patch("devops.stable.release_stable.step_prepare_tag") as mock_prepare:
         with patch("devops.stable.release_stable.step_task_validation") as mock_task:
             with patch("devops.stable.release_stable.step_summary") as mock_summary:
-                with patch("devops.stable.release_stable._VERSION", "2025.10.09-1430"):
+                with patch("devops.stable.release_stable._VERSION", "2025.10.09-143000"):
                     with patch("gitta.get_current_commit", return_value="abc123"):
                         cmd_validate(task=None, retry=False)
 
@@ -232,7 +232,7 @@ def test_cmd_hotfix_skips_validation(monkeypatch, tmp_path):
     with patch("devops.stable.release_stable.step_prepare_tag") as mock_prepare:
         with patch("devops.stable.release_stable.step_task_validation") as mock_task:
             with patch("devops.stable.release_stable.step_release") as mock_release:
-                with patch("devops.stable.release_stable._VERSION", "2025.10.09-1430"):
+                with patch("devops.stable.release_stable._VERSION", "2025.10.09-143000"):
                     with patch("gitta.get_current_commit", return_value="abc123"):
                         cmd_hotfix()
 
@@ -251,7 +251,7 @@ def test_cmd_release_runs_bug_check_and_release(monkeypatch, tmp_path):
     # Mock the step functions
     with patch("devops.stable.release_stable.step_bug_check") as mock_bug:
         with patch("devops.stable.release_stable.step_release") as mock_release:
-            with patch("devops.stable.release_stable._VERSION", "2025.10.09-1430"):
+            with patch("devops.stable.release_stable._VERSION", "2025.10.09-143000"):
                 with patch("gitta.get_current_commit", return_value="abc123"):
                     cmd_release()
 
@@ -270,7 +270,7 @@ def test_continuation_skips_completed_steps(monkeypatch, tmp_path, capsys):
 
     # Create a state with completed prepare_tag and bug_check gates
     state = ReleaseState(
-        version="v2025.10.09-1430",
+        version="v2025.10.09-143000",
         created_at=datetime.utcnow().isoformat(),
         commit_sha="abc123",
         released=False,
@@ -285,8 +285,8 @@ def test_continuation_skips_completed_steps(monkeypatch, tmp_path, capsys):
     with patch("gitta.get_current_commit", return_value="abc123"):
         with patch("gitta.run_git", return_value="abc123"):
             # Run the steps - they should skip since gates are marked complete
-            step_prepare_tag(version="2025.10.09-1430", state=state)
-            step_bug_check(version="2025.10.09-1430", state=state)
+            step_prepare_tag(version="2025.10.09-143000", state=state)
+            step_bug_check(version="2025.10.09-143000", state=state)
 
     # Verify both steps reported they were skipped
     output = capsys.readouterr().out
