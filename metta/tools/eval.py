@@ -173,14 +173,14 @@ class EvaluateTool(Tool):
                 try:
                     rl_stats.process_policy_evaluator_stats(policy_uri, eval_results, wandb_run, 0, 0, False)
                 except Exception as e:
-                    logger.error("Fallback WandB logging failed: %s", e)
+                    logger.error("Fallback WandB logging failed: %s", e, exc_info=True)
             except Exception as e:
-                logger.error(f"Error logging evaluation results to wandb: {e}")
+                logger.error(f"Error logging evaluation results to wandb: {e}", exc_info=True)
                 # Best-effort fallback logging with default indices
                 try:
                     rl_stats.process_policy_evaluator_stats(policy_uri, eval_results, wandb_run, 0, 0, False)
                 except Exception as e2:
-                    logger.error("Fallback WandB logging failed: %s", e2)
+                    logger.error("Fallback WandB logging failed: %s", e2, exc_info=True)
 
     def eval_policy(self, normalized_uri: str, device: torch.device, stats_client: StatsClient | None) -> EvalResults:
         game_rules = self._build_game_rules()

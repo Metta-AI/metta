@@ -296,7 +296,7 @@ class SimulationStatsDB(EpisodeStatsDB):
             self.con.execute("CHECKPOINT")  # ← this writes tables & data pages
         except Exception as e:
             logger = logging.getLogger(__name__)
-            logger.error(f"Error merging {other_path}: {e}")
+            logger.error(f"Error merging {other_path}: {e}", exc_info=True)
             raise
         finally:
             self.con.execute("DETACH other")
