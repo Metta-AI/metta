@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools==80.9.0", "wheel==0.45.1"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "tribal-village"
+version = "0.1.0"
+description = "Tribal Village - Multi-agent RL environment built with Nim"
+readme = "README.md"
+license = { text = "MIT" }
+authors = [{ name = "Metta AI", email = "info@metta.ai" }]
+requires-python = ">=3.9"
+dependencies = ["numpy>=1.20.0", "gymnasium>=0.29.0", "pufferlib>=3.0.0"]
+
+[tool.setuptools]
+include-package-data = true
+
+[project.urls]
+Homepage = "https://github.com/Metta-AI/tribal-village"
+Repository = "https://github.com/Metta-AI/tribal-village.git"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["tribal_village_env*"]
+
+[tool.setuptools.package-data]
+tribal_village_env = ["*.so", "*.dylib", "*.dll", "libtribal_village.*"]

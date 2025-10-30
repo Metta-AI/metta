@@ -118,12 +118,15 @@ type
     mgConfig*: JsonNode
     config*: Config
 
+    # Cached action IDs for common actions.
     noopActionId*: int
-    moveActionId*: int
+    attackActionId*: int
     putItemsActionId*: int
     getItemsActionId*: int
-    attackActionId*: int
-    changeGlyphActionId*: int
+    moveNorthActionId*: int
+    moveSouthActionId*: int
+    moveWestActionId*: int
+    moveEastActionId*: int
 
   ReplayEntity* = ref object
     ## Replay entity does not have time series and only has the current step value.
@@ -539,8 +542,6 @@ proc loadReplayString*(jsonData: string, fileName: string): Replay =
     let idx = replay.actionNames.find(actionName)
     if idx != -1:
       replay.drawnAgentActionMask = replay.drawnAgentActionMask or (1'u64 shl idx)
-  replay.attackActionId = replay.actionNames.find("attack")
-
   if "file_name" in jsonObj:
     replay.fileName = jsonObj["file_name"].getStr
 
@@ -655,12 +656,15 @@ proc loadReplayString*(jsonData: string, fileName: string): Replay =
   # compute gain maps for static replays.
   computeGainMap(replay)
 
+  # Cache common action IDs for fast lookup.
   replay.noopActionId = replay.actionNames.find("noop")
-  replay.moveActionId = replay.actionNames.find("move")
+  replay.attackActionId = replay.actionNames.find("attack")
   replay.putItemsActionId = replay.actionNames.find("put_items")
   replay.getItemsActionId = replay.actionNames.find("get_items")
-  replay.attackActionId = replay.actionNames.find("attack")
-  replay.changeGlyphActionId = replay.actionNames.find("change_glyph")
+  replay.moveNorthActionId = replay.actionNames.find("move_north")
+  replay.moveSouthActionId = replay.actionNames.find("move_south")
+  replay.moveWestActionId = replay.actionNames.find("move_west")
+  replay.moveEastActionId = replay.actionNames.find("move_east")
 
   return replay
 

@@ -31,8 +31,16 @@ cogames = "cogames.main:app"
 where = ["src"]
 include = ["cogames", "cogames.*"]
 
+[tool.setuptools]
+include-package-data = true
+
 [tool.setuptools.package-data]
-cogames = ["py.typed"]
+cogames = [
+  "py.typed",
+  "maps/*.map",
+  "maps/**/*.map",
+  "assets/**/*",
+]
 
 [tool.setuptools_scm]
 tag_regex = "^cogames-v(?P<version>\\d+\\.\\d+\\.\\d+(?:\\.\\d+)?)$"
@@ -42,7 +50,6 @@ root = "../.."
 fallback_version = "0.0.0"
 # Provide a specific git command to be used in order to find the correct versioning tags
 git_describe_command = ["git", "describe", "--dirty", "--tags", "--long", "--match", "cogames-v*"]
-
 [tool.pytest.ini_options]
 pythonpath = ["src"]
 
