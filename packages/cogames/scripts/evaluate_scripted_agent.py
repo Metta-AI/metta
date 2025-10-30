@@ -9,19 +9,23 @@ This script consolidates all evaluation suites:
 
 Usage:
   # Training Facility suite
-  uv run python -u packages/cogames/scripts/evaluate.py training-facility \\
+  uv run python -u packages/cogames/scripts/evaluate_scripted_agent.py training-facility \\
       --cogs 1 --episodes 3 --steps 500
 
   # Outpost Experiments suite
-  uv run python -u packages/cogames/scripts/evaluate.py outpost \\
+  uv run python -u packages/cogames/scripts/evaluate_scripted_agent.py outpost \\
       --experiments EXP1 EXP2 EXP4 --hyperparams conservative aggressive
 
   # Difficulty Variants suite (comprehensive)
-  uv run python -u packages/cogames/scripts/evaluate.py difficulty \\
+  uv run python -u packages/cogames/scripts/evaluate_scripted_agent.py difficulty \\
       --difficulties easy medium hard --hyperparams all
 
+  # Clipped Variants suite
+  uv run python -u packages/cogames/scripts/evaluate_scripted_agent.py clipped \\
+      --experiments CLIP_Carbon CLIP_Oxygen --difficulties easy medium --hyperparams all
+
   # All suites
-  uv run python -u packages/cogames/scripts/evaluate.py all
+  uv run python -u packages/cogames/scripts/evaluate_scripted_agent.py all
 """
 
 import argparse
@@ -59,7 +63,7 @@ from cogames.cogs_vs_clips.exploration_experiments import (
     Experiment10Mission,
 )
 from cogames.cogs_vs_clips.missions import make_game
-from cogames.policy.scripted_agent import ScriptedAgentPolicy, HYPERPARAMETER_PRESETS
+from cogames.policy.scripted_agent import HYPERPARAMETER_PRESETS, ScriptedAgentPolicy
 from mettagrid import MettaGridEnv, dtype_actions
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s:%(name)s:%(message)s")
@@ -385,9 +389,7 @@ def run_difficulty_suite(
                     total_reward = 0.0
                     for step in range(max_steps):
                         action = agent_policy.step(obs[0])
-                        obs, rewards, dones, truncated, info = env.step(
-                            np.array([action], dtype=dtype_actions)
-                        )
+                        obs, rewards, dones, truncated, info = env.step(np.array([action], dtype=dtype_actions))
                         total_reward += float(rewards[0])
                         if dones[0] or truncated[0]:
                             break
@@ -472,9 +474,7 @@ def run_clipped_suite(
     print(f"Difficulties: {len(difficulties)}")
     print(f"Presets: {len(hyperparams)}")
     print(f"Clip rates: {clip_rates}")
-    print(
-        f"Total tests: {len(experiments) * len(difficulties) * len(hyperparams) * len(clip_rates)}"
-    )
+    print(f"Total tests: {len(experiments) * len(difficulties) * len(hyperparams) * len(clip_rates)}")
 
     results = []
     success_count = 0
@@ -529,9 +529,7 @@ def run_clipped_suite(
                         total_reward = 0.0
                         for step in range(max_steps):
                             action = agent_policy.step(obs[0])
-                            obs, rewards, dones, truncated, info = env.step(
-                                np.array([action], dtype=dtype_actions)
-                            )
+                            obs, rewards, dones, truncated, info = env.step(np.array([action], dtype=dtype_actions))
                             total_reward += float(rewards[0])
                             if dones[0] or truncated[0]:
                                 break
