@@ -92,7 +92,7 @@ rewards, and environment state.
 
 ##### Observation Space
 
-- **`features: Sequence[ObservationFeature]`**: Available observation features
+- **`features: Sequence[ObservationFeatureSpec]`**: Available observation features
 - **`num_observation_tokens: int`**: Maximum number of observation tokens per agent
 - **`observation_shape: tuple`**: Shape of observation array (num_tokens, 3)
 
@@ -123,7 +123,7 @@ rewards, and environment state.
 
 ##### Environment Inspection
 
-- **`get_feature(feature_id: int) -> ObservationFeature`**: Get an observation feature by ID
+- **`get_feature(feature_id: int) -> ObservationFeatureSpec`**: Get an observation feature by ID
 - **`grid_objects(bbox: Optional[BoundingBox] = None, ignore_types: Optional[List[str]] = None) -> Dict[int, Dict[str, Any]]`**:
   Get objects on the grid, optionally filtered by bounding box and type
 
@@ -208,14 +208,13 @@ if not agent.last_action_success:
 
 ## Observation System
 
-### ObservationFeature
+### ObservationFeatureSpec
 
 Represents metadata about an observation feature type.
 
 ```python
-@dataclass
-class ObservationFeature:
-    feature_id: int        # Unique identifier
+class ObservationFeatureSpec(BaseModel):
+    id: int                # Unique identifier
     name: str              # Human-readable name (e.g., "inv:food", "object_type")
     normalization: float   # Normalization factor for the feature
 ```
@@ -227,9 +226,9 @@ Represents a single observation value at a specific location.
 ```python
 @dataclass
 class ObservationToken:
-    feature: ObservationFeature  # What is being observed
-    location: tuple[int, int]    # (col, row) in observation window
-    value: int                   # The observed value
+    feature: ObservationFeatureSpec  # What is being observed
+    location: tuple[int, int]        # (col, row) in observation window
+    value: int                       # The observed value
 
     def row() -> int  # Extract row from location
     def col() -> int  # Extract column from location

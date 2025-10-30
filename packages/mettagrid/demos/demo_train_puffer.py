@@ -13,14 +13,14 @@
 
 """Puffer Demo - Pure PufferLib ecosystem integration.
 
-This demo shows how to use MettaGridEnv with PufferLib and external training libraries.
+This demo shows how to use PufferMettaGridEnv with PufferLib and external training libraries.
 
-IMPORTANT: MettaGridEnv inherits from PufferLib's PufferEnv, making it fully compatible
-with the PufferLib ecosystem. You can use MettaGridEnv directly with PufferLib training
+IMPORTANT: PufferMettaGridEnv inherits from PufferLib's PufferEnv, making it fully compatible
+with the PufferLib ecosystem. You can use PufferMettaGridEnv directly with PufferLib training
 code, or use PufferLib's MettaPuff wrapper for additional PufferLib-specific features.
 
 Architecture:
-- MettaGridEnv -> MettaGridPufferBase -> PufferEnv (PufferLib compatibility)
+- PufferMettaGridEnv -> PufferEnv (PufferLib compatibility)
 - For pure PufferLib usage, you can also use: github.com/PufferAI/PufferLib/pufferlib/environments/metta/
 
 Run with: uv run python packages/mettagrid/demos/demo_train_puffer.py (from project root)
@@ -58,13 +58,13 @@ def demo_puffer_env():
 
     # Create simulator and config
     simulator = Simulator()
-    config = make_arena(num_agents=24)
+    cfg = make_arena(num_agents=24)
 
     # Create MettaGridPufferEnv - which IS a PufferLib environment!
     # MettaGridPufferEnv inherits from PufferEnv, so it has all PufferLib functionality
     env = MettaGridPufferEnv(
         simulator=simulator,
-        config=config,
+        cfg=cfg,
     )
 
     print("PufferLib environment created")
@@ -230,8 +230,8 @@ def main():
     """Run PufferLib adapter demo."""
     print("PUFFERLIB INTEGRATION DEMO")
     print("=" * 80)
-    print("This demo shows MettaGridEnv's PufferLib integration.")
-    print("MettaGridEnv inherits from PufferEnv, making it fully compatible")
+    print("This demo shows PufferMettaGridEnv's PufferLib integration.")
+    print("PufferMettaGridEnv inherits from PufferEnv, making it fully compatible")
     print("with the PufferLib high-performance training ecosystem.")
     print()
 

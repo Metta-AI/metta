@@ -166,19 +166,29 @@ class MapBuilder(ABC, Generic[ConfigT]):
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
 
-        # Look for MapBuilder base class
-        try:
-            base = next(base for base in getattr(cls, "__orig_bases__", ()) if get_origin(base) is MapBuilder)
-        except StopIteration:
-            raise TypeError(
-                f"{cls.__name__} must inherit from MapBuilder[…], with a concrete Config class parameter"
-            ) from None
+        # Check if the class has a nested Config class already defined
+        if "Config" in cls.__dict__:
+            # Use the nested Config class
+            Config = cls.__dict__["Config"]
+            if not (isinstance(Config, type) and issubclass(Config, MapBuilderConfig)):
+                raise TypeError(f"{cls.__name__}.Config must be a subclass of MapBuilderConfig")
+        else:
+            # Look for MapBuilder base class with generic parameter
+            try:
+                base = next(base for base in getattr(cls, "__orig_bases__", ()) if get_origin(base) is MapBuilder)
+            except StopIteration:
+                raise TypeError(
+                    f"{cls.__name__} must inherit from MapBuilder[…], with a concrete Config class parameter"
+                ) from None
 
-        # Set the Config class - this allows to use MapBuilder.Config shorthand
-        Config = get_args(base)[0]
+            # Set the Config class - this allows to use MapBuilder.Config shorthand
+            Config = get_args(base)[0]
 
-        # Should be guaranteed by the type checker.
-        assert isinstance(Config, type) and issubclass(Config, MapBuilderConfig)
+            # Should be guaranteed by the type checker.
+            if not (isinstance(Config, type) and issubclass(Config, MapBuilderConfig)):
+                raise TypeError(
+                    f"{cls.__name__} must inherit from MapBuilder[…], with a concrete Config class parameter"
+                )
 
         if Config._builder_cls:
             # Already bound to another MapBuilder class, so we need to clone it
