@@ -375,6 +375,27 @@ class ClipCharger(_EvalMissionBase):
         return mission
 
 
+<<<<<<< HEAD
+EVAL_MISSIONS = [
+    CollectTheResourcesEasy,
+    CollectTheResourcesMedium,
+    CollectTheResourcesHard,
+    EnergyStarved,
+    OxygenBottleneck,
+    GeraniumForage,
+    SingleUseWorld,
+    BalancedSpread,
+    GermaniumRush,
+    SiliconWorkbench,
+    CarbonDesert,
+    SlowOxygen,
+    HighRegenSprint,
+    SparseBalanced,
+    GermaniumClutch,
+    ClipCarbon,
+    ClipOxygen,
+]
+=======
 class ClipSingleUseWorld(_EvalMissionBase):
     name: str = "clip_single_use_world"
     description: str = "Single-use world with clipped oxygen extractor."
@@ -729,3 +750,112 @@ EVAL_MISSIONS.extend(
         ClipExtractorHub100,
     ]
 )
+>>>>>>> bc160daaae8c348d8a41fef07905d4b8b8f42924
+num_cogs, variant)
+        mission.oxygen_extractor.start_clipped = True
+
+        def _filter_unclip(cfg: MettaGridConfig) -> None:
+            if cfg.game.clipper is None:
+                return
+            cfg.game.clipper.unclipping_recipes = [
+                r for r in cfg.game.clipper.unclipping_recipes if r.input_resources == {"decoder": 1}
+            ]
+
+        def _tweak_assembler(cfg: MettaGridConfig) -> None:
+            asm = cfg.game.objects.get("assembler")
+            if asm is None:
+                return
+            recipe = ProtocolConfig(input_resources={"carbon": 1}, output_resources={"decoder": 1})
+            single_gear = (["gear"], recipe)
+            if not any(g == ["gear"] and getattr(p, "output_resources", {}) == {"decoder": 1} for g, p in asm.recipes):
+                asm.recipes = [single_gear, *asm.recipes]
+
+        mission = _add_make_env_modifier(mission, _filter_unclip)
+        return _add_make_env_modifier(mission, _tweak_assembler)
+
+
+class ClipExtractorHub80(_EvalMissionBase):
+    name: str = "clip_extractor_hub_80"
+    description: str = "Large 80x80 extractor hub with clipped oxygen."
+    map_name: str = "extractor_hub_80x80.map"
+    clip_rate: float = 0.0
+
+    def instantiate(
+        self, map_builder: MapBuilderConfig, num_cogs: int, variant: MissionVariant | None = None
+    ) -> "Mission":
+        mission = super().instantiate(map_builder, num_cogs, variant)
+        mission.oxygen_extractor.start_clipped = True
+
+        def _filter_unclip(cfg: MettaGridConfig) -> None:
+            if cfg.game.clipper is None:
+                return
+            cfg.game.clipper.unclipping_recipes = [
+                r for r in cfg.game.clipper.unclipping_recipes if r.input_resources == {"decoder": 1}
+            ]
+
+        def _tweak_assembler(cfg: MettaGridConfig) -> None:
+            asm = cfg.game.objects.get("assembler")
+            if asm is None:
+                return
+            recipe = ProtocolConfig(input_resources={"carbon": 1}, output_resources={"decoder": 1})
+            single_gear = (["gear"], recipe)
+            if not any(g == ["gear"] and getattr(p, "output_resources", {}) == {"decoder": 1} for g, p in asm.recipes):
+                asm.recipes = [single_gear, *asm.recipes]
+
+        mission = _add_make_env_modifier(mission, _filter_unclip)
+        return _add_make_env_modifier(mission, _tweak_assembler)
+
+
+class ClipExtractorHub100(_EvalMissionBase):
+    name: str = "clip_extractor_hub_100"
+    description: str = "Extra large 100x100 extractor hub with clipped oxygen."
+    map_name: str = "extractor_hub_100x100.map"
+    clip_rate: float = 0.0
+
+    def instantiate(
+        self, map_builder: MapBuilderConfig, num_cogs: int, variant: MissionVariant | None = None
+    ) -> "Mission":
+        mission = super().instantiate(map_builder, num_cogs, variant)
+        mission.oxygen_extractor.start_clipped = True
+
+        def _filter_unclip(cfg: MettaGridConfig) -> None:
+            if cfg.game.clipper is None:
+                return
+            cfg.game.clipper.unclipping_recipes = [
+                r for r in cfg.game.clipper.unclipping_recipes if r.input_resources == {"decoder": 1}
+            ]
+
+        def _tweak_assembler(cfg: MettaGridConfig) -> None:
+            asm = cfg.game.objects.get("assembler")
+            if asm is None:
+                return
+            recipe = ProtocolConfig(input_resources={"carbon": 1}, output_resources={"decoder": 1})
+            single_gear = (["gear"], recipe)
+            if not any(g == ["gear"] and getattr(p, "output_resources", {}) == {"decoder": 1} for g, p in asm.recipes):
+                asm.recipes = [single_gear, *asm.recipes]
+
+        mission = _add_make_env_modifier(mission, _filter_unclip)
+        return _add_make_env_modifier(mission, _tweak_assembler)
+
+
+# Register clipping missions
+EVAL_MISSIONS.extend(
+    [
+        ClipCarbon,
+        ClipOxygen,
+        ClipGermanium,
+        ClipSilicon,
+        ClipCharger,
+        ClipSingleUseWorld,
+        ClipSlowOxygen,
+        ClipHighRegenSprint,
+        ClipSparseBalanced,
+        ClipGermaniumClutch,
+        ClipExtractorHub30,
+        ClipExtractorHub50,
+        ClipExtractorHub70,
+        ClipExtractorHub80,
+        ClipExtractorHub100,
+    ]
+)
+>>>>>>> bc160daaae8c348d8a41fef07905d4b8b8f42924
