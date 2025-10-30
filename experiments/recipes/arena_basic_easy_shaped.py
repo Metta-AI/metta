@@ -1,3 +1,4 @@
+import math
 from typing import Optional, Sequence
 
 import metta.cogworks.curriculum as cc
@@ -234,4 +235,104 @@ def sweep(sweep_name: str) -> SweepTool:
         # Default value is 1. We don't recommend going higher than 4.
         # The faster each individual trial, the lower you should set this number.
         num_parallel_trials=4,
+    )
+
+
+def train_multi_gpu(
+    curriculum: Optional[CurriculumConfig] = None,
+    enable_detailed_slice_logging: bool = False,
+    policy_architecture: Optional[PolicyArchitecture] = None,
+    batch_size_multiplier: float = 1.0,
+    minibatch_size_multiplier: float = 1.0,
+    learning_rate_multiplier: float = 1.0,
+) -> TrainTool:
+    """Multi-GPU training entrypoint with tunable batch/minibatch and LR multipliers."""
+    curriculum = curriculum or make_curriculum(
+        enable_detailed_slice_logging=enable_detailed_slice_logging
+    )
+
+    eval_simulations = simulations()
+    trainer_cfg = TrainerConfig(
+        losses=LossConfig(),
+    )
+
+    base_batch = trainer_cfg.batch_size
+    # Scale minibatch size while respecting divisibility constraints.
+    base_minibatch = trainer_cfg.minibatch_size
+    bptt = trainer_cfg.bptt_horizon
+
+    desired_minibatch = max(bptt, base_minibatch * minibatch_size_multiplier)
+    scaled_minibatch = int(math.ceil(desired_minibatch / bptt) * bptt)
+
+    desired_batch = max(scaled_minibatch, base_batch * batch_size_multiplier)
+    scaled_batch = int(math.ceil(desired_batch / scaled_minibatch) * scaled_minibatch)
+
+    trainer_cfg.batch_size = max(scaled_minibatch, scaled_batch)
+    trainer_cfg.minibatch_size = min(scaled_minibatch, trainer_cfg.batch_size)
+
+    # Apply learning rate multiplier.
+    trainer_cfg.optimizer.learning_rate *= learning_rate_multiplier
+
+    if policy_architecture is None:
+        policy_architecture = ViTDefaultConfig()
+
+    return TrainTool(
+        trainer=trainer_cfg,
+        training_env=TrainingEnvironmentConfig(curriculum=curriculum),
+        evaluator=EvaluatorConfig(simulations=eval_simulations),
+        policy_architecture=policy_architecture,
+        torch_profiler=TorchProfilerConfig(),
+    )
+
+
+def sweep_muon(sweep_name: str) -> SweepTool:
+    """Sweep variant that trains with the ForeachMuon optimizer."""
+
+    parameters = [
+        SP.param(
+            "learning_rate_multiplier",
+            D.UNIFORM,
+            min=1.0,
+            max=4.0,
+            search_center=2.5,
+        ),
+        SP.PPO_CLIP_COEF,
+        SP.PPO_GAE_LAMBDA,
+        SP.PPO_VF_COEF,
+        SP.ADAM_EPS,
+        SP.OPTIMIZER_BETA1,
+        SP.OPTIMIZER_BETA2,
+        SP.categorical(
+            "batch_size_multiplier",
+            [0.25, 0.5, 1.0],
+        ),
+        SP.categorical(
+            "minibatch_size_multiplier",
+            [0.25, 0.5, 1.0],
+        ),
+        SP.param(
+            "trainer.total_timesteps",
+            D.INT_UNIFORM,
+            min=1e9,
+            max=2e9,
+            search_center=7.5e8,
+        ),
+    ]
+
+    train_overrides = {
+        "trainer.optimizer.type": "muon",
+        "trainer.optimizer.weight_decay": 0,
+    }
+
+    return make_sweep(
+        name=sweep_name,
+        recipe="experiments.recipes.arena_basic_easy_shaped",
+        train_entrypoint="train_multi_gpu",
+        eval_entrypoint="evaluate_in_sweep",
+        objective="evaluator/eval_sweep/score",
+        parameters=parameters,
+        train_overrides=train_overrides,
+        max_trials=80,
+        num_parallel_trials=2,
+        gpus=16,
     )
