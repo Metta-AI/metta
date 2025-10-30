@@ -81,7 +81,11 @@ def temp_job_manager():
     """
     managers = []
 
-    def _create(max_local_jobs: int = 1, max_remote_jobs: int = 10) -> JobManager:
+    def _create(
+        max_local_jobs: int = 1,
+        max_remote_jobs: int = 10,
+        remote_poll_interval_s: float = 5.0,
+    ) -> JobManager:
         tmp_dir = Path(tempfile.mkdtemp())
         # Create logs directory to prevent FileNotFoundError in monitoring threads
         (tmp_dir / "logs").mkdir(parents=True, exist_ok=True)
@@ -89,6 +93,7 @@ def temp_job_manager():
             base_dir=tmp_dir,
             max_local_jobs=max_local_jobs,
             max_remote_jobs=max_remote_jobs,
+            remote_poll_interval_s=remote_poll_interval_s,
         )
         managers.append(manager)
         return manager
