@@ -93,14 +93,7 @@ def train(
     import pufferlib.pytorch  # noqa: F401 - ensure modules register with torch
 
     # Configure console based on log_outputs flag
-    if log_outputs:
-        # Plain console for machine-readable output (no colors, no markup, no wrapping)
-        console = Console(
-            force_terminal=True, no_color=True, markup=False, highlight=False, width=999999, soft_wrap=False
-        )
-    else:
-        # Rich console with colors and formatting for human-readable output
-        console = Console()
+    console = Console()  # Rich console for user-facing output
 
     if env_cfg is None and env_cfg_supplier is None:
         raise ValueError("Either env_cfg or env_cfg_supplier must be provided")
@@ -332,10 +325,12 @@ def train(
             while trainer.global_step < num_steps:
                 eval_stats = trainer.evaluate()
                 if log_outputs and eval_stats:
-                    console.print(f"Evaluation: {datetime.now(UTC)} {repr(dict(eval_stats))}")
+                    # Write directly to stdout to avoid Rich formatting/wrapping
+                    print(f"Evaluation: {datetime.now(UTC)} {repr(dict(eval_stats))}", flush=True)
                 trainer_stats = trainer.train()
                 if log_outputs and trainer_stats:
-                    console.print(f"Training: {datetime.now(UTC)} {repr(dict(trainer_stats))}")
+                    # Write directly to stdout to avoid Rich formatting/wrapping
+                    print(f"Training: {datetime.now(UTC)} {repr(dict(trainer_stats))}", flush=True)
                 # Check for NaN in network parameters after each training step
                 network = policy.network()
                 has_nan = False
