@@ -8,6 +8,20 @@ from typing import Optional
 logger = logging.getLogger(__name__)
 
 
+def _strip_ansi_codes(text: str) -> str:
+    """Remove ANSI escape codes and Rich formatting."""
+    # Pattern matches ANSI escape sequences and hyperlinks
+    ansi_pattern = re.compile(r"\x1b\[[0-9;]*[mGKHJh]|\x1b]8;[^\x1b]*\x1b\\|\[2m|\[0m")
+    text = ansi_pattern.sub("", text)
+
+    # Also remove file references like "train.py:337" that appear after values
+    # These show up even after ANSI stripping from Rich console.log() hyperlinks
+    file_ref_pattern = re.compile(r"\s+[a-z_]+\.py:\d+")
+    text = file_ref_pattern.sub("", text)
+
+    return text
+
+
 def parse_cogames_stats_from_logs(
     log_text: str, metric_keys: list[str], last_n_percent: float = 0.25
 ) -> dict[str, dict[str, float]]:
@@ -22,40 +36,56 @@ def parse_cogames_stats_from_logs(
         Dictionary mapping metric names to dicts with 'value' and 'count' keys
         Example: {"SPS": {"value": 42000.0, "count": 10}}
 
-    The --log-outputs format produces lines like:
-        Evaluation: 2025-10-30 12:34:56.123456+00:00
-        {'stat1': value1, 'stat2': value2, ...}
-        Training: 2025-10-30 12:34:56.234567+00:00
-        {'stat1': value1, 'stat2': value2, ...}
+    The --log-outputs format produces multi-line dicts after "Training:" markers.
     """
     metrics: dict[str, dict[str, float]] = {}
 
     # Store all values for each metric across all log entries
     all_values: dict[str, list[float]] = {key: [] for key in metric_keys}
 
-    # Pattern to match dict outputs
-    # Match lines starting with '{' (possibly with leading whitespace) and ending with '}'
-    dict_pattern = re.compile(r"^\s*\{.*\}\s*$", re.MULTILINE)
+    # Strip ANSI codes first
+    clean_text = _strip_ansi_codes(log_text)
 
-    for match in dict_pattern.finditer(log_text):
-        dict_str = match.group(0).strip()
+    # Extract multi-line dicts: collect lines between "Training:" markers
+    training_blocks = []
+    current_block = []
+    in_block = False
+
+    for line in clean_text.splitlines():
+        if "Training:" in line:
+            if current_block:
+                training_blocks.append("\n".join(current_block))
+            current_block = []
+            in_block = True
+        elif in_block:
+            current_block.append(line)
+
+    # Don't forget the last block
+    if current_block:
+        training_blocks.append("\n".join(current_block))
+
+    # Parse each training block to extract the dict
+    for block in training_blocks:
         try:
-            # Parse the dictionary string
-            stats_dict = ast.literal_eval(dict_str)
+            # Find the dict portion - starts with '{' and ends with '}'
+            start_idx = block.find("{")
+            end_idx = block.rfind("}")
+            if start_idx != -1 and end_idx != -1:
+                dict_str = block[start_idx : end_idx + 1]
+                stats_dict = ast.literal_eval(dict_str)
 
-            # Extract requested metrics
-            for key in metric_keys:
-                if key in stats_dict:
-                    value = stats_dict[key]
-                    # Handle both numeric values and None
-                    if value is not None:
-                        try:
-                            all_values[key].append(float(value))
-                        except (ValueError, TypeError):
-                            logger.debug(f"Skipping non-numeric value for {key}: {value}")
+                # Extract requested metrics
+                for key in metric_keys:
+                    if key in stats_dict:
+                        value = stats_dict[key]
+                        if value is not None:
+                            try:
+                                all_values[key].append(float(value))
+                            except (ValueError, TypeError):
+                                logger.debug(f"Skipping non-numeric value for {key}: {value}")
 
         except (SyntaxError, ValueError) as e:
-            logger.debug(f"Failed to parse dict from log line: {dict_str[:100]}... Error: {e}")
+            logger.debug(f"Failed to parse training block: {e}")
             continue
 
     # Compute averages over last N% of samples
