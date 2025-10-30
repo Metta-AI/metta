@@ -123,12 +123,6 @@ def configure_tf32_precision() -> None:
     if not torch.cuda.is_available():
         return
 
-    if torch.are_deterministic_algorithms_enabled():
-        logger.warning(
-            "Disabling torch.use_deterministic_algorithms to enable TF32 for Cortex stacks."
-        )
-        torch.use_deterministic_algorithms(False)
-
     torch.backends.cuda.matmul.fp32_precision = "tf32"  # type: ignore[attr-defined]
     torch.backends.cudnn.conv.fp32_precision = "tf32"  # type: ignore[attr-defined]
     torch.set_float32_matmul_precision("high")
