@@ -265,8 +265,11 @@ ssh <sandbox-name>
 # Launch a new sandbox with 1 GPU (default)
 ./devops/skypilot/sandbox.py --new
 
-# Launch with multiple GPUs
+# Launch with multiple GPUs (single node)
 ./devops/skypilot/sandbox.py --new --gpus 4
+
+# Launch a multi-node sandbox (e.g., 4 nodes × 8 GPUs/node)
+./devops/skypilot/sandbox.py --new --nodes 4 --gpus 8
 
 # Launch with specific git branch
 ./devops/skypilot/sandbox.py --new --git-ref feature/my-branch
