@@ -40,8 +40,9 @@ class ColumnBlock(BaseBlock):
         self.e_mixer = _EAxisCrossAttention(d_hidden=d_hidden, num_experts=len(self.experts), d_key=d_k_mix)
 
         self.head = _ColumnReZeroHead(d_hidden=d_hidden, hidden_mult=2)
-        init_alpha = float(getattr(config, "alpha_col_init", 0.01))
+        init_alpha = float(getattr(config, "alpha_init", 0.01))
         self.alpha_col = nn.Parameter(torch.tensor(init_alpha, dtype=torch.float32))
+        self.alpha_main = nn.Parameter(torch.tensor(init_alpha, dtype=torch.float32))
         # Precompute stable per‑expert state keys once.
         self._expert_keys: list[str] = [self._expert_state_key(i, expert) for i, expert in enumerate(self.experts)]
         self._compiled_experts: list | None = None
@@ -203,7 +204,7 @@ class ColumnBlock(BaseBlock):
         y_delta = (a_t.unsqueeze(-1) * D_mixed).sum(dim=2)  # [B,T,H]
         res_corr = U_tokens - (x if not is_step else x.unsqueeze(1))  # [B,T,H]
         y_minus_x = y_delta + res_corr  # equals y_total - x
-        y_total = (x if not is_step else x.unsqueeze(1)) + y_minus_x
+        y_total = (x if not is_step else x.unsqueeze(1)) + self.alpha_main.to(y_minus_x.dtype) * y_minus_x
         h = self.head(y_minus_x)  # small corrective head on the residual
         out = y_total + self.alpha_col.to(h.dtype) * h
         return (out.squeeze(1) if is_step else out), next_state

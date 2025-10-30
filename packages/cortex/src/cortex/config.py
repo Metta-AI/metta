@@ -278,12 +278,14 @@ class ColumnBlockConfig(BlockConfig):
     block_type: str = "column"
     experts: list[SerializeAsAny[BlockConfig]]
     router: RouterConfig = Field(default_factory=RouterConfig, description="Router hyperparameters for this column.")
-    alpha_col_init: float = Field(
+    alpha_init: float = Field(
         default=0.1,
         ge=0.0,
         description=(
-            "Initial outer ReZero gain α_col; controls how much gradient from this block flows at init "
-            "(small for calm starts)."
+            "Initial scale for the shared ReZero gate α applied to BOTH the main MoE residual r_t "
+            "and the correction head ρ(r_t): out = x + α·r_t + α·ρ(r_t). "
+            "Smaller values keep the block near-identity at init (assuming near-identity experts, zeroed mixer/head); "
+            "larger values engage both paths more strongly. Also scales gradient flow through both paths."
         ),
     )
 
