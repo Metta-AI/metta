@@ -1,4 +1,4 @@
-# Mettascope2
+# Mettascope
 
 ## Building
 
