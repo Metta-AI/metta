@@ -51,7 +51,7 @@ Cortex implements a modular stack-based memory architecture with four core abstr
    - Purpose: Control information flow, stabilize gradients, and manage dimensionality
 
 3. **Column**: A router‑mixed set of expert blocks executed in parallel and combined
-   - Purpose: Let multiple block "experts" (e.g., PreUp, PostUp, Axon, mLSTM, sLSTM, XL) compete/cooperate per token
+   - Purpose: Let multiple block "experts" compete/cooperate per token/over time.
    - How: A global prior gate (with optional per‑token refinement) mixes expert deltas; an E‑axis mixer and outer
      ReZero stabilize depth
    - Code: `packages/cortex/src/cortex/blocks/column/column.py` and helpers in
