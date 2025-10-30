@@ -46,7 +46,7 @@ file_mounts:
 setup: set -u && bash <(curl -fsSL "https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/${METTA_GIT_REF}/devops/skypilot/recipes/setup.sh")
 
 run: |
-  eval "$(curl -fsSL "https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/${METTA_GIT_REF}/devops/skypilot/recipes/init_run.py")"
+  eval "$(curl -fsSL "https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/${METTA_GIT_REF}/devops/skypilot/recipes/init_run.py" | python3)"
 
   echo "Starting skypilot run script..."
   uv run ./devops/skypilot/recipes/skypilot_run.py
