@@ -5,6 +5,7 @@ SkyPilot run manager that handles process groups and monitoring with integrated 
 """
 
 import os
+import shlex
 import subprocess
 import sys
 import time
@@ -87,11 +88,11 @@ def run_job_in_background() -> subprocess.Popen:
 
     if use_torchrun:
         # Wrap with devops/run.sh for torchrun setup
-        cmd = ["./devops/run.sh"] + metta_cmd.split()
+        cmd = ["./devops/run.sh"] + shlex.split(metta_cmd)
         logger.info(f"Launching job with torchrun wrapper: {' '.join(cmd)}")
     else:
         # Run command directly without torchrun
-        cmd = metta_cmd.split()
+        cmd = shlex.split(metta_cmd)
         logger.info(f"Launching job directly (no torchrun): {' '.join(cmd)}")
 
     process = subprocess.Popen(

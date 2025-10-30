@@ -24,9 +24,9 @@ def main():
     # Configure environment based on job type
     sandbox_mode = os.environ.get("SANDBOX_MODE", "false").lower() == "true"
     if sandbox_mode:
-        commands.append("./devops/skypilot/utils/configure_environment.py --sandbox")
+        commands.append("./devops/skypilot/utils/configure_environment.py --sandbox || exit 1")
     else:
-        commands.append("./devops/skypilot/utils/configure_environment.py")
+        commands.append("./devops/skypilot/utils/configure_environment.py || exit 1")
 
     # Get and source environment file
     commands.append('METTA_ENV_FILE="$(uv run ./common/src/metta/common/util/constants.py METTA_ENV_FILE)"')
