@@ -83,20 +83,22 @@ export METTA_DETECTED_CPUS_PER_NODE="$CPU_COUNT"
 
 start_ray_head() {
   echo "[SIMPLE] Starting Ray head node..."
+  # Let Ray auto-detect CPUs instead of forcing a potentially wrong value
+  # Only specify GPUs since we need to ensure they're properly allocated
   ray start \
     --head \
     --port "$RAY_PORT" \
     --ray-client-server-port "$RAY_CLIENT_PORT" \
     --dashboard-host "0.0.0.0" \
     --disable-usage-stats \
-    --num-gpus "$GPU_COUNT" \
-    --num-cpus "$CPU_COUNT"
+    --num-gpus "$GPU_COUNT"
   sleep 5
 }
 
 start_ray_worker() {
   echo "[SIMPLE] Starting Ray worker..."
-  until ray start --address "${HEAD_IP}:${RAY_PORT}" --disable-usage-stats --num-gpus "$GPU_COUNT" --num-cpus "$CPU_COUNT"; do
+  # Let Ray auto-detect CPUs on worker nodes too
+  until ray start --address "${HEAD_IP}:${RAY_PORT}" --disable-usage-stats --num-gpus "$GPU_COUNT"; do
     echo "[SIMPLE] Worker waiting for head..."
     sleep 5
   done
