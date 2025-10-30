@@ -117,6 +117,42 @@ class JobManager:
                 return None
         return None
 
+    def _evaluate_acceptance(self, job_state: JobState) -> bool:
+        """Evaluate acceptance criteria against job metrics.
+
+        Returns True if all criteria pass, False if any fail.
+        Returns True if no criteria defined (vacuous truth).
+        Returns False if criteria defined but metrics missing.
+        """
+        if not job_state.config.acceptance_criteria:
+            return True  # No criteria = pass
+
+        if not job_state.metrics:
+            logger.warning(
+                f"Cannot evaluate acceptance for {job_state.name}: criteria defined but no metrics available"
+            )
+            return False
+
+        failures = []
+        for criterion in job_state.config.acceptance_criteria:
+            metric_value = job_state.metrics.get(criterion.metric)
+            if metric_value is None:
+                failures.append(f"{criterion.metric}: metric missing")
+                continue
+
+            # Use criterion's evaluate method
+            if not criterion.evaluate(metric_value):
+                failures.append(
+                    f"{criterion.metric}: expected {criterion.operator} {criterion.threshold}, got {metric_value:.4f}"
+                )
+
+        if failures:
+            logger.info(f"Acceptance criteria failed for {job_state.name}: {'; '.join(failures)}")
+            return False
+
+        logger.info(f"Acceptance criteria passed for {job_state.name}")
+        return True
+
     def _fetch_metrics(self, job_name: str, job_state: JobState) -> None:
         """Fetch and update metrics for a training job."""
         if not job_state.config.metrics_to_track:
@@ -223,6 +259,15 @@ class JobManager:
                                     if job_state.config.metrics_to_track:
                                         logger.debug(f"Fetching final metrics for {job_name}")
                                         self._fetch_metrics(job_name, job_state)
+                                        # Re-fetch job_state after metrics update
+                                        session.expire(job_state)
+                                        session.refresh(job_state)
+
+                                    # Evaluate acceptance criteria
+                                    if job_state.config.acceptance_criteria:
+                                        job_state.acceptance_passed = self._evaluate_acceptance(job_state)
+                                    else:
+                                        job_state.acceptance_passed = None  # No criteria defined
 
                                     session.add(job_state)
                                     session.commit()
@@ -353,6 +398,15 @@ class JobManager:
                                             if job_state.config.metrics_to_track:
                                                 logger.debug(f"Fetching final metrics for {job_name}")
                                                 self._fetch_metrics(job_name, job_state)
+                                                # Re-fetch job_state after metrics update
+                                                session.expire(job_state)
+                                                session.refresh(job_state)
+
+                                            # Evaluate acceptance criteria
+                                            if job_state.config.acceptance_criteria:
+                                                job_state.acceptance_passed = self._evaluate_acceptance(job_state)
+                                            else:
+                                                job_state.acceptance_passed = None  # No criteria defined
 
                                             session.add(job_state)
                                             session.commit()

@@ -18,6 +18,7 @@ def make_job_state(
     wandb_url: str | None = None,
     checkpoint_uri: str | None = None,
     metrics: dict[str, float] | None = None,
+    acceptance_passed: bool | None = None,
 ) -> JobState:
     """Create a fake JobState for testing."""
     job_state = JobState(
@@ -32,6 +33,7 @@ def make_job_state(
         wandb_run_id=wandb_run_id,
         wandb_url=wandb_url,
         checkpoint_uri=checkpoint_uri,
+        acceptance_passed=acceptance_passed,
     )
     if metrics:
         job_state.metrics = metrics
@@ -103,6 +105,7 @@ def test_acceptance_criteria_pass():
         name="v2025.01.01-test_test",
         exit_code=0,
         metrics={"overview/sps": 15000.0},
+        acceptance_passed=True,  # Job-level acceptance evaluation passed
     )
 
     runner, _ = make_task_runner_with_state({"v2025.01.01-test_test": job_state})
@@ -120,6 +123,7 @@ def test_acceptance_criteria_fail():
         name="v2025.01.01-test_test",
         exit_code=0,
         metrics={"overview/sps": 5000.0},
+        acceptance_passed=False,  # Job-level acceptance evaluation failed
     )
 
     runner, _ = make_task_runner_with_state({"v2025.01.01-test_test": job_state})
@@ -137,6 +141,7 @@ def test_acceptance_criteria_missing_metric():
         name="v2025.01.01-test_test",
         exit_code=0,
         metrics={},  # Missing metric
+        acceptance_passed=False,  # Job-level acceptance evaluation failed due to missing metric
     )
 
     runner, _ = make_task_runner_with_state({"v2025.01.01-test_test": job_state})

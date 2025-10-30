@@ -6,7 +6,7 @@ from datetime import datetime
 from operator import ge, gt
 from typing import Callable
 
-from metta.jobs.job_config import JobConfig, RemoteConfig
+from metta.jobs.job_config import AcceptanceCriterion, JobConfig, RemoteConfig
 
 AcceptanceRule = tuple[str, Callable[[float, float], bool], float]
 
@@ -73,17 +73,18 @@ def tool_task(
     # Automatically detect training jobs by module path (e.g., "arena.train", "navigation.train")
     is_training = module.endswith(".train")
 
-    # Extract metric keys from acceptance criteria for training jobs
+    # Convert acceptance criteria from AcceptanceRule to AcceptanceCriterion for JobConfig
     metrics_to_track = []
-    acceptance_criteria_dict = None
+    acceptance_criteria_list = []
     if acceptance:
-        metrics_to_track = [key for key, _op, _expected in acceptance]
-        # Convert AcceptanceRule list to dict format for JobConfig
         # operator.__name__ gives "ge", "gt", etc. - convert to symbols
         op_to_symbol = {"ge": ">=", "gt": ">", "le": "<=", "lt": "<", "eq": "=="}
-        acceptance_criteria_dict = {
-            key: (op_to_symbol.get(op.__name__, op.__name__), expected) for key, op, expected in acceptance
-        }
+        for metric, op, threshold in acceptance:
+            metrics_to_track.append(metric)
+            operator_symbol = op_to_symbol.get(op.__name__, op.__name__)
+            acceptance_criteria_list.append(
+                AcceptanceCriterion(metric=metric, operator=operator_symbol, threshold=threshold)
+            )
 
     # Assert that only training jobs can have metrics to track
     if metrics_to_track and not is_training:
@@ -98,7 +99,7 @@ def tool_task(
         remote=remote,
         is_training_job=is_training,
         metrics_to_track=metrics_to_track,
-        acceptance_criteria=acceptance_criteria_dict,
+        acceptance_criteria=acceptance_criteria_list,
     )
     return Task(job_config=job_config, acceptance=acceptance, dependency_names=dependency_names)
 
@@ -128,7 +129,7 @@ def get_all_tasks() -> list[Task]:
         remote=RemoteConfig(gpus=1, nodes=1),
         acceptance=[
             ("overview/sps", ge, 40000),
-            ("env_agent/heart.gained", gt, 0.5),
+            ("env_agent/heart.gained", gt, 0.25),
         ],
     )
 
@@ -141,7 +142,7 @@ def get_all_tasks() -> list[Task]:
         remote=RemoteConfig(gpus=4, nodes=4),
         acceptance=[
             ("overview/sps", ge, 40000),
-            ("env_agent/heart.gained", gt, 0.0),
+            ("env_agent/heart.gained", gt, 1.5),
         ],
     )
 
