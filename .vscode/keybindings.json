@@ -2,6 +2,6 @@
   {
     "key": "ctrl+cmd+s",
     "command": "workbench.action.files.saveWithoutFormatting",
-    "when": "editorTextFocus",
-  },
+    "when": "editorTextFocus"
+  }
 ]

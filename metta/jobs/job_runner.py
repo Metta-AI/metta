@@ -7,7 +7,6 @@ Supports both sync (wait) and async (submit + poll) execution patterns.
 from __future__ import annotations
 
 import os
-import shlex
 import signal
 import subprocess
 import time
@@ -29,7 +28,7 @@ from devops.skypilot.utils.job_helpers import (
 )
 from metta.common.util.fs import get_repo_root
 from metta.common.util.retry import retry_function
-from metta.jobs.job_config import JobConfig
+from metta.jobs.job_config import JobConfig, MetricsSource
 
 
 @dataclass
@@ -184,15 +183,7 @@ class LocalJob(Job):
     ):
         super().__init__(config.name, log_dir, config.timeout_s)
         self.cwd = cwd or get_repo_root()
-
-        if "cmd" in config.metadata:
-            cmd = config.metadata["cmd"]
-            if isinstance(cmd, str):
-                cmd = shlex.split(cmd)
-            self.cmd = cmd
-        else:
-            self.cmd = ["uv", "run", "./tools/run.py", config.module]
-            self.cmd.extend(config.args)
+        self.cmd = config.build_command()
 
         self._proc: Optional[subprocess.Popen] = None
         self._exit_code: Optional[int] = None
@@ -345,7 +336,13 @@ class RemoteJob(Job):
         if not config.remote and not job_id:
             raise ValueError("RemoteJob requires config.remote to be set (or job_id for resuming)")
 
-        arg_list = config.args
+        # Build arg list only for tool-based jobs (cmd-based jobs have everything in the cmd string)
+        arg_list = []
+        if config.tool:
+            for k, v in config.args.items():
+                arg_list.append(f"{k}={v}")
+            for k, v in config.overrides.items():
+                arg_list.append(f"{k}={v}")
 
         if config.remote:
             base_args = [f"--gpus={config.remote.gpus}", f"--nodes={config.remote.nodes}"]
@@ -355,7 +352,7 @@ class RemoteJob(Job):
             base_args = ["--no-spot", "--gpus=4", "--nodes", "1"]
 
         self.config = config
-        self.module = config.module
+        self.tool = config.tool
         self.args = arg_list
         self.base_args = base_args
         self.skip_git_check = skip_git_check
@@ -386,17 +383,31 @@ class RemoteJob(Job):
         Args:
             run_name: WandB run name (only passed for training jobs, None otherwise)
         """
-        cmd = [
-            "devops/skypilot/launch.py",
-            *self.base_args,
-            self.module,
-        ]
+        # Build launch.py command
+        if self.config.cmd:
+            # Use arbitrary command directly (quoted string)
+            cmd = [
+                "devops/skypilot/launch.py",
+                self.config.cmd,
+                *self.base_args,
+            ]
+        else:
+            # Build command for tool-based execution using --tool flag
+            cmd = [
+                "devops/skypilot/launch.py",
+                "--tool",
+                self.tool,
+            ]
 
-        # Only pass run= for training jobs (they use WandB for experiment tracking)
-        if run_name:
-            cmd.append(f"run={run_name}")
+            # Add run= for training jobs
+            if run_name:
+                cmd.append(f"run={run_name}")
 
-        cmd.extend(self.args)
+            # Add other args
+            cmd.extend(self.args)
+
+            # Add launch flags
+            cmd.extend(self.base_args)  # --gpus, --nodes, --no-spot
 
         if self.skip_git_check:
             cmd.append("--skip-git-check")
@@ -454,9 +465,9 @@ class RemoteJob(Job):
         log_path.parent.mkdir(parents=True, exist_ok=True)
 
         try:
-            # Only generate run_name for training jobs (they use WandB)
-            run_name = self._generate_run_name() if self.config.is_training_job else None
-            self._run_name = run_name  # Store for WandB URL construction (None for non-training)
+            # Only generate run_name for WandB-tracked jobs
+            run_name = self._generate_run_name() if self.config.metrics_source == MetricsSource.WANDB else None
+            self._run_name = run_name  # Store for WandB URL construction (None for non-WandB jobs)
             request_id, job_id, _ = retry_function(
                 lambda: self._launch_via_script(run_name),
                 max_retries=max_attempts - 1,
