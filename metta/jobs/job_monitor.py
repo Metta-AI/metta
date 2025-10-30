@@ -124,19 +124,9 @@ class JobMonitor:
             print(f"\n{title}")
             print("=" * len(title))
 
-        # Print summary with progress percentage
+        # Print summary
         print("\n┌─ Summary " + "─" * 50)
         print(f"│  Total: {status['total']}")
-
-        # Calculate and display progress
-        if status["total"] > 0:
-            progress_pct = (status["completed"] / status["total"]) * 100
-            # Create simple progress bar
-            bar_width = 30
-            filled = int(bar_width * progress_pct / 100)
-            bar = "█" * filled + "░" * (bar_width - filled)
-            print(f"│  Progress: {progress_pct:.0f}% │{bar}│ ({status['completed']}/{status['total']})")
-
         print(f"│  Running: {status['running']}  •  Pending: {status['pending']}")
 
         # Color-code success/failure counts on same line

@@ -94,7 +94,8 @@ class JobManager:
                             job_id_int = int(job_state.job_id)
                             job = RemoteJob(job_state.config, str(self.log_dir), job_id=job_id_int)
                             self._active_jobs[job_state.name] = job
-                            self._start_remote_monitor(job_state.name, job_id_int)
+                            # Fetch metrics immediately for reattached jobs (they've been running for a while)
+                            self._start_remote_monitor(job_state.name, job_id_int, fetch_immediately=True)
                             remote_jobs.append(job_state.name)
                         except (ValueError, TypeError):
                             # Invalid job_id, will be cleaned up by validation
@@ -174,7 +175,7 @@ class JobManager:
         except Exception as e:
             logger.warning(f"Failed to fetch metrics for {job_name}: {e}")
 
-    def _start_local_monitor(self, job_name: str) -> None:
+    def _start_local_monitor(self, job_name: str, fetch_immediately: bool = False) -> None:
         """Start background monitoring thread for a local job.
 
         The thread periodically checks if process is still running and fetches metrics.
@@ -182,10 +183,12 @@ class JobManager:
 
         Args:
             job_name: Name of job to monitor
+            fetch_immediately: If True, fetch metrics on first check (for reattached jobs)
         """
 
         def monitor_loop():
-            last_metrics_fetch = 0.0
+            # For reattached jobs, fetch metrics immediately; for new jobs, wait full interval
+            last_metrics_fetch = -self.metrics_fetch_interval_s if fetch_immediately else 0.0
 
             try:
                 while True:
@@ -249,7 +252,7 @@ class JobManager:
         self._monitor_threads[job_name] = thread
         logger.info(f"Started monitoring thread for local job: {job_name}")
 
-    def _start_remote_monitor(self, job_name: str, job_id: int) -> None:
+    def _start_remote_monitor(self, job_name: str, job_id: int, fetch_immediately: bool = False) -> None:
         """Start background monitoring thread for a remote job.
 
         The thread polls SkyPilot API, fetches logs, fetches metrics, and marks complete.
@@ -257,10 +260,12 @@ class JobManager:
         Args:
             job_name: Name of job to monitor
             job_id: SkyPilot job ID
+            fetch_immediately: If True, fetch metrics on first check (for reattached jobs)
         """
 
         def monitor_loop():
-            last_metrics_fetch = 0.0
+            # For reattached jobs, fetch metrics immediately; for new jobs, wait full interval
+            last_metrics_fetch = -self.metrics_fetch_interval_s if fetch_immediately else 0.0
 
             try:
                 while True:
@@ -682,7 +687,7 @@ class JobManager:
         return count
 
     def delete_job(self, name: str) -> bool:
-        """Delete a job from the database.
+        """Delete a job from the database and clean up its log files.
 
         Useful for retrying failed jobs - deletes the old state so a new job can be submitted.
         Can delete pending jobs (not started yet) or completed jobs.
@@ -702,6 +707,17 @@ class JobManager:
             if job_state.status == "running":
                 raise ValueError(f"Cannot delete job '{name}' with status 'running'. Cancel it first.")
 
+            # Clean up log file if it exists
+            if job_state.logs_path:
+                try:
+                    log_path = Path(job_state.logs_path)
+                    if log_path.exists():
+                        log_path.unlink()
+                        logger.debug(f"Deleted log file: {job_state.logs_path}")
+                except Exception as e:
+                    logger.warning(f"Failed to delete log file {job_state.logs_path}: {e}")
+
             session.delete(job_state)
             session.commit()
+            logger.info(f"Deleted job: {name}")
             return True
