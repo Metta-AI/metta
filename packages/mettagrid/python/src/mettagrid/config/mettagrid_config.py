@@ -346,8 +346,8 @@ class GameConfig(Config):
     track_movement_metrics: bool = Field(
         default=True, description="Enable movement metrics tracking (sequential rotations)"
     )
-    protocol_details_obs: bool = Field(
-        default=False, description="Objects show their protocol inputs and outputs when observed"
+    recipe_details_obs: bool = Field(
+        default=False, description="Objects show their recipe inputs and outputs when observed"
     )
     allow_diagonals: bool = Field(default=False, description="Enable actions to be aware of diagonal orientations")
 

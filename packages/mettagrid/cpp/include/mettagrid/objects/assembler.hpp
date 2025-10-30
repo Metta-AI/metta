@@ -14,7 +14,7 @@
 #include "objects/agent.hpp"
 #include "objects/assembler_config.hpp"
 #include "objects/constants.hpp"
-#include "objects/protocol.hpp"
+#include "objects/recipe.hpp"
 #include "objects/usable.hpp"
 
 class Clipper;
@@ -86,15 +86,15 @@ private:
     return agents;
   }
 
-  // Check if agents have sufficient resources for the given protocol
-  bool can_afford_protocol(const Protocol& protocol, const std::vector<Agent*>& surrounding_agents) const {
+  // Check if agents have sufficient resources for the given recipe
+  bool can_afford_recipe(const Recipe& recipe, const std::vector<Agent*>& surrounding_agents) const {
     std::unordered_map<InventoryItem, InventoryQuantity> total_resources;
     for (Agent* agent : surrounding_agents) {
       for (const auto& [item, amount] : agent->inventory.get()) {
         total_resources[item] = static_cast<InventoryQuantity>(total_resources[item] + amount);
       }
     }
-    for (const auto& [item, required_amount] : protocol.input_resources) {
+    for (const auto& [item, required_amount] : recipe.input_resources) {
       if (total_resources[item] < required_amount) {
         return false;
       }
@@ -103,19 +103,19 @@ private:
   }
 
   // Give output resources to agents
-  void give_output_for_protocol(const Protocol& protocol, const std::vector<Agent*>& surrounding_agents) {
+  void give_output_for_recipe(const Recipe& recipe, const std::vector<Agent*>& surrounding_agents) {
     std::vector<HasInventory*> agents_as_inventory_havers;
     for (Agent* agent : surrounding_agents) {
       agents_as_inventory_havers.push_back(static_cast<HasInventory*>(agent));
     }
-    for (const auto& [item, amount] : protocol.output_resources) {
+    for (const auto& [item, amount] : recipe.output_resources) {
       HasInventory::shared_update(agents_as_inventory_havers, item, amount);
     }
   }
 
-  // Returns true if the protocol yields any positive output amount
-  bool protocol_has_positive_output(const Protocol& protocol) const {
-    for (const auto& [item, amount] : protocol.output_resources) {
+  // Returns true if the recipe yields any positive output amount (legacy name retained for compatibility)
+  bool recipe_has_positive_output(const Recipe& recipe) const {
+    for (const auto& [item, amount] : recipe.output_resources) {
       if (amount > 0) {
         return true;
       }
@@ -124,14 +124,14 @@ private:
   }
 
 public:
-  // Consume resources from surrounding agents for the given protocol
+  // Consume resources from surrounding agents for the given recipe
   // Intended to be private, but made public for testing. We couldn't get `friend` to work as expected.
-  void consume_resources_for_protocol(const Protocol& protocol, const std::vector<Agent*>& surrounding_agents) {
+  void consume_resources_for_recipe(const Recipe& recipe, const std::vector<Agent*>& surrounding_agents) {
     std::vector<HasInventory*> agents_as_inventory_havers;
     for (Agent* agent : surrounding_agents) {
       agents_as_inventory_havers.push_back(static_cast<HasInventory*>(agent));
     }
-    for (const auto& [item, required_amount] : protocol.input_resources) {
+    for (const auto& [item, required_amount] : recipe.input_resources) {
       InventoryDelta consumed = HasInventory::shared_update(agents_as_inventory_havers, item, -required_amount);
       assert(consumed == -required_amount && "Expected all required resources to be consumed");
     }
@@ -139,11 +139,11 @@ public:
 
   // Protocol lookup table for protocols that depend on agents vibing- keyed by local vibe (64-bit number from sorted
   // vibes). Later, this may be switched to having string keys based on the vibes.
-  // Note that 0 is both the vibe you get when no one is showing a glyph, and also the default vibe.
-  const std::unordered_map<GroupVibe, std::shared_ptr<Protocol>> protocols;
+  // Note that 0 is both the vibe you get when no one is showing a vibe, and also the default vibe.
+  const std::unordered_map<uint64_t, std::shared_ptr<Recipe>> recipes;
 
-  // Unclip protocols - used when assembler is clipped
-  std::unordered_map<GroupVibe, std::shared_ptr<Protocol>> unclip_protocols;
+  // Unclip recipes - used when assembler is clipped
+  std::unordered_map<uint64_t, std::shared_ptr<Recipe>> unclip_recipes;
 
   // Clipped state
   bool is_clipped;
@@ -175,17 +175,17 @@ public:
   // Pointer to current timestep from environment
   unsigned int* current_timestep_ptr;
 
-  // Protocol observation configuration
-  bool protocol_details_obs;
-  ObservationType input_protocol_offset;
-  ObservationType output_protocol_offset;
+  // Recipe observation configuration
+  bool recipe_details_obs;
+  ObservationType input_recipe_offset;
+  ObservationType output_recipe_offset;
 
   // Allow partial usage during cooldown
   bool allow_partial_usage;
 
   Assembler(GridCoord r, GridCoord c, const AssemblerConfig& cfg)
-      : protocols(build_protocol_map(cfg.protocols)),
-        unclip_protocols(),
+      : recipes(cfg.recipes),
+        unclip_recipes(),
         is_clipped(false),
         clip_immune(cfg.clip_immune),
         start_clipped(cfg.start_clipped),
@@ -197,9 +197,9 @@ public:
         cooldown_multiplier(1.0f),
         grid(nullptr),
         current_timestep_ptr(nullptr),
-        protocol_details_obs(cfg.protocol_details_obs),
-        input_protocol_offset(cfg.input_protocol_offset),
-        output_protocol_offset(cfg.output_protocol_offset),
+        recipe_details_obs(cfg.recipe_details_obs),
+        input_recipe_offset(cfg.input_recipe_offset),
+        output_recipe_offset(cfg.output_recipe_offset),
         allow_partial_usage(cfg.allow_partial_usage),
         clipper_ptr(nullptr) {
     GridObject::init(
@@ -241,6 +241,7 @@ public:
     return static_cast<float>(elapsed) / static_cast<float>(cooldown_duration);
   }
 
+<<<<<<< HEAD
   // Helper function to calculate GroupVibe from a vector of glyphs
   static GroupVibe calculate_group_vibe_from_vibes(std::vector<uint8_t> vibes) {
     // Sort the glyphs to make the vibe independent of agent positions.
@@ -263,6 +264,11 @@ public:
   // Helper function to get the "local vibe" based on vibes of surrounding agents
   // Returns a 64-bit number created from sorted vibes of surrounding agents
   GroupVibe get_local_vibe() const {
+=======
+  // Helper function to get the "local vibe" based on glyphs of surrounding agents
+  // Returns a 64-bit number created from sorted glyphs of surrounding agents
+  uint64_t get_local_vibe() const {
+>>>>>>> b55ddbb9de (Revert "wip")
     if (!grid) return 0;
 
     std::vector<uint8_t> vibes;
@@ -283,33 +289,45 @@ public:
       }
     }
 
+<<<<<<< HEAD
     return calculate_group_vibe_from_vibes(vibes);
   }
 
   // Get current protocol based on local vibe from surrounding agent vibes
   const Protocol* get_current_protocol() const {
-    if (!grid) return nullptr;
-    GroupVibe vibe = get_local_vibe();
+=======
+    // Sort the glyphs to make the vibe independent of agent positions.
+    std::sort(glyphs.begin(), glyphs.end());
+    return std::accumulate(
+        glyphs.begin(), glyphs.end(), 0, [](uint64_t acc, uint8_t glyph) { return (acc << 8) | glyph; });
+  }
 
-    auto protocols_to_use = protocols;
+  // Get current recipe based on local vibe from surrounding agent glyphs
+  const Recipe* get_current_recipe() const {
+>>>>>>> b55ddbb9de (Revert "wip")
+    if (!grid) return nullptr;
+    uint64_t vibe = get_local_vibe();
+
+    auto recipes_to_use = recipes;
     if (is_clipped) {
-      protocols_to_use = unclip_protocols;
+      recipes_to_use = unclip_recipes;
     }
 
-    auto it = protocols_to_use.find(vibe);
-    if (it != protocols_to_use.end()) return it->second.get();
+    auto it = recipes_to_use.find(vibe);
+    if (it != recipes_to_use.end()) return it->second.get();
 
-    // Check the default if no protocol is found for the current vibe.
-    it = protocols_to_use.find(0);
-    if (it != protocols_to_use.end()) return it->second.get();
+    // Check the default if no recipe is found for the current vibe.
+    it = recipes_to_use.find(0);
+    if (it != recipes_to_use.end()) return it->second.get();
 
     return nullptr;
   }
 
-  // Make this assembler clipped with the given unclip protocols
-  void become_clipped(const std::vector<std::shared_ptr<Protocol>>& unclip_protocols_list, Clipper* clipper) {
+  // Make this assembler clipped with the given unclip recipes
+  void become_clipped(const std::unordered_map<uint64_t, std::shared_ptr<Recipe>>& unclip_recipes_map,
+                      Clipper* clipper) {
     is_clipped = true;
-    unclip_protocols = build_protocol_map(unclip_protocols_list);
+    unclip_recipes = unclip_recipes_map;
     // It's a little odd that we store the clipper here, versus having global access to it. This is a
     // path of least resistance, not a specific intention. But it does present questions around whether
     // there could be more than one Clipper.
@@ -321,26 +339,26 @@ public:
 
   void become_unclipped();
 
-  // Scale protocol requirements based on cooldown progress (for partial usage)
-  const Protocol scale_protocol_for_partial_usage(const Protocol& original_protocol, float progress) const {
-    Protocol scaled_protocol;
+  // Scale recipe requirements based on cooldown progress (for partial usage)
+  const Recipe scale_recipe_for_partial_usage(const Recipe& original_recipe, float progress) const {
+    Recipe scaled_recipe;
 
     // Scale input resources (multiply by progress and round up)
-    for (const auto& [resource, amount] : original_protocol.input_resources) {
+    for (const auto& [resource, amount] : original_recipe.input_resources) {
       InventoryQuantity scaled_amount = static_cast<InventoryQuantity>(std::ceil(amount * progress));
-      scaled_protocol.input_resources[resource] = scaled_amount;
+      scaled_recipe.input_resources[resource] = scaled_amount;
     }
 
     // Scale output resources (multiply by progress and round down)
-    for (const auto& [resource, amount] : original_protocol.output_resources) {
+    for (const auto& [resource, amount] : original_recipe.output_resources) {
       InventoryQuantity scaled_amount = static_cast<InventoryQuantity>(std::floor(amount * progress));
-      scaled_protocol.output_resources[resource] = scaled_amount;
+      scaled_recipe.output_resources[resource] = scaled_amount;
     }
 
     // Keep the same cooldown
-    scaled_protocol.cooldown = original_protocol.cooldown;
+    scaled_recipe.cooldown = original_recipe.cooldown;
 
-    return scaled_protocol;
+    return scaled_recipe;
   }
 
   virtual bool onUse(Agent& actor, ActionArg /*arg*/) override {
@@ -358,36 +376,35 @@ public:
       return false;  // On cooldown and partial usage not allowed
     }
 
-    const Protocol* original_protocol = get_current_protocol();
-    if (!original_protocol) {
+    const Recipe* original_recipe = get_current_recipe();
+    if (!original_recipe) {
       return false;
     }
 
-    Protocol protocol_to_use = *original_protocol;
+    Recipe recipe_to_use = *original_recipe;
     if (progress < 1.0f && allow_partial_usage) {
-      protocol_to_use = scale_protocol_for_partial_usage(*original_protocol, progress);
+      recipe_to_use = scale_recipe_for_partial_usage(*original_recipe, progress);
 
       // Prevent usage that would yield no outputs (and would only serve to burn inputs and increment uses_count)
       // Do not prevent usage if:
-      // - the unscaled protocol does not have outputs
-      // - usage would unclip the assembler; the unscaled unclipping protocol may happen to include outputs
-      if (!protocol_has_positive_output(protocol_to_use) && protocol_has_positive_output(*original_protocol) &&
-          !is_clipped) {
+      // - the unscaled recipe does not have outputs
+      // - usage would unclip the assembler; the unscaled unclipping recipe may happen to include outputs
+      if (!recipe_has_positive_output(recipe_to_use) && recipe_has_positive_output(*original_recipe) && !is_clipped) {
         return false;
       }
     }
 
     std::vector<Agent*> surrounding_agents = get_surrounding_agents(&actor);
-    if (!can_afford_protocol(protocol_to_use, surrounding_agents)) {
+    if (!can_afford_recipe(recipe_to_use, surrounding_agents)) {
       return false;
     }
-    consume_resources_for_protocol(protocol_to_use, surrounding_agents);
-    give_output_for_protocol(protocol_to_use, surrounding_agents);
+    consume_resources_for_recipe(recipe_to_use, surrounding_agents);
+    give_output_for_recipe(recipe_to_use, surrounding_agents);
 
-    cooldown_duration = static_cast<unsigned int>(protocol_to_use.cooldown * cooldown_multiplier);
+    cooldown_duration = static_cast<unsigned int>(recipe_to_use.cooldown * cooldown_multiplier);
     cooldown_end_timestep = *current_timestep_ptr + cooldown_duration;
 
-    // If we were clipped and successfully used an unclip protocol, become unclipped. Also, don't count this as a use.
+    // If we were clipped and successfully used an unclip recipe, become unclipped. Also, don't count this as a use.
     if (is_clipped) {
       become_unclipped();
     } else {
@@ -422,23 +439,23 @@ public:
       features.push_back({ObservationFeature::RemainingUses, static_cast<ObservationType>(remaining_uses)});
     }
 
-    // Add protocol details if configured to do so
-    if (this->protocol_details_obs) {
-      const Protocol* current_protocol = get_current_protocol();
-      if (current_protocol) {
-        // Add protocol inputs (input:resource) - only non-zero values
-        for (const auto& [item, amount] : current_protocol->input_resources) {
+    // Add recipe details if configured to do so
+    if (this->recipe_details_obs) {
+      const Recipe* current_recipe = get_current_recipe();
+      if (current_recipe) {
+        // Add recipe inputs (input:resource) - only non-zero values
+        for (const auto& [item, amount] : current_recipe->input_resources) {
           if (amount > 0) {
             features.push_back(
-                {static_cast<ObservationType>(input_protocol_offset + item), static_cast<ObservationType>(amount)});
+                {static_cast<ObservationType>(input_recipe_offset + item), static_cast<ObservationType>(amount)});
           }
         }
 
-        // Add protocol outputs (output:resource) - only non-zero values
-        for (const auto& [item, amount] : current_protocol->output_resources) {
+        // Add recipe outputs (output:resource) - only non-zero values
+        for (const auto& [item, amount] : current_recipe->output_resources) {
           if (amount > 0) {
             features.push_back(
-                {static_cast<ObservationType>(output_protocol_offset + item), static_cast<ObservationType>(amount)});
+                {static_cast<ObservationType>(output_recipe_offset + item), static_cast<ObservationType>(amount)});
           }
         }
       }
@@ -459,7 +476,7 @@ public:
 
 inline void Assembler::become_unclipped() {
   is_clipped = false;
-  unclip_protocols.clear();
+  unclip_recipes.clear();
   if (clipper_ptr) {
     // clipper_ptr might not be set if we're being unclipped as part of a test.
     // Later, it might be because we started clipped.
