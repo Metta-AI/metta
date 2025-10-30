@@ -33,7 +33,8 @@ struct ConverterConfig : public GridObjectConfig {
         initial_resource_count(initial_resource_count),
         recipe_details_obs(recipe_details_obs),
         input_recipe_offset(0),
-        output_recipe_offset(0) {}
+        output_recipe_offset(0),
+        needed_recipe_offset(0) {}
 
   std::unordered_map<InventoryItem, InventoryQuantity> input_resources;
   std::unordered_map<InventoryItem, InventoryQuantity> output_resources;
@@ -45,6 +46,7 @@ struct ConverterConfig : public GridObjectConfig {
   bool recipe_details_obs;
   ObservationType input_recipe_offset;
   ObservationType output_recipe_offset;
+  ObservationType needed_recipe_offset;
 
 private:
   static std::vector<unsigned short> normalize_cooldown(const std::vector<unsigned short>& values) {
