@@ -35,7 +35,7 @@ jobs:
       - name: Install Mettascope
         run: |
           cd ..
-          nimby sync metta/packages/mettagrid/nim/mettascope/lock.nimby
+          nimby sync metta/packages/mettagrid/nim/mettascope/nimby.lock
           nimby list
           cat nim.cfg
 
