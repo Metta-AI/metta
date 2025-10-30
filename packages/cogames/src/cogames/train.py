@@ -92,7 +92,13 @@ def train(
 ) -> None:
     import pufferlib.pytorch  # noqa: F401 - ensure modules register with torch
 
-    console = Console()
+    # Configure console based on log_outputs flag
+    if log_outputs:
+        # Plain console for machine-readable output (no colors, no markup)
+        console = Console(force_terminal=True, no_color=True, markup=False, highlight=False)
+    else:
+        # Rich console with colors and formatting for human-readable output
+        console = Console()
 
     if env_cfg is None and env_cfg_supplier is None:
         raise ValueError("Either env_cfg or env_cfg_supplier must be provided")
@@ -310,10 +316,12 @@ def train(
     )
 
     trainer = pufferl.PuffeRL(train_args, vecenv, policy.network())
+
     if log_outputs:
-        console.clear()
-        console.print("[dim]Evaluation stats will stream below; disabling Rich dashboard.[/dim]")
+        # Disable dashboard and clear any initialization output
         trainer.print_dashboard = lambda *_, **__: None  # type: ignore[assignment]
+        console.clear()
+        console.print("Training stats will stream below (--log-outputs enabled)")
 
     training_diverged = False
 

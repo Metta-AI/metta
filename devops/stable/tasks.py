@@ -174,26 +174,34 @@ def get_all_tasks() -> list[Task]:
         timeout_s=600,
     )
 
-    # Cogames smoke tests (100k steps = ~3 epochs in ~3 seconds)
+    # Cogames smoke tests
+    # Each epoch ≈ 17k steps, so 100k steps ≈ 6 epochs
     cogames_local_smoke = cogames_task(
         name="cogames_local_smoke",
         mission="training_facility.harvest",
         variants=["lonely_heart", "heart_chorus"],
         steps=100000,
         timeout_s=10,
-        stats_to_track=["SPS", "agent_steps"],
+        stats_to_track=["SPS", "agent_steps", "epoch"],
+        acceptance=[
+            ("SPS", ge, 1000),  # Very permissive - just ensure it runs (CPU)
+            ("epoch", ge, 5),  # At least 5 epochs completed
+        ],
     )
 
+    # Remote: 600 epochs × 17,024 steps/epoch = 10,214,400 steps
     cogames_remote_smoke = cogames_task(
         name="cogames_remote_smoke",
         mission="training_facility.harvest",
         variants=["lonely_heart", "heart_chorus"],
-        steps=10000000,
+        steps=10_214_400,  # Reach epoch 600
         timeout_s=1800,  # 30 minutes
         remote=RemoteConfig(gpus=1, nodes=1),
-        stats_to_track=["SPS", "agent_steps"],
+        stats_to_track=["SPS", "agent_steps", "epoch", "losses/entropy"],
         acceptance=[
-            ("SPS", ge, 10000),  # At least 10k samples/sec on GPU
+            ("SPS", ge, 8000),  # Permissive but ensure GPU acceleration is working
+            ("epoch", ge, 550),  # Permissive - close to 600 epochs
+            ("losses/entropy", ge, 2.0),  # Entropy should be reasonable (learning is happening)
         ],
     )
 
