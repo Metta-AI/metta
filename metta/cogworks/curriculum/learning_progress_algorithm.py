@@ -8,6 +8,8 @@ using fast and slow exponential moving averages to detect learning opportunities
 import random
 from typing import Any, Dict, List, Optional
 
+import numpy as np
+
 from .curriculum import CurriculumAlgorithm, CurriculumAlgorithmConfig, CurriculumTask
 from .lp_scorers import BasicLPScorer, BidirectionalLPScorer, LPScorer
 from .stats import CacheCoordinator, LPStatsAggregator
@@ -609,6 +611,15 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
             gini_stats["debug/raw_lp_mean"] = float(sum(raw_lp_scores) / len(raw_lp_scores))
             gini_stats["debug/raw_lp_nonzero_count"] = float(sum(1 for x in raw_lp_scores if x != 0))
             gini_stats["debug/raw_lp_total_count"] = float(len(raw_lp_scores))
+            gini_stats["debug/raw_lp_unique_count"] = float(len(set(raw_lp_scores)))
+            gini_stats["debug/raw_lp_std"] = float(np.std(raw_lp_scores)) if len(raw_lp_scores) > 1 else 0.0
+
+            # Log warning if all scores are identical (causes Gini=0)
+            if len(set(raw_lp_scores)) == 1:
+                logger.warning(
+                    f"All {len(raw_lp_scores)} raw LP scores are identical ({raw_lp_scores[0]:.6f}), "
+                    "Gini will be 0. This likely means tasks haven't been completed enough yet."
+                )
 
         # === 3. Raw LP Scores by Label (aggregated) ===
         if raw_lp_scores and task_labels_list:

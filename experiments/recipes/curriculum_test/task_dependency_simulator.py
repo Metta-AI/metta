@@ -1111,7 +1111,7 @@ def train(
     - Sampling distribution across tasks (entropy, Gini coefficient)
     - Task eviction dynamics
     - Learning progress percentiles
-    - CurriculumEnv stats (pool_occupancy_gini, pool_lp_gini, etc.)
+    - Curriculum gini stats (curriculum_gini/pool_occupancy, curriculum_gini/raw_lp_scores, etc.)
 
     Args:
         num_tasks: Number of tasks in dependency chain (default: 10)

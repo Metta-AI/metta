@@ -702,6 +702,8 @@ class StatsReporter(TrainerComponent):
             gini_value = float(curriculum_stats["algorithm/curriculum_gini/pool_occupancy"])
             stats["curriculum_stats/task_sampling_gini"] = gini_value
             logger.info(f"Task sampling gini: {gini_value:.3f} (from algorithm/curriculum_gini/pool_occupancy)")
+        else:
+            logger.warning("algorithm/curriculum_gini/pool_occupancy not found in curriculum_stats")
 
         # 6. Task LP gini - inequality in learning progress scores across all individual tasks
         # Uses raw LP scores (before z-score normalization)
@@ -710,12 +712,43 @@ class StatsReporter(TrainerComponent):
             stats["curriculum_stats/task_lp_gini"] = gini_value
             logger.info(f"Task LP gini: {gini_value:.3f} (from algorithm/curriculum_gini/raw_lp_scores)")
 
-        # 7. Pass through additional gini coefficients from the algorithm
+            # Log debug stats if available
+            if "algorithm/debug/raw_lp_unique_count" in curriculum_stats:
+                unique_count = curriculum_stats["algorithm/debug/raw_lp_unique_count"]
+                total_count = curriculum_stats.get("algorithm/debug/raw_lp_total_count", 0)
+                logger.info(
+                    f"  Raw LP: {unique_count:.0f} unique values out of {total_count:.0f} tasks "
+                    f"(mean={curriculum_stats.get('algorithm/debug/raw_lp_mean', 0):.4f}, "
+                    f"std={curriculum_stats.get('algorithm/debug/raw_lp_std', 0):.4f})"
+                )
+        else:
+            logger.warning("algorithm/curriculum_gini/raw_lp_scores not found in curriculum_stats")
+
+        # 7. Pass through all curriculum gini coefficients from the algorithm
+        # These are comprehensive gini stats calculated at different pipeline stages:
+        # - algorithm/curriculum_gini/pool_occupancy: task completion count inequality
+        # - algorithm/curriculum_gini/raw_lp_scores: raw LP score inequality (task-level)
+        # - algorithm/curriculum_gini/raw_lp_by_label: raw LP inequality aggregated by label
+        # - algorithm/curriculum_gini/sampling_probs_by_label: final probability inequality by label
+        # - algorithm/curriculum_gini/sampling_by_label: actual sampling inequality by label
+        # - algorithm/curriculum_gini/zscored_lp_scores: z-scored LP inequality
+        # - algorithm/curriculum_gini/evictions_by_label: eviction inequality by label
+        # - algorithm/curriculum_gini/pool_composition_by_label: pool composition inequality
+        gini_keys_found = []
         for key, value in curriculum_stats.items():
             if key.startswith("algorithm/curriculum_gini/"):
-                # Extract the specific gini type (e.g., "raw_lp_by_label")
+                # Pass through with the full key name (maintains alignment with task_dependency_simulator)
+                stats[key] = float(value)
                 gini_type = key.replace("algorithm/curriculum_gini/", "")
-                stats[f"algorithm/curriculum_gini/{gini_type}"] = float(value)
+                gini_keys_found.append(gini_type)
+
+        if gini_keys_found:
+            logger.info(f"Passed through {len(gini_keys_found)} gini stats: {gini_keys_found[:5]}")
+
+        # 8. Pass through all debug stats
+        for key, value in curriculum_stats.items():
+            if key.startswith("algorithm/debug/"):
+                stats[key] = float(value)
 
         # ===== GROUP C & D: Troubleshooting Stats (if enabled) =====
         if self._should_enable_curriculum_troubleshooting():
