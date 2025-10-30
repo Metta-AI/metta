@@ -13,7 +13,6 @@
 #include "actions/action_handler.hpp"
 #include "actions/attack.hpp"
 #include "actions/change_glyph.hpp"
-#include "actions/get_output.hpp"
 #include "actions/move.hpp"
 #include "actions/noop.hpp"
 #include "actions/resource_mod.hpp"
@@ -91,9 +90,7 @@ MettaGrid::MettaGrid(const GameConfig& game_config, const py::list map, unsigned
   _action_success.resize(num_agents);
 
   for (const auto& [action_name, action_config] : game_config.actions) {
-    if (action_name == "get_items") {
-      _action_handlers.push_back(std::make_unique<GetOutput>(*action_config));
-    } else if (action_name == "noop") {
+    if (action_name == "noop") {
       _action_handlers.push_back(std::make_unique<Noop>(*action_config));
     } else if (action_name == "move") {
       _action_handlers.push_back(std::make_unique<Move>(*action_config, &_game_config));
