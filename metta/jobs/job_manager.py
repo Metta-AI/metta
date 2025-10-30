@@ -521,8 +521,8 @@ class JobManager:
                                     session.add(job_state)
                                     session.commit()
                                     logger.info(
-                                        f"Committed completion for {job_name}: status={job_state.status}, "
-                                        f"exit_code={job_state.exit_code}, "
+                                        f"Committed completion for {job_name}: "
+                                        f"status={job_state.status}, exit_code={job_state.exit_code}, "
                                         f"acceptance_passed={job_state.acceptance_passed}"
                                     )
 
