@@ -255,6 +255,10 @@ class AgentState:
     wait_target: Optional[Tuple[int, int]] = None
     unclip_target: Optional[Tuple[int, int]] = None
     unclip_recipes: Dict[str, str] = field(default_factory=dict)
+    # Reactive clipping detection
+    blocked_by_clipped_extractor: Optional[Tuple[int, int]] = (
+        None  # Position of clipped extractor blocking current phase
+    )
     # Progress bookkeeping
     phase_entry_step: int = 0
     phase_entry_inventory: Dict[str, int] = field(default_factory=dict)
@@ -665,6 +669,20 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
         if best is None:
             xs = [e for e in self.extractor_memory.get_by_type(r) if not e.is_depleted()]
             if xs:
+                # Check if any are clipped - if so, we need to unclip them
+                clipped_extractors = [e for e in xs if e.is_clipped]
+                if clipped_extractors:
+                    # Set flag to trigger unclipping subprocess
+                    closest_clipped = min(
+                        clipped_extractors,
+                        key=lambda e: abs(e.position[0] - s.agent_row) + abs(e.position[1] - s.agent_col),
+                    )
+                    s.blocked_by_clipped_extractor = closest_clipped.position
+                    logger.info(
+                        f"[Find] No available {r} extractors → {len(clipped_extractors)} clipped, need to unclip"
+                    )
+                    return None
+
                 def est(e):
                     return self.cooldown_remaining(e, s.step_count)
 
@@ -677,6 +695,7 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
                     if s.waiting_since_step < 0:
                         s.waiting_since_step = s.step_count
                     return cand.position
+            logger.info(f"[Find] No available {r} extractors (known={len(self.extractor_memory.get_by_type(r))})")
             return None
 
         # Energy feasibility
@@ -1083,7 +1102,12 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
         return 0
 
     def _load_unclip_recipes_from_config(self) -> Dict[str, str]:
-        recipes: Dict[str, str] = {}
+        """Load unclip recipes and return mapping: clipped_resource → craft_resource.
+
+        E.g., {"oxygen": "carbon"} means "to unclip oxygen, craft decoder from carbon"
+        """
+        # First, get item → craft_resource mapping from assembler
+        item_to_craft_resource: Dict[str, str] = {}
         try:
             cfg = getattr(self._env, "env_cfg", None)
             if cfg and hasattr(cfg, "game") and hasattr(cfg.game, "objects"):
@@ -1096,12 +1120,33 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
                                 if item in ["decoder", "modulator", "resonator", "scrambler"]:
                                     for res in ins:
                                         if res in ["carbon", "oxygen", "germanium", "silicon"]:
-                                            recipes[item] = res
+                                            item_to_craft_resource[item] = res
                                             break
         except Exception:
             pass
-        if not recipes:
-            recipes = {"decoder": "carbon", "modulator": "oxygen", "resonator": "silicon", "scrambler": "germanium"}
+
+        if not item_to_craft_resource:
+            item_to_craft_resource = {
+                "decoder": "carbon",
+                "modulator": "oxygen",
+                "resonator": "silicon",
+                "scrambler": "germanium",
+            }
+
+        # Now convert to clipped_resource → craft_resource mapping
+        # Standard mapping: decoder unclips oxygen, modulator unclips carbon, etc.
+        item_to_clipped_resource = {
+            "decoder": "oxygen",
+            "modulator": "carbon",
+            "resonator": "germanium",
+            "scrambler": "silicon",
+        }
+
+        recipes: Dict[str, str] = {}
+        for item, clipped_res in item_to_clipped_resource.items():
+            if item in item_to_craft_resource:
+                recipes[clipped_res] = item_to_craft_resource[item]
+
         return recipes
 
     # ------------------------------- Utils -------------------------------

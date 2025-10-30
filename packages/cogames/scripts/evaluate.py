@@ -219,6 +219,7 @@ def get_max_steps_for_mission(mission_class) -> int:
 def run_outpost_suite(
     experiments: Optional[List[str]] = None,
     hyperparams: Optional[List[str]] = None,
+    clip_rate: float = 0.0,
 ) -> List[EvalResult]:
     """Run outpost experiments evaluation suite."""
     print("\n" + "=" * 80)
@@ -247,11 +248,12 @@ def run_outpost_suite(
                 logger.error(f"Unknown preset: {preset_name}")
                 continue
 
-            test_name = f"{exp_name}_{preset_name}"
+            test_name = f"{exp_name}_{preset_name}_clip{clip_rate}"
             print(f"\n## [{success_count}/{total_count}] {test_name}")
 
             try:
                 mission = mission_class()
+                mission.clip_rate = clip_rate
                 # Eval missions load their own maps in instantiate(), so we pass None
                 map_builder = mission.site.map_builder if mission.site else None
                 mission = mission.instantiate(map_builder, num_cogs=1)
@@ -660,6 +662,12 @@ def main():
         default=None,
         help="Hyperparameter presets to test",
     )
+    outpost_parser.add_argument(
+        "--clip-rate",
+        type=float,
+        default=0.0,
+        help="Clip rate for random extractor clipping (0.0-1.0, default: 0.0)",
+    )
 
     # Difficulty variants suite
     diff_parser = subparsers.add_parser("difficulty", help="Run difficulty variants suite")
@@ -742,6 +750,7 @@ def main():
         outpost_results = run_outpost_suite(
             experiments=outpost_args.get("experiments"),
             hyperparams=outpost_args.get("hyperparams"),
+            clip_rate=outpost_args.get("clip_rate", 0.0),
         )
         all_results.extend(outpost_results)
         print_summary(outpost_results, "Outpost Experiments")
