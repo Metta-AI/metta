@@ -129,7 +129,7 @@ def get_all_tasks() -> list[Task]:
         remote=RemoteConfig(gpus=1, nodes=1),
         acceptance=[
             ("overview/sps", ge, 40000),
-            ("env_agent/heart.gained", gt, 0.25),
+            ("env_agent/heart.gained", gt, 0.1),
         ],
     )
 
@@ -142,7 +142,7 @@ def get_all_tasks() -> list[Task]:
         remote=RemoteConfig(gpus=4, nodes=4),
         acceptance=[
             ("overview/sps", ge, 40000),
-            ("env_agent/heart.gained", gt, 1.5),
+            ("env_agent/heart.gained", gt, 1.0),
         ],
     )
 

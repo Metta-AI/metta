@@ -628,9 +628,11 @@ def step_release(version: str, **_kwargs) -> None:
 def generate_version() -> str:
     """Generate version string from current date/time.
 
-    Format: YYYY.MM.DD-HHMM (e.g., 2025.10.07-1430)
+    Format: YYYY.MM.DD-HHMMSS (e.g., 2025.10.07-143045)
+
+    Includes seconds to prevent version collisions when running multiple times per minute.
     """
-    return datetime.now().strftime("%Y.%m.%d-%H%M")
+    return datetime.now().strftime("%Y.%m.%d-%H%M%S")
 
 
 def resolve_version(explicit: Optional[str], force_new: bool) -> str:
