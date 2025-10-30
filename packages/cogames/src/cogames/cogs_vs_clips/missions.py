@@ -1,8 +1,10 @@
 from pathlib import Path
-from types import MethodType
-from typing import Callable, List
+from typing import Any, cast
+
+from pydantic import Field
 
 from cogames.cogs_vs_clips.mission import Mission, MissionVariant, Site
+from cogames.cogs_vs_clips.procedural import MachinaArenaConfig, make_hub_only_map_builder
 from cogames.cogs_vs_clips.stations import (
     CarbonExtractorConfig,
     ChargerConfig,
@@ -13,8 +15,14 @@ from cogames.cogs_vs_clips.stations import (
     OxygenExtractorConfig,
     SiliconExtractorConfig,
 )
-from mettagrid.config.mettagrid_config import GridObjectConfig, MettaGridConfig, ProtocolConfig
+from mettagrid.config.mettagrid_config import (
+    AssemblerConfig,
+    ChestConfig,
+    GridObjectConfig,
+    MettaGridConfig,
+)
 from mettagrid.map_builder.map_builder import MapBuilderConfig
+from mettagrid.mapgen.mapgen import MapGen
 
 
 def get_map(site: str) -> MapBuilderConfig:
@@ -23,20 +31,7 @@ def get_map(site: str) -> MapBuilderConfig:
     return MapBuilderConfig.from_uri(str(map_path))
 
 
-def _replace_heart_recipes(cfg: MettaGridConfig, input_resources: dict[str, int]) -> None:
-    assembler = cfg.game.objects.get("assembler")
-    if assembler is None:
-        return
-
-    heart_recipe = ProtocolConfig(input_resources=dict(input_resources), output_resources={"heart": 1}, cooldown=1)
-
-    non_heart_recipes = [
-        (existing_vibe_tokens, recipe)
-        for existing_vibe_tokens, recipe in assembler.recipes
-        if recipe.output_resources.get("heart", 0) == 0
-    ]
-
-    assembler.recipes = [(["default"], heart_recipe), *non_heart_recipes]
+PROCEDURAL_BASE_BUILDER = MapGen.Config(width=100, height=100, instance=MachinaArenaConfig(spawn_count=4))
 
 
 class MinedOutVariant(MissionVariant):
@@ -63,30 +58,30 @@ class DarkSideVariant(MissionVariant):
 class LonelyHeartVariant(MissionVariant):
     name: str = "lonely_heart"
     description: str = "Making hearts for one agent is easy."
+    # TODO: Fix this when Richard remakes the _make_env_modifier
+    # def apply(self, mission: Mission) -> Mission:
+    #     mission.assembler.heart_cost = 1
 
-    def apply(self, mission: Mission) -> Mission:
-        mission.assembler.heart_cost = 1
+    #     def modifier(cfg: MettaGridConfig) -> None:
+    #         simplified_inputs = {"carbon": 1, "oxygen": 1, "germanium": 1, "silicon": 1, "energy": 1}
 
-        def modifier(cfg: MettaGridConfig) -> None:
-            simplified_inputs = {"carbon": 1, "oxygen": 1, "germanium": 1, "silicon": 1, "energy": 1}
+    #         assembler = cfg.game.objects.get("assembler")
+    #         if assembler is None:
+    #             return
 
-            _replace_heart_recipes(cfg, simplified_inputs)
+    #         heart_recipe = ProtocolConfig(
+    #             input_resources=dict(input_resources), output_resources={"heart": 1}, cooldown=1
+    #         )
 
-            if germanium := cfg.game.objects.get("germanium_extractor"):
-                germanium.max_uses = 0
-                germanium.recipes = [
-                    (
-                        token_requirements,
-                        ProtocolConfig(
-                            input_resources=dict(recipe.input_resources),
-                            output_resources={"germanium": max(recipe.output_resources.get("germanium", 0), 1)},
-                            cooldown=max(recipe.cooldown, 1),
-                        ),
-                    )
-                    for token_requirements, recipe in germanium.recipes
-                ]
+    #         non_heart_recipes = [
+    #             (existing_vibe_tokens, recipe)
+    #             for existing_vibe_tokens, recipe in assembler.recipes
+    #             if recipe.output_resources.get("heart", 0) == 0
+    #         ]
 
-        return _add_make_env_modifier(mission, modifier)
+    #         assembler.recipes = [(["default"], heart_recipe), *non_heart_recipes]
+
+    #     return _add_make_env_modifier(mission, modifier)
 
 
 class BrightSideVariant(MissionVariant):
@@ -118,7 +113,7 @@ class SolarFlareVariant(MissionVariant):
 
 class PackRatVariant(MissionVariant):
     name: str = "pack_rat"
-    description: str = "Raise heart, cargo, and energy caps to 255 so agents can haul more at once."
+    description: str = "Raise heart, cargo, energy, and gear caps to 255."
 
     def apply(self, mission: Mission) -> Mission:
         mission.heart_capacity = max(mission.heart_capacity, 255)
@@ -130,53 +125,111 @@ class PackRatVariant(MissionVariant):
 
 class EnergizedVariant(MissionVariant):
     name: str = "energized"
-    description: str = "Top off energy every tick so agents never run dry."
+    description: str = "Max energy and full regen so agents never run dry."
 
     def apply(self, mission: Mission) -> Mission:
         mission.energy_capacity = max(mission.energy_capacity, 255)
         mission.energy_regen_amount = mission.energy_capacity
-
-        def modifier(cfg: MettaGridConfig) -> None:
-            energy_cap = cfg.game.agent.resource_limits.get("energy", mission.energy_capacity)
-            cfg.game.agent.initial_inventory = {"energy": energy_cap}
-            cfg.game.agent.inventory_regen_amounts = {"energy": energy_cap}
-
-        return _add_make_env_modifier(mission, modifier)
+        return mission
 
 
 class NeutralFacedVariant(MissionVariant):
     name: str = "neutral_faced"
-    description: str = "Keep the neutral face glyph; disable glyph swapping entirely."
+    description: str = "Disable glyph swapping; keep neutral face."
 
     def apply(self, mission: Mission) -> Mission:
-        def modifier(cfg: MettaGridConfig) -> None:
-            change_glyph = cfg.game.actions.change_glyph
-            change_glyph.enabled = False
-            change_glyph.number_of_glyphs = 1
-
-        return _add_make_env_modifier(mission, modifier)
+        mission.enable_glyph_change = False
+        mission.glyph_count = 1
+        return mission
 
 
-# Backwards-compatible alias
-class HeartChorusVariant(MissionVariant):
-    name: str = "heart_chorus"
-    description: str = "Heart-centric reward shaping with gentle resource bonuses."
+# Biome variants (weather) for procedural maps
+class DesertBiomeVariant(MissionVariant):
+    name: str = "desert"
+    description: str = "The desert sands make navigation challenging."
 
     def apply(self, mission: Mission) -> Mission:
-        def modifier(cfg: MettaGridConfig) -> None:
-            # Reward hearts at full value, penalize hoarding them, and add diversity bonuses tuned from the Oct 2025
-            # playtests so agents seek mixed inventories instead of camping chargers.
-            cfg.game.agent.rewards.stats = {
-                "heart.gained": 1.0,
-                "chest.heart.deposited": 1.0,
-                "chest.heart.withdrawn": -1.0,
-                "inventory.diversity.ge.2": 0.17,
-                "inventory.diversity.ge.3": 0.18,
-                "inventory.diversity.ge.4": 0.60,
-                "inventory.diversity.ge.5": 0.97,
+        mission.procedural_overrides["biome_weights"] = {"desert": 1.0, "caves": 0.0, "forest": 0.0, "city": 0.0}
+        mission.procedural_overrides["base_biome"] = "desert"
+        return mission
+
+
+class ForestBiomeVariant(MissionVariant):
+    name: str = "forest"
+    description: str = "Dense forests obscure your view."
+
+    def apply(self, mission: Mission) -> Mission:
+        mission.procedural_overrides["biome_weights"] = {"forest": 1.0, "caves": 0.0, "desert": 0.0, "city": 0.0}
+        mission.procedural_overrides["base_biome"] = "forest"
+        return mission
+
+
+class CityBiomeVariant(MissionVariant):
+    name: str = "city"
+    description: str = "Ancient city ruins provide structured pathways."
+
+    def apply(self, mission: Mission) -> Mission:
+        mission.procedural_overrides.update(
+            {
+                "base_biome": "city",
+                "biome_weights": {"city": 1.0, "caves": 0.0, "desert": 0.0, "forest": 0.0},
+                # Fill almost the entire map with the city layer
+                "density_scale": 1.0,
+                "biome_count": 1,
+                "max_biome_zone_fraction": 0.95,
+                # Tighten the city grid itself
             }
+        )
+        return mission
 
-        return _add_make_env_modifier(mission, modifier)
+
+class CavesBiomeVariant(MissionVariant):
+    name: str = "caves"
+    description: str = "Winding cave systems create a natural maze."
+
+    def apply(self, mission: Mission) -> Mission:
+        mission.procedural_overrides["biome_weights"] = {"caves": 1.0, "desert": 0.0, "forest": 0.0, "city": 0.0}
+        mission.procedural_overrides["base_biome"] = "caves"
+        return mission
+
+
+class StoreBaseVariant(MissionVariant):
+    name: str = "store_base"
+    description: str = "Sanctum corners hold storage chests; cross remains clear."
+
+    def apply(self, mission: Mission) -> Mission:
+        mission.procedural_overrides["hub_corner_bundle"] = "chests"
+        mission.procedural_overrides["hub_cross_bundle"] = "none"
+        mission.procedural_overrides["hub_cross_distance"] = 7
+        return mission
+
+
+class ExtractorBaseVariant(MissionVariant):
+    name: str = "extractor_base"
+    description: str = "Sanctum corners host extractors; cross remains clear."
+
+    def apply(self, mission: Mission) -> Mission:
+        mission.procedural_overrides["hub_corner_bundle"] = "extractors"
+        mission.procedural_overrides["hub_cross_bundle"] = "none"
+        mission.procedural_overrides["hub_cross_distance"] = 7
+        return mission
+
+
+class BothBaseVariant(MissionVariant):
+    name: str = "both_base"
+    description: str = "Sanctum corners store chests and cross arms host extractors."
+
+    def apply(self, mission: Mission) -> Mission:
+        mission.procedural_overrides["hub_corner_bundle"] = "chests"
+        mission.procedural_overrides["hub_cross_bundle"] = "extractors"
+        mission.procedural_overrides["hub_cross_distance"] = 7
+        return mission
+
+
+class CyclicalUnclipVariant(MissionVariant):
+    name: str = "cyclical_unclip"
+    description: str = "Required resources for unclipping recipes are cyclical. \
+                        So Germanium extractors require silicon-based unclipping recipes."
 
 
 VARIANTS = [
@@ -185,11 +238,18 @@ VARIANTS = [
     BrightSideVariant,
     RoughTerrainVariant,
     SolarFlareVariant,
+    DesertBiomeVariant,
+    ForestBiomeVariant,
+    CityBiomeVariant,
+    CavesBiomeVariant,
+    StoreBaseVariant,
+    ExtractorBaseVariant,
+    BothBaseVariant,
     LonelyHeartVariant,
     PackRatVariant,
     EnergizedVariant,
     NeutralFacedVariant,
-    HeartChorusVariant,
+    # HeartChorusVariant,
 ]
 
 
@@ -197,7 +257,13 @@ VARIANTS = [
 TRAINING_FACILITY = Site(
     name="training_facility",
     description="COG Training Facility. Basic training facility with open spaces and no obstacles.",
-    map_builder=get_map("training_facility_open_1.map"),
+    map_builder=make_hub_only_map_builder(
+        num_cogs=4,
+        width=21,
+        height=21,
+        corner_bundle="chests",
+        cross_bundle="extractors",
+    ),
     min_cogs=1,
     max_cogs=4,
 )
@@ -205,7 +271,7 @@ TRAINING_FACILITY = Site(
 HELLO_WORLD = Site(
     name="hello_world",
     description="Welcome to space..",
-    map_builder=get_map("machina_100_stations.map"),
+    map_builder=MapGen.Config(width=100, height=100, instance=MachinaArenaConfig(spawn_count=4)),
     min_cogs=1,
     max_cogs=20,
 )
@@ -213,7 +279,16 @@ HELLO_WORLD = Site(
 MACHINA_1 = Site(
     name="machina_1",
     description="Your first mission. Collect resources and assemble HEARTs.",
-    map_builder=get_map("machina_200_stations.map"),
+    # Originally was get_map("machina_200_stations.map"), but that was hard to make missions from
+    map_builder=MapGen.Config(width=200, height=200, instance=MachinaArenaConfig(spawn_count=4)),
+    min_cogs=1,
+    max_cogs=20,
+)
+
+MACHINA_PROCEDURAL = Site(
+    name="machina_procedural",
+    description="Procedurally generated asteroid arena with sanctum hub and resource pockets.",
+    map_builder=PROCEDURAL_BASE_BUILDER,
     min_cogs=1,
     max_cogs=20,
 )
@@ -222,14 +297,41 @@ SITES = [
     TRAINING_FACILITY,
     HELLO_WORLD,
     MACHINA_1,
+    MACHINA_PROCEDURAL,
 ]
 
 
+# TODO Make missions accept variants directly and allow them to select which variants are allowed to be applied
 # Training Facility Missions
 class HarvestMission(Mission):
     name: str = "harvest"
-    description: str = "Collect resources and store them in the communal chest. Make sure to stay charged!"
+    description: str = "Collect resources and store them in the appropriate chests. Make sure to stay charged!"
     site: Site = TRAINING_FACILITY
+
+    # Global Mission.instantiate now applies overrides; no per-mission override needed
+    def make_env(self) -> MettaGridConfig:
+        env = super().make_env()
+        # Log-shaped chest rewards at episode end via per-step telescoping
+        if self.num_cogs and self.num_cogs > 0:
+            reward_weight = 1.0 / self.num_cogs
+        else:
+            reward_weight = 1.0 / max(1, getattr(env.game, "num_agents", 1))
+
+        env.game.agent.rewards.inventory = {}
+        env.game.agent.rewards.stats = {
+            "chest.carbon.amount": reward_weight,
+            "chest.oxygen.amount": reward_weight,
+            "chest.germanium.amount": reward_weight,
+            "chest.silicon.amount": reward_weight,
+        }
+        env.game.agent.rewards.inventory_max = {}
+        env.game.agent.rewards.stats_max = {}
+        # Ensure that the extractors are configured to have high max uses
+        for name in ("germanium_extractor", "carbon_extractor", "oxygen_extractor", "silicon_extractor"):
+            cfg = env.game.objects.get(name)
+            if cfg is not None:
+                cast(Any, cfg).max_uses = 100
+        return env
 
 
 class AssembleMission(Mission):
@@ -237,17 +339,131 @@ class AssembleMission(Mission):
     description: str = "Make HEARTs by using the assembler. Coordinate your team to maximize efficiency."
     site: Site = TRAINING_FACILITY
 
+    # Only extractors, no chests
+    def configure(self):
+        self.procedural_overrides = {"hub_corner_bundle": "none"}
+
+    def make_env(self) -> MettaGridConfig:
+        env = super().make_env()
+        for name in ("germanium_extractor", "carbon_extractor", "oxygen_extractor", "silicon_extractor"):
+            cfg = env.game.objects.get(name)
+            if cfg is not None:
+                cast(Any, cfg).max_uses = 100
+        return env
+
 
 class VibeCheckMission(Mission):
     name: str = "vibe_check"
     description: str = "Modulate the group vibe to assemble HEARTs and Gear."
     site: Site = TRAINING_FACILITY
 
+    # Modify the assembler recipe so that it can only make HEARTs when
+    # Set the number of cogs to 4
+
+    def make_env(self) -> MettaGridConfig:
+        env = super().make_env()
+        # Require exactly 4 heart vibes for HEART crafting; keep gear recipes intact
+        assembler_cfg = env.game.objects.get("assembler")
+        if isinstance(assembler_cfg, AssemblerConfig):
+            filtered: list[tuple[list[str], Any]] = []
+            for vibes_list, recipe in assembler_cfg.recipes:
+                if any(v == "heart" for v in vibes_list):
+                    # Keep only the 4-heart recipe for heart crafting
+                    if len(vibes_list) == 4 and all(v == "heart" for v in vibes_list):
+                        filtered.append((vibes_list, recipe))
+                else:
+                    # Preserve non-heart (e.g., gear) recipes
+                    filtered.append((vibes_list, recipe))
+            assembler_cfg.recipes = filtered
+        return env
+
+    def instantiate(
+        self,
+        map_builder: MapBuilderConfig,
+        num_cogs: int,
+        variant: MissionVariant | None = None,
+        *,
+        cli_override: bool = False,
+    ) -> "Mission":
+        # Respect CLI --cogs if provided (differs from site.min_cogs); otherwise default to 4
+        desired = 4 if (self.site and num_cogs == self.site.min_cogs) else num_cogs
+        return super().instantiate(map_builder, desired, variant, cli_override=cli_override)
+
 
 class RepairMission(Mission):
     name: str = "repair"
     description: str = "Repair disabled stations to restore their functionality."
     site: Site = TRAINING_FACILITY
+
+    def configure(self):
+        # Place chests in corners, extractors on cross; start extractors clipped
+        self.procedural_overrides = {
+            "hub_corner_bundle": "chests",
+            "hub_cross_bundle": "extractors",
+            "hub_cross_distance": 7,
+        }
+        self.carbon_extractor.start_clipped = True
+        self.oxygen_extractor.start_clipped = True
+        self.germanium_extractor.start_clipped = True
+        self.silicon_extractor.start_clipped = True
+
+    def make_env(self) -> MettaGridConfig:
+        env = super().make_env()
+        # Seed resource chests with one unit each to craft gear items
+        for chest_name in ("chest_carbon", "chest_oxygen", "chest_germanium", "chest_silicon"):
+            chest_cfg = env.game.objects.get(chest_name)
+            if isinstance(chest_cfg, ChestConfig):
+                chest_cfg.initial_inventory = 1
+        return env
+
+    def instantiate(
+        self,
+        map_builder: MapBuilderConfig,
+        num_cogs: int,
+        variant: MissionVariant | None = None,
+        *,
+        cli_override: bool = False,
+    ) -> "Mission":
+        # Respect CLI --cogs if provided (differs from site.min_cogs); otherwise default to 2
+        desired = 2 if (self.site and num_cogs == self.site.min_cogs) else num_cogs
+        return super().instantiate(map_builder, desired, variant, cli_override=cli_override)
+
+
+class UnclipDrillsMission(Mission):
+    name: str = "unclip_drills"
+    description: str = "Practice unclipping hub facilities after a grid outage."
+    site: Site = TRAINING_FACILITY
+
+    def configure(self):
+        self.clip_rate = 0.0
+        self.procedural_overrides = {
+            "hub_cross_bundle": "extractors",
+            "hub_cross_distance": 7,
+        }
+
+        for station in (
+            self.carbon_extractor,
+            self.oxygen_extractor,
+            self.germanium_extractor,
+            self.silicon_extractor,
+            self.charger,
+        ):
+            station.start_clipped = True
+
+    def make_env(self) -> MettaGridConfig:
+        env = super().make_env()
+
+        for chest_name in ("chest_carbon", "chest_oxygen", "chest_germanium", "chest_silicon"):
+            chest_cfg = env.game.objects.get(chest_name)
+            if isinstance(chest_cfg, ChestConfig):
+                chest_cfg.initial_inventory = max(chest_cfg.initial_inventory, 3)
+
+        agent_cfg = env.game.agent
+        agent_cfg.initial_inventory = dict(agent_cfg.initial_inventory)
+        for resource in ("decoder", "modulator", "scrambler", "resonator"):
+            agent_cfg.initial_inventory[resource] = agent_cfg.initial_inventory.get(resource, 0) + 2
+
+        return env
 
 
 class SignsAndPortentsMission(Mission):
@@ -272,6 +488,66 @@ class TreasureHuntMission(Mission):
     site: Site = HELLO_WORLD
 
 
+class HelloWorldUnclipMission(Mission):
+    name: str = "unclip_field_ops"
+    description: str = "Stabilize clipped extractors scattered across the hello_world sector."
+    site: Site = HELLO_WORLD
+    # default to 4 cogs
+
+    def configure(self):
+        self.num_cogs = 4
+        self.clip_rate = 0.02
+        self.procedural_overrides = {
+            "building_names": [
+                "charger",
+                "germanium_extractor",
+                "silicon_extractor",
+                "oxygen_extractor",
+                "carbon_extractor",
+            ],
+            "building_weights": {
+                "charger": 0.6,
+                "germanium_extractor": 0.6,
+                "silicon_extractor": 0.5,
+                "oxygen_extractor": 0.5,
+                "carbon_extractor": 0.5,
+            },
+            "building_coverage": 0.015,
+            "hub_corner_bundle": "chests",
+            "hub_cross_bundle": "extractors",
+            "distribution": {"type": "poisson"},
+        }
+
+        for station in (
+            self.carbon_extractor,
+            self.oxygen_extractor,
+            self.germanium_extractor,
+            self.silicon_extractor,
+        ):
+            station.start_clipped = True
+        self.charger.start_clipped = True
+
+    def make_env(self) -> MettaGridConfig:
+        env = super().make_env()
+
+        for chest_name in (
+            "chest_carbon",
+            "chest_oxygen",
+            "chest_germanium",
+            "chest_silicon",
+        ):
+            chest_cfg = env.game.objects.get(chest_name)
+            if isinstance(chest_cfg, ChestConfig):
+                chest_cfg.initial_inventory = max(chest_cfg.initial_inventory, 2)
+
+        agent_cfg = env.game.agent
+        agent_cfg.initial_inventory = dict(agent_cfg.initial_inventory)
+        for resource in ("decoder", "modulator", "scrambler", "resonator"):
+            agent_cfg.initial_inventory[resource] = agent_cfg.initial_inventory.get(resource, 0) + 1
+
+        return env
+
+
 class HelloWorldOpenWorldMission(Mission):
     name: str = "open_world"
     description: str = "Collect resources and assemble HEARTs."
@@ -285,16 +561,172 @@ class Machina1OpenWorldMission(Mission):
     site: Site = MACHINA_1
 
 
+# Base class for procedural missions
+class ProceduralMissionBase(Mission):
+    site: Site = MACHINA_PROCEDURAL
+    procedural_overrides: dict[str, Any] = Field(default_factory=dict)
+
+    def instantiate(
+        self,
+        map_builder: MapBuilderConfig,
+        num_cogs: int,
+        variant: MissionVariant | None = None,
+        *,
+        cli_override: bool = False,
+    ) -> "Mission":
+        # Use standard mission instantiation first (handles configure + variants)
+        mission = super().instantiate(map_builder, num_cogs, variant, cli_override=cli_override)
+
+        # Build procedural map using mission-specific overrides
+        overrides = dict(mission.procedural_overrides)
+        builder_cfg = mission.map or map_builder
+
+        if not isinstance(builder_cfg, MapGen.Config):
+            raise TypeError("Procedural missions require MapGen.Config builders")
+
+        width = int(overrides.pop("width", builder_cfg.width))
+        height = int(overrides.pop("height", builder_cfg.height))
+        seed = overrides.pop("seed", builder_cfg.seed)
+
+        allowed_keys = {
+            "base_biome",
+            "base_biome_config",
+            "building_coverage",
+            "building_weights",
+            "building_names",
+            "hub_corner_bundle",
+            "hub_cross_bundle",
+            "hub_cross_distance",
+            "biome_weights",
+            "dungeon_weights",
+            "biome_count",
+            "dungeon_count",
+            "density_scale",
+            "max_biome_zone_fraction",
+            "max_dungeon_zone_fraction",
+            "distribution",
+            "building_distributions",
+        }
+
+        special_keys = {"width", "height", "seed"}
+        unknown_keys = set(overrides.keys()) - allowed_keys - special_keys
+        if unknown_keys:
+            raise ValueError("Unknown procedural override key(s): " + ", ".join(sorted(unknown_keys)))
+
+        filtered_overrides = {k: v for k, v in overrides.items() if k in allowed_keys}
+
+        mission.map = MapGen.Config(
+            width=width,
+            height=height,
+            seed=seed,
+            instance=MachinaArenaConfig(
+                spawn_count=int(mission.num_cogs or num_cogs),
+                **filtered_overrides,
+            ),
+        )
+
+        return mission
+
+
+# Procedural Missions
+class MachinaProceduralExploreMission(ProceduralMissionBase):
+    name: str = "explore"
+    description: str = "There are HEARTs scattered around the map. Collect them all."
+
+    def configure(self):
+        # Mission defaults that don't depend on num_cogs
+        self.heart_capacity = 99
+        # Only chests for explore mission
+        self.procedural_overrides = {
+            "building_names": [
+                "chest",
+            ],
+            "building_weights": {
+                "chest": 1.0,
+            },  # this is relative weights to each building type
+            "building_coverage": 0.01,  # this is density on the map
+            "hub_corner_bundle": "none",
+            "hub_cross_bundle": "none",
+            # Distribution examples:
+            # Use uniform distribution (default):
+            # "distribution": {"type": "uniform"},
+            # Use normal/Gaussian distribution (cluster around center of map at (0.5, 0.5),
+            # smaller std means more concentrated around the mean):
+            # "distribution": {
+            #     "type": "normal",
+            #     "mean_x": 0.5,
+            #     "mean_y": 0.5,
+            #     "std_x": 0.2,
+            #     "std_y": 0.2,
+            # },
+            # Use exponential distribution, higher decay rate means objects drop off quickly,
+            # spreads in a direction from a corner of map:
+            # "distribution": {"type": "exponential", "decay_rate": 5.0, "origin_x": 0.0, "origin_y": 0.0},
+            # Use poisson distribution (random clumping), always divides by 5, ex: if 10 chargers--> 2 clusters:
+            # "distribution": {"type": "poisson"},
+            # Use bimodal distribution (two clusters):
+            # "distribution": {
+            #     "type": "bimodal",
+            #     "center1_x": 0.25,
+            #     "center1_y": 0.25,
+            #     "center2_x": 0.75,
+            #     "center2_y": 0.75,
+            #     "cluster_std": 0.15,
+            # },
+            # Per-building-type distributions:
+            "building_distributions": {
+                "chest": {"type": "exponential", "decay_rate": 5.0, "origin_x": 0.0, "origin_y": 0.0},
+                #     # Note: Example, but chargers are not used in this mission
+                #     "charger": {"type": "poisson"},
+            },
+        }
+
+    def make_env(self) -> MettaGridConfig:
+        env = super().make_env()
+        # Reward agents for hearts they personally hold
+        if self.num_cogs and self.num_cogs > 0:
+            reward_weight = 1.0 / self.num_cogs
+        else:
+            reward_weight = 1.0 / max(1, getattr(env.game, "num_agents", 1))
+        env.game.agent.rewards.inventory = {"heart": reward_weight}
+        env.game.agent.rewards.stats = {}
+        env.game.agent.rewards.inventory_max = {}
+        env.game.agent.rewards.stats_max = {}
+
+        # Ensure every chest template starts with one heart
+        chest_cfg = env.game.objects.get("chest")
+        if isinstance(chest_cfg, ChestConfig):
+            chest_cfg.initial_inventory = 1
+        return env
+
+
+class ProceduralOpenWorldMission(ProceduralMissionBase):
+    name: str = "open_world"
+    description: str = "Collect resources and assemble HEARTs."
+
+    def configure(self):
+        self.procedural_overrides = {
+            "building_distributions": {
+                "chest": {"type": "exponential", "decay_rate": 5.0, "origin_x": 0.0, "origin_y": 0.0},
+                "charger": {"type": "poisson"},
+            }
+        }
+
+
 MISSIONS = [
     HarvestMission,
     AssembleMission,
     VibeCheckMission,
     RepairMission,
+    UnclipDrillsMission,
     SignsAndPortentsMission,
     ExploreMission,
     TreasureHuntMission,
+    HelloWorldUnclipMission,
     HelloWorldOpenWorldMission,
     Machina1OpenWorldMission,
+    MachinaProceduralExploreMission,
+    ProceduralOpenWorldMission,
 ]
 
 
@@ -328,34 +760,3 @@ def make_game(num_cogs: int = 2, map_name: str = "training_facility_open_1.map")
     # Use no variant (default)
     variant = MissionVariant(name="default", description="Default mission variant")
     return mission.instantiate(map_builder, num_cogs, variant).make_env()
-
-
-def _add_make_env_modifier(mission: Mission, modifier: Callable[[MettaGridConfig], None]) -> Mission:
-    modifiers: List[Callable[[MettaGridConfig], None]] = getattr(mission, "__env_modifiers__", None)
-
-    if modifiers is None:
-        original_make_env = mission.make_env.__func__
-        original_instantiate = mission.instantiate.__func__
-
-        def wrapped_make_env(self, *args, **kwargs):
-            cfg = original_make_env(self, *args, **kwargs)
-            for fn in getattr(self, "__env_modifiers__", []):
-                fn(cfg)
-            return cfg
-
-        def wrapped_instantiate(self, *args, **kwargs):
-            instantiated = original_instantiate(self, *args, **kwargs)
-            parent_mods = getattr(self, "__env_modifiers__", [])
-            if parent_mods:
-                object.__setattr__(instantiated, "__env_modifiers__", list(parent_mods))
-                object.__setattr__(instantiated, "make_env", MethodType(wrapped_make_env, instantiated))
-                object.__setattr__(instantiated, "instantiate", MethodType(wrapped_instantiate, instantiated))
-            return instantiated
-
-        object.__setattr__(mission, "__env_modifiers__", [])
-        object.__setattr__(mission, "make_env", MethodType(wrapped_make_env, mission))
-        object.__setattr__(mission, "instantiate", MethodType(wrapped_instantiate, mission))
-        modifiers = mission.__env_modifiers__
-
-    modifiers.append(modifier)
-    return mission

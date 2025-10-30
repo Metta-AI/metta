@@ -35,7 +35,6 @@ runs:
           **/pyproject.toml
 
     - name: Get week number for cache key
-      if: inputs.install-mode != 'minimal'
       id: get-week
       shell: bash
       run: |

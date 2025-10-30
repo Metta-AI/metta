@@ -27,6 +27,7 @@
   },
 
   // Ruff Extension Settings
+  "ruff.path": ["uv", "run", "ruff"],
   "ruff.configurationPreference": "filesystemFirst",
 
   // YAML Configuration

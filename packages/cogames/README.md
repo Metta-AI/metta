@@ -207,6 +207,7 @@ cogames eval -m machina_1 -p simple:train_dir/model.pt:3 -p random::5
 - `--episodes N`: Number of episodes per mission (default: 10)
 - `--action-timeout-ms N`: Timeout per action (default: 250ms)
 - `--steps N`: Max steps per episode
+- `--format [json/yaml]`: Output results as structured json or yaml (default: None for human-readable tables)
 
 When multiple policies are provided, `cogames eval` fixes the number of agents each policy will control, but randomizes
 their assignments each episode.
