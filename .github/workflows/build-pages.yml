@@ -37,7 +37,7 @@ jobs:
       - name: Install Mettascope Dependencies
         run: |
           cd ..
-          nimby sync metta/packages/mettagrid/nim/mettascope/nimby.lock
+          nimby sync -g metta/packages/mettagrid/nim/mettascope/nimby.lock
           nimby list
           cat nim.cfg
 
