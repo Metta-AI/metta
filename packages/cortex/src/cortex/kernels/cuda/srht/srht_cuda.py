@@ -14,7 +14,6 @@ def _load_ext():
     global _ext
     if _ext is not None:
         return _ext
-    build_dir = None
     if torch.cuda.is_available():
         caps = sorted(
             {
