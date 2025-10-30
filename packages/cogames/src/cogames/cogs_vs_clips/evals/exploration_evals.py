@@ -11,7 +11,9 @@ for single-agent scenarios. Each experiment varies:
 See experiments/scripted_agent_exploration_experiments.md for detailed rationale.
 """
 
-from cogames.cogs_vs_clips.mission import Mission, Site
+from __future__ import annotations
+
+from cogames.cogs_vs_clips.mission import Mission, MissionVariant, Site
 from cogames.cogs_vs_clips.missions import get_map
 from cogames.cogs_vs_clips.stations import (
     CarbonExtractorConfig,
@@ -20,18 +22,22 @@ from cogames.cogs_vs_clips.stations import (
     OxygenExtractorConfig,
     SiliconExtractorConfig,
 )
-
-# =============================================================================
-# Experiment Sites - Removed to avoid import-time map loading
-# Sites are not needed for evaluation script
-# =============================================================================
-
-# =============================================================================
-# Experiment Missions
-# =============================================================================
+from mettagrid.map_builder.map_builder import MapBuilderConfig
 
 
-class Experiment1Mission(Mission):
+class _ExperimentMissionBase(Mission):
+    """Base class for experiment missions that load maps by name."""
+
+    map_name: str = ""  # Override in subclasses
+
+    def instantiate(
+        self, map_builder: MapBuilderConfig, num_cogs: int, variant: MissionVariant | None = None
+    ) -> "Mission":
+        forced_map = get_map(self.map_name)
+        return super().instantiate(forced_map, num_cogs, variant)
+
+
+class Experiment1Mission(_ExperimentMissionBase):
     """
     Experiment 1: Baseline Control
 
@@ -42,6 +48,7 @@ class Experiment1Mission(Mission):
     name: str = "baseline"
     description: str = "Baseline with standard settings and sparse outside resources"
     site: Site = None  # Site not needed for evaluation
+    map_name: str = "extractor_hub_30x30.map"
 
     # Standard efficiency (100%), standard max_uses (1000)
     carbon_extractor: CarbonExtractorConfig = CarbonExtractorConfig(efficiency=100, max_uses=1000)
@@ -53,7 +60,7 @@ class Experiment1Mission(Mission):
     energy_regen_amount: int = 1
 
 
-class Experiment2Mission(Mission):
+class Experiment2Mission(_ExperimentMissionBase):
     """
     Experiment 2: Oxygen Abundance
 
@@ -64,6 +71,7 @@ class Experiment2Mission(Mission):
     name: str = "oxygen_abundance"
     description: str = "Multiple oxygen sources to break the cooldown bottleneck"
     site: Site = None  # Site not needed for evaluation
+    map_name: str = "extractor_hub_80x80.map"
 
     carbon_extractor: CarbonExtractorConfig = CarbonExtractorConfig(efficiency=100, max_uses=1000)
     oxygen_extractor: OxygenExtractorConfig = OxygenExtractorConfig(efficiency=100, max_uses=1000)
@@ -85,6 +93,7 @@ class Experiment3Mission(Mission):
     name: str = "low_efficiency"
     description: str = "75% efficiency requires more harvests and careful energy management"
     site: Site = None  # Site not needed for evaluation
+    map_name: str = "extractor_hub_50x50.map"
 
     # 75% efficiency across all extractors
     carbon_extractor: CarbonExtractorConfig = CarbonExtractorConfig(efficiency=75, max_uses=1000)
@@ -107,6 +116,7 @@ class Experiment4Mission(Mission):
     name: str = "fast_depletion"
     description: str = "Resources deplete quickly (max_uses=50), forcing exploration"
     site: Site = None  # Site not needed for evaluation
+    map_name: str = "extractor_hub_70x70.map"
 
     # Low max_uses causes fast depletion
     carbon_extractor: CarbonExtractorConfig = CarbonExtractorConfig(efficiency=100, max_uses=50)
@@ -129,6 +139,7 @@ class Experiment5Mission(Mission):
     name: str = "energy_abundance"
     description: str = "Double energy regeneration (2/turn) removes energy constraint"
     site: Site = None  # Site not needed for evaluation
+    map_name: str = "extractor_hub_70x70.map"
 
     carbon_extractor: CarbonExtractorConfig = CarbonExtractorConfig(efficiency=100, max_uses=1000)
     oxygen_extractor: OxygenExtractorConfig = OxygenExtractorConfig(efficiency=100, max_uses=1000)
@@ -150,6 +161,7 @@ class Experiment6Mission(Mission):
     name: str = "energy_scarcity"
     description: str = "Minimal energy regeneration (1/turn) requires frequent charging"
     site: Site = None  # Site not needed for evaluation
+    map_name: str = "extractor_hub_50x50.map"
 
     carbon_extractor: CarbonExtractorConfig = CarbonExtractorConfig(efficiency=100, max_uses=1000)
     oxygen_extractor: OxygenExtractorConfig = OxygenExtractorConfig(efficiency=100, max_uses=1000)
@@ -171,6 +183,7 @@ class Experiment7Mission(Mission):
     name: str = "high_efficiency"
     description: str = "Double efficiency (200%) means faster gathering and more exploration time"
     site: Site = None  # Site not needed for evaluation
+    map_name: str = "extractor_hub_50x50.map"
 
     # 200% efficiency across all extractors
     carbon_extractor: CarbonExtractorConfig = CarbonExtractorConfig(efficiency=200, max_uses=1000)
@@ -195,6 +208,7 @@ class Experiment8Mission(Mission):
     name: str = "zoned_resources"
     description: str = "Resources clustered by type in zones, north zone is farther but more efficient"
     site: Site = None  # Site not needed for evaluation
+    map_name: str = "extractor_hub_100x100.map"
 
     # Standard efficiency for most zones
     # North zone will use high-efficiency variants marked in map
@@ -218,6 +232,7 @@ class Experiment9Mission(Mission):
     name: str = "resource_abundance"
     description: str = "Abundant resources (5 of each) eliminate scarcity bottlenecks"
     site: Site = None  # Site not needed for evaluation
+    map_name: str = "extractor_hub_100x100.map"
 
     carbon_extractor: CarbonExtractorConfig = CarbonExtractorConfig(efficiency=100, max_uses=1000)
     oxygen_extractor: OxygenExtractorConfig = OxygenExtractorConfig(efficiency=100, max_uses=1000)

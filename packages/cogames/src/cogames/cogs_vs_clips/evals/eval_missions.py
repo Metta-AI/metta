@@ -1,13 +1,15 @@
 from __future__ import annotations
 
+import random
+
+# Import MapBuilder subclasses to register them
+import mettagrid.map_builder.ascii  # noqa: F401
+import mettagrid.map_builder.random  # noqa: F401
 from cogames.cogs_vs_clips.mission import Mission, MissionVariant, Site
 from cogames.cogs_vs_clips.missions import _add_make_env_modifier, get_map
 from mettagrid.config.mettagrid_config import MettaGridConfig, ProtocolConfig
 from mettagrid.map_builder.map_builder import MapBuilderConfig
 
-# Import MapBuilder subclasses to register them
-import mettagrid.map_builder.ascii  # noqa: F401
-import mettagrid.map_builder.random  # noqa: F401
 
 class _EvalMissionBase(Mission):
     # Each mission will define its own site with lazy map loading
@@ -47,6 +49,14 @@ class _EvalMissionBase(Mission):
         mission.energy_regen_amount = self.energy_regen
         mission.clip_rate = self.clip_rate
 
+        # When clip_rate > 0, randomly select one extractor type to be immune from clipping
+        # This ensures at least one resource is always available for crafting unclip items
+        immune_extractor_type = None
+        if self.clip_rate > 0:
+            extractor_types = ["carbon_extractor", "oxygen_extractor", "germanium_extractor", "silicon_extractor"]
+            immune_extractor_type = random.choice(extractor_types)
+            print(f"[EvalMission] clip_rate={self.clip_rate}: {immune_extractor_type} selected as clip-immune")
+
         # Post-make_env adjust max uses on built objects
         def _post(cfg: MettaGridConfig) -> None:
             cfg.game.map_builder = forced_map
@@ -70,6 +80,22 @@ class _EvalMissionBase(Mission):
                     heart_recipes = [(["heart"] * (i + 1), tiny) for i in range(4)]
                     redheart_recipes = [(["red-heart"] * (i + 1), tiny) for i in range(4)]
                     assembler_obj.recipes = [*heart_recipes, *redheart_recipes, *assembler_obj.recipes]
+
+            # Add unclip recipes when clip_rate > 0
+            if self.clip_rate > 0 and assembler_obj is not None and hasattr(assembler_obj, "recipes"):
+                unclip_recipes = [
+                    (["gear"], ProtocolConfig(input_resources={"carbon": 1}, output_resources={"decoder": 1})),
+                    (["gear"], ProtocolConfig(input_resources={"oxygen": 1}, output_resources={"modulator": 1})),
+                    (["gear"], ProtocolConfig(input_resources={"silicon": 1}, output_resources={"resonator": 1})),
+                    (["gear"], ProtocolConfig(input_resources={"germanium": 1}, output_resources={"scrambler": 1})),
+                ]
+                # Add unclip recipes if they don't already exist
+                existing_outputs = {tuple(sorted(p.output_resources.keys())) for g, p in assembler_obj.recipes}
+                for glyph, protocol in unclip_recipes:
+                    output_key = tuple(sorted(protocol.output_resources.keys()))
+                    if output_key not in existing_outputs:
+                        assembler_obj.recipes.append((glyph, protocol))
+                        existing_outputs.add(output_key)
             if self.max_uses_charger is not None and "charger" in cfg.game.objects:
                 cfg.game.objects["charger"].max_uses = self.max_uses_charger
             if self.max_uses_carbon is not None and "carbon_extractor" in cfg.game.objects:
@@ -80,6 +106,15 @@ class _EvalMissionBase(Mission):
                 cfg.game.objects["germanium_extractor"].max_uses = self.max_uses_germanium
             if self.max_uses_silicon is not None and "silicon_extractor" in cfg.game.objects:
                 cfg.game.objects["silicon_extractor"].max_uses = self.max_uses_silicon
+
+            # Mark immune extractor to never be clipped (when clip_rate > 0)
+            if immune_extractor_type is not None and immune_extractor_type in cfg.game.objects:
+                # Mark the immune extractor as clip-immune
+                extractor_obj = cfg.game.objects[immune_extractor_type]
+                if hasattr(extractor_obj, "is_clip_immune"):
+                    extractor_obj.is_clip_immune = True
+                if hasattr(extractor_obj, "start_clipped"):
+                    extractor_obj.start_clipped = False
 
             # Global quality-of-life tweaks for evals
             # 1) Double agent inventory caps for core resources and gear
@@ -106,9 +141,9 @@ class _EvalMissionBase(Mission):
                 obj = cfg.game.objects.get(obj_name)
                 if obj is not None and hasattr(obj, "max_uses"):
                     try:
-                        current = int(getattr(obj, "max_uses"))
+                        current = int(obj.max_uses)
                         if current > 0:
-                            setattr(obj, "max_uses", current * 2)
+                            obj.max_uses = current * 2
                     except Exception:
                         pass
 
@@ -292,7 +327,7 @@ class SingleUseWorld(_EvalMissionBase):
                     obj.max_uses = 1
                     # Prefer partial usage semantics if supported by the object type
                     if hasattr(obj, "allow_partial_usage"):
-                        setattr(obj, "allow_partial_usage", True)
+                        obj.allow_partial_usage = True
                 except Exception:
                     pass
 
@@ -359,7 +394,7 @@ class GermaniumClutch(_EvalMissionBase):
 class ClipCarbon(_EvalMissionBase):
     name: str = "clip_carbon"
     description: str = "Carbon extractor starts clipped; unclip using gear crafted from another resource."
-    map_name: str = "eval_clip_carbon.map"
+    map_name: str = "machina_eval_exp02.map"
     clip_rate: float = 0.0
 
     def instantiate(
@@ -390,7 +425,18 @@ class ClipCarbon(_EvalMissionBase):
                 asm.recipes = [single_gear, *asm.recipes]
 
         mission = _add_make_env_modifier(mission, _filter_unclip)
-        return _add_make_env_modifier(mission, _tweak_assembler)
+        mission = _add_make_env_modifier(mission, _tweak_assembler)
+
+        # Guarantee solvability: oxygen must be available to craft modulator for unclipping
+        def _ensure_oxygen_immune(cfg: MettaGridConfig) -> None:
+            ox = cfg.game.objects.get("oxygen_extractor")
+            if ox is not None:
+                if hasattr(ox, "is_clip_immune"):
+                    ox.is_clip_immune = True
+                if hasattr(ox, "start_clipped"):
+                    ox.start_clipped = False
+
+        return _add_make_env_modifier(mission, _ensure_oxygen_immune)
 
 
 class ClipOxygen(_EvalMissionBase):
@@ -445,6 +491,17 @@ class ClipOxygen(_EvalMissionBase):
 
         mission = _add_make_env_modifier(mission, _filter_unclip)
         mission = _add_make_env_modifier(mission, _tweak_assembler)
+
+        # Guarantee solvability: carbon must be available to craft decoder for unclipping
+        def _ensure_carbon_immune(cfg: MettaGridConfig) -> None:
+            cx = cfg.game.objects.get("carbon_extractor")
+            if cx is not None:
+                if hasattr(cx, "is_clip_immune"):
+                    cx.is_clip_immune = True
+                if hasattr(cx, "start_clipped"):
+                    cx.start_clipped = False
+
+        mission = _add_make_env_modifier(mission, _ensure_carbon_immune)
         return _add_make_env_modifier(mission, _expand_inventory)
 
 
@@ -481,6 +538,17 @@ class ClipGermanium(_EvalMissionBase):
                 asm.recipes = [single_gear, *asm.recipes]
 
         mission = _add_make_env_modifier(mission, _filter_unclip)
+
+        # Guarantee solvability: silicon must be available to craft resonator for unclipping
+        def _ensure_silicon_immune(cfg: MettaGridConfig) -> None:
+            sx = cfg.game.objects.get("silicon_extractor")
+            if sx is not None:
+                if hasattr(sx, "is_clip_immune"):
+                    sx.is_clip_immune = True
+                if hasattr(sx, "start_clipped"):
+                    sx.start_clipped = False
+
+        mission = _add_make_env_modifier(mission, _ensure_silicon_immune)
         return _add_make_env_modifier(mission, _tweak_assembler)
 
 
@@ -517,6 +585,17 @@ class ClipSilicon(_EvalMissionBase):
                 asm.recipes = [single_gear, *asm.recipes]
 
         mission = _add_make_env_modifier(mission, _filter_unclip)
+
+        # Guarantee solvability: germanium must be available to craft scrambler for unclipping
+        def _ensure_germanium_immune(cfg: MettaGridConfig) -> None:
+            gx = cfg.game.objects.get("germanium_extractor")
+            if gx is not None:
+                if hasattr(gx, "is_clip_immune"):
+                    gx.is_clip_immune = True
+                if hasattr(gx, "start_clipped"):
+                    gx.start_clipped = False
+
+        mission = _add_make_env_modifier(mission, _ensure_germanium_immune)
         return _add_make_env_modifier(mission, _tweak_assembler)
 
 

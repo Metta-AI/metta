@@ -178,87 +178,87 @@ def have_assembler_discovered(state, ctx):
     return getattr(state, "assembler_discovered", False)
 
 
+def blocked_by_clipped(state, ctx):
+    """Check if the agent is blocked by a clipped extractor."""
+    return state.blocked_by_clipped_extractor is not None
+
+
+def get_blocked_extractor_resource_type(state, ctx):
+    """Get the resource type of the blocked extractor."""
+    if state.blocked_by_clipped_extractor is None:
+        return None
+
+    if hasattr(state, "_policy_impl"):
+        policy_impl = state._policy_impl
+    else:
+        policy_impl = getattr(ctx, "policy_impl", None)
+
+    if policy_impl is None:
+        return None
+
+    extractor = policy_impl.extractor_memory.get_at_position(state.blocked_by_clipped_extractor)
+    return extractor.resource_type if extractor else None
+
+
+def need_craft_resource_for_blocked(state, ctx):
+    """Check if we need to gather the craft resource for the blocked extractor."""
+    resource_type = get_blocked_extractor_resource_type(state, ctx)
+    if resource_type is None:
+        return False
+
+    # Get the unclip recipes
+    unclip_recipes = (
+        state.unclip_recipes
+        if hasattr(state, "unclip_recipes") and state.unclip_recipes
+        else {
+            "oxygen": "carbon",
+            "carbon": "oxygen",
+            "germanium": "silicon",
+            "silicon": "germanium",
+        }
+    )
+
+    craft_resource = unclip_recipes.get(resource_type)
+    if craft_resource is None:
+        return False
+
+    # Check if we have enough of the craft resource
+    craft_amount = getattr(state, craft_resource, 0)
+    return craft_amount < 1
+
+
 def have_chest_discovered(state, ctx):
     return getattr(state, "chest_discovered", False)
 
 
-def need_decoder_for_clipped(state, ctx):
-    """Check if we need a decoder for any clipped extractor."""
-    return (
-        any(e.is_clipped for L in ctx.env.policy_impl.extractor_memory._extractors.values() for e in L)
-        and state.decoder == 0
-    )
+def decoder_ready_for_unclipping(state, ctx):
+    """Check if we have the correct unclip item for the blocked extractor.
 
-
-def has_carbon_for_decoder(state, ctx):
-    """Check if we have carbon to craft a decoder."""
-    return state.carbon >= 1
-
-
-def _resource_extractor_clipped(state, ctx, resource_type: str) -> bool:
-    """Check if a specific resource extractor is clipped."""
-    # Access policy_impl through the context (same pattern as need_decoder_for_clipped)
-    if not hasattr(ctx, "env") or not hasattr(ctx.env, "policy_impl"):
+    With reactive clipping, we only craft/unclip when blocked_by_clipped_extractor is set.
+    This function checks if we have the appropriate unclip item for that specific extractor.
+    """
+    if state.blocked_by_clipped_extractor is None:
         return False
 
-    policy_impl = ctx.env.policy_impl
-    extractors = policy_impl.extractor_memory.get_by_type(resource_type)
-    return any(e.is_clipped for e in extractors)
+    # Get the resource type of the blocked extractor
+    resource_type = get_blocked_extractor_resource_type(state, ctx)
+    if resource_type is None:
+        return False
 
+    # Check if we have the appropriate unclip item
+    # Mapping: oxygen → decoder, carbon → modulator, germanium → resonator, silicon → scrambler
+    unclip_item_map = {
+        "oxygen": "decoder",
+        "carbon": "modulator",
+        "germanium": "resonator",
+        "silicon": "scrambler",
+    }
 
-def oxygen_extractor_clipped(state, ctx):
-    """Check if oxygen extractor is clipped."""
-    return _resource_extractor_clipped(state, ctx, "oxygen")
+    unclip_item_name = unclip_item_map.get(resource_type)
+    if unclip_item_name is None:
+        return False
 
-
-def carbon_extractor_clipped(state, ctx):
-    """Check if carbon extractor is clipped."""
-    return _resource_extractor_clipped(state, ctx, "carbon")
-
-
-def germanium_extractor_clipped(state, ctx):
-    """Check if germanium extractor is clipped."""
-    return _resource_extractor_clipped(state, ctx, "germanium")
-
-
-def silicon_extractor_clipped(state, ctx):
-    """Check if silicon extractor is clipped."""
-    return _resource_extractor_clipped(state, ctx, "silicon")
-
-
-def decoder_ready_for_unclipping(state, ctx):
-    """Check if we have the correct unclip item for any clipped extractor."""
-    return has_unclip_item_for_clipped(state, ctx)
-
-
-def any_extractor_clipped(state, ctx):
-    """Check if ANY resource extractor is clipped."""
-    return (
-        oxygen_extractor_clipped(state, ctx)
-        or carbon_extractor_clipped(state, ctx)
-        or germanium_extractor_clipped(state, ctx)
-        or silicon_extractor_clipped(state, ctx)
-    )
-
-
-def has_unclip_item_for_clipped(state, ctx) -> bool:
-    """Check if we have the appropriate unclip item for any clipped resource.
-
-    Mapping (from eval_missions.py):
-    - Oxygen clipped → decoder (crafted from carbon)
-    - Carbon clipped → modulator (crafted from oxygen)
-    - Germanium clipped → resonator (crafted from silicon)
-    - Silicon clipped → scrambler (crafted from germanium)
-    """
-    if oxygen_extractor_clipped(state, ctx) and state.decoder > 0:
-        return True
-    if carbon_extractor_clipped(state, ctx) and state.modulator > 0:
-        return True
-    if germanium_extractor_clipped(state, ctx) and state.resonator > 0:
-        return True
-    if silicon_extractor_clipped(state, ctx) and state.scrambler > 0:
-        return True
-    return False
+    return getattr(state, unclip_item_name, 0) > 0
 
 
 def progress_stalled(max_steps: int) -> Guard:
@@ -303,6 +303,11 @@ def enter_unclip_station(state, ctx):
     state.current_glyph = "default"
 
 
+def exit_unclip_station(state, ctx):
+    """Exit unclip station phase - clear the blocked flag."""
+    state.blocked_by_clipped_extractor = None
+
+
 # Define all transitions
 def create_transitions() -> List[Transition]:
     """Create the complete transition table."""
@@ -327,6 +332,74 @@ def create_transitions() -> List[Transition]:
             Transition(src=p, dst=GamePhase.RECHARGE, guard=low_energy, priority=80, on_enter=enter_recharge)
             for p in GamePhase
             if p != GamePhase.RECHARGE
+        ],
+        # REACTIVE CLIPPING: When blocked by a clipped extractor during gathering
+        # These transitions have higher priority (85) than the old proactive ones (80)
+        # From any gathering phase, if blocked and need craft resource, go gather it
+        *[
+            Transition(
+                src=p,
+                dst=GamePhase.GATHER_CARBON,
+                guard=lambda s, c: blocked_by_clipped(s, c)
+                and get_blocked_extractor_resource_type(s, c) == "oxygen"
+                and s.carbon < 1,
+                priority=85,
+                min_dwell_steps=1,
+            )
+            for p in [GamePhase.GATHER_OXYGEN, GamePhase.GATHER_GERMANIUM, GamePhase.GATHER_SILICON]
+        ],
+        *[
+            Transition(
+                src=p,
+                dst=GamePhase.GATHER_OXYGEN,
+                guard=lambda s, c: blocked_by_clipped(s, c)
+                and get_blocked_extractor_resource_type(s, c) == "carbon"
+                and s.oxygen < 1,
+                priority=85,
+                min_dwell_steps=1,
+            )
+            for p in [GamePhase.GATHER_CARBON, GamePhase.GATHER_GERMANIUM, GamePhase.GATHER_SILICON]
+        ],
+        *[
+            Transition(
+                src=p,
+                dst=GamePhase.GATHER_SILICON,
+                guard=lambda s, c: blocked_by_clipped(s, c)
+                and get_blocked_extractor_resource_type(s, c) == "germanium"
+                and s.silicon < 1,
+                priority=85,
+                min_dwell_steps=1,
+            )
+            for p in [GamePhase.GATHER_CARBON, GamePhase.GATHER_OXYGEN, GamePhase.GATHER_GERMANIUM]
+        ],
+        *[
+            Transition(
+                src=p,
+                dst=GamePhase.GATHER_GERMANIUM,
+                guard=lambda s, c: blocked_by_clipped(s, c)
+                and get_blocked_extractor_resource_type(s, c) == "silicon"
+                and s.germanium < 1,
+                priority=85,
+                min_dwell_steps=1,
+            )
+            for p in [GamePhase.GATHER_CARBON, GamePhase.GATHER_OXYGEN, GamePhase.GATHER_SILICON]
+        ],
+        # Once we have the craft resource, go craft the unclip item
+        *[
+            Transition(
+                src=p,
+                dst=GamePhase.CRAFT_DECODER,
+                guard=lambda s, c: blocked_by_clipped(s, c) and not need_craft_resource_for_blocked(s, c),
+                priority=85,
+                min_dwell_steps=1,
+                on_enter=enter_craft_decoder,
+            )
+            for p in [
+                GamePhase.GATHER_CARBON,
+                GamePhase.GATHER_OXYGEN,
+                GamePhase.GATHER_GERMANIUM,
+                GamePhase.GATHER_SILICON,
+            ]
         ],
         # Assemble when ready & assembler known
         Transition(
@@ -358,11 +431,12 @@ def create_transitions() -> List[Transition]:
             min_dwell_steps=2,
         ),
         # Normal resource gathering transitions
+        # Note: Reactive clipping logic (priority 85) will override these if blocked by clipped extractor
         # GATHER_GERMANIUM -> GATHER_SILICON when we have enough germanium but not enough silicon
         Transition(
             GamePhase.GATHER_GERMANIUM,
             GamePhase.GATHER_SILICON,
-            guard=lambda s, c: not silicon_extractor_clipped(s, c) and s.germanium >= 5 and s.silicon < 50,
+            guard=lambda s, c: s.germanium >= 5 and s.silicon < 50,
             priority=60,
             min_dwell_steps=2,
         ),
@@ -370,7 +444,7 @@ def create_transitions() -> List[Transition]:
         Transition(
             GamePhase.GATHER_GERMANIUM,
             GamePhase.GATHER_CARBON,
-            guard=lambda s, c: not carbon_extractor_clipped(s, c) and s.germanium >= 5 and s.carbon < 20,
+            guard=lambda s, c: s.germanium >= 5 and s.carbon < 20,
             priority=55,
             min_dwell_steps=2,
         ),
@@ -378,7 +452,7 @@ def create_transitions() -> List[Transition]:
         Transition(
             GamePhase.GATHER_GERMANIUM,
             GamePhase.GATHER_OXYGEN,
-            guard=lambda s, c: not oxygen_extractor_clipped(s, c) and s.germanium >= 5 and s.oxygen < 20,
+            guard=lambda s, c: s.germanium >= 5 and s.oxygen < 20,
             priority=50,
             min_dwell_steps=2,
         ),
@@ -386,7 +460,7 @@ def create_transitions() -> List[Transition]:
         Transition(
             GamePhase.GATHER_SILICON,
             GamePhase.GATHER_CARBON,
-            guard=lambda s, c: not carbon_extractor_clipped(s, c) and s.silicon >= 50 and s.carbon < 20,
+            guard=lambda s, c: s.silicon >= 50 and s.carbon < 20,
             priority=60,
             min_dwell_steps=2,
         ),
@@ -394,7 +468,7 @@ def create_transitions() -> List[Transition]:
         Transition(
             GamePhase.GATHER_SILICON,
             GamePhase.GATHER_OXYGEN,
-            guard=lambda s, c: not oxygen_extractor_clipped(s, c) and s.silicon >= 50 and s.oxygen < 20,
+            guard=lambda s, c: s.silicon >= 50 and s.oxygen < 20,
             priority=55,
             min_dwell_steps=2,
         ),
@@ -402,66 +476,19 @@ def create_transitions() -> List[Transition]:
         Transition(
             GamePhase.GATHER_CARBON,
             GamePhase.GATHER_OXYGEN,
-            guard=lambda s, c: not oxygen_extractor_clipped(s, c) and s.carbon >= 20 and s.oxygen < 20,
+            guard=lambda s, c: s.carbon >= 20 and s.oxygen < 20,
             priority=60,
             min_dwell_steps=2,
         ),
-        # Clip handling - more specific transitions
-        # From any gathering phase, prioritize oxygen if it's clipped AND we have decoder
+        # CRAFT_DECODER → EXPLORE: If assembler not discovered, explore to find it
         Transition(
-            GamePhase.GATHER_GERMANIUM,
-            GamePhase.GATHER_OXYGEN,
-            guard=lambda s, c: oxygen_extractor_clipped(s, c) and s.decoder > 0,
-            priority=85,
-            min_dwell_steps=1,
-        ),
-        Transition(
-            GamePhase.GATHER_SILICON,
-            GamePhase.GATHER_OXYGEN,
-            guard=lambda s, c: oxygen_extractor_clipped(s, c) and s.decoder > 0,
-            priority=85,
-            min_dwell_steps=1,
-        ),
-        # If oxygen is clipped and we DON'T have a decoder yet, go get carbon first
-        Transition(
-            GamePhase.GATHER_GERMANIUM,
-            GamePhase.GATHER_CARBON,
-            guard=lambda s, c: oxygen_extractor_clipped(s, c) and s.decoder == 0 and s.carbon < 1,
-            priority=78,
-            min_dwell_steps=1,
-        ),
-        Transition(
-            GamePhase.GATHER_SILICON,
-            GamePhase.GATHER_CARBON,
-            guard=lambda s, c: oxygen_extractor_clipped(s, c) and s.decoder == 0 and s.carbon < 1,
-            priority=78,
-            min_dwell_steps=1,
-        ),
-        # GATHER_CARBON should transition to CRAFT_DECODER when it has carbon, not back to GATHER_OXYGEN
-        Transition(
-            GamePhase.GATHER_CARBON,
             GamePhase.CRAFT_DECODER,
-            guard=lambda s, c: oxygen_extractor_clipped(s, c) and s.carbon >= 1 and s.decoder == 0,
-            priority=80,
-            min_dwell_steps=1,
-            on_enter=enter_craft_decoder,
-        ),
-        # Within GATHER_OXYGEN, handle unclipping
-        Transition(
-            GamePhase.GATHER_OXYGEN,
-            GamePhase.CRAFT_DECODER,
-            guard=lambda s, c: oxygen_extractor_clipped(s, c) and has_carbon_for_decoder(s, c) and s.decoder == 0,
-            priority=80,
-            min_dwell_steps=2,
-            on_enter=enter_craft_decoder,
-        ),
-        Transition(
-            GamePhase.GATHER_OXYGEN,
-            GamePhase.GATHER_CARBON,
-            guard=lambda s, c: oxygen_extractor_clipped(s, c) and s.carbon < 1 and s.decoder == 0,
+            GamePhase.EXPLORE,
+            guard=lambda s, c: not have_assembler_discovered(s, c),
             priority=75,
-            min_dwell_steps=2,
+            min_dwell_steps=1,
         ),
+        # CRAFT_DECODER → UNCLIP_STATION: After crafting the unclip item, go unclip
         Transition(
             GamePhase.CRAFT_DECODER,
             GamePhase.UNCLIP_STATION,
@@ -470,157 +497,41 @@ def create_transitions() -> List[Transition]:
             min_dwell_steps=1,
             on_enter=enter_unclip_station,
         ),
-        # After unclipping, go back to gathering the resource that was clipped
+        # UNCLIP_STATION → GATHER_*: After unclipping, return to gathering
+        # The reactive logic will have cleared blocked_by_clipped_extractor, so normal gathering resumes
         Transition(
             GamePhase.UNCLIP_STATION,
             GamePhase.GATHER_OXYGEN,
-            guard=lambda s, c: not oxygen_extractor_clipped(s, c) and s.oxygen < 20,
+            guard=lambda s, c: s.oxygen < 20,
             priority=65,
-            min_dwell_steps=1,
+            min_dwell_steps=10,
+            on_exit=exit_unclip_station,
         ),
         Transition(
             GamePhase.UNCLIP_STATION,
             GamePhase.GATHER_CARBON,
-            guard=lambda s, c: not carbon_extractor_clipped(s, c) and s.carbon < 20,
+            guard=lambda s, c: s.carbon < 20,
             priority=65,
-            min_dwell_steps=1,
+            min_dwell_steps=10,
+            on_exit=exit_unclip_station,
         ),
         Transition(
             GamePhase.UNCLIP_STATION,
             GamePhase.GATHER_GERMANIUM,
-            guard=lambda s, c: not germanium_extractor_clipped(s, c) and s.germanium < 5,
+            guard=lambda s, c: s.germanium < 5,
             priority=65,
-            min_dwell_steps=1,
+            min_dwell_steps=10,
+            on_exit=exit_unclip_station,
         ),
         Transition(
             GamePhase.UNCLIP_STATION,
             GamePhase.GATHER_SILICON,
-            guard=lambda s, c: not silicon_extractor_clipped(s, c) and s.silicon < 50,
+            guard=lambda s, c: s.silicon < 50,
             priority=65,
-            min_dwell_steps=1,
-        ),
-        # Generalized clipping: Route TO the clipped resource phase first (higher priority)
-        # If carbon is clipped and we need it, go to GATHER_CARBON (even though it's clipped)
-        Transition(
-            GamePhase.GATHER_GERMANIUM,
-            GamePhase.GATHER_CARBON,
-            guard=lambda s, c: carbon_extractor_clipped(s, c) and s.carbon < 20 and s.germanium >= 5,
-            priority=79,
-            min_dwell_steps=1,
-        ),
-        Transition(
-            GamePhase.GATHER_SILICON,
-            GamePhase.GATHER_CARBON,
-            guard=lambda s, c: carbon_extractor_clipped(s, c) and s.carbon < 20 and s.silicon >= 50,
-            priority=79,
-            min_dwell_steps=1,
-        ),
-        Transition(
-            GamePhase.GATHER_OXYGEN,
-            GamePhase.GATHER_CARBON,
-            guard=lambda s, c: carbon_extractor_clipped(s, c) and s.carbon < 20 and s.oxygen >= 20,
-            priority=79,
-            min_dwell_steps=1,
-        ),
-        # If germanium is clipped and we need it, go to GATHER_GERMANIUM
-        Transition(
-            GamePhase.EXPLORE,
-            GamePhase.GATHER_GERMANIUM,
-            guard=lambda s, c: germanium_extractor_clipped(s, c) and s.germanium < 5,
-            priority=79,
-            min_dwell_steps=1,
-        ),
-        # If silicon is clipped and we need it, go to GATHER_SILICON
-        Transition(
-            GamePhase.GATHER_GERMANIUM,
-            GamePhase.GATHER_SILICON,
-            guard=lambda s, c: silicon_extractor_clipped(s, c) and s.silicon < 50 and s.germanium >= 5,
-            priority=79,
-            min_dwell_steps=1,
-        ),
-        # When IN a gathering phase and that resource is clipped, get the correct resource to craft unclip item
-        # GATHER_OXYGEN is clipped -> get carbon to craft decoder
-        Transition(
-            GamePhase.GATHER_OXYGEN,
-            GamePhase.GATHER_CARBON,
-            guard=lambda s, c: oxygen_extractor_clipped(s, c) and s.decoder == 0 and s.carbon < 1,
-            priority=78,
-            min_dwell_steps=1,
-        ),
-        Transition(
-            GamePhase.GATHER_OXYGEN,
-            GamePhase.CRAFT_DECODER,
-            guard=lambda s, c: oxygen_extractor_clipped(s, c) and s.carbon >= 1 and s.decoder == 0,
-            priority=80,
-            min_dwell_steps=1,
-            on_enter=enter_craft_decoder,
-        ),
-        # GATHER_CARBON is clipped -> get oxygen to craft modulator
-        Transition(
-            GamePhase.GATHER_CARBON,
-            GamePhase.GATHER_OXYGEN,
-            guard=lambda s, c: carbon_extractor_clipped(s, c) and s.modulator == 0 and s.oxygen < 1,
-            priority=78,
-            min_dwell_steps=1,
-        ),
-        Transition(
-            GamePhase.GATHER_CARBON,
-            GamePhase.CRAFT_DECODER,
-            guard=lambda s, c: carbon_extractor_clipped(s, c) and s.oxygen >= 1 and s.modulator == 0,
-            priority=80,
-            min_dwell_steps=1,
-            on_enter=enter_craft_decoder,
-        ),
-        # GATHER_GERMANIUM is clipped -> get silicon to craft resonator
-        Transition(
-            GamePhase.GATHER_GERMANIUM,
-            GamePhase.GATHER_SILICON,
-            guard=lambda s, c: germanium_extractor_clipped(s, c) and s.resonator == 0 and s.silicon < 1,
-            priority=78,
-            min_dwell_steps=1,
-        ),
-        Transition(
-            GamePhase.GATHER_GERMANIUM,
-            GamePhase.CRAFT_DECODER,
-            guard=lambda s, c: germanium_extractor_clipped(s, c) and s.silicon >= 1 and s.resonator == 0,
-            priority=80,
-            min_dwell_steps=1,
-            on_enter=enter_craft_decoder,
-        ),
-        # GATHER_SILICON is clipped -> get germanium to craft scrambler
-        Transition(
-            GamePhase.GATHER_SILICON,
-            GamePhase.GATHER_GERMANIUM,
-            guard=lambda s, c: silicon_extractor_clipped(s, c) and s.scrambler == 0 and s.germanium < 1,
-            priority=78,
-            min_dwell_steps=1,
-        ),
-        Transition(
-            GamePhase.GATHER_SILICON,
-            GamePhase.CRAFT_DECODER,
-            guard=lambda s, c: silicon_extractor_clipped(s, c) and s.germanium >= 1 and s.scrambler == 0,
-            priority=80,
-            min_dwell_steps=1,
-            on_enter=enter_craft_decoder,
+            min_dwell_steps=10,
+            on_exit=exit_unclip_station,
         ),
         # EXPLORE → gathering phases
-        Transition(
-            GamePhase.EXPLORE,
-            GamePhase.GATHER_OXYGEN,
-            guard=lambda s, c: not low_energy(s, c) and oxygen_extractor_clipped(s, c),
-            priority=40,
-            min_dwell_steps=1,
-        ),
-        Transition(
-            GamePhase.EXPLORE,
-            GamePhase.GATHER_CARBON,
-            guard=lambda s, c: not low_energy(s, c)
-            and oxygen_extractor_clipped(s, c)
-            and s.decoder == 0
-            and s.carbon < 1,
-            priority=35,
-            min_dwell_steps=1,
-        ),
         Transition(
             GamePhase.EXPLORE,
             GamePhase.GATHER_GERMANIUM,
