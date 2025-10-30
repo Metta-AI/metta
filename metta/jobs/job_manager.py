@@ -58,6 +58,7 @@ class JobManager:
         self.metrics_fetch_interval_s = metrics_fetch_interval_s  # How often to fetch WandB metrics
         self._active_jobs: dict[str, LocalJob | RemoteJob] = {}
         self._monitor_threads: dict[str, threading.Thread] = {}  # Job monitoring threads
+        self._jobs_lock = threading.Lock()  # Protects _active_jobs and _monitor_threads from concurrent access
         self._init_db()
         self._validate_job_states()
 
@@ -489,7 +490,28 @@ class JobManager:
                 return False
 
             job = self._spawn_job(job_state)
-            self._active_jobs[name] = job
+
+            # Check if remote job failed to launch (no request_id means launch failed)
+            if is_remote and isinstance(job, RemoteJob) and not job.request_id:
+                # Launch failed - mark as completed with exit code from job
+                job_state.status = "completed"
+                job_state.started_at = datetime.now().isoformat(timespec="seconds")
+                job_state.completed_at = datetime.now().isoformat(timespec="seconds")
+                job_state.exit_code = getattr(job, "_exit_code", None) or 1  # Default to 1 if not set
+                session.add(job_state)
+                session.commit()
+
+                logger.error(f"Job {name} failed to launch (no request_id)")
+
+                # Clean up from active jobs
+                with self._jobs_lock:
+                    if name in self._active_jobs:
+                        del self._active_jobs[name]
+
+                return False
+
+            with self._jobs_lock:
+                self._active_jobs[name] = job
             job_state.status = "running"
             job_state.started_at = datetime.now().isoformat(timespec="seconds")
             session.add(job_state)
