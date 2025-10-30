@@ -51,7 +51,7 @@ def delete_teacher_tokens_from_env_obs(env_obs: Tensor, teacher_tokens: Tensor) 
 
 
 # helper to translate teacher logits (centering)
-def translate_teacher_logits(teacher_logits: Tensor) -> Tensor:
+def center_teacher_logits(teacher_logits: Tensor) -> Tensor:
     pass
 
 
@@ -160,13 +160,12 @@ class ActionSupervised(Loss):
         elif self.loss_type == "MSE":
             student_logits = minibatch["logits"].to(dtype=torch.float32)
             teacher_logits = minibatch["teacher_logits"].to(dtype=torch.float32).detach()
-            # --> Run helper to translate teacher logits
-            teacher_logits = translate_teacher_logits(teacher_logits)
+            teacher_logits = center_teacher_logits(teacher_logits)
             ks_action_loss = F.mse_loss(student_logits, teacher_logits)
         elif self.loss_type == "COSINE":
-            # --> Run helper to translate teacher logits
             student_logits = minibatch["logits"].to(dtype=torch.float32)
             teacher_logits = minibatch["teacher_logits"].to(dtype=torch.float32).detach()
+            teacher_logits = center_teacher_logits(teacher_logits)
             ks_action_loss = (1.0 - F.cosine_similarity(student_logits, teacher_logits, dim=-1)).mean()
         else:
             raise ValueError(f"Unsupported loss_type: {self.loss_type}")
