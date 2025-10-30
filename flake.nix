@@ -74,9 +74,9 @@
           echo "# Python version: $(python --version)"
           echo "# uv version: $(uv --version)"
           echo "# -------------------------------------------"
-          echo "# ./tools/train.py run=my_experiment wandb=off"
-          echo "# ./tools/sim.py run=my_experiment wandb=off"
-          echo "# ./tools/play.py run=my_experiment wandb=off"
+          echo "# ./tools/run.py train arena run=my_experiment"
+          echo "# ./tools/run.py play arena policy_uri=file://./train-dir/my_experiment/checkpoints/YOUR-CHECKPOINT-HERE"
+          echo "# ./tools/run.py replay arena policy_uri=file://./train-dir/my_experiment/checkpoints/YOUR-CHECKPOINT-HERE"
           echo "# -------------------------------------------"
         '';
       };

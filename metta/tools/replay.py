@@ -90,7 +90,7 @@ def launch_mettascope(replay_url: str) -> None:
     # Launch mettascope with the replay file
     try:
         logger.info(f"Launching MettaScope with replay: {replay_path}")
-        cmd = ["nim", "r", str(mettascope_src), "--replay", replay_path]
+        cmd = ["nim", "r", str(mettascope_src), "--replay=./" + replay_path]
         subprocess.run(cmd, cwd=project_root, check=True)
     except subprocess.CalledProcessError as e:
         logger.error(f"Failed to launch MettaScope: {e}")
