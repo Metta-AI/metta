@@ -134,7 +134,7 @@
     },
     "vim.textwidth": 120,
     "eslint.useFlatConfig": true,
-    "eslint.workingDirectories": ["./mettascope", "./observatory", "./gridworks"],
+    "eslint.workingDirectories": ["./observatory", "./gridworks"],
     "[typescriptreact]": {
       "editor.defaultFormatter": "esbenp.prettier-vscode",
     },
@@ -152,7 +152,6 @@
       "-s",
       "./tests",
       "./packages/mettagrid/tests",
-      "./mettascope/tests",
       "./agent/tests",
     ],
     "python.testing.pytestEnabled": true,
