@@ -17,7 +17,6 @@
 #include "objects/assembler.hpp"
 #include "objects/assembler_config.hpp"
 #include "objects/constants.hpp"
-#include "objects/converter.hpp"
 #include "objects/inventory_config.hpp"
 #include "objects/wall.hpp"
 
