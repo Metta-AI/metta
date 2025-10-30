@@ -8,38 +8,39 @@ from mettagrid.map_builder.map_builder import GameMap, MapBuilder, MapBuilderCon
 from mettagrid.map_builder.utils import draw_border
 
 
-class PerimeterInContextMapBuilder(MapBuilder):
-    class Config(MapBuilderConfig["PerimeterInContextMapBuilder"]):
-        """
-        Configuration for building a mini in-context learning map.
+class PerimeterInContextMapBuilderConfig(MapBuilderConfig["PerimeterInContextMapBuilder"]):
+    """
+    Configuration for building a mini in-context learning map.
 
-        Objects appear on the perimeter, and the agent appears in the center.
+    Objects appear on the perimeter, and the agent appears in the center.
 
-        Always a single agent in this map.
+    Always a single agent in this map.
 
-        Obstacle types: can be None, "square", "cross", or "L"
-        Densities: can be None, "sparse", "balanced", or "dense"
+    Obstacle types: can be None, "square", "cross", or "L"
+    Densities: can be None, "sparse", "balanced", or "dense"
 
-        Given the width and height, the number of obstacles and obstacle size is determined by the density.
-        """
+    Given the width and height, the number of obstacles and obstacle size is determined by the density.
+    """
 
-        seed: Optional[int] = None
+    seed: Optional[int] = None
 
-        width: int = 7
-        height: int = 7
-        objects: dict[str, int] = {}
-        density: str = "no-terrain"
-        agents: int | dict[str, int] = 1
-        border_width: int = 0
-        border_object: str = "wall"
+    width: int = 7
+    height: int = 7
+    objects: dict[str, int] = {}
+    density: str = "no-terrain"
+    agents: int | dict[str, int] = 1
+    border_width: int = 0
+    border_object: str = "wall"
 
-        chain_length: int = 2
-        num_sinks: int = 0
-        dir: Optional[str] = None
+    chain_length: int = 2
+    num_sinks: int = 0
+    dir: Optional[str] = None
 
-    def __init__(self, config: Config):
-        self._config = config
-        self._rng = np.random.default_rng(self._config.seed)
+
+class PerimeterInContextMapBuilder(MapBuilder[PerimeterInContextMapBuilderConfig]):
+    def __init__(self, config: PerimeterInContextMapBuilderConfig):
+        super().__init__(config)
+        self._rng = np.random.default_rng(self.config.seed)
         # Pre-compute obstacle shapes to avoid recreating them
         self._obstacle_shapes_cache = {}
 
@@ -195,25 +196,25 @@ class PerimeterInContextMapBuilder(MapBuilder):
         return False
 
     def build(self):
-        height = self._config.height
-        width = self._config.width
+        height = self.config.height
+        width = self.config.width
 
         # Create empty grid
         grid = np.full((height, width), "empty", dtype="<U50")
 
         # Draw border first if needed
-        if self._config.border_width > 0:
-            draw_border(grid, self._config.border_width, self._config.border_object)
+        if self.config.border_width > 0:
+            draw_border(grid, self.config.border_width, self.config.border_object)
 
         # Calculate inner area where objects can be placed
-        if self._config.border_width > 0:
-            inner_height = max(0, self._config.height - 2 * self._config.border_width)
-            inner_width = max(0, self._config.width - 2 * self._config.border_width)
+        if self.config.border_width > 0:
+            inner_height = max(0, self.config.height - 2 * self.config.border_width)
+            inner_width = max(0, self.config.width - 2 * self.config.border_width)
             inner_area = inner_height * inner_width
         else:
-            inner_height = self._config.height
-            inner_width = self._config.width
-            inner_area = self._config.width * self._config.height
+            inner_height = self.config.height
+            inner_width = self.config.width
+            inner_area = self.config.width * self.config.height
 
         if inner_area <= 0:
             return GameMap(grid)  # No room for objects, return border-only grid
@@ -242,7 +243,7 @@ class PerimeterInContextMapBuilder(MapBuilder):
 
         # Prepare and place objects on perimeter
         object_symbols = []
-        for obj_name, count in self._config.objects.items():
+        for obj_name, count in self.config.objects.items():
             object_symbols.extend([obj_name] * count)
 
         if object_symbols and len(empty_perimeter_indices) > 0:
@@ -258,7 +259,7 @@ class PerimeterInContextMapBuilder(MapBuilder):
                 grid = flat_grid.reshape(height, width)
 
         # Place obstacles if specified with optimizations
-        density = self._config.density
+        density = self.config.density
         if density == "no-terrain":
             density = None
         obstacle_type = random.choice(["square", "cross", "L"])
