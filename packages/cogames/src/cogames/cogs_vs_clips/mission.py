@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, Callable
 
 from pydantic import Field
 
@@ -83,9 +83,16 @@ class Mission(Config):
     # Control glyph swapping in variants
     enable_glyph_change: bool = Field(default=True)
     glyph_count: int | None = Field(default=None)
+    env_modifiers: list[Callable[[MettaGridConfig], None]] = Field(default_factory=list)
 
     def configure(self):
         pass
+
+    def add_env_modifier(self, modifier: Callable[[MettaGridConfig], None]) -> "Mission":
+        """Register a callable to tweak the generated environment config."""
+
+        self.env_modifiers.append(modifier)
+        return self
 
     def instantiate(
         self,
@@ -238,4 +245,7 @@ class Mission(Config):
         #             if recipe.output_resources.get("heart", 0) == 0
         #         ]
         #         assembler_cfg.recipes = [(["heart"] * chorus_len, chorus), *non_heart]
-        return MettaGridConfig(game=game)
+        cfg = MettaGridConfig(game=game)
+        for modifier in self.env_modifiers:
+            modifier(cfg)
+        return cfg

@@ -143,6 +143,29 @@ class NeutralFacedVariant(MissionVariant):
         return mission
 
 
+class HeartChorusVariant(MissionVariant):
+    name: str = "heart_chorus"
+    description: str = "Heart-centric reward shaping with gentle resource bonuses."
+
+    def apply(self, mission: Mission) -> Mission:
+        def modifier(cfg: MettaGridConfig) -> None:
+            cfg.game.agent.rewards.inventory = {}
+            cfg.game.agent.rewards.inventory_max = {}
+            cfg.game.agent.rewards.stats = {
+                "heart.gained": 0.25,
+                "chest.heart.deposited": 1.0,
+                "carbon.gained": 0.02,
+                "oxygen.gained": 0.02,
+                "germanium.gained": 0.05,
+                "silicon.gained": 0.02,
+                "energy.gained": 0.005,
+            }
+            cfg.game.agent.rewards.stats_max = {}
+
+        mission.add_env_modifier(modifier)
+        return mission
+
+
 # Biome variants (weather) for procedural maps
 class DesertBiomeVariant(MissionVariant):
     name: str = "desert"
@@ -238,6 +261,7 @@ VARIANTS = [
     BrightSideVariant,
     RoughTerrainVariant,
     SolarFlareVariant,
+    HeartChorusVariant,
     DesertBiomeVariant,
     ForestBiomeVariant,
     CityBiomeVariant,
@@ -249,7 +273,6 @@ VARIANTS = [
     PackRatVariant,
     EnergizedVariant,
     NeutralFacedVariant,
-    # HeartChorusVariant,
 ]
 
 
