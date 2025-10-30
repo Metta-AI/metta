@@ -79,6 +79,7 @@ dependencies = [
   "tensorboard>=2.20.0",
   "stable-baselines3>=2.3.0",
   "gymnasium[box2d]>=1.0.0",
+  "swig>=4.4.0",
 ]
 name = "metta"
 version = "0.1"

@@ -461,6 +461,7 @@ get_bazelisk_url() {
 ensure_tool "curl"
 ensure_tool "g++"
 ensure_tool "git"
+ensure_tool "swig"
 ensure_tool "nim"
 ensure_tool "nimble"
 ensure_tool "bazel"
