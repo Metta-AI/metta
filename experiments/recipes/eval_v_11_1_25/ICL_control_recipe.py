@@ -513,7 +513,7 @@ def _validate_seed_synchronization(train_tool: TrainTool) -> None:
 
 
 def train(
-    curriculum_style: str = "terrain_3",
+    curriculum_style: str = "terrain_2",
     architecture: str = "vit_reset",
     validate_seeds: bool = True,
 ) -> TrainTool:
