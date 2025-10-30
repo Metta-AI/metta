@@ -1166,6 +1166,116 @@ def train(
     return TaskDependencySimulationTool(config=config)
 
 
+class ZScoreSweepTool(Tool):
+    """Tool for running z_score_amplification sweep experiments."""
+
+    num_tasks: int = 10
+    num_epochs: int = 500
+    samples_per_epoch: int = 10
+    num_envs: int = 32
+    num_sweep_points: int = 10
+    min_zscore: float = 1.0
+    max_zscore: float = 100.0
+    run_prefix: Optional[str] = None
+
+    def invoke(self, args: dict[str, str]) -> int | None:
+        """Run all sweep experiments sequentially."""
+        # Generate logarithmically spaced sweep values for better coverage
+        sweep_values = np.logspace(
+            np.log10(self.min_zscore), np.log10(self.max_zscore), self.num_sweep_points
+        )
+
+        logger.info(
+            f"Starting z_score_amplification sweep with {self.num_sweep_points} points from {self.min_zscore} to {self.max_zscore}"
+        )
+
+        all_results = []
+        for i, zscore_amp in enumerate(sweep_values):
+            logger.info(
+                f"\n{'=' * 80}\nSweep point {i + 1}/{self.num_sweep_points}: z_score_amplification={zscore_amp:.2f}\n{'=' * 80}"
+            )
+
+            # Create unique run name for this sweep point
+            if self.run_prefix:
+                run_name = f"{self.run_prefix}_zscore_{zscore_amp:.2f}"
+            else:
+                run_name = f"sweep_zscore_{zscore_amp:.2f}"
+
+            # Create configuration for this sweep point
+            config = SimulationConfig(
+                num_epochs=self.num_epochs,
+                samples_per_epoch=self.samples_per_epoch,
+                num_envs=self.num_envs,
+                wandb_project="curriculum_test",
+                wandb_run_name=run_name,
+                simulator=SimulatorConfig(
+                    num_tasks=self.num_tasks,
+                    gamma=0.3,
+                    lambda_forget=0.05,
+                    performance_threshold=0.85,
+                    task_noise_std=0.05,
+                    sample_noise_std=1e-2,
+                    dt=0.1,
+                ),
+                curriculum=CurriculumLPConfig(
+                    ema_timescale=0.1,
+                    slow_timescale_factor=0.2,
+                    exploration_bonus=0.2,
+                    progress_smoothing=0.0,
+                    lp_score_temperature=0.0,  # Z-score normalization enabled
+                    z_score_amplification=zscore_amp,  # SWEPT PARAMETER
+                    early_progress_amplification=0.5,
+                    use_bidirectional=True,
+                    num_active_tasks=200,
+                    rand_task_rate=0.05,
+                    min_presentations_for_eviction=20,
+                    eviction_threshold_percentile=0.3,
+                    enable_detailed_slice_logging=False,
+                    max_slice_axes=3,
+                    use_shared_memory=False,
+                ),
+            )
+
+            # Run this experiment
+            try:
+                results = simulate_task_dependencies(config)
+                all_results.append(
+                    {
+                        "zscore_amp": zscore_amp,
+                        "final_mean_performance": results["final_mean_performance"],
+                        "tasks_above_threshold": results["tasks_above_threshold"],
+                    }
+                )
+                logger.info(
+                    f"✅ Sweep point {i + 1}/{self.num_sweep_points} completed. "
+                    f"Final mean performance: {results['final_mean_performance']:.3f}"
+                )
+            except Exception as e:
+                logger.error(
+                    f"❌ Sweep point {i + 1}/{self.num_sweep_points} failed: {e}"
+                )
+                # Continue with next sweep point
+                all_results.append(
+                    {"zscore_amp": zscore_amp, "error": str(e), "failed": True}
+                )
+
+        # Log summary of all sweep results
+        logger.info(f"\n{'=' * 80}\nSweep Summary\n{'=' * 80}")
+        for i, result in enumerate(all_results):
+            if result.get("failed"):
+                logger.info(
+                    f"Point {i + 1}: zscore={result['zscore_amp']:.2f} - FAILED"
+                )
+            else:
+                logger.info(
+                    f"Point {i + 1}: zscore={result['zscore_amp']:.2f} - "
+                    f"performance={result['final_mean_performance']:.3f}, "
+                    f"tasks_above_threshold={result['tasks_above_threshold']}"
+                )
+
+        return 0
+
+
 def sweep_zscore_amplification(
     num_tasks: int = 10,
     num_epochs: int = 500,
@@ -1175,7 +1285,7 @@ def sweep_zscore_amplification(
     min_zscore: float = 1.0,
     max_zscore: float = 100.0,
     run_prefix: Optional[str] = None,
-) -> list[TaskDependencySimulationTool]:
+) -> ZScoreSweepTool:
     """
     Sweep experiment across z_score_amplification hyperparameter.
 
@@ -1183,6 +1293,9 @@ def sweep_zscore_amplification(
     learning dynamics. The z_score_amplification parameter controls how strongly
     the curriculum prefers tasks with high learning progress scores after z-score
     normalization.
+
+    The sweep runs all experiments sequentially, logging each to WandB with a
+    unique run name.
 
     Args:
         num_tasks: Number of tasks in dependency chain (default: 10)
@@ -1195,7 +1308,7 @@ def sweep_zscore_amplification(
         run_prefix: Optional prefix for wandb run names
 
     Returns:
-        List of configured TaskDependencySimulationTool instances
+        Configured ZScoreSweepTool that runs all experiments sequentially
 
     Usage:
         # Basic usage (10 experiments from z_score_amplification=1 to 100)
@@ -1204,57 +1317,18 @@ def sweep_zscore_amplification(
         # Custom sweep range
         uv run ./tools/run.py experiments.recipes.curriculum_test.task_dependency_simulator.sweep_zscore_amplification \\
             num_sweep_points=20 min_zscore=0.1 max_zscore=1000.0 run_prefix=wide_sweep
+
+        # Quick test with fewer epochs
+        uv run ./tools/run.py experiments.recipes.curriculum_test.task_dependency_simulator.sweep_zscore_amplification \\
+            num_epochs=100 num_sweep_points=5
     """
-    # Generate logarithmically spaced sweep values for better coverage
-    sweep_values = np.logspace(
-        np.log10(min_zscore), np.log10(max_zscore), num_sweep_points
+    return ZScoreSweepTool(
+        num_tasks=num_tasks,
+        num_epochs=num_epochs,
+        samples_per_epoch=samples_per_epoch,
+        num_envs=num_envs,
+        num_sweep_points=num_sweep_points,
+        min_zscore=min_zscore,
+        max_zscore=max_zscore,
+        run_prefix=run_prefix,
     )
-
-    tools = []
-    for i, zscore_amp in enumerate(sweep_values):
-        # Create unique run name for this sweep point
-        if run_prefix:
-            run_name = f"{run_prefix}_zscore_{zscore_amp:.2f}"
-        else:
-            run_name = f"sweep_zscore_{zscore_amp:.2f}"
-
-        config = SimulationConfig(
-            num_epochs=num_epochs,
-            samples_per_epoch=samples_per_epoch,
-            num_envs=num_envs,
-            wandb_project="curriculum_test",
-            wandb_run_name=run_name,
-            simulator=SimulatorConfig(
-                num_tasks=num_tasks,
-                gamma=0.3,
-                lambda_forget=0.05,
-                performance_threshold=0.85,
-                task_noise_std=0.05,
-                sample_noise_std=1e-2,
-                dt=0.1,
-            ),
-            curriculum=CurriculumLPConfig(
-                ema_timescale=0.1,
-                slow_timescale_factor=0.2,
-                exploration_bonus=0.2,
-                progress_smoothing=0.0,
-                lp_score_temperature=0.0,  # Z-score normalization enabled
-                z_score_amplification=zscore_amp,  # SWEPT PARAMETER
-                early_progress_amplification=0.5,
-                use_bidirectional=True,
-                num_active_tasks=200,
-                rand_task_rate=0.05,
-                min_presentations_for_eviction=20,
-                eviction_threshold_percentile=0.3,
-                enable_detailed_slice_logging=False,
-                max_slice_axes=3,
-                use_shared_memory=False,
-            ),
-        )
-        tools.append(TaskDependencySimulationTool(config=config))
-
-        logger.info(
-            f"Sweep point {i + 1}/{num_sweep_points}: z_score_amplification={zscore_amp:.2f}"
-        )
-
-    return tools
