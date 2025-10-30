@@ -5,7 +5,6 @@ from mettagrid.config.mettagrid_config import (
     ActionConfig,
     ActionsConfig,
     ChangeVibeActionConfig,
-    ConverterConfig,
     GameConfig,
     GlobalObsConfig,
     MettaGridConfig,
@@ -481,15 +480,6 @@ class TestEdgeObservations:
                 ),
                 objects={
                     "wall": WallConfig(type_id=TokenTypes.WALL_TYPE_ID),
-                    "altar": ConverterConfig(
-                        type_id=TokenTypes.ALTAR_TYPE_ID,
-                        input_resources={"resource1": 1},
-                        output_resources={"resource2": 1},
-                        max_output=10,
-                        conversion_ticks=5,
-                        cooldown=[3],
-                        initial_resource_count=0,
-                    ),
                 },
                 resource_names=["laser", "resource1", "resource2"],  # laser required for attack action
                 map_builder=AsciiMapBuilder.Config(

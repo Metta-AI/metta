@@ -6,7 +6,6 @@ from mettagrid.config.mettagrid_config import (
     ActionConfig,
     ActionsConfig,
     AgentConfig,
-    ConverterConfig,
     GameConfig,
     MettaGridConfig,
     WallConfig,
@@ -661,16 +660,6 @@ def test_tag_mapping_in_feature_spec():
             actions=ActionsConfig(noop=ActionConfig()),
             objects={
                 "wall": WallConfig(type_id=TokenTypes.WALL_TYPE_ID, tags=["solid", "blocking"]),
-                "converter": ConverterConfig(
-                    type_id=2,
-                    input_resources={"wood": 1},
-                    output_resources={"coal": 1},
-                    max_output=10,
-                    max_conversions=5,
-                    conversion_ticks=10,
-                    cooldown=[5],
-                    tags=["machine", "industrial"],
-                ),
             },
             agents=[
                 AgentConfig(tags=["player", "mobile"]),

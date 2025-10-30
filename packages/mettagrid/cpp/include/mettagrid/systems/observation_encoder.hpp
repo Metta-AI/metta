@@ -9,7 +9,6 @@
 #include "core/grid_object.hpp"
 #include "objects/agent.hpp"
 #include "objects/constants.hpp"
-#include "objects/converter.hpp"
 #include "objects/wall.hpp"
 
 class ObservationEncoder {

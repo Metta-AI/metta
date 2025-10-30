@@ -5,7 +5,6 @@ from mettagrid.config.mettagrid_config import (
     AssemblerConfig,
     ChestConfig,
     ClipperConfig,
-    ConverterConfig,
     FixedPosition,
     GameConfig,
     WallConfig,
@@ -17,7 +16,6 @@ from mettagrid.mettagrid_c import AttackActionConfig as CppAttackActionConfig
 from mettagrid.mettagrid_c import ChangeVibeActionConfig as CppChangeVibeActionConfig
 from mettagrid.mettagrid_c import ChestConfig as CppChestConfig
 from mettagrid.mettagrid_c import ClipperConfig as CppClipperConfig
-from mettagrid.mettagrid_c import ConverterConfig as CppConverterConfig
 from mettagrid.mettagrid_c import GameConfig as CppGameConfig
 from mettagrid.mettagrid_c import GlobalObsConfig as CppGlobalObsConfig
 from mettagrid.mettagrid_c import InventoryConfig as CppInventoryConfig
@@ -65,7 +63,7 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
     vibe_names = list(game_config.vibe_names)
     vibe_name_to_id = {name: i for i, name in enumerate(vibe_names)}
 
-    objects_cpp_params = {}  # params for CppConverterConfig or CppWallConfig
+    objects_cpp_params = {}  # params for CppWallConfig and other object configs
 
     # These are the baseline settings for all agents
     default_agent_config_dict = game_config.agent.model_dump()
@@ -249,26 +247,7 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
 
     # Convert other objects
     for object_type, object_config in game_config.objects.items():
-        if isinstance(object_config, ConverterConfig):
-            # Convert tag names to IDs
-            tag_ids = [tag_name_to_id[tag] for tag in object_config.tags]
-
-            cpp_converter_config = CppConverterConfig(
-                type_id=object_config.type_id,
-                type_name=object_type,
-                input_resources={resource_name_to_id[k]: v for k, v in object_config.input_resources.items()},
-                output_resources={resource_name_to_id[k]: v for k, v in object_config.output_resources.items()},
-                max_output=object_config.max_output,
-                max_conversions=object_config.max_conversions,
-                conversion_ticks=object_config.conversion_ticks,
-                cooldown_time=list(object_config.cooldown),
-                initial_resource_count=object_config.initial_resource_count,
-                recipe_details_obs=game_config.recipe_details_obs,
-                initial_vibe=object_config.vibe,
-            )
-            cpp_converter_config.tag_ids = tag_ids
-            objects_cpp_params[object_type] = cpp_converter_config
-        elif isinstance(object_config, WallConfig):
+        if isinstance(object_config, WallConfig):
             # Convert tag names to IDs
             tag_ids = [tag_name_to_id[tag] for tag in object_config.tags]
 
