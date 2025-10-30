@@ -86,7 +86,6 @@ class TestProgrammaticEnvironments:
         assert "wall" in nav_env.game.objects
         assert nav_env.game.actions.move is not None
         assert nav_env.game.actions.rotate is not None
-        assert nav_env.game.actions.get_items is not None
 
     def test_environment_with_custom_rewards(self):
         """Test creating an environment with custom reward configuration."""

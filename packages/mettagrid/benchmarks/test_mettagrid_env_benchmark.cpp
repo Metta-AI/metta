@@ -57,7 +57,6 @@ GameConfig CreateBenchmarkConfig(size_t num_agents) {
   actions_cfg.push_back({"rotate", action_cfg});
   actions_cfg.push_back({"attack", attack_cfg});
   actions_cfg.push_back({"swap", action_cfg});
-  actions_cfg.push_back({"get_items", action_cfg});
   actions_cfg.push_back({"change_glyph", change_glyph_cfg});
 
   std::unordered_map<std::string, std::shared_ptr<GridObjectConfig>> objects_cfg;
