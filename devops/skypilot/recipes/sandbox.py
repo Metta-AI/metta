@@ -50,6 +50,31 @@ credentials_logger.addHandler(CredentialWarningHandler())
 credentials_logger.propagate = False
 
 
+def _build_incluster_persist_script(cluster_name: str) -> str:
+    """Return a bash script to persist cluster/env metadata on the master node.
+
+    - Writes cluster name under `/workspace/metta/.cluster/name`
+    - Ensures METTA_ENV_FILE exists and is sourced from ~/.bashrc on SSH
+    - Ensures `sky` CLI is available in the sandbox venv for in-cluster fan-out
+    """
+    return f"""
+set -euo pipefail
+if [ "${{SKYPILOT_NODE_RANK:-0}}" != "0" ]; then exit 0; fi
+mkdir -p /workspace/metta/.cluster
+echo {cluster_name!s} > /workspace/metta/.cluster/name
+cd /workspace/metta || exit 0
+if [ -n "$VIRTUAL_ENV" ]; then deactivate 2>/dev/null || true; fi
+if [ -f .venv/bin/activate ]; then . .venv/bin/activate; fi
+METTA_ENV_FILE="$(uv run ./common/src/metta/common/util/constants.py METTA_ENV_FILE 2>/dev/null || echo /workspace/metta/.metta_env)"
+touch "$METTA_ENV_FILE"
+if ! grep -q "METTA_ENV_FILE" ~/.bashrc 2>/dev/null; then
+  echo "# Metta sandbox session env" >> ~/.bashrc
+  echo "export METTA_SANDBOX_CLUSTER_NAME=\"{cluster_name!s}\"" >> ~/.bashrc
+  echo "[ -f \"$METTA_ENV_FILE\" ] && . \"$METTA_ENV_FILE\"" >> ~/.bashrc
+fi
+"""
+
+
 def get_existing_clusters():
     """Get existing clusters."""
     with spinner("Fetching existing clusters", style=cyan):
@@ -343,6 +368,7 @@ Common management commands:
         "--git-ref", type=str, default=None, help="Git branch or commit to deploy (default: current branch)"
     )
     parser.add_argument("--new", action="store_true", help="Launch a new sandbox cluster")
+    parser.add_argument("--name", type=str, default=None, help="Custom sandbox cluster name (e.g., my-sandbox)")
     parser.add_argument("--check", action="store_true", help="Check for existing sandboxes and exit")
     parser.add_argument("--gpus", type=int, default=1, help="GPUs per node (default: 1)")
     parser.add_argument("--nodes", type=int, default=1, help="Number of nodes (default: 1)")
@@ -393,7 +419,13 @@ Common management commands:
         return 0
 
     # Launch new sandbox
-    cluster_name = get_next_sandbox_name(existing_clusters)
+    if args.name:
+        cluster_name = args.name
+        if any(c["name"] == cluster_name for c in existing_clusters):
+            print(red(f"✗ A sandbox named '{cluster_name}' already exists. Choose a different name or stop/delete it."))
+            return 1
+    else:
+        cluster_name = get_next_sandbox_name(existing_clusters)
 
     # Determine configuration based on --sweep-controller flag
     if args.sweep_controller:
@@ -552,12 +584,17 @@ Common management commands:
             print(f"  • Update SSH config: {green(f'uv run sky status {cluster_name}')}")
             print(f"Error: {str(e)}")
 
-    # For CPU-only mode, SCP the additional files over
-    if args.sweep_controller:
-        print("\n📤 Transferring additional files to sandbox...")
+    # Only for multi-GPU sandboxes (multi-node OR >1 GPU per node) and not sweep-controller
+    do_bootstrap_incluster = (not args.sweep_controller) and (
+        (args.nodes and int(args.nodes) > 1) or (args.gpus and int(args.gpus) > 1)
+    )
+
+    if do_bootstrap_incluster:
+        # Transfer helpful credentials and persist cluster metadata to enable in-cluster launching.
+        print("\n📤 Transferring credentials and persisting sandbox metadata...")
         scp_success = True
 
-        # Transfer .sky folder
+        # Transfer .sky folder (SkyPilot client state/keys)
         with spinner("Copying ~/.sky folder", style=cyan):
             try:
                 sky_path = os.path.expanduser("~/.sky")
@@ -616,6 +653,30 @@ Common management commands:
             except subprocess.CalledProcessError as e:
                 print(f"  {red('✗')} Failed to transfer observatory tokens: {str(e)}")
                 scp_success = False
+
+        # Persist cluster name and source envs on the master node for interactive SSH sessions,
+        # and ensure SkyPilot CLI is available inside the sandbox venv for fan-out.
+        with spinner("Persisting cluster metadata on master", style=cyan):
+            try:
+                persist_script = _build_incluster_persist_script(cluster_name)
+                subprocess.run(
+                    [
+                        "sky",
+                        "exec",
+                        cluster_name,
+                        "--num-nodes",
+                        "all",
+                        "--",
+                        "bash",
+                        "-lc",
+                        persist_script,
+                    ],
+                    check=True,
+                    capture_output=True,
+                )
+            except subprocess.CalledProcessError as e:
+                print(f"\n{yellow('⚠')} Failed to persist cluster metadata on master: {str(e)}")
+                print("   You can still run jobs, but auto-detection may not work in SSH sessions.")
 
         if not scp_success:
             print(f"\n{yellow('⚠')} Some files failed to transfer.")

@@ -24,6 +24,7 @@ Notes:
 from __future__ import annotations
 
 import argparse
+import os
 import shlex
 import subprocess
 import sys
@@ -38,6 +39,8 @@ def _build_remote_script(
     tool_args: List[str],
     unset_cuda_visible_devices: bool,
     bootstrap: bool,
+    do_sync: bool,
+    num_nodes: int,
 ) -> str:
     """Build the bash script executed on each sandbox node.
 
@@ -62,6 +65,9 @@ def _build_remote_script(
         "  fi",
         "fi",
         "cd /workspace/metta",
+        # Source persisted env file if available (for SSH sessions)
+        "METTA_ENV_FILE=\"$(uv run ./common/src/metta/common/util/constants.py METTA_ENV_FILE 2>/dev/null || true)\"",
+        "if [ -n \"$METTA_ENV_FILE\" ] && [ -f \"$METTA_ENV_FILE\" ]; then . \"$METTA_ENV_FILE\"; fi",
         # Ensure uv exists in PATH on the sandbox
         "if ! command -v uv >/dev/null 2>&1; then",
         "  echo \"[BOOTSTRAP] Installing uv...\"",
@@ -92,10 +98,38 @@ def _build_remote_script(
         [
             "export NUM_GPUS=\"$(nvidia-smi -L | wc -l || echo 1)\"",
             "echo \"[DEBUG] $(hostname) NUM_NODES=$NUM_NODES NODE_INDEX=$NODE_INDEX MASTER_ADDR=$MASTER_ADDR NUM_GPUS=$NUM_GPUS\"",
-            # Launch the distributed job
-            f"./devops/run.sh {shlex.quote(module_path)} {args_str}".rstrip(),
         ]
     )
+
+    # Optional: synchronize master's /workspace/metta to all workers for consistent code state
+    if do_sync and num_nodes and num_nodes > 1:
+        sync_block = [
+            "echo \"[SYNC] Synchronizing /workspace/metta across nodes...\"",
+            "SYNC_DIR=\"/mnt/s3/train_dir/.metta_sync\"",
+            "mkdir -p \"$SYNC_DIR\"",
+            "ARCHIVE=\"$SYNC_DIR/metta_sync.tar.gz\"",
+            "READY=\"$SYNC_DIR/READY\"",
+            "if [ \"$NODE_INDEX\" = \"0\" ]; then",
+            "  rm -f \"$ARCHIVE\" \"$READY\"",
+            "  cd /workspace/metta",
+            "  TAR_EXCLUDES=('--exclude=.venv' '--exclude=.git' '--exclude=wandb' '--exclude=train_dir' '--exclude=.cache' '--exclude=.aws' '--exclude=.sky')",
+            "  tar -czf \"$ARCHIVE\" ${TAR_EXCLUDES[@]} -C /workspace/metta .",
+            "  sync",
+            "  touch \"$READY\"",
+            "else",
+            "  echo \"[SYNC] Waiting for master archive at $READY...\"",
+            "  for i in $(seq 1 300); do [ -f \"$READY\" ] && break; sleep 1; done",
+            "  if [ ! -f \"$READY\" ]; then echo \"[SYNC] Timeout waiting for READY\" >&2; exit 1; fi",
+            "  echo \"[SYNC] Updating /workspace/metta (preserving .venv, train_dir, wandb)\"",
+            "  find /workspace/metta -mindepth 1 -maxdepth 1 \\",
+            "    \( -name .venv -o -name wandb -o -name train_dir -o -name .aws -o -name .sky \) -prune -o -exec rm -rf {} +",
+            "  tar -xzf \"$ARCHIVE\" -C /workspace/metta",
+            "fi",
+        ]
+        lines.extend(sync_block)
+
+    # Launch the distributed job
+    lines.append(f"./devops/run.sh {shlex.quote(module_path)} {args_str}".rstrip())
 
     script = "\n".join(lines)
     if not bootstrap:
@@ -133,7 +167,17 @@ def main() -> int:
         ),
     )
 
-    parser.add_argument("cluster", type=str, help="SkyPilot cluster (sandbox) name, e.g., user-sandbox-1")
+    # Allow omitting cluster when running inside the sandbox master node.
+    # We will try to auto-detect from env/file if not provided.
+    parser.add_argument(
+        "cluster",
+        type=str,
+        nargs="?",
+        help=(
+            "SkyPilot cluster (sandbox) name, e.g., user-sandbox-1. "
+            "If omitted, attempts to detect when run inside master node."
+        ),
+    )
     parser.add_argument("module_path", type=str, help="Tool module path (e.g., arena.train or experiments.recipes.arena.train)")
     parser.add_argument("--nodes", type=int, default=1, help="Number of nodes to exec across (integer)")
     parser.add_argument("--run", type=str, default=None, help="Run ID (auto-generated if omitted)")
@@ -141,6 +185,7 @@ def main() -> int:
     parser.add_argument("--unset-cuda-visible-devices", action="store_true", default=True, help=argparse.SUPPRESS)
     parser.add_argument("--keep-cuda-visible-devices", action="store_true", help="Do not unset CUDA_VISIBLE_DEVICES")
     parser.add_argument("--bootstrap", action="store_true", help="Create venv/repo on nodes if missing")
+    parser.add_argument("--no-sync", action="store_true", help="Disable syncing /workspace/metta from master to workers")
     parser.add_argument("--dry-run", action="store_true", help="Print command and exit")
     parser.add_argument("--confirm", action="store_true", help="Prompt before launching")
 
@@ -155,6 +200,24 @@ def main() -> int:
         tool_args = []
 
     args = parser.parse_args(base_argv)
+
+    # In-cluster: read cluster name from a single canonical file populated by the sandbox recipe.
+    cluster_name: str | None = args.cluster
+    if not cluster_name:
+        try:
+            with open("/workspace/metta/.cluster/name", "r", encoding="utf-8") as fh:
+                cluster_name = fh.read().strip()
+        except FileNotFoundError:
+            cluster_name = None
+        except OSError:
+            cluster_name = None
+    if not cluster_name:
+        print(
+            "Cluster name not provided and could not auto-detect from /workspace/metta/.cluster/name. "
+            "Pass the cluster explicitly, e.g. 'launch_sandbox.py my-sandbox ...'",
+            file=sys.stderr,
+        )
+        return 2
 
     # Normalize module path and validate it exists
     module_path = args.module_path
@@ -189,6 +252,8 @@ def main() -> int:
         tool_args=tool_args,
         unset_cuda_visible_devices=unset_cvd,
         bootstrap=args.bootstrap,
+        do_sync=not args.no_sync,
+        num_nodes=args.nodes,
     )
     # Prepend explicit MASTER_PORT export so it overrides defaults inside the script
     remote_script = f"MASTER_PORT={args.master_port}\n" + remote_script
@@ -198,7 +263,7 @@ def main() -> int:
         "run",
         "sky",
         "exec",
-        args.cluster,
+        cluster_name,
         "--num-nodes",
         str(args.nodes),
         "--",
