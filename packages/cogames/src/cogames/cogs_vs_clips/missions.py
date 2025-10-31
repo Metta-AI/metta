@@ -5,20 +5,9 @@ from pydantic import Field
 
 from cogames.cogs_vs_clips.mission import Mission, MissionVariant, Site
 from cogames.cogs_vs_clips.procedural import MachinaArenaConfig, make_hub_only_map_builder
-from cogames.cogs_vs_clips.stations import (
-    CarbonExtractorConfig,
-    ChargerConfig,
-    CvCAssemblerConfig,
-    CvCChestConfig,
-    CvCWallConfig,
-    GermaniumExtractorConfig,
-    OxygenExtractorConfig,
-    SiliconExtractorConfig,
-)
 from mettagrid.config.mettagrid_config import (
     AssemblerConfig,
     ChestConfig,
-    GridObjectConfig,
     MettaGridConfig,
 )
 from mettagrid.map_builder.map_builder import MapBuilderConfig
@@ -728,29 +717,6 @@ MISSIONS = [
     MachinaProceduralExploreMission,
     ProceduralOpenWorldMission,
 ]
-
-
-def _get_default_map_objects() -> dict[str, GridObjectConfig]:
-    """Get default map objects for cogs vs clips missions."""
-    carbon_extractor = CarbonExtractorConfig()
-    oxygen_extractor = OxygenExtractorConfig()
-    germanium_extractor = GermaniumExtractorConfig()
-    silicon_extractor = SiliconExtractorConfig()
-    charger = ChargerConfig()
-    chest = CvCChestConfig()
-    wall = CvCWallConfig()
-    assembler = CvCAssemblerConfig()
-
-    return {
-        "carbon_extractor": carbon_extractor.station_cfg(),
-        "oxygen_extractor": oxygen_extractor.station_cfg(),
-        "germanium_extractor": germanium_extractor.station_cfg(),
-        "silicon_extractor": silicon_extractor.station_cfg(),
-        "charger": charger.station_cfg(),
-        "chest": chest.station_cfg(),
-        "wall": wall.station_cfg(),
-        "assembler": assembler.station_cfg(),
-    }
 
 
 def make_game(num_cogs: int = 2, map_name: str = "training_facility_open_1.map") -> MettaGridConfig:
