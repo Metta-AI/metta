@@ -3,7 +3,7 @@ import std/[os, strutils, parseopt, json],
   mettascope/[replays, common, panels, utils, timeline,
   worldmap, minimap, agenttraces, footer, envconfig, vibes]
 
-# line change to tell CI to build
+# line change to tell CI to build 2
 
 proc updateReplayHeader() =
   ## Set the global header's display name for the current session.
