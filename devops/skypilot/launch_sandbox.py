@@ -153,6 +153,21 @@ def _build_remote_script(
     return script
 
 
+def _build_remote_kill_script() -> str:
+    """Build a simple script to terminate distributed training across nodes.
+
+    Sends SIGTERM then SIGKILL to common process names and frees the rendezvous port implicitly.
+    """
+    return (
+        "set +e; "
+        "pkill -15 -f tools/run.py || true; "
+        "pkill -15 -f torchrun || true; "
+        "sleep 5; "
+        "pkill -9 -f tools/run.py || true; "
+        "pkill -9 -f torchrun || true"
+    )
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(
         description=(
@@ -307,9 +322,27 @@ def main() -> int:
         if yn not in {"y", "yes"}:
             return 0
 
-    # Execute and stream output
+    # Execute and stream output; on Ctrl+C, clean up remote training processes.
     try:
         subprocess.run(exec_cmd, check=True)
+    except KeyboardInterrupt:
+        print("[CANCEL] Caught Ctrl+C — stopping remote training...")
+        kill_script = _build_remote_kill_script()
+        kill_cmd = [
+            "uv",
+            "run",
+            "sky",
+            "exec",
+            cluster_name,
+            "--num-nodes",
+            str(effective_nodes),
+            "--",
+            kill_script,
+        ]
+        try:
+            subprocess.run(kill_cmd, check=False)
+        finally:
+            return 130
     except subprocess.CalledProcessError as e:
         print(f"launch_sandbox: sky exec failed with code {e.returncode}", file=sys.stderr)
         return e.returncode or 1
