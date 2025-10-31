@@ -56,40 +56,35 @@ class LonelyHeartVariant(MissionVariant):
             simplified_inputs = {"carbon": 1, "oxygen": 1, "germanium": 1, "silicon": 1, "energy": 1}
 
             assembler = cfg.game.objects.get("assembler")
-            if assembler is not None and getattr(assembler, "recipes", None):
-                heart_recipe = ProtocolConfig(
+            if assembler is not None and getattr(assembler, "protocols", None):
+                heart_protocol = ProtocolConfig(
+                    vibes=["default"],
                     input_resources=dict(simplified_inputs),
                     output_resources={"heart": 1},
                     cooldown=1,
                 )
 
-                non_heart_recipes = [
-                    (existing_vibe_tokens, recipe)
-                    for existing_vibe_tokens, recipe in assembler.recipes
-                    if recipe.output_resources.get("heart", 0) == 0
-                ]
+                remaining_protocols = []
+                for proto in assembler.protocols:
+                    if proto.output_resources.get("heart", 0) > 0:
+                        continue
+                    remaining_protocols.append(proto.model_copy(deep=True))
 
-                assembler.recipes = [(["default"], heart_recipe), *non_heart_recipes]
+                assembler.protocols = [heart_protocol, *remaining_protocols]
 
             germanium = cfg.game.objects.get("germanium_extractor")
-            if germanium is not None:
+            if germanium is not None and getattr(germanium, "protocols", None):
                 germanium.max_uses = 0
-                recipes = []
-                for tokens, recipe in getattr(germanium, "recipes", []):
-                    output = dict(recipe.output_resources)
+                updated_protocols: list[ProtocolConfig] = []
+                for proto in germanium.protocols:
+                    new_proto = proto.model_copy(deep=True)
+                    output = dict(new_proto.output_resources)
                     output["germanium"] = max(output.get("germanium", 0), 1)
-                    recipes.append(
-                        (
-                            list(tokens),
-                            ProtocolConfig(
-                                input_resources=dict(recipe.input_resources),
-                                output_resources=output,
-                                cooldown=max(recipe.cooldown, 1),
-                            ),
-                        )
-                    )
-                if recipes:
-                    germanium.recipes = recipes
+                    new_proto.output_resources = output
+                    new_proto.cooldown = max(new_proto.cooldown, 1)
+                    updated_protocols.append(new_proto)
+                if updated_protocols:
+                    germanium.protocols = updated_protocols
 
         mission.add_env_modifier(modifier)
         return mission
