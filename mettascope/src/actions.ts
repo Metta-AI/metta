@@ -75,14 +75,6 @@ export function initActionButtons() {
     sendAction('move', 1)
   })
 
-  find('#action-buttons .put-recipe-items').addEventListener('click', () => {
-    sendAction('put_items', 0)
-  })
-
-  find('#action-buttons .get-output').addEventListener('click', () => {
-    sendAction('get_items', 0)
-  })
-
   find('#action-buttons .noop').addEventListener('click', () => {
     sendAction('noop', 0)
   })
@@ -234,18 +226,7 @@ export function processActions(event: KeyboardEvent) {
       // Just move backward/reverse.
       sendAction('move', 1)
     }
-    if (event.key === 'q') {
-      // Put recipe items.
-      sendAction('put_items', 0)
-    }
-    if (event.key === 'b') {
-      // Place box.
-      sendAction('place_box', 0)
-    }
-    if (event.key === 'e') {
-      // Get the output.
-      sendAction('get_items', 0)
-    }
+
     // Diagonal numpad
     if (event.code === 'Numpad7') {
       if (supportsMove) {

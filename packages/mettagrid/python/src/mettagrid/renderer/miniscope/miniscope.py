@@ -12,20 +12,20 @@ from typing import Any, Dict, List, Optional
 import numpy as np
 from rich.console import Console
 
-from cogames.cogs_vs_clips.vibes import VIBES as GLYPH_DATA
+from cogames.cogs_vs_clips.vibes import VIBES as VIBE_DATA
 from mettagrid import MettaGridEnv
 from mettagrid.renderer.renderer import Renderer
 
 from .components import (
     AgentControlComponent,
     AgentInfoComponent,
-    GlyphPickerComponent,
     HelpPanelComponent,
     MapComponent,
     MiniscopeComponent,
     ObjectInfoComponent,
     SimControlComponent,
     SymbolsTableComponent,
+    VibePickerComponent,
 )
 from .miniscope_panel import LAYOUT_PADDING, RESERVED_VERTICAL_LINES, SIDEBAR_WIDTH, PanelLayout
 from .miniscope_state import MiniscopeState, PlaybackState, RenderMode
@@ -96,7 +96,7 @@ class MiniscopeRenderer(Renderer):
         for obj in env.mg_config.game.objects.values():
             self._state.symbol_map[obj.name] = obj.render_symbol
 
-        self._state.glyphs = [g.symbol for g in GLYPH_DATA] if GLYPH_DATA else None
+        self._state.vibes = [g.symbol for g in VIBE_DATA] if VIBE_DATA else None
 
         # Configure viewport once using the initial terminal size
         self._apply_initial_viewport_size()
@@ -113,11 +113,11 @@ class MiniscopeRenderer(Renderer):
         # Register all panels including modal ones
         for _, name, _ in sidebar_defs:
             self._panels.register_sidebar_panel(name)
-        self._panels.register_sidebar_panel("glyph_picker")
+        self._panels.register_sidebar_panel("vibe_picker")
         self._panels.register_sidebar_panel("help")
 
         # Initialize sidebar visibility state
-        self._state.initialize_sidebar_visibility([name for _, name, _ in sidebar_defs] + ["glyph_picker", "help"])
+        self._state.initialize_sidebar_visibility([name for _, name, _ in sidebar_defs] + ["vibe_picker", "help"])
 
         # Create all components with panel layout
         self._components = []
@@ -132,7 +132,7 @@ class MiniscopeRenderer(Renderer):
             self._components.append(component_cls(env=env, state=self._state, panels=self._panels))
 
         # Modal components (not in hotkey list)
-        self._components.append(GlyphPickerComponent(env=env, state=self._state, panels=self._panels))
+        self._components.append(VibePickerComponent(env=env, state=self._state, panels=self._panels))
         self._components.append(HelpPanelComponent(env=env, state=self._state, panels=self._panels))
 
         # Set up terminal (hide cursor and set up input handling)
@@ -245,11 +245,11 @@ class MiniscopeRenderer(Renderer):
 
         ch = self._state.user_input
 
-        # Modal input handling: if in GLYPH_PICKER mode, route directly to glyph picker
+        # Modal input handling: if in VIBE_PICKER mode, route directly to vibe picker
         # This ensures the picker gets ALL input and blocks everything else
-        if self._state.mode == RenderMode.GLYPH_PICKER:
+        if self._state.mode == RenderMode.VIBE_PICKER:
             for component in self._components:
-                if isinstance(component, GlyphPickerComponent):
+                if isinstance(component, VibePickerComponent):
                     component.handle_input(ch)
                     return
 

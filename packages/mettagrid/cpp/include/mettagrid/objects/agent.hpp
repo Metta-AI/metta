@@ -33,7 +33,6 @@ public:
   std::vector<InventoryItem> soul_bound_resources;
   // Resources that this agent will try to share when it uses another agent.
   std::vector<InventoryItem> shareable_resources;
-  ObservationType glyph;
   // Despite being a GridObjectId, this is different from the `id` property.
   // This is the index into MettaGrid._agents (std::vector<Agent*>)
   GridObjectId agent_id;
