@@ -1,8 +1,12 @@
+import logging
 from pathlib import Path
-from types import MethodType
-from typing import Callable, List
 
+# Import MapBuilder subclasses to register them
+import mettagrid.map_builder.ascii  # noqa: F401
+import mettagrid.map_builder.random  # noqa: F401
 from cogames.cogs_vs_clips.mission import Mission, MissionVariant, Site
+from cogames.cogs_vs_clips.mission_utils import _add_make_env_modifier
+from cogames.cogs_vs_clips.mission_utils import get_map as get_map_util
 from cogames.cogs_vs_clips.stations import (
     CarbonExtractorConfig,
     ChargerConfig,
@@ -16,9 +20,7 @@ from cogames.cogs_vs_clips.stations import (
 from mettagrid.config.mettagrid_config import GridObjectConfig, MettaGridConfig, ProtocolConfig
 from mettagrid.map_builder.map_builder import MapBuilderConfig
 
-# Import MapBuilder subclasses to register them
-import mettagrid.map_builder.ascii  # noqa: F401
-import mettagrid.map_builder.random  # noqa: F401
+logger = logging.getLogger(__name__)
 
 
 def get_map(site: str) -> MapBuilderConfig:
@@ -169,41 +171,45 @@ VARIANTS = [
 ]
 
 
-# Define Sites - Commented out to avoid import-time map loading
-# These are not used by the evaluation script
-# TRAINING_FACILITY = Site(
-#     name="training_facility",
-#     description="COG Training Facility. Basic training facility with open spaces and no obstacles.",
-#     map_builder=get_map("training_facility_open_1.map"),
-#     min_cogs=1,
-#     max_cogs=4,
-# )
-#
-# HELLO_WORLD = Site(
-#     name="hello_world",
-#     description="Welcome to space..",
-#     map_builder=get_map("machina_100_stations.map"),
-#     min_cogs=1,
-#     max_cogs=20,
-# )
-#
-# MACHINA_1 = Site(
-#     name="machina_1",
-#     description="Your first mission. Collect resources and assemble HEARTs.",
-#     map_builder=get_map("machina_200_stations.map"),
-#     min_cogs=1,
-#     max_cogs=20,
-# )
+# Define Sites
+TRAINING_FACILITY = Site(
+    name="training_facility",
+    description="COG Training Facility. Basic training facility with open spaces and no obstacles.",
+    map_builder=get_map("training_facility_open_1.map"),
+    min_cogs=1,
+    max_cogs=4,
+)
 
-# Placeholder values for now
-TRAINING_FACILITY = None
-HELLO_WORLD = None
-MACHINA_1 = None
+HELLO_WORLD = Site(
+    name="hello_world",
+    description="Welcome to space..",
+    map_builder=get_map("machina_100_stations.map"),
+    min_cogs=1,
+    max_cogs=20,
+)
+
+MACHINA_1 = Site(
+    name="machina_1",
+    description="Your first mission. Collect resources and assemble HEARTs.",
+    map_builder=get_map("machina_200_stations.map"),
+    min_cogs=1,
+    max_cogs=20,
+)
+
+# Create EVALS site with a default map
+EVALS = Site(
+    name="evals",
+    description="Evaluation missions for scripted agent testing",
+    map_builder=get_map_util("evals/machina_eval_template.map"),
+    min_cogs=1,
+    max_cogs=5,
+)
 
 SITES = [
     TRAINING_FACILITY,
     HELLO_WORLD,
     MACHINA_1,
+    EVALS,
 ]
 
 # Sites will be updated after exploration/eval experiments imports
@@ -270,9 +276,6 @@ class Machina1OpenWorldMission(Mission):
     site: Site = MACHINA_1
 
 
-# Exploration experiments and eval missions have been moved to cogames.cogs_vs_clips.evals
-# and are no longer imported here
-
 MISSIONS = [
     HarvestMission,
     AssembleMission,
@@ -328,36 +331,77 @@ def make_game(num_cogs: int = 2, map_name: str = "training_facility_open_1.map")
     return mission.instantiate(map_builder, num_cogs, variant).make_env()
 
 
-def _add_make_env_modifier(mission: Mission, modifier: Callable[[MettaGridConfig], None]) -> Mission:
-    modifiers: List[Callable[[MettaGridConfig], None]] = getattr(mission, "__env_modifiers__", None)
+# Import and register eval missions (after all function definitions to avoid circular import)
+try:
+    from cogames.cogs_vs_clips.evals import eval_missions as _eval_missions
 
-    if modifiers is None:
-        original_make_env = mission.make_env.__func__
-        original_instantiate = mission.instantiate.__func__
+    # Create wrapper classes with proper site for each eval mission
+    class BalancedSpread(_eval_missions.BalancedSpread):
+        site: Site = EVALS
 
-        def wrapped_make_env(self, *args, **kwargs):
-            cfg = original_make_env(self, *args, **kwargs)
-            for fn in getattr(self, "__env_modifiers__", []):
-                fn(cfg)
-            return cfg
+    class CarbonDesert(_eval_missions.CarbonDesert):
+        site: Site = EVALS
 
-        def wrapped_instantiate(self, *args, **kwargs):
-            instantiated = original_instantiate(self, *args, **kwargs)
-            parent_mods = getattr(self, "__env_modifiers__", [])
-            if parent_mods:
-                object.__setattr__(instantiated, "__env_modifiers__", list(parent_mods))
-                object.__setattr__(instantiated, "make_env", MethodType(wrapped_make_env, instantiated))
-                object.__setattr__(instantiated, "instantiate", MethodType(wrapped_instantiate, instantiated))
-            return instantiated
+    class CollectTheResourcesEasy(_eval_missions.CollectTheResourcesEasy):
+        site: Site = EVALS
 
-        object.__setattr__(mission, "__env_modifiers__", [])
-        object.__setattr__(mission, "make_env", MethodType(wrapped_make_env, mission))
-        object.__setattr__(mission, "instantiate", MethodType(wrapped_instantiate, mission))
-        modifiers = mission.__env_modifiers__
+    class CollectTheResourcesHard(_eval_missions.CollectTheResourcesHard):
+        site: Site = EVALS
 
-    modifiers.append(modifier)
-    return mission
+    class CollectTheResourcesMedium(_eval_missions.CollectTheResourcesMedium):
+        site: Site = EVALS
 
+    class EnergyStarved(_eval_missions.EnergyStarved):
+        site: Site = EVALS
 
-# Eval missions have been moved to cogames.cogs_vs_clips.evals
-# and are no longer imported here
+    class GeraniumForage(_eval_missions.GeraniumForage):
+        site: Site = EVALS
+
+    class GermaniumClutch(_eval_missions.GermaniumClutch):
+        site: Site = EVALS
+
+    class GermaniumRush(_eval_missions.GermaniumRush):
+        site: Site = EVALS
+
+    class HighRegenSprint(_eval_missions.HighRegenSprint):
+        site: Site = EVALS
+
+    class OxygenBottleneck(_eval_missions.OxygenBottleneck):
+        site: Site = EVALS
+
+    class SiliconWorkbench(_eval_missions.SiliconWorkbench):
+        site: Site = EVALS
+
+    class SingleUseWorld(_eval_missions.SingleUseWorld):
+        site: Site = EVALS
+
+    class SlowOxygen(_eval_missions.SlowOxygen):
+        site: Site = EVALS
+
+    class SparseBalanced(_eval_missions.SparseBalanced):
+        site: Site = EVALS
+
+    # Add to missions list
+    MISSIONS.extend(
+        [
+            BalancedSpread,
+            CarbonDesert,
+            CollectTheResourcesEasy,
+            CollectTheResourcesHard,
+            CollectTheResourcesMedium,
+            EnergyStarved,
+            GeraniumForage,
+            GermaniumClutch,
+            GermaniumRush,
+            HighRegenSprint,
+            OxygenBottleneck,
+            SiliconWorkbench,
+            SingleUseWorld,
+            SlowOxygen,
+            SparseBalanced,
+        ]
+    )
+except ImportError as e:
+    # Eval missions not available
+    logger.warning(f"Could not import eval missions: {e}")
+    pass

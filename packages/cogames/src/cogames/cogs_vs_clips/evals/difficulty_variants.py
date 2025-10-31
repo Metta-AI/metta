@@ -279,6 +279,71 @@ def apply_difficulty(
     else:
         mission.energy_regen_amount = max(0, int(mission.energy_regen_amount * difficulty.energy_regen_mult))
 
+    # Post-build agent-aware scaling and solvability floors
+    # - Scale extractor max_uses roughly with num_agents
+    # - Mildly scale efficiency with num_agents
+    # - Enforce minimal floors to keep extreme solvable
+    try:
+        # Lazy import to avoid circular imports at module import time
+        from cogames.cogs_vs_clips.missions import _add_make_env_modifier
+
+        def _scale_for_agents(cfg):
+            try:
+                num_agents = int(getattr(cfg.game, "num_agents", 1))
+            except Exception:
+                num_agents = 1
+
+            # Efficiency scale: +20% per extra agent, capped at 2.0x
+            eff_scale = 1.0 + 0.2 * max(0, num_agents - 1)
+            if eff_scale > 2.0:
+                eff_scale = 2.0
+
+            extractor_keys = (
+                "carbon_extractor",
+                "oxygen_extractor",
+                "germanium_extractor",
+                "silicon_extractor",
+            )
+
+            for key in extractor_keys:
+                obj = cfg.game.objects.get(key)
+                if obj is None:
+                    continue
+                try:
+                    if hasattr(obj, "max_uses") and obj.max_uses is not None:
+                        mu = int(obj.max_uses)
+                        if mu > 0 and num_agents > 1:
+                            obj.max_uses = max(1, mu * num_agents)
+                        else:
+                            obj.max_uses = max(1, mu)
+                    if hasattr(obj, "efficiency"):
+                        eff = int(obj.efficiency)
+                        obj.efficiency = max(10, int(eff * eff_scale))
+                except Exception:
+                    pass
+
+            # Charger floor to avoid energy starvation unless explicitly zero-regen
+            ch = cfg.game.objects.get("charger")
+            if ch is not None and hasattr(ch, "efficiency"):
+                try:
+                    ch.efficiency = max(50, int(ch.efficiency))
+                except Exception:
+                    pass
+
+            # Energy regen floor: if nonzero, keep at least 1
+            try:
+                if cfg.game.agent.inventory_regen_amounts.get("energy", 1) > 0:
+                    cfg.game.agent.inventory_regen_amounts["energy"] = max(
+                        1, int(cfg.game.agent.inventory_regen_amounts.get("energy", 1))
+                    )
+            except Exception:
+                pass
+
+        _add_make_env_modifier(mission, _scale_for_agents)
+    except Exception:
+        # If modifier cannot be attached (e.g., import timing), skip agent-aware scaling
+        pass
+
 
 def list_difficulties() -> None:
     """Print all available difficulty levels."""

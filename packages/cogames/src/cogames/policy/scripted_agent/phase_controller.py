@@ -10,7 +10,7 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 from enum import Enum, auto
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable, List, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -43,12 +43,6 @@ class Transition:
 
 
 @dataclass
-class PhaseRuntime:
-    entered_at_step: int = 0
-    visits: int = 0
-
-
-@dataclass
 class Context:
     # read-only data you already have available each step
     obs: Any
@@ -60,33 +54,35 @@ class Context:
 
 class PhaseController:
     def __init__(self, initial: GamePhase, transitions: List[Transition]):
-        self.phase = initial
         self._transitions = transitions
-        self._rt: Dict[GamePhase, PhaseRuntime] = {p: PhaseRuntime() for p in GamePhase}
-        self._rt[initial].entered_at_step = 0
-
-    def current(self) -> GamePhase:
-        return self.phase
+        # Note: phase tracking is now per-agent in AgentState.phase_runtime
 
     def maybe_transition(self, state: object, ctx: Context, logger) -> GamePhase:
-        rt = self._rt[self.phase]
+        # Use phase from state (per-agent) instead of self.phase (shared)
+        current_phase = state.current_phase
+
+        # Initialize phase_runtime if needed
+        if current_phase.name not in state.phase_runtime:
+            state.phase_runtime[current_phase.name] = {"entered_at_step": ctx.step, "visits": 0}
+
+        rt_data = state.phase_runtime[current_phase.name]
+
         # Filter transitions that start from the current phase
-        candidates = [t for t in self._transitions if t.src == self.phase]
+        candidates = [t for t in self._transitions if t.src == current_phase]
 
         # Debug logging
-        logger.debug(f"[PhaseController] Current phase: {self.phase.name}, candidates: {len(candidates)}")
+        logger.debug(f"[PhaseController] Current phase: {current_phase.name}, candidates: {len(candidates)}")
         for t in candidates:
             logger.debug(f"  {t.src.name} -> {t.dst.name} (priority={t.priority}, min_dwell={t.min_dwell_steps})")
 
         # Enforce hysteresis
-        dwell_ok = (ctx.step - rt.entered_at_step) >= max(t.min_dwell_steps for t in candidates) if candidates else True
-        logger.debug(
-            f"[PhaseController] Dwell check: step={ctx.step}, entered_at={rt.entered_at_step}, dwell_ok={dwell_ok}"
-        )
+        entered_at = rt_data["entered_at_step"]
+        dwell_ok = (ctx.step - entered_at) >= max(t.min_dwell_steps for t in candidates) if candidates else True
+        logger.debug(f"[PhaseController] Dwell check: step={ctx.step}, entered_at={entered_at}, dwell_ok={dwell_ok}")
 
         enabled: List[Transition] = []
         for t in candidates:
-            if (ctx.step - rt.entered_at_step) < t.min_dwell_steps:
+            if (ctx.step - entered_at) < t.min_dwell_steps:
                 logger.debug(f"  Skipping {t.src.name}->{t.dst.name} due to hysteresis")
                 continue
             try:
@@ -102,20 +98,25 @@ class PhaseController:
             logger.debug(f"  ENABLED: {t.src.name} -> {t.dst.name} (priority={t.priority})")
 
         if not enabled:
-            logger.debug(f"[PhaseController] No enabled transitions, staying in {self.phase.name}")
-            return self.phase
+            logger.debug(f"[PhaseController] No enabled transitions, staying in {current_phase.name}")
+            return current_phase
 
         # Deterministic resolve: priority desc, then stable tie-break by enum order
         enabled.sort(key=lambda tr: (tr.priority, -tr.dst.value), reverse=True)
         chosen = enabled[0]
-        if chosen.dst != self.phase:
+        if chosen.dst != current_phase:
             self._run_exit_hook(chosen, state, ctx, logger)
-            self.phase = chosen.dst
-            self._rt[self.phase].visits += 1
-            self._rt[self.phase].entered_at_step = ctx.step
+
+            # Update per-agent phase runtime
+            if chosen.dst.name not in state.phase_runtime:
+                state.phase_runtime[chosen.dst.name] = {"entered_at_step": ctx.step, "visits": 0}
+            state.phase_runtime[chosen.dst.name]["visits"] += 1
+            state.phase_runtime[chosen.dst.name]["entered_at_step"] = ctx.step
+
             self._run_enter_hook(chosen, state, ctx, logger)
             logger.info(f"[Phase] {chosen.src.name} → {chosen.dst.name} (priority={chosen.priority})")
-        return self.phase
+            return chosen.dst
+        return current_phase
 
     def _run_enter_hook(self, t: Transition, state, ctx, logger):
         if t.on_enter:
@@ -281,8 +282,23 @@ def enter_deposit(state, ctx):
     state.just_deposited = False
 
 
+def get_last_gathering_phase(state):
+    """Get the most recent gathering phase from history, or default to GATHER_GERMANIUM."""
+    gathering_phases = {
+        GamePhase.GATHER_CARBON,
+        GamePhase.GATHER_OXYGEN,
+        GamePhase.GATHER_GERMANIUM,
+        GamePhase.GATHER_SILICON,
+    }
+    # Search history in reverse to find most recent gathering phase
+    for phase in reversed(state.phase_history):
+        if phase in gathering_phases:
+            return phase
+    return GamePhase.GATHER_GERMANIUM  # Default fallback
+
+
 def enter_recharge(state, ctx):
-    """Enter recharge phase."""
+    """Enter recharge phase - phase history already tracked automatically."""
     pass
 
 
@@ -371,16 +387,19 @@ def have_charger_discovered(state, ctx):
 def create_transitions() -> List[Transition]:
     """Create the complete transition table."""
     T: List[Transition] = [
-        # Global/urgent - deposit heart when carrying one
-        Transition(
-            src=p,
-            dst=GamePhase.DEPOSIT_HEART,
-            guard=carrying_heart,
-            priority=100,
-            min_dwell_steps=0,
-            on_enter=enter_deposit,
-        )
-        for p in GamePhase
+        # Global/urgent - deposit heart when carrying one (exclude self-edge)
+        *(
+            Transition(
+                src=p,
+                dst=GamePhase.DEPOSIT_HEART,
+                guard=carrying_heart,
+                priority=100,
+                min_dwell_steps=0,
+                on_enter=enter_deposit,
+            )
+            for p in GamePhase
+            if p != GamePhase.DEPOSIT_HEART
+        ),
     ] + [
         # Recharge transitions - if no charger found, explore to find it
         Transition(
@@ -391,11 +410,49 @@ def create_transitions() -> List[Transition]:
             on_enter=enter_explore("find_charger"),
             on_exit=exit_explore,
         ),
-        # If charger found and recharged, resume gathering
+        # If charger found and recharged, return to last gathering phase from history
+        # Create transitions for each possible gathering phase with guards checking history
+        Transition(
+            GamePhase.RECHARGE,
+            GamePhase.GATHER_CARBON,
+            guard=lambda s, c: (
+                recharged_enough(s, c)
+                and have_charger_discovered(s, c)
+                and get_last_gathering_phase(s) == GamePhase.GATHER_CARBON
+            ),
+            priority=50,
+            min_dwell_steps=1,
+        ),
+        Transition(
+            GamePhase.RECHARGE,
+            GamePhase.GATHER_OXYGEN,
+            guard=lambda s, c: (
+                recharged_enough(s, c)
+                and have_charger_discovered(s, c)
+                and get_last_gathering_phase(s) == GamePhase.GATHER_OXYGEN
+            ),
+            priority=50,
+            min_dwell_steps=1,
+        ),
+        Transition(
+            GamePhase.RECHARGE,
+            GamePhase.GATHER_SILICON,
+            guard=lambda s, c: (
+                recharged_enough(s, c)
+                and have_charger_discovered(s, c)
+                and get_last_gathering_phase(s) == GamePhase.GATHER_SILICON
+            ),
+            priority=50,
+            min_dwell_steps=1,
+        ),
         Transition(
             GamePhase.RECHARGE,
             GamePhase.GATHER_GERMANIUM,
-            guard=lambda s, c: recharged_enough(s, c) and have_charger_discovered(s, c),
+            guard=lambda s, c: (
+                recharged_enough(s, c)
+                and have_charger_discovered(s, c)
+                and get_last_gathering_phase(s) == GamePhase.GATHER_GERMANIUM
+            ),
             priority=50,
             min_dwell_steps=1,
         ),
@@ -473,35 +530,22 @@ def create_transitions() -> List[Transition]:
                 GamePhase.GATHER_SILICON,
             ]
         ],
-        # Assemble when ready & assembler known
-        Transition(
-            GamePhase.GATHER_GERMANIUM,
-            GamePhase.ASSEMBLE_HEART,
-            guard=lambda s, c: has_all_materials(s, c) and have_assembler_discovered(s, c),
-            priority=40,
-            min_dwell_steps=2,
-        ),
-        Transition(
-            GamePhase.GATHER_SILICON,
-            GamePhase.ASSEMBLE_HEART,
-            guard=lambda s, c: has_all_materials(s, c) and have_assembler_discovered(s, c),
-            priority=40,
-            min_dwell_steps=2,
-        ),
-        Transition(
-            GamePhase.GATHER_CARBON,
-            GamePhase.ASSEMBLE_HEART,
-            guard=lambda s, c: has_all_materials(s, c) and have_assembler_discovered(s, c),
-            priority=40,
-            min_dwell_steps=2,
-        ),
-        Transition(
-            GamePhase.GATHER_OXYGEN,
-            GamePhase.ASSEMBLE_HEART,
-            guard=lambda s, c: has_all_materials(s, c) and have_assembler_discovered(s, c),
-            priority=40,
-            min_dwell_steps=2,
-        ),
+        # Assemble when ready & assembler known (deduplicated across gather phases)
+        *[
+            Transition(
+                src=src_phase,
+                dst=GamePhase.ASSEMBLE_HEART,
+                guard=lambda s, c: has_all_materials(s, c) and have_assembler_discovered(s, c),
+                priority=40,
+                min_dwell_steps=2,
+            )
+            for src_phase in (
+                GamePhase.GATHER_GERMANIUM,
+                GamePhase.GATHER_SILICON,
+                GamePhase.GATHER_CARBON,
+                GamePhase.GATHER_OXYGEN,
+            )
+        ],
         # Normal resource gathering transitions
         # Note: Reactive clipping logic (priority 85) will override these if blocked by clipped extractor
         # GATHER_GERMANIUM -> GATHER_SILICON when we have enough germanium but not enough silicon
