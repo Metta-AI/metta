@@ -290,8 +290,6 @@ MACHINA_PROCEDURAL = Site(
     max_cogs=20,
 )
 
-# EVALS is defined in mission_sites.py
-
 SITES = [
     TRAINING_FACILITY,
     HELLO_WORLD,
@@ -299,9 +297,6 @@ SITES = [
     EVALS,
     MACHINA_PROCEDURAL,
 ]
-
-# Sites will be updated after exploration/eval experiments imports
-# This happens after the imports below
 
 
 # TODO Make missions accept variants directly and allow them to select which variants are allowed to be applied
