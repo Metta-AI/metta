@@ -188,15 +188,15 @@ builds its configuration, and runs it.
 
 **Navigation recipe**: Replace `arena` with `navigation` for navigation tasks
 
-### Jupyter Notebooks
+### Collab Notebooks
 
-#### Cogames Training Notebook
+#### Cogames Training:
 
-Try training Cogames ENV in Google Colab without any local installation:
+Try training Cogames ENV in Google Colab:
 
 [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1YaIdg5a5Ji5_J_HkVOdY9itJTFju54oG?usp=sharing)
 
-The notebook is also available locally at `./notebooks/Cogames_Training.ipynb`.
+The notebook is also available at `./notebooks/Cogames_Training.ipynb`.
 
 ### Task arguments
 
