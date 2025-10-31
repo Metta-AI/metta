@@ -20,7 +20,14 @@ from metta.setup.local_commands import app as local_app
 from metta.setup.symlink_setup import app as symlink_app
 from metta.setup.tools.book import app as book_app
 from metta.setup.tools.ci_runner import cmd_ci
-from metta.setup.tools.code_formatters import partition_files_by_type
+from metta.setup.tools.linting import (
+    collect_files_for_types,
+    get_staged_files,
+    normalize_relative_paths,
+    parse_lint_type_option,
+    restage_modified_files,
+    select_files_by_type,
+)
 from metta.setup.tools.test_runner.test_cpp import app as cpp_test_runner_app
 from metta.setup.tools.test_runner.test_python import app as python_test_runner_app
 from metta.setup.utils import debug, error, info, success, warning
@@ -596,132 +603,6 @@ def cmd_publish(
         )
 
 
-SUPPORTED_LINT_TYPES: tuple[str, ...] = ("python", "json", "markdown", "shell", "toml", "yaml")
-
-
-def _parse_lint_type_option(raw: Optional[str]) -> list[str]:
-    if raw is None:
-        return []
-
-    entries = [part.strip().lower() for part in raw.split(",") if part.strip()]
-    if not entries:
-        return []
-
-    if "all" in entries:
-        return list(SUPPORTED_LINT_TYPES)
-
-    invalid = [entry for entry in entries if entry not in SUPPORTED_LINT_TYPES]
-    if invalid:
-        raise ValueError(f"Unsupported format types: {', '.join(sorted(set(invalid)))}")
-
-    ordered_unique: list[str] = []
-    for entry in entries:
-        if entry not in ordered_unique:
-            ordered_unique.append(entry)
-    return ordered_unique
-
-
-def _normalize_relative_paths(raw_paths: list[str], repo_root: Path) -> list[str]:
-    normalized: list[str] = []
-    for raw in raw_paths:
-        if not raw:
-            continue
-        path = Path(raw)
-        if not path.is_absolute():
-            path = (Path.cwd() / path).resolve()
-        try:
-            relative = path.relative_to(repo_root)
-        except ValueError:
-            warning(f"Skipping '{raw}': outside the repository at {repo_root}.")
-            continue
-
-        if not path.exists():
-            warning(f"Skipping '{relative}': file does not exist.")
-            continue
-
-        if path.is_dir():
-            warning(f"Skipping directory '{relative}'.")
-            continue
-
-        normalized.append(str(relative))
-    return normalized
-
-
-def _get_tracked_files(repo_root: Path) -> list[str]:
-    result = subprocess.run(
-        ["git", "ls-files"],
-        cwd=repo_root,
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    if result.returncode != 0:
-        error("Failed to list tracked files. Is this a Git repository?")
-        raise typer.Exit(result.returncode)
-    return [line.strip() for line in result.stdout.splitlines() if line.strip()]
-
-
-def _get_staged_files(repo_root: Path) -> list[str]:
-    result = subprocess.run(
-        ["git", "diff", "--cached", "--name-only", "--diff-filter=ACM"],
-        cwd=repo_root,
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    if result.returncode != 0:
-        error("Unable to inspect staged files.")
-        raise typer.Exit(result.returncode)
-    return [line.strip() for line in result.stdout.splitlines() if line.strip()]
-
-
-def _select_files_by_type(files: list[str], types: Optional[list[str]]) -> list[str]:
-    if not files:
-        return []
-
-    if not types:
-        return sorted(dict.fromkeys(files))
-
-    files_by_type = partition_files_by_type(files)
-    selected: list[str] = []
-    for entry in types:
-        selected.extend(files_by_type.get(entry, []))
-    return sorted(dict.fromkeys(selected))
-
-
-def _collect_files_for_types(repo_root: Path, types: list[str]) -> list[str]:
-    tracked = _get_tracked_files(repo_root)
-    return _select_files_by_type(tracked, types)
-
-
-def _restage_modified_files(repo_root: Path, candidates: set[str]) -> list[str]:
-    if not candidates:
-        return []
-
-    result = subprocess.run(
-        ["git", "status", "--porcelain"],
-        cwd=repo_root,
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    if result.returncode != 0:
-        return []
-
-    to_stage: list[str] = []
-    for raw in result.stdout.splitlines():
-        if len(raw) < 4:
-            continue
-        path = raw[3:].strip()
-        if path in candidates:
-            to_stage.append(path)
-
-    if to_stage:
-        subprocess.run(["git", "add", *to_stage], cwd=repo_root, check=False)
-
-    return to_stage
-
-
 @app.command(name="lint", help="Run linting and formatting")
 def cmd_lint(
     files: Annotated[Optional[list[str]], typer.Argument()] = None,
@@ -745,7 +626,7 @@ def cmd_lint(
     repo_root = cli.repo_root
 
     try:
-        selected_types = _parse_lint_type_option(type)
+        selected_types = parse_lint_type_option(type)
     except ValueError as exc:
         error(str(exc))
         raise typer.Exit(1) from exc
@@ -753,18 +634,18 @@ def cmd_lint(
     use_all_files = files is None and not staged and not selected_types
 
     if files is not None:
-        normalized_files = _normalize_relative_paths(files, repo_root)
+        normalized_files = normalize_relative_paths(files, repo_root)
     elif staged:
-        normalized_files = _get_staged_files(repo_root)
+        normalized_files = get_staged_files(repo_root)
     elif selected_types:
-        normalized_files = _collect_files_for_types(repo_root, selected_types)
+        normalized_files = collect_files_for_types(repo_root, selected_types)
     else:
         normalized_files = None
 
     original_files = list(normalized_files) if normalized_files else []
 
     if normalized_files is not None:
-        filtered_files = _select_files_by_type(normalized_files, selected_types or None)
+        filtered_files = select_files_by_type(normalized_files, selected_types or None)
         if not filtered_files:
             if original_files:
                 info("No files with supported extensions found for the selected types; running generic checks.")
@@ -806,7 +687,7 @@ def cmd_lint(
         if not fix or not staged or not candidate_set:
             break
 
-        restaged = _restage_modified_files(repo_root, candidate_set)
+        restaged = restage_modified_files(repo_root, candidate_set)
         if not restaged:
             break
         info("Re-staged files modified by formatters; re-running pre-commit...")
@@ -815,7 +696,7 @@ def cmd_lint(
         raise typer.Exit(last_return)
 
     if fix and staged and candidate_set:
-        _restage_modified_files(repo_root, candidate_set)
+        restage_modified_files(repo_root, candidate_set)
 
     success("All linting and formatting complete")
 

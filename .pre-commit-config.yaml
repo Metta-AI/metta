@@ -130,19 +130,6 @@ repos:
       # Ensure files end with a newline
       - id: end-of-file-fixer
         stages: [pre-commit, manual]
-      # Normalize requirements.txt ordering/spacing
-      - id: requirements-txt-fixer
-        stages: [pre-commit, manual]
-
-  - repo: https://github.com/igorshubovych/markdownlint-cli
-    rev: v0.45.0
-    hooks:
-      # Auto-fix Markdown lint issues when possible
-      - id: markdownlint-fix
-        stages: [pre-commit]
-      # Manual lint pass used by metta lint --check / CI
-      - id: markdownlint
-        stages: [manual]
 
   - repo: local
     hooks:

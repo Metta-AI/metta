@@ -7,6 +7,7 @@ from pathlib import Path
 from metta.common.util.fs import get_file_hash
 from metta.setup.components.base import SetupModule
 from metta.setup.registry import register_module
+from metta.setup.tools.linting import get_staged_files
 from metta.setup.utils import colorize, error, info, prompt_choice, success, warning
 
 
@@ -197,18 +198,6 @@ class GitHooksSetup(SetupModule):
 
         info(f"Gitleaks mode set to: {colorize(gitleaks_mode.get_description(), 'green')}")
 
-    def _get_staged_files(self) -> list[str]:
-        result = subprocess.run(
-            ["git", "diff", "--cached", "--name-only"],
-            cwd=self.repo_root,
-            capture_output=True,
-            text=True,
-            check=False,
-        )
-        if result.returncode != 0:
-            return []
-        return [line.strip() for line in result.stdout.splitlines() if line.strip()]
-
     def _apply_skip_hooks(self, env: dict[str, str], hooks_to_skip: list[str]) -> None:
         if not hooks_to_skip:
             return
@@ -261,7 +250,7 @@ class GitHooksSetup(SetupModule):
         hook_mode = CommitHookMode.parse(self.get_setting("commit_hook_mode", default=None))
         gitleaks_mode = GitLeaksMode.parse(self.get_setting("gitleaks_mode", default=None))
 
-        staged_files = self._get_staged_files()
+        staged_files = get_staged_files(self.repo_root)
 
         skip_hooks: list[str] = []
         warn_on_secrets = False
@@ -291,5 +280,5 @@ class GitHooksSetup(SetupModule):
             sys.exit(result.returncode)
 
         if warn_on_secrets:
-            refreshed_staged = self._get_staged_files()
+            refreshed_staged = get_staged_files(self.repo_root)
             self._run_detect_private_key("manual", refreshed_staged, warn_only=True)
