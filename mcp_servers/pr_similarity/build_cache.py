@@ -11,6 +11,7 @@ from typing import Dict, List, Tuple
 
 import boto3
 import numpy as np
+from botocore.exceptions import ClientError
 from google import genai
 from google.genai import types
 
@@ -92,11 +93,26 @@ def parse_args() -> argparse.Namespace:
         help="Optional upper bound on number of PRs to embed (useful for quick tests).",
     )
     parser.add_argument(
+        "--download-from-s3",
+        action="store_true",
+        help="Download cache from S3 before processing (useful for cronjobs).",
+    )
+    parser.add_argument(
         "--no-upload",
         action="store_false",
         dest="upload",
         default=True,
         help="Skip uploading cache files to S3 after writing.",
+    )
+    parser.add_argument(
+        "--s3-bucket",
+        default="softmax-public",
+        help="S3 bucket for cache storage (default: softmax-public).",
+    )
+    parser.add_argument(
+        "--s3-prefix",
+        default="pr-cache/",
+        help="S3 prefix for cache files (default: pr-cache/).",
     )
     parser.add_argument(
         "--min-description-lines",
@@ -357,6 +373,39 @@ def write_cache(
     )
 
 
+def download_cache_from_s3(
+    cache_path: Path,
+    bucket: str = "softmax-public",
+    prefix: str = "pr-cache/",
+) -> bool:
+    """Download PR embedding cache from S3 if it doesn't exist locally.
+
+    Returns True if cache was downloaded or already exists, False if download failed.
+    """
+    meta_path, vectors_path = resolve_cache_paths(cache_path)
+
+    if meta_path.exists() and vectors_path.exists():
+        print(f"Cache already exists at {cache_path}")
+        return True
+
+    try:
+        s3 = boto3.client("s3")
+        meta_path.parent.mkdir(parents=True, exist_ok=True)
+        s3.download_file(bucket, prefix + meta_path.name, str(meta_path))
+        s3.download_file(bucket, prefix + vectors_path.name, str(vectors_path))
+        print(f"Downloaded PR similarity cache from s3://{bucket}/{prefix}")
+        return True
+    except ClientError as e:
+        if e.response.get("Error", {}).get("Code") == "404":
+            print("Cache not found in S3 (this is expected on first run)")
+        else:
+            print(f"Error downloading cache from S3: {e}")
+        return False
+    except Exception as e:
+        print(f"Unable to download PR similarity cache: {e}")
+        return False
+
+
 def upload_cache_to_s3(cache_path: Path, bucket: str = "softmax-public", prefix: str = "pr-cache/") -> None:
     """Upload cache files to S3."""
     meta_path, vectors_path = resolve_cache_paths(cache_path)
@@ -392,6 +441,19 @@ def _get_api_key() -> str:
 
 def main() -> None:
     args = parse_args()
+
+    if args.download_from_s3:
+        print("Downloading cache from S3...")
+        download_succeeded = download_cache_from_s3(args.cache_path, args.s3_bucket, args.s3_prefix)
+        meta_path, vectors_path = resolve_cache_paths(args.cache_path)
+        cache_exists_locally = meta_path.exists() and vectors_path.exists()
+
+        if not download_succeeded and not cache_exists_locally and not args.force_rebuild:
+            raise FileNotFoundError(
+                f"Failed to download cache from S3 and no local cache exists at {args.cache_path}. "
+                "This would trigger a full rebuild of all PR embeddings, which is expensive. "
+                "If this is intentional (e.g., first-time setup), run with --allow-full-rebuild or --force-rebuild."
+            )
 
     api_key = _get_api_key()
 
@@ -435,7 +497,7 @@ def main() -> None:
             write_cache(args.cache_path, metadata, existing_records)
             print("Updated cache after applying description length filter.")
             if args.upload:
-                upload_cache_to_s3(args.cache_path)
+                upload_cache_to_s3(args.cache_path, args.s3_bucket, args.s3_prefix)
         else:
             print("Embedding cache already up to date.")
         return
@@ -464,7 +526,7 @@ def main() -> None:
     write_cache(args.cache_path, metadata, existing_records)
     print(f"Wrote embedding cache to {args.cache_path}")
     if args.upload:
-        upload_cache_to_s3(args.cache_path)
+        upload_cache_to_s3(args.cache_path, args.s3_bucket, args.s3_prefix)
 
 
 if __name__ == "__main__":

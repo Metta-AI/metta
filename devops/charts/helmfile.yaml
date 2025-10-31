@@ -196,7 +196,7 @@ releases:
             git fetch origin dominik/fix-cronjob
             git checkout -f FETCH_HEAD
             uv pip install numpy google-genai boto3
-            PYTHONPATH=/workspace/metta uv run --no-sync python -m softmax.pr_similarity.cache_refresh
+            PYTHONPATH=/workspace/metta uv run --no-sync python mcp_servers/pr_similarity/build_cache.py --download-from-s3
       - resources:
           requests:
             cpu: 100m
