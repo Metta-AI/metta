@@ -74,6 +74,7 @@ class JobConfig(Config):
     metrics_source: MetricsSource = MetricsSource.NONE  # Where/how to collect metrics
     metrics_to_track: list[str] = Field(default_factory=list)  # Metrics to track
     acceptance_criteria: list[AcceptanceCriterion] = Field(default_factory=list)
+    artifacts: list[str] = Field(default_factory=list)  # Expected artifact names (e.g., ["eval_results.json"])
 
     @model_validator(mode="after")
     def validate_tool_or_cmd(self):

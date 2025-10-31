@@ -113,15 +113,26 @@ def parse_cogames_eval_results(log_text: str, metric_keys: list[str]) -> dict[st
     # Strip ANSI codes first
     clean_text = _strip_ansi_codes(log_text)
 
-    # Parse eval results line: "EvalResults: <timestamp> {json}"
-    pattern = re.compile(r"EvalResults:\s+[\d\-:+.\s]+\s+(\{.*\})", re.DOTALL)
+    # Parse eval results - format is "EvalResults: <timestamp> <text+json>"
+    # The JSON starts with { and may be multiline, possibly with text before it
+    pattern = re.compile(r"EvalResults:\s+[\d\-:+.\s]+\s+(.*)", re.DOTALL)
     match = pattern.search(clean_text)
 
     if not match:
         logger.warning("No EvalResults found in log output")
         return metrics
 
-    json_str = match.group(1)
+    # Extract everything after "EvalResults: timestamp"
+    content = match.group(1)
+
+    # Find the JSON object within the content (starts with { and ends with })
+    # This handles cases where there's text before the JSON
+    json_start = content.find("{")
+    if json_start == -1:
+        logger.warning("No JSON object found in EvalResults")
+        return metrics
+
+    json_str = content[json_start:]
     try:
         eval_data = json.loads(json_str)
     except json.JSONDecodeError as e:
