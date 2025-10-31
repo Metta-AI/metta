@@ -118,7 +118,6 @@ class ResourceModActionConfig(ActionConfig):
 
     modifies: dict[str, float] = Field(default_factory=dict)
     agent_radius: int = Field(default=0, ge=0, le=255)
-    converter_radius: int = Field(default=0, ge=0, le=255)
     scales: bool = Field(default=False)
 
 
