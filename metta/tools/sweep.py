@@ -46,7 +46,7 @@ def create_on_eval_completed_hook(metric_path: str):
                 f"The sweep cannot optimize without this metric. Please verify your evaluation "
                 f"is producing the expected metric."
             )
-            logger.error(error_msg)
+            logger.error(error_msg, exc_info=True)
             raise KeyError(error_msg)
 
         score = summary[metric_path]
@@ -393,7 +393,7 @@ class SweepTool(Tool):
         except KeyboardInterrupt:
             logger.info("[SweepTool] Sweep interrupted by user")
         except Exception as e:
-            logger.error(f"[SweepTool] Sweep failed with error: {e}")
+            logger.error(f"[SweepTool] Sweep failed with error: {e}", exc_info=True)
             raise
         finally:
             # Final summary

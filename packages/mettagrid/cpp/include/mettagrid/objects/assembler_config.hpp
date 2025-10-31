@@ -11,27 +11,27 @@
 
 #include "core/grid_object.hpp"
 #include "core/types.hpp"
-#include "objects/recipe.hpp"
+#include "objects/protocol.hpp"
 
 struct AssemblerConfig : public GridObjectConfig {
   AssemblerConfig(TypeId type_id, const std::string& type_name, ObservationType initial_vibe = 0)
       : GridObjectConfig(type_id, type_name, initial_vibe),
-        recipe_details_obs(false),
-        input_recipe_offset(0),
-        output_recipe_offset(0),
+        protocol_details_obs(false),
+        input_protocol_offset(0),
+        output_protocol_offset(0),
         allow_partial_usage(false),
         max_uses(0),             // 0 means unlimited uses
         exhaustion(0.0f),        // 0 means no exhaustion
         clip_immune(false),      // Not immune by default
         start_clipped(false) {}  // Not clipped at start by default
 
-  // Recipes keyed by local vibe (64-bit number from sorted vibes)
-  std::unordered_map<uint64_t, std::shared_ptr<Recipe>> recipes;
+  // List of protocols - GroupVibe keys will be calculated from each protocol's vibes vector
+  std::vector<std::shared_ptr<Protocol>> protocols;
 
-  // Recipe observation configuration
-  bool recipe_details_obs;
-  ObservationType input_recipe_offset;
-  ObservationType output_recipe_offset;
+  // Protocol observation configuration
+  bool protocol_details_obs;
+  ObservationType input_protocol_offset;
+  ObservationType output_protocol_offset;
 
   // Allow partial usage during cooldown
   bool allow_partial_usage;
@@ -59,8 +59,8 @@ inline void bind_assembler_config(py::module& m) {
       .def_readwrite("type_id", &AssemblerConfig::type_id)
       .def_readwrite("type_name", &AssemblerConfig::type_name)
       .def_readwrite("tag_ids", &AssemblerConfig::tag_ids)
-      .def_readwrite("recipes", &AssemblerConfig::recipes)
-      .def_readwrite("recipe_details_obs", &AssemblerConfig::recipe_details_obs)
+      .def_readwrite("protocols", &AssemblerConfig::protocols)
+      .def_readwrite("protocol_details_obs", &AssemblerConfig::protocol_details_obs)
       .def_readwrite("allow_partial_usage", &AssemblerConfig::allow_partial_usage)
       .def_readwrite("max_uses", &AssemblerConfig::max_uses)
       .def_readwrite("exhaustion", &AssemblerConfig::exhaustion)

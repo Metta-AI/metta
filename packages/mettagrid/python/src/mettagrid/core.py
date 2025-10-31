@@ -141,7 +141,7 @@ class MettaGridCore:
         try:
             c_cfg = from_mettagrid_config(self.__mg_config.game)
         except Exception as e:
-            logger.error(f"Error creating C++ config: {e}")
+            logger.error(f"Error creating C++ config: {e}", exc_info=True)
             # Log serialized view for debugging
             logger.error(f"Game config: {self.__mg_config.game.model_dump()}")
             raise e

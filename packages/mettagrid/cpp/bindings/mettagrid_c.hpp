@@ -37,7 +37,6 @@ class ObservationEncoder;
 class GridObject;
 
 struct GridObjectConfig;
-struct ConverterConfig;
 struct AssemblerConfig;
 struct ChestConfig;
 struct WallConfig;
@@ -191,7 +190,6 @@ private:
 
   void _handle_invalid_action(size_t agent_idx, const std::string& stat, ActionType type, ActionArg arg);
   AgentConfig _create_agent_config(const py::dict& agent_group_cfg_py);
-  ConverterConfig _create_converter_config(const py::dict& converter_cfg_py);
   WallConfig _create_wall_config(const py::dict& wall_cfg_py);
   void build_flat_action_catalog();
   int flat_action_index(ActionType action, ActionArg arg) const;
