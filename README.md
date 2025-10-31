@@ -190,7 +190,7 @@ builds its configuration, and runs it.
 
 ### Example Training Notebooks
 
-All the notebooks available at ./notebooks
+All the notebooks available at `./notebooks`
 
 #### Train on Cogames:
 [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1YaIdg5a5Ji5_J_HkVOdY9itJTFju54oG?usp=sharing)
