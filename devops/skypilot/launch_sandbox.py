@@ -156,48 +156,18 @@ def _build_remote_script(
 
 
 def _build_remote_kill_script() -> str:
-    """Build a simple script to terminate distributed training across nodes.
-
-    Sends SIGTERM then SIGKILL to common process names and frees the rendezvous port implicitly.
-    """
+    """Return the exact multi-node kill command known to work manually."""
     return (
-        "set +e; "
-        # Graceful stop first
         "pkill -15 -f tools/run.py || true; "
-        "pkill -15 -f torch.distributed.run || true; "
         "pkill -15 -f torchrun || true; "
-        "pkill -15 -f 'uv run torchrun' || true; "
-        "sleep 3; "
-        # Kill leftover children
+        "sleep 5; "
         "pkill -9 -f tools/run.py || true; "
-        "pkill -9 -f torch.distributed.run || true; "
-        "pkill -9 -f torchrun || true; "
-        "pkill -9 -f 'uv run torchrun' || true; "
-        # Free rendezvous port
-        "PORT=\"${MASTER_PORT:-29501}\"; (command -v fuser >/dev/null 2>&1 && fuser -k \"$PORT\"/tcp) || true"
+        "pkill -9 -f torchrun || true"
     )
 
 
 def _run_sky_exec(cluster: str, num_nodes: int, entrypoint: str) -> int:
-    """Run a sky exec entrypoint, trying uv first then falling back to bare sky."""
-    cmd_uv = [
-        "uv",
-        "run",
-        "sky",
-        "exec",
-        cluster,
-        "--num-nodes",
-        str(num_nodes),
-        "--",
-        entrypoint,
-    ]
-    try:
-        res = subprocess.run(cmd_uv, check=False)
-        if res.returncode == 0:
-            return 0
-    except FileNotFoundError:
-        pass
-
+    """Run a sky exec entrypoint using the same style as manual usage."""
     cmd_sky = [
         "sky",
         "exec",
@@ -207,8 +177,8 @@ def _run_sky_exec(cluster: str, num_nodes: int, entrypoint: str) -> int:
         "--",
         entrypoint,
     ]
-    res2 = subprocess.run(cmd_sky, check=False)
-    return res2.returncode
+    res = subprocess.run(cmd_sky, check=False)
+    return res.returncode
 
 
 def main() -> int:
