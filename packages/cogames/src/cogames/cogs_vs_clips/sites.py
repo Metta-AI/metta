@@ -20,7 +20,7 @@ class Site(Config):
 EVALS = Site(
     name="evals",
     description="Evaluation missions for scripted agent testing",
-    map_builder=get_map("evals/machina_eval_template.map"),
+    map_builder=get_map("evals/eval_collect_resources_easy.map"),
     min_cogs=1,
-    max_cogs=5,
+    max_cogs=8,
 )
