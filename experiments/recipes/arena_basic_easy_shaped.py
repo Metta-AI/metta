@@ -304,11 +304,11 @@ def sweep_muon(sweep_name: str) -> SweepTool:
         SP.OPTIMIZER_BETA2,
         SP.categorical(
             "batch_size_multiplier",
-            [0.25, 0.5, 1.0],
+            [1.0, 2,0],
         ),
         SP.categorical(
             "minibatch_size_multiplier",
-            [0.25, 0.5, 1.0],
+            [0.5, 1.0, 2.0],
         ),
         SP.param(
             "trainer.total_timesteps",
