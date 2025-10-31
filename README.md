@@ -190,8 +190,7 @@ builds its configuration, and runs it.
 
 ### Example Notebooks
 
-#### Cogames Training: [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1YaIdg5a5Ji5_J_HkVOdY9itJTFju54oG?usp=sharing)
-The notebook is also available at `./notebooks/Cogames_Training.ipynb`.
+#### Cogames Training:    [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1YaIdg5a5Ji5_J_HkVOdY9itJTFju54oG?usp=sharing)   also available at `./notebooks/Cogames_Training.ipynb`.
 
 ### Task arguments
 
