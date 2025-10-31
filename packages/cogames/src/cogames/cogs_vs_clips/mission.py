@@ -158,16 +158,12 @@ class Mission(Config):
                 move=ActionConfig(consumed_resources={"energy": self.move_energy_cost}),
                 noop=ActionConfig(),
                 change_glyph=ChangeGlyphActionConfig(
-<<<<<<< HEAD
                     consumed_resources={},  # Fix: Glyph changes should cost 0 energy
-                    number_of_glyphs=len(vibes.VIBES),
-=======
                     number_of_glyphs=(
                         0
                         if not self.enable_glyph_change
                         else (self.glyph_count if self.glyph_count is not None else len(vibes.VIBES))
                     )
->>>>>>> 08ae64824b8bde3312bcb6b3c9195fe449e3e53b
                 ),
             ),
             agent=AgentConfig(
@@ -219,7 +215,6 @@ class Mission(Config):
                 "oxygen_extractor": self.oxygen_extractor.station_cfg(),
                 "germanium_extractor": self.germanium_extractor.station_cfg(),
                 "silicon_extractor": self.silicon_extractor.station_cfg(),
-<<<<<<< HEAD
                 # Clipped variants
                 "clipped_carbon_extractor": self.carbon_extractor.model_copy(
                     update={"start_clipped": True}
@@ -233,15 +228,7 @@ class Mission(Config):
                 "clipped_silicon_extractor": self.silicon_extractor.model_copy(
                     update={"start_clipped": True}
                 ).station_cfg(),
-                # Resource-specific chests
-                "chest_carbon": self.chest.model_copy(update={"default_resource": "carbon"}).station_cfg(),
-                "chest_oxygen": self.chest.model_copy(update={"default_resource": "oxygen"}).station_cfg(),
-                "chest_germanium": self.chest.model_copy(update={"default_resource": "germanium"}).station_cfg(),
-                "chest_silicon": self.chest.model_copy(update={"default_resource": "silicon"}).station_cfg(),
-=======
-                **RESOURCE_CHESTS,
->>>>>>> 08ae64824b8bde3312bcb6b3c9195fe449e3e53b
-            },
+              },
         )
 
         # if hasattr(self, "heart_chorus_length"):
