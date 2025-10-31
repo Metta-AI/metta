@@ -812,15 +812,15 @@ proc fitFullMap*(panel: Panel) =
 
 proc drawWorldMap*(panel: Panel) =
   ## Draw the world map.
+  if settings.lockFocus:
+    centerAt(panel, selection)
+
   panel.beginPanAndZoom()
 
   if panel.hasMouse:
     useSelections(panel)
 
   agentControls()
-
-  if settings.lockFocus:
-    centerAt(panel, selection)
 
   if panel.zoom < 3:
     drawWorldMini()
