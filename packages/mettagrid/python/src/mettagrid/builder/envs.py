@@ -158,9 +158,8 @@ def make_assembly_lines(
                 ),
             ),
             actions=ActionsConfig(
+                noop=ActionConfig(),
                 move=ActionConfig(),
-                get_items=ActionConfig(),
-                put_items=ActionConfig(),
             ),
             agent=AgentConfig(
                 rewards=AgentRewards(

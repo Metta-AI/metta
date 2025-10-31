@@ -4,7 +4,7 @@ from enum import StrEnum, auto
 from typing import Any, ClassVar, Final, Generic, TypeVar, get_args, get_origin
 
 import numpy as np
-from pydantic import model_serializer
+from pydantic import field_validator, model_serializer
 
 from mettagrid.base_config import Config
 from mettagrid.map_builder import MapGrid
@@ -189,6 +189,14 @@ class ChildrenAction(AreaQuery):
     scene: SceneConfig
     instance_id: int | None = None
     use_instance_id_for_team_assignment: bool | None = None
+
+    @field_validator("scene", mode="wrap")
+    @classmethod
+    def _validate_scene(cls, v, handler):
+        # Accept already-validated SceneConfig or a dict with a 'type' pointer
+        if isinstance(v, SceneConfig):
+            return v
+        return validate_any_scene_config(v)
 
 
 ConfigT = TypeVar("ConfigT", bound=SceneConfig)
