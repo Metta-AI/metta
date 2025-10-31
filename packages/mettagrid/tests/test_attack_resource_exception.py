@@ -9,7 +9,7 @@ from mettagrid.config.mettagrid_config import (
     AgentConfig,
     AgentRewards,
     AttackActionConfig,
-    ChangeGlyphActionConfig,
+    ChangeVibeActionConfig,
     GameConfig,
     WallConfig,
 )
@@ -41,7 +41,7 @@ def test_exception_when_laser_not_in_inventory():
                 defense_resources={"armor": 1},
             ),
             swap=ActionConfig(enabled=True),
-            change_glyph=ChangeGlyphActionConfig(enabled=False, number_of_glyphs=4),
+            change_vibe=ChangeVibeActionConfig(enabled=False, number_of_vibes=4),
         ),
         objects={"wall": WallConfig()},
         agent=AgentConfig(default_resource_limit=10, freeze_duration=5, rewards=AgentRewards()),

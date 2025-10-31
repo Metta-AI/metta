@@ -8,7 +8,7 @@
 #include <vector>
 
 #include "actions/attack.hpp"
-#include "actions/change_glyph.hpp"
+#include "actions/change_vibe.hpp"
 #include "bindings/mettagrid_c.hpp"
 #include "objects/agent.hpp"
 #include "objects/agent_config.hpp"
@@ -44,10 +44,10 @@ GameConfig CreateBenchmarkConfig(size_t num_agents) {
                                            std::unordered_map<InventoryItem, InventoryProbability>(),
                                            std::unordered_map<InventoryItem, InventoryQuantity>());
 
-  std::shared_ptr<ChangeGlyphActionConfig> change_glyph_cfg =
-      std::make_shared<ChangeGlyphActionConfig>(std::unordered_map<InventoryItem, InventoryQuantity>(),
-                                                std::unordered_map<InventoryItem, InventoryProbability>(),
-                                                4);
+  std::shared_ptr<ChangeVibeActionConfig> change_vibe_cfg =
+      std::make_shared<ChangeVibeActionConfig>(std::unordered_map<InventoryItem, InventoryQuantity>(),
+                                               std::unordered_map<InventoryItem, InventoryProbability>(),
+                                               4);
 
   // GameConfig expects a vector of pairs for actions (ordered list)
   std::vector<std::pair<std::string, std::shared_ptr<ActionConfig>>> actions_cfg;
@@ -57,7 +57,7 @@ GameConfig CreateBenchmarkConfig(size_t num_agents) {
   actions_cfg.push_back({"rotate", action_cfg});
   actions_cfg.push_back({"attack", attack_cfg});
   actions_cfg.push_back({"swap", action_cfg});
-  actions_cfg.push_back({"change_glyph", change_glyph_cfg});
+  actions_cfg.push_back({"change_vibe", change_vibe_cfg});
 
   std::unordered_map<std::string, std::shared_ptr<GridObjectConfig>> objects_cfg;
 
