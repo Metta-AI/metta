@@ -1,23 +1,22 @@
-# See https://pre-commit.com for more information
-# See https://pre-commit.com/hooks.html for more hooks
-default_language_version:
-  python: python3.11
-
 repos:
   - repo: https://github.com/astral-sh/ruff-pre-commit
     rev: v0.13.2
     hooks:
+      # Apply Ruff formatter when the hook runs as part of a commit
       - id: ruff-format
         name: ruff-format
         stages: [pre-commit]
+      # Manual formatter run in --check mode (e.g. metta lint --check/--type)
       - id: ruff-format
         name: ruff-format-check
         args: ["--check"]
         stages: [manual]
+      # Ruff linter with autofix for commit-time runs
       - id: ruff-check
         name: ruff-check
         args: ["--fix"]
         stages: [pre-commit]
+      # Manual Ruff linting without auto-fixes
       - id: ruff-check
         name: ruff-check-no-fix
         stages: [manual]
@@ -25,12 +24,14 @@ repos:
   - repo: https://github.com/pre-commit/mirrors-prettier
     rev: v4.0.0-alpha.7
     hooks:
+      # Format JSON/JSONC/VS Code workspace files on commit
       - id: prettier
         name: prettier-json
         stages: [pre-commit]
         files: "\\.(json|jsonc|json5|code-workspace)$"
         additional_dependencies:
           - prettier@3.3.3
+      # Manual JSON formatting verification (no edits)
       - id: prettier
         name: prettier-json-check
         stages: [manual]
@@ -38,12 +39,14 @@ repos:
         entry: prettier --check
         additional_dependencies:
           - prettier@3.3.3
+      # Format Markdown and docs on commit
       - id: prettier
         name: prettier-markdown
         stages: [pre-commit]
         files: "\\.(md|mdown|markdown)$"
         additional_dependencies:
           - prettier@3.3.3
+      # Manual Markdown check for CI / metta lint --check
       - id: prettier
         name: prettier-markdown-check
         stages: [manual]
@@ -51,6 +54,7 @@ repos:
         entry: prettier --check
         additional_dependencies:
           - prettier@3.3.3
+      # Format shell scripts with Prettier plugin
       - id: prettier
         name: prettier-shell
         stages: [pre-commit]
@@ -58,6 +62,7 @@ repos:
         additional_dependencies:
           - prettier@3.3.3
           - prettier-plugin-sh@0.13.1
+      # Manual shell formatting check
       - id: prettier
         name: prettier-shell-check
         stages: [manual]
@@ -66,6 +71,7 @@ repos:
         additional_dependencies:
           - prettier@3.3.3
           - prettier-plugin-sh@0.13.1
+      # Format TOML metadata/config files
       - id: prettier
         name: prettier-toml
         stages: [pre-commit]
@@ -73,6 +79,7 @@ repos:
         additional_dependencies:
           - prettier@3.3.3
           - prettier-plugin-toml@2.0.6
+      # Manual TOML check (no edits)
       - id: prettier
         name: prettier-toml-check
         stages: [manual]
@@ -81,6 +88,7 @@ repos:
         additional_dependencies:
           - prettier@3.3.3
           - prettier-plugin-toml@2.0.6
+      # Format YAML (excluding generated configs) on commit
       - id: prettier
         name: prettier-yaml
         stages: [pre-commit]
@@ -88,6 +96,7 @@ repos:
         exclude: "(/configs/|/scenes/|/charts/|\\.github/actions/asana/pr_gh_to_asana/test/)"
         additional_dependencies:
           - prettier@3.3.3
+      # Manual YAML check without modifications
       - id: prettier
         name: prettier-yaml-check
         stages: [manual]
@@ -100,34 +109,44 @@ repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v4.5.0
     hooks:
+      # Guard against accidentally committing huge blobs
       - id: check-added-large-files
         stages: [pre-commit, manual]
+      # Validate JSON syntax (skip JSONC/VSCode files)
       - id: check-json
         stages: [pre-commit, manual]
         exclude: "(^\\.vscode/|tsconfig.*\\.json$)"
+      # Validate YAML syntax (skip generated Helm/Terraform templates)
       - id: check-yaml
         stages: [pre-commit, manual]
         exclude: "(agentdojo/data/suites/workspace.*\\.yaml|^devops/charts/|^devops/tf/)"
+      # Block stray pdb/ipdb/etc.
       - id: debug-statements
         stages: [pre-commit, manual]
+      # Secrets scan (overridden by githooks mode when necessary)
       - id: detect-private-key
         stages: [pre-commit, manual]
         exclude: "agentdojo/data/suites/workspace_plus/terminal/mock-gist-server/certs/nginx.key"
+      # Ensure files end with a newline
       - id: end-of-file-fixer
         stages: [pre-commit, manual]
+      # Normalize requirements.txt ordering/spacing
       - id: requirements-txt-fixer
         stages: [pre-commit, manual]
 
   - repo: https://github.com/igorshubovych/markdownlint-cli
     rev: v0.45.0
     hooks:
+      # Auto-fix Markdown lint issues when possible
       - id: markdownlint-fix
         stages: [pre-commit]
+      # Manual lint pass used by metta lint --check / CI
       - id: markdownlint
         stages: [manual]
 
   - repo: local
     hooks:
+      # Keep uv.lock in sync with pyproject.toml
       - id: uv-lock
         name: uv-lock
         entry: uv lock --check

@@ -16,12 +16,6 @@
 
   // Python Configuration
   "[python]": {
-    "editor.defaultFormatter": "charliermarsh.ruff",
-    "editor.formatOnSave": true,
-    "editor.codeActionsOnSave": {
-      "source.fixAll.ruff": "explicit",
-      "source.organizeImports.ruff": "explicit",
-    },
     "editor.rulers": [120],
     "editor.renderWhitespace": "trailing",
   },
@@ -94,5 +88,16 @@
     "build": true,
     "dist": true,
     "personal": true,
+  },
+
+  // Run lint hooks on save (requires emeraldwalk.runonsave extension)
+  "emeraldwalk.runonsave": {
+    "commands": [
+      {
+        "match": "\\.(py|json|jsonc|md|markdown|sh|bash|toml|ya?ml)$",
+        "isAsync": true,
+        "cmd": "uv run pre-commit run --hook-stage commit --files ${file}",
+      },
+    ],
   },
 }
