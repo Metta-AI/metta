@@ -46,8 +46,8 @@ GameConfig CreateBenchmarkConfig(size_t num_agents) {
 
   std::shared_ptr<ChangeVibeActionConfig> change_vibe_cfg =
       std::make_shared<ChangeVibeActionConfig>(std::unordered_map<InventoryItem, InventoryQuantity>(),
-                                                std::unordered_map<InventoryItem, InventoryProbability>(),
-                                                4);
+                                               std::unordered_map<InventoryItem, InventoryProbability>(),
+                                               4);
 
   // GameConfig expects a vector of pairs for actions (ordered list)
   std::vector<std::pair<std::string, std::shared_ptr<ActionConfig>>> actions_cfg;

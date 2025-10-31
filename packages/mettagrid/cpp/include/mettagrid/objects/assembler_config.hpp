@@ -23,7 +23,7 @@ struct AssemblerConfig : public GridObjectConfig {
         max_uses(0),             // 0 means unlimited uses
         exhaustion(0.0f),        // 0 means no exhaustion
         clip_immune(false),      // Not immune by default
-        start_clipped(false) {}    // Not clipped at start by default
+        start_clipped(false) {}  // Not clipped at start by default
 
   // Recipes keyed by local vibe (64-bit number from sorted vibes)
   std::unordered_map<uint64_t, std::shared_ptr<Recipe>> recipes;
@@ -52,7 +52,10 @@ namespace py = pybind11;
 
 inline void bind_assembler_config(py::module& m) {
   py::class_<AssemblerConfig, GridObjectConfig, std::shared_ptr<AssemblerConfig>>(m, "AssemblerConfig")
-      .def(py::init<TypeId, const std::string&, ObservationType>(), py::arg("type_id"), py::arg("type_name"), py::arg("initial_vibe") = 0)
+      .def(py::init<TypeId, const std::string&, ObservationType>(),
+           py::arg("type_id"),
+           py::arg("type_name"),
+           py::arg("initial_vibe") = 0)
       .def_readwrite("type_id", &AssemblerConfig::type_id)
       .def_readwrite("type_name", &AssemblerConfig::type_name)
       .def_readwrite("tag_ids", &AssemblerConfig::tag_ids)

@@ -125,7 +125,8 @@ public:
         max_inventory(cfg.max_inventory),
         stats_tracker(stats_tracker),
         grid(nullptr) {
-    GridObject::init(cfg.type_id, cfg.type_name, GridLocation(r, c, GridLayer::ObjectLayer), cfg.tag_ids, cfg.initial_vibe);
+    GridObject::init(
+        cfg.type_id, cfg.type_name, GridLocation(r, c, GridLayer::ObjectLayer), cfg.tag_ids, cfg.initial_vibe);
     // Set initial inventory
     if (cfg.initial_inventory > 0) {
       update_inventory(cfg.resource_type, cfg.initial_inventory);

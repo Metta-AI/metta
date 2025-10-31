@@ -29,7 +29,10 @@ namespace py = pybind11;
 
 inline void bind_chest_config(py::module& m) {
   py::class_<ChestConfig, GridObjectConfig, std::shared_ptr<ChestConfig>>(m, "ChestConfig")
-      .def(py::init<TypeId, const std::string&, ObservationType>(), py::arg("type_id"), py::arg("type_name"), py::arg("initial_vibe") = 0)
+      .def(py::init<TypeId, const std::string&, ObservationType>(),
+           py::arg("type_id"),
+           py::arg("type_name"),
+           py::arg("initial_vibe") = 0)
       .def_readwrite("type_id", &ChestConfig::type_id)
       .def_readwrite("type_name", &ChestConfig::type_name)
       .def_readwrite("tag_ids", &ChestConfig::tag_ids)

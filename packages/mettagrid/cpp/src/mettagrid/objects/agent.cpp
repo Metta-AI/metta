@@ -37,7 +37,8 @@ Agent::Agent(GridCoord r, GridCoord c, const AgentConfig& config, const std::vec
   }
 
   populate_initial_inventory(config.initial_inventory);
-  GridObject::init(config.type_id, config.type_name, GridLocation(r, c, GridLayer::AgentLayer), config.tag_ids, config.initial_vibe);
+  GridObject::init(
+      config.type_id, config.type_name, GridLocation(r, c, GridLayer::AgentLayer), config.tag_ids, config.initial_vibe);
 }
 
 void Agent::init(RewardType* reward_ptr) {

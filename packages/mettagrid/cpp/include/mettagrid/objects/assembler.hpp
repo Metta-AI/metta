@@ -202,7 +202,8 @@ public:
         output_recipe_offset(cfg.output_recipe_offset),
         allow_partial_usage(cfg.allow_partial_usage),
         clipper_ptr(nullptr) {
-    GridObject::init(cfg.type_id, cfg.type_name, GridLocation(r, c, GridLayer::ObjectLayer), cfg.tag_ids, cfg.initial_vibe);
+    GridObject::init(
+        cfg.type_id, cfg.type_name, GridLocation(r, c, GridLayer::ObjectLayer), cfg.tag_ids, cfg.initial_vibe);
   }
   virtual ~Assembler() = default;
 
@@ -265,8 +266,7 @@ public:
 
     // Sort the vibes to make the vibe independent of agent positions.
     std::sort(vibes.begin(), vibes.end());
-    return std::accumulate(
-        vibes.begin(), vibes.end(), 0, [](uint64_t acc, uint8_t vibe) { return (acc << 8) | vibe; });
+    return std::accumulate(vibes.begin(), vibes.end(), 0, [](uint64_t acc, uint8_t vibe) { return (acc << 8) | vibe; });
   }
 
   // Get current recipe based on local vibe from surrounding agent vibes

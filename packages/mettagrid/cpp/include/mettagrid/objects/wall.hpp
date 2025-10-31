@@ -12,7 +12,10 @@
 
 // #MettaGridConfig
 struct WallConfig : public GridObjectConfig {
-  WallConfig(TypeId type_id, const std::string& type_name, bool swappable_flag = false, ObservationType initial_vibe = 0)
+  WallConfig(TypeId type_id,
+             const std::string& type_name,
+             bool swappable_flag = false,
+             ObservationType initial_vibe = 0)
       : GridObjectConfig(type_id, type_name, initial_vibe), swappable(swappable_flag) {}
 
   bool swappable{false};
@@ -23,7 +26,8 @@ public:
   bool _swappable;
 
   Wall(GridCoord r, GridCoord c, const WallConfig& cfg) {
-    GridObject::init(cfg.type_id, cfg.type_name, GridLocation(r, c, GridLayer::ObjectLayer), cfg.tag_ids, cfg.initial_vibe);
+    GridObject::init(
+        cfg.type_id, cfg.type_name, GridLocation(r, c, GridLayer::ObjectLayer), cfg.tag_ids, cfg.initial_vibe);
     this->_swappable = cfg.swappable;
   }
 

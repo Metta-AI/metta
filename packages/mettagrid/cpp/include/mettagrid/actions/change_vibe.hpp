@@ -14,8 +14,8 @@ struct ChangeVibeActionConfig : public ActionConfig {
   const ObservationType number_of_vibes;
 
   ChangeVibeActionConfig(const std::unordered_map<InventoryItem, InventoryQuantity>& required_resources,
-                          const std::unordered_map<InventoryItem, InventoryProbability>& consumed_resources,
-                          const ObservationType number_of_vibes)
+                         const std::unordered_map<InventoryItem, InventoryProbability>& consumed_resources,
+                         const ObservationType number_of_vibes)
       : ActionConfig(required_resources, consumed_resources), number_of_vibes(number_of_vibes) {}
 };
 
@@ -41,8 +41,7 @@ protected:
 namespace py = pybind11;
 
 inline void bind_change_vibe_action_config(py::module& m) {
-  py::class_<ChangeVibeActionConfig, ActionConfig, std::shared_ptr<ChangeVibeActionConfig>>(m,
-                                                                                              "ChangeVibeActionConfig")
+  py::class_<ChangeVibeActionConfig, ActionConfig, std::shared_ptr<ChangeVibeActionConfig>>(m, "ChangeVibeActionConfig")
       .def(py::init<const std::unordered_map<InventoryItem, InventoryQuantity>&,
                     const std::unordered_map<InventoryItem, InventoryProbability>&,
                     const int>(),
