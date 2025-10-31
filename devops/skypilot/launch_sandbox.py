@@ -88,21 +88,8 @@ def _build_remote_script(
         # Prefer explicit head IP if present; fall back to first node IP
         "export MASTER_ADDR=\"${SKYPILOT_RAY_HEAD_IP:-}\"",
         "if [ -z \"$MASTER_ADDR\" ]; then MASTER_ADDR=\"$(echo \"${SKYPILOT_NODE_IPS:-127.0.0.1}\" | head -n1)\"; fi",
-        # Robustly select and share a rendezvous port across nodes (via shared S3 mount)
-        "SHARED_DIR=\"/mnt/s3/train_dir/.metta_sync\"",
-        "mkdir -p \"$SHARED_DIR\"",
-        "PORT_FILE=\"$SHARED_DIR/master_port\"",
-        "if [ \"$NODE_INDEX\" = \"0\" ]; then",
-        "  CHOSEN_PORT=\"${MASTER_PORT:-}\"",
-        "  if [ -z \"$CHOSEN_PORT\" ]; then",
-        "    CHOSEN_PORT=\"$(python -c 'import socket; s=socket.socket(); s.bind((\"\",0)); print(s.getsockname()[1]); s.close()' 2>/dev/null || echo 29501)\"",
-        "  fi",
-        "  echo \"$CHOSEN_PORT\" > \"$PORT_FILE\"",
-        "  sync",
-        "else",
-        "  for i in $(seq 1 120); do [ -s \"$PORT_FILE\" ] && break; sleep 1; done",
-        "fi",
-        "export MASTER_PORT=\"$(cat \"$PORT_FILE\" 2>/dev/null || echo ${MASTER_PORT:-29501})\"",
+        # MASTER_PORT will be injected as a preamble from the launcher.
+        "export MASTER_PORT=\"${MASTER_PORT:-29501}\"",
     ]
 
     if unset_cuda_visible_devices:
@@ -194,6 +181,37 @@ def _run_sky_exec(cluster: str, num_nodes: int, entrypoint: str) -> int:
     return res.returncode
 
 
+def _choose_master_port(cluster: str) -> int:
+    """Pick a free port on the head node and return it.
+
+    Uses `sky exec --num-nodes 1` to run the selection on the head so the
+    chosen port is actually free there. Falls back to 29501 on failure.
+    """
+    script = (
+        "python -c 'import socket; s=socket.socket(); s.bind(("" ,0)); "
+        "print(s.getsockname()[1]); s.close()'"
+    )
+    cmd = [
+        "sky",
+        "exec",
+        cluster,
+        "--num-nodes",
+        "1",
+        "--",
+        script,
+    ]
+    try:
+        res = subprocess.run(cmd, capture_output=True, text=True, check=True)
+        # Parse last integer in stdout
+        for line in reversed(res.stdout.strip().splitlines()):
+            line = line.strip()
+            if line.isdigit():
+                return int(line)
+        return 29501
+    except Exception:
+        return 29501
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(
         description=(
@@ -227,7 +245,15 @@ def main() -> int:
         help="Number of nodes to exec across. If omitted, auto-detects when running inside the sandbox.",
     )
     parser.add_argument("--run", type=str, default=None, help="Run ID (auto-generated if omitted)")
-    parser.add_argument("--master-port", type=int, default=29501, help="Master port for torchrun rendezvous (default: 29501)")
+    parser.add_argument(
+        "--master-port",
+        type=int,
+        default=None,
+        help=(
+            "Master port for torchrun rendezvous. If omitted, we choose a free port "
+            "on the head via sky exec to avoid collisions."
+        ),
+    )
     parser.add_argument("--unset-cuda-visible-devices", action="store_true", default=True, help=argparse.SUPPRESS)
     parser.add_argument("--keep-cuda-visible-devices", action="store_true", help="Do not unset CUDA_VISIBLE_DEVICES")
     parser.add_argument("--bootstrap", action="store_true", help="Create venv/repo on nodes if missing")
@@ -302,7 +328,8 @@ def main() -> int:
         num_nodes=args.nodes,
     )
     # Prepend explicit MASTER_PORT export so it overrides defaults inside the script
-    remote_script = f"MASTER_PORT={args.master_port}\n" + remote_script
+    chosen_port = args.master_port if args.master_port is not None else _choose_master_port(cluster_name)
+    remote_script = f"MASTER_PORT={chosen_port}\n" + remote_script
 
     # Determine node count: prefer explicit flag; else auto-detect from cluster metadata when in-cluster.
     effective_nodes = args.nodes
