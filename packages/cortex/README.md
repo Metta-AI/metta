@@ -21,10 +21,13 @@ from cortex import build_cortex, CortexStackConfig
 - [Architecture](#architecture)
   - [Why This Design?](#why-this-design)
   - [Uniform Interface Design](#uniform-interface-design)
+- [Quick Start](#quick-start)
 - [Supported Components](#supported-components)
   - [Memory Cells](#memory-cells)
   - [Blocks](#blocks)
-- [Quick Start](#quick-start)
+  - [Column](#column)
+- [MoE using Column](#how-column-works-high-level)
+- [Advanced Setup](#advanced-setup)
 - [Metta Framework Integration](#metta-framework-integration)
 - [AxonLayer: A Generalized Linear Operator with Stateful Dynamics](#axonlayer-a-generalized-linear-operator-with-stateful-dynamics)
   - [AxonLayer Integration Across Cells](#axonlayer-integration-across-cells)
@@ -37,7 +40,7 @@ from cortex import build_cortex, CortexStackConfig
 
 ## Architecture
 
-Cortex implements a modular stack-based memory architecture with three core abstractions:
+Cortex implements a modular stack-based memory architecture with four core abstractions:
 
 1. **Cells**: Stateless memory units (LSTM, GRU, etc.) that process sequences
    - Purpose: Encapsulate recurrent computation logic (gates, state updates, memory mechanisms)
@@ -47,7 +50,14 @@ Cortex implements a modular stack-based memory architecture with three core abst
 2. **Blocks**: Wrappers around cells that handle projections and transformations
    - Purpose: Control information flow, stabilize gradients, and manage dimensionality
 
-3. **Stacks**: Compositions of multiple blocks forming the complete memory system
+3. **Column**: A router‑mixed set of expert blocks executed in parallel and combined
+   - Purpose: Let multiple block "experts" compete/cooperate per token/over time.
+   - How: A global prior gate (with optional per‑token refinement) mixes expert deltas; an E‑axis mixer and outer
+     ReZero stabilize depth
+   - Code: `packages/cortex/src/cortex/blocks/column/column.py` and helpers in
+     `packages/cortex/src/cortex/blocks/column/auto.py`
+
+4. **Stacks**: Compositions of multiple blocks forming the complete memory system
    - Purpose: Build deep, hierarchical memory architectures
 
 ### Why This Design?
@@ -96,6 +106,7 @@ def reset_state(state: TensorDict, mask: ResetMask) -> TensorDict:
 - **TensorDict state**: State is always a TensorDict with arbitrary nesting depth
   - Cells: Flat state (e.g., `{"h": ..., "c": ...}`)
   - Blocks: Nest cell state under cell class name (e.g., `{"LSTMCell": {"h": ..., "c": ...}}`)
+  - Columns: One entry per expert (e.g., `{"expert_PreUpBlock_0": {...}, ...}`)
   - Stacks: Nest block states under indexed keys (e.g., `{"PreUpBlock_0": {"LSTMCell": {...}}}`)
 - **Automatic reset handling**: Resets are handled automatically when passed through `forward(resets=mask)`
   - The reset mask propagates through Stack → Block → Cell automatically
@@ -104,6 +115,55 @@ def reset_state(state: TensorDict, mask: ResetMask) -> TensorDict:
 
 This uniformity means you can treat a complex multi-layer stack exactly like a single cell, enabling arbitrary
 composition without changing your code interface.
+
+## Quick Start
+
+Use the auto stack DSL in `packages/cortex/src/cortex/stacks/auto.py`, which builds a stack of Column layers from
+compact patterns of expert tokens. Each layer is a Column whose experts are chosen by a pattern such as "AXMS".
+
+Built‑in expert tokens:
+
+- `A` = Axon (PostUp)
+- `X` = Transformer‑XL (PostUp)
+- `M` = mLSTM (PreUp)
+- `S` = sLSTM (PostUp)
+- Suffix `^` enables Axon projections for that expert where supported (e.g., `M^`, `X^`, `S^`).
+
+```python
+import torch
+from cortex.stacks import build_cortex_auto_stack  # packages/cortex/src/cortex/stacks/auto.py
+from cortex.config import RouterConfig
+
+# Build a 4-layer Column stack; each layer mixes A, X, M, S experts
+stack = build_cortex_auto_stack(
+    d_hidden=256,
+    num_layers=4,
+    pattern="AXMS",                 # per-layer expert set (can be a list for per-layer patterns)
+    router=RouterConfig(             # global prior + optional per-token refinement
+        top_k=2,
+        whisper_lambda=0.1,          # 0 disables per-token refinement
+    ),
+    post_norm=True,
+    compile_blocks=True,             # torch.compile blocks (and Column experts) when grad-enabled
+)
+
+# Initialize and run
+B, T = 4, 16
+state = stack.init_state(batch=B, device="cuda", dtype=torch.float32)
+x = torch.randn(B, T, 256, device="cuda")
+out, state = stack(x, state)
+
+# Single-step inference
+x_step = torch.randn(B, 256, device="cuda")
+out_step, state = stack.step(x_step, state)
+```
+
+Advanced control:
+
+- Per‑layer patterns: pass a list like `["AXMS", "AM^S", "XXS", "M^"]`; or a single pattern "XXS" repeated with `num_layers`.
+- Custom symbols: supply `custom_map={"Q": PreUpBlockConfig(cell=mLSTMCellConfig(...))}` and use "Q" in patterns.
+- Column implementation: `packages/cortex/src/cortex/blocks/column/column.py`; pattern builder:
+  `packages/cortex/src/cortex/blocks/column/auto.py`.
 
 ## Supported Components
 
@@ -119,6 +179,7 @@ sequences, `[B, H]` for single-step.
 | `sLSTMCell`    | Structured LSTM with per-head gating, stabilized accumulators (`c`, `n`, `m`), and optional causal Conv1D. | Yes                       | No                       |
 | `CausalConv1d` | Depthwise causal Conv1D cell (ring-buffer state); supports optional channel-mixing mode.                   | Yes (channel-mixing only) | No                       |
 | `AxonCell`     | Streaming RTU with diagonal input weights (per-channel local recurrence, 2H→H→out_dim projection).         | Yes                       | Yes (seq‑allin, short‑T) |
+| `XLCell`       | Transformer‑XL style multi‑head attention with rolling memory; optional AxonLayer‑backed Q/K/V projections. | No                        | No                       |
 
 **Notes:**
 
@@ -166,58 +227,55 @@ PreUpBlockConfig(
 This override happens only when building via `CortexStackConfig`/`build_cortex`. If you instantiate blocks and cells
 directly (without the stack builder), you must provide concrete sizes that satisfy these relationships manually.
 
-## Quick Start
+### Compact Forward Pass (per token t)
+
+$$
+\begin{aligned}
+u_t &:= \mathrm{RMSNorm}(x_t) \\
+y_{t,i} &= \mathrm{Block}_i(u_t) \\
+\Delta_{t,i} &= y_{t,i} - u_t \\
+\tilde{\Delta}_{t,i} &= \Delta_{t,i} + \mathrm{Mixer}(\Delta)_{t,i}
+\quad\text{(cross-attention over experts }E\text{)} \\
+\alpha_t &= \mathrm{softmax}\!\big(\log \mathrm{softmax}(z_g) + \lambda\, \hat{p}_t\big)
+\quad (\alpha_{t,i}\ge 0,\ \sum_i \alpha_{t,i}=1) \\
+r_t &= \sum_i \alpha_{t,i}\,\tilde{\Delta}_{t,i} + (u_t - x_t)
+\quad\text{(align from normalized space }u_t\text{ back to }x_t\text{)} \\
+y_{\mathrm{total}}(t) &= x_t + r_t \\
+\mathrm{out}_t &= y_{\mathrm{total}}(t) + \alpha_{\mathrm{col}} \cdot \rho(r_t)\, .
+\end{aligned}
+$$
+
+
+
+## Advanced Setup
+
+Compose stacks manually by specifying columns, blocks and cells directly. This mirrors what the DSL expands to and is useful for
+full control or experimentation.
 
 ```python
-from cortex import (
-    CortexStackConfig,
-    LSTMCellConfig,
-    PreUpBlockConfig,
-    PassThroughBlockConfig,
-    build_cortex
-)
+import torch
+from cortex import CortexStackConfig, build_cortex
+from cortex.config import LSTMCellConfig, PreUpBlockConfig, PassThroughBlockConfig
 
-# Define a memory stack configuration
 config = CortexStackConfig(
-    d_hidden=256,  # External hidden dimension
+    d_hidden=256,
     blocks=[
-        # First block: project up 2x, apply LSTM, project down
-        PreUpBlockConfig(
-            cell=LSTMCellConfig(hidden_size=None, num_layers=2),  # inferred: 2.0 * d_hidden
-            proj_factor=2.0
-        ),
-        # Second block: direct LSTM application
-        PassThroughBlockConfig(
-            cell=LSTMCellConfig(hidden_size=256, num_layers=1)
-        )
+        PreUpBlockConfig(cell=LSTMCellConfig(hidden_size=None, num_layers=2), proj_factor=2.0),
+        PassThroughBlockConfig(cell=LSTMCellConfig(hidden_size=256, num_layers=1)),
     ],
-    post_norm=True  # Apply LayerNorm after stack
+    post_norm=True,
 )
 
-# Build the stack
 stack = build_cortex(config)
-
-# Initialize state
-batch_size = 4
-state = stack.init_state(batch=batch_size, device="cuda", dtype=torch.float32)
-
-# Forward pass with sequences
-x = torch.randn(batch_size, seq_len, 256)  # [B, T, H]
-output, new_state = stack(x, state)
-
-# Handle resets per timestep
-resets = torch.zeros(batch_size, seq_len, dtype=torch.bool)
-resets[:, 5] = True  # Reset at timestep 5
-output, new_state = stack(x, state, resets=resets)
-
-# Single-step mode for inference
-x_step = torch.randn(batch_size, 256)  # [B, H]
-output_step, state = stack.step(x_step, state)
+B, T = 4, 16
+state = stack.init_state(batch=B, device="cuda", dtype=torch.float32)
+x = torch.randn(B, T, 256, device="cuda")
+out, state = stack(x, state)
 ```
 
 ---
 
-### AxonLayer: A Generalized Linear Operator with Stateful Dynamics
+## AxonLayer: A Generalized Linear Operator with Stateful Dynamics
 
 `AxonLayer` provides a stateful generalization of the standard `nn.Linear(in_features → out_features)` operator. Instead
 of performing a purely affine transformation, it integrates a lightweight **recurrent dynamic** through an internal
@@ -259,7 +317,7 @@ class MyCell(MemoryCell):
         return out, next_state
 ```
 
-#### Internal Structure
+### Internal Structure
 
 Internally, `AxonLayer` encapsulates an **`AxonCell`**, which serves as the computational core responsible for local
 recurrence and gradient-preserving temporal traces. `AxonCell` generalizes the behavior of a linear layer through
@@ -282,7 +340,7 @@ several defining mechanisms:
 These mechanisms collectively allow `AxonLayer` to act as a _locally recurrent linear primitive_, efficiently
 propagating gradient information across time without explicit recurrent loops or large memory footprints.
 
-#### Rationale
+### Rationale
 
 - **State-Augmented Linear Transformation:** `AxonLayer` transforms the conventional linear projection into a
   state-aware operator capable of encoding short- and medium-term temporal dependencies.
@@ -305,51 +363,12 @@ alternative to `nn.Linear` that wraps `AxonCell` and updates per-layer state ins
 | -------------------------------------- | --------------------------------------------------------------------------------------- | -------------------------------- | -------------------------------------------------------------------------------------------------------------- |
 | sLSTM (`cortex.cells.slstm.sLSTMCell`) | Fused gate projections: `if_fused` (i,f) from conv path; `zo_fused` (z,o) from seq path | `use_axon_layer`                 | group=`slstm`, keys=`if_fused`, `zo_fused` (compat keys like `{igate,fgate,zgate,ogate}_h{i}` may also appear) |
 | mLSTM (`cortex.cells.mlstm.mLSTMCell`) | Input/forget gates; optional QKV path                                                   | `use_axon_layer`, `use_axon_qkv` | group=`mlstm` keys=`igate`,`fgate`; optional group=`mlstm_qkv` keys=`qk`,`v`                                   |
+| XL (`cortex.cells.xl.XLCell`)          | Q/K/V projections (optional)                                                            | `use_axon_qkv`                   | group=`xl_qkv`, keys=`q`, `k`, `v`                                                                             |
 
 Note: AxonLayer usage is opt-in per cell via its config (e.g., `use_axon_layer`, `use_axon_qkv`). The layer mutates the
-provided parent TensorDict state in place.
-
-## Easy Configuration
-
-Use ready‑made builders and config defaults to compose stacks quickly.
-
-- cortex_auto
-  - Mixed stack where each layer is one of: `A` = Axon (PreUp), `M` = mLSTM (PreUp), `S` = sLSTM (PostUp).
-  - Pattern controlled by `block_pattern` over `{A,M,S}`; defaults to repeating `"AMS"` to reach `num_layers` (default
-    3).
-  - Optional `use_axonlayers=True` enables AxonLayer projections inside cells: sets `mLSTM.use_axon_layer=True` and
-    `mLSTM.use_axon_qkv=True`, and `sLSTM.use_axon_layer=True`.
-  - All other details (heads, kernel sizes, proj factors) come from each config’s own defaults unless you pass explicit
-    block configs.
-
-Example (cortex_auto):
-
-```python
-from cortex.stacks import build_cortex_auto_stack
-
-# Default: 3 layers with pattern "AMS" and config defaults
-stack = build_cortex_auto_stack(d_hidden=128)
-
-# Enable AxonLayers in mLSTM and sLSTM
-stack = build_cortex_auto_stack(d_hidden=128, use_axonlayers=True)
-
-# Custom pattern and optional per-block configs
-from cortex.config import PreUpBlockConfig, PostUpBlockConfig, AxonConfig, mLSTMCellConfig, sLSTMCellConfig
-stack = build_cortex_auto_stack(
-    d_hidden=128,
-    num_layers=3,
-    block_pattern="SAM",  # sLSTM → Axon → mLSTM
-    axon_preup=PreUpBlockConfig(cell=AxonConfig()),
-    mlstm_preup=PreUpBlockConfig(cell=mLSTMCellConfig()),
-    slstm_postup=PostUpBlockConfig(cell=sLSTMCellConfig()),
-)
-```
-
-To run the registered template in the evaluation harness:
-
-```bash
-uv run python packages/cortex/evaluations/run.py --task delayed_recall --stack cortex_auto
-```
+provided parent TensorDict state in place. When building stacks with the auto-pattern DSL, you can enable these Axon
+augmentations inline by using the `^` suffix on supported experts (for example, `M^`, `S^`, or `X^`). The suffix routes
+through the AxonLayer-enabled variant of that expert without manually toggling the config flags.
 
 ## Metta Framework Integration
 
@@ -429,7 +448,6 @@ uv run python packages/cortex/evaluations/run.py --task majority --stack all
 - `--epochs`, `--batch-size`, `--lr`, `--seed`
 - `--log-level {DEBUG, INFO, WARNING, ERROR}`
 
-For more details, see [`docs/evaluations.md`](docs/evaluations.md).
 
 ## Backend Configuration
 

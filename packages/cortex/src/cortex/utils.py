@@ -8,6 +8,7 @@ import os
 from typing import Callable
 
 import torch
+from torch._dynamo import disable
 
 logger = logging.getLogger(__name__)
 
@@ -50,6 +51,7 @@ def _lazy_import(fn_or_path: Callable | str | None) -> Callable | None:
         return None
 
 
+@disable
 def select_backend(
     triton_fn: Callable | str | None,
     pytorch_fn: Callable | str,
@@ -116,4 +118,15 @@ def select_backend(
     return pytorch_fn_resolved
 
 
-__all__ = ["TRITON_AVAILABLE", "select_backend"]
+def configure_tf32_precision() -> None:
+    """Ensure TF32 fast paths are enabled using the modern API."""
+    if not torch.cuda.is_available():
+        return
+
+    torch.backends.cuda.matmul.fp32_precision = "tf32"  # type: ignore[attr-defined]
+    torch.backends.cudnn.conv.fp32_precision = "tf32"  # type: ignore[attr-defined]
+    torch.backends.cuda.matmul.allow_tf32 = True  # type: ignore[attr-defined]
+    torch.backends.cudnn.allow_tf32 = True  # type: ignore[attr-defined]
+
+
+__all__ = ["TRITON_AVAILABLE", "select_backend", "configure_tf32_precision"]
