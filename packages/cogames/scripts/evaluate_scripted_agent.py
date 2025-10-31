@@ -219,22 +219,24 @@ def run_full_evaluation_suite(
     if hyperparams is None:
         hyperparams = list(HYPERPARAMETER_PRESETS.keys())
     if clip_modes is None:
-        clip_modes = ["none", "carbon", "oxygen", "germanium", "silicon"]
+        clip_modes = ["carbon", "oxygen", "germanium", "silicon"]
     if clip_rates is None:
         clip_rates = [0.0, 0.25]
     if cogs_list is None:
         cogs_list = [1, 2, 4, 8]
 
-    total_tests = (
-        len(experiments) * len(difficulties) * len(hyperparams) * len(clip_modes) * len(clip_rates) * len(cogs_list)
-    )
+    # Clipping=True: all clip_rates × cogs × hyperparams
+    # Clipping=False: only clip_rate=0.0 × cogs × hyperparams
+    tests_with_clipping = len(experiments) * len(difficulties) * len(clip_rates) * len(cogs_list) * len(hyperparams)
+    tests_without_clipping = len(experiments) * len(difficulties) * 1 * len(cogs_list) * len(hyperparams)
+    total_tests = tests_with_clipping + tests_without_clipping
 
     print(f"\nExperiments: {len(experiments)}")
     print(f"Difficulties: {len(difficulties)}")
     print(f"Hyperparams: {len(hyperparams)}")
-    print(f"Clip modes: {len(clip_modes)}")
-    print(f"Clip rates: {len(clip_rates)}")
-    print(f"Agent counts: {len(cogs_list)}")
+    print(f"Clip strategy: 50% no clipping, 50% random from {clip_modes}")
+    print(f"Clip rates: {clip_rates}")
+    print(f"Agent counts: {cogs_list}")
     print(f"Total tests: {total_tests}\n")
 
     results = []
@@ -253,10 +255,14 @@ def run_full_evaluation_suite(
                 logger.error(f"Unknown difficulty: {difficulty_name}")
                 continue
 
-            for clip_rate in clip_rates:
-                for clip_mode in clip_modes:
-                    # Skip redundant combinations
-                    if clip_mode == "none" and clip_rate > 0:
+            for clipping in [True, False]:
+                if clipping:
+                    clip_mode = np.random.choice(clip_modes)
+                else:
+                    clip_mode = "none"
+
+                for clip_rate in clip_rates:
+                    if not clipping and clip_rate > 0:
                         continue
 
                     for num_cogs in cogs_list:
