@@ -655,9 +655,7 @@ def cmd_lint(
                 return
         normalized_files = filtered_files
 
-    stage = "commit" if fix else "manual"
-    if check:
-        stage = "manual"
+    stage = "pre-commit" if not check else "manual"
 
     cmd = ["uv", "run", "--active", "pre-commit", "run", "--hook-stage", stage]
     if stage == "manual":

@@ -1,7 +1,5 @@
 """Shared utilities for linting workflows."""
 
-from __future__ import annotations
-
 from pathlib import Path
 from typing import Optional
 
@@ -130,15 +128,3 @@ def restage_modified_files(repo_root: Path, candidates: set[str]) -> list[str]:
             warning(f"Unable to re-stage files: {git_error}")
 
     return to_stage
-
-
-__all__ = [
-    "SUPPORTED_LINT_TYPES",
-    "collect_files_for_types",
-    "get_staged_files",
-    "get_tracked_files",
-    "normalize_relative_paths",
-    "parse_lint_type_option",
-    "restage_modified_files",
-    "select_files_by_type",
-]

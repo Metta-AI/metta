@@ -265,7 +265,7 @@ class GitHooksSetup(SetupModule):
 
         if hook_mode == CommitHookMode.NONE:
             if gitleaks_mode == GitLeaksMode.BLOCK:
-                success_detect = self._run_detect_private_key("commit", staged_files, warn_only=False)
+                success_detect = self._run_detect_private_key("pre-commit", staged_files, warn_only=False)
                 sys.exit(0 if success_detect else 1)
 
             if gitleaks_mode == GitLeaksMode.CHECK:

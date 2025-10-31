@@ -96,7 +96,7 @@
       {
         "match": "\\.(py|json|jsonc|md|markdown|sh|bash|toml|ya?ml)$",
         "isAsync": true,
-        "cmd": "uv run pre-commit run --hook-stage commit --files ${file}",
+        "cmd": "uv run pre-commit run --hook-stage pre-commit --files ${file}",
       },
     ],
   },
