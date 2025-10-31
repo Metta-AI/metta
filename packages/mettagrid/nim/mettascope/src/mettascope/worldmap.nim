@@ -1,11 +1,21 @@
 import
-  std/[math, os, strutils, tables, strformat, random],
+  std/[math, os, strutils, tables, strformat, random, times],
   boxy, vmath, windy, fidget2/[hybridrender, common],
   common, panels, actions, utils, replays, objectinfo,
   pathfinding, tilemap, pixelator
 
 const TS = 1.0 / 64.0 # Tile scale.
 const TILE_SIZE = 64
+
+# Double-click detection variables for worldmap
+const
+  ClickInterval = 0.3 # seconds
+  ClickDistance = 10.0 # pixels
+var
+  worldmapLastClickTime = 0.0
+  worldmapLastClickPos = vec2(0, 0)
+
+proc centerAt*(panel: Panel, entity: Entity) # Forward declaration
 
 var
   terrainMap*: TileMap
@@ -209,6 +219,24 @@ proc useSelections*(panel: Panel) =
   # Track mouse down position to distinguish clicks from drags.
   if window.buttonPressed[MouseLeft] and not modifierDown:
     mouseDownPos = window.mousePos.vec2
+
+  # Handle double-click detection
+  if window.buttonPressed[MouseLeft] and not modifierDown:
+    let currentTime = epochTime()
+    let mousePos = bxy.getTransform().inverse * window.mousePos.vec2
+    let isClick = dist(mousePos, worldmapLastClickPos) < ClickDistance
+
+    if currentTime - worldmapLastClickTime < ClickInterval and isClick:
+      echo "Worldmap double-click detected - toggling lock focus"
+      settings.lockFocus = not settings.lockFocus
+      if settings.lockFocus and selection != nil:
+        centerAt(panel, selection)
+    else:
+      echo "Worldmap single press detected - clearing lock focus"
+      settings.lockFocus = false
+
+    worldmapLastClickTime = currentTime
+    worldmapLastClickPos = mousePos
 
   # Only select on mouse up, and only if we didn't drag much.
   if window.buttonReleased[MouseLeft] and not modifierDown:
@@ -723,8 +751,16 @@ proc drawWorldMini*() =
 
 proc centerAt*(panel: Panel, entity: Entity) =
   ## Center the map on the given entity.
-  ## TODO: Implement this.
-  discard
+  if entity.isNil:
+    return
+  let location = entity.location.at(step).xy
+  let rectW = panel.rect.w.float32
+  let rectH = panel.rect.h.float32
+  if rectW <= 0 or rectH <= 0:
+    return
+  let z = panel.zoom * panel.zoom
+  panel.pos.x = rectW / 2.0f - location.x.float32 * z
+  panel.pos.y = rectH / 2.0f - location.y.float32 * z
 
 proc drawWorldMain*() =
   ## Draw the world map.
@@ -783,7 +819,7 @@ proc drawWorldMap*(panel: Panel) =
 
   agentControls()
 
-  if followSelection:
+  if settings.lockFocus:
     centerAt(panel, selection)
 
   if panel.zoom < 3:

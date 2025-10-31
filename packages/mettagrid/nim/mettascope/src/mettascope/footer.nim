@@ -47,6 +47,7 @@ find "/UI/Main/GlobalFooter":
       thisNode.setVariant("On", settings.lockFocus)
     onClick:
       settings.lockFocus = not settings.lockFocus
+
   find "**/Heart":
     onDisplay:
       thisNode.setVariant("On", settings.showResources)

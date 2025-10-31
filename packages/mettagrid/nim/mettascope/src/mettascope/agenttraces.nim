@@ -26,6 +26,17 @@ proc drawAgentTraces*(panel: Panel) =
 
   panel.beginPanAndZoom()
 
+  # Follow selected agent when lockFocus is enabled
+  if settings.lockFocus and selection != nil and selection.isAgent:
+    let rectW = panel.rect.w.float32
+    let rectH = panel.rect.h.float32
+    if rectW > 0 and rectH > 0:
+      let z = panel.zoom * panel.zoom
+      let centerX = step.float32 * traceWidth + traceWidth / 2
+      let centerY = selection.agentId.float32 * traceHeight + traceHeight / 2
+      panel.pos.x = rectW / 2.0f - centerX * z
+      panel.pos.y = rectH / 2.0f - centerY * z
+
   if panel.hasMouse and window.buttonDown[MouseLeft]:
     let
       mousePos = bxy.getTransform().inverse * window.mousePos.vec2
@@ -35,10 +46,10 @@ proc drawAgentTraces*(panel: Panel) =
       let currentTime = epochTime()
       if currentTime - lastClickTime < ClickInterval and isClick:
         echo "Double-click detected at position: ", mousePos
-        followSelection = true
+        settings.lockFocus = true
       else:
         echo "Single press at position: ", mousePos
-        followSelection = false
+        settings.lockFocus = false
         let
           newStep = floor(mousePos.x() / traceWidth).int
           agentId = floor(mousePos.y() / traceHeight).int
