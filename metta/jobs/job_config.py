@@ -58,7 +58,8 @@ class JobConfig(Config):
     remote=None runs locally, remote=RemoteConfig(...) runs remotely.
     metrics_source specifies where/how to collect metrics (wandb, cogames_log, or none).
     metrics_to_track lists which metrics to monitor.
-    acceptance_criteria stores metric thresholds for validation (e.g., {"overview/sps": (">=", 40000)}).
+    acceptance_criteria lists thresholds for validation
+        (e.g., [AcceptanceCriterion(metric="overview/sps", operator=">=", threshold=40000)]).
     """
 
     name: str
@@ -72,15 +73,7 @@ class JobConfig(Config):
     metadata: dict[str, Any] = Field(default_factory=dict)
     metrics_source: MetricsSource = MetricsSource.NONE  # Where/how to collect metrics
     metrics_to_track: list[str] = Field(default_factory=list)  # Metrics to track
-    acceptance_criteria: dict[str, tuple[str, float]] | None = None  # Metric thresholds: {metric: (op, value)}
-
-    @model_validator(mode="before")
-    @classmethod
-    def migrate_module_to_tool(cls, data: Any) -> Any:
-        """Backwards compatibility: migrate old 'module' field to 'tool'."""
-        if isinstance(data, dict) and "module" in data:
-            data["tool"] = data.pop("module")
-        return data
+    acceptance_criteria: list[AcceptanceCriterion] = Field(default_factory=list)
 
     @model_validator(mode="after")
     def validate_tool_or_cmd(self):
