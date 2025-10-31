@@ -14,6 +14,7 @@ Usage:
 """
 
 import argparse
+import json
 import subprocess
 import sys
 from datetime import UTC, datetime
@@ -44,10 +45,14 @@ def main() -> int:
     parser.add_argument("--steps", type=int, required=True, help="Training steps")
     parser.add_argument("--checkpoints-dir", type=Path, required=True, help="Checkpoints directory")
     parser.add_argument("--eval-episodes", type=int, default=10, help="Evaluation episodes")
+    parser.add_argument("--artifacts", required=True, help="JSON dict of artifact names to S3 URIs")
     parser.add_argument("--policy", default="lstm", help="Policy type")
     parser.add_argument("--seed", type=int, default=42, help="Random seed")
 
     args = parser.parse_args()
+
+    # Parse artifacts JSON
+    artifact_paths = json.loads(args.artifacts)
 
     # Ensure checkpoints directory exists
     args.checkpoints_dir.mkdir(parents=True, exist_ok=True)
@@ -125,9 +130,31 @@ def main() -> int:
         print(eval_result.stderr, file=sys.stderr, flush=True)
         return eval_result.returncode
 
-    # Output eval results in single-line format for parsing
+    # Output eval results in single-line format for parsing (for log-based fallback)
     # The eval command with --format json outputs a JSON object
     print(f"EvalResults: {datetime.now(UTC)} {eval_result.stdout.strip()}", flush=True)
+
+    # Upload eval results to S3 using paths from artifacts dict
+    if "eval_results.json" in artifact_paths:
+        try:
+            s3_path = artifact_paths["eval_results.json"]
+
+            # Write eval JSON to temp file
+            eval_json_file = args.checkpoints_dir / "eval_results.json"
+            eval_json_file.write_text(eval_result.stdout)
+
+            # Upload to S3 using aws cli
+            upload_cmd = ["aws", "s3", "cp", str(eval_json_file), s3_path]
+            upload_result = subprocess.run(upload_cmd, capture_output=True, text=True, timeout=30)
+
+            if upload_result.returncode == 0:
+                print(f"Uploaded eval results to {s3_path}", flush=True)
+            else:
+                print(
+                    f"Warning: Failed to upload eval results to S3: {upload_result.stderr}", file=sys.stderr, flush=True
+                )
+        except Exception as e:
+            print(f"Warning: Error uploading eval results to S3: {e}", file=sys.stderr, flush=True)
 
     return 0
 

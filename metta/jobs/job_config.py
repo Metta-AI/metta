@@ -86,7 +86,7 @@ class JobConfig(Config):
     dependency_names: list[str] = Field(default_factory=list)
 
     # Artifacts (for ARTIFACTS metrics source)
-    artifacts: list[str] = Field(default_factory=list)  # e.g., ["eval_results.json"]
+    artifacts: list[str] = Field(default_factory=list)  # Expected artifact names (e.g., ["eval_results.json"])
 
     @model_validator(mode="before")
     @classmethod
