@@ -289,8 +289,8 @@ TRAINING_FACILITY = Site(
     description="COG Training Facility. Basic training facility with open spaces and no obstacles.",
     map_builder=make_hub_only_map_builder(
         num_cogs=4,
-        width=15,
-        height=15,
+        width=13,
+        height=13,
         corner_bundle="chests",
         cross_bundle="extractors",
     ),
