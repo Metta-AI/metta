@@ -68,7 +68,7 @@ def write_data(path: str, data: Union[str, bytes], *, content_type: str = "appli
             logger.info("Wrote %d B → %s", len(data), http_url(parsed.canonical))
             return
         except NoCredentialsError as e:  # pragma: no cover - environment dependent
-            logger.error("AWS credentials not found; run 'aws sso login --profile softmax'")
+            logger.error("AWS credentials not found; run 'aws sso login --profile softmax'", exc_info=True)
             raise e
 
     if parsed.scheme == "file" and parsed.local_path is not None:
@@ -116,7 +116,7 @@ def read(path: str) -> bytes:
             logger.info("Read %d B from %s", len(body), parsed.canonical)
             return body
         except NoCredentialsError:  # pragma: no cover - environment dependent
-            logger.error("AWS credentials not found -- have you run devops/aws/setup_sso.py?")
+            logger.error("AWS credentials not found -- have you run devops/aws/setup_sso.py?", exc_info=True)
             raise
 
     if parsed.scheme == "file" and parsed.local_path is not None:

@@ -333,16 +333,17 @@ def train(
                 has_nan = False
                 for name, param in network.named_parameters():
                     if param.grad is not None and not param.grad.isfinite().all():
-                        logger.error(f"NaN/Inf detected in gradients for parameter: {name}")
+                        logger.error(f"NaN/Inf detected in gradients for parameter: {name}", exc_info=True)
                         has_nan = True
                     if not param.isfinite().all():
-                        logger.error(f"NaN/Inf detected in parameter: {name}")
+                        logger.error(f"NaN/Inf detected in parameter: {name}", exc_info=True)
                         has_nan = True
 
                 if has_nan:
                     logger.error(
                         f"Training diverged at step {trainer.global_step}! "
-                        "Stopping early to prevent saving corrupted checkpoint."
+                        "Stopping early to prevent saving corrupted checkpoint.",
+                        exc_info=True,
                     )
                     training_diverged = True
                     break
