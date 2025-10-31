@@ -21,14 +21,36 @@ on:
         default: ""
 
 jobs:
-  build-and-deploy:
+  build-and-push-image:
+    runs-on: ubuntu-4core
+    timeout-minutes: 20
     permissions:
       id-token: write
       contents: read
-    uses: ./.github/workflows/build-and-deploy-docker-image.yml
-    with:
-      image_name: softmax-dashboard
-      dockerfile: ./devops/datadog/Dockerfile.collectors
-      helm_release: dashboard-cronjob
-      helm_namespace: monitoring
-      helm_chart: ./devops/charts/dashboard-cronjob
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Build Docker image
+        id: build-image
+        uses: ./.github/actions/docker-build
+        with:
+          image_name: softmax-dashboard
+          dockerfile: ./devops/datadog/Dockerfile.collectors
+          aws_role: ${{ vars.AWS_ROLE }}
+
+      - name: Configure EKS
+        if: github.ref == 'refs/heads/main'
+        uses: ./.github/actions/eks-configure
+
+      - name: Deploy with Helm
+        if: github.ref == 'refs/heads/main'
+        uses: ./.github/actions/helm-deploy
+        with:
+          namespace: monitoring
+          release: dashboard-cronjob
+          chart: ./devops/charts/dashboard-cronjob
+          image_tag: ${{ steps.build-image.outputs.tag }}
