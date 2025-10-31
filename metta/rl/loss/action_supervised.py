@@ -9,6 +9,7 @@ from torch import Tensor
 from torchrl.data import Composite, UnboundedContinuous, UnboundedDiscrete
 
 from metta.agent.policy import Policy
+from metta.rl.advantage import compute_advantage, normalize_advantage_distributed
 from metta.rl.loss import Loss
 from metta.rl.loss.replay_sampler import sample_minibatch_sequential
 from metta.rl.trainer_config import TrainerConfig
@@ -17,12 +18,20 @@ from mettagrid.base_config import Config
 
 
 class ActionSupervisedConfig(Config):
-    action_loss_coef: float = Field(default=0.995, ge=0, le=1.0)
-    value_loss_coef: float = Field(default=1.0, ge=0, le=1.0)
-    use_own_sampling: bool = (True,)
-    use_own_rollout: bool = (True,)
+    action_loss_coef: float = Field(default=0.75, ge=0)
+    value_loss_coef: float = Field(default=1.5, ge=0)
+    gae_gamma: float = Field(default=0.977, ge=0, le=1.0)  # pulling from our PPO config
+    gae_lambda: float = Field(default=0.891477, ge=0, le=1.0)  # pulling from our PPO config
+    vf_clip_coef: float = Field(default=0.1, ge=0)  # pulling from our PPO config
+    use_own_sampling: bool = (True,)  # Does not use prioritized sampling
+    use_own_rollout: bool = (True,)  # Update when including PPO as concurent loss
     student_led: bool = (True,)  # sigma as per Matt's document
-    loss_type: str = Field(default="BCE")  # one of {"BCE", "MSE", "COSINE"}. Eliminate this hyper after testing
+    action_reward_coef: float = Field(default=0.01, ge=0)  # wild ass guess at this point
+
+    # Below: branches for testing different approaches. Hopefully we can eliminate these hypers after testing.
+    loss_type: str = Field(default="BCE")  # one of {"BCE", "MSE", "COSINE"}.
+    add_action_loss_to_rewards: bool = Field(default=True)
+    norm_adv: bool = Field(default=True)
 
     def create(
         self,
@@ -39,6 +48,7 @@ class ActionSupervisedConfig(Config):
         )
 
 
+# --------------------------Helper Functions----------------------------------
 # helper to extract teacher actions from env obs. Then infer full logits and return.
 def extract_teacher_logits_from_env_obs(env_obs: Tensor, action_space: Any) -> Tensor:
     # --> Run helper to extract teacher actions from env obs
@@ -60,16 +70,21 @@ def multinomial_sample_teacher_actions(teacher_logits: Tensor) -> Tensor:
     pass
 
 
+# --------------------------ActionSupervised Loss----------------------------------
 class ActionSupervised(Loss):
     __slots__ = (
-        "teacher_policy",
-        "teacher_policy_spec",
         "action_loss_coef",
         "value_loss_coef",
+        "norm_adv",
+        "vf_clip_coef",
+        "gae_gamma",
+        "gae_lambda",
+        "add_action_loss_to_rewards",
         "use_own_rollout",
         "use_own_sampling",
         "loss_type",
-        "teacher_has_action_log_prob",
+        "student_led",
+        "action_reward_coef",
     )
 
     def __init__(
@@ -85,22 +100,36 @@ class ActionSupervised(Loss):
         if loss_config is None:
             loss_config = getattr(trainer_cfg.losses, instance_name, None)
         super().__init__(policy, trainer_cfg, vec_env, device, instance_name, loss_config)
+        # unpack config into slots
         self.action_loss_coef = self.loss_cfg.action_loss_coef
         self.value_loss_coef = self.loss_cfg.value_loss_coef
+        self.norm_adv = self.loss_cfg.norm_adv
+        self.vf_clip_coef = self.loss_cfg.vf_clip_coef
+        self.gae_gamma = self.loss_cfg.gae_gamma
+        self.gae_lambda = self.loss_cfg.gae_lambda
+        self.add_action_loss_to_rewards = self.loss_cfg.add_action_loss_to_rewards
         self.use_own_rollout = self.loss_cfg.use_own_rollout
         self.use_own_sampling = self.loss_cfg.use_own_sampling
         self.loss_type = self.loss_cfg.loss_type
+        self.student_led = self.loss_cfg.student_led
+        self.action_reward_coef = self.loss_cfg.action_reward_coef
 
     def get_experience_spec(self) -> Composite:
         act_space = self.env.single_action_space
         act_dtype = torch.int32 if np.issubdtype(act_space.dtype, np.integer) else torch.float32
         scalar_f32 = UnboundedContinuous(shape=torch.Size([]), dtype=torch.float32)
 
+        logits_shape = torch.Size([int(act_space.n)])
+        logits_f32 = UnboundedContinuous(shape=logits_shape, dtype=torch.float32)
+
         return Composite(
             actions=UnboundedDiscrete(shape=torch.Size([]), dtype=act_dtype),
-            logits=scalar_f32,  # student logits
-            full_log_probs=scalar_f32,  # student full log_probs
-            teacher_logits=scalar_f32,
+            logits=logits_f32,  # student logits
+            teacher_logits=logits_f32,
+            rewards=scalar_f32,
+            dones=scalar_f32,
+            truncateds=scalar_f32,
+            values=scalar_f32,
         )
 
     def run_rollout(self, td: TensorDict, context: ComponentContext) -> None:
@@ -118,10 +147,6 @@ class ActionSupervised(Loss):
         # running it in training as per usual. we'll likely revert once including PPO. see note under
         # `if not student_led` below.
         self.policy.forward(td)
-
-        if self.burn_in_steps_iter < self.burn_in_steps:
-            self.burn_in_steps_iter += 1
-            return
 
         env_slice = context.training_env_id
         if env_slice is None:
@@ -155,22 +180,64 @@ class ActionSupervised(Loss):
         if self.loss_type == "BCE":
             student_logits = minibatch["logits"].to(dtype=torch.float32)
             teacher_logits = minibatch["teacher_logits"].to(dtype=torch.float32).detach()
-            ks_action_loss = F.binary_cross_entropy_with_logits(student_logits, teacher_logits)
+            # NOTE: we assume teacher logits are either 0 or 1.
+            bce_per_class = F.binary_cross_entropy_with_logits(
+                student_logits, teacher_logits.detach(), reduction="none"
+            )  # not reduced yet, (B, T, A)
+            imitation_per_step = bce_per_class.mean(dim=-1)  # reduced over class so we can pass it to reward if needed
+            if self.add_action_loss_to_rewards:
+                minibatch["rewards"] = minibatch["rewards"] + self.action_reward_coef * imitation_per_step.detach()
+            actor_loss = bce_per_class.mean()  # now reduced over batch (same as batch mean)
         elif self.loss_type == "MSE":
             student_logits = minibatch["logits"].to(dtype=torch.float32)
             teacher_logits = minibatch["teacher_logits"].to(dtype=torch.float32).detach()
             teacher_logits = center_teacher_logits(teacher_logits)
-            ks_action_loss = F.mse_loss(student_logits, teacher_logits)
+            actor_loss = F.mse_loss(student_logits, teacher_logits)
         elif self.loss_type == "COSINE":
             student_logits = minibatch["logits"].to(dtype=torch.float32)
             teacher_logits = minibatch["teacher_logits"].to(dtype=torch.float32).detach()
             teacher_logits = center_teacher_logits(teacher_logits)
-            ks_action_loss = (1.0 - F.cosine_similarity(student_logits, teacher_logits, dim=-1)).mean()
+            actor_loss = (1.0 - F.cosine_similarity(student_logits, teacher_logits, dim=-1)).mean()
         else:
             raise ValueError(f"Unsupported loss_type: {self.loss_type}")
 
-        loss = ks_action_loss * self.action_loss_coef
+        actor_loss = actor_loss * self.action_loss_coef
 
-        self.loss_tracker["sl_ks_action_loss"].append(float(ks_action_loss.item()))
+        self.loss_tracker["supervised_action_loss"].append(float(actor_loss.item()))
+
+        # --------------------------Now Value Loss----------------------------------
+        advantages = torch.zeros_like(minibatch["values"], device=self.device)
+        advantages = compute_advantage(
+            minibatch["values"],
+            minibatch["rewards"],
+            minibatch["dones"],
+            torch.ones_like(minibatch["values"]),  # effectively deactivates v-trace
+            advantages,
+            self.gae_gamma,
+            self.gae_lambda,
+            1.0,  # no v-trace
+            1.0,  # no v-trace
+            self.device,
+        )
+
+        returns = advantages + minibatch["values"]
+        if self.norm_adv:
+            advantages = normalize_advantage_distributed(advantages)
+
+        # compute value loss
+        old_values = minibatch["values"]
+        newvalue_reshaped = minibatch["values"].view(returns.shape)
+        v_loss_unclipped = (newvalue_reshaped - returns) ** 2
+        v_clipped = old_values + torch.clamp(
+            newvalue_reshaped - old_values,
+            -self.vf_clip_coef,
+            self.vf_clip_coef,
+        )
+        v_loss_clipped = (v_clipped - returns) ** 2
+        value_loss = 0.5 * torch.max(v_loss_unclipped, v_loss_clipped).mean() * self.value_loss_coef
+
+        self.loss_tracker["supervised_value_loss"].append(float(value_loss.item()))
+
+        loss = actor_loss + value_loss
 
         return loss, shared_loss_data, False
