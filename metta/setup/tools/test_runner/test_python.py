@@ -50,13 +50,12 @@ PACKAGES: tuple[Package, ...] = (
 )
 
 
-DEFAULT_FLAGS: tuple[str, ...] = ("--benchmark-disable", "-n", "auto")
+DEFAULT_FLAGS: tuple[str, ...] = ("-n", "auto")
 CI_FLAGS: tuple[str, ...] = (
     "-n",
     "4",
     "--timeout=100",
     "--timeout-method=thread",
-    "--benchmark-skip",
     "--disable-warnings",
     "--color=yes",
     "-v",
