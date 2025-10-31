@@ -88,8 +88,19 @@ def _build_remote_script(
         # Prefer explicit head IP if present; fall back to first node IP
         "export MASTER_ADDR=\"${SKYPILOT_RAY_HEAD_IP:-}\"",
         "if [ -z \"$MASTER_ADDR\" ]; then MASTER_ADDR=\"$(echo \"${SKYPILOT_NODE_IPS:-127.0.0.1}\" | head -n1)\"; fi",
-        # Use a stable default master port unless overridden
-        "export MASTER_PORT=\"${MASTER_PORT:-29501}\"",
+        # Robustly select and share a rendezvous port across nodes
+        "mkdir -p /workspace/metta/.cluster",
+        "PORT_FILE=/workspace/metta/.cluster/master_port",
+        "if [ \"$NODE_INDEX\" = \"0\" ]; then",
+        "  CHOSEN_PORT=\"${MASTER_PORT:-}\"",
+        "  if [ -z \"$CHOSEN_PORT\" ]; then",
+        "    CHOSEN_PORT=\"$(python -c 'import socket; s=socket.socket(); s.bind((\"\",0)); print(s.getsockname()[1]); s.close()' 2>/dev/null || echo 29501)\"",
+        "  fi",
+        "  echo \"$CHOSEN_PORT\" > \"$PORT_FILE\"",
+        "else",
+        "  for i in $(seq 1 60); do [ -s \"$PORT_FILE\" ] && break; sleep 1; done",
+        "fi",
+        "export MASTER_PORT=\"$(cat \"$PORT_FILE\" 2>/dev/null || echo ${MASTER_PORT:-29501})\"",
     ]
 
     if unset_cuda_visible_devices:
