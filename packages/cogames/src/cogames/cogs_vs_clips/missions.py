@@ -303,33 +303,8 @@ SITES = [
 # Training Facility Missions
 class HarvestMission(Mission):
     name: str = "harvest"
-    description: str = "Collect resources and store them in the appropriate chests. Make sure to stay charged!"
+    description: str = "Collect resources, assemble hearts, and deposit them in the chest. Make sure to stay charged!"
     site: Site = TRAINING_FACILITY
-
-    # Global Mission.instantiate now applies overrides; no per-mission override needed
-    def make_env(self) -> MettaGridConfig:
-        env = super().make_env()
-        # Log-shaped chest rewards at episode end via per-step telescoping
-        if self.num_cogs and self.num_cogs > 0:
-            reward_weight = 1.0 / self.num_cogs
-        else:
-            reward_weight = 1.0 / max(1, getattr(env.game, "num_agents", 1))
-
-        env.game.agent.rewards.inventory = {}
-        env.game.agent.rewards.stats = {
-            "chest.carbon.amount": reward_weight,
-            "chest.oxygen.amount": reward_weight,
-            "chest.germanium.amount": reward_weight,
-            "chest.silicon.amount": reward_weight,
-        }
-        env.game.agent.rewards.inventory_max = {}
-        env.game.agent.rewards.stats_max = {}
-        # Ensure that the extractors are configured to have high max uses
-        for name in ("germanium_extractor", "carbon_extractor", "oxygen_extractor", "silicon_extractor"):
-            cfg = env.game.objects.get(name)
-            if cfg is not None:
-                cast(Any, cfg).max_uses = 100
-        return env
 
 
 class AssembleMission(Mission):
