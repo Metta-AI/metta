@@ -1,10 +1,13 @@
-from pathlib import Path
+import logging
 from typing import Any, cast
 
 from pydantic import Field
 
 from cogames.cogs_vs_clips.mission import Mission, MissionVariant, Site
+from cogames.cogs_vs_clips.mission_utils import get_map
 from cogames.cogs_vs_clips.procedural import MachinaArenaConfig, make_hub_only_map_builder
+from cogames.cogs_vs_clips.sites import EVALS
+from cogames.cogs_vs_clips.evals import eval_missions
 from cogames.cogs_vs_clips.stations import (
     CarbonExtractorConfig,
     ChargerConfig,
@@ -24,13 +27,7 @@ from mettagrid.config.mettagrid_config import (
 from mettagrid.map_builder.map_builder import MapBuilderConfig
 from mettagrid.mapgen.mapgen import MapGen
 
-
-def get_map(site: str) -> MapBuilderConfig:
-    maps_dir = Path(__file__).parent.parent / "maps"
-    map_path = maps_dir / site
-    return MapBuilderConfig.from_uri(str(map_path))
-
-
+logger = logging.getLogger(__name__)
 PROCEDURAL_BASE_BUILDER = MapGen.Config(width=100, height=100, instance=MachinaArenaConfig(spawn_count=4))
 
 
@@ -297,6 +294,7 @@ SITES = [
     TRAINING_FACILITY,
     HELLO_WORLD,
     MACHINA_1,
+    EVALS,
     MACHINA_PROCEDURAL,
 ]
 
@@ -305,33 +303,8 @@ SITES = [
 # Training Facility Missions
 class HarvestMission(Mission):
     name: str = "harvest"
-    description: str = "Collect resources and store them in the appropriate chests. Make sure to stay charged!"
+    description: str = "Collect resources, assemble hearts, and deposit them in the chest. Make sure to stay charged!"
     site: Site = TRAINING_FACILITY
-
-    # Global Mission.instantiate now applies overrides; no per-mission override needed
-    def make_env(self) -> MettaGridConfig:
-        env = super().make_env()
-        # Log-shaped chest rewards at episode end via per-step telescoping
-        if self.num_cogs and self.num_cogs > 0:
-            reward_weight = 1.0 / self.num_cogs
-        else:
-            reward_weight = 1.0 / max(1, getattr(env.game, "num_agents", 1))
-
-        env.game.agent.rewards.inventory = {}
-        env.game.agent.rewards.stats = {
-            "chest.carbon.amount": reward_weight,
-            "chest.oxygen.amount": reward_weight,
-            "chest.germanium.amount": reward_weight,
-            "chest.silicon.amount": reward_weight,
-        }
-        env.game.agent.rewards.inventory_max = {}
-        env.game.agent.rewards.stats_max = {}
-        # Ensure that the extractors are configured to have high max uses
-        for name in ("germanium_extractor", "carbon_extractor", "oxygen_extractor", "silicon_extractor"):
-            cfg = env.game.objects.get(name)
-            if cfg is not None:
-                cast(Any, cfg).max_uses = 100
-        return env
 
 
 class AssembleMission(Mission):
@@ -741,6 +714,12 @@ def _get_default_map_objects() -> dict[str, GridObjectConfig]:
     wall = CvCWallConfig()
     assembler = CvCAssemblerConfig()
 
+    # Clipped variants (start_clipped=True)
+    clipped_carbon = CarbonExtractorConfig(start_clipped=True)
+    clipped_oxygen = OxygenExtractorConfig(start_clipped=True)
+    clipped_germanium = GermaniumExtractorConfig(start_clipped=True)
+    clipped_silicon = SiliconExtractorConfig(start_clipped=True)
+
     return {
         "carbon_extractor": carbon_extractor.station_cfg(),
         "oxygen_extractor": oxygen_extractor.station_cfg(),
@@ -750,6 +729,10 @@ def _get_default_map_objects() -> dict[str, GridObjectConfig]:
         "chest": chest.station_cfg(),
         "wall": wall.station_cfg(),
         "assembler": assembler.station_cfg(),
+        "clipped_carbon_extractor": clipped_carbon.station_cfg(),
+        "clipped_oxygen_extractor": clipped_oxygen.station_cfg(),
+        "clipped_germanium_extractor": clipped_germanium.station_cfg(),
+        "clipped_silicon_extractor": clipped_silicon.station_cfg(),
     }
 
 
@@ -760,3 +743,19 @@ def make_game(num_cogs: int = 2, map_name: str = "training_facility_open_1.map")
     # Use no variant (default)
     variant = MissionVariant(name="default", description="Default mission variant")
     return mission.instantiate(map_builder, num_cogs, variant).make_env()
+
+   # noqa: E402
+
+MISSIONS.extend(
+    [
+        eval_missions.BalancedSpread,
+        eval_missions.CollectTheResourcesEasy,
+        eval_missions.CollectTheResourcesHard,
+        eval_missions.CollectTheResourcesMedium,
+        eval_missions.EnergyStarved,
+        eval_missions.GeraniumForage,
+        eval_missions.OxygenBottleneck,
+        eval_missions.SingleUseWorld,
+        eval_missions.SparseBalanced,
+    ]
+)

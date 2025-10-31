@@ -135,7 +135,7 @@ class GermaniumExtractorConfig(ExtractorConfig):
             map_char="G",
             render_symbol=vibes.VIBE_BY_NAME["germanium"].symbol,
             # Protocols
-            max_uses=1,
+            max_uses=self.max_uses,
             recipes=[
                 (
                     [],
@@ -190,7 +190,7 @@ class CvCChestConfig(CvCStationConfig):
             map_char="C",
             render_symbol=vibes.VIBE_BY_NAME["chest"].symbol,
             resource_type=self.default_resource,
-            position_deltas=[("E", 1), ("W", -1), ("N", 5), ("S", -5)],
+            position_deltas=[("E", 1), ("W", 1), ("N", 1), ("S", 1)],  # Accept deposits from any direction
         )
 
 

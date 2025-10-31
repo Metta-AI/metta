@@ -74,7 +74,7 @@ class Mission(Config):
     assembler: CvCAssemblerConfig = Field(default_factory=CvCAssemblerConfig)
 
     clip_rate: float = Field(default=0.0)
-    cargo_capacity: int = Field(default=100)
+    cargo_capacity: int = Field(default=255)
     energy_capacity: int = Field(default=100)
     energy_regen_amount: int = Field(default=1)
     gear_capacity: int = Field(default=5)
@@ -158,6 +158,7 @@ class Mission(Config):
                 move=ActionConfig(consumed_resources={"energy": self.move_energy_cost}),
                 noop=ActionConfig(),
                 change_glyph=ChangeGlyphActionConfig(
+                    consumed_resources={},  # Fix: Glyph changes should cost 0 energy
                     number_of_glyphs=(
                         0
                         if not self.enable_glyph_change
@@ -214,8 +215,21 @@ class Mission(Config):
                 "oxygen_extractor": self.oxygen_extractor.station_cfg(),
                 "germanium_extractor": self.germanium_extractor.station_cfg(),
                 "silicon_extractor": self.silicon_extractor.station_cfg(),
+                # Clipped variants
+                "clipped_carbon_extractor": self.carbon_extractor.model_copy(
+                    update={"start_clipped": True}
+                ).station_cfg(),
+                "clipped_oxygen_extractor": self.oxygen_extractor.model_copy(
+                    update={"start_clipped": True}
+                ).station_cfg(),
+                "clipped_germanium_extractor": self.germanium_extractor.model_copy(
+                    update={"start_clipped": True}
+                ).station_cfg(),
+                "clipped_silicon_extractor": self.silicon_extractor.model_copy(
+                    update={"start_clipped": True}
+                ).station_cfg(),
                 **RESOURCE_CHESTS,
-            },
+              },
         )
 
         # if hasattr(self, "heart_chorus_length"):
