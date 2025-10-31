@@ -3,7 +3,6 @@
 from cogames.cogs_vs_clips.evals.difficulty_variants import DIFFICULTY_LEVELS, apply_difficulty
 from cogames.cogs_vs_clips.evals.eval_missions import (
     OxygenBottleneck,
-    SparseBalanced,
     apply_clip_profile,
 )
 from cogames.cogs_vs_clips.evals.exploration_evals import (
@@ -25,7 +24,6 @@ __all__ = [
     "apply_clip_profile",
     # Eval missions
     "OxygenBottleneck",
-    "SparseBalanced",
     # Exploration experiments
     "Experiment1Mission",
     "Experiment2Mission",

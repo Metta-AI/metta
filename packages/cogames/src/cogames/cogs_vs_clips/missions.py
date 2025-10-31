@@ -747,14 +747,5 @@ def make_game(num_cogs: int = 2, map_name: str = "training_facility_open_1.map")
 
 # noqa: E402
 
-MISSIONS.extend(
-    [
-        eval_missions.BalancedSpread,
-        eval_missions.CollectTheResourcesEasy,
-        eval_missions.CollectTheResourcesHard,
-        eval_missions.CollectTheResourcesMedium,
-        eval_missions.EnergyStarved,
-        eval_missions.OxygenBottleneck,
-        eval_missions.SingleUseWorld,
-    ]
-)
+# Eval missions are accessed via evaluate_scripted_agent.py, not through MISSIONS list
+# MISSIONS.extend([eval_missions...])
