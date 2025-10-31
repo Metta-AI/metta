@@ -17,7 +17,7 @@ class _EvalMissionBase(Mission):
     site: Site = EVALS
 
     # Tunables (defaults; override in subclasses)
-    map_name: str = "evals/machina_eval_template.map"
+    map_name: str = "evals/eval_collect_resources_easy.map"
 
     # Clipping
     clip_rate: float = 0.0
@@ -187,7 +187,7 @@ class _EvalMissionBase(Mission):
 class OxygenBottleneck(_EvalMissionBase):
     name: str = "oxygen_bottleneck"
     description: str = "Oxygen paces assembly; batch other resources."
-    map_name: str = "evals/machina_eval_exp02.map"
+    map_name: str = "evals/eval_oxygen_bottleneck.map"
     oxygen_eff: int = 50
     energy_regen: int = 1
     max_uses_charger: int = 0
@@ -198,52 +198,6 @@ class OxygenBottleneck(_EvalMissionBase):
     site: Site = EVALS
 
 
-class SingleUseWorld(_EvalMissionBase):
-    name: str = "single_use_world"
-    description: str = "Every station can be used exactly once."
-    map_name: str = "evals/machina_eval_exp06.map"
-    max_uses_charger: int = 1
-    max_uses_carbon: int = 1
-    max_uses_oxygen: int = 1
-    max_uses_germanium: int = 1
-    max_uses_silicon: int = 1
-
-
-class SparseBalanced(_EvalMissionBase):
-    name: str = "sparse_balanced"
-    description: str = "Evenly sparse resources; balanced routing."
-    map_name: str = "evals/machina_eval_exp09.map"
-    max_uses_carbon: int = 50
-    max_uses_oxygen: int = 50
-    max_uses_germanium: int = 10
-    max_uses_silicon: int = 50
-    max_uses_charger: int = 0
-    site: Site = EVALS
-
-
-# -----------------------------
-# New Single-Agent Eval Missions
-# -----------------------------
-
-
-class CollectTheResourcesEasy(_EvalMissionBase):
-    name: str = "collect_the_resources_easy"
-    description: str = "Collect all four resources, assemble a HEART, and deposit in chest (small/easy)."
-    map_name: str = "evals/eval_collect_resources_easy.map"
-
-
-class CollectTheResourcesMedium(_EvalMissionBase):
-    name: str = "collect_the_resources_medium"
-    description: str = "Collect all four resources, assemble a HEART, and deposit in chest (medium)."
-    map_name: str = "evals/eval_collect_resources_medium.map"
-
-
-class CollectTheResourcesHard(_EvalMissionBase):
-    name: str = "collect_the_resources_hard"
-    description: str = "Collect all four resources, assemble a HEART, and deposit in chest (large/hard)."
-    map_name: str = "evals/eval_collect_resources_hard.map"
-
-
 class EnergyStarved(_EvalMissionBase):
     name: str = "energy_starved"
     description: str = "Low regen; requires careful charging and routing."
@@ -251,40 +205,6 @@ class EnergyStarved(_EvalMissionBase):
     charger_eff: int = 80
     energy_regen: int = 0
     max_uses_charger: int = 0
-
-
-class GeraniumForage(_EvalMissionBase):
-    name: str = "geranium_forage"
-    description: str = "All resources near base except germanium; forage further away to find it."
-    map_name: str = "evals/eval_germanium_forage.map"
-
-    def instantiate(
-        self, map_builder: MapBuilderConfig, num_cogs: int, variant: MissionVariant | None = None
-    ) -> "Mission":
-        # Use base behavior to set up env and QoL tweaks
-        mission = super().instantiate(map_builder, num_cogs, variant)
-
-        # Re-enforce strict single-use on extractors AFTER any global doubling logic
-        def _enforce_strict_single_use(cfg: MettaGridConfig) -> None:
-            for key in ("carbon_extractor", "oxygen_extractor", "germanium_extractor", "silicon_extractor"):
-                obj = cfg.game.objects.get(key)
-                if obj is None:
-                    continue
-                try:
-                    obj.max_uses = 1
-                    # Prefer partial usage semantics if supported by the object type
-                    if hasattr(obj, "allow_partial_usage"):
-                        obj.allow_partial_usage = True
-                except Exception:
-                    pass
-
-        return _add_make_env_modifier(mission, _enforce_strict_single_use)
-
-
-class BalancedSpread(_EvalMissionBase):
-    name: str = "balanced_spread"
-    description: str = "Resources spread out; agent must forage far and return efficiently."
-    map_name: str = "evals/eval_balanced_spread.map"
 
 
 # -----------------------------
@@ -480,15 +400,8 @@ class ClipOxygen(_EvalMissionBase):
 
 
 EVAL_MISSIONS = [
-    CollectTheResourcesEasy,
-    CollectTheResourcesMedium,
-    CollectTheResourcesHard,
     EnergyStarved,
     OxygenBottleneck,
-    GeraniumForage,
-    SingleUseWorld,
-    BalancedSpread,
-    SparseBalanced,
     ExtractorHub30,
     ExtractorHub50,
     ExtractorHub70,

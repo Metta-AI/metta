@@ -163,7 +163,7 @@ class Mission(Config):
                         0
                         if not self.enable_glyph_change
                         else (self.glyph_count if self.glyph_count is not None else len(vibes.VIBES))
-                    )
+                    ),
                 ),
             ),
             agent=AgentConfig(
@@ -229,7 +229,7 @@ class Mission(Config):
                     update={"start_clipped": True}
                 ).station_cfg(),
                 **RESOURCE_CHESTS,
-              },
+            },
         )
 
         # if hasattr(self, "heart_chorus_length"):

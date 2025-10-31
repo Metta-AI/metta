@@ -1,2 +1,1 @@
 """Policy implementations for CoGames."""
-

@@ -1,10 +1,10 @@
 """Central site definitions shared across mission modules."""
 
-from mettagrid.base_config import Config
-from mettagrid.map_builder.map_builder import MapBuilderConfig
-from cogames.cogs_vs_clips.mission_utils import get_map
 from pydantic import Field
 
+from cogames.cogs_vs_clips.mission_utils import get_map
+from mettagrid.base_config import Config
+from mettagrid.map_builder.map_builder import MapBuilderConfig
 
 
 class Site(Config):
