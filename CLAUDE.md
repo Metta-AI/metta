@@ -240,7 +240,6 @@ metta ci
 # Run specific CI stages (used by GitHub Actions)
 metta ci --stage lint                       # Linting only
 metta ci --stage python-tests               # Python tests only
-metta ci --stage python-benchmarks          # Python benchmarks only
 metta ci --stage cpp-tests                  # C++ tests only
 metta ci --stage cpp-benchmarks             # C++ benchmarks only
 

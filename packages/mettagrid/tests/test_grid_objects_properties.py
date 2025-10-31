@@ -31,8 +31,6 @@ def env_with_assembler():
             actions=ActionsConfig(
                 noop=ActionConfig(),
                 move=ActionConfig(),
-                get_items=ActionConfig(),
-                put_items=ActionConfig(),
             ),
             objects={
                 "wall": WallConfig(),
@@ -71,8 +69,6 @@ def env_with_chest():
             actions=ActionsConfig(
                 noop=ActionConfig(),
                 move=ActionConfig(),
-                get_items=ActionConfig(),
-                put_items=ActionConfig(),
             ),
             objects={
                 "wall": WallConfig(),
@@ -117,6 +113,42 @@ def env_with_walls():
                 objects={"wall": 20},  # Add 20 random walls
                 border_width=1,  # Add border walls
                 seed=123,
+            ),
+        )
+    )
+    return MettaGridCore(config)
+
+
+@pytest.fixture
+def env_with_wall_vibe():
+    """Create environment with test wall vibe."""
+    config = MettaGridConfig(
+        game=GameConfig(
+            num_agents=1,
+            max_steps=100,
+            obs_width=5,
+            obs_height=5,
+            num_observation_tokens=100,
+            resource_names=["gold", "silver"],
+            actions=ActionsConfig(
+                noop=ActionConfig(),
+                move=ActionConfig(),
+            ),
+            objects={
+                "wall": WallConfig(
+                    vibe=138,  # In-range vibe value
+                ),
+                "chest": ChestConfig(
+                    resource_type="gold",
+                    position_deltas=[("NW", 1), ("N", 1), ("NE", 1), ("SW", -1), ("S", -1), ("SE", -1)],
+                ),
+            },
+            map_builder=RandomMapBuilder.Config(
+                width=10,
+                height=10,
+                agents=1,
+                objects={"chest": 1},  # Add one chest
+                seed=42,
             ),
         )
     )
@@ -349,3 +381,28 @@ class TestAgentProperties:
         assert isinstance(agent["freeze_remaining"], (int, np.integer))
         assert isinstance(agent["freeze_duration"], (int, np.integer))
         assert isinstance(agent["inventory"], dict)
+
+
+class TestVibeProperty:
+    """Test vibe property in grid_objects."""
+
+    def test_vibe_property(self, env_with_wall_vibe):
+        """Test that out of range vibe property is not exposed."""
+        env_with_wall_vibe.reset()
+
+        objects = env_with_wall_vibe.grid_objects()
+
+        # Find a chest
+        chest = next((obj for obj in objects.values() if obj.get("type_name") == "chest"), None)
+
+        if chest:
+            # Check that chest does not expose vibe property
+            assert "vibe" not in chest
+
+        # Find a wall
+        wall = next((obj for obj in objects.values() if obj.get("type_name") == "wall"), None)
+
+        if wall:
+            # Check that wall has vibe property
+            assert "vibe" in wall
+            assert isinstance(wall["vibe"], (int, np.integer))

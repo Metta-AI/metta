@@ -5,10 +5,8 @@
 #include <utility>
 
 #include "actions/attack.hpp"
-#include "actions/change_glyph.hpp"
-#include "actions/get_output.hpp"
+#include "actions/change_vibe.hpp"
 #include "actions/noop.hpp"
-#include "actions/put_recipe_items.hpp"
 #include "actions/resource_mod.hpp"
 #include "config/mettagrid_config.hpp"
 #include "core/event.hpp"
@@ -503,105 +501,6 @@ TEST_F(MettaGridCppTest, AttackAction) {
   EXPECT_EQ(attacker->inventory.amount(TestItems::ARMOR), 2);
 }
 
-TEST_F(MettaGridCppTest, PutRecipeItems) {
-  Grid grid(10, 10);
-
-  AgentConfig agent_cfg = create_test_agent_config();
-  agent_cfg.group_name = "red";
-  agent_cfg.group_id = 1;
-  auto resource_names = create_test_resource_names();
-  Agent* agent = new Agent(1, 0, agent_cfg, &resource_names);
-  float agent_reward = 0.0f;
-  agent->init(&agent_reward);
-
-  grid.add_object(agent);
-
-  // Create a generator that takes red ore and outputs batteries
-  ConverterConfig generator_cfg(TestItems::CONVERTER,     // type_id
-                                "generator",              // type_name
-                                {{TestItems::ORE, 1}},    // input_resources
-                                {{TestItems::ARMOR, 1}},  // output_resources
-                                0,                        // max_output
-                                -1,                       // max_conversions
-                                1,                        // conversion_ticks
-                                {10},                     // cooldown
-                                0,                        // initial_resource_count
-                                false);                   // recipe_details_obs
-  EventManager event_manager;
-  Converter* generator = new Converter(0, 0, generator_cfg);
-  grid.add_object(generator);
-  generator->set_event_manager(&event_manager);
-
-  // Give agent some items
-  agent->update_inventory(TestItems::ORE, 1);
-  agent->update_inventory(TestItems::HEART, 1);
-
-  // Create put_items action handler
-  ActionConfig put_cfg({}, {});
-  PutRecipeItems put(put_cfg);
-  std::mt19937 rng(42);
-  put.init(&grid, &rng);
-
-  // Test putting matching items
-  bool success = put.handle_action(*agent, 0);
-  EXPECT_TRUE(success);
-  EXPECT_EQ(agent->inventory.amount(TestItems::ORE), 0);      // Ore consumed
-  EXPECT_EQ(agent->inventory.amount(TestItems::HEART), 1);    // Heart unchanged
-  EXPECT_EQ(generator->inventory.amount(TestItems::ORE), 1);  // Ore added to generator
-
-  // Test putting non-matching items
-  success = put.handle_action(*agent, 0);
-  EXPECT_FALSE(success);                                        // Should fail since we only have heart left
-  EXPECT_EQ(agent->inventory.amount(TestItems::HEART), 1);      // Heart unchanged
-  EXPECT_EQ(generator->inventory.amount(TestItems::HEART), 0);  // No heart in generator
-}
-
-TEST_F(MettaGridCppTest, GetOutput) {
-  Grid grid(10, 10);
-
-  AgentConfig agent_cfg = create_test_agent_config();
-  agent_cfg.group_name = "red";
-  agent_cfg.group_id = 1;
-  auto resource_names = create_test_resource_names();
-  Agent* agent = new Agent(1, 0, agent_cfg, &resource_names);
-  float agent_reward = 0.0f;
-  agent->init(&agent_reward);
-
-  grid.add_object(agent);
-
-  // Create a generator with initial output
-  ConverterConfig generator_cfg(TestItems::CONVERTER,     // type_id
-                                "generator",              // type_name
-                                {{TestItems::ORE, 1}},    // input_resources
-                                {{TestItems::ARMOR, 1}},  // output_resources
-                                1,                        // max_output
-                                -1,                       // max_conversions
-                                1,                        // conversion_ticks
-                                {10},                     // cooldown
-                                1,                        // initial_items
-                                false);                   // recipe_details_obs
-  EventManager event_manager;
-  Converter* generator = new Converter(0, 0, generator_cfg);
-  grid.add_object(generator);
-  generator->set_event_manager(&event_manager);
-
-  // Give agent some items
-  agent->update_inventory(TestItems::ORE, 1);
-
-  // Create get_output action handler
-  ActionConfig get_cfg({}, {});
-  GetOutput get(get_cfg);
-  std::mt19937 rng(42);
-  get.init(&grid, &rng);
-
-  // Test getting output
-  bool success = get.handle_action(*agent, 0);
-  EXPECT_TRUE(success);
-  EXPECT_EQ(agent->inventory.amount(TestItems::ORE), 1);        // Still have ore
-  EXPECT_EQ(agent->inventory.amount(TestItems::ARMOR), 1);      // Also have armor
-  EXPECT_EQ(generator->inventory.amount(TestItems::ARMOR), 0);  // Generator gave away its armor
-}
-
 // ==================== Action Tracking ====================
 
 TEST_F(MettaGridCppTest, ActionTracking) {
@@ -981,7 +880,7 @@ TEST_F(MettaGridCppTest, FractionalConsumptionAttackAction) {
   EXPECT_EQ(total_consumed, 4);       // Exactly 4 lasers consumed from 10 attacks
 }
 
-TEST_F(MettaGridCppTest, FractionalConsumptionChangeGlyphAction) {
+TEST_F(MettaGridCppTest, FractionalConsumptionChangeVibeAction) {
   Grid grid(3, 3);
 
   // Create agent with resources
@@ -993,17 +892,17 @@ TEST_F(MettaGridCppTest, FractionalConsumptionChangeGlyphAction) {
   agent->init(&agent_reward);
   grid.add_object(agent);
 
-  // Create change glyph action with fractional consumption (1.25)
-  ChangeGlyphActionConfig glyph_cfg({{TestItems::ORE, 2}}, {{TestItems::ORE, 1.25f}}, 4);
-  ChangeGlyph change_glyph(glyph_cfg);
+  // Create change vibe action with fractional consumption (1.25)
+  ChangeVibeActionConfig vibe_cfg({{TestItems::ORE, 2}}, {{TestItems::ORE, 1.25f}}, 4);
+  ChangeVibe change_vibe(vibe_cfg);
   std::mt19937 rng(42);
-  change_glyph.init(&grid, &rng);
+  change_vibe.init(&grid, &rng);
 
-  // Change glyph multiple times
+  // Change vibe multiple times
   int changes = 0;
-  ObservationType initial_glyph = agent->glyph;
+  ObservationType initial_vibe = agent->vibe;
   while (agent->inventory.amount(TestItems::ORE) >= 2) {
-    bool success = change_glyph.handle_action(*agent, (initial_glyph + 1) % 4);
+    bool success = change_vibe.handle_action(*agent, (initial_vibe + 1) % 4);
     if (!success) break;
     changes++;
     if (changes > 30) break;  // Safety limit
@@ -1268,7 +1167,7 @@ TEST_F(MettaGridCppTest, AssemblerGetCurrentRecipe) {
   const Recipe* current_recipe = assembler->get_current_recipe();
   EXPECT_EQ(current_recipe, recipe0.get());
 
-  // With one agent and no glyph, should still get 0
+  // With one agent and no vibe, should still get 0
   AgentConfig agent_cfg(1, "test_agent", 0, "test_group");
   auto resource_names = create_test_resource_names();
   Agent* agent = new Agent(4, 4, agent_cfg, &resource_names);  // NW of assembler
@@ -1277,10 +1176,10 @@ TEST_F(MettaGridCppTest, AssemblerGetCurrentRecipe) {
   current_recipe = assembler->get_current_recipe();
   EXPECT_EQ(current_recipe, recipe0.get()) << "With one agent, should still get recipe0";
 
-  // Now with a glyph, should get recipe1
-  agent->glyph = 1;
+  // Now with a vibe, should get recipe1
+  agent->vibe = 1;
   current_recipe = assembler->get_current_recipe();
-  EXPECT_EQ(current_recipe, recipe1.get()) << "With one agent and a glyph, should get recipe1";
+  EXPECT_EQ(current_recipe, recipe1.get()) << "With one agent and a vibe, should get recipe1";
 }
 
 TEST_F(MettaGridCppTest, AssemblerRecipeObservationsEnabled) {

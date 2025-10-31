@@ -45,7 +45,7 @@ struct AgentConfig;
 struct GameConfig;
 struct ActionConfig;
 struct AttackActionConfig;
-struct ChangeGlyphActionConfig;
+struct ChangeVibeActionConfig;
 
 namespace py = pybind11;
 

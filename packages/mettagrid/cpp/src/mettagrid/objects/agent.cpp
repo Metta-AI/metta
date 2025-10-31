@@ -18,7 +18,6 @@ Agent::Agent(GridCoord r, GridCoord c, const AgentConfig& config, const std::vec
       group_name(config.group_name),
       soul_bound_resources(config.soul_bound_resources),
       shareable_resources(config.shareable_resources),
-      glyph(0),
       agent_id(0),
       stats(resource_names),
       current_stat_reward(0),
@@ -38,7 +37,8 @@ Agent::Agent(GridCoord r, GridCoord c, const AgentConfig& config, const std::vec
   }
 
   populate_initial_inventory(config.initial_inventory);
-  GridObject::init(config.type_id, config.type_name, GridLocation(r, c, GridLayer::AgentLayer), config.tag_ids);
+  GridObject::init(
+      config.type_id, config.type_name, GridLocation(r, c, GridLayer::AgentLayer), config.tag_ids, config.initial_vibe);
 }
 
 void Agent::init(RewardType* reward_ptr) {
@@ -176,7 +176,7 @@ bool Agent::onUse(Agent& actor, ActionArg arg) {
 }
 
 std::vector<PartialObservationToken> Agent::obs_features() const {
-  const size_t num_tokens = this->inventory.get().size() + 5 + (glyph > 0 ? 1 : 0) + this->tag_ids.size();
+  const size_t num_tokens = this->inventory.get().size() + 5 + (this->vibe != 0 ? 1 : 0) + this->tag_ids.size();
 
   std::vector<PartialObservationToken> features;
   features.reserve(num_tokens);
@@ -185,7 +185,7 @@ std::vector<PartialObservationToken> Agent::obs_features() const {
   features.push_back({ObservationFeature::Group, static_cast<ObservationType>(group)});
   features.push_back({ObservationFeature::Frozen, static_cast<ObservationType>(frozen != 0 ? 1 : 0)});
   features.push_back({ObservationFeature::Orientation, static_cast<ObservationType>(orientation)});
-  if (glyph != 0) features.push_back({ObservationFeature::Glyph, static_cast<ObservationType>(glyph)});
+  if (this->vibe != 0) features.push_back({ObservationFeature::Vibe, static_cast<ObservationType>(this->vibe)});
 
   for (const auto& [item, amount] : this->inventory.get()) {
     // inventory should only contain non-zero amounts

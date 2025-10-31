@@ -59,11 +59,11 @@ class AgentControlComponent(MiniscopeComponent):
         elif self._state.selected_agent is not None:
             # Handle movement actions
             if (action_id := self._move_action_lookup.get(ch)) is not None:
-                self._state.user_action = (action_id, 0)
+                self._state.user_action = action_id
                 self._state.should_step = True
                 return True
             elif ch == "E":
-                self._state.enter_glyph_picker()
+                self._state.enter_vibe_picker()
                 return True
             elif ch == "M":
                 self._state.toggle_manual_control(self._state.selected_agent)
