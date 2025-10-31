@@ -104,6 +104,16 @@ def parse_args() -> argparse.Namespace:
         default=DEFAULT_MIN_DESCRIPTION_LINES,
         help=("Skip PRs whose descriptions contain this many non-empty lines or fewer (default: 0)."),
     )
+    parser.add_argument(
+        "--allow-full-rebuild",
+        action="store_true",
+        help="Allow embedding all PRs when no existing cache is found (required for first-time setup).",
+    )
+    parser.add_argument(
+        "--force-rebuild",
+        action="store_true",
+        help="Force a full rebuild by ignoring existing cache and re-embedding all PRs.",
+    )
     return parser.parse_args()
 
 
@@ -385,9 +395,13 @@ def main() -> None:
 
     api_key = _get_api_key()
 
-    existing_records, metadata = load_existing_cache(args.cache_path)
-    metadata["model"] = args.model
-    metadata["task_type"] = TASK_TYPE
+    if args.force_rebuild:
+        existing_records, metadata = {}, {"model": args.model, "task_type": TASK_TYPE}
+        print("Force rebuild enabled: ignoring existing cache and re-embedding all PRs.")
+    else:
+        existing_records, metadata = load_existing_cache(args.cache_path)
+        metadata["model"] = args.model
+        metadata["task_type"] = TASK_TYPE
 
     snapshots = collect_snapshots()
     if args.max_prs is not None:
@@ -409,6 +423,13 @@ def main() -> None:
         print(f"Removed {removed} PRs from cache due to description length filter.")
 
     pending = [snapshot for snapshot in eligible_snapshots if snapshot.pr_number not in existing_records]
+
+    if not existing_records and pending and not args.allow_full_rebuild and not args.force_rebuild:
+        raise RuntimeError(
+            f"No existing cache found and {len(pending)} PRs would be embedded. "
+            "This would be expensive. If this is intentional, run with --allow-full-rebuild or --force-rebuild flag."
+        )
+
     if not pending:
         if removed:
             write_cache(args.cache_path, metadata, existing_records)
