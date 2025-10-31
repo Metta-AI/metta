@@ -53,6 +53,7 @@ def ray_sweep(sweep_name: str):
     config = SweepConfig(
         sweep_id=sweep_name,
         recipe_module="metta.hpo_lab.recipes.lunarlander",
+        eval_entrypoint="evaluate",
         train_entrypoint="train",
         num_samples=100,  # Number of trials
         max_concurrent_trials=2,
@@ -60,6 +61,7 @@ def ray_sweep(sweep_name: str):
         cpus_per_trial="auto",  # Let Ray auto-allocate CPU resources
         max_failures_per_trial=1,
         fail_fast=False,
+        score_key="eval/mean_reward"
     )
 
     # Define hyperparameter search space using Ray Tune
@@ -105,13 +107,15 @@ def mini_sweep(sweep_name: str):
         sweep_id=sweep_name,
         recipe_module="metta.hpo_lab.recipes.lunarlander",
         train_entrypoint="train",
+        eval_entrypoint="evaluate",
         num_samples=10,  # Only 10 trials
         max_concurrent_trials=4,
         gpus_per_trial=0,  # CPU only for local testing
         cpus_per_trial="auto",  # Let Ray auto-allocate CPU resources
         fail_fast=True,  # Stop on first failure
         max_failures_per_trial=0,
-        stats_server_uri=None
+        stats_server_uri=None,
+        score_key="eval/mean_reward"
     )
 
     # Use a simple search space for Ray Tune

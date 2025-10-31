@@ -11,7 +11,9 @@ import ray
 from pydantic import Field
 from ray import init, tune
 from ray.tune import RunConfig, TuneConfig, Tuner
+from ray.tune.search import ConcurrencyLimiter
 from ray.tune.search.optuna import OptunaSearch
+from ray.tune.search.repeater import Repeater
 
 from metta.common.util.constants import PROD_STATS_SERVER_URI
 from metta.sweep.ray.ray_run_trial import metta_train_fn
@@ -53,6 +55,9 @@ class SweepConfig(Config):
     # TODO I don't like having a default score key
     score_key: str = Field(default="evaluator/eval_sweep/score")
 
+    # Number of times to repeat each suggested configuration (e.g., multi-seed evaluation)
+    repeats_per_config: int = Field(default=1, gt=0)
+
 
 def ray_sweep(
     *,
@@ -92,7 +97,9 @@ def ray_sweep(
     init(**init_kwargs)
 
     cluster_resources = ray.cluster_resources()
-    total_cpus = float(cluster_resources.get("CPU", 0.0))
+
+    # Leave 4GPUs for other processes
+    total_cpus = max(float(cluster_resources.get("CPU", 0.0)) - 4, 1)
     total_gpus = float(cluster_resources.get("GPU", 0.0))
 
     logger.info(
@@ -178,6 +185,18 @@ def ray_sweep(
 
     optuna_search = OptunaSearch(metric="reward", mode="max")
 
+    search_alg = optuna_search
+    if sweep_config.repeats_per_config > 1:
+        repeated_search = Repeater(
+            optuna_search,
+            repeat=sweep_config.repeats_per_config,
+        )
+        # Limit Optuna to a single suggestion's repeats at a time so it averages seeds before proposing new configs
+        search_alg = ConcurrencyLimiter(
+            repeated_search,
+            max_concurrent=sweep_config.repeats_per_config,
+        )
+
     trial_counter = count()
 
     def trial_name_creator(trial: Trial) -> str:
@@ -191,7 +210,7 @@ def ray_sweep(
             metric="reward",
             mode="max",
             max_concurrent_trials=effective_max_concurrent,
-            search_alg=optuna_search,
+            search_alg=search_alg,
             trial_name_creator=trial_name_creator,
         ),
         run_config=RunConfig(
