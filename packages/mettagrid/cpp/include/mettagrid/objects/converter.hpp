@@ -108,7 +108,8 @@ public:
         event_manager(nullptr),
         input_recipe_offset(cfg.input_recipe_offset),
         output_recipe_offset(cfg.output_recipe_offset) {
-    GridObject::init(cfg.type_id, cfg.type_name, GridLocation(r, c, GridLayer::ObjectLayer), cfg.tag_ids);
+    GridObject::init(
+        cfg.type_id, cfg.type_name, GridLocation(r, c, GridLayer::ObjectLayer), cfg.tag_ids, cfg.initial_vibe);
 
     // Initialize inventory with initial_resource_count for all output types
     for (const auto& [item, _] : this->output_resources) {
@@ -162,8 +163,8 @@ public:
     std::vector<PartialObservationToken> features;
 
     // Calculate the capacity needed
-    // We push 3 fixed features + inventory items + (optionally) recipe inputs and outputs + tags
-    size_t capacity = 3 + this->inventory.get().size() + this->tag_ids.size();
+    // We push 3 fixed features + inventory items + (optionally) recipe inputs and outputs + tags + vibe
+    size_t capacity = 3 + this->inventory.get().size() + this->tag_ids.size() + (this->vibe != 0 ? 1 : 0);
     if (this->recipe_details_obs) {
       capacity += this->input_resources.size() + this->output_resources.size();
     }
@@ -204,6 +205,8 @@ public:
     for (int tag_id : tag_ids) {
       features.push_back({ObservationFeature::Tag, static_cast<ObservationType>(tag_id)});
     }
+
+    if (this->vibe != 0) features.push_back({ObservationFeature::Vibe, static_cast<ObservationType>(this->vibe)});
 
     return features;
   }

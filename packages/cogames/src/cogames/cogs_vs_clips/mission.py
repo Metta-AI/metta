@@ -22,7 +22,7 @@ from mettagrid.config.mettagrid_config import (
     ActionsConfig,
     AgentConfig,
     AgentRewards,
-    ChangeGlyphActionConfig,
+    ChangeVibeActionConfig,
     ClipperConfig,
     GameConfig,
     MettaGridConfig,
@@ -80,9 +80,9 @@ class Mission(Config):
     gear_capacity: int = Field(default=5)
     move_energy_cost: int = Field(default=2)
     heart_capacity: int = Field(default=1)
-    # Control glyph swapping in variants
-    enable_glyph_change: bool = Field(default=True)
-    glyph_count: int | None = Field(default=None)
+    # Control vibe swapping in variants
+    enable_vibe_change: bool = Field(default=True)
+    vibe_count: int | None = Field(default=None)
 
     def configure(self):
         pass
@@ -157,11 +157,11 @@ class Mission(Config):
             actions=ActionsConfig(
                 move=ActionConfig(consumed_resources={"energy": self.move_energy_cost}),
                 noop=ActionConfig(),
-                change_glyph=ChangeGlyphActionConfig(
-                    number_of_glyphs=(
+                change_vibe=ChangeVibeActionConfig(
+                    number_of_vibes=(
                         0
-                        if not self.enable_glyph_change
-                        else (self.glyph_count if self.glyph_count is not None else len(vibes.VIBES))
+                        if not self.enable_vibe_change
+                        else (self.vibe_count if self.vibe_count is not None else len(vibes.VIBES))
                     )
                 ),
             ),

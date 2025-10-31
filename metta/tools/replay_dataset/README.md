@@ -18,7 +18,8 @@ loader = DataLoader(dataset, batch_size=256, shuffle=True)
 
 ## Mining Replays
 
-This is a one-off/manual tool for creating datasets from existing replays. Run it locally or as needed to process replay data into training datasets.
+This is a one-off/manual tool for creating datasets from existing replays. Run it locally or as needed to process replay
+data into training datasets.
 
 ### Basic Usage
 
@@ -122,6 +123,7 @@ result = con.execute("""
 Files: `s3://softmax-public/datasets/replays/replays_YYYYMMDD.parquet`
 
 Columns:
+
 - `observation` (str): JSON-serialized observation dict
 - `action` (int): Action taken
 - `agent_id` (int): Agent identifier
