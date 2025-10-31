@@ -2,7 +2,7 @@ name: "Test and Benchmark"
 
 # This workflow uses metta ci as the single source of truth for CI checks.
 # Each job calls metta ci with a specific stage:
-#   --stage lint, --stage python-tests, --stage python-benchmarks,
+#   --stage lint, --stage python-tests,
 #   --stage cpp-tests, --stage cpp-benchmarks
 # Local development can run all stages with: metta ci
 
