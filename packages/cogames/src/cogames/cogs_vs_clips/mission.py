@@ -228,6 +228,7 @@ class Mission(Config):
                 "clipped_silicon_extractor": self.silicon_extractor.model_copy(
                     update={"start_clipped": True}
                 ).station_cfg(),
+                **RESOURCE_CHESTS,
               },
         )
 
