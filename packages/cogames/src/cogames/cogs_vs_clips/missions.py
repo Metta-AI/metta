@@ -48,30 +48,46 @@ class DarkSideVariant(MissionVariant):
 class LonelyHeartVariant(MissionVariant):
     name: str = "lonely_heart"
     description: str = "Making hearts for one agent is easy."
-    # TODO: Fix this when Richard remakes the _make_env_modifier
-    # def apply(self, mission: Mission) -> Mission:
-    #     mission.assembler.heart_cost = 1
 
-    #     def modifier(cfg: MettaGridConfig) -> None:
-    #         simplified_inputs = {"carbon": 1, "oxygen": 1, "germanium": 1, "silicon": 1, "energy": 1}
+    def apply(self, mission: Mission) -> Mission:
+        mission.assembler.heart_cost = 1
 
-    #         assembler = cfg.game.objects.get("assembler")
-    #         if assembler is None:
-    #             return
+        def modifier(cfg: MettaGridConfig) -> None:
+            simplified_inputs = {"carbon": 1, "oxygen": 1, "germanium": 1, "silicon": 1, "energy": 1}
 
-    #         heart_recipe = ProtocolConfig(
-    #             input_resources=dict(input_resources), output_resources={"heart": 1}, cooldown=1
-    #         )
+            assembler = cfg.game.objects.get("assembler")
+            if assembler is not None and getattr(assembler, "protocols", None):
+                heart_protocol = ProtocolConfig(
+                    vibes=["default"],
+                    input_resources=dict(simplified_inputs),
+                    output_resources={"heart": 1},
+                    cooldown=1,
+                )
 
-    #         non_heart_recipes = [
-    #             (existing_vibe_tokens, recipe)
-    #             for existing_vibe_tokens, recipe in assembler.recipes
-    #             if recipe.output_resources.get("heart", 0) == 0
-    #         ]
+                remaining_protocols = []
+                for proto in assembler.protocols:
+                    if proto.output_resources.get("heart", 0) > 0:
+                        continue
+                    remaining_protocols.append(proto.model_copy(deep=True))
 
-    #         assembler.recipes = [(["default"], heart_recipe), *non_heart_recipes]
+                assembler.protocols = [heart_protocol, *remaining_protocols]
 
-    #     return _add_make_env_modifier(mission, modifier)
+            germanium = cfg.game.objects.get("germanium_extractor")
+            if germanium is not None and getattr(germanium, "protocols", None):
+                germanium.max_uses = 0
+                updated_protocols: list[ProtocolConfig] = []
+                for proto in germanium.protocols:
+                    new_proto = proto.model_copy(deep=True)
+                    output = dict(new_proto.output_resources)
+                    output["germanium"] = max(output.get("germanium", 0), 1)
+                    new_proto.output_resources = output
+                    new_proto.cooldown = max(new_proto.cooldown, 1)
+                    updated_protocols.append(new_proto)
+                if updated_protocols:
+                    germanium.protocols = updated_protocols
+
+        mission.add_env_modifier(modifier)
+        return mission
 
 
 class BrightSideVariant(MissionVariant):
@@ -128,8 +144,32 @@ class NeutralFacedVariant(MissionVariant):
     description: str = "Disable vibe swapping; keep neutral face."
 
     def apply(self, mission: Mission) -> Mission:
-        mission.enable_vibe_change = False
-        mission.vibe_count = 1
+        def modifier(cfg: MettaGridConfig) -> None:
+            change_vibe = cfg.game.actions.change_vibe
+            change_vibe.enabled = False
+            change_vibe.number_of_vibes = 1
+
+        mission.add_env_modifier(modifier)
+        return mission
+
+
+class HeartChorusVariant(MissionVariant):
+    name: str = "heart_chorus"
+    description: str = "Heart-centric reward shaping with gentle resource bonuses."
+
+    def apply(self, mission: Mission) -> Mission:
+        def modifier(cfg: MettaGridConfig) -> None:
+            cfg.game.agent.rewards.stats = {
+                "heart.gained": 1.0,
+                "chest.heart.deposited": 1.0,
+                "chest.heart.withdrawn": -1.0,
+                "inventory.diversity.ge.2": 0.17,
+                "inventory.diversity.ge.3": 0.18,
+                "inventory.diversity.ge.4": 0.60,
+                "inventory.diversity.ge.5": 0.97,
+            }
+
+        mission.add_env_modifier(modifier)
         return mission
 
 
@@ -228,6 +268,7 @@ VARIANTS = [
     BrightSideVariant,
     RoughTerrainVariant,
     SolarFlareVariant,
+    HeartChorusVariant,
     DesertBiomeVariant,
     ForestBiomeVariant,
     CityBiomeVariant,
@@ -239,7 +280,6 @@ VARIANTS = [
     PackRatVariant,
     EnergizedVariant,
     NeutralFacedVariant,
-    # HeartChorusVariant,
 ]
 
 
@@ -249,8 +289,8 @@ TRAINING_FACILITY = Site(
     description="COG Training Facility. Basic training facility with open spaces and no obstacles.",
     map_builder=make_hub_only_map_builder(
         num_cogs=4,
-        width=21,
-        height=21,
+        width=13,
+        height=13,
         corner_bundle="chests",
         cross_bundle="extractors",
     ),
@@ -301,21 +341,18 @@ class HarvestMission(Mission):
     # Global Mission.instantiate now applies overrides; no per-mission override needed
     def make_env(self) -> MettaGridConfig:
         env = super().make_env()
-        # Log-shaped chest rewards at episode end via per-step telescoping
-        if self.num_cogs and self.num_cogs > 0:
-            reward_weight = 1.0 / self.num_cogs
-        else:
-            reward_weight = 1.0 / max(1, getattr(env.game, "num_agents", 1))
-
+        # Reset rewards to match pre-procedural behaviour; variants (e.g. Heart Chorus) will override as needed.
         env.game.agent.rewards.inventory = {}
-        env.game.agent.rewards.stats = {
-            "chest.carbon.amount": reward_weight,
-            "chest.oxygen.amount": reward_weight,
-            "chest.germanium.amount": reward_weight,
-            "chest.silicon.amount": reward_weight,
-        }
+        env.game.agent.rewards.stats = {}
         env.game.agent.rewards.inventory_max = {}
         env.game.agent.rewards.stats_max = {}
+
+        # When running on legacy ASCII maps, remove unused resource chests to mirror the original layout.
+        # Procedural hub builders rely on these object definitions, so only strip them for non-procedural maps.
+        if not isinstance(self.map, MapGen.Config):
+            for chest_name in ("chest_carbon", "chest_oxygen", "chest_germanium", "chest_silicon"):
+                env.game.objects.pop(chest_name, None)
+
         # Ensure that the extractors are configured to have high max uses
         for name in ("germanium_extractor", "carbon_extractor", "oxygen_extractor", "silicon_extractor"):
             cfg = env.game.objects.get(name)
