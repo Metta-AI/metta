@@ -55,7 +55,7 @@ class GlyphPickerComponent(MiniscopeComponent):
                 action_name = f"change_glyph_{glyph_id}"
                 if self.env and action_name in self.env.action_names:
                     change_glyph_idx = self.env.action_names.index(action_name)
-                    self.state.user_action = (change_glyph_idx, 0)
+                    self.state.user_action = change_glyph_idx
                     self.state.should_step = True
                 self._exit_glyph_picker()
         elif ch == "\x1b":  # Escape

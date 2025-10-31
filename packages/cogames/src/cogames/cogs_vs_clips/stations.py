@@ -180,31 +180,6 @@ class SiliconExtractorConfig(ExtractorConfig):
         )
 
 
-class DepletedGermaniumExtractorConfig(ExtractorConfig):
-    type: Literal["depleted_germanium_extractor"] = Field(default="depleted_germanium_extractor")
-    synergy: int = 0
-    efficiency: int = 1
-    max_uses: int = Field(default=1)
-
-    def station_cfg(self) -> AssemblerConfig:
-        return AssemblerConfig(
-            name="depleted_germanium_extractor",
-            map_char="g",
-            render_symbol=vibes.VIBE_BY_NAME["germanium"].symbol,
-            # Protocols
-            max_uses=self.max_uses,
-            recipes=[
-                (
-                    [],
-                    ProtocolConfig(output_resources={"germanium": max(1, self.efficiency)}),
-                ),
-            ],
-            # Clipping
-            start_clipped=self.start_clipped,
-            clip_immune=self.clip_immune,
-        )
-
-
 class CvCChestConfig(CvCStationConfig):
     type: Literal["communal_chest"] = Field(default="communal_chest")
     default_resource: str = Field(default="heart")
@@ -217,6 +192,26 @@ class CvCChestConfig(CvCStationConfig):
             resource_type=self.default_resource,
             position_deltas=[("E", 1), ("W", 1), ("N", 1), ("S", 1)],  # Accept deposits from any direction
         )
+
+
+def _resource_chest(resource: str, type_id: int) -> ChestConfig:
+    return ChestConfig(
+        name=f"chest_{resource}",
+        type_id=type_id,
+        map_char="C",
+        render_symbol=vibes.VIBE_BY_NAME[resource].symbol,
+        resource_type=resource,
+        position_deltas=[("E", 1), ("W", -1)],
+    )
+
+
+RESOURCE_CHESTS: dict[str, ChestConfig] = {
+    "chest_carbon": _resource_chest("carbon", 118),
+    "chest_oxygen": _resource_chest("oxygen", 119),
+    "chest_germanium": _resource_chest("germanium", 120),
+    "chest_silicon": _resource_chest("silicon", 121),
+    "chest_heart": _resource_chest("heart", 122),
+}
 
 
 class CvCAssemblerConfig(CvCStationConfig):

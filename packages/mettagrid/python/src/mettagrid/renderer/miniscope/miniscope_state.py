@@ -54,7 +54,7 @@ class MiniscopeState:
 
     # Agent control
     manual_agents: Set[int] = field(default_factory=set)
-    user_action: Optional[tuple[int, int]] = None
+    user_action: Optional[int] = None
     should_step: bool = False
 
     # User input
