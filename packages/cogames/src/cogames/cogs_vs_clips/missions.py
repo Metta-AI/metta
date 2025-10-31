@@ -151,14 +151,10 @@ class CogToolsOnlyVariant(MissionVariant):
         def modifier(env: MettaGridConfig) -> None:
             assembler_cfg = env.game.objects.get("assembler")
             if isinstance(assembler_cfg, AssemblerConfig):
-                simplified: list[tuple[list[str], Any]] = []
                 gear_outputs = {"decoder", "modulator", "scrambler", "resonator"}
-                for vibes_list, recipe in assembler_cfg.recipes:
-                    if any(k in recipe.output_resources for k in gear_outputs):
-                        simplified.append((["gear"], recipe))
-                    else:
-                        simplified.append((vibes_list, recipe))
-                assembler_cfg.recipes = simplified
+                for protocol in assembler_cfg.protocols:
+                    if any(k in protocol.output_resources for k in gear_outputs):
+                        protocol.vibes = ["gear"]
 
         mission.post_make_env_modifiers.append(modifier)
         return mission
@@ -361,7 +357,7 @@ class CyclicalUnclipVariant(MissionVariant):
     def apply(self, mission: Mission) -> Mission:
         def modifier(env: MettaGridConfig) -> None:
             if env.game.clipper is not None:
-                env.game.clipper.unclipping_recipes = [
+                env.game.clipper.unclipping_protocols = [
                     ProtocolConfig(input_resources={"scrambler": 1}, cooldown=1),
                     ProtocolConfig(input_resources={"resonator": 1}, cooldown=1),
                     ProtocolConfig(input_resources={"modulator": 1}, cooldown=1),

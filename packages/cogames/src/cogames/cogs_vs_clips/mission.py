@@ -124,7 +124,7 @@ class Mission(Config):
         mission.map = apply_procedural_overrides_to_builder(
             mission.map or map_builder,
             num_cogs=int(mission.num_cogs or 0),
-            overrides=getattr(mission, "procedural_overrides", {}) or {},
+            overrides=mission.procedural_overrides,
         )
 
         return mission
@@ -240,9 +240,13 @@ class Mission(Config):
         #             if recipe.output_resources.get("heart", 0) == 0
         #         ]
         #         assembler_cfg.recipes = [(["heart"] * chorus_len, chorus), *non_heart]
+        modifiers = self.post_make_env_modifiers
+        if not modifiers:
+            return MettaGridConfig(game=game)
+
         env_cfg = MettaGridConfig(game=game)
         # Apply any post-make_env modifiers
-        for modifier in getattr(self, "post_make_env_modifiers", []) or []:
+        for modifier in modifiers:
             try:
                 modifier(env_cfg)
             except Exception:
