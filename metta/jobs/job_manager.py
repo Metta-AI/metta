@@ -17,6 +17,9 @@ from metta.jobs.job_state import JobState, JobStatus
 
 logger = logging.getLogger(__name__)
 
+# Exit codes
+EXIT_CODE_SKIPPED = -2  # Job skipped due to failed dependency
+
 
 class JobManager:
     """Manages job execution with concurrency control and persistence.
@@ -163,6 +166,47 @@ class JobManager:
             return 130  # Standard exit code for SIGINT
         else:
             return 1  # Generic failure
+
+    def _dependencies_satisfied(self, job_state: JobState, session: Session) -> bool:
+        """Check if all dependencies are completed successfully.
+
+        A job can start if all its dependencies have:
+        - status == "completed"
+        - exit_code == 0
+        - acceptance_passed != False (True or None)
+
+        Args:
+            job_state: Job to check dependencies for
+            session: Active database session
+
+        Returns:
+            True if all dependencies are satisfied (or no dependencies), False otherwise
+        """
+        if not job_state.config.dependency_names:
+            return True
+
+        for dep_name in job_state.config.dependency_names:
+            dep_state = session.get(JobState, dep_name)
+            if not dep_state:
+                logger.debug(f"Job {job_state.name}: dependency {dep_name} not found in database yet")
+                return False
+
+            if dep_state.status != "completed":
+                logger.debug(f"Job {job_state.name}: waiting for dependency {dep_name} (status: {dep_state.status})")
+                return False
+
+            # Check if dependency passed (exit_code 0 + acceptance)
+            if dep_state.exit_code != 0:
+                logger.warning(
+                    f"Job {job_state.name}: dependency {dep_name} failed with exit_code={dep_state.exit_code}"
+                )
+                return False
+
+            if dep_state.acceptance_passed is False:
+                logger.warning(f"Job {job_state.name}: dependency {dep_name} failed acceptance criteria")
+                return False
+
+        return True
 
     def _get_total_timesteps(self, job_config: JobConfig) -> int | None:
         """Extract total_timesteps from job config overrides."""
@@ -522,7 +566,8 @@ class JobManager:
                                     session.commit()
                                     logger.info(
                                         f"Committed completion for {job_name}: "
-                                        f"status={job_state.status}, exit_code={job_state.exit_code}, "
+                                        f"status={job_state.status}, "
+                                        f"exit_code={job_state.exit_code}, "
                                         f"acceptance_passed={job_state.acceptance_passed}"
                                     )
 
@@ -581,6 +626,10 @@ class JobManager:
         with Session(self._engine) as session:
             job_state = session.get(JobState, name)
             if not job_state or job_state.status != "pending":
+                return False
+
+            # Check dependencies first
+            if not self._dependencies_satisfied(job_state, session):
                 return False
 
             is_remote = job_state.config.remote is not None
@@ -726,10 +775,33 @@ class JobManager:
                     completed.append(name)
                     # Note: _active_jobs cleanup happens in monitoring thread
 
-        # Try to start pending jobs
+        # Try to start pending jobs, or skip if dependencies failed
         with Session(self._engine) as session:
             pending_jobs = session.exec(select(JobState).where(JobState.status == "pending")).all()
             for job_state in pending_jobs:
+                # Check if any dependency failed
+                if job_state.config.dependency_names and not self._dependencies_satisfied(job_state, session):
+                    # Check if dependency failed (vs just not complete yet)
+                    has_failed_dep = False
+                    for dep_name in job_state.config.dependency_names:
+                        dep_state = session.get(JobState, dep_name)
+                        if dep_state and dep_state.status == "completed":
+                            if dep_state.exit_code != 0 or dep_state.acceptance_passed is False:
+                                has_failed_dep = True
+                                break
+
+                    if has_failed_dep:
+                        # Mark as completed with special exit code for skipped
+                        job_state.status = "completed"
+                        job_state.exit_code = EXIT_CODE_SKIPPED
+                        job_state.completed_at = datetime.now().isoformat(timespec="seconds")
+                        session.add(job_state)
+                        session.commit()
+                        logger.info(f"Job {job_state.name} skipped due to failed dependency")
+                        completed.append(job_state.name)
+                        continue
+
+                # Try to start if dependencies satisfied
                 self._try_start_job(job_state.name)
 
         return completed
@@ -898,11 +970,47 @@ class JobManager:
             session.commit()
         return count
 
+    def _reset_dependent_jobs(self, job_name: str, session: Session) -> None:
+        """Reset all jobs that depend on this job (transitively) from skipped back to pending.
+
+        This allows retrying a failed job to also retry all jobs that were skipped due to
+        the failure. Works transitively - if A depends on B and B depends on C, resetting C
+        will reset both B and A.
+
+        Args:
+            job_name: Name of job being reset/retried
+            session: Active database session
+        """
+        # Find all jobs that directly or transitively depend on this one
+        all_jobs = session.exec(select(JobState)).all()
+
+        # BFS to find transitive dependents
+        dependent_names = set()
+        to_check = [job_name]
+
+        while to_check:
+            current = to_check.pop(0)
+            for job_state in all_jobs:
+                if current in job_state.config.dependency_names and job_state.name not in dependent_names:
+                    dependent_names.add(job_state.name)
+                    to_check.append(job_state.name)
+
+        # Reset skipped jobs back to pending
+        for dep_name in dependent_names:
+            dep_state = session.get(JobState, dep_name)
+            if dep_state and dep_state.status == "completed" and dep_state.exit_code == EXIT_CODE_SKIPPED:
+                dep_state.status = "pending"
+                dep_state.exit_code = None
+                dep_state.completed_at = None
+                session.add(dep_state)
+                logger.info(f"Reset skipped job {dep_name} back to pending (dependency {job_name} being retried)")
+
     def delete_job(self, name: str) -> bool:
         """Delete a job from the database and clean up its log files.
 
         Useful for retrying failed jobs - deletes the old state so a new job can be submitted.
         Can delete pending jobs (not started yet) or completed jobs.
+        Also resets any dependent jobs that were skipped due to this job's failure.
 
         Args:
             name: Name of job to delete
@@ -918,6 +1026,9 @@ class JobManager:
             # Don't allow deleting running jobs - they need to be cancelled first
             if job_state.status == "running":
                 raise ValueError(f"Cannot delete job '{name}' with status 'running'. Cancel it first.")
+
+            # Reset dependent jobs that were skipped before deleting
+            self._reset_dependent_jobs(name, session)
 
             # Clean up log file if it exists
             if job_state.logs_path:

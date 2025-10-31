@@ -15,9 +15,12 @@ Options:
 
 from __future__ import annotations
 
+import io
 import logging
 import subprocess
 import sys
+import time
+from contextlib import redirect_stdout
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
@@ -26,8 +29,7 @@ import typer
 
 import gitta as git
 from devops.stable.asana_bugs import check_blockers
-from devops.stable.display import check_task_passed, format_training_job_section
-from devops.stable.runner import TaskRunner
+from devops.stable.display import check_task_passed, format_task_with_acceptance, format_training_job_section
 from devops.stable.state import (
     ReleaseState,
     get_most_recent_state,
@@ -37,8 +39,9 @@ from devops.stable.state import (
 )
 from devops.stable.tasks import get_all_tasks
 from metta.common.util.fs import get_repo_root
-from metta.common.util.text_styles import bold, cyan, green, yellow
-from metta.jobs.job_manager import JobManager
+from metta.common.util.text_styles import bold, cyan, green, red, yellow
+from metta.jobs.job_manager import EXIT_CODE_SKIPPED, JobManager
+from metta.jobs.job_monitor import JobMonitor, format_progress_bar
 
 # ============================================================================
 # Constants
@@ -215,6 +218,131 @@ def verify_on_rc_commit(version: str, step_name: str) -> str:
 # ============================================================================
 
 
+def _submit_jobs_to_manager(
+    job_configs: list,
+    state_version: str,
+    job_manager: JobManager,
+    retry: bool,
+) -> set[str]:
+    """Submit all job configs to JobManager with retry logic.
+
+    Returns set of submitted job names.
+    """
+    submitted_jobs = set()
+    for job_config in job_configs:
+        job_name = f"{state_version}_{job_config.name}"
+
+        # Check if job already exists
+        existing_state = job_manager.get_job_state(job_name)
+
+        if existing_state and existing_state.status == "completed":
+            # Determine if we should retry
+            should_retry = False
+            if existing_state.exit_code == -1:
+                # Abnormal termination - always retry
+                print(yellow(f"🔄 {job_config.name} - retrying after abnormal termination"))
+                should_retry = True
+            elif retry and (existing_state.exit_code != 0 or not check_task_passed(existing_state)):
+                # Failed and retry requested
+                print(yellow(f"🔄 {job_config.name} - retrying previous run"))
+                should_retry = True
+            else:
+                # Already completed successfully or retry not requested
+                print(f"⏭️  {job_config.name} - already completed (use --retry to retry)")
+                continue
+
+            if should_retry:
+                job_manager.delete_job(job_name)
+        elif existing_state and existing_state.status in ("pending", "running"):
+            print(f"⏭️  {job_config.name} - already {existing_state.status}, attaching")
+            submitted_jobs.add(job_name)
+            continue
+
+        # Submit job with version prefix and group
+        job_config.name = job_name
+        job_config.group = state_version
+
+        try:
+            job_manager.submit(job_config)
+            print(f"  • Submitted {job_config.name.removeprefix(f'{state_version}_')}")
+            submitted_jobs.add(job_name)
+        except ValueError as e:
+            print(yellow(f"⚠️  {job_config.name} - failed to submit: {e}"))
+
+    return submitted_jobs
+
+
+def _monitor_jobs_until_complete(
+    submitted_jobs: set[str],
+    state_version: str,
+    job_manager: JobManager,
+) -> None:
+    """Monitor jobs via JobMonitor until all complete."""
+    monitor = JobMonitor(job_manager, group=state_version)
+    monitor_line_count = 0
+    last_display_update = 0.0
+    display_interval = 3.0
+    last_poll_time = 0.0
+    poll_interval = 1.0
+    first_display = True
+
+    try:
+        while True:
+            # Check if all jobs complete
+            all_complete = all(
+                job_state.status == "completed"
+                for job_name in submitted_jobs
+                if (job_state := job_manager.get_job_state(job_name))
+            )
+
+            if all_complete:
+                break
+
+            now = time.time()
+
+            # Poll JobManager to start pending jobs
+            if now - last_poll_time >= poll_interval:
+                job_manager.poll()
+                last_poll_time = now
+
+            # Display status periodically
+            if now - last_display_update >= display_interval or first_display:
+                # Capture monitor output
+                buffer = io.StringIO()
+                with redirect_stdout(buffer):
+                    monitor.display_status(
+                        clear_screen=False,
+                        title=f"Release Validation: {state_version}",
+                        highlight_failures=True,
+                        show_running_logs=True,
+                        log_tail_lines=5,
+                    )
+                output = buffer.getvalue()
+                new_line_count = output.count("\n")
+
+                if not first_display and monitor_line_count > 0:
+                    # Move cursor up and clear
+                    print(f"\033[{monitor_line_count}A\r", end="", flush=True)
+                    print("\033[J", end="", flush=True)
+
+                # Print new output
+                print(output, end="", flush=True)
+                monitor_line_count = new_line_count
+                last_display_update = now
+                first_display = False
+
+            time.sleep(0.1)
+
+    except KeyboardInterrupt:
+        print(yellow("\n\n⚠️  Interrupted by user (Ctrl+C)"))
+        print(yellow("   • Killing local jobs..."))
+        print(yellow("   • Leaving remote jobs running (they will continue on cluster)"))
+        cancelled = job_manager.cancel_group(state_version, local_only=True)
+        print(yellow(f"   • Killed {cancelled} local job(s)"))
+        print(yellow("\n💡 On restart: stale local jobs will be retried, running remote jobs will be reattached"))
+        sys.exit(130)
+
+
 def step_prepare_tag(version: str, state: Optional[ReleaseState] = None, **_kwargs) -> None:
     """Create staging tag (v{version}-rc) to mark commit for validation."""
     tag_name = f"v{version}-rc"
@@ -301,7 +429,7 @@ def step_task_validation(
 ) -> None:
     """Run validation tasks via JobManager.
 
-    JobManager handles execution, state persistence, and metrics extraction.
+    JobManager handles execution, state persistence, metrics extraction, and dependency resolution.
     Monitor displays live status with in-place updates.
     """
     print_step_header("Task Validation")
@@ -312,35 +440,76 @@ def step_task_validation(
 
     # Load state and filter tasks
     state_version = f"v{version}"
-    state = load_or_create_state(state_version, git.get_current_commit())
-    all_tasks = get_all_tasks()
+    load_or_create_state(state_version, git.get_current_commit())
+    all_job_configs = get_all_tasks()
 
     if task:
-        tasks = [t for t in all_tasks if task in t.name]
-        if not tasks:
+        job_configs = [t for t in all_job_configs if task in t.name]
+        if not job_configs:
             print(f"❌ No tasks matching '{task}'")
-            print(f"Available: {', '.join(t.name for t in all_tasks)}")
+            print(f"Available: {', '.join(t.name for t in all_job_configs)}")
             sys.exit(1)
-        print(f"Running: {len(tasks)} task(s) matching '{task}'\n")
+        print(f"Running: {len(job_configs)} task(s) matching '{task}'\n")
     else:
-        tasks = all_tasks
-        print(f"Running: {len(tasks)} task(s)\n")
+        job_configs = all_job_configs
+        print(f"Running: {len(job_configs)} task(s)\n")
 
-    # Run tasks via JobManager
+    # Run tasks via JobManager directly
     job_manager = get_job_manager()
     log_file = get_repo_root() / "devops/stable/state/job_manager.log"
     print(f"💡 Detailed logs: tail -f {log_file}\n")
-    runner = TaskRunner(state=state, job_manager=job_manager, retry_failed=retry)
-    runner.run_all(tasks)
+
+    # Submit and monitor jobs
+    submitted_jobs = _submit_jobs_to_manager(job_configs, state_version, job_manager, retry)
+    _monitor_jobs_until_complete(submitted_jobs, state_version, job_manager)
+
+    # Display final summary
+    print("\n" + "=" * 80)
+    print(f"Release Validation Complete: {state_version}")
+    print("=" * 80)
+
+    summary = job_manager.get_status_summary(group=state_version)
+
+    # Show progress bar
+    progress = format_progress_bar(summary["completed"], summary["total"])
+    pct = (summary["completed"] / summary["total"] * 100) if summary["total"] > 0 else 0
+    print(f"\nProgress: {summary['completed']}/{summary['total']} ({pct:.0f}%)")
+    print(f"{progress}")
+    print(f"Succeeded: {green(str(summary['succeeded']))}  Failed: {red(str(summary['failed']))}")
+    print()
+
+    # Show each job with integrated status + acceptance
+    job_config_by_name = {config.name: config for config in job_configs}
+
+    for job_dict in summary["jobs"]:
+        # Extract task name from job name (format: {version}_{task_name})
+        job_name = job_dict["name"]
+        task_name = job_name.split("_", 1)[1] if "_" in job_name else job_name
+        job_config = job_config_by_name.get(task_name)
+
+        if not job_config:
+            continue
+
+        # Get full job state for metrics
+        job_state = job_manager.get_job_state(job_name)
+        if not job_state:
+            continue
+
+        # Use composable display
+        display = format_task_with_acceptance(job_dict, job_state)
+        print(display)
+        print()
 
     # Count results (distinguish failed vs skipped)
     passed = 0
     failed = 0
     skipped = 0
 
-    for task in tasks:
-        job_state = job_manager.get_job_state(f"{state_version}_{task.name}")
+    for job_config in job_configs:
+        job_state = job_manager.get_job_state(f"{state_version}_{job_config.name}")
         if not job_state:
+            skipped += 1
+        elif job_state.exit_code == EXIT_CODE_SKIPPED:
             skipped += 1
         elif check_task_passed(job_state):
             passed += 1
@@ -361,7 +530,7 @@ def step_task_validation(
         print(f"⚠️  Task validation incomplete ({passed} passed, {skipped} skipped)")
         sys.exit(1)
 
-    print(f"✅ All task validations PASSED ({passed}/{len(tasks)})")
+    print(f"✅ All task validations PASSED ({passed}/{len(job_configs)})")
 
 
 def step_summary(version: str, **_kwargs) -> None:
@@ -384,27 +553,27 @@ def step_summary(version: str, **_kwargs) -> None:
     git_log = git.git_log_since("origin/stable")
 
     # Get all tasks to display results and collect training job info
-    all_tasks = get_all_tasks()
+    all_job_configs = get_all_tasks()
     training_jobs = []  # Track training jobs separately
 
     # Print task results summary
     print("Task Results:")
-    for task in all_tasks:
-        job_name = f"{state_version}_{task.name}"
+    for job_config in all_job_configs:
+        job_name = f"{state_version}_{job_config.name}"
         job_state = job_manager.get_job_state(job_name)
         if job_state:
             if check_task_passed(job_state):
                 icon = "✅"
             else:
                 icon = "❌"
-            print(f"  {icon} {task.name}")
+            print(f"  {icon} {job_config.name}")
             if job_state.metrics:
                 metrics_str = ", ".join(f"{k}={v:.1f}" for k, v in job_state.metrics.items())
                 print(f"       Metrics: {metrics_str}")
 
             # Collect training job info
-            if task.job_config.is_training_job:
-                training_jobs.append((task.name, job_state))
+            if job_config.is_training_job:
+                training_jobs.append((job_config.name, job_state))
 
     # Print release notes template
     print("\n" + "=" * 60)
@@ -453,16 +622,16 @@ def step_release(version: str, **_kwargs) -> None:
     job_manager = get_job_manager()
 
     # Verify all tasks passed
-    all_tasks = get_all_tasks()
+    all_job_configs = get_all_tasks()
 
     failed_tasks = []
-    for task in all_tasks:
-        job_name = f"{state_version}_{task.name}"
+    for job_config in all_job_configs:
+        job_name = f"{state_version}_{job_config.name}"
         job_state = job_manager.get_job_state(job_name)
         if not job_state:
-            failed_tasks.append(f"{task.name} (not run)")
+            failed_tasks.append(f"{job_config.name} (not run)")
         elif not check_task_passed(job_state):
-            failed_tasks.append(task.name)
+            failed_tasks.append(job_config.name)
 
     if failed_tasks:
         print("❌ Cannot release with failed/incomplete tasks:")
@@ -485,22 +654,22 @@ def step_release(version: str, **_kwargs) -> None:
 
 """
     # Use task results already validated above
-    for task in all_tasks:
-        job_name = f"{state_version}_{task.name}"
+    for job_config in all_job_configs:
+        job_name = f"{state_version}_{job_config.name}"
         job_state = job_manager.get_job_state(job_name)
         if job_state:
             if check_task_passed(job_state):
                 icon = "✅"
             else:
                 icon = "❌"
-            release_notes_content += f"- {icon} {task.name}\n"
+            release_notes_content += f"- {icon} {job_config.name}\n"
             if job_state.metrics:
                 metrics_str = ", ".join(f"{k}={v:.1f}" for k, v in job_state.metrics.items())
                 release_notes_content += f"  - Metrics: {metrics_str}\n"
 
             # Collect training jobs
-            if task.job_config.is_training_job:
-                training_jobs.append((task.name, job_state))
+            if job_config.is_training_job:
+                training_jobs.append((job_config.name, job_state))
 
     release_notes_content += f"""
 ## Changes Since Last Stable Release

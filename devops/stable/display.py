@@ -9,8 +9,8 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 
-from devops.stable.tasks import AcceptanceRule, Task
 from metta.common.util.text_styles import blue, cyan, green, magenta, red
+from metta.jobs.job_config import JobConfig
 from metta.jobs.job_monitor import format_artifact_link, format_job_status_line
 from metta.jobs.job_state import JobState
 
@@ -34,7 +34,7 @@ def format_artifact(value: str) -> str:
 
 def format_task_result(
     job_state: JobState,
-    task: Task,
+    job_config: JobConfig,
     acceptance_passed: bool,
     acceptance_error: str | None,
 ) -> str:
@@ -42,7 +42,7 @@ def format_task_result(
 
     Args:
         job_state: Job state from JobManager
-        task: Task definition
+        job_config: Job configuration
         acceptance_passed: Whether acceptance criteria passed
         acceptance_error: Error message if acceptance failed
 
@@ -53,7 +53,7 @@ def format_task_result(
 
     # Header
     lines.append("=" * 80)
-    lines.append(blue(f"📋 TASK RESULT: {task.name}"))
+    lines.append(blue(f"📋 TASK RESULT: {job_config.name}"))
     lines.append("=" * 80)
     lines.append("")
 
@@ -70,7 +70,7 @@ def format_task_result(
         lines.append(green(f"✓ Exit Code: {job_state.exit_code}"))
 
     # Acceptance criteria
-    if task.acceptance and not acceptance_passed:
+    if not acceptance_passed:
         lines.append("")
         lines.append(red(f"❗ Acceptance Criteria Failed: {acceptance_error}"))
 
@@ -176,32 +176,6 @@ def format_training_job_section(task_name: str, job_state: JobState) -> str:
             lines.append(f"- Training throughput: {sps:.0f} SPS")
 
     return "\n".join(lines)
-
-
-def evaluate_acceptance(job_state: JobState, rules: list[AcceptanceRule]) -> tuple[bool, str | None]:
-    """Evaluate acceptance criteria against job metrics.
-
-    Args:
-        job_state: Job state with metrics
-        rules: List of (key, operator, expected) tuples
-
-    Returns:
-        (passed, error_message) where error_message is None if passed
-    """
-    if not rules:
-        return (True, None)
-
-    failures: list[str] = []
-    for key, op, expected in rules:
-        if key not in job_state.metrics:
-            failures.append(f"{key}: metric missing (expected {op.__name__} {expected})")
-            continue
-        if not op(job_state.metrics[key], expected):
-            failures.append(f"{key}: expected {op.__name__} {expected}, saw {job_state.metrics[key]}")
-
-    if failures:
-        return (False, "; ".join(failures))
-    return (True, None)
 
 
 def check_task_passed(job_state: JobState) -> bool:

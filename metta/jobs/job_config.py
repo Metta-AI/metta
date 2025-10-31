@@ -61,3 +61,4 @@ class JobConfig(Config):
     is_training_job: bool = False  # Explicit flag for WandB tracking
     metrics_to_track: list[str] = Field(default_factory=list)  # Metrics to fetch from WandB (training only)
     acceptance_criteria: list[AcceptanceCriterion] = Field(default_factory=list)  # Thresholds for job success
+    dependency_names: list[str] = Field(default_factory=list)  # Job names this job depends on
