@@ -90,6 +90,14 @@ def _build_remote_script(
         "if [ -z \"$MASTER_ADDR\" ]; then MASTER_ADDR=\"$(echo \"${SKYPILOT_NODE_IPS:-127.0.0.1}\" | head -n1)\"; fi",
         # MASTER_PORT will be injected as a preamble from the launcher.
         "export MASTER_PORT=\"${MASTER_PORT:-29501}\"",
+        # Essential NCCL settings to avoid multi-node hangs on some fabrics
+        "export NCCL_SOCKET_FAMILY=\"${NCCL_SOCKET_FAMILY:-AF_INET}\"",
+        "export NCCL_IB_DISABLE=\"${NCCL_IB_DISABLE:-1}\"",
+        "export NCCL_P2P_DISABLE=\"${NCCL_P2P_DISABLE:-0}\"",
+        "export NCCL_SHM_DISABLE=\"${NCCL_SHM_DISABLE:-0}\"",
+        "export TORCH_NCCL_ASYNC_ERROR_HANDLING=\"${TORCH_NCCL_ASYNC_ERROR_HANDLING:-1}\"",
+        "export NCCL_DEBUG=\"${NCCL_DEBUG:-WARN}\"",
+        "export TORCH_DISTRIBUTED_DEBUG=\"${TORCH_DISTRIBUTED_DEBUG:-DETAIL}\"",
     ]
 
     if unset_cuda_visible_devices:
