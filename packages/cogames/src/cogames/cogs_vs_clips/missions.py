@@ -1,5 +1,4 @@
 import logging
-from pathlib import Path
 from typing import Any, cast
 
 from pydantic import Field
@@ -8,8 +7,9 @@ from pydantic import Field
 import mettagrid.map_builder.ascii  # noqa: F401
 import mettagrid.map_builder.random  # noqa: F401
 from cogames.cogs_vs_clips.mission import Mission, MissionVariant, Site
-from cogames.cogs_vs_clips.mission_utils import _add_make_env_modifier
-from cogames.cogs_vs_clips.mission_utils import get_map as get_map_util
+from cogames.cogs_vs_clips.mission_utils import get_map
+from cogames.cogs_vs_clips.procedural import MachinaArenaConfig, make_hub_only_map_builder
+from cogames.cogs_vs_clips.sites import EVALS
 from cogames.cogs_vs_clips.stations import (
     CarbonExtractorConfig,
     ChargerConfig,
@@ -30,14 +30,6 @@ from mettagrid.map_builder.map_builder import MapBuilderConfig
 from mettagrid.mapgen.mapgen import MapGen
 
 logger = logging.getLogger(__name__)
-
-
-def get_map(site: str) -> MapBuilderConfig:
-    maps_dir = Path(__file__).parent.parent / "maps"
-    map_path = maps_dir / site
-    return MapBuilderConfig.from_uri(str(map_path))
-
-
 PROCEDURAL_BASE_BUILDER = MapGen.Config(width=100, height=100, instance=MachinaArenaConfig(spawn_count=4))
 
 
@@ -300,14 +292,7 @@ MACHINA_PROCEDURAL = Site(
     max_cogs=20,
 )
 
-# Create EVALS site with a default map
-EVALS = Site(
-    name="evals",
-    description="Evaluation missions for scripted agent testing",
-    map_builder=get_map_util("evals/machina_eval_template.map"),
-    min_cogs=1,
-    max_cogs=5,
-)
+# EVALS is defined in mission_sites.py
 
 SITES = [
     TRAINING_FACILITY,
@@ -792,77 +777,19 @@ def make_game(num_cogs: int = 2, map_name: str = "training_facility_open_1.map")
     return mission.instantiate(map_builder, num_cogs, variant).make_env()
 
 
-# Import and register eval missions (after all function definitions to avoid circular import)
-try:
-    from cogames.cogs_vs_clips.evals import eval_missions as _eval_missions
+from cogames.cogs_vs_clips.evals import eval_missions as _eval_missions  # noqa: E402
 
-    # Create wrapper classes with proper site for each eval mission
-    class BalancedSpread(_eval_missions.BalancedSpread):
-        site: Site = EVALS
-
-    class CarbonDesert(_eval_missions.CarbonDesert):
-        site: Site = EVALS
-
-    class CollectTheResourcesEasy(_eval_missions.CollectTheResourcesEasy):
-        site: Site = EVALS
-
-    class CollectTheResourcesHard(_eval_missions.CollectTheResourcesHard):
-        site: Site = EVALS
-
-    class CollectTheResourcesMedium(_eval_missions.CollectTheResourcesMedium):
-        site: Site = EVALS
-
-    class EnergyStarved(_eval_missions.EnergyStarved):
-        site: Site = EVALS
-
-    class GeraniumForage(_eval_missions.GeraniumForage):
-        site: Site = EVALS
-
-    class GermaniumClutch(_eval_missions.GermaniumClutch):
-        site: Site = EVALS
-
-    class GermaniumRush(_eval_missions.GermaniumRush):
-        site: Site = EVALS
-
-    class HighRegenSprint(_eval_missions.HighRegenSprint):
-        site: Site = EVALS
-
-    class OxygenBottleneck(_eval_missions.OxygenBottleneck):
-        site: Site = EVALS
-
-    class SiliconWorkbench(_eval_missions.SiliconWorkbench):
-        site: Site = EVALS
-
-    class SingleUseWorld(_eval_missions.SingleUseWorld):
-        site: Site = EVALS
-
-    class SlowOxygen(_eval_missions.SlowOxygen):
-        site: Site = EVALS
-
-    class SparseBalanced(_eval_missions.SparseBalanced):
-        site: Site = EVALS
-
-    # Add to missions list
-    MISSIONS.extend(
-        [
-            BalancedSpread,
-            CarbonDesert,
-            CollectTheResourcesEasy,
-            CollectTheResourcesHard,
-            CollectTheResourcesMedium,
-            EnergyStarved,
-            GeraniumForage,
-            GermaniumClutch,
-            GermaniumRush,
-            HighRegenSprint,
-            OxygenBottleneck,
-            SiliconWorkbench,
-            SingleUseWorld,
-            SlowOxygen,
-            SparseBalanced,
-        ]
-    )
-except ImportError as e:
-    # Eval missions not available
-    logger.warning(f"Could not import eval missions: {e}")
-    pass
+# Add to missions list
+MISSIONS.extend(
+    [
+        _eval_missions.BalancedSpread,
+        _eval_missions.CollectTheResourcesEasy,
+        _eval_missions.CollectTheResourcesHard,
+        _eval_missions.CollectTheResourcesMedium,
+        _eval_missions.EnergyStarved,
+        _eval_missions.GeraniumForage,
+        _eval_missions.OxygenBottleneck,
+        _eval_missions.SingleUseWorld,
+        _eval_missions.SparseBalanced,
+    ]
+)
