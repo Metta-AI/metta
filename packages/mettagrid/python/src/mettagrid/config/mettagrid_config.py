@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from collections.abc import Iterable
 from typing import Annotated, Any, Literal, Optional, Union
 
 from pydantic import (
@@ -9,7 +8,6 @@ from pydantic import (
     Field,
     SerializeAsAny,
     Tag,
-    field_validator,
     model_validator,
 )
 
@@ -183,35 +181,6 @@ class WallConfig(GridObjectConfig):
     swappable: bool = Field(default=False)
 
 
-class ConverterConfig(GridObjectConfig):
-    """Python converter configuration."""
-
-    model_config = ConfigDict(extra="forbid", validate_assignment=True)
-
-    type: Literal["converter"] = Field(default="converter")
-    input_resources: dict[str, int] = Field(default_factory=dict)
-    output_resources: dict[str, int] = Field(default_factory=dict)
-    max_output: int = Field(ge=-1, default=5)
-    max_conversions: int = Field(default=-1)
-    conversion_ticks: int = Field(ge=0, default=1)
-    cooldown: list[int] = Field(default_factory=lambda: [0])
-    initial_resource_count: int = Field(ge=0, default=0)
-
-    @field_validator("cooldown", mode="before")
-    @classmethod
-    def normalize_cooldown(cls, value: Any) -> list[int]:
-        if value is None:
-            return [0]
-        if isinstance(value, int):
-            return [int(value)]
-        if isinstance(value, Iterable) and not isinstance(value, (str, bytes)):
-            values = [int(item) for item in value]
-            if not values:
-                return [0]
-            return values
-        raise TypeError("cooldown must be an int or iterable of ints")
-
-
 class ProtocolConfig(Config):
     input_resources: dict[str, int] = Field(default_factory=dict)
     output_resources: dict[str, int] = Field(default_factory=dict)
@@ -305,7 +274,6 @@ AnyGridObjectConfig = SerializeAsAny[
     Annotated[
         Union[
             Annotated[WallConfig, Tag("wall")],
-            Annotated[ConverterConfig, Tag("converter")],
             Annotated[AssemblerConfig, Tag("assembler")],
             Annotated[ChestConfig, Tag("chest")],
         ],
@@ -377,7 +345,7 @@ class GameConfig(Config):
         default=True, description="Enable movement metrics tracking (sequential rotations)"
     )
     recipe_details_obs: bool = Field(
-        default=False, description="Converters show their recipe inputs and outputs when observed"
+        default=False, description="Objects show their recipe inputs and outputs when observed"
     )
     allow_diagonals: bool = Field(default=False, description="Enable actions to be aware of diagonal orientations")
 

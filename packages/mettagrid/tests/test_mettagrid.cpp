@@ -17,9 +17,7 @@
 #include "objects/assembler.hpp"
 #include "objects/assembler_config.hpp"
 #include "objects/constants.hpp"
-#include "objects/converter.hpp"
 #include "objects/inventory_config.hpp"
-#include "objects/production_handler.hpp"
 #include "objects/wall.hpp"
 
 // Test-specific inventory item type constants
@@ -28,7 +26,6 @@ constexpr uint8_t ORE = 0;
 constexpr uint8_t LASER = 1;
 constexpr uint8_t ARMOR = 2;
 constexpr uint8_t HEART = 3;
-constexpr uint8_t CONVERTER = 4;
 }  // namespace TestItems
 
 namespace TestItemStrings {
@@ -100,14 +97,6 @@ protected:
                        {});                             // initial_inventory
   }
 };
-
-static void RegisterProductionHandlers(EventManager& event_manager) {
-  auto finish_handler = std::make_unique<ProductionHandler>(&event_manager);
-  event_manager.event_handlers.insert({EventType::FinishConverting, std::move(finish_handler)});
-
-  auto cooldown_handler = std::make_unique<CoolDownHandler>(&event_manager);
-  event_manager.event_handlers.insert({EventType::CoolDown, std::move(cooldown_handler)});
-}
 
 // ==================== Agent Tests ====================
 
@@ -1666,7 +1655,7 @@ TEST_F(MettaGridCppTest, ResourceModProbabilistic) {
                                {{TestItems::ORE, 0.5f}},    // 50% chance to consume
                                {{TestItems::HEART, 0.3f}},  // 30% chance to add 1 heart
                                1,
-                               false);  // radius 1, no converters, no scaling
+                               false);  // radius 1, no scaling
   ResourceMod modify(modify_cfg);
   modify.init(&grid, &rng);
 
@@ -1698,112 +1687,6 @@ TEST_F(MettaGridCppTest, ResourceModProbabilistic) {
   EXPECT_LE(hearts_added, 40);  // At most 40
   EXPECT_GE(ore_consumed, 40);  // At least 40
   EXPECT_LE(ore_consumed, 60);  // At most 60
-}
-
-TEST_F(MettaGridCppTest, ConverterCooldownSequenceCycles) {
-  Grid grid(5, 5);
-  EventManager event_manager;
-  event_manager.init(&grid);
-  RegisterProductionHandlers(event_manager);
-
-  std::vector<unsigned short> cooldown_time_values{2, 4, 0};
-  ConverterConfig converter_cfg(
-      TestItems::CONVERTER, "converter", {}, {{TestItems::ORE, 1}}, -1, -1, 1, cooldown_time_values);
-  Converter* converter = new Converter(2, 2, converter_cfg);
-  grid.add_object(converter);
-  converter->set_event_manager(&event_manager);
-
-  std::vector<unsigned int> completions;
-  unsigned int last_output = 0;
-  const unsigned int total_steps = 40;
-  for (unsigned int step = 0; step <= total_steps; ++step) {
-    event_manager.process_events(step);
-    unsigned short current_output = converter->inventory.amount(TestItems::ORE);
-    if (current_output > last_output) {
-      completions.push_back(step);
-      last_output = current_output;
-    }
-  }
-
-  std::vector<unsigned short> observed;
-  for (size_t i = 1; i < completions.size(); ++i) {
-    unsigned int gap = completions[i] - completions[i - 1];
-    unsigned short cooldown = gap > 1 ? static_cast<unsigned short>(gap - 1) : 0;
-    observed.push_back(cooldown);
-  }
-
-  std::vector<unsigned short> expected{2, 4, 0, 2, 4};
-  ASSERT_GE(observed.size(), expected.size());
-  for (size_t i = 0; i < expected.size(); ++i) {
-    EXPECT_EQ(observed[i], expected[i]);
-  }
-
-  EXPECT_EQ(converter->cooldown_time, cooldown_time_values);
-}
-
-TEST_F(MettaGridCppTest, ConverterCooldownSequenceHandlesEmptyList) {
-  Grid grid(5, 5);
-  EventManager event_manager;
-  event_manager.init(&grid);
-  RegisterProductionHandlers(event_manager);
-
-  std::vector<unsigned short> cooldown_time_values;
-  ConverterConfig converter_cfg(
-      TestItems::CONVERTER, "converter", {}, {{TestItems::ORE, 1}}, -1, -1, 1, cooldown_time_values);
-  Converter* converter = new Converter(1, 1, converter_cfg);
-  grid.add_object(converter);
-  converter->set_event_manager(&event_manager);
-
-  std::vector<unsigned int> completions;
-  unsigned int last_output = 0;
-  const unsigned int total_steps = 12;
-  for (unsigned int step = 0; step <= total_steps; ++step) {
-    event_manager.process_events(step);
-    unsigned short current_output = converter->inventory.amount(TestItems::ORE);
-    if (current_output > last_output) {
-      completions.push_back(step);
-      last_output = current_output;
-    }
-  }
-
-  std::vector<unsigned short> observed;
-  for (size_t i = 1; i < completions.size(); ++i) {
-    unsigned int gap = completions[i] - completions[i - 1];
-    unsigned short cooldown = gap > 1 ? static_cast<unsigned short>(gap - 1) : 0;
-    observed.push_back(cooldown);
-  }
-
-  std::vector<unsigned short> expected(observed.size(), 0);
-  EXPECT_EQ(observed, expected);
-}
-
-TEST_F(MettaGridCppTest, ConverterRespectsMaxConversionsLimit) {
-  Grid grid(5, 5);
-  EventManager event_manager;
-  event_manager.init(&grid);
-  RegisterProductionHandlers(event_manager);
-
-  std::vector<unsigned short> cooldown_time_values{5, 10};
-  ConverterConfig converter_cfg(
-      TestItems::CONVERTER, "converter", {}, {{TestItems::ORE, 1}}, -1, 2, 1, cooldown_time_values);
-  Converter* converter = new Converter(3, 3, converter_cfg);
-  grid.add_object(converter);
-  converter->set_event_manager(&event_manager);
-
-  std::vector<unsigned int> completions;
-  unsigned int last_output = 0;
-  const unsigned int total_steps = 40;
-  for (unsigned int step = 0; step <= total_steps; ++step) {
-    event_manager.process_events(step);
-    unsigned short current_output = converter->inventory.amount(TestItems::ORE);
-    if (current_output > last_output) {
-      completions.push_back(step);
-      last_output = current_output;
-    }
-  }
-
-  EXPECT_EQ(completions.size(), 2u);
-  EXPECT_EQ(converter->inventory.amount(TestItems::ORE), 2);
 }
 
 // Tests for HasInventory::shared_update function

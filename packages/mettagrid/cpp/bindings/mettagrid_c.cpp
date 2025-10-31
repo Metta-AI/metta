@@ -28,10 +28,7 @@
 #include "objects/assembler_config.hpp"
 #include "objects/chest.hpp"
 #include "objects/constants.hpp"
-#include "objects/converter.hpp"
-#include "objects/converter_config.hpp"
 #include "objects/inventory_config.hpp"
-#include "objects/production_handler.hpp"
 #include "objects/recipe.hpp"
 #include "objects/wall.hpp"
 #include "supervisors/agent_supervisor.hpp"  // Need full definition for supervisor usage
@@ -83,9 +80,6 @@ MettaGrid::MettaGrid(const GameConfig& game_config, const py::list map, unsigned
   _stats = std::make_unique<StatsTracker>(&resource_names);
 
   _event_manager->init(_grid.get());
-  _event_manager->event_handlers.insert(
-      {EventType::FinishConverting, std::make_unique<ProductionHandler>(_event_manager.get())});
-  _event_manager->event_handlers.insert({EventType::CoolDown, std::make_unique<CoolDownHandler>(_event_manager.get())});
 
   _action_success.resize(num_agents);
 
@@ -167,20 +161,6 @@ MettaGrid::MettaGrid(const GameConfig& game_config, const py::list map, unsigned
         Wall* wall = new Wall(r, c, *wall_config);
         _grid->add_object(wall);
         _stats->incr("objects." + cell);
-        continue;
-      }
-
-      const ConverterConfig* converter_config = dynamic_cast<const ConverterConfig*>(object_cfg);
-      if (converter_config) {
-        // Create a new ConverterConfig with the recipe offsets from the observation encoder
-        ConverterConfig config_with_offsets(*converter_config);
-        config_with_offsets.input_recipe_offset = _obs_encoder->get_input_recipe_offset();
-        config_with_offsets.output_recipe_offset = _obs_encoder->get_output_recipe_offset();
-
-        Converter* converter = new Converter(r, c, config_with_offsets);
-        _grid->add_object(converter);
-        _stats->incr("objects." + cell);
-        converter->set_event_manager(_event_manager.get());
         continue;
       }
 
@@ -940,24 +920,6 @@ py::dict MettaGrid::grid_objects(int min_row, int max_row, int min_col, int max_
       // obj_dict["resource_limits"] = resource_limits_dict;
     }
 
-    if (auto* converter = dynamic_cast<Converter*>(obj)) {
-      obj_dict["is_converting"] = converter->converting;
-      obj_dict["is_cooling_down"] = converter->cooling_down;
-      obj_dict["conversion_duration"] = converter->conversion_ticks;
-      obj_dict["cooldown_duration"] = converter->next_cooldown_time();
-      obj_dict["output_limit"] = converter->max_output;
-      py::dict input_resources_dict;
-      for (const auto& [resource, quantity] : converter->input_resources) {
-        input_resources_dict[py::int_(resource)] = quantity;
-      }
-      obj_dict["input_resources"] = input_resources_dict;
-      py::dict output_resources_dict;
-      for (const auto& [resource, quantity] : converter->output_resources) {
-        output_resources_dict[py::int_(resource)] = quantity;
-      }
-      obj_dict["output_resources"] = output_resources_dict;
-    }
-
     // Add assembler-specific info
     if (auto* assembler = dynamic_cast<Assembler*>(obj)) {
       obj_dict["cooldown_remaining"] = assembler->cooldown_remaining();
@@ -1219,7 +1181,7 @@ PYBIND11_MODULE(mettagrid_c, m) {
       .def_readonly("initial_grid_hash", &MettaGrid::initial_grid_hash)
       .def("set_inventory", &MettaGrid::set_inventory, py::arg("agent_id"), py::arg("inventory"));
 
-  // Expose this so we can cast python WallConfig / AgentConfig / ConverterConfig to a common GridConfig cpp object.
+  // Expose this so we can cast python WallConfig / AgentConfig to a common GridConfig cpp object.
   py::class_<GridObjectConfig, std::shared_ptr<GridObjectConfig>>(m, "GridObjectConfig");
 
   bind_wall_config(m);
@@ -1236,7 +1198,6 @@ PYBIND11_MODULE(mettagrid_c, m) {
   bind_inventory_config(m);
   bind_supervisor_configs(m);
   bind_agent_config(m);
-  bind_converter_config(m);
   bind_assembler_config(m);
   bind_chest_config(m);
   bind_action_config(m);
