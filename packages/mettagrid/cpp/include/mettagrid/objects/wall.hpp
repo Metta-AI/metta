@@ -12,8 +12,11 @@
 
 // #MettaGridConfig
 struct WallConfig : public GridObjectConfig {
-  WallConfig(TypeId type_id, const std::string& type_name, bool swappable_flag = false)
-      : GridObjectConfig(type_id, type_name), swappable(swappable_flag) {}
+  WallConfig(TypeId type_id,
+             const std::string& type_name,
+             bool swappable_flag = false,
+             ObservationType initial_vibe = 0)
+      : GridObjectConfig(type_id, type_name, initial_vibe), swappable(swappable_flag) {}
 
   bool swappable{false};
 };
@@ -23,13 +26,14 @@ public:
   bool _swappable;
 
   Wall(GridCoord r, GridCoord c, const WallConfig& cfg) {
-    GridObject::init(cfg.type_id, cfg.type_name, GridLocation(r, c, GridLayer::ObjectLayer), cfg.tag_ids);
+    GridObject::init(
+        cfg.type_id, cfg.type_name, GridLocation(r, c, GridLayer::ObjectLayer), cfg.tag_ids, cfg.initial_vibe);
     this->_swappable = cfg.swappable;
   }
 
   std::vector<PartialObservationToken> obs_features() const override {
     std::vector<PartialObservationToken> features;
-    features.reserve(2 + tag_ids.size());
+    features.reserve(2 + tag_ids.size() + (this->vibe != 0 ? 1 : 0));
     features.push_back({ObservationFeature::TypeId, static_cast<ObservationType>(this->type_id)});
 
     if (_swappable) {
@@ -41,6 +45,8 @@ public:
     for (int tag_id : tag_ids) {
       features.push_back({ObservationFeature::Tag, static_cast<ObservationType>(tag_id)});
     }
+
+    if (this->vibe != 0) features.push_back({ObservationFeature::Vibe, static_cast<ObservationType>(this->vibe)});
 
     return features;
   }
@@ -54,14 +60,16 @@ namespace py = pybind11;
 
 inline void bind_wall_config(py::module& m) {
   py::class_<WallConfig, GridObjectConfig, std::shared_ptr<WallConfig>>(m, "WallConfig")
-      .def(py::init<TypeId, const std::string&, bool>(),
+      .def(py::init<TypeId, const std::string&, bool, ObservationType>(),
            py::arg("type_id"),
            py::arg("type_name"),
-           py::arg("swappable") = false)
+           py::arg("swappable") = false,
+           py::arg("initial_vibe") = 0)
       .def_readwrite("type_id", &WallConfig::type_id)
       .def_readwrite("type_name", &WallConfig::type_name)
       .def_readwrite("tag_ids", &WallConfig::tag_ids)
-      .def_readwrite("swappable", &WallConfig::swappable);
+      .def_readwrite("swappable", &WallConfig::swappable)
+      .def_readwrite("initial_vibe", &WallConfig::initial_vibe);
 }
 
 #endif  // PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_OBJECTS_WALL_HPP_

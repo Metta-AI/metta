@@ -12,7 +12,7 @@
 
 #include "actions/action_handler.hpp"
 #include "actions/attack.hpp"
-#include "actions/change_glyph.hpp"
+#include "actions/change_vibe.hpp"
 #include "actions/move.hpp"
 #include "actions/noop.hpp"
 #include "actions/resource_mod.hpp"
@@ -99,9 +99,9 @@ MettaGrid::MettaGrid(const GameConfig& game_config, const py::list map, unsigned
     } else if (action_name == "attack") {
       auto attack_config = std::static_pointer_cast<const AttackActionConfig>(action_config);
       _action_handlers.push_back(std::make_unique<Attack>(*attack_config, &_game_config));
-    } else if (action_name == "change_glyph") {
-      auto change_glyph_config = std::static_pointer_cast<const ChangeGlyphActionConfig>(action_config);
-      _action_handlers.push_back(std::make_unique<ChangeGlyph>(*change_glyph_config));
+    } else if (action_name == "change_vibe") {
+      auto change_vibe_config = std::static_pointer_cast<const ChangeVibeActionConfig>(action_config);
+      _action_handlers.push_back(std::make_unique<ChangeVibe>(*change_vibe_config));
     } else if (action_name == "swap") {
       _action_handlers.push_back(std::make_unique<Swap>(*action_config));
     } else if (action_name == "resource_mod") {
@@ -926,7 +926,6 @@ py::dict MettaGrid::grid_objects(int min_row, int max_row, int min_col, int max_
       obj_dict["is_frozen"] = !!agent->frozen;
       obj_dict["freeze_remaining"] = agent->frozen;
       obj_dict["freeze_duration"] = agent->freeze_duration;
-      obj_dict["glyph"] = agent->glyph;
       obj_dict["agent_id"] = agent->agent_id;
       obj_dict["action_failure_penalty"] = agent->action_failure_penalty;
       obj_dict["current_stat_reward"] = agent->current_stat_reward;
@@ -1242,7 +1241,7 @@ PYBIND11_MODULE(mettagrid_c, m) {
   bind_chest_config(m);
   bind_action_config(m);
   bind_attack_action_config(m);
-  bind_change_glyph_action_config(m);
+  bind_change_vibe_action_config(m);
   bind_resource_mod_config(m);
   bind_global_obs_config(m);
   bind_clipper_config(m);

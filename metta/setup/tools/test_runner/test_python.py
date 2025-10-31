@@ -50,19 +50,6 @@ PACKAGES: tuple[Package, ...] = (
 )
 
 
-DEFAULT_FLAGS: tuple[str, ...] = ("--benchmark-disable", "-n", "auto")
-CI_FLAGS: tuple[str, ...] = (
-    "-n",
-    "4",
-    "--timeout=100",
-    "--timeout-method=thread",
-    "--benchmark-skip",
-    "--disable-warnings",
-    "--color=yes",
-    "-v",
-)
-
-
 def _run_command(args: Sequence[str]) -> int:
     info(f"→ {' '.join(args)}")
     completed = subprocess.run(args, cwd=get_repo_root(), check=False)
@@ -199,7 +186,17 @@ def run(
         raise typer.Exit(1) from exc
 
     if ci:
-        base_cmd = [*cmd, *CI_FLAGS, *extra_args]
+        base_cmd = [
+            *cmd,
+            "-n",
+            "4",
+            "--timeout=100",
+            "--timeout-method=thread",
+            "--disable-warnings",
+            "--color=yes",
+            "-v",
+            *extra_args,
+        ]
         with tempfile.TemporaryDirectory(prefix="pytest-json-") as temp_dir:
             report_dir = Path(temp_dir)
             results = _execute_ci_packages(selected, resolved_targets, base_cmd, report_dir)
@@ -211,7 +208,7 @@ def run(
             exit_code = max((result.returncode for result in results), default=0)
         raise typer.Exit(exit_code)
 
-    cmd.extend(DEFAULT_FLAGS)
+    cmd.extend(["-n", "auto"])
     if changed:
         cmd.append("--testmon")
     cmd.extend(extra_args)

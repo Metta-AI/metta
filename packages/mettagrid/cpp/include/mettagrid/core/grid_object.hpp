@@ -8,10 +8,12 @@
 
 #include "core/types.hpp"
 #include "objects/constants.hpp"
+#include "objects/has_vibe.hpp"
 
 using Layer = ObservationType;
 using TypeId = ObservationType;
 using ObservationCoord = ObservationType;
+using Vibe = ObservationType;
 
 struct PartialObservationToken {
   ObservationType feature_id = EmptyTokenByte;
@@ -52,14 +54,15 @@ struct GridObjectConfig {
   TypeId type_id;
   std::string type_name;
   std::vector<int> tag_ids;
+  ObservationType initial_vibe;
 
-  GridObjectConfig(TypeId type_id, const std::string& type_name)
-      : type_id(type_id), type_name(type_name), tag_ids({}) {}
+  GridObjectConfig(TypeId type_id, const std::string& type_name, ObservationType initial_vibe = 0)
+      : type_id(type_id), type_name(type_name), tag_ids({}), initial_vibe(initial_vibe) {}
 
   virtual ~GridObjectConfig() = default;
 };
 
-class GridObject {
+class GridObject : public HasVibe {
 public:
   GridObjectId id{};
   GridLocation location{};
@@ -72,11 +75,13 @@ public:
   void init(TypeId object_type_id,
             const std::string& object_type_name,
             const GridLocation& object_location,
-            const std::vector<int>& tags) {
+            const std::vector<int>& tags,
+            ObservationType object_vibe = 0) {
     this->type_id = object_type_id;
     this->type_name = object_type_name;
     this->location = object_location;
     this->tag_ids = tags;
+    this->vibe = object_vibe;
   }
 
   virtual bool swappable() const {

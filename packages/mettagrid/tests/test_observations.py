@@ -4,7 +4,7 @@ import pytest
 from mettagrid.config.mettagrid_config import (
     ActionConfig,
     ActionsConfig,
-    ChangeGlyphActionConfig,
+    ChangeVibeActionConfig,
     ConverterConfig,
     GameConfig,
     GlobalObsConfig,
@@ -335,8 +335,8 @@ class TestGlobalTokens:
         last_action = helper.find_token_values(obs[0], location=(global_x, global_y), feature_id=last_action_feature_id)
         assert last_action == move_idx
 
-    def test_glyph_signaling(self):
-        """Test that agents can signal using glyphs and observe each other's glyphs."""
+    def test_vibe_signaling(self):
+        """Test that agents can signal using vibes and observe each other's vibes."""
         # Create a 5x5 environment with two adjacent agents
         game_map = create_grid(5, 5, fill_value=".")
         helper = ObservationHelper()
@@ -352,7 +352,7 @@ class TestGlobalTokens:
         game_map[2, 1] = "@"
         game_map[2, 2] = "@"
 
-        # Create environment with change_glyph enabled and 8 glyphs
+        # Create environment with change_vibe enabled and 8 vibes
         cfg = MettaGridConfig(
             game=GameConfig(
                 num_agents=2,
@@ -363,7 +363,7 @@ class TestGlobalTokens:
                 actions=ActionsConfig(
                     noop=ActionConfig(),
                     move=ActionConfig(),
-                    change_glyph=ChangeGlyphActionConfig(enabled=True, number_of_glyphs=8),
+                    change_vibe=ChangeVibeActionConfig(enabled=True, number_of_vibes=8),
                 ),
                 objects={"wall": WallConfig(type_id=TokenTypes.WALL_TYPE_ID)},
                 resource_names=["laser", "armor"],
@@ -374,75 +374,75 @@ class TestGlobalTokens:
             )
         )
         env = MettaGridCore(cfg)
-        glyph_feature_id = env.c_env.feature_spec()["agent:glyph"]["id"]
+        vibe_feature_id = env.c_env.feature_spec()["vibe"]["id"]
 
         obs, _ = env.reset()
 
         # Check if we're seeing uninitialized memory issues
-        agent0_self_glyph = helper.find_token_values(obs[0], location=(1, 1), feature_id=glyph_feature_id)
-        agent0_sees_agent1_glyph = helper.find_token_values(obs[0], location=(2, 1), feature_id=glyph_feature_id)
-        agent1_self_glyph = helper.find_token_values(obs[1], location=(1, 1), feature_id=glyph_feature_id)
-        agent1_sees_agent0_glyph = helper.find_token_values(obs[1], location=(0, 1), feature_id=glyph_feature_id)
+        agent0_self_vibe = helper.find_token_values(obs[0], location=(1, 1), feature_id=vibe_feature_id)
+        agent0_sees_agent1_vibe = helper.find_token_values(obs[0], location=(2, 1), feature_id=vibe_feature_id)
+        agent1_self_vibe = helper.find_token_values(obs[1], location=(1, 1), feature_id=vibe_feature_id)
+        agent1_sees_agent0_vibe = helper.find_token_values(obs[1], location=(0, 1), feature_id=vibe_feature_id)
 
-        # Initially, both agents should have glyph 0 (default)
-        # Since glyph 0 is suppressed, we should NOT find any glyph tokens
-        assert len(agent0_self_glyph) == 0, f"Agent 0 with glyph 0 should have no glyph token, got {agent0_self_glyph}"
-        assert len(agent0_sees_agent1_glyph) == 0, (
-            f"Agent 0 should see Agent 1 with no glyph token (glyph 0), got {agent0_sees_agent1_glyph}"
+        # Initially, both agents should have vibe 0 (default)
+        # Since vibe 0 is suppressed, we should NOT find any vibe tokens
+        assert len(agent0_self_vibe) == 0, f"Agent 0 with vibe 0 should have no vibe token, got {agent0_self_vibe}"
+        assert len(agent0_sees_agent1_vibe) == 0, (
+            f"Agent 0 should see Agent 1 with no vibe token (vibe 0), got {agent0_sees_agent1_vibe}"
         )
-        assert len(agent1_self_glyph) == 0, f"Agent 1 with glyph 0 should have no glyph token, got {agent1_self_glyph}"
-        assert len(agent1_sees_agent0_glyph) == 0, (
-            f"Agent 1 should see Agent 0 with no glyph token (glyph 0), got {agent1_sees_agent0_glyph}"
+        assert len(agent1_self_vibe) == 0, f"Agent 1 with vibe 0 should have no vibe token, got {agent1_self_vibe}"
+        assert len(agent1_sees_agent0_vibe) == 0, (
+            f"Agent 1 should see Agent 0 with no vibe token (vibe 0), got {agent1_sees_agent0_vibe}"
         )
 
-        # Test changing glyphs
-        def glyph_action(value: int) -> int:
-            name = f"change_glyph_{value}"
+        # Test changing vibes
+        def vibe_action(value: int) -> int:
+            name = f"change_vibe_{value}"
             if name not in env.action_names:
                 raise AssertionError(f"Missing expected action {name}")
             return env.action_names.index(name)
 
-        # Test 1: Agent 0 changes to glyph 3, Agent 1 stays at 0
+        # Test 1: Agent 0 changes to vibe 3, Agent 1 stays at 0
         actions = np.array(
             [
-                glyph_action(3),
-                glyph_action(5),
+                vibe_action(3),
+                vibe_action(5),
             ],
             dtype=dtype_actions,
         )
 
         obs, _, _, _, _ = env.step(actions)
 
-        agent0_self_glyph = helper.find_token_values(obs[0], location=(1, 1), feature_id=glyph_feature_id)
-        assert agent0_self_glyph == 3, f"Agent 0 should have glyph 3, got {agent0_self_glyph}"
+        agent0_self_vibe = helper.find_token_values(obs[0], location=(1, 1), feature_id=vibe_feature_id)
+        assert agent0_self_vibe == 3, f"Agent 0 should have vibe 3, got {agent0_self_vibe}"
 
-        agent1_sees_agent0_glyph = helper.find_token_values(obs[1], location=(0, 1), feature_id=glyph_feature_id)
-        assert agent1_sees_agent0_glyph == 3, f"Agent 1 should see Agent 0 with glyph 3, got {agent1_sees_agent0_glyph}"
+        agent1_sees_agent0_vibe = helper.find_token_values(obs[1], location=(0, 1), feature_id=vibe_feature_id)
+        assert agent1_sees_agent0_vibe == 3, f"Agent 1 should see Agent 0 with vibe 3, got {agent1_sees_agent0_vibe}"
 
-        agent1_self_glyph = helper.find_token_values(obs[1], location=(1, 1), feature_id=glyph_feature_id)
-        assert agent1_self_glyph == 5, f"Agent 1 should have glyph 5, got {agent1_self_glyph}"
+        agent1_self_vibe = helper.find_token_values(obs[1], location=(1, 1), feature_id=vibe_feature_id)
+        assert agent1_self_vibe == 5, f"Agent 1 should have vibe 5, got {agent1_self_vibe}"
 
-        # Test 2: Invalid glyph values (should be no-op)
-        assert "change_glyph_123" not in env.action_names, "Invalid glyph action should not exist"
+        # Test 2: Invalid vibe values (should be no-op)
+        assert "change_vibe_123" not in env.action_names, "Invalid vibe action should not exist"
 
-        # Test 3: Changing back to glyph 0 removes the token
+        # Test 3: Changing back to vibe 0 removes the token
 
-        # Change back to glyph 0
+        # Change back to vibe 0
         actions = np.array(
             [
-                glyph_action(0),
-                glyph_action(0),
+                vibe_action(0),
+                vibe_action(0),
             ],
             dtype=dtype_actions,
         )
         obs, _, _, _, _ = env.step(actions)
 
-        # Verify glyph tokens are gone
-        agent0_glyph = helper.find_token_values(obs[0], location=(1, 1), feature_id=glyph_feature_id)
-        agent1_glyph = helper.find_token_values(obs[1], location=(1, 1), feature_id=glyph_feature_id)
+        # Verify vibe tokens are gone
+        agent0_vibe = helper.find_token_values(obs[0], location=(1, 1), feature_id=vibe_feature_id)
+        agent1_vibe = helper.find_token_values(obs[1], location=(1, 1), feature_id=vibe_feature_id)
 
-        assert len(agent0_glyph) == 0, f"Agent 0 changed to glyph 0 should have no token, got {agent0_glyph}"
-        assert len(agent1_glyph) == 0, f"Agent 1 changed to glyph 0 should have no token, got {agent1_glyph}"
+        assert len(agent0_vibe) == 0, f"Agent 0 changed to vibe 0 should have no token, got {agent0_vibe}"
+        assert len(agent1_vibe) == 0, f"Agent 1 changed to vibe 0 should have no token, got {agent1_vibe}"
 
 
 class TestEdgeObservations:

@@ -138,8 +138,8 @@ public:
   }
 
   // Recipe lookup table for recipes that depend on agents vibing- keyed by local vibe (64-bit number from sorted
-  // glyphs). Later, this may be switched to having string keys based on the glyphs.
-  // Note that 0 is both the vibe you get when no one is showing a glyph, and also the default vibe.
+  // vibes). Later, this may be switched to having string keys based on the vibes.
+  // Note that 0 is both the vibe you get when no one is showing a vibe, and also the default vibe.
   const std::unordered_map<uint64_t, std::shared_ptr<Recipe>> recipes;
 
   // Unclip recipes - used when assembler is clipped
@@ -202,7 +202,8 @@ public:
         output_recipe_offset(cfg.output_recipe_offset),
         allow_partial_usage(cfg.allow_partial_usage),
         clipper_ptr(nullptr) {
-    GridObject::init(cfg.type_id, cfg.type_name, GridLocation(r, c, GridLayer::ObjectLayer), cfg.tag_ids);
+    GridObject::init(
+        cfg.type_id, cfg.type_name, GridLocation(r, c, GridLayer::ObjectLayer), cfg.tag_ids, cfg.initial_vibe);
   }
   virtual ~Assembler() = default;
 
@@ -240,12 +241,12 @@ public:
     return static_cast<float>(elapsed) / static_cast<float>(cooldown_duration);
   }
 
-  // Helper function to get the "local vibe" based on glyphs of surrounding agents
-  // Returns a 64-bit number created from sorted glyphs of surrounding agents
+  // Helper function to get the "local vibe" based on vibes of surrounding agents
+  // Returns a 64-bit number created from sorted vibes of surrounding agents
   uint64_t get_local_vibe() const {
     if (!grid) return 0;
 
-    std::vector<uint8_t> glyphs;
+    std::vector<uint8_t> vibes;
     std::vector<std::pair<GridCoord, GridCoord>> positions = get_surrounding_positions();
 
     for (size_t i = 0; i < positions.size(); i++) {
@@ -256,20 +257,19 @@ public:
         GridObject* obj = grid->object_at(GridLocation(check_r, check_c, GridLayer::AgentLayer));
         if (obj) {
           Agent* agent = dynamic_cast<Agent*>(obj);
-          if (agent && agent->glyph != 0) {
-            glyphs.push_back(agent->glyph);
+          if (agent && agent->vibe != 0) {
+            vibes.push_back(agent->vibe);
           }
         }
       }
     }
 
-    // Sort the glyphs to make the vibe independent of agent positions.
-    std::sort(glyphs.begin(), glyphs.end());
-    return std::accumulate(
-        glyphs.begin(), glyphs.end(), 0, [](uint64_t acc, uint8_t glyph) { return (acc << 8) | glyph; });
+    // Sort the vibes to make the vibe independent of agent positions.
+    std::sort(vibes.begin(), vibes.end());
+    return std::accumulate(vibes.begin(), vibes.end(), 0, [](uint64_t acc, uint8_t vibe) { return (acc << 8) | vibe; });
   }
 
-  // Get current recipe based on local vibe from surrounding agent glyphs
+  // Get current recipe based on local vibe from surrounding agent vibes
   const Recipe* get_current_recipe() const {
     if (!grid) return nullptr;
     uint64_t vibe = get_local_vibe();
@@ -431,6 +431,8 @@ public:
     for (int tag_id : this->tag_ids) {
       features.push_back({ObservationFeature::Tag, static_cast<ObservationType>(tag_id)});
     }
+
+    if (this->vibe != 0) features.push_back({ObservationFeature::Vibe, static_cast<ObservationType>(this->vibe)});
 
     return features;
   }
