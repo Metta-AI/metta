@@ -107,8 +107,12 @@ class ActionConfig:
     consumed_resources: dict[int, float]
 
 class Protocol:
-    def __init__(self) -> None: ...
-    vibes: list[int]
+    def __init__(
+        self,
+        input_resources: dict[int, int] = {},
+        output_resources: dict[int, int] = {},
+        cooldown: int = 0,
+    ) -> None: ...
     input_resources: dict[int, int]
     output_resources: dict[int, int]
     cooldown: int

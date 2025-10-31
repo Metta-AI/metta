@@ -42,7 +42,7 @@ class Simulation:
         self,
         config: MettaGridConfig,
         seed: int = 0,
-        event_handlers: Optional[Sequence[SimulatorEventHandler]] | None = None,
+        event_handlers: Optional[Sequence[SimulatorEventHandler]] = None,
         simulator: Optional[Simulator] | None = None,
     ):
         self._config = config
@@ -69,9 +69,6 @@ class Simulation:
             logger.error(f"Game config: {game_config_dict}")
             raise e
 
-        # Create C++ environment
-        self.__c_sim = MettaGridCpp(c_cfg, map_grid, self._seed)
-
         # Compute action_ids from config actions
         self._action_ids: dict[str, int] = {
             action.name: idx for idx, action in enumerate(self._config.game.actions.actions())
@@ -80,7 +77,13 @@ class Simulation:
         # Build feature dict from id_map
         self._features: dict[int, ObservationFeatureSpec] = {feature.id: feature for feature in self.id_map.features()}
 
-        self._start_episode()
+        # Create C++ environment
+        self.__c_sim = MettaGridCpp(c_cfg, map_grid, self._seed)
+
+        self._context = {}
+        for handler in self._event_handlers:
+            with self._timer(f"sim.on_episode_start.{handler.__class__.__name__}"):
+                handler.on_episode_start()
 
         self._timer.start("thread_idle")
 
@@ -100,14 +103,6 @@ class Simulation:
 
     def is_done(self) -> bool:
         return bool(self.__c_sim.truncations().all() or self.__c_sim.terminals().all())
-
-    def _start_episode(self) -> None:
-        """Start a new episode (internal use only)."""
-        self._episode_started = True
-        self._context = {}
-        for handler in self._event_handlers:
-            with self._timer(f"sim.on_episode_start.{handler.__class__.__name__}"):
-                handler.on_episode_start()
 
     def end_episode(self) -> None:
         """Force the episode to end by setting all agents to truncated state."""
@@ -306,6 +301,8 @@ class Simulator:
             self._current_simulation.close()
             # _current_simulation will be set to None by _on_simulation_closed
 
+    # The training code requires these don't change between episodes
+    # TODO(sasmith): add more if you want
     def _compute_config_invariants(self, config: MettaGridConfig) -> dict[str, Any]:
         return {
             "num_agents": config.game.num_agents,

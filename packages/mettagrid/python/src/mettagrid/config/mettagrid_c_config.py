@@ -144,6 +144,7 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
                 )
 
         rewards_config = agent_props.get("rewards", {})
+        initial_vibe = agent_props.get("initial_vibe", 0)
 
         # Process stats rewards
         stat_rewards = rewards_config.get("stats", {})
@@ -238,6 +239,7 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
             shareable_resources=shareable_resources,
             inventory_regen_amounts=inventory_regen_amounts,
             diversity_tracked_resources=diversity_tracked_resources,
+            initial_vibe=initial_vibe,
             supervisor_config=None,
         )
         cpp_agent_config.tag_ids = tag_ids
@@ -266,22 +268,18 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
             objects_cpp_params[object_type] = cpp_wall_config
         elif isinstance(object_config, AssemblerConfig):
             protocols = []
-            seen_vibes = []
 
             for protocol_config in reversed(object_config.protocols):
                 # Convert vibe names to IDs
                 vibe_ids = sorted([vibe_name_to_id[vibe] for vibe in protocol_config.vibes])
-                # Check for duplicate vibes
-                if vibe_ids in seen_vibes:
-                    raise ValueError(f"Protocol with vibes {protocol_config.vibes} already exists in {object_type}")
-                seen_vibes.append(vibe_ids)
+                # Create C++ protocol - Protocol constructor takes (vibes, inputs, outputs, cooldown)
                 input_res = {resource_name_to_id[k]: int(v) for k, v in protocol_config.input_resources.items()}
                 output_res = {resource_name_to_id[k]: int(v) for k, v in protocol_config.output_resources.items()}
                 cpp_protocol = CppProtocol()
                 cpp_protocol.vibes = vibe_ids
                 cpp_protocol.input_resources = input_res
                 cpp_protocol.output_resources = output_res
-                cpp_protocol.cooldown = protocol_config.cooldown
+                cpp_protocol.cooldown = int(protocol_config.cooldown)
                 protocols.append(cpp_protocol)
 
             # Convert tag names to IDs
@@ -455,15 +453,13 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
         clipper: ClipperConfig = game_config.clipper
         clipper_protocols = []
         for protocol_config in clipper.unclipping_protocols:
+            input_res = {resource_name_to_id[k]: int(v) for k, v in protocol_config.input_resources.items()}
+            output_res = {resource_name_to_id[k]: int(v) for k, v in protocol_config.output_resources.items()}
             cpp_protocol = CppProtocol()
-            cpp_protocol.vibes = sorted([vibe_name_to_id[vibe] for vibe in protocol_config.vibes])
-            cpp_protocol.input_resources = {
-                resource_name_to_id[k]: v for k, v in protocol_config.input_resources.items()
-            }
-            cpp_protocol.output_resources = {
-                resource_name_to_id[k]: v for k, v in protocol_config.output_resources.items()
-            }
-            cpp_protocol.cooldown = protocol_config.cooldown
+            cpp_protocol.vibes = []  # Clipper protocols don't need vibes
+            cpp_protocol.input_resources = input_res
+            cpp_protocol.output_resources = output_res
+            cpp_protocol.cooldown = int(protocol_config.cooldown)
             clipper_protocols.append(cpp_protocol)
         game_cpp_params["clipper"] = CppClipperConfig(
             clipper_protocols, clipper.length_scale, clipper.cutoff_distance, clipper.clip_rate

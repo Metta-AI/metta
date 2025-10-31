@@ -735,9 +735,9 @@ def test_tag_mapping_in_id_map():
     tag_values = id_map.tag_names()
     assert isinstance(tag_values, dict), "tag values should be a dict mapping tag_id -> tag_name"
 
-    # All unique tags sorted: ["blocking", "mobile", "player", "solid"]
-    # IDs should be 0-3
-    expected_tags = ["blocking", "mobile", "player", "solid"]
+    # All unique tags sorted: ["blocking", "industrial", "machine", "mobile", "player", "solid"]
+    # IDs should be 0-5
+    expected_tags = ["blocking", "industrial", "machine", "mobile", "player", "solid"]
     assert len(tag_values) == len(expected_tags), f"Should have {len(expected_tags)} tags, got {len(tag_values)}"
 
     # Verify tags are sorted alphabetically with correct IDs

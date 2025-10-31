@@ -19,7 +19,6 @@
 #include "objects/assembler_config.hpp"
 #include "objects/constants.hpp"
 #include "objects/inventory_config.hpp"
-#include "objects/production_handler.hpp"
 #include "objects/protocol.hpp"
 #include "objects/wall.hpp"
 

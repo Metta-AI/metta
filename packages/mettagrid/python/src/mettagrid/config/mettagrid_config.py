@@ -109,6 +109,7 @@ class AgentConfig(Config):
     supervisor: Optional[AnySupervisorConfig] = Field(
         default=None, description="Optional supervisor configuration for this agent"
     )
+    initial_vibe: int = Field(default=0, ge=0, description="Initial vibe value for this agent instance")
 
 
 class ActionConfig(Config):
@@ -265,6 +266,7 @@ class GridObjectConfig(Config):
     map_char: str = Field(default="?", description="Character used in ASCII maps")
     render_symbol: str = Field(default="❓", description="Symbol used for rendering (e.g., emoji)")
     tags: list[str] = Field(default_factory=list, description="Tags for this object instance")
+    vibe: Optional[int] = Field(default=0, ge=0, le=255, description="Vibe value for this object instance")
 
 
 class WallConfig(GridObjectConfig):

@@ -7,7 +7,6 @@
 #include <string>
 #include <vector>
 
-#include "config/observation_features.hpp"
 #include "core/grid_object.hpp"
 #include "objects/constants.hpp"
 
