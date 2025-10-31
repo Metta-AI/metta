@@ -242,19 +242,11 @@ class AgentState:
 
     # Phase tracking for stuck detection
     phase_entry_step: int = 0  # When we entered current phase
-<<<<<<< HEAD
-    phase_entry_inventory: Dict[str, int] = None  # Inventory when we entered phase
-    unobtainable_resources: Set[str] = None  # Resources we've given up on (too hard to get)
-    resource_gathering_start: Dict[str, int] = None  # When we first started trying to gather each resource
-    resource_progress_tracking: Dict[str, int] = None  # Initial amount of each resource when we started
-    phase_visit_count: Dict[str, int] = None  # Count how many times we've entered each gathering phase
-=======
     phase_entry_inventory: Optional[Dict[str, int]] = None  # Inventory when we entered phase
     unobtainable_resources: Optional[Set[str]] = None  # Resources we've given up on (too hard to get)
     resource_gathering_start: Optional[Dict[str, int]] = None  # When we first started trying to gather each resource
     resource_progress_tracking: Optional[Dict[str, int]] = None  # Initial amount of each resource when we started
     phase_visit_count: Optional[Dict[str, int]] = None  # Count how many times we've entered each gathering phase
->>>>>>> bc160daaae8c348d8a41fef07905d4b8b8f42924
 
     def __post_init__(self):
         """Initialize mutable defaults."""
@@ -1515,13 +1507,8 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
         self, parent: Dict[Tuple[int, int], Optional[Tuple[int, int]]], start: Tuple[int, int], goal: Tuple[int, int]
     ) -> Tuple[int, int]:
         """Reconstruct the first step from start towards goal using parent pointers."""
-<<<<<<< HEAD
-        step = goal
-        while parent[step] != start:
-=======
         step: Tuple[int, int] = goal
         while parent.get(step) is not None and parent[step] != start:
->>>>>>> bc160daaae8c348d8a41fef07905d4b8b8f42924
             step = parent[step]  # type: ignore[assignment]
         return step
 

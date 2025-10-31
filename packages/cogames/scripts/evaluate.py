@@ -34,16 +34,13 @@ import numpy as np
 
 from cogames.cogs_vs_clips.difficulty_variants import DIFFICULTY_LEVELS, apply_difficulty
 from cogames.cogs_vs_clips.eval_missions import (
-    CarbonDesert,
     EnergyStarved,
-    GermaniumClutch,
-    GermaniumRush,
-    HighRegenSprint,
     OxygenBottleneck,
-    SiliconWorkbench,
     SingleUseWorld,
-    SlowOxygen,
     SparseBalanced,
+    CollectResourcesBase,
+    CollectResourcesSpread,
+    CollectFar,
 )
 from cogames.cogs_vs_clips.exploration_experiments import (
     Experiment1Mission,
@@ -89,13 +86,7 @@ class EvalResult:
 # Test Suite 1: Training Facility
 # =============================================================================
 
-TF_MAPS: List[str] = [
-    "training_facility_open_1.map",
-    "training_facility_open_2.map",
-    "training_facility_open_3.map",
-    "training_facility_tight_4.map",
-    "training_facility_tight_5.map",
-]
+TF_MAPS: List[str] = []
 
 
 def run_training_facility_suite(
@@ -196,14 +187,11 @@ EXPERIMENTS = [
     # Eval Missions (EVAL1-10)
     ("EVAL1_EnergyStarved", EnergyStarved),
     ("EVAL2_OxygenBottleneck", OxygenBottleneck),
-    ("EVAL3_GermaniumRush", GermaniumRush),
-    ("EVAL4_SiliconWorkbench", SiliconWorkbench),
-    ("EVAL5_CarbonDesert", CarbonDesert),
+    ("EVAL3_collect_resources_base", CollectResourcesBase),
+    ("EVAL4_collect_resources_spread", CollectResourcesSpread),
+    ("EVAL5_collect_far", CollectFar),
     ("EVAL6_SingleUseWorld", SingleUseWorld),
-    ("EVAL7_SlowOxygen", SlowOxygen),
-    ("EVAL8_HighRegenSprint", HighRegenSprint),
     ("EVAL9_SparseBalanced", SparseBalanced),
-    ("EVAL10_GermaniumClutch", GermaniumClutch),
 ]
 
 EXPERIMENT_MAP = dict(EXPERIMENTS)
@@ -233,6 +221,7 @@ def get_max_steps_for_mission(mission_class) -> int:
 def run_outpost_suite(
     experiments: List[str] = None,
     hyperparams: List[str] = None,
+    cogs: int = 1,
 ) -> List[EvalResult]:
     """Run outpost experiments evaluation suite."""
     print("\n" + "=" * 80)
@@ -254,7 +243,7 @@ def run_outpost_suite(
             continue
 
         mission_class = EXPERIMENT_MAP[exp_name]
-        max_steps = get_max_steps_for_mission(mission_class)
+        max_steps = 1000  # Fixed step budget for all evals
 
         for preset_name in hyperparams:
             if preset_name not in HYPERPARAMETER_PRESETS:
@@ -266,7 +255,7 @@ def run_outpost_suite(
 
             try:
                 mission = mission_class()
-                mission = mission.instantiate(mission.site.map_builder, num_cogs=1)
+                mission = mission.instantiate(mission.site.map_builder, num_cogs=cogs)
                 env_config = mission.make_env()
                 env_config.game.max_steps = max_steps
 
@@ -276,20 +265,19 @@ def run_outpost_suite(
 
                 obs, info = env.reset()
                 policy.reset(obs, info)
-                agent_policy = policy.agent_policy(0)
+                agents = [policy.agent_policy(i) for i in range(env.num_agents)]
 
                 total_reward = 0.0
                 for step in range(max_steps):
-                    action = agent_policy.step(obs[0])
-                    obs, rewards, dones, truncated, info = env.step([action])
-                    total_reward += float(rewards[0])
-                    if dones[0] or truncated[0]:
+                    actions = [agents[i].step(obs[i]) for i in range(env.num_agents)]
+                    obs, rewards, dones, truncated, info = env.step(actions)
+                    total_reward += float(rewards.sum())
+                    if all(dones) or all(truncated):
                         break
 
-                agent_state = agent_policy._state
-                hearts_assembled = agent_state.hearts_assembled
+                hearts_assembled = int(sum(getattr(a._state, "hearts_assembled", 0) for a in agents))
                 steps_taken = step + 1
-                final_energy = agent_state.energy
+                final_energy = int(np.mean([getattr(a._state, "energy", 0) for a in agents]))
                 success = total_reward > 0
 
                 result = EvalResult(
@@ -365,6 +353,7 @@ def run_difficulty_suite(
     experiments: List[str] = None,
     difficulties: List[str] = None,
     hyperparams: List[str] = None,
+    cogs: int = 1,
 ) -> List[EvalResult]:
     """Run difficulty variants evaluation suite."""
     print("\n" + "=" * 80)
@@ -410,7 +399,7 @@ def run_difficulty_suite(
                     logger.error(f"Unknown preset: {preset_name}")
                     continue
 
-                max_steps = get_max_steps_for_difficulty(mission_class, difficulty_name)
+                max_steps = 1000  # Fixed step budget for all evals
                 test_name = f"{exp_name}_{difficulty_name}_{preset_name}"
 
                 print(f"\n{'=' * 80}")
@@ -423,7 +412,7 @@ def run_difficulty_suite(
                     difficulty = DIFFICULTY_LEVELS[difficulty_name]
                     apply_difficulty(mission, difficulty)
 
-                    mission = mission.instantiate(mission.site.map_builder, num_cogs=1)
+                    mission = mission.instantiate(mission.site.map_builder, num_cogs=cogs)
                     env_config = mission.make_env()
                     env_config.game.max_steps = max_steps
 
@@ -433,20 +422,19 @@ def run_difficulty_suite(
 
                     obs, info = env.reset()
                     policy.reset(obs, info)
-                    agent_policy = policy.agent_policy(0)
+                    agents = [policy.agent_policy(i) for i in range(env.num_agents)]
 
                     total_reward = 0.0
                     for step in range(max_steps):
-                        action = agent_policy.step(obs[0])
-                        obs, rewards, dones, truncated, info = env.step([action])
-                        total_reward += float(rewards[0])
-                        if dones[0] or truncated[0]:
+                        actions = [agents[i].step(obs[i]) for i in range(env.num_agents)]
+                        obs, rewards, dones, truncated, info = env.step(actions)
+                        total_reward += float(rewards.sum())
+                        if all(dones) or all(truncated):
                             break
 
-                    agent_state = agent_policy._state
-                    hearts_assembled = agent_state.hearts_assembled
+                    hearts_assembled = int(sum(getattr(a._state, "hearts_assembled", 0) for a in agents))
                     steps_taken = step + 1
-                    final_energy = agent_state.energy
+                    final_energy = int(np.mean([getattr(a._state, "energy", 0) for a in agents]))
                     success = total_reward > 0
 
                     result = EvalResult(
@@ -560,6 +548,12 @@ def main():
         default=None,
         help="Hyperparameter presets to test",
     )
+    outpost_parser.add_argument(
+        "--cogs",
+        type=int,
+        default=1,
+        help="Number of agents (cogs) to instantiate the mission with",
+    )
 
     # Difficulty variants suite
     diff_parser = subparsers.add_parser("difficulty", help="Run difficulty variants suite")
@@ -580,6 +574,12 @@ def main():
         nargs="*",
         default=None,
         help="Hyperparameter presets to test (use 'all' for all presets)",
+    )
+    diff_parser.add_argument(
+        "--cogs",
+        type=int,
+        default=1,
+        help="Number of agents (cogs) to instantiate the mission with",
     )
 
     # All suites
@@ -614,6 +614,7 @@ def main():
         outpost_results = run_outpost_suite(
             experiments=outpost_args.get("experiments"),
             hyperparams=outpost_args.get("hyperparams"),
+            cogs=outpost_args.get("cogs", 1),
         )
         all_results.extend(outpost_results)
         print_summary(outpost_results, "Outpost Experiments")
@@ -624,6 +625,7 @@ def main():
             experiments=diff_args.get("experiments"),
             difficulties=diff_args.get("difficulties"),
             hyperparams=diff_args.get("hyperparams"),
+            cogs=diff_args.get("cogs", 1),
         )
         all_results.extend(diff_results)
         print_summary(diff_results, "Difficulty Variants")
