@@ -197,6 +197,7 @@ releases:
             git checkout -f FETCH_HEAD
             uv pip install numpy google-genai boto3
             PYTHONPATH=/workspace/metta uv run --no-sync python mcp_servers/pr_similarity/build_cache.py
+            uv run --no-sync python -c "import boto3; s3=boto3.client('s3'); s3.upload_file('mcp_servers/pr_similarity/cache/pr_embeddings.json', 'softmax-public', 'pr-cache/pr_embeddings.json'); s3.upload_file('mcp_servers/pr_similarity/cache/pr_embeddings.npz', 'softmax-public', 'pr-cache/pr_embeddings.npz'); print('Uploaded cache to s3://softmax-public/pr-cache/')"
       - resources:
           requests:
             cpu: 100m
