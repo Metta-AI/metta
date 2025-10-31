@@ -60,4 +60,6 @@ using InventoryDelta = int16_t;      // cover full range of allowed changes (+/-
 using GridCoord = uint16_t;     // this sets the maximum possible map width or height
 using GridObjectId = uint32_t;  // this sets the maximum tracked objects
 
+using GroupVibe = uint64_t;
+
 #endif  // PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_CORE_TYPES_HPP_

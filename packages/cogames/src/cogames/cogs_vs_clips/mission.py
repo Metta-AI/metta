@@ -185,7 +185,7 @@ class Mission(Config):
             ),
             inventory_regen_interval=1,
             clipper=ClipperConfig(
-                unclipping_recipes=[
+                unclipping_protocols=[
                     ProtocolConfig(
                         input_resources={"decoder": 1},
                         cooldown=1,
