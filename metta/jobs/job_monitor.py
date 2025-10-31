@@ -27,29 +27,50 @@ class JobMonitor:
         return job_state.config.is_training_job if job_state else False
 
     def _extract_failure_summary(self, logs_path: str) -> list[str]:
+        """Extract failure context from logs.
+
+        Looks for:
+        1. Pytest "Failing tests:" sections
+        2. Error/exception patterns (Error:, Exception:, Traceback, FAILED)
+        3. Last few non-empty lines if no specific error found
+        """
         try:
             log_file = Path(logs_path)
             if not log_file.exists():
                 return []
 
             lines = log_file.read_text(errors="ignore").splitlines()
+            if not lines:
+                return []
 
-            # Look for "Failing tests:" section (pytest output)
+            # Strategy 1: Look for "Failing tests:" section (pytest output)
             for i, line in enumerate(lines):
                 if "Failing tests:" in line:
-                    # Return everything from "Failing tests:" to end of log (or next section)
                     summary_lines = []
-                    for j in range(i, min(len(lines), i + 50)):  # Limit to 50 lines
+                    for j in range(i, min(len(lines), i + 50)):
                         summary_lines.append(lines[j])
-                        # Stop at blank line followed by another section
                         if j > i + 1 and not lines[j].strip() and j + 1 < len(lines):
                             next_line = lines[j + 1].strip()
                             if next_line and not next_line.startswith(" "):
                                 break
                     return summary_lines
 
-            # Look for other failure indicators
-            # If no summary found, return empty
+            # Strategy 2: Look for error patterns (scan last 100 lines)
+            error_patterns = ["Error:", "Exception:", "Traceback", "FAILED", "FAILED:", "RuntimeError"]
+            search_start = max(0, len(lines) - 100)
+            for i in range(len(lines) - 1, search_start - 1, -1):
+                line = lines[i]
+                if any(pattern in line for pattern in error_patterns):
+                    # Found error - return context (5 lines before and 10 lines after)
+                    context_start = max(0, i - 5)
+                    context_end = min(len(lines), i + 10)
+                    return lines[context_start:context_end]
+
+            # Strategy 3: Job failed but no explicit error - show last 5 non-empty lines
+            non_empty = [line for line in lines if line.strip()]
+            if non_empty:
+                return non_empty[-5:]
+
             return []
 
         except Exception:
@@ -352,10 +373,12 @@ class JobMonitor:
             # Try to extract failure summary (but don't show full tail)
             summary = self._extract_failure_summary(job_status["logs_path"])
             if summary:
-                # Show just first 3 lines of failure summary
-                print("│    💥 Error:")
-                for line in summary[:3]:
-                    print(f"│      {line[:90]}")
+                # Show first 5 lines of failure summary for better context
+                print("│    💥 Error context:")
+                for line in summary[:5]:
+                    # Strip ANSI color codes for cleaner display
+                    clean_line = line.replace("\033[36m", "").replace("\033[0m", "").replace("\033[91m", "")
+                    print(f"│      {clean_line[:100]}")
 
 
 def get_status_symbol(status: str) -> str:
