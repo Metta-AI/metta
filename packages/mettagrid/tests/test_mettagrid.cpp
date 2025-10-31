@@ -17,9 +17,7 @@
 #include "objects/assembler.hpp"
 #include "objects/assembler_config.hpp"
 #include "objects/constants.hpp"
-#include "objects/converter.hpp"
 #include "objects/inventory_config.hpp"
-#include "objects/production_handler.hpp"
 #include "objects/wall.hpp"
 
 // Test-specific inventory item type constants
@@ -28,7 +26,6 @@ constexpr uint8_t ORE = 0;
 constexpr uint8_t LASER = 1;
 constexpr uint8_t ARMOR = 2;
 constexpr uint8_t HEART = 3;
-constexpr uint8_t CONVERTER = 4;
 }  // namespace TestItems
 
 namespace TestItemStrings {
@@ -100,14 +97,6 @@ protected:
                        {});                             // initial_inventory
   }
 };
-
-static void RegisterProductionHandlers(EventManager& event_manager) {
-  auto finish_handler = std::make_unique<ProductionHandler>(&event_manager);
-  event_manager.event_handlers.insert({EventType::FinishConverting, std::move(finish_handler)});
-
-  auto cooldown_handler = std::make_unique<CoolDownHandler>(&event_manager);
-  event_manager.event_handlers.insert({EventType::CoolDown, std::move(cooldown_handler)});
-}
 
 // ==================== Agent Tests ====================
 
@@ -1136,23 +1125,18 @@ TEST_F(MettaGridCppTest, AssemblerCooldownObservationCappedAt255) {
   EXPECT_TRUE(found_cooldown_remaining) << "Should have CooldownRemaining feature capped at 255";
 }
 
-TEST_F(MettaGridCppTest, AssemblerGetCurrentRecipe) {
+TEST_F(MettaGridCppTest, AssemblerGetCurrentProtocol) {
   // Create a grid to test with
   Grid grid(10, 10);
 
   AssemblerConfig config(1, "test_assembler");
   config.tag_ids = {1, 2};
 
-  // Create test recipes
-  auto recipe0 = std::make_shared<Recipe>();
-  recipe0->input_resources[0] = 1;
+  // Create test protocols
+  auto protocol0 = std::make_shared<Protocol>(std::vector<ObservationType>{});
 
-  auto recipe1 = std::make_shared<Recipe>();
-  recipe1->input_resources[1] = 2;
-
-  config.recipes[0] = recipe0;
-  config.recipes[1] = recipe1;
-
+  auto protocol1 = std::make_shared<Protocol>(std::vector<ObservationType>{1});
+  config.protocols = {protocol0, protocol1};
   Assembler* assembler = new Assembler(5, 5, config);
 
   // Set up the assembler with grid and timestep
@@ -1163,9 +1147,9 @@ TEST_F(MettaGridCppTest, AssemblerGetCurrentRecipe) {
   // Add assembler to grid
   grid.add_object(assembler);
 
-  // Without agents around, should get recipe0
-  const Recipe* current_recipe = assembler->get_current_recipe();
-  EXPECT_EQ(current_recipe, recipe0.get());
+  // Without agents around, should get protocol0
+  const Protocol* current_protocol = assembler->get_current_protocol();
+  EXPECT_EQ(current_protocol, protocol0.get());
 
   // With one agent and no vibe, should still get 0
   AgentConfig agent_cfg(1, "test_agent", 0, "test_group");
@@ -1173,35 +1157,35 @@ TEST_F(MettaGridCppTest, AssemblerGetCurrentRecipe) {
   Agent* agent = new Agent(4, 4, agent_cfg, &resource_names);  // NW of assembler
   grid.add_object(agent);
 
-  current_recipe = assembler->get_current_recipe();
-  EXPECT_EQ(current_recipe, recipe0.get()) << "With one agent, should still get recipe0";
+  current_protocol = assembler->get_current_protocol();
+  EXPECT_EQ(current_protocol, protocol0.get()) << "With one agent, should still get protocol0";
 
-  // Now with a vibe, should get recipe1
+  // Now with a vibe, should get protocol1
   agent->vibe = 1;
-  current_recipe = assembler->get_current_recipe();
-  EXPECT_EQ(current_recipe, recipe1.get()) << "With one agent and a vibe, should get recipe1";
+
+  current_protocol = assembler->get_current_protocol();
+  EXPECT_EQ(current_protocol, protocol1.get()) << "With one agent and a vibe, should get protocol1";
 }
 
-TEST_F(MettaGridCppTest, AssemblerRecipeObservationsEnabled) {
+TEST_F(MettaGridCppTest, AssemblerProtocolObservationsEnabled) {
   // Create a grid to test with
   Grid grid(10, 10);
 
   AssemblerConfig config(1, "test_assembler");
-  config.recipe_details_obs = true;
-  config.input_recipe_offset = 100;
-  config.output_recipe_offset = 200;
+  config.protocol_details_obs = true;
+  config.input_protocol_offset = 100;
+  config.output_protocol_offset = 200;
 
-  // Create test recipes - one for pattern 0 (no agents), one for pattern 1 (some agents)
-  auto recipe0 = std::make_shared<Recipe>();
-  recipe0->input_resources[0] = 2;   // 2 units of item 0
-  recipe0->output_resources[1] = 1;  // 1 unit of output item 1
-
-  auto recipe1 = std::make_shared<Recipe>();
-  recipe1->input_resources[2] = 3;   // 3 units of item 2
-  recipe1->output_resources[3] = 2;  // 2 units of output item 3
-
-  config.recipes[0] = recipe0;
-  config.recipes[1] = recipe1;
+  // Create test protocols - one for pattern 0 (no agents), one for pattern 1 (some agents)
+  auto protocol0 = std::make_shared<Protocol>(std::vector<ObservationType>{},
+                                              std::unordered_map<InventoryItem, InventoryQuantity>{{0, 2}},
+                                              std::unordered_map<InventoryItem, InventoryQuantity>{{1, 1}},
+                                              0);
+  auto protocol1 = std::make_shared<Protocol>(std::vector<ObservationType>{1},
+                                              std::unordered_map<InventoryItem, InventoryQuantity>{{2, 3}},
+                                              std::unordered_map<InventoryItem, InventoryQuantity>{{3, 2}},
+                                              0);
+  config.protocols = {protocol0, protocol1};
 
   Assembler* assembler = new Assembler(5, 5, config);
 
@@ -1213,45 +1197,45 @@ TEST_F(MettaGridCppTest, AssemblerRecipeObservationsEnabled) {
   // Add assembler to grid
   grid.add_object(assembler);
 
-  // Test with pattern 0 (no agents around) - should get recipe0
+  // Test with pattern 0 (no agents around) - should get protocol0
   auto features = assembler->obs_features();
 
-  // Should have recipe features for recipe0
+  // Should have protocol features for protocol0
   bool found_input_feature = false;
   bool found_output_feature = false;
   for (const auto& feature : features) {
-    if (feature.feature_id == config.input_recipe_offset + 0) {
-      EXPECT_EQ(feature.value, 2);  // 2 units of input item 0 from recipe0
+    if (feature.feature_id == config.input_protocol_offset + 0) {
+      EXPECT_EQ(feature.value, 2);  // 2 units of input item 0 from protocol0
       found_input_feature = true;
-    } else if (feature.feature_id == config.output_recipe_offset + 1) {
-      EXPECT_EQ(feature.value, 1);  // 1 unit of output item 1 from recipe0
+    } else if (feature.feature_id == config.output_protocol_offset + 1) {
+      EXPECT_EQ(feature.value, 1);  // 1 unit of output item 1 from protocol0
       found_output_feature = true;
     }
   }
-  EXPECT_TRUE(found_input_feature) << "Should have input recipe feature for recipe 0";
-  EXPECT_TRUE(found_output_feature) << "Should have output recipe feature for recipe 0";
+  EXPECT_TRUE(found_input_feature) << "Should have input protocol feature for protocol 0";
+  EXPECT_TRUE(found_output_feature) << "Should have output protocol feature for protocol 0";
 
-  // Verify we're getting the right recipe
-  const Recipe* current_recipe = assembler->get_current_recipe();
-  EXPECT_EQ(current_recipe, recipe0.get());
+  // Verify we're getting the right protocol
+  const Protocol* current_protocol = assembler->get_current_protocol();
+  EXPECT_EQ(current_protocol, protocol0.get());
 }
 
 TEST_F(MettaGridCppTest, AssemblerBalancedConsumptionAmpleResources) {
   // Test case (a): 3 agents with ample resources, consume 10 total
   // Each agent should lose 3-4 resources for balanced consumption
 
-  // Create a recipe that requires 10 ore
+  // Create a protocol that requires 10 ore
   std::unordered_map<InventoryItem, InventoryQuantity> input_resources;
   input_resources[TestItems::ORE] = 10;
 
   std::unordered_map<InventoryItem, InventoryQuantity> output_resources;
   output_resources[TestItems::LASER] = 1;
 
-  auto recipe = std::make_shared<Recipe>(input_resources, output_resources, 0);
+  auto protocol = std::make_shared<Protocol>(std::vector<ObservationType>{}, input_resources, output_resources, 0);
 
-  // Create assembler with the recipe
+  // Create assembler with the protocol
   AssemblerConfig config(1, "test_assembler");
-  config.recipes[0] = recipe;
+  config.protocols = {protocol};
   Assembler assembler(5, 5, config);
 
   // Create agents with ample resources
@@ -1268,7 +1252,7 @@ TEST_F(MettaGridCppTest, AssemblerBalancedConsumptionAmpleResources) {
   std::vector<Agent*> surrounding_agents = {&agent1, &agent2, &agent3};
 
   // Consume resources
-  assembler.consume_resources_for_recipe(*recipe, surrounding_agents);
+  assembler.consume_resources_for_protocol(*protocol, surrounding_agents);
 
   // Check balanced consumption
   InventoryQuantity consumed1 = 20 - agent1.inventory.amount(TestItems::ORE);
@@ -1293,18 +1277,18 @@ TEST_F(MettaGridCppTest, AssemblerBalancedConsumptionMixedResources) {
   // Agent 1: 0 resources, Agent 2: 1 resource, Agents 3&4: ample resources
   // When consuming 20, should consume 0/1/9/10 respectively
 
-  // Create a recipe that requires 20 ore
+  // Create a protocol that requires 20 ore
   std::unordered_map<InventoryItem, InventoryQuantity> input_resources;
   input_resources[TestItems::ORE] = 20;
 
   std::unordered_map<InventoryItem, InventoryQuantity> output_resources;
   output_resources[TestItems::LASER] = 1;
 
-  auto recipe = std::make_shared<Recipe>(input_resources, output_resources, 0);
+  auto protocol = std::make_shared<Protocol>(std::vector<ObservationType>{}, input_resources, output_resources, 0);
 
-  // Create assembler with the recipe
+  // Create assembler with the protocol
   AssemblerConfig config(1, "test_assembler");
-  config.recipes[0] = recipe;
+  config.protocols = {protocol};
   Assembler assembler(5, 5, config);
 
   // Create agents with varied resources
@@ -1323,7 +1307,7 @@ TEST_F(MettaGridCppTest, AssemblerBalancedConsumptionMixedResources) {
   std::vector<Agent*> surrounding_agents = {&agent1, &agent2, &agent3, &agent4};
 
   // Consume resources
-  assembler.consume_resources_for_recipe(*recipe, surrounding_agents);
+  assembler.consume_resources_for_protocol(*protocol, surrounding_agents);
 
   // Check consumption matches expected pattern
   InventoryQuantity consumed1 = 0 - agent1.inventory.amount(TestItems::ORE);
@@ -1352,16 +1336,16 @@ TEST_F(MettaGridCppTest, AssemblerClippingAndUnclipping) {
   std::mt19937 rng(42);  // Fixed seed for reproducibility
   unsigned int current_timestep = 0;
 
-  // Create an assembler with normal recipes
+  // Create an assembler with normal protocols
   AssemblerConfig config(1, "test_assembler");
 
-  // Create normal recipes (pattern 0: no agents needed)
-  auto normal_recipe = std::make_shared<Recipe>();
-  normal_recipe->input_resources[TestItems::ORE] = 2;
-  normal_recipe->output_resources[TestItems::LASER] = 1;
-  normal_recipe->cooldown = 0;
+  // Create normal protocols (pattern 0: no agents needed)
+  auto normal_protocol = std::make_shared<Protocol>();
+  normal_protocol->input_resources[TestItems::ORE] = 2;
+  normal_protocol->output_resources[TestItems::LASER] = 1;
+  normal_protocol->cooldown = 0;
 
-  config.recipes[0] = normal_recipe;
+  config.protocols = {normal_protocol};
 
   Assembler assembler(5, 5, config);
   assembler.set_grid(&grid);
@@ -1381,21 +1365,21 @@ TEST_F(MettaGridCppTest, AssemblerClippingAndUnclipping) {
   // Test 1: Verify assembler is not clipped initially
   EXPECT_FALSE(assembler.is_clipped) << "Assembler should not be clipped initially";
 
-  // Test 2: Verify normal recipe works when not clipped
+  // Test 2: Verify normal protocol works when not clipped
   bool success = assembler.onUse(*agent, 0);
-  EXPECT_TRUE(success) << "Should be able to use normal recipe when not clipped";
+  EXPECT_TRUE(success) << "Should be able to use normal protocol when not clipped";
   EXPECT_EQ(agent->inventory.amount(TestItems::ORE), 8) << "Should consume 2 ore";
   EXPECT_EQ(agent->inventory.amount(TestItems::LASER), 1) << "Should produce 1 laser";
 
-  // Test 3: Create unclipping recipes and clip the assembler
-  auto unclip_recipe = std::make_shared<Recipe>();
-  unclip_recipe->input_resources[TestItems::HEART] = 1;
-  unclip_recipe->output_resources[TestItems::ORE] = 3;
-  unclip_recipe->cooldown = 0;
+  // Test 3: Create unclipping protocols and clip the assembler
+  auto unclip_protocol = std::make_shared<Protocol>();
+  unclip_protocol->input_resources[TestItems::HEART] = 1;
+  unclip_protocol->output_resources[TestItems::ORE] = 3;
+  unclip_protocol->cooldown = 0;
 
-  std::unordered_map<uint64_t, std::shared_ptr<Recipe>> unclip_recipes;
-  unclip_recipes[0] = unclip_recipe;
-  assembler.become_clipped(unclip_recipes, nullptr);
+  std::vector<std::shared_ptr<Protocol>> unclip_protocols;
+  unclip_protocols.push_back(unclip_protocol);
+  assembler.become_clipped(unclip_protocols, nullptr);
 
   EXPECT_TRUE(assembler.is_clipped) << "Assembler should be clipped after become_clipped()";
 
@@ -1411,20 +1395,20 @@ TEST_F(MettaGridCppTest, AssemblerClippingAndUnclipping) {
   }
   EXPECT_TRUE(found_clipped) << "Should have Clipped observation feature when clipped";
 
-  // Test 5: Verify unclip recipe is used when clipped
+  // Test 5: Verify unclip protocol is used when clipped
   success = assembler.onUse(*agent, 0);
-  EXPECT_TRUE(success) << "Should be able to use unclip recipe when clipped";
+  EXPECT_TRUE(success) << "Should be able to use unclip protocol when clipped";
   EXPECT_EQ(agent->inventory.amount(TestItems::HEART), 4) << "Should consume 1 heart for unclipping";
-  EXPECT_EQ(agent->inventory.amount(TestItems::ORE), 11) << "Should produce 3 ore from unclip recipe";
+  EXPECT_EQ(agent->inventory.amount(TestItems::ORE), 11) << "Should produce 3 ore from unclip protocol";
 
   // Test 6: Verify assembler is automatically unclipped after successful use
   EXPECT_FALSE(assembler.is_clipped) << "Assembler should be unclipped after successful use";
-  EXPECT_TRUE(assembler.unclip_recipes.empty()) << "Unclip recipes should be cleared";
+  EXPECT_TRUE(assembler.unclip_protocols.empty()) << "Unclip protocols should be cleared";
 
-  // Test 7: Verify normal recipe works again after unclipping
+  // Test 7: Verify normal protocol works again after unclipping
   success = assembler.onUse(*agent, 0);
-  EXPECT_TRUE(success) << "Should be able to use normal recipe after unclipping";
-  EXPECT_EQ(agent->inventory.amount(TestItems::ORE), 9) << "Should consume 2 ore (normal recipe)";
+  EXPECT_TRUE(success) << "Should be able to use normal protocol after unclipping";
+  EXPECT_EQ(agent->inventory.amount(TestItems::ORE), 9) << "Should consume 2 ore (normal protocol)";
   EXPECT_EQ(agent->inventory.amount(TestItems::LASER), 2) << "Should produce 1 more laser";
 
   // Test 8: Verify no clipped observation after unclipping
@@ -1448,13 +1432,13 @@ TEST_F(MettaGridCppTest, AssemblerMaxUses) {
   AssemblerConfig config(1, "test_assembler");
   config.max_uses = 3;  // Limit to 3 uses
 
-  // Create simple recipe
-  auto recipe = std::make_shared<Recipe>();
-  recipe->input_resources[TestItems::ORE] = 1;
-  recipe->output_resources[TestItems::LASER] = 1;
-  recipe->cooldown = 0;
+  // Create simple protocol
+  auto protocol = std::make_shared<Protocol>();
+  protocol->input_resources[TestItems::ORE] = 1;
+  protocol->output_resources[TestItems::LASER] = 1;
+  protocol->cooldown = 0;
 
-  config.recipes[0] = recipe;
+  config.protocols = {protocol};
 
   Assembler assembler(5, 5, config);
   assembler.set_grid(&grid);
@@ -1540,13 +1524,13 @@ TEST_F(MettaGridCppTest, AssemblerExhaustion) {
   AssemblerConfig config(1, "test_assembler");
   config.exhaustion = 0.5f;  // 50% exhaustion rate - multiplier grows by 1.5x each use
 
-  // Create recipe with cooldown
-  auto recipe = std::make_shared<Recipe>();
-  recipe->input_resources[TestItems::ORE] = 1;
-  recipe->output_resources[TestItems::LASER] = 1;
-  recipe->cooldown = 10;  // Base cooldown of 10 timesteps
+  // Create protocol with cooldown
+  auto protocol = std::make_shared<Protocol>();
+  protocol->input_resources[TestItems::ORE] = 1;
+  protocol->output_resources[TestItems::LASER] = 1;
+  protocol->cooldown = 10;  // Base cooldown of 10 timesteps
 
-  config.recipes[0] = recipe;
+  config.protocols = {protocol};
 
   Assembler assembler(5, 5, config);
   assembler.set_grid(&grid);
@@ -1666,7 +1650,7 @@ TEST_F(MettaGridCppTest, ResourceModProbabilistic) {
                                {{TestItems::ORE, 0.5f}},    // 50% chance to consume
                                {{TestItems::HEART, 0.3f}},  // 30% chance to add 1 heart
                                1,
-                               false);  // radius 1, no converters, no scaling
+                               false);  // radius 1, no scaling
   ResourceMod modify(modify_cfg);
   modify.init(&grid, &rng);
 
@@ -1698,112 +1682,6 @@ TEST_F(MettaGridCppTest, ResourceModProbabilistic) {
   EXPECT_LE(hearts_added, 40);  // At most 40
   EXPECT_GE(ore_consumed, 40);  // At least 40
   EXPECT_LE(ore_consumed, 60);  // At most 60
-}
-
-TEST_F(MettaGridCppTest, ConverterCooldownSequenceCycles) {
-  Grid grid(5, 5);
-  EventManager event_manager;
-  event_manager.init(&grid);
-  RegisterProductionHandlers(event_manager);
-
-  std::vector<unsigned short> cooldown_time_values{2, 4, 0};
-  ConverterConfig converter_cfg(
-      TestItems::CONVERTER, "converter", {}, {{TestItems::ORE, 1}}, -1, -1, 1, cooldown_time_values);
-  Converter* converter = new Converter(2, 2, converter_cfg);
-  grid.add_object(converter);
-  converter->set_event_manager(&event_manager);
-
-  std::vector<unsigned int> completions;
-  unsigned int last_output = 0;
-  const unsigned int total_steps = 40;
-  for (unsigned int step = 0; step <= total_steps; ++step) {
-    event_manager.process_events(step);
-    unsigned short current_output = converter->inventory.amount(TestItems::ORE);
-    if (current_output > last_output) {
-      completions.push_back(step);
-      last_output = current_output;
-    }
-  }
-
-  std::vector<unsigned short> observed;
-  for (size_t i = 1; i < completions.size(); ++i) {
-    unsigned int gap = completions[i] - completions[i - 1];
-    unsigned short cooldown = gap > 1 ? static_cast<unsigned short>(gap - 1) : 0;
-    observed.push_back(cooldown);
-  }
-
-  std::vector<unsigned short> expected{2, 4, 0, 2, 4};
-  ASSERT_GE(observed.size(), expected.size());
-  for (size_t i = 0; i < expected.size(); ++i) {
-    EXPECT_EQ(observed[i], expected[i]);
-  }
-
-  EXPECT_EQ(converter->cooldown_time, cooldown_time_values);
-}
-
-TEST_F(MettaGridCppTest, ConverterCooldownSequenceHandlesEmptyList) {
-  Grid grid(5, 5);
-  EventManager event_manager;
-  event_manager.init(&grid);
-  RegisterProductionHandlers(event_manager);
-
-  std::vector<unsigned short> cooldown_time_values;
-  ConverterConfig converter_cfg(
-      TestItems::CONVERTER, "converter", {}, {{TestItems::ORE, 1}}, -1, -1, 1, cooldown_time_values);
-  Converter* converter = new Converter(1, 1, converter_cfg);
-  grid.add_object(converter);
-  converter->set_event_manager(&event_manager);
-
-  std::vector<unsigned int> completions;
-  unsigned int last_output = 0;
-  const unsigned int total_steps = 12;
-  for (unsigned int step = 0; step <= total_steps; ++step) {
-    event_manager.process_events(step);
-    unsigned short current_output = converter->inventory.amount(TestItems::ORE);
-    if (current_output > last_output) {
-      completions.push_back(step);
-      last_output = current_output;
-    }
-  }
-
-  std::vector<unsigned short> observed;
-  for (size_t i = 1; i < completions.size(); ++i) {
-    unsigned int gap = completions[i] - completions[i - 1];
-    unsigned short cooldown = gap > 1 ? static_cast<unsigned short>(gap - 1) : 0;
-    observed.push_back(cooldown);
-  }
-
-  std::vector<unsigned short> expected(observed.size(), 0);
-  EXPECT_EQ(observed, expected);
-}
-
-TEST_F(MettaGridCppTest, ConverterRespectsMaxConversionsLimit) {
-  Grid grid(5, 5);
-  EventManager event_manager;
-  event_manager.init(&grid);
-  RegisterProductionHandlers(event_manager);
-
-  std::vector<unsigned short> cooldown_time_values{5, 10};
-  ConverterConfig converter_cfg(
-      TestItems::CONVERTER, "converter", {}, {{TestItems::ORE, 1}}, -1, 2, 1, cooldown_time_values);
-  Converter* converter = new Converter(3, 3, converter_cfg);
-  grid.add_object(converter);
-  converter->set_event_manager(&event_manager);
-
-  std::vector<unsigned int> completions;
-  unsigned int last_output = 0;
-  const unsigned int total_steps = 40;
-  for (unsigned int step = 0; step <= total_steps; ++step) {
-    event_manager.process_events(step);
-    unsigned short current_output = converter->inventory.amount(TestItems::ORE);
-    if (current_output > last_output) {
-      completions.push_back(step);
-      last_output = current_output;
-    }
-  }
-
-  EXPECT_EQ(completions.size(), 2u);
-  EXPECT_EQ(converter->inventory.amount(TestItems::ORE), 2);
 }
 
 // Tests for HasInventory::shared_update function

@@ -41,7 +41,7 @@ struct GameConfig {
 
   // FEATURE FLAGS
   bool track_movement_metrics = false;
-  bool recipe_details_obs = false;
+  bool protocol_details_obs = false;
   bool allow_diagonals = false;
   std::unordered_map<std::string, float> reward_estimates = {};
 
@@ -109,7 +109,7 @@ inline void bind_game_config(py::module& m) {
 
            // FEATURE FLAGS
            py::arg("track_movement_metrics"),
-           py::arg("recipe_details_obs") = false,
+           py::arg("protocol_details_obs") = false,
            py::arg("allow_diagonals") = false,
            py::arg("reward_estimates") = std::unordered_map<std::string, float>(),
 
@@ -138,7 +138,7 @@ inline void bind_game_config(py::module& m) {
 
       // FEATURE FLAGS
       .def_readwrite("track_movement_metrics", &GameConfig::track_movement_metrics)
-      .def_readwrite("recipe_details_obs", &GameConfig::recipe_details_obs)
+      .def_readwrite("protocol_details_obs", &GameConfig::protocol_details_obs)
       .def_readwrite("allow_diagonals", &GameConfig::allow_diagonals)
       .def_readwrite("reward_estimates", &GameConfig::reward_estimates)
 

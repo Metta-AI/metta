@@ -6,7 +6,6 @@ from mettagrid.config.mettagrid_config import (
     ActionConfig,
     ActionsConfig,
     AgentConfig,
-    ConverterConfig,
     GameConfig,
     MettaGridConfig,
     WallConfig,
@@ -661,16 +660,6 @@ def test_tag_mapping_in_feature_spec():
             actions=ActionsConfig(noop=ActionConfig()),
             objects={
                 "wall": WallConfig(type_id=TokenTypes.WALL_TYPE_ID, tags=["solid", "blocking"]),
-                "converter": ConverterConfig(
-                    type_id=2,
-                    input_resources={"wood": 1},
-                    output_resources={"coal": 1},
-                    max_output=10,
-                    max_conversions=5,
-                    conversion_ticks=10,
-                    cooldown=[5],
-                    tags=["machine", "industrial"],
-                ),
             },
             agents=[
                 AgentConfig(tags=["player", "mobile"]),
@@ -704,9 +693,9 @@ def test_tag_mapping_in_feature_spec():
     tag_values = tag_spec["values"]
     assert isinstance(tag_values, dict), "tag values should be a dict mapping tag_id -> tag_name"
 
-    # All unique tags sorted: ["blocking", "industrial", "machine", "mobile", "player", "solid"]
-    # IDs should be 0-5
-    expected_tags = ["blocking", "industrial", "machine", "mobile", "player", "solid"]
+    # All unique tags sorted: ["blocking", "mobile", "player", "solid"]
+    # IDs should be 0-3
+    expected_tags = ["blocking", "mobile", "player", "solid"]
     assert len(tag_values) == len(expected_tags), f"Should have {len(expected_tags)} tags, got {len(tag_values)}"
 
     # Verify tags are sorted alphabetically with correct IDs
