@@ -1133,15 +1133,10 @@ TEST_F(MettaGridCppTest, AssemblerGetCurrentProtocol) {
   config.tag_ids = {1, 2};
 
   // Create test protocols
-  auto protocol0 = std::make_shared<Protocol>();
-  protocol0->input_resources[0] = 1;
+  auto protocol0 = std::make_shared<Protocol>(std::vector<ObservationType>{});
 
-  auto protocol1 = std::make_shared<Protocol>();
-  protocol1->input_resources[1] = 2;
-
-  config.protocols[0] = protocol0;
-  config.protocols[1] = protocol1;
-
+  auto protocol1 = std::make_shared<Protocol>(std::vector<ObservationType>{1});
+  config.protocols = {protocol0, protocol1};
   Assembler* assembler = new Assembler(5, 5, config);
 
   // Set up the assembler with grid and timestep
@@ -1167,6 +1162,7 @@ TEST_F(MettaGridCppTest, AssemblerGetCurrentProtocol) {
 
   // Now with a vibe, should get protocol1
   agent->vibe = 1;
+
   current_protocol = assembler->get_current_protocol();
   EXPECT_EQ(current_protocol, protocol1.get()) << "With one agent and a vibe, should get protocol1";
 }
@@ -1181,16 +1177,15 @@ TEST_F(MettaGridCppTest, AssemblerProtocolObservationsEnabled) {
   config.output_protocol_offset = 200;
 
   // Create test protocols - one for pattern 0 (no agents), one for pattern 1 (some agents)
-  auto protocol0 = std::make_shared<Protocol>();
-  protocol0->input_resources[0] = 2;   // 2 units of item 0
-  protocol0->output_resources[1] = 1;  // 1 unit of output item 1
-
-  auto protocol1 = std::make_shared<Protocol>();
-  protocol1->input_resources[2] = 3;   // 3 units of item 2
-  protocol1->output_resources[3] = 2;  // 2 units of output item 3
-
-  config.protocols[0] = protocol0;
-  config.protocols[1] = protocol1;
+  auto protocol0 = std::make_shared<Protocol>(std::vector<ObservationType>{},
+                                              std::unordered_map<InventoryItem, InventoryQuantity>{{0, 2}},
+                                              std::unordered_map<InventoryItem, InventoryQuantity>{{1, 1}},
+                                              0);
+  auto protocol1 = std::make_shared<Protocol>(std::vector<ObservationType>{1},
+                                              std::unordered_map<InventoryItem, InventoryQuantity>{{2, 3}},
+                                              std::unordered_map<InventoryItem, InventoryQuantity>{{3, 2}},
+                                              0);
+  config.protocols = {protocol0, protocol1};
 
   Assembler* assembler = new Assembler(5, 5, config);
 
@@ -1240,7 +1235,7 @@ TEST_F(MettaGridCppTest, AssemblerBalancedConsumptionAmpleResources) {
 
   // Create assembler with the protocol
   AssemblerConfig config(1, "test_assembler");
-  config.protocols[0] = protocol;
+  config.protocols = {protocol};
   Assembler assembler(5, 5, config);
 
   // Create agents with ample resources
@@ -1293,7 +1288,7 @@ TEST_F(MettaGridCppTest, AssemblerBalancedConsumptionMixedResources) {
 
   // Create assembler with the protocol
   AssemblerConfig config(1, "test_assembler");
-  config.protocols[0] = protocol;
+  config.protocols = {protocol};
   Assembler assembler(5, 5, config);
 
   // Create agents with varied resources
@@ -1350,7 +1345,7 @@ TEST_F(MettaGridCppTest, AssemblerClippingAndUnclipping) {
   normal_protocol->output_resources[TestItems::LASER] = 1;
   normal_protocol->cooldown = 0;
 
-  config.protocols[0] = normal_protocol;
+  config.protocols = {normal_protocol};
 
   Assembler assembler(5, 5, config);
   assembler.set_grid(&grid);
@@ -1443,7 +1438,7 @@ TEST_F(MettaGridCppTest, AssemblerMaxUses) {
   protocol->output_resources[TestItems::LASER] = 1;
   protocol->cooldown = 0;
 
-  config.protocols[0] = protocol;
+  config.protocols = {protocol};
 
   Assembler assembler(5, 5, config);
   assembler.set_grid(&grid);
@@ -1535,7 +1530,7 @@ TEST_F(MettaGridCppTest, AssemblerExhaustion) {
   protocol->output_resources[TestItems::LASER] = 1;
   protocol->cooldown = 10;  // Base cooldown of 10 timesteps
 
-  config.protocols[0] = protocol;
+  config.protocols = {protocol};
 
   Assembler assembler(5, 5, config);
   assembler.set_grid(&grid);

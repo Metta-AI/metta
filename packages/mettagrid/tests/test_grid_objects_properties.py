@@ -282,8 +282,8 @@ class TestAssemblerProperties:
                 assert "current_recipe_cooldown" in assembler
                 assert isinstance(assembler["current_recipe_cooldown"], int)
 
-    def test_assembler_all_recipes(self, env_with_assembler):
-        """Test that all recipes are exposed."""
+    def test_assembler_all_protocols(self, env_with_assembler):
+        """Test that all protocols are exposed."""
         env_with_assembler.reset()
 
         objects = env_with_assembler.grid_objects()
@@ -292,21 +292,21 @@ class TestAssemblerProperties:
         assembler = next((obj for obj in objects.values() if obj.get("type_name") == "assembler"), None)
 
         if assembler:
-            # Check that recipes list exists
-            assert "recipes" in assembler
-            assert isinstance(assembler["recipes"], list)
+            # Check that protocols list exists
+            assert "protocols" in assembler
+            assert isinstance(assembler["protocols"], list)
 
-            # Check that at least one recipe exists (we defined one in the fixture)
-            assert len(assembler["recipes"]) > 0
+            # Check that at least one protocol exists (we defined one in the fixture)
+            assert len(assembler["protocols"]) > 0
 
-            # Verify structure of first recipe
-            recipe = assembler["recipes"][0]
-            assert "inputs" in recipe
-            assert "outputs" in recipe
-            assert "cooldown" in recipe
-            assert isinstance(recipe["inputs"], dict)
-            assert isinstance(recipe["outputs"], dict)
-            assert isinstance(recipe["cooldown"], int)
+            # Verify structure of first protocol
+            protocol = assembler["protocols"][0]
+            assert "inputs" in protocol
+            assert "outputs" in protocol
+            assert "cooldown" in protocol
+            assert isinstance(protocol["inputs"], dict)
+            assert isinstance(protocol["outputs"], dict)
+            assert isinstance(protocol["cooldown"], int)
 
 
 class TestChestProperties:
