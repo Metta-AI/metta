@@ -48,7 +48,7 @@ class Experiment1Mission(_ExperimentMissionBase):
     name: str = "baseline"
     description: str = "Baseline with standard settings and sparse outside resources"
     site: Site = None  # Site not needed for evaluation
-    map_name: str = "extractor_hub_30x30.map"
+    map_name: str = "evals/extractor_hub_30x30.map"
 
     # Standard efficiency (100%), standard max_uses (1000)
     carbon_extractor: CarbonExtractorConfig = CarbonExtractorConfig(efficiency=100, max_uses=1000)
@@ -71,7 +71,7 @@ class Experiment2Mission(_ExperimentMissionBase):
     name: str = "oxygen_abundance"
     description: str = "Multiple oxygen sources to break the cooldown bottleneck"
     site: Site = None  # Site not needed for evaluation
-    map_name: str = "extractor_hub_80x80.map"
+    map_name: str = "evals/extractor_hub_80x80.map"
 
     carbon_extractor: CarbonExtractorConfig = CarbonExtractorConfig(efficiency=100, max_uses=1000)
     oxygen_extractor: OxygenExtractorConfig = OxygenExtractorConfig(efficiency=100, max_uses=1000)
@@ -93,7 +93,7 @@ class Experiment3Mission(Mission):
     name: str = "low_efficiency"
     description: str = "75% efficiency requires more harvests and careful energy management"
     site: Site = None  # Site not needed for evaluation
-    map_name: str = "extractor_hub_50x50.map"
+    map_name: str = "evals/extractor_hub_50x50.map"
 
     # 75% efficiency across all extractors
     carbon_extractor: CarbonExtractorConfig = CarbonExtractorConfig(efficiency=75, max_uses=1000)
@@ -116,7 +116,7 @@ class Experiment4Mission(Mission):
     name: str = "fast_depletion"
     description: str = "Resources deplete quickly (max_uses=50), forcing exploration"
     site: Site = None  # Site not needed for evaluation
-    map_name: str = "extractor_hub_70x70.map"
+    map_name: str = "evals/extractor_hub_70x70.map"
 
     # Low max_uses causes fast depletion
     carbon_extractor: CarbonExtractorConfig = CarbonExtractorConfig(efficiency=100, max_uses=50)
@@ -139,7 +139,7 @@ class Experiment5Mission(Mission):
     name: str = "energy_abundance"
     description: str = "Double energy regeneration (2/turn) removes energy constraint"
     site: Site = None  # Site not needed for evaluation
-    map_name: str = "extractor_hub_70x70.map"
+    map_name: str = "evals/extractor_hub_70x70.map"
 
     carbon_extractor: CarbonExtractorConfig = CarbonExtractorConfig(efficiency=100, max_uses=1000)
     oxygen_extractor: OxygenExtractorConfig = OxygenExtractorConfig(efficiency=100, max_uses=1000)
@@ -161,7 +161,7 @@ class Experiment6Mission(Mission):
     name: str = "energy_scarcity"
     description: str = "Minimal energy regeneration (1/turn) requires frequent charging"
     site: Site = None  # Site not needed for evaluation
-    map_name: str = "extractor_hub_50x50.map"
+    map_name: str = "evals/extractor_hub_50x50.map"
 
     carbon_extractor: CarbonExtractorConfig = CarbonExtractorConfig(efficiency=100, max_uses=1000)
     oxygen_extractor: OxygenExtractorConfig = OxygenExtractorConfig(efficiency=100, max_uses=1000)
@@ -183,7 +183,7 @@ class Experiment7Mission(Mission):
     name: str = "high_efficiency"
     description: str = "Double efficiency (200%) means faster gathering and more exploration time"
     site: Site = None  # Site not needed for evaluation
-    map_name: str = "extractor_hub_50x50.map"
+    map_name: str = "evals/extractor_hub_50x50.map"
 
     # 200% efficiency across all extractors
     carbon_extractor: CarbonExtractorConfig = CarbonExtractorConfig(efficiency=200, max_uses=1000)
@@ -208,7 +208,7 @@ class Experiment8Mission(Mission):
     name: str = "zoned_resources"
     description: str = "Resources clustered by type in zones, north zone is farther but more efficient"
     site: Site = None  # Site not needed for evaluation
-    map_name: str = "extractor_hub_100x100.map"
+    map_name: str = "evals/extractor_hub_100x100.map"
 
     # Standard efficiency for most zones
     # North zone will use high-efficiency variants marked in map
@@ -232,7 +232,7 @@ class Experiment9Mission(Mission):
     name: str = "resource_abundance"
     description: str = "Abundant resources (5 of each) eliminate scarcity bottlenecks"
     site: Site = None  # Site not needed for evaluation
-    map_name: str = "extractor_hub_100x100.map"
+    map_name: str = "evals/extractor_hub_100x100.map"
 
     carbon_extractor: CarbonExtractorConfig = CarbonExtractorConfig(efficiency=100, max_uses=1000)
     oxygen_extractor: OxygenExtractorConfig = OxygenExtractorConfig(efficiency=100, max_uses=1000)

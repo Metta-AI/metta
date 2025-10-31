@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 from collections import defaultdict, deque
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Set, Tuple
+from typing import Any, Dict, List, Optional, Set, Tuple
 
 from cogames.policy.interfaces import AgentPolicy, Policy, StatefulAgentPolicy, StatefulPolicyImpl
 from cogames.policy.scripted_agent.hyperparameters import Hyperparameters
@@ -224,8 +224,15 @@ class ExtractorMemory:
 
 @dataclass
 class AgentState:
+    agent_id: int = 0  # Which agent this state belongs to (for multi-agent)
     current_phase: GamePhase = GamePhase.GATHER_GERMANIUM
+    phase_history: List[GamePhase] = field(default_factory=list)  # Last N phases for returning after interrupts
+    phase_runtime: Dict[str, Any] = field(
+        default_factory=dict
+    )  # Per-agent phase runtime tracking (entered_at_step, visits)
     current_glyph: str = "default"
+    # Resource gathering order (randomized per agent for multi-agent diversity)
+    resource_order: List[str] = field(default_factory=lambda: ["germanium", "silicon", "carbon", "oxygen"])
     # Inventory
     carbon: int = 0
     oxygen: int = 0
@@ -260,7 +267,9 @@ class AgentState:
         None  # Position of clipped extractor blocking current phase
     )
     # Exploration goal tracking
-    explore_goal: Optional[str] = None  # Why we're exploring: "find_charger", "find_assembler", "find_extractor", "find_unclipped", "unstuck"
+    explore_goal: Optional[str] = (
+        None  # Why we're exploring: "find_charger", "find_assembler", "find_extractor", "find_unclipped", "unstuck"
+    )
     # Progress bookkeeping
     phase_entry_step: int = 0
     phase_entry_inventory: Dict[str, int] = field(default_factory=dict)
@@ -268,12 +277,19 @@ class AgentState:
     resource_gathering_start: Dict[str, int] = field(default_factory=dict)
     resource_progress_tracking: Dict[str, int] = field(default_factory=dict)
     phase_visit_count: Dict[str, int] = field(default_factory=dict)
+    phase_before_recharge: Optional[GamePhase] = None  # Track phase before recharging to return to it
     # Misc
     step_count: int = 0
     last_heart: int = 0
     stuck_counter: int = 0
     last_reward: float = 0.0
     total_reward: float = 0.0
+    # Per-agent navigation state (for multi-agent support)
+    occupancy_map: Optional[List[List[int]]] = None  # Will be initialized in agent_state()
+    prev_pos: Optional[Tuple[int, int]] = None
+    last_action_idx: Optional[int] = None
+    last_attempt_was_use: bool = False
+    visited_cells: Set[Tuple[int, int]] = field(default_factory=set)
 
 
 # =============================================================================
@@ -330,19 +346,15 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
         self._explore_steps = int(base * math.sqrt((self._map_h * self._map_w) / 1600.0))
         logger.info(f"[Exploration] steps={self._explore_steps} for map {self._map_h}x{self._map_w}")
 
-        # World state
+        # World state (shared across agents - only station positions)
         self._station_positions: Dict[str, Tuple[int, int]] = {}
-        self._visited_cells: set[Tuple[int, int]] = set()
-        self._occ = [[C.OCC_UNKNOWN for _ in range(self._map_w)] for _ in range(self._map_h)]
-        self._prev_pos: Optional[Tuple[int, int]] = None
-        self._last_action_idx: Optional[int] = None
-        self._last_attempt_was_use = False
+        # Per-agent state (occupancy map, navigation state) now in AgentState
 
         # Components
         self.extractor_memory = ExtractorMemory(hyperparams=self.hyperparams)
         self._unclip_recipes = self._load_unclip_recipes_from_config()
         self.navigator = Navigator(self._map_h, self._map_w)
-        self._cached_state: Optional[AgentState] = None
+        # Note: _cached_state removed - it was shared across agents and caused bugs in multi-agent
 
         logger.info("Scripted agent ready (visual discovery + frontier exploration)")
 
@@ -358,8 +370,30 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
         return self.hyperparams.recharge_stop_large if m >= 50 else self.hyperparams.recharge_stop_small
 
     # ----------------------------- Core loop -----------------------------
-    def agent_state(self) -> AgentState:
-        return AgentState()
+    def agent_state(self, agent_id: int = 0) -> AgentState:
+        # Initialize per-agent state with fresh occupancy map
+        state = AgentState(agent_id=agent_id)
+        state.occupancy_map = [[C.OCC_UNKNOWN for _ in range(self._map_w)] for _ in range(self._map_h)]
+
+        # Randomize resource gathering order per agent for multi-agent diversity
+        import random
+
+        resources = ["germanium", "silicon", "carbon", "oxygen"]
+        # Use agent_id as seed for reproducibility
+        rng = random.Random(agent_id + 42)
+        state.resource_order = resources.copy()
+        rng.shuffle(state.resource_order)
+
+        # Set initial phase based on first resource in order
+        phase_map = {
+            "germanium": GamePhase.GATHER_GERMANIUM,
+            "silicon": GamePhase.GATHER_SILICON,
+            "carbon": GamePhase.GATHER_CARBON,
+            "oxygen": GamePhase.GATHER_OXYGEN,
+        }
+        state.current_phase = phase_map.get(state.resource_order[0], GamePhase.GATHER_GERMANIUM)
+
+        return state
 
     def _update_extractor_after_use(
         self,
@@ -403,15 +437,12 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
     def step_with_state(
         self, obs: MettaGridObservation, state: Optional[AgentState]
     ) -> tuple[MettaGridAction, Optional[AgentState]]:
-        s = (
-            self._cached_state
-            if (state is None or (state.step_count == 0 and self._cached_state is not None))
-            else state
-        )
-        if s is None:
+        if state is None:
+            # This should only happen if called incorrectly - state should be managed by StatefulAgentPolicy
             s = self.agent_state()
+        else:
+            s = state
         s.step_count += 1
-        self._cached_state = s
 
         self._update_inventory(obs, s)
         self._update_agent_position(s)
@@ -422,7 +453,7 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
             s.home_base_row, s.home_base_col = s.agent_row, s.agent_col
             logger.info(f"[Init] Home base: ({s.home_base_row},{s.home_base_col})")
 
-        self._mark_cell(s.agent_row, s.agent_col, C.OCC_FREE)
+        self._mark_cell(s, s.agent_row, s.agent_col, C.OCC_FREE)
         self._discover_stations_from_observation(obs, s)
         self._update_wall_knowledge(s)
 
@@ -437,7 +468,7 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
                     break
 
         if s.agent_row >= 0 and s.agent_col >= 0:
-            self._visited_cells.add((s.agent_row, s.agent_col))
+            s.visited_cells.add((s.agent_row, s.agent_col))
 
         # Deposit detection
         if (s.last_heart > 0 and s.heart == 0) or (s.current_phase == GamePhase.DEPOSIT_HEART and s.last_reward > 0):
@@ -451,6 +482,11 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
         old_phase = s.current_phase
         s.current_phase = self._determine_phase(s, obs)
         if s.current_phase != old_phase:
+            # Track phase history (keep last 5 phases for returning after interrupts)
+            s.phase_history.append(old_phase)
+            if len(s.phase_history) > 5:
+                s.phase_history.pop(0)
+
             s.phase_entry_step = s.step_count
             s.phase_entry_inventory = {
                 "germanium": s.germanium,
@@ -467,8 +503,8 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
                 s.resource_gathering_start[r] = s.step_count
 
         action_idx = self._execute_phase(s)
-        self._last_action_idx = action_idx
-        self._prev_pos = (s.agent_row, s.agent_col)
+        s.last_action_idx = action_idx
+        s.prev_pos = (s.agent_row, s.agent_col)
         s.last_heart = s.heart
         return dtype_actions.type(action_idx), s
 
@@ -484,7 +520,7 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
     # ---------------------- Phase → concrete action ----------------------
     def _execute_phase(self, s: AgentState) -> int:
         if s.current_phase == GamePhase.EXPLORE:
-            self._last_attempt_was_use = False
+            s.last_attempt_was_use = False
             plan = self._plan_to_frontier_action(s)
             return plan if plan is not None else self._explore_simple(s)
 
@@ -528,7 +564,7 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
         if target is None:
             target = self._station_positions.get(station)
             if not target or s.agent_row == -1:
-                self._last_attempt_was_use = False
+                s.last_attempt_was_use = False
                 plan = self._plan_to_frontier_action(s)
                 return plan if plan is not None else self._explore_simple(s)
 
@@ -536,7 +572,7 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
         res = self.navigator.navigate_to(
             start=(s.agent_row, s.agent_col),
             target=target,
-            occupancy_map=self._occ,
+            occupancy_map=s.occupancy_map,
             optimistic=True,
             use_astar=C.USE_ASTAR,
             astar_threshold=C.ASTAR_THRESHOLD,
@@ -548,29 +584,29 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
                 rem = self.cooldown_remaining(e, s.step_count)
                 if rem > self.hyperparams.wait_if_cooldown_leq:  # hyperparam respected
                     if self._exists_viable_alternative(e.resource_type, s, C.ALT_ROTATE_RADIUS):
-                        self._last_attempt_was_use = False
+                        s.last_attempt_was_use = False
                         logger.debug(f"[Wait→Rotate] cooldown~{rem}")
                         return self._navigate_to_best_alternative(e.resource_type, s)
                     if s.waiting_since_step < 0:
                         s.waiting_since_step = s.step_count
                     if s.step_count - s.waiting_since_step <= C.PATIENCE_STEPS:
-                        self._last_attempt_was_use = False
+                        s.last_attempt_was_use = False
                         return self._action_lookup.get("noop", 0)
                     return self._navigate_to_best_alternative(e.resource_type, s)
                 s.wait_target = None
 
             tr, tc = target
-            self._last_attempt_was_use = True
+            s.last_attempt_was_use = True
             a = self._step_toward(tr - s.agent_row, tc - s.agent_col)
             return a
 
         if res.next_step:
             nr, nc = res.next_step
-            self._last_attempt_was_use = False
+            s.last_attempt_was_use = False
             return self._step_toward(nr - s.agent_row, nc - s.agent_col)
 
         # Stuck → explore
-        self._last_attempt_was_use = False
+        s.last_attempt_was_use = False
         plan = self._plan_to_frontier_action(s)
         return plan if plan is not None else self._explore_simple(s)
 
@@ -586,7 +622,7 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
         if not tgt:
             clipped = [e for e in self.extractor_memory.get_all() if e.is_clipped]
             if not clipped:
-                self._last_attempt_was_use = False
+                s.last_attempt_was_use = False
                 plan = self._plan_to_frontier_action(s)
                 return plan if plan is not None else self._explore_simple(s)
             cur = (s.agent_row, s.agent_col)
@@ -598,21 +634,21 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
         res = self.navigator.navigate_to(
             start=(s.agent_row, s.agent_col),
             target=tgt,
-            occupancy_map=self._occ,
+            occupancy_map=s.occupancy_map,
             optimistic=True,
             use_astar=C.USE_ASTAR,
             astar_threshold=C.ASTAR_THRESHOLD,
         )
         if res.is_adjacent:
             tr, tc = tgt
-            self._last_attempt_was_use = True
+            s.last_attempt_was_use = True
             return self._step_toward(tr - s.agent_row, tc - s.agent_col)
         if res.next_step:
             nr, nc = res.next_step
-            self._last_attempt_was_use = False
+            s.last_attempt_was_use = False
             return self._step_toward(nr - s.agent_row, nc - s.agent_col)
 
-        self._last_attempt_was_use = False
+        s.last_attempt_was_use = False
         plan = self._plan_to_frontier_action(s)
         return plan if plan is not None else self._explore_simple(s)
 
@@ -626,28 +662,28 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
 
         asm = self._station_positions.get("assembler")
         if not asm:
-            self._last_attempt_was_use = False
+            s.last_attempt_was_use = False
             plan = self._plan_to_frontier_action(s)
             return plan if plan is not None else self._explore_simple(s)
 
         res = self.navigator.navigate_to(
             start=(s.agent_row, s.agent_col),
             target=asm,
-            occupancy_map=self._occ,
+            occupancy_map=s.occupancy_map,
             optimistic=True,
             use_astar=C.USE_ASTAR,
             astar_threshold=C.ASTAR_THRESHOLD,
         )
         if res.is_adjacent:
             tr, tc = asm
-            self._last_attempt_was_use = True
+            s.last_attempt_was_use = True
             return self._step_toward(tr - s.agent_row, tc - s.agent_col)
         if res.next_step:
             nr, nc = res.next_step
-            self._last_attempt_was_use = False
+            s.last_attempt_was_use = False
             return self._step_toward(nr - s.agent_row, nc - s.agent_col)
 
-        self._last_attempt_was_use = False
+        s.last_attempt_was_use = False
         plan = self._plan_to_frontier_action(s)
         return plan if plan is not None else self._explore_simple(s)
 
@@ -717,13 +753,15 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
             return self._step_toward(tr - sr, tc - sc)
 
         neighbors = [
-            (nr, nc) for nr, nc in self._neighbors4(tr, tc) if self._occ[nr][nc] == C.OCC_FREE and (nr, nc) != (sr, sc)
+            (nr, nc)
+            for nr, nc in self._neighbors4(tr, tc)
+            if s.occupancy_map[nr][nc] == C.OCC_FREE and (nr, nc) != (sr, sc)
         ]
         if not neighbors:
             return None
         neighbors.sort(key=lambda p: abs(p[0] - sr) + abs(p[1] - sc))
         for goal in neighbors:
-            step = self._bfs_next_step_occ((sr, sc), goal)
+            step = self._bfs_next_step_occ(s, (sr, sc), goal)
             if step is not None:
                 return self._step_toward(step[0] - sr, step[1] - sc)
         return None
@@ -732,7 +770,7 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
         if s.agent_row < 0:
             return None
         start = (s.agent_row, s.agent_col)
-        fronts = set(self._compute_frontiers())
+        fronts = set(self._compute_frontiers(s))
         if not fronts:
             return None
 
@@ -763,7 +801,7 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
                     if (nr, nc) in fronts:
                         reach.append(((nr, nc), d + 1))
                 for nr, nc in self._neighbors4(r, c):
-                    if (nr, nc) in seen or self._occ[nr][nc] != C.OCC_FREE:
+                    if (nr, nc) in seen or s.occupancy_map[nr][nc] != C.OCC_FREE:
                         continue
                     seen.add((nr, nc))
                     q.append(((nr, nc), d + 1))
@@ -776,9 +814,11 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
                 return best
 
         # Nearest by BFS
-        return self._choose_frontier_bfs(start, fronts)
+        return self._choose_frontier_bfs(s, start, fronts)
 
-    def _choose_frontier_bfs(self, start: Tuple[int, int], fronts: Set[Tuple[int, int]]) -> Optional[Tuple[int, int]]:
+    def _choose_frontier_bfs(
+        self, s: AgentState, start: Tuple[int, int], fronts: Set[Tuple[int, int]]
+    ) -> Optional[Tuple[int, int]]:
         q, seen = deque([start]), {start}
         while q:
             r, c = q.popleft()
@@ -786,33 +826,37 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
                 if (nr, nc) in fronts:
                     return (nr, nc)
             for nr, nc in self._neighbors4(r, c):
-                if (nr, nc) in seen or self._occ[nr][nc] != C.OCC_FREE:
+                if (nr, nc) in seen or s.occupancy_map[nr][nc] != C.OCC_FREE:
                     continue
                 seen.add((nr, nc))
                 q.append((nr, nc))
         return None
 
-    def _compute_frontiers(self) -> List[Tuple[int, int]]:
+    def _compute_frontiers(self, s: AgentState) -> List[Tuple[int, int]]:
         res = []
         for r in range(self._map_h):
             for c in range(self._map_w):
-                if self._occ[r][c] != C.OCC_UNKNOWN:
+                if s.occupancy_map[r][c] != C.OCC_UNKNOWN:
                     continue
                 for nr, nc in self._neighbors4(r, c):
-                    if self._occ[nr][nc] == C.OCC_FREE:
+                    if s.occupancy_map[nr][nc] == C.OCC_FREE:
                         res.append((r, c))
                         break
         return res
 
     # ------------------------------ Movement -----------------------------
-    def _bfs_next_step_occ(self, start: Tuple[int, int], goal: Tuple[int, int]) -> Optional[Tuple[int, int]]:
-        return self._bfs_next_step(start, goal, optimistic=False)
+    def _bfs_next_step_occ(
+        self, s: AgentState, start: Tuple[int, int], goal: Tuple[int, int]
+    ) -> Optional[Tuple[int, int]]:
+        return self._bfs_next_step(s, start, goal, optimistic=False)
 
-    def _bfs_next_step_optimistic(self, start: Tuple[int, int], goal: Tuple[int, int]) -> Optional[Tuple[int, int]]:
-        return self._bfs_next_step(start, goal, optimistic=True)
+    def _bfs_next_step_optimistic(
+        self, s: AgentState, start: Tuple[int, int], goal: Tuple[int, int]
+    ) -> Optional[Tuple[int, int]]:
+        return self._bfs_next_step(s, start, goal, optimistic=True)
 
     def _bfs_next_step(
-        self, start: Tuple[int, int], goal: Tuple[int, int], optimistic: bool
+        self, s: AgentState, start: Tuple[int, int], goal: Tuple[int, int], optimistic: bool
     ) -> Optional[Tuple[int, int]]:
         if start == goal:
             return start
@@ -820,7 +864,7 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
         while q:
             r, c = q.popleft()
             for nr, nc in self._neighbors4(r, c):
-                if (nr, nc) in parent or not self._is_cell_passable(nr, nc, optimistic):
+                if (nr, nc) in parent or not self._is_cell_passable(s, nr, nc, optimistic):
                     continue
                 parent[(nr, nc)] = (r, c)
                 if (nr, nc) == goal:
@@ -836,8 +880,8 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
             step = parent[step]
         return step
 
-    def _is_cell_passable(self, r: int, c: int, optimistic: bool = False) -> bool:
-        cell = self._occ[r][c]
+    def _is_cell_passable(self, s: AgentState, r: int, c: int, optimistic: bool = False) -> bool:
+        cell = s.occupancy_map[r][c]
         return (cell != C.OCC_OBSTACLE) if optimistic else (cell == C.OCC_FREE)
 
     def _action_to_dir(self, idx: int) -> Tuple[Optional[int], Optional[int]]:
@@ -914,14 +958,14 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
         res = self.navigator.navigate_to(
             start=cur,
             target=best.position,
-            occupancy_map=self._occ,
+            occupancy_map=s.occupancy_map,
             optimistic=True,
             use_astar=C.USE_ASTAR,
             astar_threshold=C.ASTAR_THRESHOLD,
         )
         if res.next_step:
             nr, nc = res.next_step
-            self._last_attempt_was_use = False
+            s.last_attempt_was_use = False
             return self._step_toward(nr - s.agent_row, nc - s.agent_col)
         return self._explore_simple(s)
 
@@ -963,12 +1007,12 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
             if tid is None:
                 continue
             if tid == self._wall_type_id:
-                self._mark_cell(r, c, C.OCC_OBSTACLE)
+                self._mark_cell(s, r, c, C.OCC_OBSTACLE)
                 continue
 
             if tid in self._type_id_to_station:
                 station = self._type_id_to_station[tid]
-                self._mark_cell(r, c, C.OCC_OBSTACLE)
+                self._mark_cell(s, r, c, C.OCC_OBSTACLE)
 
                 if station not in self._station_positions:
                     self._station_positions[station] = (r, c)
@@ -1010,34 +1054,44 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
                             ex.permanently_depleted = True
                 continue
 
-            if not self._object_type_names[tid].startswith("agent"):
-                self._mark_cell(r, c, C.OCC_FREE)
+            # Mark all non-wall, non-station cells as FREE (including other agents)
+            # This allows agents to pathfind through each other's positions
+            self._mark_cell(s, r, c, C.OCC_FREE)
 
-        self._mark_cell(s.agent_row, s.agent_col, C.OCC_FREE)
+        self._mark_cell(s, s.agent_row, s.agent_col, C.OCC_FREE)
 
     # ----------------------------- Bookkeeping ---------------------------
     def _update_wall_knowledge(self, s: AgentState) -> None:
-        if not self._prev_pos or self._last_action_idx not in self._MOVE_SET:
+        if not s.prev_pos or s.last_action_idx not in self._MOVE_SET:
             return
         cur = (s.agent_row, s.agent_col)
-        if cur != self._prev_pos:
-            self._mark_cell(*cur, C.OCC_FREE)
+        if cur != s.prev_pos:
+            self._mark_cell(s, *cur, C.OCC_FREE)
             return
-        if self._last_attempt_was_use:
-            self._last_attempt_was_use = False
+        if s.last_attempt_was_use:
+            s.last_attempt_was_use = False
             return
-        dr, dc = self._action_to_dir(self._last_action_idx)
+
+        # In multi-agent scenarios, disable wall poisoning entirely
+        # Agents can block each other temporarily, and by the time we check the occupancy map,
+        # the blocking agent may have moved, causing us to incorrectly poison that cell
+        if self._env.c_env.num_agents > 1:
+            return
+
+        dr, dc = self._action_to_dir(s.last_action_idx)
         if dr is None:
             return
-        wr, wc = self._prev_pos[0] + dr, self._prev_pos[1] + dc
+        wr, wc = s.prev_pos[0] + dr, s.prev_pos[1] + dc
         if not self._is_valid_position(wr, wc):
             return
-        self._occ[wr][wc] = C.OCC_OBSTACLE
+
+        # Mark as obstacle (wall)
+        s.occupancy_map[wr][wc] = C.OCC_OBSTACLE
 
     def _update_agent_position(self, s: AgentState) -> None:
         try:
             for _id, obj in self._env.c_env.grid_objects().items():
-                if obj.get("agent_id") == 0:
+                if obj.get("agent_id") == s.agent_id:
                     s.agent_row, s.agent_col = obj.get("r", -1), obj.get("c", -1)
                     break
         except Exception:
@@ -1167,9 +1221,9 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
     def _is_valid_position(self, r: int, c: int) -> bool:
         return 0 <= r < self._map_h and 0 <= c < self._map_w
 
-    def _mark_cell(self, r: int, c: int, cell_type: int) -> None:
+    def _mark_cell(self, s: AgentState, r: int, c: int, cell_type: int) -> None:
         if self._is_valid_position(r, c):
-            self._occ[r][c] = cell_type
+            s.occupancy_map[r][c] = cell_type
 
     def _neighbors4(self, r: int, c: int) -> List[Tuple[int, int]]:
         res: List[Tuple[int, int]] = []
@@ -1196,11 +1250,11 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
         preferred = self._MOVE_E if row_parity == 0 else self._MOVE_W
         dr, dc = self._action_to_dir(preferred)
         nr, nc = s.agent_row + (dr or 0), s.agent_col + (dc or 0)
-        if preferred in self._MOVE_SET and self._is_valid_position(nr, nc) and self._is_cell_passable(nr, nc):
+        if preferred in self._MOVE_SET and self._is_valid_position(nr, nc) and self._is_cell_passable(s, nr, nc):
             return preferred
 
         down_r, down_c = s.agent_row + 1, s.agent_col
-        if self._is_valid_position(down_r, down_c) and self._is_cell_passable(down_r, down_c):
+        if self._is_valid_position(down_r, down_c) and self._is_cell_passable(s, down_r, down_c):
             return self._MOVE_S if self._MOVE_S != -1 else self._action_lookup.get("noop", 0)
 
         # Choose any in-bounds, passable, not-recent direction
@@ -1210,7 +1264,7 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
             nr, nc = s.agent_row + dr, s.agent_col + dc
             if not self._is_valid_position(nr, nc):
                 continue
-            if not self._is_cell_passable(nr, nc):
+            if not self._is_cell_passable(s, nr, nc):
                 continue
             pos = (nr, nc)
             score = 10 if pos not in getattr(self, "_recent_positions", []) else self._recent_positions.index(pos)
@@ -1229,6 +1283,7 @@ class ScriptedAgentPolicy(Policy):
         self._env = env
         self._hyperparams = hyperparams
         self._impl = ScriptedAgentPolicyImpl(env, hyperparams=hyperparams) if env is not None else None
+        self._agent_policies: Dict[int, AgentPolicy] = {}  # Cache per-agent policies
 
     def reset(self, obs, info):
         if self._env is None and "env" in info:
@@ -1237,8 +1292,13 @@ class ScriptedAgentPolicy(Policy):
             if self._env is None:
                 raise RuntimeError("ScriptedAgentPolicy needs env - provide during __init__ or via info['env']")
             self._impl = ScriptedAgentPolicyImpl(self._env, hyperparams=self._hyperparams)
+        # Clear cached agent policies on reset
+        self._agent_policies = {}
 
     def agent_policy(self, agent_id: int) -> AgentPolicy:
         if self._impl is None:
             raise RuntimeError("Policy not initialized - call reset() first")
-        return StatefulAgentPolicy(self._impl, agent_id)
+        # Cache and reuse agent policies to maintain state across calls
+        if agent_id not in self._agent_policies:
+            self._agent_policies[agent_id] = StatefulAgentPolicy(self._impl, agent_id)
+        return self._agent_policies[agent_id]

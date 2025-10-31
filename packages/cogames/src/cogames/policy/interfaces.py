@@ -99,7 +99,7 @@ class StatefulAgentPolicy(AgentPolicy, Generic[StateType]):
         self._base_policy = base_policy
         self._agent_id = agent_id
         # Initialize state using the base policy's agent_state() method
-        self._state: Optional[StateType] = self._base_policy.agent_state()
+        self._state: Optional[StateType] = self._base_policy.agent_state(agent_id)
 
     def step(self, obs: MettaGridObservation) -> MettaGridAction:
         """Get action and update hidden state."""
@@ -108,7 +108,7 @@ class StatefulAgentPolicy(AgentPolicy, Generic[StateType]):
 
     def reset(self) -> None:
         """Reset the hidden state to initial state."""
-        self._state = self._base_policy.agent_state()
+        self._state = self._base_policy.agent_state(self._agent_id)
 
 
 class StatefulPolicyImpl(Generic[StateType]):
@@ -120,8 +120,11 @@ class StatefulPolicyImpl(Generic[StateType]):
     """
 
     @abstractmethod
-    def agent_state(self) -> Optional[StateType]:
+    def agent_state(self, agent_id: int = 0) -> Optional[StateType]:
         """Get the initial state for a new agent.
+
+        Args:
+            agent_id: The ID of the agent (for multi-agent support)
 
         Returns:
             Initial state for the agent, or None if no initial state needed.

@@ -6,8 +6,8 @@ import random
 # Import MapBuilder subclasses to register them
 import mettagrid.map_builder.ascii  # noqa: F401
 import mettagrid.map_builder.random  # noqa: F401
-from cogames.cogs_vs_clips.mission import Mission, MissionVariant, Site
-from cogames.cogs_vs_clips.missions import _add_make_env_modifier, get_map
+from cogames.cogs_vs_clips.mission import Mission, MissionVariant
+from cogames.cogs_vs_clips.mission_utils import _add_make_env_modifier, get_map
 from mettagrid.config.mettagrid_config import MettaGridConfig, ProtocolConfig
 from mettagrid.map_builder.map_builder import MapBuilderConfig
 
@@ -15,11 +15,12 @@ logger = logging.getLogger(__name__)
 
 
 class _EvalMissionBase(Mission):
-    # Each mission will define its own site with lazy map loading
-    site: Site = None  # Will be overridden by subclasses
+    # Site will be set by missions.py when importing these missions
+    # Don't set it here to avoid circular imports
 
     # Tunables (defaults; override in subclasses)
-    map_name: str = "machina_eval_template.map"
+    map_name: str = "evals/machina_eval_template.map"
+
     # Clipping
     clip_rate: float = 0.0
     charger_eff: int = 100
@@ -65,10 +66,16 @@ class _EvalMissionBase(Mission):
                 if explicitly_clipped in extractor_types:
                     extractor_types = [e for e in extractor_types if e != explicitly_clipped]
                 immune_extractor_type = random.choice(extractor_types)
-                print(f"[EvalMission] clip_rate={self.clip_rate}: {immune_extractor_type} randomly clip-immune")
+                logger.debug(
+                    "[EvalMission] clip_rate=%s: %s randomly clip-immune",
+                    self.clip_rate,
+                    immune_extractor_type,
+                )
             else:
-                print(
-                    f"[EvalMission] clip_rate={self.clip_rate}: {immune_extractor_type} explicitly set as clip-immune"
+                logger.debug(
+                    "[EvalMission] clip_rate=%s: %s explicitly set as clip-immune",
+                    self.clip_rate,
+                    immune_extractor_type,
                 )
 
         # Post-make_env adjust max uses on built objects
@@ -178,7 +185,7 @@ class _EvalMissionBase(Mission):
 class OxygenBottleneck(_EvalMissionBase):
     name: str = "oxygen_bottleneck"
     description: str = "Oxygen paces assembly; batch other resources."
-    map_name: str = "machina_eval_exp02.map"
+    map_name: str = "evals/machina_eval_exp02.map"
     oxygen_eff: int = 50
     energy_regen: int = 1
     max_uses_charger: int = 0
@@ -191,7 +198,7 @@ class OxygenBottleneck(_EvalMissionBase):
 class GermaniumRush(_EvalMissionBase):
     name: str = "germanium_rush"
     description: str = "Race to limited germanium before it runs out."
-    map_name: str = "machina_eval_exp03.map"
+    map_name: str = "evals/machina_eval_exp03.map"
     max_uses_germanium: int = 10
     max_uses_carbon: int = 100
     max_uses_oxygen: int = 50
@@ -202,7 +209,7 @@ class GermaniumRush(_EvalMissionBase):
 class SiliconWorkbench(_EvalMissionBase):
     name: str = "silicon_workbench"
     description: str = "Silicon-rich environment; convert energy to silicon."
-    map_name: str = "machina_eval_exp04.map"
+    map_name: str = "evals/machina_eval_exp04.map"
     silicon_eff: int = 150
     max_uses_silicon: int = 200
     max_uses_oxygen: int = 50
@@ -214,7 +221,7 @@ class SiliconWorkbench(_EvalMissionBase):
 class CarbonDesert(_EvalMissionBase):
     name: str = "carbon_desert"
     description: str = "Sparse carbon dictates routes."
-    map_name: str = "machina_eval_exp05.map"
+    map_name: str = "evals/machina_eval_exp05.map"
     max_uses_carbon: int = 30
     max_uses_oxygen: int = 50
     max_uses_germanium: int = 10
@@ -225,7 +232,7 @@ class CarbonDesert(_EvalMissionBase):
 class SingleUseWorld(_EvalMissionBase):
     name: str = "single_use_world"
     description: str = "Every station can be used exactly once."
-    map_name: str = "machina_eval_exp06.map"
+    map_name: str = "evals/machina_eval_exp06.map"
     max_uses_charger: int = 1
     max_uses_carbon: int = 1
     max_uses_oxygen: int = 1
@@ -236,7 +243,7 @@ class SingleUseWorld(_EvalMissionBase):
 class SlowOxygen(_EvalMissionBase):
     name: str = "slow_oxygen"
     description: str = "Very slow oxygen; interleave partial-usage taps."
-    map_name: str = "machina_eval_exp07.map"
+    map_name: str = "evals/machina_eval_exp07.map"
     oxygen_eff: int = 25
     energy_regen: int = 2
     max_uses_oxygen: int = 100
@@ -249,7 +256,7 @@ class SlowOxygen(_EvalMissionBase):
 class HighRegenSprint(_EvalMissionBase):
     name: str = "high_regen_sprint"
     description: str = "High regen; minimize charger dependency."
-    map_name: str = "machina_eval_exp08.map"
+    map_name: str = "evals/machina_eval_exp08.map"
     energy_regen: int = 3
     max_uses_carbon: int = 100
     max_uses_oxygen: int = 50
@@ -261,7 +268,7 @@ class HighRegenSprint(_EvalMissionBase):
 class SparseBalanced(_EvalMissionBase):
     name: str = "sparse_balanced"
     description: str = "Evenly sparse resources; balanced routing."
-    map_name: str = "machina_eval_exp09.map"
+    map_name: str = "evals/machina_eval_exp09.map"
     max_uses_carbon: int = 50
     max_uses_oxygen: int = 50
     max_uses_germanium: int = 10
@@ -272,7 +279,7 @@ class SparseBalanced(_EvalMissionBase):
 class GermaniumClutch(_EvalMissionBase):
     name: str = "germanium_clutch"
     description: str = "A single germanium line determines success."
-    map_name: str = "machina_eval_exp10.map"
+    map_name: str = "evals/machina_eval_exp10.map"
     max_uses_germanium: int = 2
     max_uses_carbon: int = 100
     max_uses_oxygen: int = 50
@@ -288,25 +295,25 @@ class GermaniumClutch(_EvalMissionBase):
 class CollectTheResourcesEasy(_EvalMissionBase):
     name: str = "collect_the_resources_easy"
     description: str = "Collect all four resources, assemble a HEART, and deposit in chest (small/easy)."
-    map_name: str = "eval_collect_resources_easy.map"
+    map_name: str = "evals/eval_collect_resources_easy.map"
 
 
 class CollectTheResourcesMedium(_EvalMissionBase):
     name: str = "collect_the_resources_medium"
     description: str = "Collect all four resources, assemble a HEART, and deposit in chest (medium)."
-    map_name: str = "eval_collect_resources_medium.map"
+    map_name: str = "evals/eval_collect_resources_medium.map"
 
 
 class CollectTheResourcesHard(_EvalMissionBase):
     name: str = "collect_the_resources_hard"
     description: str = "Collect all four resources, assemble a HEART, and deposit in chest (large/hard)."
-    map_name: str = "eval_collect_resources_hard.map"
+    map_name: str = "evals/eval_collect_resources_hard.map"
 
 
 class EnergyStarved(_EvalMissionBase):
     name: str = "energy_starved"
     description: str = "Low regen; requires careful charging and routing."
-    map_name: str = "eval_energy_starved.map"
+    map_name: str = "evals/eval_energy_starved.map"
     charger_eff: int = 80
     energy_regen: int = 0
     max_uses_charger: int = 0
@@ -315,7 +322,7 @@ class EnergyStarved(_EvalMissionBase):
 class GeraniumForage(_EvalMissionBase):
     name: str = "geranium_forage"
     description: str = "All resources near base except germanium; forage further away to find it."
-    map_name: str = "eval_germanium_forage.map"
+    map_name: str = "evals/eval_germanium_forage.map"
 
     def instantiate(
         self, map_builder: MapBuilderConfig, num_cogs: int, variant: MissionVariant | None = None
@@ -343,7 +350,7 @@ class GeraniumForage(_EvalMissionBase):
 class BalancedSpread(_EvalMissionBase):
     name: str = "balanced_spread"
     description: str = "Resources spread out; agent must forage far and return efficiently."
-    map_name: str = "eval_balanced_spread.map"
+    map_name: str = "evals/eval_balanced_spread.map"
 
 
 # Clipping Evaluation missions removed in favor of apply_clip_profile helper
@@ -461,16 +468,49 @@ def apply_clip_profile(
             if obj is None:
                 return
             try:
-                if hasattr(obj, "is_clip_immune"):
-                    obj.is_clip_immune = True
+                if hasattr(obj, "clip_immune"):
+                    obj.clip_immune = True
                 if hasattr(obj, "start_clipped"):
                     obj.start_clipped = False
             except Exception:
                 pass
 
+        def _ensure_critical_stations_immune(cfg: MettaGridConfig) -> None:
+            # Make charger, assembler, and chest immune when clip_rate > 0
+            # These are essential for core gameplay and cannot be unclipped
+            for station_name in ["charger", "assembler", "chest"]:
+                obj = cfg.game.objects.get(station_name)
+                if obj is None:
+                    continue
+                try:
+                    if hasattr(obj, "clip_immune"):
+                        obj.clip_immune = True
+                    if hasattr(obj, "start_clipped"):
+                        obj.start_clipped = False
+                except Exception:
+                    pass
+
         mission = _add_make_env_modifier(mission, _filter_unclip)
         mission = _add_make_env_modifier(mission, _tweak_assembler)
         mission = _add_make_env_modifier(mission, _ensure_gear_resource_immune)
+
+    # When clip_rate > 0, always make critical stations immune
+    if clip_rate is not None and clip_rate > 0:
+
+        def _ensure_critical_stations_immune_global(cfg: MettaGridConfig) -> None:
+            for station_name in ["charger", "assembler", "chest"]:
+                obj = cfg.game.objects.get(station_name)
+                if obj is None:
+                    continue
+                try:
+                    if hasattr(obj, "clip_immune"):
+                        obj.clip_immune = True
+                    if hasattr(obj, "start_clipped"):
+                        obj.start_clipped = False
+                except Exception:
+                    pass
+
+        mission = _add_make_env_modifier(mission, _ensure_critical_stations_immune_global)
 
     # Charger target: only start_clipped like ClipCharger
     return mission
