@@ -1,14 +1,13 @@
 import os
 import subprocess
 import sys
-import tomllib
 from enum import Enum
 from pathlib import Path
 
 from metta.common.util.fs import get_file_hash
 from metta.setup.components.base import SetupModule
 from metta.setup.registry import register_module
-from metta.setup.utils import colorize, error, info, prompt_choice, success
+from metta.setup.utils import colorize, error, info, prompt_choice, success, warning
 
 
 class CommitHookMode(Enum):
@@ -198,49 +197,61 @@ class GitHooksSetup(SetupModule):
 
         info(f"Gitleaks mode set to: {colorize(gitleaks_mode.get_description(), 'green')}")
 
-    def _check_gitleaks_installed(self) -> bool:
-        try:
-            subprocess.run(
-                ["gitleaks", "version"],
-                capture_output=True,
-                check=True,
-            )
+    def _get_staged_files(self) -> list[str]:
+        result = subprocess.run(
+            ["git", "diff", "--cached", "--name-only"],
+            cwd=self.repo_root,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if result.returncode != 0:
+            return []
+        return [line.strip() for line in result.stdout.splitlines() if line.strip()]
+
+    def _apply_skip_hooks(self, env: dict[str, str], hooks_to_skip: list[str]) -> None:
+        if not hooks_to_skip:
+            return
+
+        existing = env.get("SKIP", "")
+        parts = [item.strip() for item in existing.split(",") if item.strip()]
+        parts.extend(hooks_to_skip)
+        deduped = list(dict.fromkeys(parts))
+        env["SKIP"] = ",".join(deduped)
+
+    def _run_metta_lint(self, mode: CommitHookMode, env: dict[str, str]) -> subprocess.CompletedProcess:
+        cmd = ["uv", "run", "--active", "metta", "lint", "--staged"]
+        if mode == CommitHookMode.FIX:
+            cmd.append("--fix")
+        else:
+            cmd.append("--check")
+        return subprocess.run(cmd, cwd=self.repo_root, env=env, check=False)
+
+    def _run_detect_private_key(self, stage: str, files: list[str], warn_only: bool) -> bool:
+        cmd = ["uv", "run", "--active", "pre-commit", "run", "detect-private-key", "--hook-stage", stage]
+        if files:
+            cmd.extend(["--files", *files])
+        else:
+            cmd.append("--all-files")
+
+        result = subprocess.run(cmd, cwd=self.repo_root, capture_output=True, text=True, check=False)
+        if result.returncode == 0:
             return True
-        except (subprocess.CalledProcessError, FileNotFoundError):
+
+        output = (result.stdout or "") + (result.stderr or "")
+        output = output.strip()
+
+        if warn_only:
+            if output:
+                warning(output)
+            warning("Secrets detected by detect-private-key (non-blocking mode).")
             return False
 
-    def _run_gitleaks(self, gitleaks_mode: GitLeaksMode) -> bool:
-        if gitleaks_mode == GitLeaksMode.NONE:
-            return True
-
-        if not self._check_gitleaks_installed():
-            info("Gitleaks not installed. Install with: brew install gitleaks")
-            info("Skipping secrets scanning...")
-            return True
-
-        try:
-            subprocess.run(
-                ["gitleaks", "protect", "--staged", "-v", "--no-banner", "--exit-code", "1"],
-                cwd=self.repo_root,
-                check=True,
-                capture_output=True,
-                text=True,
-            )
-            return True
-        except subprocess.CalledProcessError as e:
-            if e.stdout:
-                info(e.stdout)
-            if e.stderr:
-                error(e.stderr)
-
-            error("Review the output above and remove any secrets before committing.")
-
-            if gitleaks_mode == GitLeaksMode.BLOCK:
-                error("Commit blocked due to detected secrets.")
-                return False
-            else:
-                info("Warning: Proceeding despite detected secrets (check mode).")
-                return True
+        if output:
+            error(output)
+        else:
+            error("detect-private-key failed.")
+        return False
 
     def run(self, args: list[str]) -> None:
         if not args or args[0] != "pre-commit":
@@ -250,63 +261,35 @@ class GitHooksSetup(SetupModule):
         hook_mode = CommitHookMode.parse(self.get_setting("commit_hook_mode", default=None))
         gitleaks_mode = GitLeaksMode.parse(self.get_setting("gitleaks_mode", default=None))
 
-        # Run gitleaks check first
-        if not self._run_gitleaks(gitleaks_mode):
-            sys.exit(1)
+        staged_files = self._get_staged_files()
+
+        skip_hooks: list[str] = []
+        warn_on_secrets = False
+        if gitleaks_mode == GitLeaksMode.NONE:
+            skip_hooks.append("detect-private-key")
+        elif gitleaks_mode == GitLeaksMode.CHECK:
+            skip_hooks.append("detect-private-key")
+            warn_on_secrets = True
+
+        env = os.environ.copy()
+        self._apply_skip_hooks(env, skip_hooks)
 
         if hook_mode == CommitHookMode.NONE:
+            if gitleaks_mode == GitLeaksMode.BLOCK:
+                success_detect = self._run_detect_private_key("commit", staged_files, warn_only=False)
+                sys.exit(0 if success_detect else 1)
+
+            if gitleaks_mode == GitLeaksMode.CHECK:
+                self._run_detect_private_key("manual", staged_files, warn_only=True)
             sys.exit(0)
 
-        # Get staged Python files
-        result = subprocess.run(
-            ["git", "diff", "--cached", "--name-only", "--diff-filter=ACM"],
-            cwd=self.repo_root,
-            capture_output=True,
-            text=True,
-            check=True,
-        )
-        files = [f for f in result.stdout.strip().split("\n") if f.endswith(".py") and f]
-
-        if not files:
-            # No Python files to lint
-            sys.exit(0)
-
-        # Filter out excluded paths based on .ruff.toml
-        ruff_config_path = self.repo_root / ".ruff.toml"
-        with open(ruff_config_path, "rb") as f:
-            config = tomllib.load(f)
-        excluded_paths = config.get("exclude", [])
-
-        if excluded_paths:
-            filtered_files = []
-            for f in files:
-                file_path = Path(f)
-                should_exclude = any(
-                    file_path == Path(excluded) or file_path.is_relative_to(Path(excluded))
-                    for excluded in excluded_paths
-                )
-                if not should_exclude:
-                    filtered_files.append(f)
-
-            files = filtered_files
-
-        if not files:
-            # No files to lint after exclusions
-            sys.exit(0)
-
-        lint_cmd = ["metta", "lint"]
-        if hook_mode == CommitHookMode.FIX:
-            lint_cmd.append("--fix")
-        lint_cmd.extend(files)
-
-        try:
-            subprocess.run(lint_cmd, cwd=self.repo_root, check=True)
-
-            if hook_mode == CommitHookMode.FIX:
-                subprocess.run(["git", "add"] + files, cwd=self.repo_root, check=True)
-
-        except subprocess.CalledProcessError as e:
+        result = self._run_metta_lint(hook_mode, env)
+        if result.returncode != 0:
             if hook_mode == CommitHookMode.CHECK:
                 error("Linting failed. Please fix the issues before committing.")
                 error("Consider running `metta lint --fix` to fix some issues automatically.")
-            sys.exit(e.returncode)
+            sys.exit(result.returncode)
+
+        if warn_on_secrets:
+            refreshed_staged = self._get_staged_files()
+            self._run_detect_private_key("manual", refreshed_staged, warn_only=True)
