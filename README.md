@@ -188,6 +188,16 @@ builds its configuration, and runs it.
 
 **Navigation recipe**: Replace `arena` with `navigation` for navigation tasks
 
+### Jupyter Notebooks
+
+#### Cogames Training Notebook
+
+Try Metta AI in Google Colab without any local installation:
+
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1YaIdg5a5Ji5_J_HkVOdY9itJTFju54oG?usp=sharing)
+
+The notebook is also available locally at `./notebooks/Cogames_Training.ipynb` and provides a guided introduction to training and evaluating agents in the Metta environment.
+
 ### Task arguments
 
 run.py applies arguments provided through `[key=value ...]`, classifying each:
