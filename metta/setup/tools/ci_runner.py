@@ -5,7 +5,7 @@ Both local development (metta ci) and GitHub Actions call this same tool.
 
 GitHub Actions workflow calls individual stages:
   - uv run metta ci --stage lint
-  - uv run metta ci --stage python-tests
+  - uv run metta ci --stage python-tests (runs both tests and benchmarks)
   - uv run metta ci --stage cpp-tests
   - uv run metta ci --stage cpp-benchmarks
 
@@ -126,12 +126,12 @@ def _run_python_tests(
     verbose: bool = False,
     extra_args: Sequence[str] | None = None,
 ) -> CheckResult:
-    """Run Python tests (excludes benchmarks)."""
-    _print_header("Python Tests")
+    """Run Python tests and benchmarks together."""
+    _print_header("Python Tests and Benchmarks")
 
-    cmd = ["uv", "run", "metta", "pytest", "--ci"]
+    cmd = ["uv", "run", "metta", "pytest", "--ci", "--test", "--benchmark"]
     cmd.extend(_normalize_python_stage_args(extra_args))
-    passed = _run_command(cmd, "Python tests", verbose=verbose)
+    passed = _run_command(cmd, "Python tests and benchmarks", verbose=verbose)
 
     return CheckResult("Python Tests", passed)
 
