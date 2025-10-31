@@ -11,10 +11,11 @@
 
 #include "core/grid.hpp"
 #include "objects/assembler.hpp"
+#include "objects/protocol.hpp"
 
 class Clipper {
 public:
-  std::vector<std::shared_ptr<Recipe>> unclipping_recipes;
+  std::vector<std::shared_ptr<Protocol>> unclipping_protocols;
   // A map from assembler to its adjacent assemblers. This should be constant once computed.
   std::unordered_map<Assembler*, std::vector<Assembler*>> adjacent_assemblers;
   // A map of all assemblers to their current infection weight. This is the weight at which they'll be selected
@@ -33,12 +34,12 @@ public:
   std::mt19937 rng;
 
   Clipper(Grid& grid,
-          std::vector<std::shared_ptr<Recipe>> recipe_ptrs,
+          std::vector<std::shared_ptr<Protocol>> protocol_ptrs,
           float length_scale,
           float cutoff_distance,
           float clip_rate,
           std::mt19937 rng_init)
-      : unclipping_recipes(std::move(recipe_ptrs)),
+      : unclipping_protocols(std::move(protocol_ptrs)),
         length_scale(length_scale),
         cutoff_distance(cutoff_distance),
         grid(grid),
@@ -170,17 +171,14 @@ public:
     border_assemblers.erase(&to_infect);
     unclipped_assemblers.erase(&to_infect);
 
-    // Randomly select one recipe from the list
-    std::uniform_int_distribution<size_t> dist(0, unclipping_recipes.size() - 1);
+    // Randomly select one protocol from the list
+    std::uniform_int_distribution<size_t> dist(0, unclipping_protocols.size() - 1);
     size_t selected_idx = dist(rng);
-    std::shared_ptr<Recipe> selected_recipe = unclipping_recipes[selected_idx];
+    std::shared_ptr<Protocol> selected_protocol = unclipping_protocols[selected_idx];
 
-    // Create a map with the selected recipe for all possible vibes
-    // For now, we'll just map vibe 0 to the recipe (no glyphs case)
-    // TODO: This might need adjustment based on how unclipping should work with glyphs
-    std::unordered_map<uint64_t, std::shared_ptr<Recipe>> unclip_recipes;
-    unclip_recipes[0] = selected_recipe;
-    to_infect.become_clipped(unclip_recipes, this);
+    std::vector<std::shared_ptr<Protocol>> unclip_protocols;
+    unclip_protocols.push_back(selected_protocol);
+    to_infect.become_clipped(unclip_protocols, this);
   }
 
   void on_unclip_assembler(Assembler& to_unclip) {
