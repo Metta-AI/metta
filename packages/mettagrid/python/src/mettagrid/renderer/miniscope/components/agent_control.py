@@ -63,7 +63,7 @@ class AgentControlComponent(MiniscopeComponent):
                 self._state.should_step = True
                 return True
             elif ch == "E":
-                self._state.enter_glyph_picker()
+                self._state.enter_vibe_picker()
                 return True
             elif ch == "M":
                 self._state.toggle_manual_control(self._state.selected_agent)

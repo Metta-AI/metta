@@ -46,7 +46,7 @@ constexpr ObservationType EpisodeCompletionPct = 7;
 constexpr ObservationType LastAction = 8;
 constexpr ObservationType LastActionArg = 9;
 constexpr ObservationType LastReward = 10;
-constexpr ObservationType Glyph = 11;
+constexpr ObservationType Vibe = 11;
 constexpr ObservationType VisitationCounts = 12;
 constexpr ObservationType Tag = 13;
 constexpr ObservationType CooldownRemaining = 14;
@@ -71,7 +71,7 @@ inline const std::unordered_map<ObservationType, std::string>& GetFeatureNames()
       {ObservationFeature::LastAction, "last_action"},
       {ObservationFeature::LastActionArg, "last_action_arg"},
       {ObservationFeature::LastReward, "last_reward"},
-      {ObservationFeature::Glyph, "agent:glyph"},
+      {ObservationFeature::Vibe, "vibe"},
       {ObservationFeature::VisitationCounts, "agent:visitation_counts"},
       {ObservationFeature::Tag, "tag"},
       {ObservationFeature::CooldownRemaining, "cooldown_remaining"},
@@ -96,7 +96,7 @@ inline const std::unordered_map<ObservationType, float>& GetFeatureNormalization
       {ObservationFeature::ReservedForFutureUse, 255.0},
       {ObservationFeature::ConvertingOrCoolingDown, 1.0},
       {ObservationFeature::Swappable, 1.0},
-      {ObservationFeature::Glyph, 255.0},
+      {ObservationFeature::Vibe, 255.0},
       {ObservationFeature::VisitationCounts, 1000.0},
       {ObservationFeature::Tag, 10.0},
       {ObservationFeature::CooldownRemaining, 255.0},

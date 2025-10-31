@@ -45,7 +45,7 @@ def train(
     )
 
 
-def train_shaped(rewards: bool = True, converters: bool = True) -> TrainTool:
+def train_shaped(rewards: bool = True) -> TrainTool:
     """Train with regular Adam optimizer on shaped rewards task.
 
     This provides easier training with reward shaping and converters enabled.
@@ -54,7 +54,7 @@ def train_shaped(rewards: bool = True, converters: bool = True) -> TrainTool:
     from experiments.recipes.arena import train_shaped as base_train_shaped
 
     # Get the base shaped training tool
-    base_tool = base_train_shaped(rewards=rewards, converters=converters)
+    base_tool = base_train_shaped(rewards=rewards)
 
     # Configure regular Adam optimizer
     optimizer_config = OptimizerConfig(

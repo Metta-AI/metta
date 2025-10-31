@@ -64,7 +64,7 @@ def upload_thumbnail_to_s3(thumbnail_data: bytes, episode_id: str) -> tuple[bool
         return True, http_thumbnail_url
 
     except Exception as e:
-        logger.error(f"Failed to upload thumbnail for episode {episode_id}: {e}")
+        logger.error(f"Failed to upload thumbnail for episode {episode_id}: {e}", exc_info=True)
         return False, None
 
 
@@ -98,10 +98,10 @@ def maybe_generate_and_upload_thumbnail(replay_data: dict, episode_id: str) -> t
         if success:
             logger.debug(f"Successfully generated and uploaded thumbnail for episode {episode_id}")
         else:
-            logger.error(f"Thumbnail generation succeeded but upload failed for episode {episode_id}")
+            logger.error(f"Thumbnail generation succeeded but upload failed for episode {episode_id}", exc_info=True)
 
         return success, thumbnail_url
 
     except Exception as e:
-        logger.error(f"Thumbnail generation failed for episode {episode_id}: {e}")
+        logger.error(f"Thumbnail generation failed for episode {episode_id}: {e}", exc_info=True)
         return False, None
