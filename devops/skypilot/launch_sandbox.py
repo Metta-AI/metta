@@ -30,6 +30,7 @@ import subprocess
 import sys
 from typing import List
 import signal
+import threading
 
 from metta.common.tool.tool_path import validate_module_path
 from metta.tools.utils.auto_config import auto_run_name
@@ -324,30 +325,18 @@ def main() -> int:
             return 0
 
     # Execute and stream output; on Ctrl+C, clean up remote training processes.
-    proc = subprocess.Popen(exec_cmd)
+    popen_kwargs: dict = {}
+    if hasattr(os, "setsid"):
+        popen_kwargs["preexec_fn"] = os.setsid  # create new process group for clean SIGINT
+    proc = subprocess.Popen(exec_cmd, **popen_kwargs)
     interrupted = False
+    kill_started = False
 
-    def _on_sigint(signum, frame):
-        nonlocal interrupted
-        interrupted = True
-        try:
-            # Stop local log streaming first
-            if hasattr(os, "killpg"):
-                os.killpg(proc.pid, signal.SIGINT)
-            else:
-                proc.send_signal(signal.SIGINT)
-        except Exception:
-            pass
-
-    prev_handler = signal.getsignal(signal.SIGINT)
-    signal.signal(signal.SIGINT, _on_sigint)
-    try:
-        ret = proc.wait()
-    finally:
-        signal.signal(signal.SIGINT, prev_handler)
-
-    if interrupted:
-        print("[CANCEL] Ctrl+C detected — stopping remote training across nodes...")
+    def _start_kill_thread() -> None:
+        nonlocal kill_started
+        if kill_started:
+            return
+        kill_started = True
         kill_script = _build_remote_kill_script()
         kill_cmd = [
             "uv",
@@ -360,7 +349,40 @@ def main() -> int:
             "--",
             kill_script,
         ]
-        subprocess.run(kill_cmd, check=False)
+        # Fire-and-forget to avoid blocking signal handler path
+        threading.Thread(target=lambda: subprocess.run(kill_cmd, check=False), daemon=True).start()
+
+    def _on_sigint(signum, frame):
+        nonlocal interrupted
+        interrupted = True
+        try:
+            # Stop local log streaming first
+            if hasattr(os, "killpg"):
+                os.killpg(proc.pid, signal.SIGINT)
+            else:
+                proc.send_signal(signal.SIGINT)
+        except Exception:
+            pass
+        # Immediately start remote kill to stop training
+        _start_kill_thread()
+
+    prev_handler = signal.getsignal(signal.SIGINT)
+    signal.signal(signal.SIGINT, _on_sigint)
+    try:
+        ret = proc.wait()
+    finally:
+        signal.signal(signal.SIGINT, prev_handler)
+
+    if interrupted:
+        print("[CANCEL] Ctrl+C detected — stopping remote training across nodes...")
+        # If not already launched by handler, run kill now (blocking) as a fallback
+        if not kill_started:
+            _start_kill_thread()
+        # Give the background kill a brief head-start
+        try:
+            threading.Event().wait(0.2)
+        except Exception:
+            pass
         return 130
 
     if ret != 0:
