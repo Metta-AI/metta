@@ -1,6 +1,8 @@
 """Job manager with worker pool, queue, and persistence."""
 
+import json
 import logging
+import subprocess
 import threading
 import time
 from datetime import datetime
@@ -10,7 +12,7 @@ from sqlmodel import Session, SQLModel, create_engine, select
 
 from devops.skypilot.utils.job_helpers import check_job_statuses
 from metta.common.util.constants import METTA_WANDB_ENTITY, METTA_WANDB_PROJECT
-from metta.jobs.cogames_metrics import parse_cogames_stats_from_logs
+from metta.jobs.cogames_metrics import _strip_ansi_codes, parse_cogames_stats_from_logs
 from metta.jobs.job_config import JobConfig, MetricsSource
 from metta.jobs.job_metrics import extract_skypilot_job_id, fetch_wandb_metrics
 from metta.jobs.job_runner import LocalJob, RemoteJob
@@ -251,6 +253,92 @@ class JobManager:
         except Exception as e:
             logger.warning(f"Failed to fetch metrics for {job_name}: {e}")
 
+    def _fetch_artifacts(self, job_name: str, job_state: JobState) -> None:
+        """Download and parse artifacts from S3.
+
+        For each declared artifact:
+        1. Build S3 path using convention: s3://softmax-public/stable/jobs/{job_name}/{artifact_name}
+        2. Download artifact to temp location
+        3. Parse content based on artifact type
+        4. Extract metrics and merge into job_state.metrics
+        """
+        if not job_state.config.artifacts:
+            logger.debug(f"Skipping artifact fetch for {job_name}: no artifacts declared")
+            return
+
+        try:
+            for artifact_name in job_state.config.artifacts:
+                # Build S3 path using convention
+                s3_path = f"s3://softmax-public/stable/jobs/{job_name}/{artifact_name}"
+
+                # Download artifact to temp file
+                temp_file = Path(f"/tmp/{job_name}_{artifact_name}")
+                download_cmd = ["aws", "s3", "cp", s3_path, str(temp_file)]
+
+                result = subprocess.run(download_cmd, capture_output=True, text=True, timeout=30)
+                if result.returncode != 0:
+                    logger.warning(f"Failed to download artifact {artifact_name} for {job_name}: {result.stderr}")
+                    continue
+
+                # Parse artifact based on type
+                if artifact_name == "eval_results.json":
+                    # Parse eval results JSON
+                    raw_content = temp_file.read_text()
+                    clean_content = _strip_ansi_codes(raw_content)
+
+                    # Find JSON start (skip any leading text)
+                    json_start = clean_content.find("{")
+                    if json_start == -1:
+                        logger.warning(f"No JSON found in artifact {artifact_name} for {job_name}")
+                        continue
+
+                    json_str = clean_content[json_start:]
+                    eval_data = json.loads(json_str)
+
+                    # Extract metrics from eval JSON
+                    # Structure: {"missions": [{"mission_name": "...",
+                    #              "policy_summaries": [{"avg_agent_metrics": {...}}]}]}
+                    if "missions" in eval_data and eval_data["missions"]:
+                        mission = eval_data["missions"][0]
+                        if "policy_summaries" in mission and mission["policy_summaries"]:
+                            policy_summary = mission["policy_summaries"][0]
+
+                            # Extract all avg_agent_metrics
+                            if "avg_agent_metrics" in policy_summary:
+                                avg_metrics = policy_summary["avg_agent_metrics"]
+
+                                # Only extract metrics that are tracked
+                                artifact_metrics = {}
+                                for metric_key in job_state.config.metrics_to_track:
+                                    # Handle nested keys like "avg_agent_metrics.energy.gained"
+                                    if metric_key.startswith("avg_agent_metrics."):
+                                        metric_name = metric_key.replace("avg_agent_metrics.", "")
+                                        if metric_name in avg_metrics:
+                                            artifact_metrics[metric_key] = avg_metrics[metric_name]
+
+                                if artifact_metrics:
+                                    # Merge with existing metrics
+                                    with Session(self._engine) as session:
+                                        job_state_fresh = session.get(JobState, job_name)
+                                        if job_state_fresh:
+                                            existing_metrics = job_state_fresh.metrics or {}
+                                            existing_metrics.update(artifact_metrics)
+                                            job_state_fresh.metrics = existing_metrics
+                                            session.add(job_state_fresh)
+                                            session.commit()
+
+                                            metrics_info = ", ".join(
+                                                f"{key}={value:.2f}" for key, value in artifact_metrics.items()
+                                            )
+                                            logger.info(f"Parsed artifact metrics for {job_name}: {metrics_info}")
+
+                # Clean up temp file
+                if temp_file.exists():
+                    temp_file.unlink()
+
+        except Exception as e:
+            logger.warning(f"Failed to fetch artifacts for {job_name}: {e}")
+
     def _start_local_monitor(self, job_name: str, fetch_immediately: bool = False) -> None:
         """Start background monitoring thread for a local job.
 
@@ -299,6 +387,11 @@ class JobManager:
                                     if job_state.config.metrics_to_track:
                                         logger.debug(f"Fetching final metrics for {job_name}")
                                         self._fetch_metrics(job_name, job_state)
+
+                                    # Fetch artifacts if declared
+                                    if job_state.config.artifacts:
+                                        logger.debug(f"Fetching artifacts for {job_name}")
+                                        self._fetch_artifacts(job_name, job_state)
 
                                     session.add(job_state)
                                     session.commit()
@@ -429,6 +522,11 @@ class JobManager:
                                             if job_state.config.metrics_to_track:
                                                 logger.debug(f"Fetching final metrics for {job_name}")
                                                 self._fetch_metrics(job_name, job_state)
+
+                                            # Fetch artifacts if declared
+                                            if job_state.config.artifacts:
+                                                logger.debug(f"Fetching artifacts for {job_name}")
+                                                self._fetch_artifacts(job_name, job_state)
 
                                             session.add(job_state)
                                             session.commit()
