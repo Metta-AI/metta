@@ -176,6 +176,7 @@ MettaGrid::MettaGrid(const GameConfig& game_config, const py::list map, unsigned
         ConverterConfig config_with_offsets(*converter_config);
         config_with_offsets.input_recipe_offset = _obs_encoder->get_input_recipe_offset();
         config_with_offsets.output_recipe_offset = _obs_encoder->get_output_recipe_offset();
+        config_with_offsets.needed_recipe_offset = _obs_encoder->get_needed_recipe_offset();
 
         Converter* converter = new Converter(r, c, config_with_offsets);
         _grid->add_object(converter);

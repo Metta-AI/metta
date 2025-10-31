@@ -91,6 +91,7 @@ public:
   EventManager* event_manager;
   ObservationType input_recipe_offset;
   ObservationType output_recipe_offset;
+  ObservationType needed_recipe_offset;
 
   Converter(GridCoord r, GridCoord c, const ConverterConfig& cfg)
       : GridObject(),
@@ -107,7 +108,8 @@ public:
         recipe_details_obs(cfg.recipe_details_obs),
         event_manager(nullptr),
         input_recipe_offset(cfg.input_recipe_offset),
-        output_recipe_offset(cfg.output_recipe_offset) {
+        output_recipe_offset(cfg.output_recipe_offset),
+        needed_recipe_offset(cfg.needed_recipe_offset) {
     GridObject::init(cfg.type_id, cfg.type_name, GridLocation(r, c, GridLayer::ObjectLayer), cfg.tag_ids);
 
     // Initialize inventory with initial_resource_count for all output types
@@ -165,7 +167,7 @@ public:
     // We push 3 fixed features + inventory items + (optionally) recipe inputs and outputs + tags
     size_t capacity = 3 + this->inventory.get().size() + this->tag_ids.size();
     if (this->recipe_details_obs) {
-      capacity += this->input_resources.size() + this->output_resources.size();
+      capacity += this->input_resources.size() + this->output_resources.size() + this->input_resources.size();
     }
     features.reserve(capacity);
 
@@ -196,6 +198,15 @@ public:
         if (amount > 0) {
           features.push_back(
               {static_cast<ObservationType>(output_recipe_offset + item), static_cast<ObservationType>(amount)});
+        }
+      }
+
+      for (const auto& [item, required_amount] : this->input_resources) {
+        InventoryQuantity current_amount = this->inventory.amount(item);
+        InventoryQuantity needed = (required_amount > current_amount) ? (required_amount - current_amount) : 0;
+        if (needed > 0) {
+          features.push_back(
+              {static_cast<ObservationType>(needed_recipe_offset + item), static_cast<ObservationType>(needed)});
         }
       }
     }

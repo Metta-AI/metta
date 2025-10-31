@@ -32,6 +32,7 @@ public:
       // Define offsets based on actual inventory item count
       const ObservationType input_recipe_offset = InventoryFeatureOffset + static_cast<ObservationType>(resource_count);
       const ObservationType output_recipe_offset = input_recipe_offset + static_cast<ObservationType>(resource_count);
+      const ObservationType needed_recipe_offset = output_recipe_offset + static_cast<ObservationType>(resource_count);
 
       // Add input recipe features
       for (size_t i = 0; i < resource_names.size(); i++) {
@@ -45,6 +46,13 @@ public:
         auto output_feature = output_recipe_offset + static_cast<ObservationType>(i);
         _feature_normalizations.insert({output_feature, DEFAULT_INVENTORY_NORMALIZATION});
         _feature_names.insert({output_feature, "output:" + resource_names[i]});
+      }
+
+      // Add needed recipe features
+      for (size_t i = 0; i < resource_names.size(); i++) {
+        auto needed_feature = needed_recipe_offset + static_cast<ObservationType>(i);
+        _feature_normalizations.insert({needed_feature, DEFAULT_INVENTORY_NORMALIZATION});
+        _feature_names.insert({needed_feature, "needed:" + resource_names[i]});
       }
     }
   }
@@ -85,6 +93,10 @@ public:
 
   ObservationType get_output_recipe_offset() const {
     return InventoryFeatureOffset + static_cast<ObservationType>(2 * resource_count);
+  }
+
+  ObservationType get_needed_recipe_offset() const {
+    return InventoryFeatureOffset + static_cast<ObservationType>(3 * resource_count);
   }
 
   bool recipe_details_obs;
