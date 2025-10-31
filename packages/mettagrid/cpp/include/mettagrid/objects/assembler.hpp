@@ -137,7 +137,7 @@ public:
     }
   }
 
-  // Protocol lookup table for protocols that depend on agents vibing- keyed by local vibe (64-bit number from sorted
+  // Recipe lookup table for recipes that depend on agents vibing- keyed by local vibe (64-bit number from sorted
   // vibes). Later, this may be switched to having string keys based on the vibes.
   // Note that 0 is both the vibe you get when no one is showing a vibe, and also the default vibe.
   const std::unordered_map<uint64_t, std::shared_ptr<Recipe>> recipes;
@@ -241,34 +241,9 @@ public:
     return static_cast<float>(elapsed) / static_cast<float>(cooldown_duration);
   }
 
-<<<<<<< HEAD
-  // Helper function to calculate GroupVibe from a vector of glyphs
-  static GroupVibe calculate_group_vibe_from_vibes(std::vector<uint8_t> vibes) {
-    // Sort the glyphs to make the vibe independent of agent positions.
-    std::sort(vibes.begin(), vibes.end());
-    return std::accumulate(
-        vibes.begin(), vibes.end(), GroupVibe{0}, [](GroupVibe acc, uint8_t vibe) { return (acc << 8) | vibe; });
-  }
-
-  // Helper function to build a protocol map from a vector of protocols
-  static std::unordered_map<GroupVibe, std::shared_ptr<Protocol>> build_protocol_map(
-      const std::vector<std::shared_ptr<Protocol>>& protocol_list) {
-    std::unordered_map<GroupVibe, std::shared_ptr<Protocol>> protocol_map;
-    for (const auto& protocol : protocol_list) {
-      GroupVibe vibe = calculate_group_vibe_from_vibes(protocol->vibes);
-      protocol_map[vibe] = protocol;
-    }
-    return protocol_map;
-  }
-
   // Helper function to get the "local vibe" based on vibes of surrounding agents
   // Returns a 64-bit number created from sorted vibes of surrounding agents
-  GroupVibe get_local_vibe() const {
-=======
-  // Helper function to get the "local vibe" based on glyphs of surrounding agents
-  // Returns a 64-bit number created from sorted glyphs of surrounding agents
   uint64_t get_local_vibe() const {
->>>>>>> b55ddbb9de (Revert "wip")
     if (!grid) return 0;
 
     std::vector<uint8_t> vibes;
@@ -289,22 +264,13 @@ public:
       }
     }
 
-<<<<<<< HEAD
-    return calculate_group_vibe_from_vibes(vibes);
+    // Sort the vibes to make the vibe independent of agent positions.
+    std::sort(vibes.begin(), vibes.end());
+    return std::accumulate(vibes.begin(), vibes.end(), 0, [](uint64_t acc, uint8_t vibe) { return (acc << 8) | vibe; });
   }
 
-  // Get current protocol based on local vibe from surrounding agent vibes
-  const Protocol* get_current_protocol() const {
-=======
-    // Sort the glyphs to make the vibe independent of agent positions.
-    std::sort(glyphs.begin(), glyphs.end());
-    return std::accumulate(
-        glyphs.begin(), glyphs.end(), 0, [](uint64_t acc, uint8_t glyph) { return (acc << 8) | glyph; });
-  }
-
-  // Get current recipe based on local vibe from surrounding agent glyphs
+  // Get current recipe based on local vibe from surrounding agent vibes
   const Recipe* get_current_recipe() const {
->>>>>>> b55ddbb9de (Revert "wip")
     if (!grid) return nullptr;
     uint64_t vibe = get_local_vibe();
 
