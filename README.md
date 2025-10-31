@@ -188,9 +188,13 @@ builds its configuration, and runs it.
 
 **Navigation recipe**: Replace `arena` with `navigation` for navigation tasks
 
-### Example Notebooks
+### Example Training Notebooks
 
-#### Cogames Training:    [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1YaIdg5a5Ji5_J_HkVOdY9itJTFju54oG?usp=sharing)   also available at `./notebooks/Cogames_Training.ipynb`.
+All the notebooks available at ./notebooks
+
+#### Train on Cogames:    [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1YaIdg5a5Ji5_J_HkVOdY9itJTFju54oG?usp=sharing)
+
+
 
 ### Task arguments
 
