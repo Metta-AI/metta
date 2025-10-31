@@ -50,9 +50,7 @@ class CortexBaseConfig(PolicyArchitecture):
             d_hidden=_latent_dim,
             out_features=_core_out,
             # Default to the mixed Cortex auto stack (Axon/mLSTM/sLSTM) via config.
-            stack_cfg=build_cortex_auto_config(
-                d_hidden=_latent_dim, num_layers=3, post_norm=True, use_axonlayers=False
-            ),
+            stack_cfg=build_cortex_auto_config(d_hidden=_latent_dim, post_norm=True),
             key_prefix="cortex_state",
         ),
         MLPConfig(

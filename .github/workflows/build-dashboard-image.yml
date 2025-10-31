@@ -1,4 +1,4 @@
-name: "Build Observatory Frontend Docker Image"
+name: "Build Dashboard CronJob Docker Image"
 concurrency:
   group: ${{ github.workflow }}
   cancel-in-progress: true
@@ -8,14 +8,22 @@ on:
     branches:
       - main
     paths:
-      - "observatory/**"
-      - ".github/workflows/**"
-  workflow_dispatch: {}
+      - "devops/datadog/**"
+      - "packages/gitta/**"
+      - "devops/charts/dashboard-cronjob/**"
+      - ".github/workflows/build-dashboard-image.yml"
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: "Branch to build from (defaults to current branch)"
+        required: false
+        type: string
+        default: ""
 
 jobs:
   build-and-push-image:
     runs-on: ubuntu-4core
-    timeout-minutes: 20 # up from default of 10 minutes
+    timeout-minutes: 20
     permissions:
       id-token: write
       contents: read
@@ -30,8 +38,8 @@ jobs:
         id: build-image
         uses: ./.github/actions/docker-build
         with:
-          image_name: metta-app-frontend
-          dockerfile: observatory/Dockerfile
+          image_name: softmax-dashboard
+          dockerfile: ./devops/datadog/Dockerfile.collectors
           aws_role: ${{ vars.AWS_ROLE }}
 
       - name: Configure EKS
@@ -42,7 +50,7 @@ jobs:
         if: github.ref == 'refs/heads/main'
         uses: ./.github/actions/helm-deploy
         with:
-          namespace: observatory
-          release: observatory
-          chart: ./devops/charts/observatory
+          namespace: monitoring
+          release: dashboard-cronjob
+          chart: ./devops/charts/dashboard-cronjob
           image_tag: ${{ steps.build-image.outputs.tag }}
