@@ -95,7 +95,7 @@ def main() -> int:
     print(f"Found checkpoint: {checkpoint_path}", flush=True)
 
     # Build evaluation command
-    policy_arg = f"{args.policy}@{checkpoint_path}"
+    policy_arg = f"{args.policy}:{checkpoint_path}"
     eval_cmd = [
         "uv",
         "run",
