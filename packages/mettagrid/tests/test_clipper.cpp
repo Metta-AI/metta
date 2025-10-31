@@ -23,7 +23,8 @@ protected:
     grid = std::make_unique<Grid>(10, 10);
     current_timestep = 0;
     unclip_protocol =
-        std::make_shared<Protocol>(std::unordered_map<InventoryItem, InventoryQuantity>{{TestItems::ORE, 1}},
+        std::make_shared<Protocol>(std::vector<ObservationType>{},
+                                   std::unordered_map<InventoryItem, InventoryQuantity>{{TestItems::ORE, 1}},
                                    std::unordered_map<InventoryItem, InventoryQuantity>{{TestItems::BATTERY, 1}},
                                    10);
   }
@@ -36,9 +37,7 @@ protected:
 
   // Helper to create an assembler at a specific location
   Assembler* create_assembler(GridCoord r, GridCoord c) {
-    std::unordered_map<uint64_t, std::shared_ptr<Protocol>> protocols;
-    AssemblerConfig cfg(1, "test_assembler");
-    cfg.protocols = protocols;
+    AssemblerConfig cfg(1, "test_assembler", 0);
 
     Assembler* assembler = new Assembler(r, c, cfg);
     grid->add_object(assembler);
@@ -245,7 +244,8 @@ protected:
     current_timestep = 0;
     rng.seed(42);
     unclip_protocol =
-        std::make_shared<Protocol>(std::unordered_map<InventoryItem, InventoryQuantity>{{TestItems::ORE, 1}},
+        std::make_shared<Protocol>(std::vector<ObservationType>{},
+                                   std::unordered_map<InventoryItem, InventoryQuantity>{{TestItems::ORE, 1}},
                                    std::unordered_map<InventoryItem, InventoryQuantity>{{TestItems::BATTERY, 1}},
                                    10);
   }
@@ -258,9 +258,7 @@ protected:
 
   // Helper to create an assembler at a specific location
   Assembler* create_assembler(Grid& grid, GridCoord r, GridCoord c, bool clip_immune = false) {
-    std::unordered_map<uint64_t, std::shared_ptr<Protocol>> protocols;
-    AssemblerConfig cfg(1, "test_assembler");
-    cfg.protocols = protocols;
+    AssemblerConfig cfg(1, "test_assembler", 0);
     cfg.clip_immune = clip_immune;
 
     Assembler* assembler = new Assembler(r, c, cfg);

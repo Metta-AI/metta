@@ -16,9 +16,9 @@
 struct AssemblerConfig : public GridObjectConfig {
   AssemblerConfig(TypeId type_id, const std::string& type_name, ObservationType initial_vibe = 0)
       : GridObjectConfig(type_id, type_name, initial_vibe),
-        recipe_details_obs(false),
-        input_recipe_offset(0),
-        output_recipe_offset(0),
+        protocol_details_obs(false),
+        input_protocol_offset(0),
+        output_protocol_offset(0),
         allow_partial_usage(false),
         max_uses(0),             // 0 means unlimited uses
         exhaustion(0.0f),        // 0 means no exhaustion

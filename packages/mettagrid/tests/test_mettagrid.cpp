@@ -1167,8 +1167,8 @@ TEST_F(MettaGridCppTest, AssemblerGetCurrentProtocol) {
 
   // Now with a vibe, should get protocol1
   agent->vibe = 1;
-  current_recipe = assembler->get_current_recipe();
-  EXPECT_EQ(current_recipe, recipe1.get()) << "With one agent and a vibe, should get recipe1";
+  current_protocol = assembler->get_current_protocol();
+  EXPECT_EQ(current_protocol, protocol1.get()) << "With one agent and a vibe, should get protocol1";
 }
 
 TEST_F(MettaGridCppTest, AssemblerProtocolObservationsEnabled) {
@@ -1236,7 +1236,7 @@ TEST_F(MettaGridCppTest, AssemblerBalancedConsumptionAmpleResources) {
   std::unordered_map<InventoryItem, InventoryQuantity> output_resources;
   output_resources[TestItems::LASER] = 1;
 
-  auto protocol = std::make_shared<Protocol>(input_resources, output_resources, 0);
+  auto protocol = std::make_shared<Protocol>(std::vector<ObservationType>{}, input_resources, output_resources, 0);
 
   // Create assembler with the protocol
   AssemblerConfig config(1, "test_assembler");
@@ -1289,7 +1289,7 @@ TEST_F(MettaGridCppTest, AssemblerBalancedConsumptionMixedResources) {
   std::unordered_map<InventoryItem, InventoryQuantity> output_resources;
   output_resources[TestItems::LASER] = 1;
 
-  auto protocol = std::make_shared<Protocol>(input_resources, output_resources, 0);
+  auto protocol = std::make_shared<Protocol>(std::vector<ObservationType>{}, input_resources, output_resources, 0);
 
   // Create assembler with the protocol
   AssemblerConfig config(1, "test_assembler");
