@@ -55,22 +55,23 @@ def _build_incluster_persist_script(cluster_name: str) -> str:
 
     - Writes cluster name under `/workspace/metta/.cluster/name`
     - Ensures METTA_ENV_FILE exists and is sourced from ~/.bashrc on SSH
-    - Ensures `sky` CLI is available in the sandbox venv for in-cluster fan-out
     """
     return f"""
 set -euo pipefail
 if [ "${{SKYPILOT_NODE_RANK:-0}}" != "0" ]; then exit 0; fi
 mkdir -p /workspace/metta/.cluster
-echo {cluster_name!s} > /workspace/metta/.cluster/name
+printf '%s\\n' "{cluster_name}" > /workspace/metta/.cluster/name
 cd /workspace/metta || exit 0
-if [ -n "$VIRTUAL_ENV" ]; then deactivate 2>/dev/null || true; fi
+if [ -n "${VIRTUAL_ENV:-}" ]; then deactivate 2>/dev/null || true; fi
 if [ -f .venv/bin/activate ]; then . .venv/bin/activate; fi
 METTA_ENV_FILE="$(uv run ./common/src/metta/common/util/constants.py METTA_ENV_FILE 2>/dev/null || echo /workspace/metta/.metta_env)"
 touch "$METTA_ENV_FILE"
-if ! grep -q "METTA_ENV_FILE" ~/.bashrc 2>/dev/null; then
-  echo "# Metta sandbox session env" >> ~/.bashrc
-  echo "export METTA_SANDBOX_CLUSTER_NAME=\"{cluster_name!s}\"" >> ~/.bashrc
-  echo "[ -f \"$METTA_ENV_FILE\" ] && . \"$METTA_ENV_FILE\"" >> ~/.bashrc
+if ! grep -q 'METTA_ENV_FILE' ~/.bashrc 2>/dev/null; then
+  cat >> ~/.bashrc << 'EOF'
+# Metta sandbox session env
+export METTA_SANDBOX_CLUSTER_NAME="{cluster_name}"
+[ -f "$METTA_ENV_FILE" ] && . "$METTA_ENV_FILE"
+EOF
 fi
 """
 
@@ -594,10 +595,8 @@ Common management commands:
                     "exec",
                     cluster_name,
                     "--num-nodes",
-                    "all",
+                    "1",
                     "--",
-                    "bash",
-                    "-lc",
                     persist_script,
                 ],
                 check=True,
