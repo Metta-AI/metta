@@ -3,11 +3,11 @@ from typing import Any, cast
 
 from pydantic import Field
 
+from cogames.cogs_vs_clips.evals import eval_missions
 from cogames.cogs_vs_clips.mission import Mission, MissionVariant, Site
 from cogames.cogs_vs_clips.mission_utils import get_map
 from cogames.cogs_vs_clips.procedural import MachinaArenaConfig, make_hub_only_map_builder
 from cogames.cogs_vs_clips.sites import EVALS
-from cogames.cogs_vs_clips.evals import eval_missions
 from cogames.cogs_vs_clips.stations import (
     CarbonExtractorConfig,
     ChargerConfig,
@@ -744,7 +744,8 @@ def make_game(num_cogs: int = 2, map_name: str = "training_facility_open_1.map")
     variant = MissionVariant(name="default", description="Default mission variant")
     return mission.instantiate(map_builder, num_cogs, variant).make_env()
 
-   # noqa: E402
+
+# noqa: E402
 
 MISSIONS.extend(
     [
@@ -753,9 +754,7 @@ MISSIONS.extend(
         eval_missions.CollectTheResourcesHard,
         eval_missions.CollectTheResourcesMedium,
         eval_missions.EnergyStarved,
-        eval_missions.GeraniumForage,
         eval_missions.OxygenBottleneck,
         eval_missions.SingleUseWorld,
-        eval_missions.SparseBalanced,
     ]
 )
