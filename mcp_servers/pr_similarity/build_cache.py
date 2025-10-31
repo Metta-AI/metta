@@ -92,6 +92,13 @@ def parse_args() -> argparse.Namespace:
         help="Optional upper bound on number of PRs to embed (useful for quick tests).",
     )
     parser.add_argument(
+        "--no-upload",
+        action="store_false",
+        dest="upload",
+        default=True,
+        help="Skip uploading cache files to S3 after writing.",
+    )
+    parser.add_argument(
         "--min-description-lines",
         type=int,
         default=DEFAULT_MIN_DESCRIPTION_LINES,
@@ -340,6 +347,22 @@ def write_cache(
     )
 
 
+def upload_cache_to_s3(cache_path: Path, bucket: str = "softmax-public", prefix: str = "pr-cache/") -> None:
+    """Upload cache files to S3."""
+    meta_path, vectors_path = resolve_cache_paths(cache_path)
+
+    if not meta_path.exists() or not vectors_path.exists():
+        raise FileNotFoundError(f"Cache files not found: {meta_path} or {vectors_path}")
+
+    try:
+        s3 = boto3.client("s3")
+        s3.upload_file(str(meta_path), bucket, prefix + meta_path.name)
+        s3.upload_file(str(vectors_path), bucket, prefix + vectors_path.name)
+        print(f"Uploaded cache to s3://{bucket}/{prefix}")
+    except Exception as e:
+        raise RuntimeError(f"Failed to upload cache to S3: {e}") from e
+
+
 def _get_api_key() -> str:
     """Get API key from environment variable or AWS Secrets Manager."""
     api_key = os.getenv(API_KEY_ENV)
@@ -390,6 +413,8 @@ def main() -> None:
         if removed:
             write_cache(args.cache_path, metadata, existing_records)
             print("Updated cache after applying description length filter.")
+            if args.upload:
+                upload_cache_to_s3(args.cache_path)
         else:
             print("Embedding cache already up to date.")
         return
@@ -417,6 +442,8 @@ def main() -> None:
 
     write_cache(args.cache_path, metadata, existing_records)
     print(f"Wrote embedding cache to {args.cache_path}")
+    if args.upload:
+        upload_cache_to_s3(args.cache_path)
 
 
 if __name__ == "__main__":
