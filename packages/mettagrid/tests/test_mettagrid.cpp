@@ -1165,7 +1165,7 @@ TEST_F(MettaGridCppTest, AssemblerGetCurrentRecipe) {
   current_recipe = assembler->get_current_recipe();
   EXPECT_EQ(current_recipe, recipe0.get()) << "With one agent, should still get recipe0";
 
-  // Now with a vibe, should get recipe1
+  // Now with a vibe, should get protocol1
   agent->vibe = 1;
   current_recipe = assembler->get_current_recipe();
   EXPECT_EQ(current_recipe, recipe1.get()) << "With one agent and a vibe, should get recipe1";
