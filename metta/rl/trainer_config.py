@@ -50,12 +50,21 @@ class TorchProfilerConfig(Config):
 class DualPolicyConfig(Config):
     enabled: bool = Field(default=False)
     npc_policy_uri: str | None = Field(default=None)
+    npc_policy_class: str | None = Field(default=None)
+    npc_policy_kwargs: dict[str, Any] = Field(default_factory=dict)
     training_agents_pct: float = Field(default=0.5, ge=0.0, le=1.0)
 
     @model_validator(mode="after")
     def validate_fields(self) -> "DualPolicyConfig":
-        if self.enabled and not self.npc_policy_uri:
-            raise ValueError("dual_policy.npc_policy_uri must be set when dual policy is enabled")
+        if not self.enabled:
+            return self
+
+        if not self.npc_policy_uri and not self.npc_policy_class:
+            raise ValueError("dual_policy requires either npc_policy_uri or npc_policy_class when enabled")
+
+        if self.npc_policy_kwargs and not self.npc_policy_class:
+            raise ValueError("dual_policy.npc_policy_kwargs provided without npc_policy_class")
+
         return self
 
 

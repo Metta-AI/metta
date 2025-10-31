@@ -102,6 +102,7 @@ class ComponentContext:
         self.dual_policy_training_agents_pct: float = 1.0
         self.npc_policy: Policy | None = None
         self.npc_policy_uri: Optional[str] = None
+        self.npc_policy_descriptor: Optional[str] = None
         self.student_mask_per_env: Optional[torch.Tensor] = None
         self.npc_mask_per_env: Optional[torch.Tensor] = None
 

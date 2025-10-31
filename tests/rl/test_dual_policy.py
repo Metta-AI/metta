@@ -94,7 +94,13 @@ def _build_test_ppo() -> PPO:
     policy = _SimplePolicy(offset=0)
     env = SimpleNamespace(single_action_space=spaces.Discrete(4))
 
-    trainer_cfg = SimpleNamespace(dual_policy=SimpleNamespace(enabled=True, training_agents_pct=0.5))
+    trainer_cfg = SimpleNamespace(
+        dual_policy=SimpleNamespace(
+            enabled=True,
+            training_agents_pct=0.5,
+            npc_policy_uri="mock://test",
+        )
+    )
     loss_cfg = PPOConfig()
 
     # Minimal trainer config namespace to satisfy attributes accessed by Loss

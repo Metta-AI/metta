@@ -19,6 +19,7 @@ from metta.app_backend.clients.stats_client import HttpStatsClient, StatsClient
 from metta.cogworks.curriculum.curriculum import Curriculum, CurriculumConfig
 from metta.common.util.heartbeat import record_heartbeat
 from metta.rl.checkpoint_manager import CheckpointManager
+from metta.rl.npc.factory import load_npc_policy
 from metta.rl.policy_artifact import PolicyArtifact
 from metta.rl.training.training_environment import GameRules
 from metta.rl.vecenv import make_vecenv
@@ -111,15 +112,13 @@ class Simulation:
         self._policy_artifact = policy_artifact
         self._policy: Policy | None = None
         self._policy_uri = resolved_policy_uri
-        # Load NPC policy if specified
-        if cfg.npc_policy_uri:
-            self._npc_artifact = CheckpointManager.load_artifact_from_uri(cfg.npc_policy_uri)
-            self._npc_policy: Policy | None = None
-        else:
-            self._npc_artifact = None
-            self._npc_policy = None
+        self._npc_policy: Policy | None = None
+        self._npc_policy_identifier: str | None = None
         self._npc_policy_uri = cfg.npc_policy_uri
-        self._policy_agents_pct = cfg.policy_agents_pct if cfg.npc_policy_uri else 1.0
+        self._npc_policy_class = cfg.npc_policy_class
+        self._npc_policy_kwargs = cfg.npc_policy_kwargs
+        self._npc_policy_is_uri = bool(cfg.npc_policy_uri)
+        self._policy_agents_pct = cfg.policy_agents_pct if (cfg.npc_policy_uri or cfg.npc_policy_class) else 1.0
 
         self._stats_client: StatsClient | None = stats_client
         self._stats_epoch_id: uuid.UUID | None = stats_epoch_id
@@ -141,8 +140,21 @@ class Simulation:
 
         self._policy = self._materialize_policy(self._policy_artifact, self._policy, game_rules)
 
-        if self._npc_artifact is not None:
-            self._npc_policy = self._materialize_policy(self._npc_artifact, self._npc_policy, game_rules)
+        if self._npc_policy_uri or self._npc_policy_class:
+            try:
+                self._npc_policy, self._npc_policy_identifier = load_npc_policy(
+                    npc_policy_uri=self._npc_policy_uri,
+                    npc_policy_class=self._npc_policy_class,
+                    npc_policy_kwargs=self._npc_policy_kwargs,
+                    game_rules=game_rules,
+                    device=self._device,
+                    vector_env=self._vecenv,
+                )
+                self._npc_policy.to(self._device)
+                self._npc_policy.eval()
+                self._npc_policy.initialize_to_environment(game_rules, self._device)
+            except Exception as exc:
+                raise SimulationCompatibilityError(f"Failed to load NPC policy: {exc}") from exc
 
         # agent-index bookkeeping
         idx_matrix = torch.arange(metta_grid_env.num_agents * self._num_envs, device=self._device).reshape(
@@ -388,9 +400,9 @@ class Simulation:
                 agent_map[int(idx.item())] = self._policy_uri
 
         # Add NPC agents to the map if they exist
-        if self._npc_policy is not None and self._npc_policy_uri:
+        if self._npc_policy is not None and self._npc_policy_identifier:
             for idx in self._npc_idxs:
-                agent_map[int(idx.item())] = self._npc_policy_uri
+                agent_map[int(idx.item())] = self._npc_policy_identifier
 
         # Pass the policy URI directly
         db = SimulationStatsDB.from_shards_and_context(
@@ -413,7 +425,7 @@ class Simulation:
                 policy_details.append((self._policy_uri, None))
 
             # Add NPC policy if it exists
-            if self._npc_policy_uri:
+            if self._npc_policy_is_uri and self._npc_policy_uri:
                 policy_details.append((self._npc_policy_uri, "NPC policy"))
 
             policy_ids = get_or_create_policy_ids(self._stats_client, policy_details, self._stats_epoch_id)
@@ -424,7 +436,7 @@ class Simulation:
                 for idx in self._policy_idxs:
                     agent_map[int(idx.item())] = policy_ids[self._policy_uri]
 
-            if self._npc_policy_uri:
+            if self._npc_policy_is_uri and self._npc_policy_uri:
                 for idx in self._npc_idxs:
                     agent_map[int(idx.item())] = policy_ids[self._npc_policy_uri]
 

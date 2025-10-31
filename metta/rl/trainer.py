@@ -5,7 +5,7 @@ import torch
 
 from metta.agent.policy import Policy
 from metta.common.util.log_config import getRankAwareLogger
-from metta.rl.checkpoint_manager import CheckpointManager
+from metta.rl.npc.factory import load_npc_policy
 from metta.rl.trainer_config import TrainerConfig
 from metta.rl.training import (
     ComponentContext,
@@ -169,10 +169,6 @@ class Trainer:
             logger.info("Dual policy training_agents_pct=1.0 -> all agents trained; NPC policy disabled.")
             return
 
-        if dual_cfg.npc_policy_uri is None:
-            logger.warning("Dual policy enabled without npc_policy_uri; disabling.")
-            return
-
         student_agents = int(round(num_agents * dual_cfg.training_agents_pct))
         student_agents = max(1, min(num_agents - 1, student_agents))
         npc_agents = num_agents - student_agents
@@ -181,15 +177,17 @@ class Trainer:
             return
 
         try:
-            npc_policy = CheckpointManager.load_from_uri(
-                dual_cfg.npc_policy_uri,
-                self._env.game_rules,
-                self._device,
+            npc_policy, descriptor = load_npc_policy(
+                npc_policy_uri=getattr(dual_cfg, "npc_policy_uri", None),
+                npc_policy_class=getattr(dual_cfg, "npc_policy_class", None),
+                npc_policy_kwargs=getattr(dual_cfg, "npc_policy_kwargs", {}),
+                game_rules=self._env.game_rules,
+                device=self._device,
+                vector_env=self._env.vecenv,
             )
         except Exception as exc:  # pragma: no cover - defensive logging
             logger.error(
-                "Failed to load NPC policy from %s: %s. Dual policy disabled.",
-                dual_cfg.npc_policy_uri,
+                "Failed to load NPC policy: %s. Dual policy disabled.",
                 exc,
                 exc_info=True,
             )
@@ -213,15 +211,16 @@ class Trainer:
         self._context.dual_policy_enabled = True
         self._context.dual_policy_training_agents_pct = student_agents / num_agents
         self._context.npc_policy = npc_policy
-        self._context.npc_policy_uri = dual_cfg.npc_policy_uri
+        self._context.npc_policy_uri = getattr(dual_cfg, "npc_policy_uri", None)
+        self._context.npc_policy_descriptor = descriptor
         self._context.npc_mask_per_env = npc_mask
         self._context.student_mask_per_env = student_mask
 
         logger.info(
-            "Dual policy enabled: %d NPC / %d student agents (uri=%s)",
+            "Dual policy enabled: %d NPC / %d student agents (source=%s)",
             npc_agents,
             student_agents,
-            dual_cfg.npc_policy_uri,
+            descriptor,
         )
 
     def train(self) -> None:
