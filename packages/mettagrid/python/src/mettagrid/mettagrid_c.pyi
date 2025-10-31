@@ -107,13 +107,9 @@ class ActionConfig:
     required_resources: dict[int, int]
     consumed_resources: dict[int, float]
 
-class Recipe:
-    def __init__(
-        self,
-        input_resources: dict[int, int] = {},
-        output_resources: dict[int, int] = {},
-        cooldown: int = 0,
-    ) -> None: ...
+class Protocol:
+    def __init__(self) -> None: ...
+    vibes: list[int]
     input_resources: dict[int, int]
     output_resources: dict[int, int]
     cooldown: int
@@ -121,12 +117,12 @@ class Recipe:
 class ClipperConfig:
     def __init__(
         self,
-        unclipping_recipes: list[Recipe],
+        unclipping_protocols: list[Protocol],
         length_scale: float,
         cutoff_distance: float,
         clip_rate: float,
     ) -> None: ...
-    unclipping_recipes: list[Recipe]
+    unclipping_protocols: list[Protocol]
     length_scale: float
     cutoff_distance: float
     clip_rate: float
@@ -191,7 +187,7 @@ class GameConfig:
         resource_loss_prob: float = 0.0,
         tag_id_map: dict[int, str] | None = None,
         track_movement_metrics: bool = False,
-        recipe_details_obs: bool = False,
+        protocol_details_obs: bool = False,
         allow_diagonals: bool = False,
         reward_estimates: Optional[dict[str, float]] = None,
         inventory_regen_amounts: dict[int, int] | None = None,
@@ -209,7 +205,7 @@ class GameConfig:
     resource_loss_prob: float
     # FEATURE FLAGS
     track_movement_metrics: bool
-    recipe_details_obs: bool
+    protocol_details_obs: bool
     allow_diagonals: bool
     reward_estimates: Optional[dict[str, float]]
     tag_id_map: dict[int, str]

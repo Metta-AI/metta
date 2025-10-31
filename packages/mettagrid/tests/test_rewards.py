@@ -58,13 +58,10 @@ def create_heart_reward_test_env(max_steps=50, num_agents=NUM_AGENTS):
         objects={
             "wall": WallConfig(),
             "altar": AssemblerConfig(
-                recipes=[
-                    (
-                        [],
-                        ProtocolConfig(
-                            output_resources={"heart": 1},
-                            cooldown=10,
-                        ),
+                protocols=[
+                    ProtocolConfig(
+                        output_resources={"heart": 1},
+                        cooldown=10,
                     )
                 ],
             ),
