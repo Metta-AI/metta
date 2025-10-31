@@ -5,7 +5,7 @@ Both local development (metta ci) and GitHub Actions call this same tool.
 
 GitHub Actions workflow calls individual stages:
   - uv run metta ci --stage lint
-  - uv run metta ci --stage python-tests (runs both tests and benchmarks)
+  - uv run metta ci --stage python-tests-and-benchmarks
   - uv run metta ci --stage cpp-tests
   - uv run metta ci --stage cpp-benchmarks
 
@@ -182,7 +182,7 @@ StageRunner = Callable[[bool, Sequence[str] | None], CheckResult]
 
 stages: dict[str, StageRunner] = {
     "lint": lambda v, args: _run_lint(verbose=v, extra_args=args),
-    "python-tests": lambda v, args: _run_python_tests(verbose=v, extra_args=args),
+    "python-tests-and-benchmarks": lambda v, args: _run_python_tests(verbose=v, extra_args=args),
     "cpp-tests": lambda v, args: _run_cpp_tests(verbose=v, extra_args=args),
     "cpp-benchmarks": lambda v, args: _run_cpp_benchmarks(verbose=v, extra_args=args),
 }
