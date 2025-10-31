@@ -4,8 +4,6 @@ from __future__ import annotations
 
 from typing import Dict, List
 
-from pydantic import BaseModel
-
 from cortex.blocks.column import ColumnBlock
 from cortex.blocks.column.tokens import (
     builtin_block_for_token,
@@ -13,24 +11,21 @@ from cortex.blocks.column.tokens import (
     get_single_char_builtin_symbols,
 )
 from cortex.blocks.registry import build_block
-from cortex.config import (
-    BlockConfig,
-    ColumnBlockConfig,
-    RouterConfig,
-    XLCellConfig,
-    mLSTMCellConfig,
-    sLSTMCellConfig,
-)
+from cortex.config import BlockConfig, CellConfig, ColumnBlockConfig, RouterConfig
 
 
-def _clone_model(model: BaseModel) -> BaseModel:
-    if hasattr(model, "model_copy"):
-        return model.model_copy(deep=True)  # pydantic v2
-    return model.copy(deep=True)  # pydantic v1
+def _enable_axon_if_supported(cell: CellConfig) -> CellConfig:
+    """Enable Axon-backed projections when the cell exposes the relevant flags."""
 
-
-def _builtin_for_token(token: str) -> BlockConfig | None:
-    return builtin_block_for_token(token)
+    dumped = cell.model_dump()
+    updated = False
+    for field in ("use_axon_layer", "use_axon_qkv"):
+        if field in dumped:
+            dumped[field] = True
+            updated = True
+    if not updated:
+        return cell
+    return type(cell)(**dumped)
 
 
 def _parse_tokens(pattern: str, custom_map: Dict[str, BlockConfig] | None) -> List[str]:
@@ -81,29 +76,19 @@ def build_column_auto_config(
             base = tok.rstrip("^")
             ax = tok.endswith("^")
             if custom_map and base in custom_map:
-                cfg = _clone_model(custom_map[base])  # type: ignore[assignment]
+                base_cfg = custom_map[base]
+                cfg = base_cfg.model_copy(deep=True) if hasattr(base_cfg, "model_copy") else base_cfg.copy(deep=True)  # type: ignore[assignment]
                 cell = getattr(cfg, "cell", None)
                 if ax and cell is not None:
-                    if isinstance(cell, mLSTMCellConfig):
-                        dumped = cell.model_dump()
-                        dumped["use_axon_layer"] = True
-                        dumped["use_axon_qkv"] = True
-                        cfg.cell = mLSTMCellConfig(**dumped)
-                    elif isinstance(cell, XLCellConfig):
-                        dumped = cell.model_dump()
-                        dumped["use_axon_qkv"] = True
-                        cfg.cell = XLCellConfig(**dumped)
-                    elif isinstance(cell, sLSTMCellConfig):
-                        dumped = cell.model_dump()
-                        dumped["use_axon_layer"] = True
-                        cfg.cell = sLSTMCellConfig(**dumped)
+                    cfg.cell = _enable_axon_if_supported(cell)
             if cfg is None:
-                cfg = _builtin_for_token(tok)
+                cfg = builtin_block_for_token(tok)
 
         if cfg is None:
             raise ValueError(f"Unknown token '{tok}'. Use A|X|M|S|M^|X^|S^ or provide a custom_map entry.")
 
-        experts.append(_clone_model(cfg))  # new instance per expert
+        clone = cfg.model_copy(deep=True) if hasattr(cfg, "model_copy") else cfg.copy(deep=True)
+        experts.append(clone)  # new instance per expert
 
     col_cfg = ColumnBlockConfig(experts=experts, router=(router or RouterConfig()))
     return col_cfg
