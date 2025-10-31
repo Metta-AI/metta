@@ -29,6 +29,7 @@ import shlex
 import subprocess
 import sys
 from typing import List
+import signal
 
 from metta.common.tool.tool_path import validate_module_path
 from metta.tools.utils.auto_config import auto_run_name
@@ -323,10 +324,30 @@ def main() -> int:
             return 0
 
     # Execute and stream output; on Ctrl+C, clean up remote training processes.
+    proc = subprocess.Popen(exec_cmd)
+    interrupted = False
+
+    def _on_sigint(signum, frame):
+        nonlocal interrupted
+        interrupted = True
+        try:
+            # Stop local log streaming first
+            if hasattr(os, "killpg"):
+                os.killpg(proc.pid, signal.SIGINT)
+            else:
+                proc.send_signal(signal.SIGINT)
+        except Exception:
+            pass
+
+    prev_handler = signal.getsignal(signal.SIGINT)
+    signal.signal(signal.SIGINT, _on_sigint)
     try:
-        subprocess.run(exec_cmd, check=True)
-    except KeyboardInterrupt:
-        print("[CANCEL] Caught Ctrl+C — stopping remote training...")
+        ret = proc.wait()
+    finally:
+        signal.signal(signal.SIGINT, prev_handler)
+
+    if interrupted:
+        print("[CANCEL] Ctrl+C detected — stopping remote training across nodes...")
         kill_script = _build_remote_kill_script()
         kill_cmd = [
             "uv",
@@ -339,13 +360,12 @@ def main() -> int:
             "--",
             kill_script,
         ]
-        try:
-            subprocess.run(kill_cmd, check=False)
-        finally:
-            return 130
-    except subprocess.CalledProcessError as e:
-        print(f"launch_sandbox: sky exec failed with code {e.returncode}", file=sys.stderr)
-        return e.returncode or 1
+        subprocess.run(kill_cmd, check=False)
+        return 130
+
+    if ret != 0:
+        print(f"launch_sandbox: sky exec failed with code {ret}", file=sys.stderr)
+        return ret or 1
 
     return 0
 
