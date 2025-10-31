@@ -179,7 +179,12 @@ def main() -> int:
         ),
     )
     parser.add_argument("module_path", type=str, help="Tool module path (e.g., arena.train or experiments.recipes.arena.train)")
-    parser.add_argument("--nodes", type=int, default=1, help="Number of nodes to exec across (integer)")
+    parser.add_argument(
+        "--nodes",
+        type=int,
+        default=None,
+        help="Number of nodes to exec across. If omitted, auto-detects when running inside the sandbox.",
+    )
     parser.add_argument("--run", type=str, default=None, help="Run ID (auto-generated if omitted)")
     parser.add_argument("--master-port", type=int, default=29501, help="Master port for torchrun rendezvous (default: 29501)")
     parser.add_argument("--unset-cuda-visible-devices", action="store_true", default=True, help=argparse.SUPPRESS)
@@ -258,6 +263,27 @@ def main() -> int:
     # Prepend explicit MASTER_PORT export so it overrides defaults inside the script
     remote_script = f"MASTER_PORT={args.master_port}\n" + remote_script
 
+    # Determine node count: prefer explicit flag; else auto-detect from cluster metadata when in-cluster.
+    effective_nodes = args.nodes
+    if effective_nodes is None:
+        # Try the persisted file first (created during sandbox provisioning)
+        try:
+            with open("/workspace/metta/.cluster/num_nodes", "r", encoding="utf-8") as fh:
+                val = fh.read().strip()
+                if val.isdigit():
+                    effective_nodes = int(val)
+        except FileNotFoundError:
+            effective_nodes = None
+        except OSError:
+            effective_nodes = None
+    if effective_nodes is None:
+        # Fallback to SKYPILOT_NUM_NODES if present in environment
+        env_val = os.environ.get("SKYPILOT_NUM_NODES")
+        if env_val and env_val.isdigit():
+            effective_nodes = int(env_val)
+    if effective_nodes is None:
+        effective_nodes = 1
+
     exec_cmd = [
         "uv",
         "run",
@@ -265,7 +291,7 @@ def main() -> int:
         "exec",
         cluster_name,
         "--num-nodes",
-        str(args.nodes),
+        str(effective_nodes),
         "--",
         "bash",
         "-lc",

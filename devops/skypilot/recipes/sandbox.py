@@ -52,13 +52,14 @@ credentials_logger.propagate = False
 
 
 def _build_incluster_persist_script(cluster_name: str) -> str:
-    """Return a one-liner to persist cluster name on head (rank 0)."""
+    """Return a one-liner to persist cluster name and node count on head (rank 0)."""
     quoted_name = shlex.quote(cluster_name)
     return (
         "set -e; "
         "if [ \"${SKYPILOT_NODE_RANK:-0}\" != \"0\" ]; then exit 0; fi; "
         "mkdir -p /workspace/metta/.cluster; "
-        f"printf \"%s\\n\" {quoted_name} > /workspace/metta/.cluster/name"
+        f"printf \"%s\\n\" {quoted_name} > /workspace/metta/.cluster/name; "
+        "printf \"%s\\n\" \"${SKYPILOT_NUM_NODES:-1}\" > /workspace/metta/.cluster/num_nodes"
     )
 
 
