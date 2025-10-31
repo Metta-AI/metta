@@ -182,12 +182,10 @@ class ResourceModConfig(ActionConfig):
         consumed_resources: dict[int, float] = {},
         modifies: dict[int, float] = {},
         agent_radius: int = 0,
-        converter_radius: int = 0,
         scales: bool = False,
     ) -> None: ...
     modifies: dict[int, float]
     agent_radius: int
-    converter_radius: int
     scales: bool
 
 class GlobalObsConfig:

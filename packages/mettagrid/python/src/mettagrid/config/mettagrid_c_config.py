@@ -416,7 +416,6 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
                 "consumed_resources": action_cpp_params.get("consumed_resources", {}),
                 "modifies": {resource_name_to_id[k]: float(v) for k, v in modifies_dict.items()},
                 "agent_radius": action_config.get("agent_radius", 0),
-                "converter_radius": action_config.get("converter_radius", 0),
                 "scales": action_config.get("scales", False),
             }
             actions_cpp_params[action_name] = CppResourceModConfig(**resource_mod_params)
