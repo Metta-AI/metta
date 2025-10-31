@@ -2,17 +2,14 @@ schedule: "0 0 * * *"  # Run once daily at midnight
 
 image:
   registry: 751442549699.dkr.ecr.us-east-1.amazonaws.com
-  name: softmax-dashboard
+  name: pr-similarity-cache
   pullPolicy: Always
   tag: "latest"
 
 # Command to refresh PR similarity cache
 command:
-  - uv
-  - run
   - python
-  - -m
-  - softmax.pr_similarity.cache_refresh
+  - mcp_servers/pr_similarity/build_cache.py
 
 serviceAccount:
   create: true

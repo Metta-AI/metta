@@ -1,0 +1,57 @@
+name: "Build PR Similarity Cache CronJob Docker Image"
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: true
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "mcp_servers/pr_similarity/**"
+      - "metta/tools/pr_similarity.py"
+      - "packages/gitta/**"
+      - "devops/charts/pr-similarity-cache-cronjob/**"
+      - ".github/workflows/build-pr-similarity-cache-image.yml"
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: "Branch to build from (defaults to current branch)"
+        required: false
+        type: string
+        default: ""
+
+jobs:
+  build-and-push-image:
+    runs-on: ubuntu-4core
+    timeout-minutes: 20
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Build Docker image
+        id: build-image
+        uses: ./.github/actions/docker-build
+        with:
+          image_name: pr-similarity-cache
+          dockerfile: ./devops/charts/pr-similarity-cache-cronjob/Dockerfile
+          aws_role: ${{ vars.AWS_ROLE }}
+
+      - name: Configure EKS
+        if: github.ref == 'refs/heads/main'
+        uses: ./.github/actions/eks-configure
+
+      - name: Deploy with Helm
+        if: github.ref == 'refs/heads/main'
+        uses: ./.github/actions/helm-deploy
+        with:
+          namespace: monitoring
+          release: pr-similarity-cache-cronjob
+          chart: ./devops/charts/pr-similarity-cache-cronjob
+          image_tag: ${{ steps.build-image.outputs.tag }}
