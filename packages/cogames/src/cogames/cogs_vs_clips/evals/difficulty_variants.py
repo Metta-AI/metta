@@ -17,6 +17,17 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
+# -----------------------------------------------------------------------------
+# Module constants
+# -----------------------------------------------------------------------------
+
+RESOURCE_KEYS = ("carbon", "oxygen", "germanium", "silicon")
+
+# Solvability floors (non-breaking; keep extreme playable)
+EFFICIENCY_FLOOR = 10
+CHARGER_EFFICIENCY_FLOOR = 50
+ENERGY_REGEN_FLOOR = 1  # applied only when nonzero
+
 
 class DifficultyLevel(BaseModel):
     """Configuration for a difficulty level."""
@@ -222,58 +233,43 @@ def apply_difficulty(
         mission: Mission instance to modify
         difficulty: DifficultyLevel to apply
     """
-    # Apply max_uses
-    if difficulty.carbon_max_uses_override is not None:
-        mission.carbon_extractor.max_uses = difficulty.carbon_max_uses_override
-    else:
-        mission.carbon_extractor.max_uses = int(mission.carbon_extractor.max_uses * difficulty.carbon_max_uses_mult)
+    # Apply max_uses (override if set, else multiply), then enforce floor of 1 if baseline > 0
+    for res in RESOURCE_KEYS:
+        extractor = getattr(mission, f"{res}_extractor")
+        override_val = getattr(difficulty, f"{res}_max_uses_override")
+        mult_val = getattr(difficulty, f"{res}_max_uses_mult")
+        if override_val is not None:
+            extractor.max_uses = override_val
+        else:
+            try:
+                mu = int(extractor.max_uses)
+                scaled = int(mu * mult_val)
+                extractor.max_uses = max(1, scaled) if mu > 0 else scaled
+            except Exception:
+                # Best-effort; leave as-is on failure
+                pass
 
-    if difficulty.oxygen_max_uses_override is not None:
-        mission.oxygen_extractor.max_uses = difficulty.oxygen_max_uses_override
-    else:
-        mission.oxygen_extractor.max_uses = int(mission.oxygen_extractor.max_uses * difficulty.oxygen_max_uses_mult)
+    # Apply efficiency (override if set, else multiply)
+    for res in RESOURCE_KEYS:
+        extractor = getattr(mission, f"{res}_extractor")
+        override_val = getattr(difficulty, f"{res}_eff_override")
+        mult_val = getattr(difficulty, f"{res}_eff_mult")
+        if override_val is not None:
+            extractor.efficiency = override_val
+        else:
+            try:
+                eff = int(extractor.efficiency)
+                extractor.efficiency = int(eff * mult_val)
+            except Exception:
+                pass
 
-    if difficulty.germanium_max_uses_override is not None:
-        mission.germanium_extractor.max_uses = difficulty.germanium_max_uses_override
-    else:
-        mission.germanium_extractor.max_uses = int(
-            mission.germanium_extractor.max_uses * difficulty.germanium_max_uses_mult
-        )
-
-    if difficulty.silicon_max_uses_override is not None:
-        mission.silicon_extractor.max_uses = difficulty.silicon_max_uses_override
-    else:
-        mission.silicon_extractor.max_uses = int(mission.silicon_extractor.max_uses * difficulty.silicon_max_uses_mult)
-
-    # Apply efficiency
-    if difficulty.carbon_eff_override is not None:
-        mission.carbon_extractor.efficiency = difficulty.carbon_eff_override
-    else:
-        mission.carbon_extractor.efficiency = int(mission.carbon_extractor.efficiency * difficulty.carbon_eff_mult)
-
-    if difficulty.oxygen_eff_override is not None:
-        mission.oxygen_extractor.efficiency = difficulty.oxygen_eff_override
-    else:
-        mission.oxygen_extractor.efficiency = int(mission.oxygen_extractor.efficiency * difficulty.oxygen_eff_mult)
-
-    if difficulty.germanium_eff_override is not None:
-        mission.germanium_extractor.efficiency = difficulty.germanium_eff_override
-    else:
-        mission.germanium_extractor.efficiency = int(
-            mission.germanium_extractor.efficiency * difficulty.germanium_eff_mult
-        )
-
-    if difficulty.silicon_eff_override is not None:
-        mission.silicon_extractor.efficiency = difficulty.silicon_eff_override
-    else:
-        mission.silicon_extractor.efficiency = int(mission.silicon_extractor.efficiency * difficulty.silicon_eff_mult)
-
+    # Charger efficiency
     if difficulty.charger_eff_override is not None:
         mission.charger.efficiency = difficulty.charger_eff_override
     else:
         mission.charger.efficiency = int(mission.charger.efficiency * difficulty.charger_eff_mult)
 
-    # Apply energy regen
+    # Energy regen
     if difficulty.energy_regen_override is not None:
         mission.energy_regen_amount = difficulty.energy_regen_override
     else:
@@ -298,14 +294,8 @@ def apply_difficulty(
             if eff_scale > 2.0:
                 eff_scale = 2.0
 
-            extractor_keys = (
-                "carbon_extractor",
-                "oxygen_extractor",
-                "germanium_extractor",
-                "silicon_extractor",
-            )
-
-            for key in extractor_keys:
+            for res in RESOURCE_KEYS:
+                key = f"{res}_extractor"
                 obj = cfg.game.objects.get(key)
                 if obj is None:
                     continue
@@ -318,7 +308,7 @@ def apply_difficulty(
                             obj.max_uses = max(1, mu)
                     if hasattr(obj, "efficiency"):
                         eff = int(obj.efficiency)
-                        obj.efficiency = max(10, int(eff * eff_scale))
+                        obj.efficiency = max(EFFICIENCY_FLOOR, int(eff * eff_scale))
                 except Exception:
                     pass
 
@@ -326,7 +316,7 @@ def apply_difficulty(
             ch = cfg.game.objects.get("charger")
             if ch is not None and hasattr(ch, "efficiency"):
                 try:
-                    ch.efficiency = max(50, int(ch.efficiency))
+                    ch.efficiency = max(CHARGER_EFFICIENCY_FLOOR, int(ch.efficiency))
                 except Exception:
                     pass
 
@@ -334,7 +324,8 @@ def apply_difficulty(
             try:
                 if cfg.game.agent.inventory_regen_amounts.get("energy", 1) > 0:
                     cfg.game.agent.inventory_regen_amounts["energy"] = max(
-                        1, int(cfg.game.agent.inventory_regen_amounts.get("energy", 1))
+                        ENERGY_REGEN_FLOOR,
+                        int(cfg.game.agent.inventory_regen_amounts.get("energy", 1)),
                     )
             except Exception:
                 pass
