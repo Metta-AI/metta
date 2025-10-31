@@ -425,15 +425,18 @@ def make_eval_suite():
 def experiment():
     for curriculum_style in curriculum_args:
         for architecture in ["vit_reset", "lstm_reset", "transformer"]:
+            run_name = f"cogs_v_clips.level_1.{curriculum_style}_{architecture}.{time.strftime('%Y-%m-%d')}"
+
             subprocess.run(
                 [
                     "./devops/skypilot/launch.py",
+                    "--tool",
                     "experiments.recipes.cogs_v_clips.level_1.train",
-                    f"run=cogs_v_clips.level_1.{curriculum_style}_{architecture}.{time.strftime('%Y-%m-%d')}",
+                    f"run={run_name}",
                     f"curriculum_style={curriculum_style}",
                     f"architecture={architecture}",
                     "--gpus=4",
-                    "--heartbeat-timeout=3600",
+                    "--heartbeat-timeout-seconds=3600",
                 ]
             )
         time.sleep(1)

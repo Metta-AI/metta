@@ -151,13 +151,14 @@ class SkyPilotTestLauncher:
         max_attempts: int = 3,
     ) -> LaunchedJob:
         """Launch a single job and track its status with retry logic."""
-        # Build the command
+        # Build the launch.py command using --tool flag
         cmd = [
             "devops/skypilot/launch.py",
-            *base_args,
+            "--tool",
             module,
             f"run={run_name}",
             *extra_args,
+            *base_args,  # --gpus, --nodes, --no-spot
         ]
 
         if enable_ci_tests:

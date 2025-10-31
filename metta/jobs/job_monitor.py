@@ -13,6 +13,7 @@ from typing import Any
 
 from sky.server.common import get_server_url
 
+from metta.jobs.job_config import MetricsSource
 from metta.jobs.job_manager import JobManager
 
 
@@ -23,8 +24,9 @@ class JobMonitor:
         self._start_time = time.time()
 
     def _should_show_training_artifacts(self, job_name: str) -> bool:
+        """Check if job has training artifacts (WandB runs, checkpoints)."""
         job_state = self.job_manager.get_job_state(job_name)
-        return job_state.config.is_training_job if job_state else False
+        return job_state.config.metrics_source == MetricsSource.WANDB if job_state else False
 
     def _extract_failure_summary(self, logs_path: str) -> list[str]:
         try:

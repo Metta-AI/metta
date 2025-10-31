@@ -10,6 +10,7 @@ The runner handles:
 from __future__ import annotations
 
 import io
+import json
 import sys
 import time
 from contextlib import redirect_stdout
@@ -388,6 +389,16 @@ class TaskRunner:
         # Set unique job name and group for JobManager
         task.job_config.name = job_name
         task.job_config.group = self.state.version
+
+        # Build S3 artifact paths using convention: s3://softmax-public/stable/jobs/{job_name}/{artifact_name}
+        if task.job_config.cmd and task.job_config.artifacts:
+            artifact_paths = {
+                artifact_name: f"s3://softmax-public/stable/jobs/{job_name}/{artifact_name}"
+                for artifact_name in task.job_config.artifacts
+            }
+            # Pass artifact paths as JSON string
+            artifact_json = json.dumps(artifact_paths)
+            task.job_config.cmd = f"{task.job_config.cmd} --artifacts '{artifact_json}'"
 
         # Submit to JobManager (monitor will show status)
         try:

@@ -90,7 +90,12 @@ runs:
 
         chmod +x ./devops/skypilot/launch.py
 
-        LAUNCH_ARGS=("${{ inputs.module_name }}")
+        # Build launch.py command using --tool flag
+        LAUNCH_ARGS=(
+          "--tool"
+          "${{ inputs.module_name }}"
+          "run=${{ inputs.run_name }}"
+        )
 
         if [ -n "${{ inputs.num_gpus }}" ]; then
           LAUNCH_ARGS+=( "--gpus=${{ inputs.num_gpus }}" )
@@ -115,7 +120,6 @@ runs:
         LAUNCH_ARGS+=(
           "--max-runtime-hours=${{ inputs.timeout_hours }}"
           "--git-ref=${{ inputs.commit_sha }}"
-          "--run=${{ inputs.run_name }}"
         )
 
         # Capture the output

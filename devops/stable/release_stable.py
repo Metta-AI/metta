@@ -38,6 +38,7 @@ from devops.stable.state import (
 from devops.stable.tasks import get_all_tasks
 from metta.common.util.fs import get_repo_root
 from metta.common.util.text_styles import bold, cyan, green, yellow
+from metta.jobs.job_config import MetricsSource
 from metta.jobs.job_manager import JobManager
 
 # ============================================================================
@@ -402,8 +403,8 @@ def step_summary(version: str, **_kwargs) -> None:
                 metrics_str = ", ".join(f"{k}={v:.1f}" for k, v in job_state.metrics.items())
                 print(f"       Metrics: {metrics_str}")
 
-            # Collect training job info
-            if task.job_config.is_training_job:
+            # Collect training job info (jobs with metrics)
+            if task.job_config.metrics_source != MetricsSource.NONE:
                 training_jobs.append((task.name, job_state))
 
     # Print release notes template
@@ -498,8 +499,8 @@ def step_release(version: str, **_kwargs) -> None:
                 metrics_str = ", ".join(f"{k}={v:.1f}" for k, v in job_state.metrics.items())
                 release_notes_content += f"  - Metrics: {metrics_str}\n"
 
-            # Collect training jobs
-            if task.job_config.is_training_job:
+            # Collect training jobs (jobs with metrics)
+            if task.job_config.metrics_source != MetricsSource.NONE:
                 training_jobs.append((task.name, job_state))
 
     release_notes_content += f"""
