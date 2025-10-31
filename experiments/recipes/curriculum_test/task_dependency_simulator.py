@@ -1332,3 +1332,345 @@ def sweep_zscore_amplification(
         max_zscore=max_zscore,
         run_prefix=run_prefix,
     )
+
+
+class NumTasksSweepTool(Tool):
+    """Tool for running num_tasks sweep experiments."""
+
+    num_epochs: int = 500
+    samples_per_epoch: int = 10
+    num_envs: int = 32
+    num_sweep_points: int = 10
+    min_tasks: int = 3
+    max_tasks: int = 30
+    run_prefix: Optional[str] = None
+
+    def invoke(self, args: dict[str, str]) -> int | None:
+        """Run all sweep experiments sequentially."""
+        # Generate linearly spaced task counts (must be integers)
+        sweep_values = np.linspace(
+            self.min_tasks, self.max_tasks, self.num_sweep_points, dtype=int
+        )
+        # Remove duplicates that may arise from rounding
+        sweep_values = sorted(set(sweep_values))
+
+        logger.info(
+            f"Starting num_tasks sweep with {len(sweep_values)} points from {self.min_tasks} to {self.max_tasks}"
+        )
+
+        all_results = []
+        for i, num_tasks in enumerate(sweep_values):
+            logger.info(
+                f"\n{'=' * 80}\nSweep point {i + 1}/{len(sweep_values)}: num_tasks={num_tasks}\n{'=' * 80}"
+            )
+
+            # Create unique run name for this sweep point
+            if self.run_prefix:
+                run_name = f"{self.run_prefix}_tasks_{num_tasks}"
+            else:
+                run_name = f"sweep_tasks_{num_tasks}"
+
+            # Create configuration for this sweep point
+            config = SimulationConfig(
+                num_epochs=self.num_epochs,
+                samples_per_epoch=self.samples_per_epoch,
+                num_envs=self.num_envs,
+                wandb_project="curriculum_test",
+                wandb_run_name=run_name,
+                simulator=SimulatorConfig(
+                    num_tasks=num_tasks,  # SWEPT PARAMETER
+                    gamma=0.3,
+                    lambda_forget=0.05,
+                    performance_threshold=0.85,
+                    task_noise_std=0.05,
+                    sample_noise_std=1e-2,
+                    dt=0.1,
+                ),
+                curriculum=CurriculumLPConfig(
+                    ema_timescale=0.1,
+                    slow_timescale_factor=0.2,
+                    exploration_bonus=0.2,
+                    progress_smoothing=0.0,
+                    lp_score_temperature=0.0,
+                    z_score_amplification=10.0,
+                    early_progress_amplification=0.5,
+                    use_bidirectional=True,
+                    num_active_tasks=200,
+                    rand_task_rate=0.05,
+                    min_presentations_for_eviction=20,
+                    eviction_threshold_percentile=0.3,
+                    enable_detailed_slice_logging=False,
+                    max_slice_axes=3,
+                    use_shared_memory=False,
+                ),
+            )
+
+            # Run this experiment
+            try:
+                results = simulate_task_dependencies(config)
+                all_results.append(
+                    {
+                        "num_tasks": int(num_tasks),
+                        "final_mean_performance": results["final_mean_performance"],
+                        "tasks_above_threshold": results["tasks_above_threshold"],
+                    }
+                )
+                logger.info(
+                    f"✅ Sweep point {i + 1}/{len(sweep_values)} completed. "
+                    f"Final mean performance: {results['final_mean_performance']:.3f}"
+                )
+            except Exception as e:
+                logger.error(f"❌ Sweep point {i + 1}/{len(sweep_values)} failed: {e}")
+                # Continue with next sweep point
+                all_results.append(
+                    {"num_tasks": int(num_tasks), "error": str(e), "failed": True}
+                )
+
+        # Log summary of all sweep results
+        logger.info(f"\n{'=' * 80}\nSweep Summary\n{'=' * 80}")
+        for i, result in enumerate(all_results):
+            if result.get("failed"):
+                logger.info(f"Point {i + 1}: num_tasks={result['num_tasks']} - FAILED")
+            else:
+                logger.info(
+                    f"Point {i + 1}: num_tasks={result['num_tasks']} - "
+                    f"performance={result['final_mean_performance']:.3f}, "
+                    f"tasks_above_threshold={result['tasks_above_threshold']}"
+                )
+
+        return 0
+
+
+def sweep_num_tasks(
+    num_epochs: int = 500,
+    samples_per_epoch: int = 10,
+    num_envs: int = 32,
+    num_sweep_points: int = 10,
+    min_tasks: int = 3,
+    max_tasks: int = 30,
+    run_prefix: Optional[str] = None,
+) -> NumTasksSweepTool:
+    """
+    Sweep experiment across num_tasks hyperparameter.
+
+    This sweep explores how the number of tasks in the dependency chain affects
+    curriculum learning dynamics. Varying the chain length helps understand:
+    - How well the curriculum handles longer dependency chains
+    - Whether task complexity scaling affects learning progress scoring
+    - How eviction and sampling dynamics change with more tasks
+
+    The sweep runs all experiments sequentially, logging each to WandB with a
+    unique run name.
+
+    Args:
+        num_epochs: Number of training epochs (default: 500)
+        samples_per_epoch: Number of task samples per epoch per environment (default: 10)
+        num_envs: Number of parallel environments for vectorization (default: 32)
+        num_sweep_points: Number of sweep points (default: 10)
+        min_tasks: Minimum number of tasks in chain (default: 3)
+        max_tasks: Maximum number of tasks in chain (default: 30)
+        run_prefix: Optional prefix for wandb run names
+
+    Returns:
+        Configured NumTasksSweepTool that runs all experiments sequentially
+
+    Usage:
+        # Basic usage (10 experiments from 3 to 30 tasks)
+        uv run ./tools/run.py experiments.recipes.curriculum_test.task_dependency_simulator.sweep_num_tasks
+
+        # Custom sweep range
+        uv run ./tools/run.py experiments.recipes.curriculum_test.task_dependency_simulator.sweep_num_tasks \\
+            num_sweep_points=15 min_tasks=5 max_tasks=50 run_prefix=long_chains
+
+        # Quick test with fewer epochs
+        uv run ./tools/run.py experiments.recipes.curriculum_test.task_dependency_simulator.sweep_num_tasks \\
+            num_epochs=100 num_sweep_points=5 max_tasks=15
+    """
+    return NumTasksSweepTool(
+        num_epochs=num_epochs,
+        samples_per_epoch=samples_per_epoch,
+        num_envs=num_envs,
+        num_sweep_points=num_sweep_points,
+        min_tasks=min_tasks,
+        max_tasks=max_tasks,
+        run_prefix=run_prefix,
+    )
+
+
+class NumActiveTasksSweepTool(Tool):
+    """Tool for running num_active_tasks sweep experiments."""
+
+    num_tasks: int = 10
+    num_epochs: int = 500
+    samples_per_epoch: int = 10
+    num_envs: int = 32
+    num_sweep_points: int = 10
+    min_active_tasks: int = 50
+    max_active_tasks: int = 1000
+    run_prefix: Optional[str] = None
+
+    def invoke(self, args: dict[str, str]) -> int | None:
+        """Run all sweep experiments sequentially."""
+        # Generate logarithmically spaced values (must be integers)
+        sweep_values = np.logspace(
+            np.log10(self.min_active_tasks),
+            np.log10(self.max_active_tasks),
+            self.num_sweep_points,
+            dtype=int,
+        )
+        # Remove duplicates that may arise from rounding
+        sweep_values = sorted(set(sweep_values))
+
+        logger.info(
+            f"Starting num_active_tasks sweep with {len(sweep_values)} points from {self.min_active_tasks} to {self.max_active_tasks}"
+        )
+
+        all_results = []
+        for i, num_active in enumerate(sweep_values):
+            logger.info(
+                f"\n{'=' * 80}\nSweep point {i + 1}/{len(sweep_values)}: num_active_tasks={num_active}\n{'=' * 80}"
+            )
+
+            # Create unique run name for this sweep point
+            if self.run_prefix:
+                run_name = f"{self.run_prefix}_active_{num_active}"
+            else:
+                run_name = f"sweep_active_{num_active}"
+
+            # Create configuration for this sweep point
+            config = SimulationConfig(
+                num_epochs=self.num_epochs,
+                samples_per_epoch=self.samples_per_epoch,
+                num_envs=self.num_envs,
+                wandb_project="curriculum_test",
+                wandb_run_name=run_name,
+                simulator=SimulatorConfig(
+                    num_tasks=self.num_tasks,
+                    gamma=0.3,
+                    lambda_forget=0.05,
+                    performance_threshold=0.85,
+                    task_noise_std=0.05,
+                    sample_noise_std=1e-2,
+                    dt=0.1,
+                ),
+                curriculum=CurriculumLPConfig(
+                    ema_timescale=0.1,
+                    slow_timescale_factor=0.2,
+                    exploration_bonus=0.2,
+                    progress_smoothing=0.0,
+                    lp_score_temperature=0.0,
+                    z_score_amplification=10.0,
+                    early_progress_amplification=0.5,
+                    use_bidirectional=True,
+                    num_active_tasks=num_active,  # SWEPT PARAMETER
+                    rand_task_rate=0.05,
+                    min_presentations_for_eviction=20,
+                    eviction_threshold_percentile=0.3,
+                    enable_detailed_slice_logging=False,
+                    max_slice_axes=3,
+                    use_shared_memory=False,
+                ),
+            )
+
+            # Run this experiment
+            try:
+                results = simulate_task_dependencies(config)
+                all_results.append(
+                    {
+                        "num_active_tasks": int(num_active),
+                        "final_mean_performance": results["final_mean_performance"],
+                        "tasks_above_threshold": results["tasks_above_threshold"],
+                    }
+                )
+                logger.info(
+                    f"✅ Sweep point {i + 1}/{len(sweep_values)} completed. "
+                    f"Final mean performance: {results['final_mean_performance']:.3f}"
+                )
+            except Exception as e:
+                logger.error(f"❌ Sweep point {i + 1}/{len(sweep_values)} failed: {e}")
+                # Continue with next sweep point
+                all_results.append(
+                    {
+                        "num_active_tasks": int(num_active),
+                        "error": str(e),
+                        "failed": True,
+                    }
+                )
+
+        # Log summary of all sweep results
+        logger.info(f"\n{'=' * 80}\nSweep Summary\n{'=' * 80}")
+        for i, result in enumerate(all_results):
+            if result.get("failed"):
+                logger.info(
+                    f"Point {i + 1}: num_active_tasks={result['num_active_tasks']} - FAILED"
+                )
+            else:
+                logger.info(
+                    f"Point {i + 1}: num_active_tasks={result['num_active_tasks']} - "
+                    f"performance={result['final_mean_performance']:.3f}, "
+                    f"tasks_above_threshold={result['tasks_above_threshold']}"
+                )
+
+        return 0
+
+
+def sweep_num_active_tasks(
+    num_tasks: int = 10,
+    num_epochs: int = 500,
+    samples_per_epoch: int = 10,
+    num_envs: int = 32,
+    num_sweep_points: int = 10,
+    min_active_tasks: int = 50,
+    max_active_tasks: int = 1000,
+    run_prefix: Optional[str] = None,
+) -> NumActiveTasksSweepTool:
+    """
+    Sweep experiment across num_active_tasks hyperparameter.
+
+    This sweep explores how the size of the active task pool affects curriculum
+    learning dynamics. The num_active_tasks parameter controls how many tasks
+    are kept in the curriculum's active pool before eviction occurs.
+
+    Key insights this sweep provides:
+    - Small pools (50-100): More focused learning, faster eviction, potentially premature
+    - Medium pools (200-400): Balanced exploration and exploitation
+    - Large pools (500-1000): More exploration, slower eviction, potentially too diffuse
+
+    The sweep runs all experiments sequentially, logging each to WandB with a
+    unique run name.
+
+    Args:
+        num_tasks: Number of tasks in dependency chain (default: 10)
+        num_epochs: Number of training epochs (default: 500)
+        samples_per_epoch: Number of task samples per epoch per environment (default: 10)
+        num_envs: Number of parallel environments for vectorization (default: 32)
+        num_sweep_points: Number of sweep points (default: 10)
+        min_active_tasks: Minimum active task pool size (default: 50)
+        max_active_tasks: Maximum active task pool size (default: 1000)
+        run_prefix: Optional prefix for wandb run names
+
+    Returns:
+        Configured NumActiveTasksSweepTool that runs all experiments sequentially
+
+    Usage:
+        # Basic usage (10 experiments from 50 to 1000 active tasks)
+        uv run ./tools/run.py experiments.recipes.curriculum_test.task_dependency_simulator.sweep_num_active_tasks
+
+        # Wide range sweep
+        uv run ./tools/run.py experiments.recipes.curriculum_test.task_dependency_simulator.sweep_num_active_tasks \\
+            num_sweep_points=15 min_active_tasks=25 max_active_tasks=2000 run_prefix=pool_size
+
+        # Quick test with fewer epochs
+        uv run ./tools/run.py experiments.recipes.curriculum_test.task_dependency_simulator.sweep_num_active_tasks \\
+            num_epochs=100 num_sweep_points=5
+    """
+    return NumActiveTasksSweepTool(
+        num_tasks=num_tasks,
+        num_epochs=num_epochs,
+        samples_per_epoch=samples_per_epoch,
+        num_envs=num_envs,
+        num_sweep_points=num_sweep_points,
+        min_active_tasks=min_active_tasks,
+        max_active_tasks=max_active_tasks,
+        run_prefix=run_prefix,
+    )
