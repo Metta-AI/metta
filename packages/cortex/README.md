@@ -448,7 +448,6 @@ uv run python packages/cortex/evaluations/run.py --task majority --stack all
 - `--epochs`, `--batch-size`, `--lr`, `--seed`
 - `--log-level {DEBUG, INFO, WARNING, ERROR}`
 
-For more details, see [`docs/evaluations.md`](docs/evaluations.md).
 
 ## Backend Configuration
 
