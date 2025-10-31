@@ -173,3 +173,8 @@ releases:
       - ./dashboard-cronjob/values-dev.yaml
       - image:
           tag: "sha-410e6a4"  # WandB refactor: instantaneous per-run metrics with Datadog aggregation
+
+  - name: pr-similarity-cache-cronjob
+    chart: ./pr-similarity-cache-cronjob
+    version: 0.1.0
+    namespace: monitoring
