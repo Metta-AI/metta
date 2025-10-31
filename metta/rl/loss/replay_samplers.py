@@ -8,7 +8,7 @@ from metta.rl.training.experience import Experience
 
 
 def sample_minibatch_sequential(buffer: Experience, mb_idx: int) -> tuple[TensorDict, Tensor]:
-    """Simple way to ample a contiguous minibatch from the replay buffer in order."""
+    """Simple way to sample a contiguous minibatch from the replay buffer in order."""
     segments_per_mb = buffer.minibatch_segments
     total_segments = buffer.segments
     num_minibatches = max(buffer.num_minibatches, 1)

@@ -20,6 +20,7 @@ class SLKickstarterConfig(Config):
     teacher_uri: str = Field(default="")
     action_loss_coef: float = Field(default=0.995, ge=0, le=1.0)
     value_loss_coef: float = Field(default=1.0, ge=0, le=1.0)
+    temperature: float = Field(default=2.0, gt=0)
 
     def create(
         self,
@@ -29,7 +30,6 @@ class SLKickstarterConfig(Config):
         device: torch.device,
         instance_name: str,
         loss_config: Any,
-        temperature: float = 2.0,
     ):
         """Create SLKickstarter loss instance."""
         return SLKickstarter(policy, trainer_cfg, vec_env, device, instance_name=instance_name, loss_config=loss_config)
@@ -42,6 +42,7 @@ class SLKickstarter(Loss):
         "action_loss_coef",
         "value_loss_coef",
         "temperature",
+        "teacher_policy_spec",
     )
 
     def __init__(
@@ -68,12 +69,14 @@ class SLKickstarter(Loss):
 
         self.teacher_policy = CheckpointManager.load_from_uri(self.loss_cfg.teacher_uri, game_rules, self.device)
 
+        self.teacher_policy_spec = self.teacher_policy.get_agent_experience_spec()
+
         # Detach gradient
         for param in self.teacher_policy.parameters():
             param.requires_grad = False
 
     def get_experience_spec(self) -> Composite:
-        return self.teacher_policy.get_agent_experience_spec()
+        return self.teacher_policy_spec
 
     def run_train(
         self,

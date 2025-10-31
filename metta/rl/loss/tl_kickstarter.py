@@ -19,6 +19,7 @@ class TLKickstarterConfig(Config):
     teacher_uri: str = Field(default="")
     action_loss_coef: float = Field(default=0.995, ge=0, le=1.0)
     value_loss_coef: float = Field(default=1.0, ge=0, le=1.0)
+    temperature: float = Field(default=2.0, gt=0)
 
     def create(
         self,
@@ -28,7 +29,6 @@ class TLKickstarterConfig(Config):
         device: torch.device,
         instance_name: str,
         loss_config: Any,
-        temperature: float = 2.0,
     ):
         """Create TLKickstarter loss instance."""
         return TLKickstarter(policy, trainer_cfg, vec_env, device, instance_name=instance_name, loss_config=loss_config)
@@ -41,6 +41,7 @@ class TLKickstarter(Loss):
         "action_loss_coef",
         "value_loss_coef",
         "temperature",
+        "teacher_policy_spec",
     )
 
     def __init__(
@@ -101,10 +102,10 @@ class TLKickstarter(Loss):
 
         # value loss
         teacher_value = teacher_td["values"].to(dtype=torch.float32).detach()
-        student_value = student_td["values"].to(dtype=torch.float32).detach()
+        student_value = student_td["values"].to(dtype=torch.float32)
         teacher_value = einops.rearrange(teacher_value, "b t 1 -> b (t 1)")
         student_value = einops.rearrange(student_value, "b t 1 -> b (t 1)")
-        ks_value_loss = ((teacher_value.detach() - student_value) ** 2).mean() * self.value_loss_coef
+        ks_value_loss = ((teacher_value.detach() - student_value) ** 2).mean()
 
         loss = ks_action_loss * self.action_loss_coef + ks_value_loss * self.value_loss_coef
 

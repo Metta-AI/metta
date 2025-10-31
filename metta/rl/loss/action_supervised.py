@@ -23,9 +23,9 @@ class ActionSupervisedConfig(Config):
     gae_gamma: float = Field(default=0.977, ge=0, le=1.0)  # pulling from our PPO config
     gae_lambda: float = Field(default=0.891477, ge=0, le=1.0)  # pulling from our PPO config
     vf_clip_coef: float = Field(default=0.1, ge=0)  # pulling from our PPO config
-    use_own_sampling: bool = (True,)  # Does not use prioritized sampling
-    use_own_rollout: bool = (True,)  # Update when including PPO as concurent loss
-    student_led: bool = (True,)  # sigma as per Matt's document
+    use_own_sampling: bool = True  # Does not use prioritized sampling
+    use_own_rollout: bool = True  # Update when including PPO as concurent loss
+    student_led: bool = True  # sigma as per Matt's document
     action_reward_coef: float = Field(default=0.01, ge=0)  # wild ass guess at this point
 
     # Below: branches for testing different approaches. Hopefully we can eliminate these hypers after testing.
