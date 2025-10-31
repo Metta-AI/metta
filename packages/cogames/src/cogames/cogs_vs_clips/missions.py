@@ -313,11 +313,8 @@ SITES = [
     TRAINING_FACILITY,
     HELLO_WORLD,
     MACHINA_1,
-<<<<<<< HEAD
     EVALS,
-=======
     MACHINA_PROCEDURAL,
->>>>>>> 08ae64824b8bde3312bcb6b3c9195fe449e3e53b
 ]
 
 # Sites will be updated after exploration/eval experiments imports
