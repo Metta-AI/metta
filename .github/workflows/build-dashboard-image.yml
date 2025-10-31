@@ -39,7 +39,7 @@ jobs:
         uses: ./.github/actions/docker-build
         with:
           image_name: softmax-dashboard
-          dockerfile: ./devops/datadog/Dockerfile.collectors
+          dockerfile: ./devops/charts/dashboard-cronjob/Dockerfile
           aws_role: ${{ vars.AWS_ROLE }}
 
       - name: Configure EKS
