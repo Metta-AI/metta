@@ -31,11 +31,21 @@ def get_state_path(version: str) -> Path:
 # ============================================================================
 # State Persistence
 # ============================================================================
+
+
+class Gate(BaseModel):
+    """Tracks completion of pipeline-level gates (prepare_tag, bug_check, etc.)."""
+
+    step: str
+    passed: bool
+    timestamp: str
+
+
 class ReleaseState(BaseModel):
     version: str
     created_at: str
     commit_sha: Optional[str] = None
-    gates: list[dict] = Field(default_factory=list)
+    gates: list[Gate] = Field(default_factory=list)
     released: bool = False
 
 

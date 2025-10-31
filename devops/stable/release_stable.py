@@ -31,6 +31,7 @@ import gitta as git
 from devops.stable.asana_bugs import check_blockers
 from devops.stable.display import check_task_passed, format_task_with_acceptance, format_training_job_section
 from devops.stable.state import (
+    Gate,
     ReleaseState,
     get_most_recent_state,
     load_or_create_state,
@@ -69,7 +70,7 @@ def is_step_complete(state: ReleaseState | None, step_name: str) -> bool:
     """Check if a pipeline step is already completed in state."""
     if not state:
         return False
-    return any(g.get("step") == step_name and g.get("passed") for g in state.gates)
+    return any(g.step == step_name and g.passed for g in state.gates)
 
 
 def mark_step_complete(state: ReleaseState | None, step_name: str) -> None:
@@ -77,11 +78,11 @@ def mark_step_complete(state: ReleaseState | None, step_name: str) -> None:
     if not state:
         return
     state.gates.append(
-        {
-            "step": step_name,
-            "passed": True,
-            "timestamp": datetime.now().isoformat(timespec="seconds"),
-        }
+        Gate(
+            step=step_name,
+            passed=True,
+            timestamp=datetime.now().isoformat(timespec="seconds"),
+        )
     )
     save_state(state)
 

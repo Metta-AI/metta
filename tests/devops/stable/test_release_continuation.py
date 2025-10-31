@@ -4,6 +4,7 @@ from datetime import datetime
 from unittest.mock import patch
 
 from devops.stable.state import (
+    Gate,
     ReleaseState,
     save_state,
 )
@@ -102,11 +103,11 @@ def test_step_prepare_tag_skips_when_gate_passed(monkeypatch, tmp_path, capsys):
         commit_sha="abc123",
     )
     state.gates.append(
-        {
-            "step": "prepare_tag",
-            "passed": True,
-            "timestamp": datetime.utcnow().isoformat(),
-        }
+        Gate(
+            step="prepare_tag",
+            passed=True,
+            timestamp=datetime.utcnow().isoformat(),
+        )
     )
 
     # Mock git operations so they don't actually run
@@ -132,11 +133,11 @@ def test_step_bug_check_skips_when_gate_passed(monkeypatch, tmp_path, capsys):
         commit_sha="abc123",
     )
     state.gates.append(
-        {
-            "step": "bug_check",
-            "passed": True,
-            "timestamp": datetime.utcnow().isoformat(),
-        }
+        Gate(
+            step="bug_check",
+            passed=True,
+            timestamp=datetime.utcnow().isoformat(),
+        )
     )
 
     # Mock RC commit verification and check_blockers
@@ -170,8 +171,8 @@ def test_step_prepare_tag_marks_gate_when_complete(monkeypatch, tmp_path):
 
     # Verify gate was added
     assert len(state.gates) == 1
-    assert state.gates[0]["step"] == "prepare_tag"
-    assert state.gates[0]["passed"] is True
+    assert state.gates[0].step == "prepare_tag"
+    assert state.gates[0].passed is True
 
 
 def test_step_bug_check_marks_gate_when_complete(monkeypatch, tmp_path):
@@ -194,8 +195,8 @@ def test_step_bug_check_marks_gate_when_complete(monkeypatch, tmp_path):
 
     # Verify gate was added
     assert len(state.gates) == 1
-    assert state.gates[0]["step"] == "bug_check"
-    assert state.gates[0]["passed"] is True
+    assert state.gates[0].step == "bug_check"
+    assert state.gates[0].passed is True
 
 
 def test_cmd_validate_runs_validation_pipeline(monkeypatch, tmp_path):
@@ -275,8 +276,8 @@ def test_continuation_skips_completed_steps(monkeypatch, tmp_path, capsys):
         commit_sha="abc123",
         released=False,
     )
-    state.gates.append({"step": "prepare_tag", "passed": True, "timestamp": datetime.utcnow().isoformat()})
-    state.gates.append({"step": "bug_check", "passed": True, "timestamp": datetime.utcnow().isoformat()})
+    state.gates.append(Gate(step="prepare_tag", passed=True, timestamp=datetime.utcnow().isoformat()))
+    state.gates.append(Gate(step="bug_check", passed=True, timestamp=datetime.utcnow().isoformat()))
     save_state(state)
 
     from devops.stable.release_stable import step_bug_check, step_prepare_tag
