@@ -123,6 +123,20 @@ class WandbStore:
             raise
 
     @retry_on_exception(max_retries=3, initial_delay=1.0, max_delay=30.0)
+    def get_run_summary(self, run_id: str):
+        try:
+            # Create fresh API instance to avoid caching
+            api = wandb.Api()
+            run = api.run(f"{self.entity}/{self.project}/{run_id}")
+
+            # Debug log what we're updating
+            logger.debug(f"[WandbStore] Getting summary for run {run_id}")
+            return run.summary
+        except Exception as e:
+            logger.error(f"[WandbStore] Error getting summary for run {run_id}: {e}")
+            raise
+
+    @retry_on_exception(max_retries=3, initial_delay=1.0, max_delay=30.0)
     def update_run_summary(self, run_id: str, summary_update: dict) -> bool:
         """Update run summary in WandB."""
         try:

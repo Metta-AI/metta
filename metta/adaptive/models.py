@@ -1,9 +1,11 @@
 """Data models for adaptive experiment orchestration."""
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from enum import StrEnum, auto
 from typing import Any
+
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class JobTypes(StrEnum):
@@ -11,19 +13,22 @@ class JobTypes(StrEnum):
     LAUNCH_EVAL = auto()
 
 
-@dataclass
-class JobDefinition:
+class JobDefinition(BaseModel):
+    """Normalized job payload used by sweep dispatchers and controllers."""
+
+    model_config = ConfigDict(extra="forbid")
+
     run_id: str
     cmd: str  # e.g., "experiments.recipes.arena.train_shaped" or "experiments.recipes.arena.evaluate"
     gpus: int = 1
     nodes: int = 1
     # Single source for recipe arguments (serialized as --args key=value)
-    args: dict[str, Any] = field(default_factory=dict)
+    args: dict[str, Any] = Field(default_factory=dict)
     # Single source for config overrides (serialized as --overrides key=value)
-    overrides: dict[str, Any] = field(default_factory=dict)
+    overrides: dict[str, Any] = Field(default_factory=dict)
     type: JobTypes = JobTypes.LAUNCH_TRAINING  # JobTypes enum value
-    created_at: datetime = field(default_factory=datetime.now)
-    metadata: dict[str, Any] = field(default_factory=dict)
+    created_at: datetime = Field(default_factory=datetime.now)
+    metadata: dict[str, Any] = Field(default_factory=dict)
 
 
 class JobStatus(StrEnum):

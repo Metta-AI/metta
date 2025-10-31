@@ -1,0 +1,40 @@
+resources:
+  cloud: aws
+  region: us-east-1
+  accelerators: "L4:1"
+  cpus: 8+
+  image_id: docker:metta:latest
+
+config:
+  docker:
+    run_options:
+      - --cap-add=IPC_LOCK
+      - --ulimit memlock=-1:-1
+      - --ipc=host
+      - --userns=host
+
+file_mounts:
+  /mnt/s3/softmax-public:
+    source: s3://softmax-public
+    mode: MOUNT_CACHED
+  /mnt/s3/train_dir:
+    source: s3://softmax-train-dir
+    mode: MOUNT_CACHED
+
+setup: |
+  set -u
+  bash <(curl -fsSL "https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/${METTA_GIT_REF}/devops/skypilot/config/lifecycle/setup.sh")
+
+run: |
+  set -e
+  /workspace/metta/devops/skypilot/config/simple_sweep_run.sh
+
+envs:
+  GITHUB_REPOSITORY: Metta-AI/metta
+  SKYPILOT_DOCKER_USERNAME: ""
+  SKYPILOT_DOCKER_PASSWORD: ""
+  SKYPILOT_DOCKER_SERVER: 751442549699.dkr.ecr.us-east-1.amazonaws.com
+
+secrets:
+  WANDB_PASSWORD: ""
+  OBSERVATORY_TOKEN: ""
