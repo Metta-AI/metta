@@ -14,6 +14,8 @@ import rng_compat
 
 when compiles(import vmath):
   import vmath
+  template ivec2*(x, y: int32): IVec2 =
+    IVec2(x: x, y: y)
 else:
   type
     IVec2* = object
@@ -189,6 +191,41 @@ type
     zeroCopyObsBuffer: pointer ## placeholders for python interop
     zeroCopyActBuffer: pointer
 
+const
+  ResourceOrder = [rkCarbon, rkOxygen, rkGermanium, rkSilicon, rkEnergy, rkHeart]
+  ResourceCount = ResourceOrder.len
+
+type
+  ObservedTileDto* {.bycopy.} = object
+    x*, y*: int32
+    terrain*: int32
+    station*: int32
+    cooldownEnds*: int32
+
+  AgentViewDto* {.bycopy.} = object
+    id*: int32
+    posX*, posY*: int32
+    energy*: int32
+    cooldown*: int32
+    inventory*: array[ResourceCount, int32]
+    vibe*: int32
+    teammatesPtr*: ptr int32
+    teammateCount*: int32
+    sharedVibesPtr*: ptr int32 ## flat pairs: [agentId0, vibe0, agentId1, vibe1, ...]
+    sharedVibesCount*: int32   ## number of pairs
+    observedPtr*: ptr ObservedTileDto
+    observedCount*: int32
+
+  EnvViewDto* {.bycopy.} = object
+    tick*: int32
+    assemblerCooldown*: int32
+    heartCost*: int32
+    targetHearts*: int32
+    teamHeartInventory*: int32
+
+  AgentActionDto* {.bycopy.} = object
+    moveDir*, interactDir*, emitVibe*: int32
+
 ## -------------------------------------------------------------------------
 ## Utility helpers
 ## -------------------------------------------------------------------------
@@ -211,13 +248,86 @@ proc vibeToResource(v: VibeSignal): ResourceKind =
   of vibeEnergy: rkEnergy
   else: rkUnknown
 
+proc vibeFromInt(value: int32): VibeSignal =
+  if value < ord(low(VibeSignal)) or value > ord(high(VibeSignal)):
+    return vibeNone
+  result = VibeSignal(value)
+
+proc stationFromInt(value: int32): StationKind =
+  if value < ord(low(StationKind)) or value > ord(high(StationKind)):
+    return skUnknown
+  StationKind(value)
+
+proc terrainFromInt(value: int32): TerrainKind =
+  if value < ord(low(TerrainKind)) or value > ord(high(TerrainKind)):
+    return tkUnknown
+  TerrainKind(value)
+
+proc resourceFromIndex(idx: int): ResourceKind =
+  if idx < 0 or idx >= ResourceCount:
+    return rkUnknown
+  ResourceOrder[idx]
+
+proc tableFromInventory(arr: array[ResourceCount, int32]): Table[ResourceKind, int] =
+  result = initTable[ResourceKind, int]()
+  for i in 0 ..< ResourceCount:
+    let amount = int(arr[i])
+    if amount != 0:
+      result[resourceFromIndex(i)] = amount
+
+proc toAgentView(dto: ptr AgentViewDto): AgentView =
+  var inventory = tableFromInventory(dto.inventory)
+  var teammates: seq[int] = @[]
+  if dto.teammateCount > 0 and dto.teammatesPtr != nil:
+    for i in 0 ..< dto.teammateCount.int:
+      teammates.add(dto.teammatesPtr[i].int)
+
+  var shared = initTable[int, VibeSignal]()
+  if dto.sharedVibesCount > 0 and dto.sharedVibesPtr != nil:
+    for i in 0 ..< dto.sharedVibesCount.int:
+      let base = i * 2
+      let agentId = dto.sharedVibesPtr[base].int
+      let vibe = vibeFromInt(dto.sharedVibesPtr[base + 1])
+      shared[agentId] = vibe
+
+  var observed: seq[(IVec2, TerrainKind, StationKind, int)] = @[]
+  if dto.observedCount > 0 and dto.observedPtr != nil:
+    for i in 0 ..< dto.observedCount.int:
+      let tile = dto.observedPtr[i]
+      observed.add((
+        ivec2(tile.x, tile.y),
+        terrainFromInt(tile.terrain),
+        stationFromInt(tile.station),
+        tile.cooldownEnds.int
+      ))
+
+  result = AgentView(
+    id: dto.id.int,
+    pos: ivec2(dto.posX, dto.posY),
+    energy: dto.energy.int,
+    inventory: inventory,
+    cooldownRemaining: dto.cooldown.int,
+    observedTiles: observed,
+    teammates: teammates,
+    sharedVibes: shared
+  )
+
+proc toEnvView(dto: ptr EnvViewDto): EnvironmentView =
+  EnvironmentView(
+    tick: dto.tick.int,
+    assemblerCooldown: dto.assemblerCooldown.int,
+    heartCost: dto.heartCost.int,
+    targetHearts: dto.targetHearts.int,
+    teamHeartInventory: dto.teamHeartInventory.int
+  )
+
 proc cumulativeAmount(t: Table[ResourceKind, int]): int =
   for _, amount in t:
     result += amount
 
 proc ensureAgent(controller: Controller, agentId: int): var AgentMemory =
   if agentId notin controller.agents:
-    let seed = controller.rng.rand(high(int32))
+    let seed = randIntExclusive(controller.rng, 0, high(int32))
     var mem = AgentMemory(
       initialized: false,
       rng: initRand(seed),
@@ -332,7 +442,7 @@ proc chooseInitialRole(mem: var AgentMemory, agent: AgentView, env: EnvironmentV
   var pool = focusOptions.filterIt(it notin claimed)
   if pool.len == 0:
     pool = focusOptions
-  let pick = pool[mem.rng.rand(pool.high)]
+  let pick = pool[randIntInclusive(mem.rng, 0, pool.high)]
 
   mem.role = AgentRole(focus: pick, secondary: some(rkEnergy), vibe: resourceToVibe(pick))
   mem.initialized = true
@@ -355,7 +465,7 @@ proc updateRoleFromConflicts(mem: var AgentMemory, agent: AgentView) =
   var available = focusOptions.filterIt(it != mem.role.focus)
   if available.len == 0:
     return
-  mem.role.focus = available[mem.rng.rand(available.high)]
+  mem.role.focus = available[randIntInclusive(mem.rng, 0, available.high)]
   mem.role.vibe = resourceToVibe(mem.role.focus)
 
 ## -------------------------------------------------------------------------
@@ -421,6 +531,13 @@ proc actionWithInteract(dir: int): AgentAction =
 proc actionWithVibe(v: VibeSignal): AgentAction =
   AgentAction(moveDir: -1, interactDir: -1, emitVibe: v)
 
+proc toDto(action: AgentAction): AgentActionDto =
+  AgentActionDto(
+    moveDir: int32(action.moveDir),
+    interactDir: int32(action.interactDir),
+    emitVibe: int32(action.emitVibe)
+  )
+
 proc behaviorResolveConflict(mem: var AgentMemory, agent: AgentView): Option[BehaviorOutcome] =
   if not mem.initialized:
     return none[BehaviorOutcome]()
@@ -449,7 +566,7 @@ proc behaviorAvoidClips(mem: AgentMemory, agent: AgentView): Option[BehaviorOutc
     return none[BehaviorOutcome]()
   ## Move opposite of last drift
   let dirs = [actionWithMove(0), actionWithMove(1), actionWithMove(2), actionWithMove(3)]
-  return some(BehaviorOutcome(kind: bkAvoidClips, action: dirs[mem.rng.rand(dirs.high)], valid: true))
+  return some(BehaviorOutcome(kind: bkAvoidClips, action: dirs[randIntInclusive(mem.rng, 0, dirs.high)], valid: true))
 
 proc checkNeedEnergy(mem: AgentMemory, agent: AgentView): bool =
   let threshold = max(10, mem.energyBudget div 4)
@@ -478,7 +595,7 @@ proc directionToward(agentPos, target: IVec2, rng: var Rand): int =
   if dx > 0 and dy < 0: return 5
   if dx < 0 and dy > 0: return 6
   if dx > 0 and dy > 0: return 7
-  return rng.rand(0..7)
+  return randIntInclusive(rng, 0, 7)
 
 proc behaviorRecharge(mem: var AgentMemory, agent: AgentView): Option[BehaviorOutcome] =
   if not checkNeedEnergy(mem, agent):
@@ -538,7 +655,7 @@ proc selectResourceTarget(mem: var AgentMemory, resource: ResourceKind, agent: A
       if heuristic(agent.pos, station) < 10:
         return some(station)
   if skMine in mem.knownStations and mem.knownStations[skMine].len > 0:
-    let idx = mem.rng.rand(0 ..< mem.knownStations[skMine].len)
+    let idx = randIntExclusive(mem.rng, 0, mem.knownStations[skMine].len)
     return some(mem.knownStations[skMine][idx])
   return none[IVec2]()
 
@@ -664,11 +781,10 @@ proc cogames_agent_register_buffers*(observations, actions: pointer) {.exportc, 
   if globalController != nil:
     globalController.registerSharedBuffers(observations, actions)
 
-proc cogames_agent_step*(agentId: int32, viewPtr: pointer, envPtr: pointer): AgentAction {.exportc, dynlib.} =
-  ## NOTE: viewPtr/envPtr are expected to be marshalled by Python into AgentView/EnvironmentView.
-  ## This stub casts them directly; replace with actual zero-copy structs when interface stabilizes.
+proc cogames_agent_step*(agentId: int32, viewPtr: ptr AgentViewDto, envPtr: ptr EnvViewDto): AgentActionDto {.exportc, dynlib.} =
   if globalController == nil:
-    return defaultAction()
-  let agent = cast[ptr AgentView](viewPtr)
-  let env = cast[ptr EnvironmentView](envPtr)
-  return globalController.controllerStep(agent[], env[])
+    return toDto(defaultAction())
+  let agent = toAgentView(viewPtr)
+  let env = toEnvView(envPtr)
+  let action = globalController.controllerStep(agent, env)
+  return toDto(action)
