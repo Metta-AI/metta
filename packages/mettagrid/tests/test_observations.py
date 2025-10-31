@@ -4,11 +4,12 @@ import pytest
 from mettagrid.config.mettagrid_config import (
     ActionConfig,
     ActionsConfig,
+    AssemblerConfig,
     ChangeVibeActionConfig,
-    ConverterConfig,
     GameConfig,
     GlobalObsConfig,
     MettaGridConfig,
+    ProtocolConfig,
     WallConfig,
 )
 from mettagrid.core import MettaGridCore
@@ -481,14 +482,18 @@ class TestEdgeObservations:
                 ),
                 objects={
                     "wall": WallConfig(type_id=TokenTypes.WALL_TYPE_ID),
-                    "altar": ConverterConfig(
+                    "altar": AssemblerConfig(
                         type_id=TokenTypes.ALTAR_TYPE_ID,
-                        input_resources={"resource1": 1},
-                        output_resources={"resource2": 1},
-                        max_output=10,
-                        conversion_ticks=5,
-                        cooldown=[3],
-                        initial_resource_count=0,
+                        recipes=[
+                            (
+                                [],
+                                ProtocolConfig(
+                                    input_resources={"resource1": 1},
+                                    output_resources={"resource2": 1},
+                                    cooldown=3,
+                                ),
+                            )
+                        ],
                     ),
                 },
                 resource_names=["laser", "resource1", "resource2"],  # laser required for attack action

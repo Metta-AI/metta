@@ -1,4 +1,4 @@
-from typing import Optional, Sequence, Tuple, TypeAlias, TypedDict
+from typing import Optional, Tuple, TypeAlias, TypedDict
 
 import gymnasium as gym
 import numpy as np
@@ -97,32 +97,6 @@ class AgentConfig(GridObjectConfig):
     shareable_resources: list[int]
     inventory_regen_amounts: dict[int, int]
     diversity_tracked_resources: list[int]
-
-class ConverterConfig(GridObjectConfig):
-    def __init__(
-        self,
-        type_id: int,
-        type_name: str,
-        input_resources: dict[int, int],
-        output_resources: dict[int, int],
-        max_output: int,
-        max_conversions: int,
-        conversion_ticks: int,
-        cooldown_time: Sequence[int],
-        initial_resource_count: int = 0,
-        recipe_details_obs: bool = False,
-    ) -> None: ...
-    type_id: int
-    type_name: str
-    tag_ids: list[int]
-    input_resources: dict[int, int]
-    output_resources: dict[int, int]
-    max_output: int
-    max_conversions: int
-    conversion_ticks: int
-    cooldown_time: list[int]
-    initial_resource_count: int
-    recipe_details_obs: bool
 
 class ActionConfig:
     def __init__(
