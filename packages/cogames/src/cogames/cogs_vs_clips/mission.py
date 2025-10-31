@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, Callable
 
 from pydantic import Field
 
@@ -83,6 +83,8 @@ class Mission(Config):
     # Control vibe swapping in variants
     enable_vibe_change: bool = Field(default=True)
     vibe_count: int | None = Field(default=None)
+    # Optional post-processors for env config (used by variants)
+    post_make_env_modifiers: list[Callable[[MettaGridConfig], None]] = Field(default_factory=list)
 
     def configure(self):
         pass
@@ -238,4 +240,12 @@ class Mission(Config):
         #             if recipe.output_resources.get("heart", 0) == 0
         #         ]
         #         assembler_cfg.recipes = [(["heart"] * chorus_len, chorus), *non_heart]
-        return MettaGridConfig(game=game)
+        env_cfg = MettaGridConfig(game=game)
+        # Apply any post-make_env modifiers
+        for modifier in getattr(self, "post_make_env_modifiers", []) or []:
+            try:
+                modifier(env_cfg)
+            except Exception:
+                # Best-effort: ignore modifier failures to avoid breaking mission
+                pass
+        return env_cfg
