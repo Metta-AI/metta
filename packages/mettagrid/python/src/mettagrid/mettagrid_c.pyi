@@ -166,14 +166,14 @@ class AttackActionConfig(ActionConfig):
     ) -> None: ...
     defense_resources: dict[int, int]
 
-class ChangeGlyphActionConfig(ActionConfig):
+class ChangeVibeActionConfig(ActionConfig):
     def __init__(
         self,
         required_resources: dict[int, int] = {},
         consumed_resources: dict[int, float] = {},
-        number_of_glyphs: int = ...,
+        number_of_vibes: int = ...,
     ) -> None: ...
-    number_of_glyphs: int
+    number_of_vibes: int
 
 class ResourceModConfig(ActionConfig):
     def __init__(

@@ -5,7 +5,7 @@
 #include <utility>
 
 #include "actions/attack.hpp"
-#include "actions/change_glyph.hpp"
+#include "actions/change_vibe.hpp"
 #include "actions/noop.hpp"
 #include "actions/resource_mod.hpp"
 #include "config/mettagrid_config.hpp"
@@ -880,7 +880,7 @@ TEST_F(MettaGridCppTest, FractionalConsumptionAttackAction) {
   EXPECT_EQ(total_consumed, 4);       // Exactly 4 lasers consumed from 10 attacks
 }
 
-TEST_F(MettaGridCppTest, FractionalConsumptionChangeGlyphAction) {
+TEST_F(MettaGridCppTest, FractionalConsumptionChangeVibeAction) {
   Grid grid(3, 3);
 
   // Create agent with resources
@@ -892,17 +892,17 @@ TEST_F(MettaGridCppTest, FractionalConsumptionChangeGlyphAction) {
   agent->init(&agent_reward);
   grid.add_object(agent);
 
-  // Create change glyph action with fractional consumption (1.25)
-  ChangeGlyphActionConfig glyph_cfg({{TestItems::ORE, 2}}, {{TestItems::ORE, 1.25f}}, 4);
-  ChangeGlyph change_glyph(glyph_cfg);
+  // Create change vibe action with fractional consumption (1.25)
+  ChangeVibeActionConfig vibe_cfg({{TestItems::ORE, 2}}, {{TestItems::ORE, 1.25f}}, 4);
+  ChangeVibe change_vibe(vibe_cfg);
   std::mt19937 rng(42);
-  change_glyph.init(&grid, &rng);
+  change_vibe.init(&grid, &rng);
 
-  // Change glyph multiple times
+  // Change vibe multiple times
   int changes = 0;
-  ObservationType initial_glyph = agent->glyph;
+  ObservationType initial_vibe = agent->vibe;
   while (agent->inventory.amount(TestItems::ORE) >= 2) {
-    bool success = change_glyph.handle_action(*agent, (initial_glyph + 1) % 4);
+    bool success = change_vibe.handle_action(*agent, (initial_vibe + 1) % 4);
     if (!success) break;
     changes++;
     if (changes > 30) break;  // Safety limit
@@ -1167,7 +1167,7 @@ TEST_F(MettaGridCppTest, AssemblerGetCurrentRecipe) {
   const Recipe* current_recipe = assembler->get_current_recipe();
   EXPECT_EQ(current_recipe, recipe0.get());
 
-  // With one agent and no glyph, should still get 0
+  // With one agent and no vibe, should still get 0
   AgentConfig agent_cfg(1, "test_agent", 0, "test_group");
   auto resource_names = create_test_resource_names();
   Agent* agent = new Agent(4, 4, agent_cfg, &resource_names);  // NW of assembler
@@ -1176,10 +1176,10 @@ TEST_F(MettaGridCppTest, AssemblerGetCurrentRecipe) {
   current_recipe = assembler->get_current_recipe();
   EXPECT_EQ(current_recipe, recipe0.get()) << "With one agent, should still get recipe0";
 
-  // Now with a glyph, should get recipe1
-  agent->glyph = 1;
+  // Now with a vibe, should get recipe1
+  agent->vibe = 1;
   current_recipe = assembler->get_current_recipe();
-  EXPECT_EQ(current_recipe, recipe1.get()) << "With one agent and a glyph, should get recipe1";
+  EXPECT_EQ(current_recipe, recipe1.get()) << "With one agent and a vibe, should get recipe1";
 }
 
 TEST_F(MettaGridCppTest, AssemblerRecipeObservationsEnabled) {

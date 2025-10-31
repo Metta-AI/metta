@@ -16,7 +16,7 @@ from mettagrid.config.mettagrid_config import (
     AgentConfig,
     AgentRewards,
     AttackActionConfig,
-    ChangeGlyphActionConfig,
+    ChangeVibeActionConfig,
     ConverterConfig,
     GameConfig,
     WallConfig,
@@ -42,7 +42,7 @@ class TestConverterObservations:
                 move=ActionConfig(enabled=True),
                 attack=AttackActionConfig(enabled=False),
                 swap=ActionConfig(enabled=False),
-                change_glyph=ChangeGlyphActionConfig(enabled=False, number_of_glyphs=0),
+                change_vibe=ChangeVibeActionConfig(enabled=False, number_of_vibes=0),
             ),
             objects={
                 "wall": WallConfig(swappable=False),

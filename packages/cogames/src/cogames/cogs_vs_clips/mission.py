@@ -1,4 +1,4 @@
-from typing import Any, Callable
+from typing import Any
 
 from pydantic import Field
 
@@ -22,7 +22,7 @@ from mettagrid.config.mettagrid_config import (
     ActionsConfig,
     AgentConfig,
     AgentRewards,
-    ChangeGlyphActionConfig,
+    ChangeVibeActionConfig,
     ClipperConfig,
     GameConfig,
     MettaGridConfig,
@@ -80,19 +80,12 @@ class Mission(Config):
     gear_capacity: int = Field(default=5)
     move_energy_cost: int = Field(default=2)
     heart_capacity: int = Field(default=1)
-    # Control glyph swapping in variants
-    enable_glyph_change: bool = Field(default=True)
-    glyph_count: int | None = Field(default=None)
-    env_modifiers: list[Callable[[MettaGridConfig], None]] = Field(default_factory=list)
+    # Control vibe swapping in variants
+    enable_vibe_change: bool = Field(default=True)
+    vibe_count: int | None = Field(default=None)
 
     def configure(self):
         pass
-
-    def add_env_modifier(self, modifier: Callable[[MettaGridConfig], None]) -> "Mission":
-        """Register a callable to tweak the generated environment config."""
-
-        self.env_modifiers.append(modifier)
-        return self
 
     def instantiate(
         self,
@@ -164,11 +157,11 @@ class Mission(Config):
             actions=ActionsConfig(
                 move=ActionConfig(consumed_resources={"energy": self.move_energy_cost}),
                 noop=ActionConfig(),
-                change_glyph=ChangeGlyphActionConfig(
-                    number_of_glyphs=(
+                change_vibe=ChangeVibeActionConfig(
+                    number_of_vibes=(
                         0
-                        if not self.enable_glyph_change
-                        else (self.glyph_count if self.glyph_count is not None else len(vibes.VIBES))
+                        if not self.enable_vibe_change
+                        else (self.vibe_count if self.vibe_count is not None else len(vibes.VIBES))
                     )
                 ),
             ),
@@ -245,7 +238,4 @@ class Mission(Config):
         #             if recipe.output_resources.get("heart", 0) == 0
         #         ]
         #         assembler_cfg.recipes = [(["heart"] * chorus_len, chorus), *non_heart]
-        cfg = MettaGridConfig(game=game)
-        for modifier in self.env_modifiers:
-            modifier(cfg)
-        return cfg
+        return MettaGridConfig(game=game)

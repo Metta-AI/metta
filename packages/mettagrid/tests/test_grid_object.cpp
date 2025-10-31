@@ -69,4 +69,20 @@ TEST_F(GridObjectTest, InitWithLocation) {
   EXPECT_EQ(5, obj.location.r);
   EXPECT_EQ(10, obj.location.c);
   EXPECT_EQ(2, obj.location.layer);
+  EXPECT_EQ(0, obj.vibe);  // Default vibe should be 0
+}
+
+// Test init with vibe
+TEST_F(GridObjectTest, InitWithVibe) {
+  GridLocation loc(5, 10, 2);
+  std::vector<int> tags;  // Empty tags vector
+  ObservationType vibe = 3;
+  obj.init(1, "object", loc, tags, vibe);
+
+  EXPECT_EQ(1, obj.type_id);
+  EXPECT_EQ("object", obj.type_name);
+  EXPECT_EQ(5, obj.location.r);
+  EXPECT_EQ(10, obj.location.c);
+  EXPECT_EQ(2, obj.location.layer);
+  EXPECT_EQ(3, obj.vibe);
 }
