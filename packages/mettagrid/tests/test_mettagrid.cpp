@@ -1167,8 +1167,8 @@ TEST_F(MettaGridCppTest, AssemblerGetCurrentRecipe) {
 
   // Now with a vibe, should get protocol1
   agent->vibe = 1;
-  current_protocol = assembler->get_current_protocol();
-  EXPECT_EQ(current_protocol, protocol1.get()) << "With one agent and a vibe, should get protocol1";
+  current_recipe = assembler->get_current_recipe();
+  EXPECT_EQ(current_recipe, recipe1.get()) << "With one agent and a vibe, should get recipe1";
 }
 
 TEST_F(MettaGridCppTest, AssemblerRecipeObservationsEnabled) {
