@@ -162,12 +162,53 @@ def _build_remote_kill_script() -> str:
     """
     return (
         "set +e; "
+        # Graceful stop first
         "pkill -15 -f tools/run.py || true; "
+        "pkill -15 -f torch.distributed.run || true; "
         "pkill -15 -f torchrun || true; "
-        "sleep 5; "
+        "pkill -15 -f 'uv run torchrun' || true; "
+        "sleep 3; "
+        # Kill leftover children
         "pkill -9 -f tools/run.py || true; "
-        "pkill -9 -f torchrun || true"
+        "pkill -9 -f torch.distributed.run || true; "
+        "pkill -9 -f torchrun || true; "
+        "pkill -9 -f 'uv run torchrun' || true; "
+        # Free rendezvous port
+        "PORT=\"${MASTER_PORT:-29501}\"; (command -v fuser >/dev/null 2>&1 && fuser -k \"$PORT\"/tcp) || true"
     )
+
+
+def _run_sky_exec(cluster: str, num_nodes: int, entrypoint: str) -> int:
+    """Run a sky exec entrypoint, trying uv first then falling back to bare sky."""
+    cmd_uv = [
+        "uv",
+        "run",
+        "sky",
+        "exec",
+        cluster,
+        "--num-nodes",
+        str(num_nodes),
+        "--",
+        entrypoint,
+    ]
+    try:
+        res = subprocess.run(cmd_uv, check=False)
+        if res.returncode == 0:
+            return 0
+    except FileNotFoundError:
+        pass
+
+    cmd_sky = [
+        "sky",
+        "exec",
+        cluster,
+        "--num-nodes",
+        str(num_nodes),
+        "--",
+        entrypoint,
+    ]
+    res2 = subprocess.run(cmd_sky, check=False)
+    return res2.returncode
 
 
 def main() -> int:
@@ -338,19 +379,11 @@ def main() -> int:
             return
         kill_started = True
         kill_script = _build_remote_kill_script()
-        kill_cmd = [
-            "uv",
-            "run",
-            "sky",
-            "exec",
-            cluster_name,
-            "--num-nodes",
-            str(effective_nodes),
-            "--",
-            kill_script,
-        ]
         # Fire-and-forget to avoid blocking signal handler path
-        threading.Thread(target=lambda: subprocess.run(kill_cmd, check=False), daemon=True).start()
+        threading.Thread(
+            target=lambda: _run_sky_exec(cluster_name, effective_nodes, kill_script),
+            daemon=True,
+        ).start()
 
     def _on_sigint(signum, frame):
         nonlocal interrupted
