@@ -6,12 +6,15 @@ from orchestration logic.
 
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 
 from devops.stable.tasks import AcceptanceRule, Task
 from metta.common.util.text_styles import blue, cyan, green, magenta, red
 from metta.jobs.job_monitor import format_artifact_link, format_job_status_line
 from metta.jobs.job_state import JobState
+
+logger = logging.getLogger("metta.jobs")
 
 
 def format_artifact(value: str) -> str:
@@ -210,7 +213,21 @@ def check_task_passed(job_state: JobState) -> bool:
     Returns:
         True if task passed (exit code 0 and acceptance criteria met)
     """
+    # Log the check for debugging
+    passed = job_state.exit_code == 0 and job_state.acceptance_passed is not False
+
+    logger.info(
+        f"Task pass check for {job_state.name}: "
+        f"exit_code={job_state.exit_code}, "
+        f"acceptance_passed={job_state.acceptance_passed}, "
+        f"result={'PASS' if passed else 'FAIL'}"
+    )
+
     if job_state.exit_code != 0:
+        logger.warning(
+            f"Task {job_state.name} failed due to non-zero exit code: {job_state.exit_code} "
+            f"(acceptance_passed={job_state.acceptance_passed})"
+        )
         return False
     return job_state.acceptance_passed is not False
 

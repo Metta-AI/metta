@@ -10,6 +10,7 @@ The runner handles:
 from __future__ import annotations
 
 import io
+import logging
 import sys
 import time
 from contextlib import redirect_stdout
@@ -24,6 +25,8 @@ from devops.stable.tasks import Task
 from metta.common.util.text_styles import green, red, yellow
 from metta.jobs.job_manager import JobManager
 from metta.jobs.job_monitor import JobMonitor, format_progress_bar
+
+logger = logging.getLogger("metta.jobs")
 
 
 class TaskRunner:
@@ -123,10 +126,17 @@ class TaskRunner:
         for dep_name in task.dependency_names:
             dep_task = task_by_name.get(dep_name)
             if not dep_task:
+                logger.warning(f"Task {task.name}: dependency {dep_name} not found")
                 return (True, f"Dependency {dep_name} not found")
 
             dep_job_name = self._get_job_name(dep_task)
             if not self._passed(dep_job_name, dep_task):
+                dep_state = self.job_manager.get_job_state(dep_job_name)
+                logger.warning(
+                    f"Task {task.name}: skipping due to failed dependency {dep_name} "
+                    f"(exit_code={dep_state.exit_code if dep_state else 'N/A'}, "
+                    f"acceptance_passed={dep_state.acceptance_passed if dep_state else 'N/A'})"
+                )
                 return (True, f"Dependency {dep_name} did not pass")
 
         return (False, None)
