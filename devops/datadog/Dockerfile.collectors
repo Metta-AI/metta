@@ -1,0 +1,59 @@
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# Install system dependencies (minimal)
+RUN apt-get update && apt-get install -y \
+    git \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install uv
+RUN curl -LsSf https://astral.sh/uv/install.sh | sh
+ENV PATH="/root/.local/bin:$PATH"
+ENV PYTHONPATH="/app"
+
+# Copy only collector code and dependencies
+COPY devops/datadog /app/devops/datadog
+COPY packages/gitta /app/packages/gitta
+
+# Create minimal pyproject.toml with only collector dependencies
+RUN cat > /app/pyproject.toml <<'EOF'
+[project]
+name = "datadog-collectors"
+version = "1.0.0"
+requires-python = ">=3.11"
+dependencies = [
+    "datadog-api-client>=2.0.0",
+    "boto3>=1.34.0",
+    "asana>=5.0.0",
+    "kubernetes>=31.0.0",
+    "wandb>=0.18.0",
+    "skypilot-nightly[aws]>=1.0.0.dev20241218",
+]
+
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+py-modules = []
+EOF
+
+# Install gitta as editable package
+RUN uv pip install --system -e ./packages/gitta
+
+# Install collector dependencies
+RUN uv pip install --system \
+    "datadog-api-client>=2.0.0" \
+    "boto3>=1.34.0" \
+    "asana>=5.0.0" \
+    "kubernetes>=31.0.0" \
+    "wandb>=0.18.0" \
+    "skypilot-nightly[aws]>=1.0.0.dev20241218"
+
+# Verify collectors can be imported
+RUN python -c "from devops.datadog.collectors import GitHubCollector, SkypilotCollector, AsanaCollector, EC2Collector, WandBCollector, KubernetesCollector; print('✓ All 6 collectors imported successfully')"
+
+# Default command runs all collectors
+CMD ["python", "/app/devops/datadog/scripts/run_all_collectors.py"]
