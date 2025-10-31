@@ -143,7 +143,7 @@ class TestSelectAreas:
 class TestSceneTree:
     def test_basic(self, scene):
         scene_tree = scene.get_scene_tree()
-        assert scene_tree["config"]["type"] == "tests.mapgen.test_scene.MockScene"
+        assert scene_tree["config"]["type"] == "tests.mapgen.test_scene.MockScene.Config"
         assert scene_tree["area"] == scene.area.as_dict()
         assert len(scene_tree["config"]["children"]) == 0
 
@@ -158,7 +158,7 @@ class TestSceneTree:
         )
         scene.render_with_children()
         scene_tree = scene.get_scene_tree()
-        assert scene_tree["config"]["type"] == "tests.mapgen.test_scene.MockScene"
+        assert scene_tree["config"]["type"] == "tests.mapgen.test_scene.MockScene.Config"
         assert scene_tree["area"] == scene.area.as_dict()
         assert len(scene_tree["children"]) == 2
-        assert scene_tree["children"][0]["config"]["type"] == "tests.mapgen.test_scene.MockScene"
+        assert scene_tree["children"][0]["config"]["type"] == "tests.mapgen.test_scene.MockScene.Config"

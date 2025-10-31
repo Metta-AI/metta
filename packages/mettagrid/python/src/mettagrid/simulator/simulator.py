@@ -256,7 +256,8 @@ class Simulation:
         elif level_agents > num_agents:
             # Replace excess spawn points with empty spaces
             spawn_indices = np.argwhere(spawn_mask)
-            # Keep first num_agents spawn points, replace the rest with empty
+            # Randomly select num_agents spawn points to keep, replace the rest with empty
+            np.random.shuffle(spawn_indices)
             for idx in spawn_indices[num_agents:]:
                 game_map.grid[tuple(idx)] = "empty"
 

@@ -323,7 +323,7 @@ class SingleUseSwarm(_EvalMissionBase):
         return super().instantiate(map_builder, enforced_cogs, variant)
 
 
-EVAL_MISSIONS = [
+EVAL_MISSIONS: list[Mission] = [
     EnergyStarved,
     OxygenBottleneck,
     ExtractorHub30,

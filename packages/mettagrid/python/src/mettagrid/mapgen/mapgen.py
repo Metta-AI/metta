@@ -9,7 +9,7 @@ from mettagrid.map_builder import GameMap, MapBuilder, MapBuilderConfig, MapGrid
 from mettagrid.map_builder.map_builder import AnyMapBuilderConfig
 from mettagrid.map_builder.utils import create_grid
 from mettagrid.mapgen.area import Area, AreaWhere
-from mettagrid.mapgen.scene import ChildrenAction, Scene, SceneConfig, load_symbol, validate_any_scene_config
+from mettagrid.mapgen.scene import ChildrenAction, SceneConfig, load_symbol
 from mettagrid.mapgen.scenes.copy_grid import CopyGrid
 from mettagrid.mapgen.scenes.room_grid import RoomGrid
 from mettagrid.mapgen.scenes.transplant_scene import TransplantScene
@@ -82,8 +82,8 @@ class MapGenConfig(MapBuilderConfig["MapGen"]):
             if t is None:
                 raise ValueError("'type' is required")
             target = load_symbol(t) if isinstance(t, str) else t
-            if isinstance(target, type) and issubclass(target, Scene):
-                return validate_any_scene_config(v)
+            if isinstance(target, type) and issubclass(target, SceneConfig):
+                return SceneConfig.model_validate(v)
             elif isinstance(target, type) and issubclass(target, MapBuilder):
                 return MapBuilderConfig.model_validate(v)
             else:
