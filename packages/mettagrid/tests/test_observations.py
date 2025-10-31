@@ -484,14 +484,11 @@ class TestEdgeObservations:
                     "wall": WallConfig(type_id=TokenTypes.WALL_TYPE_ID),
                     "altar": AssemblerConfig(
                         type_id=TokenTypes.ALTAR_TYPE_ID,
-                        recipes=[
-                            (
-                                [],
-                                ProtocolConfig(
-                                    input_resources={"resource1": 1},
-                                    output_resources={"resource2": 1},
-                                    cooldown=3,
-                                ),
+                        protocols=[
+                            ProtocolConfig(
+                                input_resources={"resource1": 1},
+                                output_resources={"resource2": 1},
+                                cooldown=3,
                             )
                         ],
                     ),
