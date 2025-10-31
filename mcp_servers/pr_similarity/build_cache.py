@@ -135,7 +135,7 @@ def parse_args() -> argparse.Namespace:
 
 def _run_git_log() -> str:
     return subprocess.check_output(
-        ["git", "log", "--pretty=format:" + LOG_FORMAT],
+        ["git", "log", "--all", "--pretty=format:" + LOG_FORMAT],
         text=True,
     )
 
