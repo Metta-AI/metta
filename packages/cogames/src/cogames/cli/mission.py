@@ -56,16 +56,7 @@ def parse_variants(variants_arg: Optional[list[str]]) -> list[MissionVariant]:
 
 def get_all_missions() -> list[str]:
     """Get all mission names in the format site.mission."""
-    names: list[str] = []
-    for mission_class in MISSIONS:
-        try:
-            m = mission_class()
-            if m.site is None:
-                continue
-            names.append(f"{m.site.name}{MAP_MISSION_DELIMITER}{m.name}")
-        except Exception:
-            continue
-    return names
+    return [f"{mission_class().site.name}{MAP_MISSION_DELIMITER}{mission_class().name}" for mission_class in MISSIONS]
 
 
 def get_site_by_name(site_name: str) -> Site:
