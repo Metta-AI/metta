@@ -584,14 +584,36 @@ Common management commands:
             print(f"  • Update SSH config: {green(f'uv run sky status {cluster_name}')}")
             print(f"Error: {str(e)}")
 
-    # Only for multi-GPU sandboxes (multi-node OR >1 GPU per node) and not sweep-controller
+    # Always persist cluster metadata on master for in-SSH launches
+    with spinner("Persisting cluster metadata on master", style=cyan):
+        try:
+            persist_script = _build_incluster_persist_script(cluster_name)
+            subprocess.run(
+                [
+                    "sky",
+                    "exec",
+                    cluster_name,
+                    "--num-nodes",
+                    "all",
+                    "--",
+                    "bash",
+                    "-lc",
+                    persist_script,
+                ],
+                check=True,
+                capture_output=True,
+            )
+        except subprocess.CalledProcessError as e:
+            print(f"\n{yellow('⚠')} Failed to persist cluster metadata on master: {str(e)}")
+            print("   You can still run jobs, but auto-detection may not work in SSH sessions.")
+
+    # For multi-GPU sandboxes (multi-node OR >1 GPU per node) and not sweep-controller, copy helpful credentials
     do_bootstrap_incluster = (not args.sweep_controller) and (
         (args.nodes and int(args.nodes) > 1) or (args.gpus and int(args.gpus) > 1)
     )
-
     if do_bootstrap_incluster:
         # Transfer helpful credentials and persist cluster metadata to enable in-cluster launching.
-        print("\n📤 Transferring credentials and persisting sandbox metadata...")
+        print("\n📤 Transferring credentials for in-cluster SkyPilot usage...")
         scp_success = True
 
         # Transfer .sky folder (SkyPilot client state/keys)
@@ -653,30 +675,6 @@ Common management commands:
             except subprocess.CalledProcessError as e:
                 print(f"  {red('✗')} Failed to transfer observatory tokens: {str(e)}")
                 scp_success = False
-
-        # Persist cluster name and source envs on the master node for interactive SSH sessions,
-        # and ensure SkyPilot CLI is available inside the sandbox venv for fan-out.
-        with spinner("Persisting cluster metadata on master", style=cyan):
-            try:
-                persist_script = _build_incluster_persist_script(cluster_name)
-                subprocess.run(
-                    [
-                        "sky",
-                        "exec",
-                        cluster_name,
-                        "--num-nodes",
-                        "all",
-                        "--",
-                        "bash",
-                        "-lc",
-                        persist_script,
-                    ],
-                    check=True,
-                    capture_output=True,
-                )
-            except subprocess.CalledProcessError as e:
-                print(f"\n{yellow('⚠')} Failed to persist cluster metadata on master: {str(e)}")
-                print("   You can still run jobs, but auto-detection may not work in SSH sessions.")
 
         if not scp_success:
             print(f"\n{yellow('⚠')} Some files failed to transfer.")
