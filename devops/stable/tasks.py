@@ -6,7 +6,7 @@ from datetime import datetime
 from operator import ge, gt
 from typing import Callable
 
-from metta.jobs.job_config import JobConfig, MetricsSource, RemoteConfig
+from metta.jobs.job_config import AcceptanceCriterion, JobConfig, MetricsSource, RemoteConfig
 
 AcceptanceRule = tuple[str, Callable[[float, float], bool], float]
 
@@ -93,14 +93,15 @@ def cogames_task(
 
     # Extract metric keys from acceptance criteria
     metrics_to_track = []
-    acceptance_criteria_dict = None
+    acceptance_criteria_list = []
     if acceptance:
         metrics_to_track = [key for key, _op, _expected in acceptance]
-        # Convert AcceptanceRule list to dict format for JobConfig
+        # Convert AcceptanceRule list to AcceptanceCriterion objects
         op_to_symbol = {"ge": ">=", "gt": ">", "le": "<=", "lt": "<", "eq": "=="}
-        acceptance_criteria_dict = {
-            key: (op_to_symbol.get(op.__name__, op.__name__), expected) for key, op, expected in acceptance
-        }
+        acceptance_criteria_list = [
+            AcceptanceCriterion(metric=key, operator=op_to_symbol.get(op.__name__, op.__name__), threshold=expected)
+            for key, op, expected in acceptance
+        ]
     elif stats_to_track:
         metrics_to_track = stats_to_track
 
@@ -111,7 +112,7 @@ def cogames_task(
         remote=remote,
         metrics_source=MetricsSource.COGAMES_LOG,
         metrics_to_track=metrics_to_track,
-        acceptance_criteria=acceptance_criteria_dict,
+        acceptance_criteria=acceptance_criteria_list,
     )
     return Task(job_config=job_config, acceptance=acceptance, dependency_names=[])
 
@@ -140,14 +141,15 @@ def tool_task(
 
     # Extract metric keys from acceptance criteria
     metrics_to_track = []
-    acceptance_criteria_dict = None
+    acceptance_criteria_list = []
     if acceptance:
         metrics_to_track = [key for key, _op, _expected in acceptance]
-        # Convert AcceptanceRule list to dict format for JobConfig
+        # Convert AcceptanceRule list to AcceptanceCriterion objects
         op_to_symbol = {"ge": ">=", "gt": ">", "le": "<=", "lt": "<", "eq": "=="}
-        acceptance_criteria_dict = {
-            key: (op_to_symbol.get(op.__name__, op.__name__), expected) for key, op, expected in acceptance
-        }
+        acceptance_criteria_list = [
+            AcceptanceCriterion(metric=key, operator=op_to_symbol.get(op.__name__, op.__name__), threshold=expected)
+            for key, op, expected in acceptance
+        ]
 
     # Determine metrics source: training tools use WandB, others have no metrics
     metrics_source = MetricsSource.WANDB if tool.endswith(".train") else MetricsSource.NONE
@@ -161,7 +163,7 @@ def tool_task(
         remote=remote,
         metrics_source=metrics_source,
         metrics_to_track=metrics_to_track,
-        acceptance_criteria=acceptance_criteria_dict,
+        acceptance_criteria=acceptance_criteria_list,
     )
     return Task(job_config=job_config, acceptance=acceptance, dependency_names=dependency_names)
 
@@ -183,33 +185,34 @@ def get_all_tasks() -> list[Task]:
     )
 
     # Cogames smoke tests
-    # Each epoch ≈ 17k steps, so 100k steps ≈ 6 epochs
+    # Each epoch ≈ 17k steps, so 300 epochs × 17,024 steps/epoch = 5,107,200 steps
     cogames_local_smoke = cogames_task(
         name="cogames_local_smoke",
         mission="training_facility.harvest",
         variants=["lonely_heart"],
-        steps=100000,
-        timeout_s=30,
-        eval_episodes=3,
-        stats_to_track=["SPS", "avg_agent_metrics.heart.gained"],
+        steps=5_107_200,  # 300 epochs
+        timeout_s=600,  # 10 minutes for CPU training
+        eval_episodes=10,
+        stats_to_track=["SPS", "avg_agent_metrics.energy.gained"],
         acceptance=[
             ("SPS", ge, 1000),  # Very permissive - just ensure it runs (CPU)
+            ("avg_agent_metrics.energy.gained", ge, 100.0),  # Agent should gain energy
         ],
     )
 
-    # Remote: 600 epochs × 17,024 steps/epoch = 10,214,400 steps
+    # Remote: 5000 epochs × 17,024 steps/epoch = 85,120,000 steps
     cogames_remote_smoke = cogames_task(
         name="cogames_remote_smoke",
         mission="training_facility.harvest",
         variants=["lonely_heart"],
-        steps=10_214_400,  # Reach epoch 600
-        timeout_s=1800,  # 30 minutes
+        steps=85_120_000,  # 5000 epochs
+        timeout_s=7200,  # 2 hours
         remote=RemoteConfig(gpus=1, nodes=1),
         eval_episodes=10,
-        stats_to_track=["SPS", "avg_agent_metrics.heart.gained"],
+        stats_to_track=["SPS", "avg_agent_metrics.energy.gained"],
         acceptance=[
             ("SPS", ge, 10000),  # At least 10k samples/sec on GPU
-            ("avg_agent_metrics.heart.gained", ge, 0.1),  # Agent should gain some hearts
+            ("avg_agent_metrics.energy.gained", ge, 100.0),  # Agent should gain energy
         ],
     )
 

@@ -202,7 +202,10 @@ def format_job_with_acceptance(job_state: JobState) -> str:
             for criterion in job_state.config.acceptance_criteria:
                 if criterion.metric not in job_state.metrics:
                     lines.append(
-                        red(f"    ✗ {criterion.metric}: MISSING (expected {criterion.operator} {criterion.threshold})")
+                        red(
+                            f"    ✗ {criterion.metric}: MISSING from job output "
+                            f"(expected {criterion.operator} {criterion.threshold})"
+                        )
                     )
                 else:
                     actual = job_state.metrics[criterion.metric]
