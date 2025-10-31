@@ -20,6 +20,7 @@ from mettagrid.config.mettagrid_config import (
     ChestConfig,
     GridObjectConfig,
     MettaGridConfig,
+    ProtocolConfig,
 )
 from mettagrid.map_builder.map_builder import MapBuilderConfig
 from mettagrid.mapgen.mapgen import MapGen
@@ -58,30 +59,51 @@ class DarkSideVariant(MissionVariant):
 class LonelyHeartVariant(MissionVariant):
     name: str = "lonely_heart"
     description: str = "Making hearts for one agent is easy."
-    # TODO: Fix this when Richard remakes the _make_env_modifier
-    # def apply(self, mission: Mission) -> Mission:
-    #     mission.assembler.heart_cost = 1
 
-    #     def modifier(cfg: MettaGridConfig) -> None:
-    #         simplified_inputs = {"carbon": 1, "oxygen": 1, "germanium": 1, "silicon": 1, "energy": 1}
+    def apply(self, mission: Mission) -> Mission:
+        mission.assembler.heart_cost = 1
 
-    #         assembler = cfg.game.objects.get("assembler")
-    #         if assembler is None:
-    #             return
+        def modifier(cfg: MettaGridConfig) -> None:
+            simplified_inputs = {"carbon": 1, "oxygen": 1, "germanium": 1, "silicon": 1, "energy": 1}
 
-    #         heart_recipe = ProtocolConfig(
-    #             input_resources=dict(input_resources), output_resources={"heart": 1}, cooldown=1
-    #         )
+            assembler = cfg.game.objects.get("assembler")
+            if assembler is not None and getattr(assembler, "recipes", None):
+                heart_recipe = ProtocolConfig(
+                    input_resources=dict(simplified_inputs),
+                    output_resources={"heart": 1},
+                    cooldown=1,
+                )
 
-    #         non_heart_recipes = [
-    #             (existing_vibe_tokens, recipe)
-    #             for existing_vibe_tokens, recipe in assembler.recipes
-    #             if recipe.output_resources.get("heart", 0) == 0
-    #         ]
+                non_heart_recipes = [
+                    (existing_vibe_tokens, recipe)
+                    for existing_vibe_tokens, recipe in assembler.recipes
+                    if recipe.output_resources.get("heart", 0) == 0
+                ]
 
-    #         assembler.recipes = [(["default"], heart_recipe), *non_heart_recipes]
+                assembler.recipes = [(["default"], heart_recipe), *non_heart_recipes]
 
-    #     return _add_make_env_modifier(mission, modifier)
+            germanium = cfg.game.objects.get("germanium_extractor")
+            if germanium is not None:
+                setattr(germanium, "max_uses", 0)
+                recipes = []
+                for tokens, recipe in getattr(germanium, "recipes", []):
+                    output = dict(recipe.output_resources)
+                    output["germanium"] = max(output.get("germanium", 0), 1)
+                    recipes.append(
+                        (
+                            list(tokens),
+                            ProtocolConfig(
+                                input_resources=dict(recipe.input_resources),
+                                output_resources=output,
+                                cooldown=max(recipe.cooldown, 1),
+                            ),
+                        )
+                    )
+                if recipes:
+                    germanium.recipes = recipes
+
+        mission.add_env_modifier(modifier)
+        return mission
 
 
 class BrightSideVariant(MissionVariant):
@@ -138,8 +160,12 @@ class NeutralFacedVariant(MissionVariant):
     description: str = "Disable vibe swapping; keep neutral face."
 
     def apply(self, mission: Mission) -> Mission:
-        mission.enable_vibe_change = False
-        mission.vibe_count = 1
+        def modifier(cfg: MettaGridConfig) -> None:
+            change_vibe = cfg.game.actions.change_vibe
+            change_vibe.enabled = False
+            change_vibe.number_of_vibes = 1
+
+        mission.add_env_modifier(modifier)
         return mission
 
 
@@ -149,18 +175,15 @@ class HeartChorusVariant(MissionVariant):
 
     def apply(self, mission: Mission) -> Mission:
         def modifier(cfg: MettaGridConfig) -> None:
-            cfg.game.agent.rewards.inventory = {}
-            cfg.game.agent.rewards.inventory_max = {}
             cfg.game.agent.rewards.stats = {
-                "heart.gained": 0.25,
+                "heart.gained": 1.0,
                 "chest.heart.deposited": 1.0,
-                "carbon.gained": 0.02,
-                "oxygen.gained": 0.02,
-                "germanium.gained": 0.05,
-                "silicon.gained": 0.02,
-                "energy.gained": 0.005,
+                "chest.heart.withdrawn": -1.0,
+                "inventory.diversity.ge.2": 0.17,
+                "inventory.diversity.ge.3": 0.18,
+                "inventory.diversity.ge.4": 0.60,
+                "inventory.diversity.ge.5": 0.97,
             }
-            cfg.game.agent.rewards.stats_max = {}
 
         mission.add_env_modifier(modifier)
         return mission
