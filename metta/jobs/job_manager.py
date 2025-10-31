@@ -439,6 +439,10 @@ class JobManager:
             # For reattached jobs, fetch metrics immediately; for new jobs, wait full interval
             last_metrics_fetch = -self.metrics_fetch_interval_s if fetch_immediately else 0.0
 
+            # Exponential backoff for transient failures (e.g., computer sleep)
+            retry_delay = 5.0  # Start with 5 seconds
+            max_retry_delay = 1800.0  # Max 30 minutes
+
             try:
                 while True:
                     try:
@@ -447,7 +451,17 @@ class JobManager:
                         status = statuses.get(job_id, {}).get("status")
 
                         if not status:
-                            break
+                            # Status query failed (network issue, etc.) - retry with exponential backoff
+                            logger.warning(
+                                f"Failed to get status for remote job {job_name} (job_id={job_id}), "
+                                f"will retry in {retry_delay:.0f}s (this can happen if computer went to sleep)"
+                            )
+                            time.sleep(retry_delay)
+                            retry_delay = min(retry_delay * 2, max_retry_delay)  # Exponential backoff
+                            continue
+
+                        # Reset retry delay on successful status check
+                        retry_delay = 5.0
 
                         # Update database with current status
                         with Session(self._engine) as session:
