@@ -194,8 +194,7 @@ releases:
             git config --local --unset http.https://github.com/.extraheader 2>/dev/null || true
             git remote set-url origin https://github.com/Metta-AI/metta.git
             git fetch --unshallow origin main 2>/dev/null || git fetch origin main
-            git fetch origin dominik/fix-cronjob
-            git checkout -f origin/dominik/fix-cronjob
+            git checkout -f origin/main
             uv pip install numpy google-genai boto3
             PYTHONPATH=/workspace/metta uv run --no-sync python mcp_servers/pr_similarity/build_cache.py --download-from-s3
       - resources:
