@@ -73,7 +73,7 @@ class LonelyHeartVariant(MissionVariant):
 
             germanium = cfg.game.objects.get("germanium_extractor")
             if germanium is not None:
-                setattr(germanium, "max_uses", 0)
+                germanium.max_uses = 0
                 recipes = []
                 for tokens, recipe in getattr(germanium, "recipes", []):
                     output = dict(recipe.output_resources)
