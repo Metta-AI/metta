@@ -292,7 +292,13 @@ VARIANTS = [
 TRAINING_FACILITY = Site(
     name="training_facility",
     description="COG Training Facility. Basic training facility with open spaces and no obstacles.",
-    map_builder=get_map("training_facility_open_1.map"),
+    map_builder=make_hub_only_map_builder(
+        num_cogs=4,
+        width=21,
+        height=21,
+        corner_bundle="chests",
+        cross_bundle="extractors",
+    ),
     min_cogs=1,
     max_cogs=4,
 )
