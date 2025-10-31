@@ -71,7 +71,7 @@ def output_error(message: str) -> None:
     if sys.stdout.isatty():
         print(message, file=sys.stderr)
     else:
-        logger.error(message.strip())
+        logger.error(message.strip(), exc_info=True)
 
 
 def output_exception(message: str) -> None:

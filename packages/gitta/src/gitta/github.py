@@ -334,7 +334,7 @@ def get_commits(
                 error_msg = f"Failed to get commits: {e}"
                 if hasattr(e, "response") and e.response is not None:
                     error_msg += f" - Status: {e.response.status_code}"
-                logger.error(error_msg)
+                logger.error(error_msg, exc_info=True)
                 raise GitError(error_msg) from e
 
             commits = resp.json() or []
@@ -430,7 +430,7 @@ def get_workflow_runs(
             error_msg = f"Failed to get workflow runs: {e}"
             if hasattr(e, "response") and e.response is not None:
                 error_msg += f" - Status: {e.response.status_code}"
-            logger.error(error_msg)
+            logger.error(error_msg, exc_info=True)
             raise GitError(error_msg) from e
 
         return (resp.json() or {}).get("workflow_runs", [])
@@ -469,7 +469,7 @@ def get_workflow_run_jobs(
             error_msg = f"Failed to get workflow run jobs: {e}"
             if hasattr(e, "response") and e.response is not None:
                 error_msg += f" - Status: {e.response.status_code}"
-            logger.error(error_msg)
+            logger.error(error_msg, exc_info=True)
             raise GitError(error_msg) from e
 
         return (resp.json() or {}).get("jobs", [])

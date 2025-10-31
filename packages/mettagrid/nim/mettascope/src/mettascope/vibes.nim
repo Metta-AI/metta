@@ -17,7 +17,7 @@ find "/UI/Main/**/VibePanel":
         # TODO: Maybe gray out the vibe buttons?
         echo "no selection, can't send vibe action"
         return
-      let vibeActionId = replay.actionNames.find("change_glyph_" & $vibeId)
+      let vibeActionId = replay.actionNames.find("change_vibe_" & $vibeId)
       let shiftDown = window.buttonDown[KeyLeftShift] or window.buttonDown[KeyRightShift]
 
       if shiftDown:
