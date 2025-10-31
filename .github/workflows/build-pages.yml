@@ -42,6 +42,7 @@ jobs:
         uses: ./.github/actions/setup-environment
         with:
           install-mode: "minimal"
+          enable-nim: "true"
 
       - name: Debug ~/.nimble contents
         run: |
