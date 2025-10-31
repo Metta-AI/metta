@@ -3,11 +3,9 @@ from __future__ import annotations
 import logging
 import random
 
-# Import MapBuilder subclasses to register them
-import mettagrid.map_builder.ascii  # noqa: F401
-import mettagrid.map_builder.random  # noqa: F401
-from cogames.cogs_vs_clips.mission import Mission, MissionVariant
+from cogames.cogs_vs_clips.mission import Mission, MissionVariant, Site
 from cogames.cogs_vs_clips.mission_utils import _add_make_env_modifier, get_map
+from cogames.cogs_vs_clips.sites import EVALS
 from mettagrid.config.mettagrid_config import MettaGridConfig, ProtocolConfig
 from mettagrid.map_builder.map_builder import MapBuilderConfig
 
@@ -15,8 +13,8 @@ logger = logging.getLogger(__name__)
 
 
 class _EvalMissionBase(Mission):
-    # Site will be set by missions.py when importing these missions
-    # Don't set it here to avoid circular imports
+    # Shared site for all eval missions
+    site: Site = EVALS
 
     # Tunables (defaults; override in subclasses)
     map_name: str = "evals/machina_eval_template.map"
@@ -57,15 +55,19 @@ class _EvalMissionBase(Mission):
         # This ensures at least one resource is always available for crafting unclip items
         immune_extractor_type = None
         if self.clip_rate > 0:
-            # Use explicit immune_extractor if set, otherwise random
+            # Prefer explicitly provided immune extractor; otherwise pick randomly excluding the clipped target
             immune_extractor_type = getattr(self, "immune_extractor", None)
             if immune_extractor_type is None:
-                extractor_types = ["carbon_extractor", "oxygen_extractor", "germanium_extractor", "silicon_extractor"]
-                # Exclude explicitly clipped extractor from immune selection
+                candidates = [
+                    "carbon_extractor",
+                    "oxygen_extractor",
+                    "germanium_extractor",
+                    "silicon_extractor",
+                ]
                 explicitly_clipped = getattr(self, "explicitly_clipped_extractor", None)
-                if explicitly_clipped in extractor_types:
-                    extractor_types = [e for e in extractor_types if e != explicitly_clipped]
-                immune_extractor_type = random.choice(extractor_types)
+                if explicitly_clipped in candidates:
+                    candidates = [e for e in candidates if e != explicitly_clipped]
+                immune_extractor_type = random.choice(candidates)
                 logger.debug(
                     "[EvalMission] clip_rate=%s: %s randomly clip-immune",
                     self.clip_rate,
@@ -193,40 +195,7 @@ class OxygenBottleneck(_EvalMissionBase):
     max_uses_oxygen: int = 20
     max_uses_germanium: int = 10
     max_uses_silicon: int = 100
-
-
-class GermaniumRush(_EvalMissionBase):
-    name: str = "germanium_rush"
-    description: str = "Race to limited germanium before it runs out."
-    map_name: str = "evals/machina_eval_exp03.map"
-    max_uses_germanium: int = 10
-    max_uses_carbon: int = 100
-    max_uses_oxygen: int = 50
-    max_uses_silicon: int = 100
-    max_uses_charger: int = 0
-
-
-class SiliconWorkbench(_EvalMissionBase):
-    name: str = "silicon_workbench"
-    description: str = "Silicon-rich environment; convert energy to silicon."
-    map_name: str = "evals/machina_eval_exp04.map"
-    silicon_eff: int = 150
-    max_uses_silicon: int = 200
-    max_uses_oxygen: int = 50
-    max_uses_carbon: int = 100
-    max_uses_germanium: int = 10
-    max_uses_charger: int = 0
-
-
-class CarbonDesert(_EvalMissionBase):
-    name: str = "carbon_desert"
-    description: str = "Sparse carbon dictates routes."
-    map_name: str = "evals/machina_eval_exp05.map"
-    max_uses_carbon: int = 30
-    max_uses_oxygen: int = 50
-    max_uses_germanium: int = 10
-    max_uses_silicon: int = 100
-    max_uses_charger: int = 0
+    site: Site = EVALS
 
 
 class SingleUseWorld(_EvalMissionBase):
@@ -240,31 +209,6 @@ class SingleUseWorld(_EvalMissionBase):
     max_uses_silicon: int = 1
 
 
-class SlowOxygen(_EvalMissionBase):
-    name: str = "slow_oxygen"
-    description: str = "Very slow oxygen; interleave partial-usage taps."
-    map_name: str = "evals/machina_eval_exp07.map"
-    oxygen_eff: int = 25
-    energy_regen: int = 2
-    max_uses_oxygen: int = 100
-    max_uses_carbon: int = 100
-    max_uses_germanium: int = 10
-    max_uses_silicon: int = 100
-    max_uses_charger: int = 0
-
-
-class HighRegenSprint(_EvalMissionBase):
-    name: str = "high_regen_sprint"
-    description: str = "High regen; minimize charger dependency."
-    map_name: str = "evals/machina_eval_exp08.map"
-    energy_regen: int = 3
-    max_uses_carbon: int = 100
-    max_uses_oxygen: int = 50
-    max_uses_germanium: int = 10
-    max_uses_silicon: int = 100
-    max_uses_charger: int = 0
-
-
 class SparseBalanced(_EvalMissionBase):
     name: str = "sparse_balanced"
     description: str = "Evenly sparse resources; balanced routing."
@@ -274,17 +218,7 @@ class SparseBalanced(_EvalMissionBase):
     max_uses_germanium: int = 10
     max_uses_silicon: int = 50
     max_uses_charger: int = 0
-
-
-class GermaniumClutch(_EvalMissionBase):
-    name: str = "germanium_clutch"
-    description: str = "A single germanium line determines success."
-    map_name: str = "evals/machina_eval_exp10.map"
-    max_uses_germanium: int = 2
-    max_uses_carbon: int = 100
-    max_uses_oxygen: int = 50
-    max_uses_silicon: int = 100
-    max_uses_charger: int = 0
+    site: Site = EVALS
 
 
 # -----------------------------
@@ -353,7 +287,196 @@ class BalancedSpread(_EvalMissionBase):
     map_name: str = "evals/eval_balanced_spread.map"
 
 
-# Clipping Evaluation missions removed in favor of apply_clip_profile helper
+# -----------------------------
+# Extractor Hub Missions
+# -----------------------------
+
+
+class ExtractorHub30(_EvalMissionBase):
+    name: str = "extractor_hub_30"
+    description: str = "Small 30x30 extractor hub."
+    map_name: str = "evals/extractor_hub_30x30.map"
+
+
+class ExtractorHub50(_EvalMissionBase):
+    name: str = "extractor_hub_50"
+    description: str = "Medium 50x50 extractor hub."
+    map_name: str = "evals/extractor_hub_50x50.map"
+
+
+class ExtractorHub70(_EvalMissionBase):
+    name: str = "extractor_hub_70"
+    description: str = "Large 70x70 extractor hub."
+    map_name: str = "evals/extractor_hub_70x70.map"
+
+
+class ExtractorHub80(_EvalMissionBase):
+    name: str = "extractor_hub_80"
+    description: str = "Large 80x80 extractor hub."
+    map_name: str = "evals/extractor_hub_80x80.map"
+
+
+class ExtractorHub100(_EvalMissionBase):
+    name: str = "extractor_hub_100"
+    description: str = "Extra large 100x100 extractor hub."
+    map_name: str = "evals/extractor_hub_100x100.map"
+
+
+# -----------------------------
+# Multi-agent Coordination Missions
+# -----------------------------
+
+
+class CollectResourcesBase(_EvalMissionBase):
+    name: str = "collect_resources_base"
+    description: str = "Collect resources (near base), rally and chorus glyph; single carrier deposits."
+    map_name: str = "evals/eval_collect_resources_easy.map"
+
+
+class CollectResourcesSpread(_EvalMissionBase):
+    name: str = "collect_resources_spread"
+    description: str = "Collect resources (scattered nearby), rally and chorus glyph at assembler."
+    map_name: str = "evals/eval_collect_resources_medium.map"
+
+
+class CollectFar(_EvalMissionBase):
+    name: str = "collect_far"
+    description: str = "Collect resources scattered far; coordinate routes, chorus glyph, single carrier deposits."
+    map_name: str = "evals/eval_collect_the_resources_hard.map"
+
+
+class DivideAndConquer(_EvalMissionBase):
+    name: str = "divide_and_conquer"
+    description: str = "Resources split by regions; specialize per resource and reconvene at base."
+    map_name: str = "evals/eval_divide_and_conquer.map"
+
+
+class GoTogether(_EvalMissionBase):
+    name: str = "go_together"
+    description: str = "Objects favor collective glyphing; travel and return as a pack."
+    map_name: str = "evals/eval_balanced_spread.map"
+
+    def instantiate(
+        self, map_builder: MapBuilderConfig, num_cogs: int, variant: MissionVariant | None = None
+    ) -> "Mission":
+        # Enforce at least two agents
+        enforced_cogs = max(2, num_cogs)
+        mission = super().instantiate(map_builder, enforced_cogs, variant)
+
+        # Require 2 glyphers at extractors; charger remains single-agent
+        def _collective(cfg: MettaGridConfig) -> None:
+            for key in [
+                "carbon_extractor",
+                "oxygen_extractor",
+                "germanium_extractor",
+                "silicon_extractor",
+            ]:
+                obj = cfg.game.objects.get(key)
+                if obj is None or not hasattr(obj, "recipes"):
+                    continue
+                adjusted = []
+                for glyphs, proto in obj.recipes:
+                    gl = list(glyphs)
+                    if len(gl) < 2:
+                        gl = gl + ["heart"] * (2 - len(gl))
+                    adjusted.append((gl, proto))
+                obj.recipes = adjusted
+
+        return _add_make_env_modifier(mission, _collective)
+
+
+class SingleUseSwarm(_EvalMissionBase):
+    name: str = "single_use_swarm"
+    description: str = "Multi-agent variant of SingleUseWorld; stations max_uses=1, team must fan out and reconverge."
+    map_name: str = "evals/eval_single_use_world.map"
+    max_uses_charger: int = 0
+    max_uses_carbon: int = 1
+    max_uses_oxygen: int = 1
+    max_uses_germanium: int = 1
+    max_uses_silicon: int = 1
+
+    def instantiate(
+        self, map_builder: MapBuilderConfig, num_cogs: int, variant: MissionVariant | None = None
+    ) -> "Mission":
+        # Enforce at least two agents
+        enforced_cogs = max(2, num_cogs)
+        mission = super().instantiate(map_builder, enforced_cogs, variant)
+
+        def _balance_outputs(cfg: MettaGridConfig) -> None:
+            asm = cfg.game.objects.get("assembler")
+            required_g = 3
+            if asm is not None and getattr(asm, "recipes", None):
+                for _glyphs, proto in asm.recipes:
+                    out = getattr(proto, "output_resources", {}) or {}
+                    if out.get("heart", 0):
+                        req = getattr(proto, "input_resources", {}) or {}
+                        required_g = max(1, int(req.get("germanium", required_g)))
+                        break
+
+            car = cfg.game.objects.get("carbon_extractor")
+            if car is not None and getattr(car, "recipes", None):
+                glyphs, proto = car.recipes[0]
+                proto.output_resources = {"carbon": 20}
+                car.recipes = [(glyphs, proto)]
+
+            oxy = cfg.game.objects.get("oxygen_extractor")
+            if oxy is not None and getattr(oxy, "recipes", None):
+                glyphs, proto = oxy.recipes[0]
+                proto.output_resources = {"oxygen": 20}
+                oxy.recipes = [(glyphs, proto)]
+
+            sil = cfg.game.objects.get("silicon_extractor")
+            if sil is not None and getattr(sil, "recipes", None):
+                glyphs, proto = sil.recipes[0]
+                proto.output_resources = {"silicon": 50}
+                sil.recipes = [(glyphs, proto)]
+
+            ger = cfg.game.objects.get("germanium_extractor")
+            if ger is not None and getattr(ger, "recipes", None):
+                glyphs, proto = ger.recipes[0]
+                proto.output_resources = {"germanium": required_g}
+                ger.recipes = [(glyphs, proto)]
+
+        return _add_make_env_modifier(mission, _balance_outputs)
+
+
+# -----------------------------
+# Clipping Evaluation Missions
+# -----------------------------
+
+
+class ClipOxygen(_EvalMissionBase):
+    name: str = "clip_oxygen"
+    description: str = "Oxygen extractor starts clipped; unclip via gear crafted from carbon/silicon/germanium."
+    map_name: str = "evals/eval_clip_oxygen.map"
+    clip_rate: float = 0.0
+
+    def instantiate(
+        self, map_builder: MapBuilderConfig, num_cogs: int, variant: MissionVariant | None = None
+    ) -> "Mission":
+        mission = super().instantiate(map_builder, num_cogs, variant)
+        mission.oxygen_extractor.start_clipped = True
+
+        # Deterministic unclipping: require decoder (crafted from carbon)
+        def _filter_unclip(cfg: MettaGridConfig) -> None:
+            if cfg.game.clipper is None:
+                return
+            cfg.game.clipper.unclipping_recipes = [
+                r for r in cfg.game.clipper.unclipping_recipes if r.input_resources == {"decoder": 1}
+            ]
+
+        # Single-agent gear crafting: gear glyph crafts decoder (consumes carbon)
+        def _tweak_assembler(cfg: MettaGridConfig) -> None:
+            asm = cfg.game.objects.get("assembler")
+            if asm is None:
+                return
+            recipe = ProtocolConfig(input_resources={"carbon": 1}, output_resources={"decoder": 1})
+            single_gear = (["gear"], recipe)
+            if not any(g == ["gear"] and getattr(p, "output_resources", {}) == {"decoder": 1} for g, p in asm.recipes):
+                asm.recipes = [single_gear, *asm.recipes]
+
+        mission = _add_make_env_modifier(mission, _filter_unclip)
+        return _add_make_env_modifier(mission, _tweak_assembler)
 
 
 EVAL_MISSIONS = [
@@ -365,13 +488,19 @@ EVAL_MISSIONS = [
     GeraniumForage,
     SingleUseWorld,
     BalancedSpread,
-    GermaniumRush,
-    SiliconWorkbench,
-    CarbonDesert,
-    SlowOxygen,
-    HighRegenSprint,
     SparseBalanced,
-    GermaniumClutch,
+    ExtractorHub30,
+    ExtractorHub50,
+    ExtractorHub70,
+    ExtractorHub80,
+    ExtractorHub100,
+    CollectResourcesBase,
+    CollectResourcesSpread,
+    CollectFar,
+    DivideAndConquer,
+    GoTogether,
+    SingleUseSwarm,
+    ClipOxygen,
 ]
 
 

@@ -27,7 +27,6 @@ import numpy as np
 
 from cogames.cogs_vs_clips.evals import (
     DIFFICULTY_LEVELS,
-    CarbonDesert,
     Experiment1Mission,
     Experiment2Mission,
     Experiment4Mission,
@@ -37,15 +36,10 @@ from cogames.cogs_vs_clips.evals import (
     Experiment8Mission,
     Experiment9Mission,
     Experiment10Mission,
-    GermaniumRush,
-    HighRegenSprint,
-    OxygenBottleneck,
-    SiliconWorkbench,
-    SlowOxygen,
-    SparseBalanced,
     apply_clip_profile,
     apply_difficulty,
 )
+from cogames.cogs_vs_clips.evals.eval_missions import EVAL_MISSIONS
 from cogames.cogs_vs_clips.missions import make_game
 from cogames.policy.scripted_agent import HYPERPARAMETER_PRESETS, ScriptedAgentPolicy
 from mettagrid import MettaGridEnv, dtype_actions
@@ -181,7 +175,7 @@ def run_training_facility_suite(
 # Test Suite 2: Full Evaluation (Comprehensive)
 # =============================================================================
 
-# All experiments to test
+# All experiments to test (EXP* plus all eval missions)
 EXPERIMENTS = [
     ("EXP1", Experiment1Mission),
     ("EXP2", Experiment2Mission),
@@ -192,14 +186,10 @@ EXPERIMENTS = [
     ("EXP8", Experiment8Mission),
     ("EXP9", Experiment9Mission),
     ("EXP10", Experiment10Mission),
-    ("OxygenBottleneck", OxygenBottleneck),
-    ("GermaniumRush", GermaniumRush),
-    ("SiliconWorkbench", SiliconWorkbench),
-    ("CarbonDesert", CarbonDesert),
-    ("SlowOxygen", SlowOxygen),
-    ("HighRegenSprint", HighRegenSprint),
-    ("SparseBalanced", SparseBalanced),
 ]
+
+# Add all eval missions by class name
+EXPERIMENTS += [(cls.__name__, cls) for cls in EVAL_MISSIONS]
 
 EXPERIMENT_MAP = dict(EXPERIMENTS)
 
