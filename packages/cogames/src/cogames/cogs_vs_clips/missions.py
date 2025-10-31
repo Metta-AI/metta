@@ -303,13 +303,7 @@ VARIANTS = [
 TRAINING_FACILITY = Site(
     name="training_facility",
     description="COG Training Facility. Basic training facility with open spaces and no obstacles.",
-    map_builder=make_hub_only_map_builder(
-        num_cogs=4,
-        width=21,
-        height=21,
-        corner_bundle="chests",
-        cross_bundle="extractors",
-    ),
+    map_builder=get_map("training_facility_open_1.map"),
     min_cogs=1,
     max_cogs=4,
 )
@@ -357,21 +351,16 @@ class HarvestMission(Mission):
     # Global Mission.instantiate now applies overrides; no per-mission override needed
     def make_env(self) -> MettaGridConfig:
         env = super().make_env()
-        # Log-shaped chest rewards at episode end via per-step telescoping
-        if self.num_cogs and self.num_cogs > 0:
-            reward_weight = 1.0 / self.num_cogs
-        else:
-            reward_weight = 1.0 / max(1, getattr(env.game, "num_agents", 1))
-
+        # Reset rewards to match pre-procedural behaviour; variants (e.g. Heart Chorus) will override as needed.
         env.game.agent.rewards.inventory = {}
-        env.game.agent.rewards.stats = {
-            "chest.carbon.amount": reward_weight,
-            "chest.oxygen.amount": reward_weight,
-            "chest.germanium.amount": reward_weight,
-            "chest.silicon.amount": reward_weight,
-        }
+        env.game.agent.rewards.stats = {}
         env.game.agent.rewards.inventory_max = {}
         env.game.agent.rewards.stats_max = {}
+
+        # Remove resource-specific chests so agents interact with the single communal chest as before.
+        for chest_name in ("chest_carbon", "chest_oxygen", "chest_germanium", "chest_silicon"):
+            env.game.objects.pop(chest_name, None)
+
         # Ensure that the extractors are configured to have high max uses
         for name in ("germanium_extractor", "carbon_extractor", "oxygen_extractor", "silicon_extractor"):
             cfg = env.game.objects.get(name)
