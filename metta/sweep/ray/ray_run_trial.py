@@ -124,7 +124,6 @@ def metta_train_fn(config: dict[str, Any]) -> None:
         experiment_id=sweep_config.get("sweep_id"),
         recipe_module=sweep_config.get("recipe_module"),
         train_entrypoint=sweep_config.get("train_entrypoint"),
-        stats_server_uri=sweep_config.get("stats_server_uri"),
         train_overrides=merged_overrides,
     )
     job.metadata["sweep/suggestion"] = config["params"]
@@ -134,7 +133,7 @@ def metta_train_fn(config: dict[str, Any]) -> None:
     # TODO: Register SIGINTs for pruning
     job_pid = training_dispatcher.dispatch(job)
 
-    print(f"Job ID: {job_pid}")
+    print(f"Job PID: {job_pid}")
 
     training_proc = training_dispatcher.get_process(job_pid)
 

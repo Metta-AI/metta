@@ -24,6 +24,8 @@ class JobDefinition(BaseModel):
     nodes: int = 1
     # Single source for recipe arguments (serialized as --args key=value)
     args: dict[str, Any] = Field(default_factory=dict)
+
+    # TODO: No longer how it works
     # Single source for config overrides (serialized as --overrides key=value)
     overrides: dict[str, Any] = Field(default_factory=dict)
     type: JobTypes = JobTypes.LAUNCH_TRAINING  # JobTypes enum value

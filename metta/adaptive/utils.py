@@ -208,8 +208,8 @@ def create_training_job(
     train_entrypoint: str,
     gpus: int = 1,
     nodes: int = 1,
-    stats_server_uri: Optional[str] = None,
     train_overrides: Optional[Dict[str, Any]] = None,
+    stats_server_uri: Optional[str] = None,
 ) -> "JobDefinition":
     """Create a training job definition.
 
@@ -228,8 +228,8 @@ def create_training_job(
     """
 
     overrides = build_train_overrides(
-        stats_server_uri=stats_server_uri,
         additional_overrides=train_overrides,
+        stats_server_uri=stats_server_uri,
     )
 
     return JobDefinition(
