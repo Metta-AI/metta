@@ -127,9 +127,11 @@ repos:
       - id: detect-private-key
         stages: [pre-commit, manual]
         exclude: "agentdojo/data/suites/workspace_plus/terminal/mock-gist-server/certs/nginx.key"
+
+      # TODO: re-enable this in a subsequent PR so this one isn't too noisy
       # Ensure files end with a newline
-      - id: end-of-file-fixer
-        stages: [pre-commit, manual]
+      # - id: end-of-file-fixer
+      #   stages: [pre-commit, manual]
 
   - repo: local
     hooks:
