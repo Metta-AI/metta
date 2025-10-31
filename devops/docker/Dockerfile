@@ -42,6 +42,9 @@ COPY . .
 ENV PATH="/workspace/metta/.venv/bin:$PATH"
 ENV VIRTUAL_ENV="/workspace/metta/.venv"
 
+RUN git config --global checkout.defaultRemote origin \
+    && git config --global branch.autoSetupMerge simple
+
 # Doesn't do anything but guarantees that the remote is configured for anonymous access
 RUN git fetch
 
