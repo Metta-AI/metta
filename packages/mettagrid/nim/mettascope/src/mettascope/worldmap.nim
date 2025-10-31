@@ -227,12 +227,10 @@ proc useSelections*(panel: Panel) =
     let isClick = dist(mousePos, worldmapLastClickPos) < ClickDistance
 
     if currentTime - worldmapLastClickTime < ClickInterval and isClick:
-      echo "Worldmap double-click detected - toggling lock focus"
       settings.lockFocus = not settings.lockFocus
       if settings.lockFocus and selection != nil:
         centerAt(panel, selection)
     else:
-      echo "Worldmap single press detected - clearing lock focus"
       settings.lockFocus = false
 
     worldmapLastClickTime = currentTime
