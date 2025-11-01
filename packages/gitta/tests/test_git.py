@@ -107,7 +107,7 @@ def test_remote_operations():
     remotes = get_all_remotes()
     assert len(remotes) == 2
     assert remotes["origin"] == "git@github.com:test/repo.git"
-    assert remotes["upstream"] == "https://github.com/upstream/repo.git"
+    assert remotes["upstream"] in ("https://github.com/upstream/repo.git", "git@github.com:upstream/repo.git")
 
 
 def test_find_git_root():

@@ -117,8 +117,8 @@ mettagrid/MODULE.bazel.lock
 
 # Stable Release System
 devops/stable/state/
-devops/stable/logs/
 devops/stable/release-notes/
+
 mcp_servers/pr_similarity/cache/
 
 # skypilot testing
