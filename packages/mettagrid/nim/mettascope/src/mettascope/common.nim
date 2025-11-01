@@ -129,7 +129,6 @@ type
 var
   requestActions*: seq[ActionRequest]
 
-  followSelection*: bool = false
   mouseCaptured*: bool = false
   mouseCapturedPanel*: Panel = nil
 
