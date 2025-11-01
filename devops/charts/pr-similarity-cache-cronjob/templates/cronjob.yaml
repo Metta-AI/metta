@@ -1,10 +1,9 @@
-{{- if .Values.cronjobEnabled }}
 apiVersion: batch/v1
 kind: CronJob
 metadata:
-  name: {{ include "softmax-cronjob.fullname" . }}
+  name: {{ include "pr-similarity-cache-cronjob.fullname" . }}
   labels:
-    {{- include "softmax-cronjob.labels" . | nindent 4 }}
+    {{- include "pr-similarity-cache-cronjob.labels" . | nindent 4 }}
 spec:
   schedule: {{ .Values.schedule | quote }}
   successfulJobsHistoryLimit: {{ .Values.successfulJobsHistoryLimit }}
@@ -16,9 +15,9 @@ spec:
       template:
         metadata:
           labels:
-            {{- include "softmax-cronjob.selectorLabels" . | nindent 12 }}
+            {{- include "pr-similarity-cache-cronjob.selectorLabels" . | nindent 12 }}
         spec:
-          serviceAccountName: {{ include "softmax-cronjob.serviceAccountName" . }}
+          serviceAccountName: {{ include "pr-similarity-cache-cronjob.serviceAccountName" . }}
           restartPolicy: {{ .Values.restartPolicy }}
           containers:
           - name: {{ .Chart.Name }}
@@ -60,4 +59,3 @@ spec:
             # Secrets are fetched from AWS Secrets Manager at runtime
             resources:
               {{- toYaml .Values.resources | nindent 14 }}
-{{- end }}

@@ -3,9 +3,9 @@
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  name: {{ include "dashboard-cronjob.fullname" . }}
+  name: {{ include "pr-similarity-cache-cronjob.fullname" . }}
   labels:
-    {{- include "dashboard-cronjob.labels" . | nindent 4 }}
+    {{- include "pr-similarity-cache-cronjob.labels" . | nindent 4 }}
 rules:
   # Kubernetes collector needs to read pods and deployments
   - apiGroups: [""]
@@ -22,15 +22,15 @@ rules:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
-  name: {{ include "dashboard-cronjob.fullname" . }}
+  name: {{ include "pr-similarity-cache-cronjob.fullname" . }}
   labels:
-    {{- include "dashboard-cronjob.labels" . | nindent 4 }}
+    {{- include "pr-similarity-cache-cronjob.labels" . | nindent 4 }}
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
-  name: {{ include "dashboard-cronjob.fullname" . }}
+  name: {{ include "pr-similarity-cache-cronjob.fullname" . }}
 subjects:
   - kind: ServiceAccount
-    name: {{ include "dashboard-cronjob.serviceAccountName" . }}
+    name: {{ include "pr-similarity-cache-cronjob.serviceAccountName" . }}
     namespace: {{ .Release.Namespace }}
 {{- end }}
