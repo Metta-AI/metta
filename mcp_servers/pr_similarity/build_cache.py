@@ -9,7 +9,9 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, List, Tuple
 
+import boto3
 import numpy as np
+from botocore.exceptions import ClientError
 from google import genai
 from google.genai import types
 
@@ -91,17 +93,49 @@ def parse_args() -> argparse.Namespace:
         help="Optional upper bound on number of PRs to embed (useful for quick tests).",
     )
     parser.add_argument(
+        "--download-from-s3",
+        action="store_true",
+        help="Download cache from S3 before processing (useful for cronjobs).",
+    )
+    parser.add_argument(
+        "--no-upload",
+        action="store_false",
+        dest="upload",
+        default=True,
+        help="Skip uploading cache files to S3 after writing.",
+    )
+    parser.add_argument(
+        "--s3-bucket",
+        default="softmax-public",
+        help="S3 bucket for cache storage (default: softmax-public).",
+    )
+    parser.add_argument(
+        "--s3-prefix",
+        default="pr-cache/",
+        help="S3 prefix for cache files (default: pr-cache/).",
+    )
+    parser.add_argument(
         "--min-description-lines",
         type=int,
         default=DEFAULT_MIN_DESCRIPTION_LINES,
         help=("Skip PRs whose descriptions contain this many non-empty lines or fewer (default: 0)."),
+    )
+    parser.add_argument(
+        "--allow-full-rebuild",
+        action="store_true",
+        help="Allow embedding all PRs when no existing cache is found (required for first-time setup).",
+    )
+    parser.add_argument(
+        "--force-rebuild",
+        action="store_true",
+        help="Force a full rebuild by ignoring existing cache and re-embedding all PRs.",
     )
     return parser.parse_args()
 
 
 def _run_git_log() -> str:
     return subprocess.check_output(
-        ["git", "log", "--pretty=format:" + LOG_FORMAT],
+        ["git", "log", "--all", "--remotes", "--pretty=format:" + LOG_FORMAT],
         text=True,
     )
 
@@ -339,16 +373,97 @@ def write_cache(
     )
 
 
+def download_cache_from_s3(
+    cache_path: Path,
+    bucket: str = "softmax-public",
+    prefix: str = "pr-cache/",
+) -> bool:
+    """Download PR embedding cache from S3 if it doesn't exist locally.
+
+    Returns True if cache was downloaded or already exists, False if download failed.
+    """
+    meta_path, vectors_path = resolve_cache_paths(cache_path)
+
+    if meta_path.exists() and vectors_path.exists():
+        print(f"Cache already exists at {cache_path}")
+        return True
+
+    try:
+        s3 = boto3.client("s3")
+        meta_path.parent.mkdir(parents=True, exist_ok=True)
+        s3.download_file(bucket, prefix + meta_path.name, str(meta_path))
+        s3.download_file(bucket, prefix + vectors_path.name, str(vectors_path))
+        print(f"Downloaded PR similarity cache from s3://{bucket}/{prefix}")
+        return True
+    except ClientError as e:
+        if e.response.get("Error", {}).get("Code") == "404":
+            print("Cache not found in S3 (this is expected on first run)")
+        else:
+            print(f"Error downloading cache from S3: {e}")
+        return False
+    except Exception as e:
+        print(f"Unable to download PR similarity cache: {e}")
+        return False
+
+
+def upload_cache_to_s3(cache_path: Path, bucket: str = "softmax-public", prefix: str = "pr-cache/") -> None:
+    """Upload cache files to S3."""
+    meta_path, vectors_path = resolve_cache_paths(cache_path)
+
+    if not meta_path.exists() or not vectors_path.exists():
+        raise FileNotFoundError(f"Cache files not found: {meta_path} or {vectors_path}")
+
+    try:
+        s3 = boto3.client("s3")
+        s3.upload_file(str(meta_path), bucket, prefix + meta_path.name)
+        s3.upload_file(str(vectors_path), bucket, prefix + vectors_path.name)
+        print(f"Uploaded cache to s3://{bucket}/{prefix}")
+    except Exception as e:
+        raise RuntimeError(f"Failed to upload cache to S3: {e}") from e
+
+
+def _get_api_key() -> str:
+    """Get API key from environment variable or AWS Secrets Manager."""
+    api_key = os.getenv(API_KEY_ENV)
+    if api_key:
+        return api_key
+
+    # Try AWS Secrets Manager
+    try:
+        client = boto3.client("secretsmanager", region_name="us-east-1")
+        response = client.get_secret_value(SecretId="GEMINI-API-KEY")
+        return response["SecretString"].strip()
+    except Exception as e:
+        raise EnvironmentError(
+            f"Set {API_KEY_ENV} environment variable or ensure AWS Secrets Manager access to 'GEMINI-API-KEY': {e}"
+        ) from e
+
+
 def main() -> None:
     args = parse_args()
 
-    api_key = os.getenv(API_KEY_ENV)
-    if not api_key:
-        raise EnvironmentError(f"Set {API_KEY_ENV} before running this script.")
+    if args.download_from_s3:
+        print("Downloading cache from S3...")
+        download_succeeded = download_cache_from_s3(args.cache_path, args.s3_bucket, args.s3_prefix)
+        meta_path, vectors_path = resolve_cache_paths(args.cache_path)
+        cache_exists_locally = meta_path.exists() and vectors_path.exists()
 
-    existing_records, metadata = load_existing_cache(args.cache_path)
-    metadata["model"] = args.model
-    metadata["task_type"] = TASK_TYPE
+        if not download_succeeded and not cache_exists_locally and not args.force_rebuild:
+            raise FileNotFoundError(
+                f"Failed to download cache from S3 and no local cache exists at {args.cache_path}. "
+                "This would trigger a full rebuild of all PR embeddings, which is expensive. "
+                "If this is intentional (e.g., first-time setup), run with --allow-full-rebuild or --force-rebuild."
+            )
+
+    api_key = _get_api_key()
+
+    if args.force_rebuild:
+        existing_records, metadata = {}, {"model": args.model, "task_type": TASK_TYPE}
+        print("Force rebuild enabled: ignoring existing cache and re-embedding all PRs.")
+    else:
+        existing_records, metadata = load_existing_cache(args.cache_path)
+        metadata["model"] = args.model
+        metadata["task_type"] = TASK_TYPE
 
     snapshots = collect_snapshots()
     if args.max_prs is not None:
@@ -370,10 +485,19 @@ def main() -> None:
         print(f"Removed {removed} PRs from cache due to description length filter.")
 
     pending = [snapshot for snapshot in eligible_snapshots if snapshot.pr_number not in existing_records]
+
+    if not existing_records and pending and not args.allow_full_rebuild and not args.force_rebuild:
+        raise RuntimeError(
+            f"No existing cache found and {len(pending)} PRs would be embedded. "
+            "This would be expensive. If this is intentional, run with --allow-full-rebuild or --force-rebuild flag."
+        )
+
     if not pending:
         if removed:
             write_cache(args.cache_path, metadata, existing_records)
             print("Updated cache after applying description length filter.")
+            if args.upload:
+                upload_cache_to_s3(args.cache_path, args.s3_bucket, args.s3_prefix)
         else:
             print("Embedding cache already up to date.")
         return
@@ -401,6 +525,8 @@ def main() -> None:
 
     write_cache(args.cache_path, metadata, existing_records)
     print(f"Wrote embedding cache to {args.cache_path}")
+    if args.upload:
+        upload_cache_to_s3(args.cache_path, args.s3_bucket, args.s3_prefix)
 
 
 if __name__ == "__main__":
