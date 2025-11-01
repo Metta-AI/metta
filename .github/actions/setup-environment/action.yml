@@ -9,6 +9,10 @@ inputs:
     description: "Extra pip dependencies to install (newline-separated list)"
     required: false
     default: ""
+  enable-nim:
+    description: "Enable Nim toolchain setup and ~/.nimble caching"
+    required: false
+    default: "false"
 
   # NOTE: This action automatically sets UV_NO_SYNC=1 to prevent uv from syncing ALL project dependencies
   # when workflows/actions run `uv run` commands
@@ -43,14 +47,16 @@ runs:
 
     - name: Cache nimble
       id: cache-nimble
+      if: inputs.enable-nim == 'true'
       uses: actions/cache@v4
       with:
         path: ~/.nimble
-        key: nim-binary-${{ runner.os }}-${{ steps.get-week.outputs.yearweek }}
+        key: nim-binary-${{ runner.os }}-${{ hashFiles('packages/mettagrid/nim/mettascope/mettascope.nimble') }}
         restore-keys: |
           nim-binary-${{ runner.os }}-
 
     - name: Set up nim
+      if: inputs.enable-nim == 'true'
       uses: treeform/setup-nim-action@v2
 
     - name: Cache Bazel binary

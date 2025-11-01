@@ -42,6 +42,18 @@ jobs:
         uses: ./.github/actions/setup-environment
         with:
           install-mode: "minimal"
+          enable-nim: "true"
+
+      - name: Debug ~/.nimble contents
+        run: |
+          echo "=== Listing ~/.nimble (ls -la) ==="
+          ls -la ~/.nimble || true
+          echo
+          echo "=== Listing ~/.nimble/bin (ls -la) ==="
+          ls -la ~/.nimble/bin || true
+          echo
+          echo "=== Listing ~/.nimble/pkgs2 (ls -la) ==="
+          ls -la ~/.nimble/pkgs2 || true
 
       - name: Install Mettascope
         run: |
