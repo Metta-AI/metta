@@ -5,13 +5,14 @@ from mettagrid.builder import building, empty_assemblers
 
 # Local import moved to factory usage to avoid forbidden cross-package dependency at import time
 from mettagrid.config.mettagrid_config import (
-    ActionConfig,
     ActionsConfig,
     AgentConfig,
     AgentRewards,
     AttackActionConfig,
     GameConfig,
     MettaGridConfig,
+    MoveActionConfig,
+    NoopActionConfig,
 )
 from mettagrid.map_builder.map_builder import MapBuilderConfig
 from mettagrid.map_builder.perimeter_incontext import PerimeterInContextMapBuilder
@@ -34,8 +35,8 @@ def make_arena(
     }
 
     actions = ActionsConfig(
-        noop=ActionConfig(),
-        move=ActionConfig(),
+        noop=NoopActionConfig(),
+        move=MoveActionConfig(),
         attack=AttackActionConfig(
             consumed_resources={
                 "laser": 1,
@@ -108,8 +109,8 @@ def make_navigation(num_agents: int) -> MettaGridConfig:
             },
             resource_names=["heart"],
             actions=ActionsConfig(
-                move=ActionConfig(enabled=True),
-                noop=ActionConfig(enabled=True),
+                move=MoveActionConfig(enabled=True),
+                noop=NoopActionConfig(enabled=True),
             ),
             agent=AgentConfig(
                 rewards=AgentRewards(
@@ -158,8 +159,8 @@ def make_assembly_lines(
                 ),
             ),
             actions=ActionsConfig(
-                noop=ActionConfig(),
-                move=ActionConfig(),
+                noop=NoopActionConfig(),
+                move=MoveActionConfig(),
             ),
             agent=AgentConfig(
                 rewards=AgentRewards(

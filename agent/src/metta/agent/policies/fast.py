@@ -14,6 +14,7 @@ from metta.agent.components.cnn_encoder import CNNEncoder, CNNEncoderConfig
 from metta.agent.components.lstm import LSTM, LSTMConfig
 from metta.agent.components.obs_shim import ObsShimBox, ObsShimBoxConfig
 from metta.agent.policy import Policy, PolicyArchitecture
+from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 
 logger = logging.getLogger(__name__)
 
@@ -40,22 +41,22 @@ class FastConfig(PolicyArchitecture):
 
 
 class FastPolicy(Policy):
-    def __init__(self, env, config: Optional[FastConfig] = None):
-        super().__init__()
+    def __init__(self, policy_env_info: "PolicyEnvInterface", config: Optional[FastConfig] = None):
+        super().__init__(policy_env_info)
         self.config = config or FastConfig()
-        self.env = env
+        self.policy_env_info = policy_env_info
         self.is_continuous = False
-        self.action_space = env.action_space
+        self.action_space = policy_env_info.action_space
 
         self.active_action_names = []
         self.num_active_actions = 100  # Default
 
-        self.out_width = env.obs_width
-        self.out_height = env.obs_height
+        self.out_width = policy_env_info.obs_width
+        self.out_height = policy_env_info.obs_height
 
-        self.obs_shim = ObsShimBox(env=env, config=self.config.obs_shim_config)
+        self.obs_shim = ObsShimBox(policy_env_info=policy_env_info, config=self.config.obs_shim_config)
 
-        self.cnn_encoder = CNNEncoder(config=self.config.cnn_encoder_config, env=env)
+        self.cnn_encoder = CNNEncoder(config=self.config.cnn_encoder_config, policy_env_interface=policy_env_info)
 
         self.lstm = LSTM(config=self.config.lstm_config)
 
@@ -103,14 +104,14 @@ class FastPolicy(Policy):
 
     def initialize_to_environment(
         self,
-        env,
-        device,
+        policy_env_info: PolicyEnvInterface,
+        device: torch.device,
     ) -> List[str]:
         device = torch.device(device)
         self.to(device)
 
-        log = self.obs_shim.initialize_to_environment(env, device)
-        self.action_probs.initialize_to_environment(env, device)
+        log = self.obs_shim.initialize_to_environment(policy_env_info, device)
+        self.action_probs.initialize_to_environment(policy_env_info, device)
         return [log]
 
     def reset_memory(self):

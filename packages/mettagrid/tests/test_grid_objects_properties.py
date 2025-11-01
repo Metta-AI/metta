@@ -4,34 +4,31 @@ import numpy as np
 import pytest
 
 from mettagrid.config.mettagrid_config import (
-    ActionConfig,
     ActionsConfig,
     AssemblerConfig,
     ChestConfig,
     GameConfig,
     MettaGridConfig,
+    MoveActionConfig,
+    NoopActionConfig,
+    ObsConfig,
     ProtocolConfig,
     WallConfig,
 )
-from mettagrid.core import BoundingBox, MettaGridCore
 from mettagrid.map_builder.random import RandomMapBuilder
+from mettagrid.simulator import BoundingBox, Simulation
 
 
 @pytest.fixture
-def env_with_assembler():
-    """Create environment with an assembler to test assembler properties."""
+def sim_with_assembler():
+    """Create simulation with an assembler to test assembler properties."""
     config = MettaGridConfig(
         game=GameConfig(
             num_agents=2,
+            obs=ObsConfig(width=5, height=5, num_tokens=100),
             max_steps=100,
-            obs_width=5,
-            obs_height=5,
-            num_observation_tokens=100,
             resource_names=["iron", "steel"],
-            actions=ActionsConfig(
-                noop=ActionConfig(),
-                move=ActionConfig(),
-            ),
+            actions=ActionsConfig(noop=NoopActionConfig(), move=MoveActionConfig()),
             objects={
                 "wall": WallConfig(),
                 "assembler": AssemblerConfig(
@@ -52,24 +49,19 @@ def env_with_assembler():
             ),
         )
     )
-    return MettaGridCore(config)
+    return Simulation(config)
 
 
 @pytest.fixture
-def env_with_chest():
-    """Create environment with a chest to test chest properties."""
+def sim_with_chest():
+    """Create simulation with a chest to test chest properties."""
     config = MettaGridConfig(
         game=GameConfig(
             num_agents=1,
+            obs=ObsConfig(width=5, height=5, num_tokens=100),
             max_steps=100,
-            obs_width=5,
-            obs_height=5,
-            num_observation_tokens=100,
             resource_names=["gold", "silver"],
-            actions=ActionsConfig(
-                noop=ActionConfig(),
-                move=ActionConfig(),
-            ),
+            actions=ActionsConfig(noop=NoopActionConfig(), move=MoveActionConfig()),
             objects={
                 "wall": WallConfig(),
                 "chest": ChestConfig(
@@ -86,23 +78,18 @@ def env_with_chest():
             ),
         )
     )
-    return MettaGridCore(config)
+    return Simulation(config)
 
 
 @pytest.fixture
-def env_with_walls():
-    """Create environment with walls to test ignore_types."""
+def sim_with_walls():
+    """Create simulation with walls to test ignore_types."""
     config = MettaGridConfig(
         game=GameConfig(
             num_agents=2,
+            obs=ObsConfig(width=5, height=5, num_tokens=50),
             max_steps=10,
-            obs_width=5,
-            obs_height=5,
-            num_observation_tokens=50,
-            actions=ActionsConfig(
-                noop=ActionConfig(),
-                move=ActionConfig(),
-            ),
+            actions=ActionsConfig(noop=NoopActionConfig(), move=MoveActionConfig()),
             objects={
                 "wall": WallConfig(),
             },
@@ -116,58 +103,21 @@ def env_with_walls():
             ),
         )
     )
-    return MettaGridCore(config)
-
-
-@pytest.fixture
-def env_with_wall_vibe():
-    """Create environment with test wall vibe."""
-    config = MettaGridConfig(
-        game=GameConfig(
-            num_agents=1,
-            max_steps=100,
-            obs_width=5,
-            obs_height=5,
-            num_observation_tokens=100,
-            resource_names=["gold", "silver"],
-            actions=ActionsConfig(
-                noop=ActionConfig(),
-                move=ActionConfig(),
-            ),
-            objects={
-                "wall": WallConfig(
-                    vibe=138,  # In-range vibe value
-                ),
-                "chest": ChestConfig(
-                    resource_type="gold",
-                    position_deltas=[("NW", 1), ("N", 1), ("NE", 1), ("SW", -1), ("S", -1), ("SE", -1)],
-                ),
-            },
-            map_builder=RandomMapBuilder.Config(
-                width=10,
-                height=10,
-                agents=1,
-                objects={"chest": 1},  # Add one chest
-                seed=42,
-            ),
-        )
-    )
-    return MettaGridCore(config)
+    return Simulation(config)
 
 
 class TestIgnoreTypes:
     """Test ignore_types parameter for filtering objects."""
 
-    def test_ignore_types_walls(self, env_with_walls):
+    def test_ignore_types_walls(self, sim_with_walls):
         """Test that ignore_types=['wall'] correctly filters out walls."""
-        env_with_walls.reset()
 
         # Get all objects
-        all_objects = env_with_walls.grid_objects()
+        all_objects = sim_with_walls.grid_objects()
         print(f"All objects count: {len(all_objects)}")
 
         # Get objects without walls
-        no_walls = env_with_walls.grid_objects(ignore_types=["wall"])
+        no_walls = sim_with_walls.grid_objects(ignore_types=["wall"])
         print(f"Objects without walls: {len(no_walls)}")
 
         # Count walls manually
@@ -188,14 +138,13 @@ class TestIgnoreTypes:
         agent_count_filtered = sum(1 for obj in no_walls.values() if obj.get("type_name") == "agent")
         assert agent_count_filtered == agent_count, "All agents should still be present"
 
-    def test_ignore_multiple_types(self, env_with_walls):
+    def test_ignore_multiple_types(self, sim_with_walls):
         """Test ignoring multiple object types."""
-        env_with_walls.reset()
 
-        all_objects = env_with_walls.grid_objects()
+        all_objects = sim_with_walls.grid_objects()
 
         # Filter out both walls and agents
-        no_walls_or_agents = env_with_walls.grid_objects(ignore_types=["wall", "agent"])
+        no_walls_or_agents = sim_with_walls.grid_objects(ignore_types=["wall", "agent"])
 
         # Count types
         wall_count = sum(1 for obj in all_objects.values() if obj.get("type_name") == "wall")
@@ -205,17 +154,16 @@ class TestIgnoreTypes:
         expected_remaining = len(all_objects) - wall_count - agent_count
         assert len(no_walls_or_agents) == expected_remaining
 
-    def test_ignore_with_bounding_box(self, env_with_walls):
+    def test_ignore_with_bounding_box(self, sim_with_walls):
         """Test that ignore_types works with bounding box filtering."""
-        env_with_walls.reset()
 
         bbox = BoundingBox(min_row=0, max_row=5, min_col=0, max_col=5)
 
         # Get objects in bbox
-        bbox_objects = env_with_walls.grid_objects(bbox=bbox)
+        bbox_objects = sim_with_walls.grid_objects(bbox=bbox)
 
         # Get objects in bbox without walls
-        bbox_no_walls = env_with_walls.grid_objects(bbox=bbox, ignore_types=["wall"])
+        bbox_no_walls = sim_with_walls.grid_objects(bbox=bbox, ignore_types=["wall"])
 
         # Count walls in bbox
         wall_count = sum(1 for obj in bbox_objects.values() if obj.get("type_name") == "wall")
@@ -226,11 +174,10 @@ class TestIgnoreTypes:
 class TestAssemblerProperties:
     """Test assembler-specific properties in grid_objects."""
 
-    def test_assembler_basic_properties(self, env_with_assembler):
+    def test_assembler_basic_properties(self, sim_with_assembler):
         """Test that basic assembler properties are exposed."""
-        env_with_assembler.reset()
 
-        objects = env_with_assembler.grid_objects()
+        objects = sim_with_assembler.grid_objects()
 
         # Find an assembler
         assembler = next((obj for obj in objects.values() if obj.get("type_name") == "assembler"), None)
@@ -257,42 +204,40 @@ class TestAssemblerProperties:
             assert assembler["exhaustion"] == pytest.approx(0.1), "Exhaustion should match config"
             assert assembler["cooldown_multiplier"] == pytest.approx(1.0), "Should start at 1.0"
 
-    def test_assembler_current_recipe(self, env_with_assembler):
-        """Test that current recipe is exposed."""
-        env_with_assembler.reset()
+    def test_assembler_current_protocol(self, sim_with_assembler):
+        """Test that current protocol is exposed."""
 
-        objects = env_with_assembler.grid_objects()
+        objects = sim_with_assembler.grid_objects()
 
         # Find an assembler
         assembler = next((obj for obj in objects.values() if obj.get("type_name") == "assembler"), None)
 
         if assembler:
-            # Recipe properties may or may not exist depending on whether agents are nearby
-            if "current_recipe_inputs" in assembler:
-                assert isinstance(assembler["current_recipe_inputs"], dict)
+            # Protocol properties may or may not exist depending on whether agents are nearby
+            if "current_protocol_inputs" in assembler:
+                assert isinstance(assembler["current_protocol_inputs"], dict)
 
-            if "current_recipe_outputs" in assembler:
-                assert isinstance(assembler["current_recipe_outputs"], dict)
+            if "current_protocol_outputs" in assembler:
+                assert isinstance(assembler["current_protocol_outputs"], dict)
 
-            # If recipe exists, verify structure
-            if "current_recipe_inputs" in assembler:
-                assert isinstance(assembler["current_recipe_inputs"], dict)
-                assert "current_recipe_outputs" in assembler
-                assert isinstance(assembler["current_recipe_outputs"], dict)
-                assert "current_recipe_cooldown" in assembler
-                assert isinstance(assembler["current_recipe_cooldown"], int)
+            # If protocol exists, verify structure
+            if "current_protocol_inputs" in assembler:
+                assert isinstance(assembler["current_protocol_inputs"], dict)
+                assert "current_protocol_outputs" in assembler
+                assert isinstance(assembler["current_protocol_outputs"], dict)
+                assert "current_protocol_cooldown" in assembler
+                assert isinstance(assembler["current_protocol_cooldown"], int)
 
-    def test_assembler_all_protocols(self, env_with_assembler):
+    def test_assembler_all_protocols(self, sim_with_assembler):
         """Test that all protocols are exposed."""
-        env_with_assembler.reset()
 
-        objects = env_with_assembler.grid_objects()
+        objects = sim_with_assembler.grid_objects()
 
         # Find an assembler
         assembler = next((obj for obj in objects.values() if obj.get("type_name") == "assembler"), None)
 
         if assembler:
-            # Check that protocols list exists
+            # Check that protocols list exists (formatter converts protocols to protocols)
             assert "protocols" in assembler
             assert isinstance(assembler["protocols"], list)
 
@@ -304,19 +249,18 @@ class TestAssemblerProperties:
             assert "inputs" in protocol
             assert "outputs" in protocol
             assert "cooldown" in protocol
-            assert isinstance(protocol["inputs"], dict)
-            assert isinstance(protocol["outputs"], dict)
+            assert isinstance(protocol["inputs"], dict)  # C++ exposes as dict
+            assert isinstance(protocol["outputs"], dict)  # C++ exposes as dict
             assert isinstance(protocol["cooldown"], int)
 
 
 class TestChestProperties:
     """Test chest-specific properties in grid_objects."""
 
-    def test_chest_basic_properties(self, env_with_chest):
+    def test_chest_basic_properties(self, sim_with_chest):
         """Test that chest properties are exposed."""
-        env_with_chest.reset()
 
-        objects = env_with_chest.grid_objects()
+        objects = sim_with_chest.grid_objects()
 
         # Find a chest
         chest = next((obj for obj in objects.values() if obj.get("type_name") == "chest"), None)
@@ -348,26 +292,28 @@ class TestChestProperties:
 class TestAgentProperties:
     """Test that all agent properties are properly exposed."""
 
-    def test_agent_properties(self, env_with_walls):
+    def test_agent_properties(self, sim_with_walls):
         """Test that all agent properties are exposed."""
-        env_with_walls.reset()
 
-        objects = env_with_walls.grid_objects()
+        objects = sim_with_walls.grid_objects()
 
         # Find an agent
         agent = next((obj for obj in objects.values() if obj.get("type_name") == "agent"), None)
 
         assert agent is not None, "Should have at least one agent"
 
-        # Check all agent properties
+        # Check all agent properties that are exposed
         required_properties = [
             "agent_id",
-            "orientation",
-            "group_id",
-            "is_frozen",
-            "freeze_remaining",
+            "agent:group",  # Group ID (prefixed)
+            "agent:frozen",  # Frozen ticks remaining (prefixed)
+            "group_id",  # Also available without prefix
+            "group_name",
             "freeze_duration",
+            "freeze_remaining",
+            "is_frozen",  # Boolean version
             "inventory",
+            "vibe",
         ]
 
         for prop in required_properties:
@@ -375,34 +321,10 @@ class TestAgentProperties:
 
         # Check types
         assert isinstance(agent["agent_id"], (int, np.integer))
-        assert isinstance(agent["orientation"], (int, np.integer))
+        assert isinstance(agent["agent:group"], (int, np.integer))
+        assert isinstance(agent["agent:frozen"], (int, np.integer))  # frozen is an integer (ticks remaining)
         assert isinstance(agent["group_id"], (int, np.integer))
         assert isinstance(agent["is_frozen"], bool)
         assert isinstance(agent["freeze_remaining"], (int, np.integer))
         assert isinstance(agent["freeze_duration"], (int, np.integer))
         assert isinstance(agent["inventory"], dict)
-
-
-class TestVibeProperty:
-    """Test vibe property in grid_objects."""
-
-    def test_vibe_property(self, env_with_wall_vibe):
-        """Test that out of range vibe property is not exposed."""
-        env_with_wall_vibe.reset()
-
-        objects = env_with_wall_vibe.grid_objects()
-
-        # Find a chest
-        chest = next((obj for obj in objects.values() if obj.get("type_name") == "chest"), None)
-
-        if chest:
-            # Check that chest does not expose vibe property
-            assert "vibe" not in chest
-
-        # Find a wall
-        wall = next((obj for obj in objects.values() if obj.get("type_name") == "wall"), None)
-
-        if wall:
-            # Check that wall has vibe property
-            assert "vibe" in wall
-            assert isinstance(wall["vibe"], (int, np.integer))

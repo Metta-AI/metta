@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import os
 from abc import ABC, abstractmethod
-from datetime import datetime
+from datetime import UTC, datetime
 from operator import ge, gt
 from typing import Callable, Literal, Optional
 
@@ -137,8 +137,8 @@ class Task(ABC):
 
     def _convert_result(self, job_result: JobResult) -> TaskResult:
         """Convert JobResult to TaskResult. Override for custom behavior."""
-        started = datetime.utcnow().isoformat(timespec="seconds")
-        ended = datetime.utcnow().isoformat(timespec="seconds")
+        started = datetime.now(UTC).isoformat(timespec="seconds")
+        ended = datetime.now(UTC).isoformat(timespec="seconds")
 
         # Determine outcome and error message based on exit code
         if job_result.exit_code == 124:
@@ -209,8 +209,8 @@ class TrainingTask(Task):
 
     def _convert_result(self, job_result: JobResult) -> TaskResult:
         """Override to add metrics extraction and acceptance checking."""
-        started = datetime.utcnow().isoformat(timespec="seconds")
-        ended = datetime.utcnow().isoformat(timespec="seconds")
+        started = datetime.now(UTC).isoformat(timespec="seconds")
+        ended = datetime.now(UTC).isoformat(timespec="seconds")
 
         # Check exit code first
         if job_result.exit_code == 124:
@@ -387,8 +387,8 @@ class RemoteTrainingTask(TrainingTask):
                             # Create or update result with job_id (and artifacts if found)
                             partial_result = TaskResult(
                                 name=self.name,
-                                started_at=datetime.utcnow().isoformat(timespec="seconds"),
-                                ended_at=datetime.utcnow().isoformat(timespec="seconds"),
+                                started_at=datetime.now(UTC).isoformat(timespec="seconds"),
+                                ended_at=datetime.now(UTC).isoformat(timespec="seconds"),
                                 outcome="inconclusive",
                                 exit_code=0,
                                 job_id=str(job_id),

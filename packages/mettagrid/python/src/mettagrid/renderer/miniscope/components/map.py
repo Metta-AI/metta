@@ -1,10 +1,9 @@
 """Map component for miniscope renderer."""
 
-from mettagrid import MettaGridEnv
-from mettagrid.core import BoundingBox
 from mettagrid.renderer.miniscope.buffer import MapBuffer
 from mettagrid.renderer.miniscope.miniscope_panel import PanelLayout
 from mettagrid.renderer.miniscope.miniscope_state import MiniscopeState, RenderMode
+from mettagrid.simulator import BoundingBox, Simulation
 
 from .base import MiniscopeComponent
 
@@ -14,26 +13,26 @@ class MapComponent(MiniscopeComponent):
 
     def __init__(
         self,
-        env: MettaGridEnv,
+        sim: Simulation,
         state: MiniscopeState,
         panels: PanelLayout,
     ):
         """Initialize the map component.
 
         Args:
-            env: MettaGrid environment reference
+            sim: MettaGrid simulator reference
             state: Miniscope state reference
             panels: Panel layout containing all panels
         """
-        super().__init__(env=env, state=state, panels=panels)
+        super().__init__(sim=sim, state=state, panels=panels)
         self._set_panel(panels.map_view)
 
         # Create map buffer - will be initialized with data from state
         self._map_buffer = MapBuffer(
             object_type_names=state.object_type_names or [],
             symbol_map=state.symbol_map or {},
-            initial_height=env.map_height,
-            initial_width=env.map_width,
+            initial_height=sim.map_height,
+            initial_width=sim.map_width,
         )
 
     def _update_buffer_config(self) -> None:
@@ -92,13 +91,14 @@ class MapComponent(MiniscopeComponent):
         # Get grid objects from environment
         bbox = BoundingBox(
             min_row=0,
-            max_row=self.env.map_height,
+            max_row=self._sim.map_height,
             min_col=0,
-            max_col=self.env.map_width,
+            max_col=self._sim.map_width,
         )
-        grid_objects = self.env.grid_objects(bbox)
+        grid_objects = self._sim.grid_objects(bbox)
 
         # Get viewport size from panel
+        assert self._panel is not None
         panel_width, panel_height = self._panel.size()
         # Each map cell takes 2 chars in width
         viewport_width = panel_width // 2 if panel_width else self.state.viewport_width

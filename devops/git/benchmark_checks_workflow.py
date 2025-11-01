@@ -7,7 +7,7 @@ import subprocess
 import sys
 import time
 import uuid
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any, Optional
 
 from metta.common.util.constants import METTA_GITHUB_ORGANIZATION, METTA_GITHUB_REPO
@@ -434,7 +434,7 @@ def trigger_all_runs(branches: list[str], repeats: int) -> dict[str, list[tuple[
             print(f"▶️  Trigger {i + 1}/{repeats} for `{branch}`")
             try:
                 uuid_tag = trigger_workflow(branch)
-                triggered_by_branch[branch].append((uuid_tag, datetime.utcnow()))
+                triggered_by_branch[branch].append((uuid_tag, datetime.now(UTC)))
             except Exception as e:
                 print(f"❌ Failed to trigger workflow on `{branch}`: {e}")
 

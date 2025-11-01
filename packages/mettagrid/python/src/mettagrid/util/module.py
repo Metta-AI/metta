@@ -1,31 +1,33 @@
 import importlib
-import logging
-
-logger = logging.getLogger(__name__)
 
 
 def load_symbol(full_name: str):
-    """Load a symbol from a full name, for example: 'mettagrid.base_config.Config' -> Config."""
-    remaining_name = full_name
-    symbol_path: list[str] = []
+    """Load a symbol from a full name, for example: 'mettagrid.config.Config' -> Config.
 
-    # Keep stripping off the last part until the remaining name is a valid module name.
-    #
-    # This handles the case where the symbol name is a nested class, e.g.
-    # 'mettagrid.map_builder.ascii.AsciiMapBuilder.Config'
-    while True:
-        parts = remaining_name.rsplit(".", 1)
-        if len(parts) != 2:
-            raise ModuleNotFoundError(f"Invalid symbol name: {full_name}")
+    Handles nested attributes like 'mettagrid.map_builder.ascii.AsciiMapBuilder.Config'.
+    """
+    parts = full_name.split(".")
+    if len(parts) < 2:
+        raise ModuleNotFoundError(f"Invalid symbol name: {full_name}")
 
-        remaining_name, symbol_name = parts
-        symbol_path.insert(0, symbol_name)
+    # Try importing progressively shorter module paths until one works
+    last_error = None
+    for i in range(len(parts) - 1, 0, -1):
+        module_name = ".".join(parts[:i])
         try:
-            logger.debug(f"Loading module {remaining_name} with symbol path {symbol_path}")
-            module = importlib.import_module(remaining_name)
+            module = importlib.import_module(module_name)
+            # Navigate through the remaining attributes
             value = module
-            for symbol_name in symbol_path:
-                value = getattr(value, symbol_name)
+            for attr_name in parts[i:]:
+                value = getattr(value, attr_name)
             return value
-        except ImportError:
-            pass
+        except ImportError as e:
+            last_error = e
+            continue
+        except AttributeError:
+            continue
+
+    # If we get here, we couldn't load the symbol
+    if last_error:
+        raise last_error
+    raise ModuleNotFoundError(f"Could not load symbol: {full_name}")

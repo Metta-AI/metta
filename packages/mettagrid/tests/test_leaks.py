@@ -5,21 +5,21 @@ import psutil
 import pytest
 
 from mettagrid.config.mettagrid_config import MettaGridConfig
-from mettagrid.envs.mettagrid_env import MettaGridEnv
+from mettagrid.simulator import Simulation
 
 
 def test_mettagrid_env_init():
-    """Test that the MettaGridEnv can be initialized properly."""
-    env = MettaGridEnv(MettaGridConfig(), render_mode="none")
-    assert env is not None, "Failed to initialize MettaGridEnv"
+    """Test that the Simulation can be initialized properly."""
+    sim = Simulation(MettaGridConfig())
+    assert sim is not None, "Failed to initialize Simulation"
 
 
 def test_mettagrid_env_reset():
-    """Test that the MettaGridEnv can be reset multiple times without memory leaks."""
-    env = MettaGridEnv(MettaGridConfig(), render_mode="none")
+    """Test that the Simulation can be reset multiple times without memory leaks."""
+    sim = Simulation(MettaGridConfig())
     # Reset the environment multiple times
     for _ in range(10):
-        observation = env.reset()
+        observation = sim._c_sim.observations()
         assert observation is not None, "Reset should return a valid observation"
 
 
@@ -32,7 +32,7 @@ def get_memory_usage():
 @pytest.mark.slow
 def test_mettagrid_env_no_memory_leaks():
     """
-    Test that the MettaGridEnv can be reset multiple times without memory leaks.
+    Test that the Simulation can be reset multiple times without memory leaks.
 
     This test creates and destroys an environment object after multiple resets
     to verify that no memory leaks occur during this process.
@@ -50,15 +50,15 @@ def test_mettagrid_env_no_memory_leaks():
 
     for i in range(num_iterations):
         # Create the environment
-        env = MettaGridEnv(MettaGridConfig(), render_mode="none")
+        sim = Simulation(MettaGridConfig())
 
         # Reset the environment multiple times
         for _ in range(5):
-            observation = env.reset()
+            observation = sim._c_sim.observations()
             assert observation is not None, "Reset should return a valid observation"
 
         # Explicitly delete the environment to release resources
-        del env
+        del sim
 
         # Force garbage collection
         gc.collect()

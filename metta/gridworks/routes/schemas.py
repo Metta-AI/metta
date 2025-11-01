@@ -15,8 +15,8 @@ from metta.tools.eval import EvaluateTool
 from metta.tools.play import PlayTool
 from metta.tools.replay import ReplayTool
 from metta.tools.train import TrainTool
-from mettagrid.base_config import Config
 from mettagrid.builder.envs import MettaGridConfig, RandomMapBuilder
+from mettagrid.config import Config
 from mettagrid.map_builder.ascii import AsciiMapBuilder
 from mettagrid.mapgen.mapgen import MapGen
 

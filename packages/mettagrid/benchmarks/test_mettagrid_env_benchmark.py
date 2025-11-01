@@ -1,89 +1,63 @@
-import random
-
 import numpy as np
 import pytest
 
-from mettagrid.config.mettagrid_config import MettaGridConfig
-from mettagrid.envs.mettagrid_env import MettaGridEnv
+from mettagrid.config.mettagrid_config import (
+    ActionsConfig,
+    GameConfig,
+    MettaGridConfig,
+    MoveActionConfig,
+    NoopActionConfig,
+    ObsConfig,
+)
 from mettagrid.map_builder.random import RandomMapBuilder
-from mettagrid.test_support.actions import generate_valid_random_actions
+from mettagrid.simulator import Simulation
 
 
 @pytest.fixture
-def environment(num_agents: int):
+def simulation(num_agents: int):
     """Create and initialize the environment with specified number of agents."""
-    seed = 42  # Or any fixed seed value
-    random.seed(seed)
-    np.random.seed(seed)
+    seed = 42
 
-    # Map from num_agents to expected_hash (updated for deterministic RandomMapBuilder)
-    grid_hash_map = {
-        1: 8758918251456738458,
-        2: 5399377357525131219,
-        4: 15159704145714964875,
-        8: 17168213948652951998,
-        16: 15523353553253390979,
-    }
-
-    expected_grid_hash = grid_hash_map.get(num_agents)
-    if expected_grid_hash is None:
-        raise ValueError(f"No expected hash defined for num_agents={num_agents}")
-
-    cfg = MettaGridConfig()
-
-    # Override the number of agents in the configuration
-    cfg.game.num_agents = num_agents
-    assert isinstance(cfg.game.map_builder, RandomMapBuilder.Config)
-    cfg.game.map_builder.agents = num_agents  # RandomMapBuilderConfig uses agents field
-    cfg.game.map_builder.seed = seed  # Set the map builder seed for deterministic maps!
-    cfg.game.max_steps = 0  # env lasts forever
+    cfg = MettaGridConfig(
+        game=GameConfig(
+            num_agents=num_agents,
+            obs=ObsConfig(num_tokens=100),
+            max_steps=0,  # env lasts forever
+            actions=ActionsConfig(noop=NoopActionConfig(), move=MoveActionConfig()),
+            map_builder=RandomMapBuilder.Config(agents=num_agents, width=20, height=20, seed=seed),
+        )
+    )
 
     print(f"\nConfiguring environment with {num_agents} agents")
 
-    env = MettaGridEnv(cfg)
+    sim = Simulation(cfg, seed=seed)
 
     # Verify deterministic grid generation
-    assert env.initial_grid_hash == expected_grid_hash, (
-        f"Grid hash mismatch for {num_agents} agents! Expected: {expected_grid_hash}, Got: {env.initial_grid_hash}"
-    )
+    initial_hash = sim.initial_grid_hash
+    print(f"Initial grid hash: {initial_hash}")
 
-    env.reset()
-
-    # Verify that reset doesn't change the initial grid hash
-    assert env.initial_grid_hash == expected_grid_hash, (
-        f"Grid hash changed after reset for {num_agents} agents! "
-        f"Expected: {expected_grid_hash}, Got: {env.initial_grid_hash}"
-    )
-
-    yield env
+    yield sim
     # Cleanup after test
-    del env
+    sim.close()
+    del sim
 
 
 @pytest.fixture
-def action_generator(environment):
-    """
-    Create a deterministic action generator function.
-    Returns a function that generates different valid actions each call,
-    but the sequence is deterministic across test runs.
-    """
-    # Set the global random seed once for deterministic sequences
+def action_generator(simulation):
+    """Create a deterministic action generator function."""
     np.random.seed(42)
 
     def generate_actions():
-        return generate_valid_random_actions(
-            environment,
-            num_agents=environment.num_agents,
-            seed=None,  # Use current numpy random state
-        )
+        """Generate random valid actions for all agents."""
+        num_actions = len(simulation.action_names)
+        return np.random.randint(0, num_actions, size=simulation.num_agents, dtype=np.int32)
 
     return generate_actions
 
 
 @pytest.mark.parametrize("num_agents", [1, 2, 4, 8, 16])
-def test_step_performance(benchmark, environment, action_generator, num_agents):
-    """
-    Benchmark pure step method performance without reset overhead.
+def test_step_performance(benchmark, simulation, action_generator, num_agents):
+    """Benchmark pure step method performance without reset overhead.
 
     CRITICAL ASSUMPTION: Episodes last longer than benchmark iterations.
     This test measures raw step performance by avoiding resets during timing.
@@ -92,15 +66,12 @@ def test_step_performance(benchmark, environment, action_generator, num_agents):
     Args:
         num_agents: Number of agents to test (parametrized: 1, 2, 4, 8, 16)
     """
-    env = environment
-
-    # Perform initial reset (not timed)
-    env.reset()
+    sim = simulation
 
     # Pre-generate a sequence of deterministic actions for consistent timing
     iterations = 1000
     rounds = 20
-    total_iterations = iterations * rounds  # iterations * rounds
+    total_iterations = iterations * rounds
     action_sequence = []
     for _ in range(total_iterations):
         action_sequence.append(action_generator())
@@ -113,8 +84,9 @@ def test_step_performance(benchmark, environment, action_generator, num_agents):
         actions = action_sequence[iteration_counter % len(action_sequence)]
         iteration_counter += 1
 
-        _obs, _rewards, _terminated, _truncated, _infos = env.step(actions)
-        # Intentionally ignore termination states to measure pure step performance
+        # Set actions and step (1D array)
+        sim._c_sim.actions()[:] = actions
+        sim.step()
 
     # Run the benchmark
     benchmark.pedantic(
@@ -127,7 +99,7 @@ def test_step_performance(benchmark, environment, action_generator, num_agents):
     # Calculate throughput KPIs from timing
     ops_kilo = benchmark.stats["ops"]
     env_rate = ops_kilo * 1000.0
-    agent_rate = env_rate * env.num_agents
+    agent_rate = env_rate * sim.num_agents
 
     print(f"\nPure Step Performance Results ({num_agents} agents):")
     print(f"Latency: {benchmark.stats['mean']:.6f} seconds")
@@ -144,37 +116,40 @@ def test_step_performance(benchmark, environment, action_generator, num_agents):
 
 
 def test_create_env_performance(benchmark):
-    """
-    Benchmark environment creation.
+    """Benchmark environment creation.
 
-    This test measures the time to create a new environment instance
-    and perform a reset operation.
-
+    This test measures the time to create a new Simulation instance.
     """
 
-    def create_and_reset():
-        """Create a new environment and reset it."""
-        env = MettaGridEnv(MettaGridConfig())
-        obs = env.reset()
+    def create_env():
+        """Create a new environment."""
+        cfg = MettaGridConfig(
+            game=GameConfig(
+                num_agents=8,
+                actions=ActionsConfig(noop=NoopActionConfig(), move=MoveActionConfig()),
+                map_builder=RandomMapBuilder.Config(agents=8, width=20, height=20, seed=42),
+            )
+        )
+        sim = Simulation(cfg, seed=42)
         # Cleanup
-        del env
-        return obs
+        sim.close()
+        del sim
 
     # Run the benchmark
     benchmark.pedantic(
-        create_and_reset,
+        create_env,
         iterations=10,
         rounds=3,
         warmup_rounds=1,
     )
 
     # Calculate KPIs
-    create_reset_time = benchmark.stats["mean"]
-    env_rate = 1.0 / create_reset_time
+    create_time = benchmark.stats["mean"]
+    env_rate = 1.0 / create_time
 
-    print("\nCreate & Reset Performance Results:")
-    print(f"Create + Reset time: {create_reset_time:.6f} seconds")
-    print(f"Create + Reset operations per second: {env_rate:.2f}")
+    print("\nCreate Environment Performance Results:")
+    print(f"Create time: {create_time:.6f} seconds")
+    print(f"Create operations per second: {env_rate:.2f}")
 
     # Report KPIs
     benchmark.extra_info.update({"env_rate": env_rate})

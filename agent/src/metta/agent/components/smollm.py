@@ -3,30 +3,15 @@
 from __future__ import annotations
 
 import logging
-from typing import List, Literal, Optional, Protocol
+from typing import List, Literal, Optional
 
 import torch
-from gymnasium.spaces import Discrete
 from tensordict import TensorDict
 from torch import nn
 
 import pufferlib.pytorch
 from metta.agent.components.component_config import ComponentConfig
-
-
-class SupportsDiscreteActionSpace(Protocol):
-    """Protocol describing the minimal environment interface required."""
-
-    action_space: Discrete
-
-
-try:  # pragma: no cover - optional training env module
-    from metta.rl.training.training_environment import GameRules as _GameRules
-except Exception:  # pragma: no cover - used when training package unavailable
-    EnvInfo = SupportsDiscreteActionSpace
-else:
-    EnvInfo = _GameRules
-
+from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 
 logger = logging.getLogger(__name__)
 
@@ -70,8 +55,8 @@ class SmolLLMBackboneConfig(ComponentConfig):
     lora_dropout: float = 0.05
     lora_target_modules: Optional[List[str]] = None
 
-    def make_component(self, env: EnvInfo) -> "SmolLLMBackbone":
-        return SmolLLMBackbone(env, self)
+    def make_component(self, policy_env_info: PolicyEnvInterface) -> "SmolLLMBackbone":
+        return SmolLLMBackbone(policy_env_info, self)
 
 
 class LowRankLinear(nn.Module):
@@ -89,7 +74,7 @@ class LowRankLinear(nn.Module):
 class SmolLLMBackbone(nn.Module):
     """Backbone that projects Metta observation tokens into a pretrained SmolLLM."""
 
-    def __init__(self, env: EnvInfo, config: SmolLLMBackboneConfig):
+    def __init__(self, policy_env_info: PolicyEnvInterface, config: SmolLLMBackboneConfig):
         super().__init__()
 
         if AutoModelForCausalLM is None:  # pragma: no cover - dependency missing in runtime
@@ -112,14 +97,8 @@ class SmolLLMBackbone(nn.Module):
         self.activation = nn.GELU()
         self.embed_norm = nn.LayerNorm(self.hidden_size)
 
-        action_space = getattr(env, "action_space", None)
-        if not isinstance(action_space, Discrete):
-            raise TypeError(
-                "SmolLLMBackbone requires a discrete action space; "
-                f"received {type(action_space).__name__ if action_space is not None else 'None'}"
-            )
-
-        self.total_actions = int(action_space.n)
+        action_space = policy_env_info.action_space
+        self.total_actions = action_space.n
 
         self.actor_head = self._make_actor_head()
         self.value_head = self._make_value_head()
@@ -165,7 +144,7 @@ class SmolLLMBackbone(nn.Module):
 
         return td
 
-    def initialize_to_environment(self, env: EnvInfo, device: torch.device):
+    def initialize_to_environment(self, policy_env_info: PolicyEnvInterface, device: torch.device):
         self.to(device)
 
         llm_dtype = next(self.llm.parameters()).dtype
@@ -328,7 +307,7 @@ class SmolLLMBackbone(nn.Module):
 
     def _make_actor_head(self) -> nn.Module:
         rank = self.config.actor_head_rank
-        if rank is None or rank >= min(self.hidden_size, self.total_actions):
+        if rank is None or rank >= min(self.hidden_size, int(self.total_actions)):
             return pufferlib.pytorch.layer_init(nn.Linear(self.hidden_size, self.total_actions), std=0.01)
         layer = LowRankLinear(self.hidden_size, self.total_actions, rank)
         self._init_low_rank(layer, std=0.01)

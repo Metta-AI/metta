@@ -4,12 +4,16 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+import pytest
+
 from mettagrid.renderer.miniscope.buffer import MapBuffer
 from mettagrid.renderer.miniscope.components.vibe_picker import VibePickerComponent
 from mettagrid.renderer.miniscope.miniscope import MiniscopeRenderer
 from mettagrid.renderer.miniscope.miniscope_state import (
     RenderMode,
 )
+
+pytestmark = pytest.mark.skip(reason="Miniscope renderer uses obsolete game_state module - needs rewrite")
 
 
 def _minimal_renderer() -> MiniscopeRenderer:

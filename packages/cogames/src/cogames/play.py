@@ -1,14 +1,15 @@
 """Game playing functionality for CoGames."""
 
 import logging
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING
 
-import numpy as np
 from rich.console import Console
 
-from cogames.policy.interfaces import PolicySpec
-from cogames.policy.utils import initialize_or_load_policy
-from mettagrid import MettaGridConfig, MettaGridEnv, RenderMode, dtype_actions
+from mettagrid import MettaGridConfig
+from mettagrid.policy.policy import PolicySpec
+from mettagrid.policy.utils import initialize_or_load_policy
+from mettagrid.renderer.renderer import RenderMode
+from mettagrid.simulator.rollout import Rollout
 
 if TYPE_CHECKING:
     from mettagrid import MettaGridConfig
@@ -22,70 +23,34 @@ def play(
     env_cfg: "MettaGridConfig",
     policy_spec: PolicySpec,
     game_name: str,
-    max_steps: Optional[int] = None,
     seed: int = 42,
-    render: RenderMode = "gui",
+    render_mode: RenderMode = "gui",
 ) -> None:
     """Play a single game episode with a policy.
 
     Args:
         console: Rich console for output
         env_cfg: Game configuration
-        policy_class_path: Path to policy class
-        policy_data_path: Optional path to policy weights/checkpoint
+        policy_spec: Policy specification (class path and optional data path)
         game_name: Human-readable name of the game (used for logging/metadata)
         max_steps: Maximum steps for the episode (None for no limit)
         seed: Random seed
-        render: Render mode - "gui", "unicode", or "none"
+        render_mode: Render mode - "gui", "unicode", or "none"
     """
 
-    if game_name:
-        logger.debug("Starting play session", extra={"game_name": game_name})
-    env = MettaGridEnv(env_cfg=env_cfg, render_mode=render)
+    logger.debug("Starting play session", extra={"game_name": game_name})
 
-    policy = initialize_or_load_policy(policy_spec.policy_class_path, policy_spec.policy_data_path, env)
-    agent_policies = [policy.agent_policy(agent_id) for agent_id in range(env.num_agents)]
+    policy = initialize_or_load_policy(
+        policy_spec.policy_class_path, policy_spec.policy_data_path, env_cfg.game.actions
+    )
+    agent_policies = [policy.agent_policy(agent_id) for agent_id in range(env_cfg.game.num_agents)]
 
-    obs, _ = env.reset(seed=seed)
-
-    # Standard game loop
-    step_count = 0
-    num_agents = env_cfg.game.num_agents
-    actions = np.zeros(env.num_agents, dtype=dtype_actions)
-    total_rewards = np.zeros(env.num_agents)
-
-    while max_steps is None or step_count < max_steps:
-        # Check if renderer wants to continue (e.g., user quit or interactive loop finished)
-        if not env._renderer.should_continue():
-            break
-
-        # Render the environment (handles display and user input)
-        env.render()
-
-        # Get user actions from renderer (if any)
-        user_actions = env._renderer.get_user_actions()
-
-        # Get actions - use user input if available, otherwise use policy
-        for agent_id in range(num_agents):
-            if agent_id in user_actions:
-                # User provided action for this agent
-                actions[agent_id] = user_actions[agent_id]
-            else:
-                # Use policy action
-                actions[agent_id] = int(agent_policies[agent_id].step(obs[agent_id]))
-
-        # Step the environment
-        obs, rewards, dones, truncated, _ = env.step(actions)
-
-        # Update total rewards
-        total_rewards += rewards
-        step_count += 1
-
-        if all(dones) or all(truncated):
-            break
+    # Create simulator and renderer
+    rollout = Rollout(env_cfg, agent_policies, render_mode=render_mode, seed=seed)
+    rollout.run_until_done()
 
     # Print summary
     console.print("\n[bold green]Episode Complete![/bold green]")
-    console.print(f"Steps: {step_count}")
-    console.print(f"Total Rewards: {total_rewards}")
-    console.print(f"Final Reward Sum: {float(sum(total_rewards)):.2f}")
+    console.print(f"Steps: {rollout._sim.current_step}")
+    console.print(f"Total Rewards: {rollout._sim.episode_rewards}")
+    console.print(f"Final Reward Sum: {float(sum(rollout._sim.episode_rewards)):.2f}")

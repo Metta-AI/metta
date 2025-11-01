@@ -1,8 +1,8 @@
 """Symbols table component for miniscope renderer."""
 
-from mettagrid import MettaGridEnv
-from mettagrid.renderer.miniscope.miniscope_panel import SIDEBAR_WIDTH, PanelLayout
+from mettagrid.renderer.miniscope.miniscope_panel import PanelLayout
 from mettagrid.renderer.miniscope.miniscope_state import MiniscopeState
+from mettagrid.simulator import Simulation
 
 from .base import MiniscopeComponent
 
@@ -12,7 +12,7 @@ class SymbolsTableComponent(MiniscopeComponent):
 
     def __init__(
         self,
-        env: MettaGridEnv,
+        sim: Simulation,
         state: MiniscopeState,
         panels: PanelLayout,
         max_rows: int = 1000,
@@ -20,13 +20,16 @@ class SymbolsTableComponent(MiniscopeComponent):
         """Initialize the symbols table component.
 
         Args:
-            env: MettaGrid environment reference
+            sim: MettaGrid simulator reference
             state: Miniscope state reference
             panels: Panel layout containing all panels
             max_rows: Maximum number of rows to display (default 1000 for unlimited)
         """
-        super().__init__(env=env, state=state, panels=panels)
-        self._set_panel(panels.get_sidebar_panel("symbols"))
+        super().__init__(sim=sim, state=state, panels=panels)
+        sidebar_panel = panels.get_sidebar_panel("symbols")
+        if sidebar_panel is None:
+            sidebar_panel = panels.register_sidebar_panel("symbols")
+        self._set_panel(sidebar_panel)
         self._max_rows = max_rows
 
     def _get_symbol_map(self) -> dict[str, str]:
@@ -71,7 +74,7 @@ class SymbolsTableComponent(MiniscopeComponent):
         if not entries:
             return ["Symbols", "(none)"]
 
-        width = self._width if self._width else SIDEBAR_WIDTH
+        width = self._width if self._width else 40
         width = max(20, width)
 
         header = "Symbols"

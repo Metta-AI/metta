@@ -1,3 +1,4 @@
+from .base_config import Config
 from .mettagrid_c_config import from_mettagrid_config
 from .mettagrid_config import (
     ActionConfig,
@@ -7,9 +8,9 @@ from .mettagrid_config import (
     AssemblerConfig,
     AttackActionConfig,
     ChangeVibeActionConfig,
+    ClipperConfig,
     GameConfig,
     GlobalObsConfig,
-    GridObjectConfig,
     MettaGridConfig,
     ProtocolConfig,
     WallConfig,
@@ -23,11 +24,12 @@ __all__ = [
     "AssemblerConfig",
     "AttackActionConfig",
     "ChangeVibeActionConfig",
+    "Config",
     "from_mettagrid_config",
     "GameConfig",
     "GlobalObsConfig",
-    "GridObjectConfig",
     "MettaGridConfig",
+    "ClipperConfig",
     "ProtocolConfig",
     "WallConfig",
 ]

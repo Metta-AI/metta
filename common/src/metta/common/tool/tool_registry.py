@@ -10,13 +10,6 @@ Tool loading and path resolution is in tool.py.
 from __future__ import annotations
 
 from metta.common.tool import Tool
-from metta.tools.analyze import AnalysisTool
-from metta.tools.eval import EvaluateTool
-from metta.tools.eval_remote import EvalRemoteTool
-from metta.tools.play import PlayTool
-from metta.tools.replay import ReplayTool
-from metta.tools.sweep import SweepTool
-from metta.tools.train import TrainTool
 
 # -----------------------------------------------------------------------------
 # Tool Registry
@@ -36,7 +29,26 @@ class ToolRegistry:
         if cls._instance is None:
             cls._instance = super().__new__(cls)
             cls._instance.name_to_tool = {}
+            cls._instance._register_tools()
         return cls._instance
+
+    def _register_tools(self) -> None:
+        """Lazy import and register all tools."""
+        from metta.tools.analyze import AnalysisTool
+        from metta.tools.eval import EvaluateTool
+        from metta.tools.eval_remote import EvalRemoteTool
+        from metta.tools.play import PlayTool
+        from metta.tools.replay import ReplayTool
+        from metta.tools.sweep import SweepTool
+        from metta.tools.train import TrainTool
+
+        self.register(TrainTool)
+        self.register(EvaluateTool)
+        self.register(EvalRemoteTool)
+        self.register(PlayTool)
+        self.register(ReplayTool)
+        self.register(AnalysisTool)
+        self.register(SweepTool)
 
     def register(self, tool_class: type[Tool]) -> None:
         """Register a tool class, using its tool_type_name() as the key."""
@@ -47,12 +59,3 @@ class ToolRegistry:
 
 # Global singleton - access directly
 tool_registry = ToolRegistry()
-
-# Register all tools
-tool_registry.register(TrainTool)
-tool_registry.register(EvaluateTool)
-tool_registry.register(EvalRemoteTool)
-tool_registry.register(PlayTool)
-tool_registry.register(ReplayTool)
-tool_registry.register(AnalysisTool)
-tool_registry.register(SweepTool)

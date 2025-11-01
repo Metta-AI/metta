@@ -37,7 +37,8 @@ protected:
 
   // Helper to create an assembler at a specific location
   Assembler* create_assembler(GridCoord r, GridCoord c) {
-    AssemblerConfig cfg(1, "test_assembler", 0);
+    AssemblerConfig cfg(1, "test_assembler");
+    // cfg.protocols is empty by default, which is fine for these tests
 
     Assembler* assembler = new Assembler(r, c, cfg);
     grid->add_object(assembler);
@@ -258,7 +259,8 @@ protected:
 
   // Helper to create an assembler at a specific location
   Assembler* create_assembler(Grid& grid, GridCoord r, GridCoord c, bool clip_immune = false) {
-    AssemblerConfig cfg(1, "test_assembler", 0);
+    AssemblerConfig cfg(1, "test_assembler");
+    // cfg.protocols is empty by default, which is fine for these tests
     cfg.clip_immune = clip_immune;
 
     Assembler* assembler = new Assembler(r, c, cfg);

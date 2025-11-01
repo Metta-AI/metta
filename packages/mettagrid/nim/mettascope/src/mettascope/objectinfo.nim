@@ -76,7 +76,7 @@ proc updateObjectInfo*() =
     addParam("Reward", $selection.totalReward.at)
     if replay.config.game.vibeNames.len > 0:
       let vibeId = selection.vibeId.at
-      if vibeId < replay.config.game.vibeNames.len:
+      if vibeId >= 0 and vibeId < replay.config.game.vibeNames.len:
         let vibeName = replay.config.game.vibeNames[vibeId]
         vibeArea.find("**/Icon").fills[0].imageRef = "../../vibe" / vibeName
         vibeArea.show()
@@ -98,7 +98,8 @@ proc updateObjectInfo*() =
 
   proc addResource(area: Node, itemAmount: ItemAmount) =
     let i = item.copy()
-    i.find("**/Image").fills[0].imageRef = "../../" & replay.itemImages[itemAmount.itemId]
+    i.find("**/Image").fills[0].imageRef = "../../" & replay.itemImages[
+        itemAmount.itemId]
     i.find("**/Amount").text = $itemAmount.count
     area.addChild(i)
 

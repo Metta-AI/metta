@@ -7,7 +7,7 @@ from pydantic import Field
 from metta.agent.policy import Policy
 from metta.rl.loss.contrastive import ContrastiveLoss
 from metta.rl.training import TrainingEnvironment
-from mettagrid.base_config import Config
+from mettagrid.config import Config
 
 
 class ContrastiveConfig(Config):

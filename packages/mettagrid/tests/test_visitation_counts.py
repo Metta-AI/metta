@@ -6,20 +6,18 @@ import time
 import numpy as np
 import pytest
 
-from mettagrid import dtype_actions
 from mettagrid.config.mettagrid_config import (
-    ActionConfig,
     ActionsConfig,
     GameConfig,
     GlobalObsConfig,
     MettaGridConfig,
+    MoveActionConfig,
     WallConfig,
 )
-from mettagrid.core import MettaGridCore
+from mettagrid.config.obs_config import ObsConfig
 from mettagrid.map_builder.ascii import AsciiMapBuilder
 from mettagrid.mapgen.utils.ascii_grid import DEFAULT_CHAR_TO_NAME
-from mettagrid.test_support.actions import action_index
-from mettagrid.test_support.orientation import Orientation
+from mettagrid.simulator import Simulation
 
 
 @pytest.fixture
@@ -29,13 +27,11 @@ def env_with_visitation():
     config = MettaGridConfig(
         game=GameConfig(
             num_agents=1,
+            obs=ObsConfig(width=5, height=5, num_tokens=100),
             max_steps=100,
-            obs_width=5,
-            obs_height=5,
-            num_observation_tokens=100,
             resource_names=["wood", "stone"],
             actions=ActionsConfig(
-                move=ActionConfig(),  # Enable 8-way movement
+                move=MoveActionConfig(),  # Enable 8-way movement
             ),
             objects={"wall": WallConfig(type_id=1)},
             global_obs=GlobalObsConfig(
@@ -58,7 +54,7 @@ def env_with_visitation():
             ),
         )
     )
-    return MettaGridCore(config)
+    return Simulation(config)
 
 
 @pytest.fixture
@@ -69,13 +65,11 @@ def env_without_visitation():
     config = MettaGridConfig(
         game=GameConfig(
             num_agents=1,
+            obs=ObsConfig(width=5, height=5, num_tokens=100),
             max_steps=100,
-            obs_width=5,
-            obs_height=5,
-            num_observation_tokens=100,
             resource_names=["wood", "stone"],
             actions=ActionsConfig(
-                move=ActionConfig(),  # Enable 8-way movement
+                move=MoveActionConfig(),  # Enable 8-way movement
             ),
             objects={"wall": WallConfig(type_id=1)},
             global_obs=GlobalObsConfig(
@@ -98,7 +92,7 @@ def env_without_visitation():
             ),
         )
     )
-    return MettaGridCore(config)
+    return Simulation(config)
 
 
 @pytest.fixture
@@ -109,13 +103,11 @@ def env_default():
     config = MettaGridConfig(
         game=GameConfig(
             num_agents=1,
+            obs=ObsConfig(width=5, height=5, num_tokens=100),
             max_steps=100,
-            obs_width=5,
-            obs_height=5,
-            num_observation_tokens=100,
             resource_names=["wood", "stone"],
             actions=ActionsConfig(
-                move=ActionConfig(),  # Enable 8-way movement
+                move=MoveActionConfig(),  # Enable 8-way movement
             ),
             objects={"wall": WallConfig(type_id=1)},
             # No explicit visitation_counts setting - uses default (False)
@@ -133,7 +125,7 @@ def env_default():
             ),
         )
     )
-    return MettaGridCore(config)
+    return Simulation(config)
 
 
 # Helper functions
@@ -149,8 +141,8 @@ def extract_visitation_features(visitation_feature_id: int, obs: np.ndarray, age
 @pytest.mark.skip(reason="Visitation counts not incrementing - needs investigation")
 def test_visitation_counts_enabled(env_with_visitation):
     """Test that visitation counts work correctly when enabled."""
-    obs, _ = env_with_visitation.reset(seed=42)
-    visitation_feature_id = env_with_visitation.c_env.feature_spec()["agent:visitation_counts"]["id"]
+    obs = env_with_visitation._c_sim.observations()
+    visitation_feature_id = env_with_visitation.config.id_map().feature_id("agent:visitation_counts")
 
     # Check initial visitation counts
     initial_features = extract_visitation_features(visitation_feature_id, obs)
@@ -158,9 +150,11 @@ def test_visitation_counts_enabled(env_with_visitation):
     assert initial_features == [0, 0, 0, 0, 0], f"Expected initial counts [0,0,0,0,0], got {initial_features}"
 
     # Move and check counts update
-    move_action = np.array([action_index(env_with_visitation, "move", Orientation.NORTH)], dtype=dtype_actions)
     for step in range(3):
-        obs, _, _, _, _ = env_with_visitation.step(move_action)
+        # Set action using agent interface
+        env_with_visitation.agent(0).set_action("move_north")
+        env_with_visitation.step()
+        obs = env_with_visitation._c_sim.observations()
         features = extract_visitation_features(visitation_feature_id, obs)
         assert len(features) == 5, f"Step {step}: Expected 5 features, got {len(features)}"
         # At least one count should be non-zero after movement
@@ -172,23 +166,24 @@ def test_visitation_counts_enabled(env_with_visitation):
 
 def test_visitation_counts_disabled(env_without_visitation):
     """Test that visitation counts are not present when disabled."""
-    obs, _ = env_without_visitation.reset(seed=42)
-    visitation_feature_id = env_without_visitation.c_env.feature_spec()["agent:visitation_counts"]["id"]
+    obs = env_without_visitation._c_sim.observations()
+    visitation_feature_id = env_without_visitation.config.id_map().feature_id("agent:visitation_counts")
 
     features = extract_visitation_features(visitation_feature_id, obs)
     assert len(features) == 0, f"Expected no visitation features when disabled, got {len(features)}"
 
     # Verify they stay disabled after steps
-    move_action = np.array([action_index(env_without_visitation, "move", Orientation.NORTH)], dtype=dtype_actions)
-    obs, _, _, _, _ = env_without_visitation.step(move_action)
+    env_without_visitation.agent(0).set_action("move_north")
+    env_without_visitation.step()
+    obs = env_without_visitation._c_sim.observations()
     features = extract_visitation_features(visitation_feature_id, obs)
     assert len(features) == 0, "Visitation features appeared after step when disabled"
 
 
 def test_visitation_counts_default_disabled(env_default):
     """Test that visitation counts are disabled by default."""
-    obs, _ = env_default.reset(seed=42)
-    visitation_feature_id = env_default.c_env.feature_spec()["agent:visitation_counts"]["id"]
+    obs = env_default._c_sim.observations()
+    visitation_feature_id = env_default.config.id_map().feature_id("agent:visitation_counts")
 
     features = extract_visitation_features(visitation_feature_id, obs)
     assert len(features) == 0, "Visitation counts should be disabled by default"
@@ -211,31 +206,28 @@ def performance_config():
     config = MettaGridConfig(
         game=GameConfig(
             num_agents=1,
+            obs=ObsConfig(width=11, height=11, num_tokens=200),
             max_steps=1000,
-            obs_width=11,
-            obs_height=11,
-            num_observation_tokens=200,
             resource_names=["wood", "stone"],
-            actions=ActionsConfig(move=ActionConfig()),
+            actions=ActionsConfig(move=MoveActionConfig()),
             objects={"wall": WallConfig(type_id=1)},
-            map_builder=AsciiMapBuilder.Config(
-                map_data=simple_map,
-                char_to_name_map=DEFAULT_CHAR_TO_NAME,
-            ),
+            map_builder=AsciiMapBuilder.Config(map_data=simple_map, char_to_name_map=DEFAULT_CHAR_TO_NAME),
         )
     )
     return config
 
 
-def _median_runtime(env, move_action, warmup_steps=10, test_steps=200, reps=15):
+def _median_runtime(env, warmup_steps=10, test_steps=200, reps=15):
     # warmup
     for _ in range(warmup_steps):
-        env.step(move_action)
+        env.agent(0).set_action("move_north")
+        env.step()
     times = []
     for _ in range(reps):
         t0 = time.perf_counter()
         for _ in range(test_steps):
-            env.step(move_action)
+            env.agent(0).set_action("move_north")
+            env.step()
         times.append(time.perf_counter() - t0)
     times.sort()
     return times[len(times) // 2]
@@ -244,21 +236,17 @@ def _median_runtime(env, move_action, warmup_steps=10, test_steps=200, reps=15):
 @pytest.mark.skip(reason="Flaky performance test - timing variations on different systems")
 def test_visitation_performance_impact(performance_config):
     """Disabled visitation should not be materially slower."""
-    move_action = np.array([action_index(env_default, "move", Orientation.NORTH)], dtype=dtype_actions)
-
     # enabled
     cfg_on = copy.deepcopy(performance_config)
     cfg_on.game.global_obs = GlobalObsConfig(visitation_counts=True)
-    env_enabled = MettaGridCore(cfg_on)
-    env_enabled.reset(seed=42)
-    enabled_time = _median_runtime(env_enabled, move_action)
+    sim_enabled = Simulation(cfg_on)
+    enabled_time = _median_runtime(sim_enabled)
 
     # disabled
     cfg_off = copy.deepcopy(performance_config)
     cfg_off.game.global_obs = GlobalObsConfig(visitation_counts=False)
-    env_disabled = MettaGridCore(cfg_off)
-    env_disabled.reset(seed=42)
-    disabled_time = _median_runtime(env_disabled, move_action)
+    sim_disabled = Simulation(cfg_off)
+    disabled_time = _median_runtime(sim_disabled)
 
     # allow small jitter (≤10% slowdown)
     assert disabled_time <= enabled_time * 1.1, (
@@ -270,8 +258,8 @@ def test_visitation_performance_impact(performance_config):
 
 def test_observation_structure(env_with_visitation):
     """Test the structure of observations with visitation counts."""
-    obs, _ = env_with_visitation.reset(seed=42)
-    visitation_feature_id = env_with_visitation.c_env.feature_spec()["agent:visitation_counts"]["id"]
+    obs = env_with_visitation._c_sim.observations()
+    visitation_feature_id = env_with_visitation.config.id_map().feature_id("agent:visitation_counts")
 
     # Check observation shape
     assert len(obs.shape) == 3, f"Expected 3D observation array, got shape {obs.shape}"

@@ -206,7 +206,9 @@ class PuffeRL:
 
         # Automatic mixed precision
         precision = config["precision"]
-        self.amp_context = torch.amp.autocast(device_type="cuda", dtype=getattr(torch, precision))
+        device = config["device"]
+        device_type = device if isinstance(device, str) else device.type
+        self.amp_context = torch.amp.autocast(device_type=device_type, dtype=getattr(torch, precision))
         if precision not in ("float32", "bfloat16"):
             raise pufferlib.APIUsageError(f"Invalid precision: {precision}: use float32 or bfloat16")
 

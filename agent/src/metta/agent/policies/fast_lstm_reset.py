@@ -8,7 +8,7 @@ from metta.agent.components.lstm_reset import LSTMResetConfig
 from metta.agent.components.misc import MLPConfig
 from metta.agent.components.obs_shim import ObsShimBoxConfig
 from metta.agent.policy import Policy, PolicyArchitecture
-from metta.rl.training import GameRules
+from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.util.module import load_symbol
 
 logger = logging.getLogger(__name__)
@@ -41,9 +41,9 @@ class FastLSTMResetConfig(PolicyArchitecture):
 
     action_probs_config: ActionProbsConfig = ActionProbsConfig(in_key="logits")
 
-    def make_policy(self, game_rules: GameRules) -> Policy:
+    def make_policy(self, policy_env_info: PolicyEnvInterface) -> Policy:
         AgentClass = load_symbol(self.class_path)
-        policy = AgentClass(game_rules, self)
+        policy = AgentClass(policy_env_info, self)
         policy.burn_in_steps = 128  # async factor of 2 * bptt of 64 although this isn't necessarily a function of bptt
 
         return policy

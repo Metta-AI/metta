@@ -5,6 +5,7 @@
 #include <unordered_map>
 #include <vector>
 
+#include "config/observation_features.hpp"
 #include "core/event.hpp"
 #include "core/grid.hpp"
 #include "core/grid_object.hpp"
@@ -171,8 +172,7 @@ public:
     // Add current inventory (inv:resource)
     for (const auto& [item, amount] : this->inventory.get()) {
       if (amount > 0) {
-        features.push_back(
-            {static_cast<ObservationType>(item + InventoryFeatureOffset), static_cast<ObservationType>(amount)});
+        features.push_back({this->inventory.get_feature_id(item), static_cast<ObservationType>(amount)});
       }
     }
 

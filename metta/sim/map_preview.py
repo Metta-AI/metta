@@ -11,24 +11,24 @@ from wandb.sdk import wandb_run
 from metta.common.util.constants import METTASCOPE_REPLAY_URL_PREFIX
 from metta.common.util.fs import get_repo_root
 from metta.utils.file import write_file
-from mettagrid import MettaGridEnv
 from mettagrid.config.mettagrid_config import MettaGridConfig
+from mettagrid.simulator import Simulation, Simulator
 
 logger = logging.getLogger(__name__)
 
 
-def write_map_preview_file(preview_path: str, env: MettaGridEnv, gzipped: bool):
+def write_map_preview_file(preview_path: str, sim: Simulation, gzipped: bool):
     logger.info("Building map preview...")
 
     preview = {
         "version": 1,
-        "action_names": env.action_names,
-        "object_types": env.object_type_names,
-        "inventory_items": env.resource_names,
-        "map_size": [env.map_width, env.map_height],
-        "num_agents": env.num_agents,
+        "action_names": sim.action_names,
+        "object_types": sim.object_type_names,
+        "inventory_items": sim.resource_names,
+        "map_size": [sim.map_width, sim.map_height],
+        "num_agents": sim.num_agents,
         "max_steps": 1,
-        "grid_objects": list(env.grid_objects().values()),
+        "grid_objects": list(sim.grid_objects().values()),
     }
 
     preview_data = json.dumps(preview).encode("utf-8")  # Convert to JSON string
@@ -40,7 +40,7 @@ def write_map_preview_file(preview_path: str, env: MettaGridEnv, gzipped: bool):
         f.write(preview_data)
 
 
-def write_local_map_preview(env: MettaGridEnv):
+def write_local_map_preview(sim: Simulation):
     repo_root = get_repo_root()
     maps_dir = repo_root / "outputs" / "maps"
     os.makedirs(maps_dir, exist_ok=True)
@@ -49,7 +49,7 @@ def write_local_map_preview(env: MettaGridEnv):
         preview_path = os.path.relpath(temp_file.name)
 
         # no gzip locally - fastapi doesn't recognize .json.z files
-        write_map_preview_file(preview_path, env, gzipped=False)
+        write_map_preview_file(preview_path, sim, gzipped=False)
 
     return preview_path
 
@@ -68,13 +68,14 @@ def upload_map_preview(
         wandb_run: Weights & Biases run object for logging
     """
 
-    env = MettaGridEnv(env_cfg, render_mode=None)
+    simulator = Simulator()
+    sim = simulator.new_simulation(env_cfg)
 
     with tempfile.NamedTemporaryFile(delete=False) as temp_file:
         # Create directory and save compressed file
         preview_path = temp_file.name
         os.makedirs(os.path.dirname(preview_path), exist_ok=True)
-        write_map_preview_file(preview_path, env, gzipped=True)
+        write_map_preview_file(preview_path, sim, gzipped=True)
 
     # Upload to S3 using our new utility function
     try:

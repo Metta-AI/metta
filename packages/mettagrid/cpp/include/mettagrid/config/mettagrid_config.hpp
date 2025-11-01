@@ -9,12 +9,13 @@
 #include <unordered_map>
 #include <vector>
 
+#include "config/observation_features.hpp"
 #include "core/types.hpp"
 #include "systems/clipper_config.hpp"
 
 // Forward declarations
-struct ActionConfig;
-struct GridObjectConfig;
+#include "actions/action_handler.hpp"
+#include "core/grid_object.hpp"
 
 using ObservationCoord = ObservationType;
 
@@ -32,9 +33,11 @@ struct GameConfig {
   ObservationCoord obs_width;
   ObservationCoord obs_height;
   std::vector<std::string> resource_names;
+  std::vector<std::string> vibe_names;
   unsigned int num_observation_tokens;
   GlobalObsConfig global_obs;
-  std::vector<std::pair<std::string, std::shared_ptr<ActionConfig>>> actions;  // Ordered list of (name, config) pairs
+  std::unordered_map<std::string, ObservationType> feature_ids;
+  std::unordered_map<std::string, std::shared_ptr<ActionConfig>> actions;
   std::unordered_map<std::string, std::shared_ptr<GridObjectConfig>> objects;
   float resource_loss_prob = 0.0;
   std::unordered_map<int, std::string> tag_id_map;
@@ -42,7 +45,6 @@ struct GameConfig {
   // FEATURE FLAGS
   bool track_movement_metrics = false;
   bool protocol_details_obs = false;
-  bool allow_diagonals = false;
   std::unordered_map<std::string, float> reward_estimates = {};
 
   // Inventory regeneration interval (global check timing)
@@ -76,15 +78,16 @@ inline void bind_game_config(py::module& m) {
                     ObservationCoord,
                     ObservationCoord,
                     const std::vector<std::string>&,
+                    const std::vector<std::string>&,
                     unsigned int,
                     const GlobalObsConfig&,
-                    const std::vector<std::pair<std::string, std::shared_ptr<ActionConfig>>>&,
+                    const std::unordered_map<std::string, ObservationType>&,
+                    const std::unordered_map<std::string, std::shared_ptr<ActionConfig>>&,
                     const std::unordered_map<std::string, std::shared_ptr<GridObjectConfig>>&,
                     float,
                     const std::unordered_map<int, std::string>&,
 
                     // FEATURE FLAGS
-                    bool,
                     bool,
                     bool,
                     const std::unordered_map<std::string, float>&,
@@ -100,8 +103,10 @@ inline void bind_game_config(py::module& m) {
            py::arg("obs_width"),
            py::arg("obs_height"),
            py::arg("resource_names"),
+           py::arg("vibe_names"),
            py::arg("num_observation_tokens"),
            py::arg("global_obs"),
+           py::arg("feature_ids"),
            py::arg("actions"),
            py::arg("objects"),
            py::arg("resource_loss_prob") = 0.0f,
@@ -110,7 +115,6 @@ inline void bind_game_config(py::module& m) {
            // FEATURE FLAGS
            py::arg("track_movement_metrics"),
            py::arg("protocol_details_obs") = false,
-           py::arg("allow_diagonals") = false,
            py::arg("reward_estimates") = std::unordered_map<std::string, float>(),
 
            // Inventory regeneration
@@ -124,8 +128,10 @@ inline void bind_game_config(py::module& m) {
       .def_readwrite("obs_width", &GameConfig::obs_width)
       .def_readwrite("obs_height", &GameConfig::obs_height)
       .def_readwrite("resource_names", &GameConfig::resource_names)
+      .def_readwrite("vibe_names", &GameConfig::vibe_names)
       .def_readwrite("num_observation_tokens", &GameConfig::num_observation_tokens)
       .def_readwrite("global_obs", &GameConfig::global_obs)
+      .def_readwrite("feature_ids", &GameConfig::feature_ids)
 
       // We don't expose these since they're copied on read, and this means that mutations
       // to the dictionaries don't impact the underlying cpp objects. This is confusing!
@@ -139,7 +145,6 @@ inline void bind_game_config(py::module& m) {
       // FEATURE FLAGS
       .def_readwrite("track_movement_metrics", &GameConfig::track_movement_metrics)
       .def_readwrite("protocol_details_obs", &GameConfig::protocol_details_obs)
-      .def_readwrite("allow_diagonals", &GameConfig::allow_diagonals)
       .def_readwrite("reward_estimates", &GameConfig::reward_estimates)
 
       // Inventory regeneration

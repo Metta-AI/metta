@@ -47,43 +47,6 @@ constexpr int ORIENTATION_DELTAS_Y[8] = {
     1    // Southeast
 };
 
-// Utility functions
-inline size_t getOrientationCount(bool allow_diagonals) {
-  return allow_diagonals ? 8 : 4;
-}
-
-inline bool isDiagonal(Orientation o) {
-  return o >= Northwest;
-}
-
-inline bool isValidOrientation(Orientation o, bool allow_diagonals) {
-  return o >= North && o <= (allow_diagonals ? Southeast : East);
-}
-
-// Get the opposite orientation
-inline Orientation getOpposite(Orientation orient) {
-  switch (orient) {
-    case North:
-      return South;
-    case South:
-      return North;
-    case West:
-      return East;
-    case East:
-      return West;
-    case Northwest:
-      return Southeast;
-    case Northeast:
-      return Southwest;
-    case Southwest:
-      return Northeast;
-    case Southeast:
-      return Northwest;
-    default:
-      return orient;
-  }
-}
-
 // Get the orientation 90 degrees clockwise
 inline Orientation getClockwise(Orientation orient) {
   switch (orient) {

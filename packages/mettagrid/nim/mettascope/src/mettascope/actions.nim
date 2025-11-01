@@ -10,11 +10,11 @@ type
     W = 2
     E = 3
 
-proc sendAction*(agentId, actionId: int) =
+proc sendAction*(agentId: int, actionName: cstring) =
   ## Send an action to the Python from the user.
   requestActions.add(ActionRequest(
     agentId: agentId,
-    actionId: actionId
+    actionName: actionName
   ))
   requestPython = true
 
@@ -31,18 +31,6 @@ proc getOrientationFromDelta(dx, dy: int): Orientation =
   else:
     return N
 
-proc getMoveActionId(orientation: Orientation): int =
-  ## Get the action ID for a move action in the given orientation.
-  case orientation
-  of N:
-    return replay.moveNorthActionId
-  of S:
-    return replay.moveSouthActionId
-  of W:
-    return replay.moveWestActionId
-  of E:
-    return replay.moveEastActionId
-
 proc agentHasEnergy(agent: Entity): bool =
   let energyId = replay.itemNames.find("energy")
   if energyId == -1:
@@ -53,6 +41,14 @@ proc agentHasEnergy(agent: Entity): bool =
     if item.itemId == energyId and item.count > 1:
       return true
   return false
+
+proc getMoveActionName(orientation: Orientation): string =
+  ## Get the move action name from an orientation.
+  case orientation
+  of N: return "move_north"
+  of S: return "move_south"
+  of E: return "move_east"
+  of W: return "move_west"
 
 proc processActions*() =
   ## Process path actions and send actions for the current step while in play mode.
@@ -86,7 +82,7 @@ proc processActions*() =
       let dx = nextAction.pos.x - currentPos.x
       let dy = nextAction.pos.y - currentPos.y
       let orientation = getOrientationFromDelta(dx.int, dy.int)
-      sendAction(agentId, getMoveActionId(orientation))
+      sendAction(agentId, getMoveActionName(orientation))
       # Remove this action from the queue.
       agentPaths[agentId].delete(0)
       # Check if we completed an objective.
@@ -103,8 +99,9 @@ proc processActions*() =
           agentPaths.del(agentId)
     of Bump:
       # Execute bump action.
-      let targetOrientation = getOrientationFromDelta(nextAction.bumpDir.x.int, nextAction.bumpDir.y.int)
-      sendAction(agentId, getMoveActionId(targetOrientation))
+      let targetOrientation = getOrientationFromDelta(nextAction.bumpDir.x.int,
+          nextAction.bumpDir.y.int)
+      sendAction(agentId, getMoveActionName(targetOrientation))
       # Remove this action from the queue.
       agentPaths[agentId].delete(0)
       # Remove the corresponding objective.
@@ -119,7 +116,7 @@ proc processActions*() =
         agentPaths.del(agentId)
     of Vibe:
       # Execute vibe.
-      sendAction(agentId, nextAction.vibeActionId)
+      sendAction(agentId, replay.actionNames[nextAction.vibeActionId])
       # Remove this action from the queue.
       agentPaths[agentId].delete(0)
       # Remove the corresponding objective.
@@ -141,34 +138,21 @@ proc agentControls*() =
 
     # Move
     if window.buttonPressed[KeyW] or window.buttonPressed[KeyUp]:
-      sendAction(agent.agentId, getMoveActionId(N))
+      sendAction(agent.agentId, "move_north")
       clearPath(agent.agentId)
 
     elif window.buttonPressed[KeyS] or window.buttonPressed[KeyDown]:
-      sendAction(agent.agentId, getMoveActionId(S))
+      sendAction(agent.agentId, "move_south")
       clearPath(agent.agentId)
 
     elif window.buttonPressed[KeyD] or window.buttonPressed[KeyRight]:
-      sendAction(agent.agentId, getMoveActionId(E))
+      sendAction(agent.agentId, "move_east")
       clearPath(agent.agentId)
 
     elif window.buttonPressed[KeyA] or window.buttonPressed[KeyLeft]:
-      sendAction(agent.agentId, getMoveActionId(W))
+      sendAction(agent.agentId, "move_west")
       clearPath(agent.agentId)
-
-    # Put items
-    elif window.buttonPressed[KeyQ]:
-      sendAction(agent.agentId, replay.putItemsActionId)
-
-    # Get items
-    elif window.buttonPressed[KeyE]:
-      sendAction(agent.agentId, replay.getItemsActionId)
-
-    # Attack
-    elif window.buttonPressed[KeyZ]:
-      # TODO: Get implementation attack selection ui.
-      sendAction(agent.agentId, replay.attackActionId)
 
     # Noop
     elif window.buttonPressed[KeyX]:
-      sendAction(agent.agentId, replay.noopActionId)
+      sendAction(agent.agentId, "noop")

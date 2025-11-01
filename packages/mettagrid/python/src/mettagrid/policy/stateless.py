@@ -5,25 +5,31 @@ import torch
 import torch.nn as nn
 
 import pufferlib.pytorch
-from cogames.policy.interfaces import AgentPolicy, TrainablePolicy
-from mettagrid import MettaGridAction, MettaGridEnv, MettaGridObservation, dtype_actions
+from mettagrid.config.mettagrid_config import ActionsConfig
+from mettagrid.mettagrid_c import dtype_actions
+from mettagrid.policy.policy import AgentPolicy, TrainablePolicy
+from mettagrid.policy.policy_env_interface import PolicyEnvInterface
+from mettagrid.simulator import Action as MettaGridAction
+from mettagrid.simulator import AgentObservation as MettaGridObservation
 
-logger = logging.getLogger("cogames.policies.simple_policy")
+logger = logging.getLogger("mettagrid.policy.stateless_policy")
 
 
-class SimplePolicyNet(torch.nn.Module):
-    def __init__(self, env):
+class StatelessPolicyNet(torch.nn.Module):
+    """Stateless feedforward policy network."""
+
+    def __init__(self, actions_cfg: ActionsConfig, obs_shape: tuple):
         super().__init__()
         self.hidden_size = 128
         self.net = torch.nn.Sequential(
             pufferlib.pytorch.layer_init(
-                torch.nn.Linear(np.prod(env.single_observation_space.shape), self.hidden_size)
+                torch.nn.Linear(np.prod(obs_shape).item(), self.hidden_size),
             ),
             torch.nn.ReLU(),
             pufferlib.pytorch.layer_init(torch.nn.Linear(self.hidden_size, self.hidden_size)),
         )
 
-        self.num_actions = int(env.single_action_space.n)
+        self.num_actions = len(actions_cfg.actions())
 
         self.action_head = torch.nn.Linear(self.hidden_size, self.num_actions)
         self.value_head = torch.nn.Linear(self.hidden_size, 1)
@@ -42,10 +48,10 @@ class SimplePolicyNet(torch.nn.Module):
         return self.forward_eval(observations, state)
 
 
-class SimpleAgentPolicyImpl(AgentPolicy):
+class StatelessAgentPolicyImpl(AgentPolicy):
     """Per-agent policy that uses the shared feedforward network."""
 
-    def __init__(self, net: SimplePolicyNet, device: torch.device, num_actions: int):
+    def __init__(self, net: StatelessPolicyNet, device: torch.device, num_actions: int):
         self._net = net
         self._device = device
         self._num_actions = num_actions
@@ -63,21 +69,23 @@ class SimpleAgentPolicyImpl(AgentPolicy):
             return dtype_actions.type(sampled_action)
 
 
-class SimplePolicy(TrainablePolicy):
-    """Simple feedforward policy."""
+class StatelessPolicy(TrainablePolicy):
+    """Stateless feedforward policy."""
 
-    def __init__(self, env: MettaGridEnv, device: torch.device):
-        super().__init__()
-        self._net = SimplePolicyNet(env).to(device)
+    def __init__(
+        self, actions_cfg: ActionsConfig, obs_shape: tuple, device: torch.device, policy_env_info: PolicyEnvInterface
+    ):
+        super().__init__(policy_env_info)
+        self._net = StatelessPolicyNet(actions_cfg, obs_shape).to(device)
         self._device = device
-        self.num_actions = int(env.single_action_space.n)
+        self.num_actions = len(actions_cfg.actions())
 
     def network(self) -> nn.Module:
         return self._net
 
     def agent_policy(self, agent_id: int) -> AgentPolicy:
         """Create a Policy instance for a specific agent."""
-        return SimpleAgentPolicyImpl(self._net, self._device, self.num_actions)
+        return StatelessAgentPolicyImpl(self._net, self._device, self.num_actions)
 
     def is_recurrent(self) -> bool:
         return False

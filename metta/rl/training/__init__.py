@@ -33,7 +33,6 @@ if TYPE_CHECKING:
     )
     from metta.rl.training.torch_profiler import TorchProfiler
     from metta.rl.training.training_environment import (
-        GameRules,
         TrainingEnvironment,
         TrainingEnvironmentConfig,
         VectorizedTrainingEnvironment,
@@ -49,7 +48,6 @@ _EXPORTS: dict[str, tuple[str, str | None]] = {
     "ContextCheckpointer": ("metta.rl.training.context_checkpointer", "ContextCheckpointer"),
     "CoreTrainingLoop": ("metta.rl.training.core", "CoreTrainingLoop"),
     "DistributedHelper": ("metta.rl.training.distributed_helper", "DistributedHelper"),
-    "GameRules": ("metta.rl.training.training_environment", "GameRules"),
     "Evaluator": ("metta.rl.training.evaluator", "Evaluator"),
     "EvaluatorConfig": ("metta.rl.training.evaluator", "EvaluatorConfig"),
     "Experience": ("metta.rl.training.experience", "Experience"),
@@ -91,7 +89,6 @@ __all__ = [
     "ContextCheckpointer",
     "CoreTrainingLoop",
     "DistributedHelper",
-    "GameRules",
     "Evaluator",
     "EvaluatorConfig",
     "Experience",

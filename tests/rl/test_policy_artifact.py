@@ -1,9 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from types import SimpleNamespace
 
-import gymnasium as gym
 import pytest
 import torch
 import torch.nn as nn
@@ -21,8 +19,8 @@ from metta.rl.policy_artifact import (
     policy_architecture_to_string,
     save_policy_artifact_safetensors,
 )
-from metta.rl.training import GameRules
-from mettagrid.base_config import Config
+from mettagrid.config import Config
+from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 
 
 class DummyActionComponentConfig(Config):
@@ -38,8 +36,12 @@ class DummyPolicyArchitecture(PolicyArchitecture):
 
 
 class DummyPolicy(Policy):
-    def __init__(self, game_rules: GameRules | None, _: PolicyArchitecture | None = None):
-        super().__init__()
+    def __init__(self, policy_env_info: PolicyEnvInterface | None, _: PolicyArchitecture | None = None):
+        if policy_env_info is None:
+            from mettagrid.config import MettaGridConfig
+
+            policy_env_info = PolicyEnvInterface.from_mg_cfg(MettaGridConfig())
+        super().__init__(policy_env_info)
         self.linear = nn.Linear(1, 1)
 
     def forward(self, td: TensorDict) -> TensorDict:  # pragma: no cover - simple passthrough
@@ -54,34 +56,27 @@ class DummyPolicy(Policy):
         return None
 
 
-def _game_rules() -> GameRules:
-    return GameRules(
-        obs_width=1,
-        obs_height=1,
-        obs_features={},
-        action_names=[],
-        num_agents=1,
-        observation_space=None,
-        action_space=None,
-        feature_normalizations={},
-    )
+def _policy_env_info() -> PolicyEnvInterface:
+    from mettagrid.config import MettaGridConfig
+
+    return PolicyEnvInterface.from_mg_cfg(MettaGridConfig())
 
 
 def test_policy_only_artifact_instantiate() -> None:
-    game_rules = _game_rules()
-    policy = DummyPolicy(game_rules)
+    policy_env_info = _policy_env_info()
+    policy = DummyPolicy(policy_env_info)
 
     artifact = PolicyArtifact(policy=policy)
 
-    instantiated = artifact.instantiate(game_rules, torch.device("cpu"))
+    instantiated = artifact.instantiate(policy_env_info, torch.device("cpu"))
     assert instantiated is policy
     assert instantiated.device.type == "cpu"
 
 
 def test_save_and_load_weights_and_architecture(tmp_path: Path) -> None:
-    game_rules = _game_rules()
+    policy_env_info = _policy_env_info()
     architecture = DummyPolicyArchitecture()
-    policy = architecture.make_policy(game_rules)
+    policy = architecture.make_policy(policy_env_info)
 
     artifact_path = tmp_path / "artifact.zip"
     artifact = save_policy_artifact_safetensors(
@@ -99,14 +94,14 @@ def test_save_and_load_weights_and_architecture(tmp_path: Path) -> None:
     assert isinstance(loaded.policy_architecture, DummyPolicyArchitecture)
     assert loaded.state_dict is not None
 
-    instantiated = loaded.instantiate(game_rules, torch.device("cpu"))
+    instantiated = loaded.instantiate(policy_env_info, torch.device("cpu"))
     assert isinstance(instantiated, DummyPolicy)
 
 
 def test_policy_artifact_rejects_policy_and_weights() -> None:
-    game_rules = _game_rules()
+    policy_env_info = _policy_env_info()
     architecture = DummyPolicyArchitecture()
-    policy = architecture.make_policy(game_rules)
+    policy = architecture.make_policy(policy_env_info)
     state = policy.state_dict()
 
     with pytest.raises(ValueError):
@@ -160,21 +155,13 @@ def test_policy_architecture_from_string_with_args_round_trip() -> None:
 
 
 def test_safetensors_save_with_shared_lstm_parameters(tmp_path: Path) -> None:
-    obs_features = {"token": SimpleNamespace(id=0, normalization=1.0)}
-    game_rules = GameRules(
-        obs_width=1,
-        obs_height=1,
-        obs_features=obs_features,
-        action_names=["noop"],
-        num_agents=1,
-        observation_space=None,
-        action_space=gym.spaces.Discrete(1),
-        feature_normalizations={0: 1.0},
-    )
+    from mettagrid.config import MettaGridConfig
+
+    policy_env_info = PolicyEnvInterface.from_mg_cfg(MettaGridConfig())
 
     architecture = FastLSTMResetConfig()
-    policy = architecture.make_policy(game_rules)
-    policy.initialize_to_environment(game_rules, torch.device("cpu"))
+    policy = architecture.make_policy(policy_env_info)
+    policy.initialize_to_environment(policy_env_info, torch.device("cpu"))
 
     artifact_path = tmp_path / "artifact.zip"
     save_policy_artifact_safetensors(
@@ -184,6 +171,7 @@ def test_safetensors_save_with_shared_lstm_parameters(tmp_path: Path) -> None:
     )
 
     loaded = load_policy_artifact(artifact_path)
-    reloaded = loaded.instantiate(game_rules, torch.device("cpu"))
+    reloaded = loaded.instantiate(policy_env_info, torch.device("cpu"))
 
-    assert reloaded.network.module.lstm_reset.func.lstm_h.size(1) == 0
+    # Access lstm_reset component from the components dict and check lstm_h buffer
+    assert reloaded.components["lstm_reset"].lstm_h.size(1) == 0

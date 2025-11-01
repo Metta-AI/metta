@@ -1,32 +1,14 @@
-from types import SimpleNamespace
-
-import gymnasium as gym
 import torch
 from tensordict import TensorDict
 
 from metta.agent.policies.fast import FastConfig, FastPolicy
-from metta.rl.training import GameRules
 from metta.rl.utils import ensure_sequence_metadata
+from mettagrid.config import MettaGridConfig
+from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 
 
-def _build_game_rules():
-    action_names = ["move_north", "attack_0", "attack_1", "attack_2"]
-    feature_normalizations = {0: 1.0}
-
-    obs_features = {
-        "token_value": SimpleNamespace(id=0, normalization=1.0),
-    }
-
-    return GameRules(
-        obs_width=11,
-        obs_height=11,
-        obs_features=obs_features,
-        action_names=action_names,
-        num_agents=1,
-        observation_space=None,
-        action_space=gym.spaces.Discrete(len(action_names)),
-        feature_normalizations=feature_normalizations,
-    )
+def _build_policy_env_info() -> PolicyEnvInterface:
+    return PolicyEnvInterface.from_mg_cfg(MettaGridConfig())
 
 
 def _build_token_observations(batch_size: int, num_tokens: int) -> TensorDict:
@@ -39,26 +21,26 @@ def _build_token_observations(batch_size: int, num_tokens: int) -> TensorDict:
 
 
 def test_fast_config_creates_policy():
-    game_rules = _build_game_rules()
-    policy = FastConfig().make_policy(game_rules)
+    policy_env_info = _build_policy_env_info()
+    policy = FastConfig().make_policy(policy_env_info)
     assert isinstance(policy, FastPolicy)
 
 
 def test_fast_policy_initialize_sets_action_metadata():
-    game_rules = _build_game_rules()
-    policy = FastPolicy(game_rules)
+    policy_env_info = _build_policy_env_info()
+    policy = FastPolicy(policy_env_info)
 
-    logs = policy.initialize_to_environment(game_rules, torch.device("cpu"))
+    logs = policy.initialize_to_environment(policy_env_info, torch.device("cpu"))
 
     # Initialization returns a list containing the observation shim log (may be None)
     assert isinstance(logs, list)
-    assert policy.action_probs.num_actions == len(game_rules.action_names)
+    assert policy.action_probs.num_actions == len(policy_env_info.actions.actions())
 
 
 def test_fast_policy_forward_produces_actions_and_values():
-    game_rules = _build_game_rules()
-    policy = FastPolicy(game_rules)
-    policy.initialize_to_environment(game_rules, torch.device("cpu"))
+    policy_env_info = _build_policy_env_info()
+    policy = FastPolicy(policy_env_info)
+    policy.initialize_to_environment(policy_env_info, torch.device("cpu"))
     policy.eval()
 
     td = _build_token_observations(batch_size=1, num_tokens=4)

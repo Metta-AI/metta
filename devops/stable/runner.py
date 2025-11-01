@@ -12,7 +12,7 @@ The runner handles:
 from __future__ import annotations
 
 import sys
-from datetime import datetime
+from datetime import UTC, datetime
 
 from devops.stable.state import ReleaseState, get_log_dir, save_state
 from devops.stable.tasks import LocalCommandTask, LocalTrainingTask, Task, TaskResult
@@ -123,8 +123,8 @@ class TaskRunner:
                 # Skip this task
                 result = TaskResult(
                     name=task.name,
-                    started_at=datetime.utcnow().isoformat(timespec="seconds"),
-                    ended_at=datetime.utcnow().isoformat(timespec="seconds"),
+                    started_at=datetime.now(UTC).isoformat(timespec="seconds"),
+                    ended_at=datetime.now(UTC).isoformat(timespec="seconds"),
                     exit_code=0,
                     outcome="skipped",
                     error=f"Dependency {dep.name} did not pass",
@@ -159,8 +159,8 @@ class TaskRunner:
         except Exception as e:
             result = TaskResult(
                 name=task.name,
-                started_at=datetime.utcnow().isoformat(timespec="seconds"),
-                ended_at=datetime.utcnow().isoformat(timespec="seconds"),
+                started_at=datetime.now(UTC).isoformat(timespec="seconds"),
+                ended_at=datetime.now(UTC).isoformat(timespec="seconds"),
                 exit_code=1,
                 outcome="failed",
                 error=f"Exception: {e}",

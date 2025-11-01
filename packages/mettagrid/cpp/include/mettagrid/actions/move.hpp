@@ -2,8 +2,11 @@
 #define PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_ACTIONS_MOVE_HPP_
 
 #include <string>
+#include <unordered_map>
+#include <vector>
 
 #include "actions/action_handler.hpp"
+#include "actions/move_config.hpp"
 #include "actions/orientation.hpp"
 #include "core/grid_object.hpp"
 #include "core/types.hpp"
@@ -16,22 +19,35 @@ struct GameConfig;
 
 class Move : public ActionHandler {
 public:
-  explicit Move(const ActionConfig& cfg, const GameConfig* game_config)
-      : ActionHandler(cfg, "move"), _game_config(game_config) {}
+  explicit Move(const MoveActionConfig& cfg, const GameConfig* game_config)
+      : ActionHandler(cfg, "move"), _game_config(game_config), _allowed_directions(cfg.allowed_directions) {
+    // Build direction name to orientation mapping
+    _direction_map["north"] = Orientation::North;
+    _direction_map["south"] = Orientation::South;
+    _direction_map["west"] = Orientation::West;
+    _direction_map["east"] = Orientation::East;
+    _direction_map["northwest"] = Orientation::Northwest;
+    _direction_map["northeast"] = Orientation::Northeast;
+    _direction_map["southwest"] = Orientation::Southwest;
+    _direction_map["southeast"] = Orientation::Southeast;
+  }
 
-  unsigned char max_arg() const override {
-    return _game_config->allow_diagonals ? 7 : 3;  // 8 directions if diagonals, 4 otherwise
+  std::vector<Action> create_actions() override {
+    std::vector<Action> actions;
+    // Create actions in the order specified by the config
+    for (const std::string& direction : _allowed_directions) {
+      auto it = _direction_map.find(direction);
+      if (it != _direction_map.end()) {
+        actions.emplace_back(this, "move_" + direction, static_cast<ActionArg>(it->second));
+      }
+    }
+    return actions;
   }
 
 protected:
   bool _handle_action(Agent& actor, ActionArg arg) override {
     // Get the orientation from the action argument
     Orientation move_direction = static_cast<Orientation>(arg);
-
-    // Validate the direction based on diagonal support
-    if (!isValidOrientation(move_direction, _game_config->allow_diagonals)) {
-      return false;
-    }
 
     GridLocation current_location = actor.location;
     GridLocation target_location = current_location;
@@ -49,9 +65,6 @@ protected:
     // for performance.
     target_location.r = static_cast<GridCoord>(static_cast<int>(target_location.r) + dr);
     target_location.c = static_cast<GridCoord>(static_cast<int>(target_location.c) + dc);
-
-    // Update orientation to face the movement direction (even if movement fails)
-    actor.orientation = move_direction;
 
     if (!_grid->is_valid_location(target_location)) {
       return false;
@@ -90,14 +103,13 @@ protected:
 
   std::string variant_name(ActionArg arg) const override {
     Orientation move_direction = static_cast<Orientation>(arg);
-    if (!isValidOrientation(move_direction, _game_config->allow_diagonals)) {
-      return ActionHandler::variant_name(arg);
-    }
     return std::string(action_name()) + "_" + OrientationFullNames[static_cast<size_t>(move_direction)];
   }
 
 private:
   const GameConfig* _game_config;
+  std::vector<std::string> _allowed_directions;
+  std::unordered_map<std::string, Orientation> _direction_map;
 };
 
 #endif  // PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_ACTIONS_MOVE_HPP_

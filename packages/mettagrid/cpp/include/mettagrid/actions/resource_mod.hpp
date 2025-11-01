@@ -50,8 +50,10 @@ public:
   explicit ResourceMod(const ResourceModConfig& cfg, const std::string& name = "resource_mod")
       : ActionHandler(cfg, name), _modifies(cfg.modifies), _agent_radius(cfg.agent_radius), _scales(cfg.scales) {}
 
-  unsigned char max_arg() const override {
-    return 0;
+  std::vector<Action> create_actions() override {
+    std::vector<Action> actions;
+    actions.emplace_back(this, action_name(), 0);
+    return actions;
   }
 
 protected:

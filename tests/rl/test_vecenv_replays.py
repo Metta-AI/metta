@@ -1,8 +1,6 @@
-from pathlib import Path
-
 from metta.cogworks.curriculum import Curriculum, CurriculumConfig, SingleTaskGenerator
 from metta.rl.vecenv import make_env_func
-from metta.sim.replay_log_renderer import ReplayLogRenderer
+from metta.sim.replay_log_writer import ReplayLogWriter
 from mettagrid.config.mettagrid_config import MettaGridConfig
 
 
@@ -10,11 +8,17 @@ def test_make_env_func_creates_replay_writer(tmp_path):
     env_cfg = MettaGridConfig.EmptyRoom(num_agents=1)
     curriculum = Curriculum(CurriculumConfig(task_generator=SingleTaskGenerator.Config(env=env_cfg)))
 
-    env = make_env_func(curriculum, replay_directory=str(tmp_path))
+    # Create a replay writer to pass in
+    replay_dir = tmp_path / "replay"
+    replay_dir.mkdir()
+    replay_writer = ReplayLogWriter(str(replay_dir))
+
+    env = make_env_func(curriculum, replay_writer=replay_writer)
     try:
-        assert isinstance(env._renderer, ReplayLogRenderer)
-        renderer_path = Path(env._renderer._replay_dir)
-        assert renderer_path.is_dir()
-        assert str(renderer_path).startswith(str(tmp_path))
+        # Verify that the simulation received the replay writer as an event handler
+        # Note: With the new API, the replay writer is added to the simulation's event handlers
+        assert any(isinstance(handler, ReplayLogWriter) for handler in env._env._simulator._event_handlers), (
+            "ReplayLogWriter should be registered as an event handler"
+        )
     finally:
         env.close()

@@ -37,7 +37,7 @@ type
   Config* = object
     label*: string
     game*: GameConfig
-    desyncEpisodes*: bool
+    desync_episodes*: bool
 
   ItemAmount* = object
     itemId*: int

@@ -93,7 +93,7 @@ def _():
     from metta.rl.training import (
         EvaluatorConfig,
         TrainingEnvironmentConfig,
-        GameRules,
+        PolicyEnvInterface,
     )
 
     from metta.cogworks.curriculum import (
@@ -108,7 +108,7 @@ def _():
     from mettagrid.config.mettagrid_config import (
         AgentRewards,
     )
-    from mettagrid.base_config import Config
+    from mettagrid.config import Config
     from mettagrid.test_support.actions import generate_valid_random_actions
     from metta.sim.simulation_config import SimulationConfig
     from metta.agent.utils import obs_to_td
@@ -1003,27 +1003,19 @@ def _(
 
             print(f"Evaluating checkpoint: {latest_ckpt.name}")
 
-            # Create evaluation environment first to get metadata
+            # Create game rules from config
+            policy_env_interface = PolicyEnvInterface.from_mg_cfg(mg_config)
+
+            # Create evaluation environment for rendering
             with contextlib.redirect_stdout(io.StringIO()):
                 eval_env = MettaGridEnv(mg_config, render_mode="human")
-
-            game_rules = GameRules(
-                obs_width=eval_env.obs_width,
-                obs_height=eval_env.obs_height,
-                obs_features=eval_env.observation_features,
-                action_names=eval_env.action_names,
-                num_agents=eval_env.num_agents,
-                observation_space=eval_env.observation_space,
-                action_space=eval_env.single_action_space,
-                feature_normalizations=eval_env.feature_normalizations,
-            )
 
             trained_artifact = CheckpointManager.load_artifact_from_uri(
                 str(latest_ckpt)
             )
 
             trained_policy = trained_artifact.instantiate(
-                game_rules, torch.device("cpu")
+                policy_env_interface, torch.device("cpu")
             )
             if trained_policy is None:
                 raise RuntimeError(

@@ -7,8 +7,7 @@ SignalHandler = Callable[[int, FrameType | None], Any] | int | signal.Handlers |
 
 
 class DeferSigintContextManager:
-    """
-    Entering the contextmanager re-associates the active SIGINT handler.
+    """Entering the contextmanager re-associates the active SIGINT handler.
 
     The first observed SIGINT follows python's default behavior (raises a KeyboardInterrupt).
 

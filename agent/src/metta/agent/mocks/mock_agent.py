@@ -1,10 +1,8 @@
-from typing import Mapping
-
 import torch
 from tensordict import TensorDict
 
 from metta.agent.policy import Policy
-from metta.rl.training import GameRules
+from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 
 
 class MockAgent(Policy):
@@ -15,10 +13,12 @@ class MockAgent(Policy):
     minimal functionality for simulation runs.
     """
 
-    def __init__(self) -> None:
-        # Don't call parent __init__ as it requires many parameters we don't have
-        # Instead, manually initialize as nn.Module and set required attributes
-        torch.nn.Module.__init__(self)
+    def __init__(self, policy_env_info: PolicyEnvInterface | None = None) -> None:
+        if policy_env_info is None:
+            from mettagrid.config.mettagrid_config import MettaGridConfig
+
+            policy_env_info = PolicyEnvInterface.from_mg_cfg(MettaGridConfig())
+        super().__init__(policy_env_info)
 
         # Initialize required attributes that MettaAgent expects
         self.components_with_memory = []
@@ -94,7 +94,7 @@ class MockAgent(Policy):
 
     def initialize_to_environment(
         self,
-        env: GameRules,
+        policy_env_info: "PolicyEnvInterface",
         device: torch.device,
         *,
         is_training: bool | None = None,
@@ -108,46 +108,27 @@ class MockAgent(Policy):
         self.training = is_training
 
         # Action configuration
-        self.action_names = list(env.action_names)
+        self.action_names = list([action.name for action in policy_env_info.actions.actions()])
 
-        features: Mapping[str, object] = env.obs_features
-        feature_map = {}
-        for name, feat in features.items():
-            if hasattr(feat, "id"):
-                feature_id = feat.id
-                normalization = getattr(feat, "normalization", 1.0)
-            elif isinstance(feat, Mapping):
-                feature_id = feat["id"]
-                normalization = feat.get("normalization", 1.0)
-            else:
-                raise TypeError(f"Unsupported feature description for '{name}': {type(feat)!r}")
-            feature_map[name] = {"id": int(feature_id), "normalization": float(normalization)}
-
-        self.feature_id_to_name = {props["id"]: name for name, props in feature_map.items()}
-        self.feature_normalizations = dict(env.feature_normalizations)
-        for props in feature_map.values():
-            self.feature_normalizations.setdefault(props["id"], props["normalization"])
+        features = policy_env_info.obs_features
+        self.feature_id_to_name = {feat.id: feat.name for feat in features}
+        self.feature_normalizations = {feat.id: feat.normalization for feat in features}
 
         if self.original_feature_mapping is None:
-            self.original_feature_mapping = {name: props["id"] for name, props in feature_map.items()}
+            self.original_feature_mapping = {name: feat.id for name, feat in features.items()}
             return
 
         UNKNOWN_FEATURE_ID = 255
         self.feature_id_remap = {}
 
-        for name, props in feature_map.items():
-            new_id = props["id"]
-            if name in self.original_feature_mapping:
-                original_id = self.original_feature_mapping[name]
+        for feat in features:
+            new_id = feat.id
+            if feat.name in self.original_feature_mapping:
+                original_id = self.original_feature_mapping[feat.name]
                 if new_id != original_id:
                     self.feature_id_remap[new_id] = original_id
             elif not self.training:
                 self.feature_id_remap[new_id] = UNKNOWN_FEATURE_ID
-            else:
-                self.original_feature_mapping[name] = new_id
-
-        if self.feature_id_remap:
-            self._apply_feature_remapping(feature_map, UNKNOWN_FEATURE_ID)
 
     def reset_memory(self) -> None:
         """Mock implementation - no memory to reset."""

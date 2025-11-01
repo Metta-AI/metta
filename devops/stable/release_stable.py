@@ -28,7 +28,7 @@ from __future__ import annotations
 
 import subprocess
 import sys
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Optional
 
@@ -149,7 +149,7 @@ def step_prepare_tag(version: str, state: Optional[ReleaseState] = None, **_kwar
                     {
                         "step": "prepare_tag",
                         "passed": True,
-                        "timestamp": datetime.utcnow().isoformat(timespec="seconds"),
+                        "timestamp": datetime.now(UTC).isoformat(timespec="seconds"),
                     }
                 )
                 save_state(state)
@@ -176,7 +176,7 @@ def step_prepare_tag(version: str, state: Optional[ReleaseState] = None, **_kwar
                 {
                     "step": "prepare_tag",
                     "passed": True,
-                    "timestamp": datetime.utcnow().isoformat(timespec="seconds"),
+                    "timestamp": datetime.now(UTC).isoformat(timespec="seconds"),
                 }
             )
             save_state(state)
@@ -210,7 +210,7 @@ def step_bug_check(version: str, state: Optional[ReleaseState] = None, **_kwargs
                 {
                     "step": "bug_check",
                     "passed": True,
-                    "timestamp": datetime.utcnow().isoformat(timespec="seconds"),
+                    "timestamp": datetime.now(UTC).isoformat(timespec="seconds"),
                 }
             )
             save_state(state)
@@ -240,7 +240,7 @@ def step_bug_check(version: str, state: Optional[ReleaseState] = None, **_kwargs
             {
                 "step": "bug_check",
                 "passed": True,
-                "timestamp": datetime.utcnow().isoformat(timespec="seconds"),
+                "timestamp": datetime.now(UTC).isoformat(timespec="seconds"),
             }
         )
         save_state(state)

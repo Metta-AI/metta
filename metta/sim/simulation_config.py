@@ -5,7 +5,7 @@ from typing import Optional
 from pydantic import Field
 
 from mettagrid import MettaGridConfig
-from mettagrid.base_config import Config
+from mettagrid.config import Config
 
 
 class SimulationConfig(Config):

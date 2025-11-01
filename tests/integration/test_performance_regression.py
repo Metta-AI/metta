@@ -14,7 +14,7 @@ import time
 import numpy as np
 import pytest
 
-from mettagrid import MettaGridEnv
+from mettagrid import PufferMettaGridEnv
 from mettagrid.mettagrid_c import (
     dtype_actions,
     dtype_observations,
@@ -83,15 +83,15 @@ class TestBufferSharingRegression:
 
     def test_step_method_signature_stability(self):
         """
-        Test that MettaGridEnv.step method signature hasn't changed unexpectedly.
+        Test that PufferMettaGridEnv.step method signature hasn't changed unexpectedly.
 
         This catches regressions where the step method is accidentally modified
         in a way that could break buffer sharing.
         """
         # Verify step method exists and has expected signature
-        assert hasattr(MettaGridEnv, "step"), "MettaGridEnv missing step method"
+        assert hasattr(PufferMettaGridEnv, "step"), "PufferMettaGridEnv missing step method"
 
-        step_method = MettaGridEnv.step
+        step_method = PufferMettaGridEnv.step
         sig = inspect.signature(step_method)
         params = list(sig.parameters.keys())
 

@@ -119,6 +119,28 @@
       "preLaunchTask": "${defaultBuildTask}",
     },
     {
+      "name": "Evaluate Cogames",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "cogames.main",
+      "args": ["evaluate", "--mission=training_facility.harvest", "--policy=random", "--cogs=1"],
+      "cwd": "${workspaceFolder}",
+    },
+    {
+      "name": "MettaGrid Demo",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "mettagrid.demo",
+      "args": ["--render", "unicode"],
+      "cwd": "${workspaceFolder}",
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}",
+        "UV_PROJECT_ENVIRONMENT": "${env:VIRTUAL_ENV}",
+      },
+      "python": "${workspaceFolder}/.venv/bin/python",
+      "preLaunchTask": "${defaultBuildTask}",
+    },
+    {
       "name": "Train Cogames",
       "type": "debugpy",
       "request": "launch",

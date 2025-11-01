@@ -7,7 +7,7 @@ from typing import Callable, Literal
 import torch
 import torch.nn.functional as F
 
-from mettagrid.base_config import Config
+from mettagrid.config import Config
 
 
 def _elu_plus_one(x: torch.Tensor) -> torch.Tensor:

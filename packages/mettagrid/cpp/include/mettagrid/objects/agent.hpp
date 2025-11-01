@@ -7,20 +7,17 @@
 #include <string>
 #include <vector>
 
-#include "actions/orientation.hpp"
 #include "core/types.hpp"
+#include "objects/agent_config.hpp"
 #include "objects/constants.hpp"
 #include "objects/has_inventory.hpp"
 #include "objects/usable.hpp"
 #include "systems/stats_tracker.hpp"
-
-class AgentConfig;
 class Agent : public GridObject, public HasInventory, public Usable {
 public:
   ObservationType group;
   short frozen;
   short freeze_duration;
-  Orientation orientation;
   // inventory is a map of item to amount.
   // keys should be deleted when the amount is 0, to keep iteration faster.
   // however, this should not be relied on for correctness.
@@ -47,7 +44,11 @@ public:
   // Inventory regeneration amounts (per-agent)
   std::unordered_map<InventoryItem, InventoryQuantity> inventory_regen_amounts;
 
-  Agent(GridCoord r, GridCoord c, const AgentConfig& config, const std::vector<std::string>* resource_names);
+  Agent(GridCoord r,
+        GridCoord c,
+        const AgentConfig& config,
+        const std::vector<std::string>* resource_names,
+        const std::unordered_map<std::string, ObservationType>* feature_ids = nullptr);
 
   void init(RewardType* reward_ptr);
 

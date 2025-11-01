@@ -9,16 +9,18 @@ from pettingzoo.test import parallel_api_test
 
 from mettagrid.builder.envs import make_arena
 from mettagrid.config.mettagrid_config import (
-    ActionConfig,
     ActionsConfig,
     AgentConfig,
     GameConfig,
     MettaGridConfig,
+    MoveActionConfig,
+    NoopActionConfig,
     WallConfig,
 )
 from mettagrid.envs.pettingzoo_env import MettaGridPettingZooEnv
 from mettagrid.map_builder.ascii import AsciiMapBuilder
 from mettagrid.mapgen.utils.ascii_grid import DEFAULT_CHAR_TO_NAME
+from mettagrid.simulator import Simulator
 
 
 def make_pettingzoo_env(num_agents=3, max_steps=100):
@@ -61,16 +63,10 @@ def make_pettingzoo_env(num_agents=3, max_steps=100):
         game=GameConfig(
             num_agents=num_agents,
             max_steps=max_steps,
-            actions=ActionsConfig(
-                move=ActionConfig(),
-                noop=ActionConfig(),
-            ),
+            actions=ActionsConfig(move=MoveActionConfig(), noop=NoopActionConfig()),
             objects={"wall": WallConfig()},
             agents=agents,
-            map_builder=AsciiMapBuilder.Config(
-                map_data=map_data,
-                char_to_name_map=DEFAULT_CHAR_TO_NAME,
-            ),
+            map_builder=AsciiMapBuilder.Config(map_data=map_data, char_to_name_map=DEFAULT_CHAR_TO_NAME),
         )
     )
     return cfg
@@ -79,282 +75,290 @@ def make_pettingzoo_env(num_agents=3, max_steps=100):
 def test_pettingzoo_env_creation():
     """Test PettingZoo environment creation and properties."""
     cfg = make_pettingzoo_env(num_agents=3, max_steps=100)
-    env = MettaGridPettingZooEnv(
-        cfg,
-        render_mode=None,
-    )
+    simulator = Simulator()
+    env = MettaGridPettingZooEnv(simulator, cfg)
 
-    # Test environment properties
-    assert env.possible_agents == ["agent_0", "agent_1", "agent_2"]
-    assert env.max_num_agents == 3
-    assert env.observation_space is not None
-    assert env.action_space is not None
-    assert env.max_steps == 100
-
-    env.close()
+    try:
+        # Test environment properties (agent IDs are integers)
+        assert env.possible_agents == [0, 1, 2]
+        assert env.max_num_agents == 3
+        assert env.observation_space(0) is not None
+        assert env.action_space(0) is not None
+        assert env._cfg.game.max_steps == 100
+    finally:
+        env.close()
+        simulator.close()
 
 
 def test_pettingzoo_env_reset():
     """Test PettingZoo environment reset functionality."""
     cfg = make_pettingzoo_env(num_agents=3, max_steps=100)
-    env = MettaGridPettingZooEnv(
-        cfg,
-        render_mode=None,
-    )
+    simulator = Simulator()
+    env = MettaGridPettingZooEnv(simulator, cfg)
 
-    # Test reset
-    observations, infos = env.reset(seed=42)
+    try:
+        # Test reset
+        observations, infos = env.reset(seed=42)
 
-    # Check that we get observations and infos for all agents
-    assert len(observations) == 3
-    assert len(infos) == 3
-    assert env.agents == ["agent_0", "agent_1", "agent_2"]
+        # Check that we get observations and infos for all agents (agent IDs are integers)
+        assert len(observations) == 3
+        assert len(infos) == 3
+        assert env.agents == [0, 1, 2]
 
-    # Check observation shapes
-    for agent in env.agents:
-        assert agent in observations
-        assert observations[agent].shape == (200, 3)
-        assert agent in infos
-        assert isinstance(infos[agent], dict)
-
-    env.close()
+        # Check observation shapes
+        for agent_id in env.agents:
+            assert agent_id in observations
+            assert observations[agent_id].shape == (200, 3)
+            assert agent_id in infos
+            assert isinstance(infos[agent_id], dict)
+    finally:
+        env.close()
+        simulator.close()
 
 
 def test_pettingzoo_env_step():
     """Test PettingZoo environment step functionality."""
-    env = MettaGridPettingZooEnv(
-        make_pettingzoo_env(num_agents=3),
-        render_mode=None,
-    )
+    cfg = make_pettingzoo_env(num_agents=3)
+    simulator = Simulator()
+    env = MettaGridPettingZooEnv(simulator, cfg)
 
-    observations, infos = env.reset(seed=42)
+    try:
+        observations, infos = env.reset(seed=42)
 
-    # Test a few steps
-    for _ in range(5):
-        # Random actions for active agents
-        actions = {}
-        for agent in env.agents:
-            actions[agent] = int(env.action_space(agent).sample())
+        # Test a few steps
+        for _ in range(5):
+            # Random actions for active agents (agent IDs are integers)
+            actions = {}
+            for agent_id in env.agents:
+                actions[agent_id] = int(env.action_space(agent_id).sample())
 
-        observations, rewards, terminations, truncations, infos = env.step(actions)
+            observations, rewards, terminations, truncations, infos = env.step(actions)
 
-        # Check return types and shapes
-        assert isinstance(observations, dict)
-        assert isinstance(rewards, dict)
-        assert isinstance(terminations, dict)
-        assert isinstance(truncations, dict)
-        assert isinstance(infos, dict)
+            # Check return types and shapes
+            assert isinstance(observations, dict)
+            assert isinstance(rewards, dict)
+            assert isinstance(terminations, dict)
+            assert isinstance(truncations, dict)
+            assert isinstance(infos, dict)
 
-        # Check that all active agents have entries
-        for agent in env.agents:
-            assert agent in observations
-            assert agent in rewards
-            assert agent in terminations
-            assert agent in truncations
-            assert agent in infos
+            # Check that all active agents have entries
+            for agent_id in env.agents:
+                assert agent_id in observations
+                assert agent_id in rewards
+                assert agent_id in terminations
+                assert agent_id in truncations
+                assert agent_id in infos
 
-            assert observations[agent].shape == (200, 3)
-            assert isinstance(rewards[agent], (int, float))
-            assert isinstance(terminations[agent], bool)
-            assert isinstance(truncations[agent], bool)
-            assert isinstance(infos[agent], dict)
-
-    env.close()
+                assert observations[agent_id].shape == (200, 3)
+                assert isinstance(rewards[agent_id], (int, float))
+                assert isinstance(terminations[agent_id], bool)
+                assert isinstance(truncations[agent_id], bool)
+                assert isinstance(infos[agent_id], dict)
+    finally:
+        env.close()
+        simulator.close()
 
 
 def test_pettingzoo_env_agent_removal():
     """Test that agents are properly removed when terminated."""
-    env = MettaGridPettingZooEnv(
-        make_pettingzoo_env(num_agents=3),
-        render_mode=None,
-    )
+    cfg = make_pettingzoo_env(num_agents=3)
+    simulator = Simulator()
+    env = MettaGridPettingZooEnv(simulator, cfg)
 
-    observations, infos = env.reset(seed=42)
-    initial_agents = env.agents.copy()
+    try:
+        observations, infos = env.reset(seed=42)
+        initial_agents = env.agents.copy()
 
-    # Run until some agents might be removed or max steps
-    max_test_steps = 50
-    step_count = 0
+        # Run until some agents might be removed or max steps
+        max_test_steps = 50
+        step_count = 0
 
-    while env.agents and step_count < max_test_steps:
-        actions = {}
-        for agent in env.agents:
-            actions[agent] = int(env.action_space(agent).sample())
+        while env.agents and step_count < max_test_steps:
+            actions = {}
+            for agent_id in env.agents:
+                actions[agent_id] = int(env.action_space(agent_id).sample())
 
-        observations, rewards, terminations, truncations, infos = env.step(actions)
-        step_count += 1
+            observations, rewards, terminations, truncations, infos = env.step(actions)
+            step_count += 1
 
-        # Check that agent list is consistent with termination/truncation
-        for agent in initial_agents:
-            if agent not in env.agents:
-                # Agent should have been terminated or truncated
-                assert terminations.get(agent, False) or truncations.get(agent, False)
-
-    env.close()
+            # Check that agent list is consistent with termination/truncation
+            for agent_id in initial_agents:
+                if agent_id not in env.agents:
+                    # Agent should have been terminated or truncated
+                    assert terminations.get(agent_id, False) or truncations.get(agent_id, False)
+    finally:
+        env.close()
+        simulator.close()
 
 
 def test_pettingzoo_env_spaces():
     """Test PettingZoo environment observation and action spaces."""
-    env = MettaGridPettingZooEnv(
-        make_pettingzoo_env(num_agents=3),
-        render_mode=None,
-    )
+    cfg = make_pettingzoo_env(num_agents=3)
+    simulator = Simulator()
+    env = MettaGridPettingZooEnv(simulator, cfg)
 
-    # Test space methods
-    for agent in env.possible_agents:
-        obs_space = env.observation_space(agent)
-        action_space = env.action_space(agent)
+    try:
+        # Test space methods (agent IDs are integers)
+        for agent_id in env.possible_agents:
+            obs_space = env.observation_space(agent_id)
+            action_space = env.action_space(agent_id)
 
-        assert obs_space is not None
-        assert action_space is not None
+            assert obs_space is not None
+            assert action_space is not None
 
-        # Test that same space objects are returned (PettingZoo requirement)
-        assert env.observation_space(agent) is obs_space
-        assert env.action_space(agent) is action_space
-
-    env.close()
+            # Test that same space objects are returned (PettingZoo requirement)
+            assert env.observation_space(agent_id) is obs_space
+            assert env.action_space(agent_id) is action_space
+    finally:
+        env.close()
+        simulator.close()
 
 
 def test_pettingzoo_env_state():
     """Test PettingZoo environment state functionality."""
-    env = MettaGridPettingZooEnv(
-        make_pettingzoo_env(num_agents=3),
-        render_mode=None,
-    )
+    cfg = make_pettingzoo_env(num_agents=3)
+    simulator = Simulator()
+    env = MettaGridPettingZooEnv(simulator, cfg)
 
-    observations, infos = env.reset(seed=42)
+    try:
+        observations, infos = env.reset(seed=42)
 
-    # Test state and state_space
-    state = env.state()
-    state_space = env.state_space
+        # Test state and state_space
+        state = env.state()
+        state_space = env.state_space
 
-    assert state is not None
-    assert isinstance(state, np.ndarray)
-    assert state_space is not None
-    assert state.shape == state_space.shape
-
-    env.close()
+        assert state is not None
+        assert isinstance(state, np.ndarray)
+        assert state_space is not None
+        assert state.shape == state_space.shape
+    finally:
+        env.close()
+        simulator.close()
 
 
 def test_pettingzoo_api_compliance():
     """Test official PettingZoo API compliance."""
-    env = MettaGridPettingZooEnv(
-        make_pettingzoo_env(num_agents=3),
-        render_mode=None,
-    )
+    cfg = make_pettingzoo_env(num_agents=3)
+    simulator = Simulator()
+    env = MettaGridPettingZooEnv(simulator, cfg)
 
-    # Run the official PettingZoo parallel API compliance test
-    parallel_api_test(env, num_cycles=3)
-
-    env.close()
+    try:
+        # Run the official PettingZoo parallel API compliance test
+        parallel_api_test(env, num_cycles=3)
+    finally:
+        env.close()
+        simulator.close()
 
 
 def test_pettingzoo_episode_lifecycle():
     """Test the complete episode lifecycle with PettingZoo API."""
-    env = MettaGridPettingZooEnv(
-        make_pettingzoo_env(num_agents=3),
-        render_mode=None,
-    )
+    cfg = make_pettingzoo_env(num_agents=3)
+    simulator = Simulator()
+    env = MettaGridPettingZooEnv(simulator, cfg)
 
-    # Reset environment
-    observations, infos = env.reset(seed=42)
+    try:
+        # Reset environment
+        observations, infos = env.reset(seed=42)
 
-    # Check reset return format
-    assert isinstance(observations, dict)
-    assert isinstance(infos, dict)
-    assert len(observations) == len(env.agents)
-    assert len(infos) == len(env.agents)
-
-    # Test that all agents are initially active
-    assert len(env.agents) == 3
-    assert env.agents == env.possible_agents
-
-    # Run a few steps
-    for _step in range(5):
-        # Generate random actions for all active agents
-        actions = {}
-        for agent in env.agents:
-            action_space = env.action_space(agent)
-            actions[agent] = action_space.sample()
-
-        # Step environment
-        observations, rewards, terminations, truncations, infos = env.step(actions)
-
-        # Check step return format
+        # Check reset return format
         assert isinstance(observations, dict)
-        assert isinstance(rewards, dict)
-        assert isinstance(terminations, dict)
-        assert isinstance(truncations, dict)
         assert isinstance(infos, dict)
+        assert len(observations) == len(env.agents)
+        assert len(infos) == len(env.agents)
 
-        # Check that all active agents are represented
-        for agent in env.agents:
-            assert agent in observations
-            assert agent in rewards
-            assert agent in terminations
-            assert agent in truncations
-            assert agent in infos
+        # Test that all agents are initially active (agent IDs are integers)
+        assert len(env.agents) == 3
+        assert env.agents == env.possible_agents
 
-        # Check data types
-        for agent in env.agents:
-            assert isinstance(rewards[agent], (int, float))
-            assert isinstance(terminations[agent], bool)
-            assert isinstance(truncations[agent], bool)
-            assert isinstance(infos[agent], dict)
+        # Run a few steps
+        for _step in range(5):
+            # Generate random actions for all active agents
+            actions = {}
+            for agent_id in env.agents:
+                action_space = env.action_space(agent_id)
+                actions[agent_id] = action_space.sample()
 
-        # If all agents are done, break
-        if not env.agents:
-            break
+            # Step environment
+            observations, rewards, terminations, truncations, infos = env.step(actions)
 
-    env.close()
+            # Check step return format
+            assert isinstance(observations, dict)
+            assert isinstance(rewards, dict)
+            assert isinstance(terminations, dict)
+            assert isinstance(truncations, dict)
+            assert isinstance(infos, dict)
+
+            # Check that all active agents are represented
+            for agent_id in env.agents:
+                assert agent_id in observations
+                assert agent_id in rewards
+                assert agent_id in terminations
+                assert agent_id in truncations
+                assert agent_id in infos
+
+            # Check data types
+            for agent_id in env.agents:
+                assert isinstance(rewards[agent_id], (int, float))
+                assert isinstance(terminations[agent_id], bool)
+                assert isinstance(truncations[agent_id], bool)
+                assert isinstance(infos[agent_id], dict)
+
+            # If all agents are done, break
+            if not env.agents:
+                break
+    finally:
+        env.close()
+        simulator.close()
 
 
 def test_pettingzoo_action_observation_spaces():
     """Test that action and observation spaces are properly configured."""
-    env = MettaGridPettingZooEnv(
-        make_pettingzoo_env(num_agents=5),
-        render_mode=None,
-    )
+    cfg = make_pettingzoo_env(num_agents=5)
+    simulator = Simulator()
+    env = MettaGridPettingZooEnv(simulator, cfg)
 
-    # Reset to ensure environment is initialized
-    env.reset(seed=42)
+    try:
+        # Reset to ensure environment is initialized
+        env.reset(seed=42)
 
-    # Test that all agents have the same spaces (homogeneous agents)
-    reference_obs_space = env.observation_space(env.possible_agents[0])
-    reference_action_space = env.action_space(env.possible_agents[0])
+        # Test that all agents have the same spaces (homogeneous agents, agent IDs are integers)
+        reference_obs_space = env.observation_space(env.possible_agents[0])
+        reference_action_space = env.action_space(env.possible_agents[0])
 
-    for agent in env.possible_agents:
-        obs_space = env.observation_space(agent)
-        action_space = env.action_space(agent)
+        for agent_id in env.possible_agents:
+            obs_space = env.observation_space(agent_id)
+            action_space = env.action_space(agent_id)
 
-        # In our implementation, all agents have the same spaces
-        assert obs_space.shape == reference_obs_space.shape
-        assert action_space.n == reference_action_space.n
+            # In our implementation, all agents have the same spaces
+            assert obs_space.shape == reference_obs_space.shape
+            assert action_space.n == reference_action_space.n
 
-        # Test that spaces can generate valid samples
-        obs_sample = obs_space.sample()
-        action_sample = action_space.sample()
+            # Test that spaces can generate valid samples
+            obs_sample = obs_space.sample()
+            action_sample = action_space.sample()
 
-        assert obs_space.contains(obs_sample)
-        assert action_space.contains(action_sample)
-
-    env.close()
+            assert obs_space.contains(obs_sample)
+            assert action_space.contains(action_sample)
+    finally:
+        env.close()
+        simulator.close()
 
 
 def test_pettingzoo_render_functionality():
     """Test that rendering works with PettingZoo interface."""
-    env = MettaGridPettingZooEnv(
-        make_pettingzoo_env(num_agents=5),
-        render_mode="human",
-    )
+    cfg = make_pettingzoo_env(num_agents=5)
+    simulator = Simulator()
+    env = MettaGridPettingZooEnv(simulator, cfg)
 
-    # Reset environment
-    env.reset(seed=42)
+    try:
+        # Reset environment
+        env.reset(seed=42)
 
-    # Test render method
-    render_result = env.render()
+        # Test render method
+        render_result = env.render()
 
-    # Should return string representation or None
-    assert render_result is None or isinstance(render_result, str)
-
-    env.close()
+        # Should return None (not implemented)
+        assert render_result is None
+    finally:
+        env.close()
+        simulator.close()

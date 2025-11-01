@@ -19,21 +19,34 @@ struct ChangeVibeActionConfig : public ActionConfig {
       : ActionConfig(required_resources, consumed_resources), number_of_vibes(number_of_vibes) {}
 };
 
+// Forward declaration
+struct GameConfig;
+
 class ChangeVibe : public ActionHandler {
 public:
-  explicit ChangeVibe(const ChangeVibeActionConfig& cfg)
-      : ActionHandler(cfg, "change_vibe"), _number_of_vibes(cfg.number_of_vibes) {}
+  explicit ChangeVibe(const ChangeVibeActionConfig& cfg, const GameConfig* game_config)
+      : ActionHandler(cfg, "change_vibe"), _number_of_vibes(cfg.number_of_vibes), _game_config(game_config) {}
 
-  unsigned char max_arg() const override {
-    // Return number_of_vibes - 1 since args are 0-indexed
-    return _number_of_vibes > 0 ? _number_of_vibes - 1 : 0;
+  std::vector<Action> create_actions() override {
+    std::vector<Action> actions;
+    for (unsigned char i = 0; i < _number_of_vibes; ++i) {
+      std::string action_name;
+      if (_game_config && i < _game_config->vibe_names.size()) {
+        action_name = "change_vibe_" + _game_config->vibe_names[i];
+      } else {
+        action_name = "change_vibe_" + std::to_string(i);
+      }
+      actions.emplace_back(this, action_name, static_cast<ActionArg>(i));
+    }
+    return actions;
   }
 
 protected:
   const ObservationType _number_of_vibes;
+  const GameConfig* _game_config;
 
   bool _handle_action(Agent& actor, ActionArg arg) override {
-    actor.set_vibe(static_cast<ObservationType>(arg));  // ActionArg is int32 for puffer compatibility
+    actor.vibe = static_cast<ObservationType>(arg);  // ActionArg is int32 for puffer compatibility
     return true;
   }
 };

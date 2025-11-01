@@ -5,9 +5,9 @@ from typing import List, Optional
 
 from rich.console import Console
 
-from mettagrid import MettaGridEnv
 from mettagrid.renderer.miniscope.miniscope_panel import MiniscopePanel, PanelLayout
 from mettagrid.renderer.miniscope.miniscope_state import MiniscopeState
+from mettagrid.simulator import Simulation
 
 
 class MiniscopeComponent(ABC):
@@ -15,7 +15,7 @@ class MiniscopeComponent(ABC):
 
     def __init__(
         self,
-        env: MettaGridEnv,
+        sim: Simulation,
         state: MiniscopeState,
         panels: PanelLayout,
     ):
@@ -26,7 +26,7 @@ class MiniscopeComponent(ABC):
             state: Miniscope state reference
             panels: Panel layout containing all panels
         """
-        self._env = env
+        self._sim = sim
         self._state = state
         self._panels = panels
         self._panel: Optional[MiniscopePanel] = None
@@ -35,9 +35,9 @@ class MiniscopeComponent(ABC):
         self._console = Console()
 
     @property
-    def env(self) -> MettaGridEnv:
-        """Return the current environment reference."""
-        return self._env
+    def env(self) -> Simulation:
+        """Get the environment."""
+        return self._sim
 
     @property
     def state(self) -> MiniscopeState:

@@ -10,8 +10,8 @@ from torch.nn.parameter import UninitializedParameter
 from torchrl.data import Composite, UnboundedDiscrete
 
 from metta.agent.policy import Policy
-from metta.rl.training import GameRules
-from mettagrid.base_config import Config
+from mettagrid.config import Config
+from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 
 logger = logging.getLogger("metta_agent")
 
@@ -24,17 +24,17 @@ def log_on_master(*args, **argv):
 class PolicyAutoBuilder(Policy):
     """Generic policy builder for use with configs."""
 
-    def __init__(self, game_rules: GameRules, config: Config | None = None):
-        super().__init__()
+    def __init__(self, policy_env_info: PolicyEnvInterface, config: Config | None = None):
+        super().__init__(policy_env_info)
         self.config = config
 
         self.components = OrderedDict()
         for component_config in self.config.components:
             name = component_config.name
-            self.components[name] = component_config.make_component(game_rules)
+            self.components[name] = component_config.make_component(policy_env_info)
 
         self.action_probs = self.config.action_probs_config.make_component()
-        self.network = TensorDictSequential(self.components, inplace=True)
+        self._sequential_network = TensorDictSequential(self.components, inplace=True)
         self._sdpa_context = ExitStack()
 
         self._total_params = sum(
@@ -44,7 +44,7 @@ class PolicyAutoBuilder(Policy):
         )
 
     def forward(self, td: TensorDict, action: Optional[torch.Tensor] = None) -> TensorDict:
-        td = self.network(td)
+        td = self._sequential_network(td)
         self.action_probs(td, action)
         # Only flatten values if they exist (GRPO policies don't have critic networks)
         if "values" in td.keys():
@@ -53,7 +53,7 @@ class PolicyAutoBuilder(Policy):
 
     def initialize_to_environment(
         self,
-        game_rules: GameRules,
+        policy_env_info: PolicyEnvInterface,
         device: torch.device,
     ):
         self.to(device)
@@ -64,10 +64,10 @@ class PolicyAutoBuilder(Policy):
         logs = []
         for _, value in self.components.items():
             if hasattr(value, "initialize_to_environment"):
-                logs.append(value.initialize_to_environment(game_rules, device))
+                logs.append(value.initialize_to_environment(policy_env_info, device))
         if hasattr(self, "action_probs"):
             if hasattr(self.action_probs, "initialize_to_environment"):
-                self.action_probs.initialize_to_environment(game_rules, device)
+                self.action_probs.initialize_to_environment(policy_env_info, device)
 
         for log in logs:
             if log is not None:
@@ -159,6 +159,13 @@ class PolicyAutoBuilder(Policy):
                 spec.update(layer.get_agent_experience_spec())
 
         return spec
+
+    def network(self) -> torch.nn.Module:
+        """Get the underlying neural network for training.
+
+        Returns the TensorDictSequential network that contains all components.
+        """
+        return self._sequential_network
 
     @property
     def device(self) -> torch.device:
