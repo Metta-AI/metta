@@ -265,8 +265,11 @@ ssh <sandbox-name>
 # Launch a new sandbox with 1 GPU (default)
 ./devops/skypilot/sandbox.py --new
 
-# Launch with multiple GPUs
+# Launch with multiple GPUs (single node)
 ./devops/skypilot/sandbox.py --new --gpus 4
+
+# Launch a multi-node sandbox (e.g., 4 nodes × 8 GPUs/node)
+./devops/skypilot/sandbox.py --new --nodes 4 --gpus 8
 
 # Launch with specific git branch
 ./devops/skypilot/sandbox.py --new --git-ref feature/my-branch
@@ -337,6 +340,42 @@ To disable auto-stop:
 
 ```bash
 sky autostop --cancel <sandbox-name>
+
+### Distributed Jobs Inside a Sandbox
+
+To run a distributed job across all nodes in a running sandbox cluster:
+
+1) Execute the command on all nodes using SkyPilot:
+
+```bash
+sky exec <sandbox-name> --num-nodes all -- bash -lc '
+  set -e
+  cd /workspace/metta
+  # Activate the repo venv
+  if [ -n "$VIRTUAL_ENV" ]; then deactivate || true; fi
+  . .venv/bin/activate
+  # Load cluster env (NUM_NODES, NUM_GPUS, MASTER_ADDR, NODE_INDEX, etc.)
+  METTA_ENV_FILE="$(uv run ./common/src/metta/common/util/constants.py METTA_ENV_FILE)"
+  source "$METTA_ENV_FILE"
+  # Launch distributed training across nodes/GPUs
+  ./devops/run.sh experiments.recipes.arena_basic_easy_shaped.train run=my_dist_run
+'
+```
+
+2) Alternatively, connect to the head node and run on each node manually (not recommended):
+
+```bash
+ssh <sandbox-name>
+cd /workspace/metta
+. .venv/bin/activate
+METTA_ENV_FILE="$(uv run ./common/src/metta/common/util/constants.py METTA_ENV_FILE)"; source "$METTA_ENV_FILE"
+# Launch on the head node (NODE_INDEX=0) and repeat on each worker node
+./devops/run.sh experiments.recipes.arena_basic_easy_shaped.train run=my_dist_run
+```
+
+Notes:
+- `./devops/run.sh` wraps `torchrun` and uses the environment from `METTA_ENV_FILE` to set `--nnodes`, `--nproc-per-node`, `--node-rank`, and master address/port.
+- For multi-node sandboxes, always prefer `sky exec ... --num-nodes all` so every node participates with the correct `NODE_INDEX`.
 ```
 
 ## Configuration

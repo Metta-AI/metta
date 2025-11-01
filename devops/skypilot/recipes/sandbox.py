@@ -1,5 +1,6 @@
 #!/usr/bin/env -S uv run
 import argparse
+import shlex
 import logging
 import os
 import subprocess
@@ -39,6 +40,18 @@ credentials_logger.setLevel(logging.WARNING)
 credentials_logger.addHandler(CredentialWarningHandler())
 # Prevent propagation to avoid duplicate output
 credentials_logger.propagate = False
+
+
+def _build_incluster_persist_script(cluster_name: str) -> str:
+    """Return a one-liner to persist cluster name and node count on head (rank 0)."""
+    quoted_name = shlex.quote(cluster_name)
+    return (
+        "set -e; "
+        "if [ \"${SKYPILOT_NODE_RANK:-0}\" != \"0\" ]; then exit 0; fi; "
+        "mkdir -p /workspace/metta/.cluster; "
+        f"printf \"%s\\n\" {quoted_name} > /workspace/metta/.cluster/name; "
+        "printf \"%s\\n\" \"${SKYPILOT_NUM_NODES:-1}\" > /workspace/metta/.cluster/num_nodes"
+    )
 
 
 def get_existing_clusters():
@@ -311,7 +324,8 @@ Examples:
   %(prog)s              # Show existing sandboxes and management commands
   %(prog)s --check      # Check for active sandboxes and exit
   %(prog)s --new        # Launch a new sandbox with 1 GPU
-  %(prog)s --new --gpus 4  # Launch a new sandbox with 4 GPUs
+  %(prog)s --new --gpus 4  # Launch a new sandbox with 4 GPUs on 1 node
+  %(prog)s --new --nodes 4 --gpus 8  # Launch multi-node sandbox (4 nodes, 8 GPUs/node)
   %(prog)s --new --sweep-controller  # Launch a CPU-only sandbox (uses config instance_type)
   %(prog)s --new --git-ref feature-branch  # Launch with specific git branch
   %(prog)s --new --wait-timeout 600  # Wait up to 10 minutes for cluster to be ready
@@ -331,8 +345,10 @@ Common management commands:
         "--git-ref", type=str, default=None, help="Git branch or commit to deploy (default: current branch)"
     )
     parser.add_argument("--new", action="store_true", help="Launch a new sandbox cluster")
+    parser.add_argument("--name", type=str, default=None, help="Custom sandbox cluster name (e.g., my-sandbox)")
     parser.add_argument("--check", action="store_true", help="Check for existing sandboxes and exit")
-    parser.add_argument("--gpus", type=int, default=1, help="Number of GPUs to use (default: 1)")
+    parser.add_argument("--gpus", type=int, default=1, help="GPUs per node (default: 1)")
+    parser.add_argument("--nodes", type=int, default=1, help="Number of nodes (default: 1)")
     parser.add_argument(
         "--retry-until-up", action="store_true", help="Keep retrying until cluster is successfully launched"
     )
@@ -351,9 +367,12 @@ Common management commands:
     args = parser.parse_args()
 
     # Validate conflicting arguments
-    if args.sweep_controller and args.gpus > 1:
+    if args.sweep_controller and (args.gpus > 1 or args.nodes > 1):
         print(f"{red('✗')} Error: --sweep-controller mode is CPU-only and cannot use GPUs.")
-        print(f"  Either use --sweep-controller without --gpus, or use regular mode with --gpus {args.gpus}")
+        print(
+            f"  Either use --sweep-controller without --gpus/--nodes, "
+            f"or use regular mode with --nodes {args.nodes} and --gpus {args.gpus}"
+        )
         return 1
 
     # Get git ref - use current branch/commit if not specified
@@ -377,14 +396,22 @@ Common management commands:
         return 0
 
     # Launch new sandbox
-    cluster_name = get_next_sandbox_name(existing_clusters)
+    if args.name:
+        cluster_name = args.name
+        if any(c["name"] == cluster_name for c in existing_clusters):
+            print(red(f"✗ A sandbox named '{cluster_name}' already exists. Choose a different name or stop/delete it."))
+            return 1
+    else:
+        cluster_name = get_next_sandbox_name(existing_clusters)
 
     # Determine configuration based on --sweep-controller flag
     if args.sweep_controller:
         print(f"\n🚀 Launching {blue(cluster_name)} in {bold('CPU-ONLY MODE')}")
         config_path = "./devops/skypilot/config/sandbox_cheap.yaml"
     else:
-        print(f"\n🚀 Launching {blue(cluster_name)} with {bold(str(args.gpus))} L4 GPU(s)")
+        nodes_msg = f"{args.nodes} node{'s' if args.nodes != 1 else ''}"
+        gpus_msg = f"{args.gpus} L4 GPU{'s' if args.gpus != 1 else ''} per node"
+        print(f"\n🚀 Launching {blue(cluster_name)} with {bold(nodes_msg)} × {bold(gpus_msg)}")
         config_path = "./devops/skypilot/config/sandbox.yaml"
 
     print(f"🔌 Git ref: {cyan(git_ref)}")
@@ -423,13 +450,32 @@ Common management commands:
         accelerators_str = resources.get("accelerators", "L4:1")
         gpu_type = accelerators_str.split(":")[0]
 
-        # Get instance type and calculate cost
+        # Get instance type and calculate per-node cost
         instance_type, region, hourly_cost = get_gpu_instance_info(args.gpus, gpu_type, region, cloud)
 
         if instance_type:
-            print(f"Instance type: {bold(instance_type)} in {bold(region)}")
+            print(f"Instance type (per node): {bold(instance_type)} in {bold(region)}")
 
-        print_cost_info(hourly_cost, args.gpus)
+        # Cost output (per node and total)
+        if hourly_cost is not None:
+            total_cost = hourly_cost * max(1, int(args.nodes))
+            print(
+                f"Approximate cost: {green(f'~${hourly_cost:.2f}/hour per node')} | "
+                f"{green(f'~${total_cost:.2f}/hour total for {args.nodes} node(s)')}"
+            )
+        else:
+            # Fallback estimate when cost API unavailable
+            gpu_cost_estimates = {
+                1: "~$0.70-0.90/hour",
+                2: "~$1.40-1.80/hour",
+                4: "~$2.80-3.60/hour",
+                8: "~$5.60-7.20/hour",
+            }
+            per_node_est = gpu_cost_estimates.get(
+                args.gpus, f"~${0.70 * args.gpus:.2f}-{0.90 * args.gpus:.2f}/hour"
+            )
+            print(f"Approximate cost (per node): {yellow(per_node_est)}")
+            print(f"Approximate total (very rough): {yellow(per_node_est)} × {args.nodes} nodes")
 
     autostop_hours = 48
 
@@ -441,6 +487,9 @@ Common management commands:
         if not args.sweep_controller:
             # Only override GPU resources for non-cheap mode
             task.set_resources_override({"accelerators": f"{gpu_type}:{args.gpus}"})
+            # Multi-node support
+            if args.nodes and args.nodes > 1:
+                task.num_nodes = int(args.nodes)
 
         task.update_envs({"METTA_GIT_REF": git_ref})
         time.sleep(1)
@@ -512,12 +561,37 @@ Common management commands:
             print(f"  • Update SSH config: {green(f'sky status {cluster_name}')}")
             print(f"Error: {str(e)}")
 
-    # For CPU-only mode, SCP the additional files over
-    if args.sweep_controller:
-        print("\n📤 Transferring additional files to sandbox...")
+    # Always persist cluster metadata on master for in-SSH launches
+    with spinner("Persisting cluster metadata on master", style=cyan):
+        try:
+            persist_script = _build_incluster_persist_script(cluster_name)
+            subprocess.run(
+                [
+                    "sky",
+                    "exec",
+                    cluster_name,
+                    "--num-nodes",
+                    str(max(1, int(args.nodes or 1))),
+                    "--",
+                    persist_script,
+                ],
+                check=True,
+                capture_output=True,
+            )
+        except subprocess.CalledProcessError as e:
+            print(f"\n{yellow('⚠')} Failed to persist cluster metadata on master: {str(e)}")
+            print("   You can still run jobs, but auto-detection may not work in SSH sessions.")
+
+    # For multi-GPU sandboxes (multi-node OR >1 GPU per node) and not sweep-controller, copy helpful credentials
+    do_bootstrap_incluster = (not args.sweep_controller) and (
+        (args.nodes and int(args.nodes) > 1) or (args.gpus and int(args.gpus) > 1)
+    )
+    if do_bootstrap_incluster:
+        # Transfer helpful credentials and persist cluster metadata to enable in-cluster launching.
+        print("\n📤 Transferring credentials for in-cluster SkyPilot usage...")
         scp_success = True
 
-        # Transfer .sky folder
+        # Transfer .sky folder (SkyPilot client state/keys)
         with spinner("Copying ~/.sky folder", style=cyan):
             try:
                 sky_path = os.path.expanduser("~/.sky")
@@ -560,7 +634,7 @@ Common management commands:
                 print(f"  {red('✗')} Failed to transfer ~/.aws folder: {str(e)}")
                 scp_success = False
 
-        # Transfer observatory tokens
+        # Transfer observatory tokens (optional)
         with spinner("Copying ~/.metta/observatory_tokens.yaml", style=cyan):
             try:
                 obs_path = os.path.expanduser("~/.metta/observatory_tokens.yaml")
