@@ -23,6 +23,7 @@ class ActionSupervisedConfig(Config):
     gae_gamma: float = Field(default=0.977, ge=0, le=1.0)  # pulling from our PPO config
     gae_lambda: float = Field(default=0.891477, ge=0, le=1.0)  # pulling from our PPO config
     vf_clip_coef: float = Field(default=0.1, ge=0)  # pulling from our PPO config
+    run_policy_in_train: bool = False  # whether to re-forward policy during train for value clipping
     use_own_sampling: bool = True  # Does not use prioritized sampling
     use_own_rollout: bool = True  # Update when including PPO as concurent loss
     student_led: bool = True  # sigma as per Matt's document
@@ -77,6 +78,7 @@ class ActionSupervised(Loss):
         "value_loss_coef",
         "norm_adv",
         "vf_clip_coef",
+        "run_policy_in_train",
         "gae_gamma",
         "gae_lambda",
         "add_action_loss_to_rewards",
@@ -105,6 +107,7 @@ class ActionSupervised(Loss):
         self.value_loss_coef = self.loss_cfg.value_loss_coef
         self.norm_adv = self.loss_cfg.norm_adv
         self.vf_clip_coef = self.loss_cfg.vf_clip_coef
+        self.run_policy_in_train = self.loss_cfg.run_policy_in_train
         self.gae_gamma = self.loss_cfg.gae_gamma
         self.gae_lambda = self.loss_cfg.gae_lambda
         self.add_action_loss_to_rewards = self.loss_cfg.add_action_loss_to_rewards
@@ -225,16 +228,28 @@ class ActionSupervised(Loss):
             advantages = normalize_advantage_distributed(advantages)
 
         # compute value loss
-        old_values = minibatch["values"]
-        newvalue_reshaped = minibatch["values"].view(returns.shape)
-        v_loss_unclipped = (newvalue_reshaped - returns) ** 2
-        v_clipped = old_values + torch.clamp(
-            newvalue_reshaped - old_values,
-            -self.vf_clip_coef,
-            self.vf_clip_coef,
-        )
-        v_loss_clipped = (v_clipped - returns) ** 2
-        value_loss = 0.5 * torch.max(v_loss_unclipped, v_loss_clipped).mean() * self.value_loss_coef
+        if not self.run_policy_in_train:
+            # Do not re-forward policy; use rollout values and no clipping
+            value_loss = 0.5 * ((minibatch["values"] - returns) ** 2).mean() * self.value_loss_coef
+        else:
+            # Re-forward policy in train to get V_new and apply clipped value loss
+            policy_td = minibatch.select(*self.policy_experience_spec.keys(include_nested=True))
+            B, TT = policy_td.batch_size
+            flat_td = policy_td.reshape(B * TT)
+            flat_td.set("bptt", torch.full((B * TT,), TT, device=flat_td.device, dtype=torch.long))
+            flat_td.set("batch", torch.full((B * TT,), B, device=flat_td.device, dtype=torch.long))
+            policy_out = self.policy.forward(flat_td)
+            newvalue = policy_out["values"].reshape(returns.shape)
+
+            old_values = minibatch["values"]
+            v_loss_unclipped = (newvalue - returns) ** 2
+            v_clipped = old_values + torch.clamp(
+                newvalue - old_values,
+                -self.vf_clip_coef,
+                self.vf_clip_coef,
+            )
+            v_loss_clipped = (v_clipped - returns) ** 2
+            value_loss = 0.5 * torch.max(v_loss_unclipped, v_loss_clipped).mean() * self.value_loss_coef
 
         self.loss_tracker["supervised_value_loss"].append(float(value_loss.item()))
 
