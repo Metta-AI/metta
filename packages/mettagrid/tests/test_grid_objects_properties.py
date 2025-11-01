@@ -35,8 +35,8 @@ def env_with_assembler():
             objects={
                 "wall": WallConfig(),
                 "assembler": AssemblerConfig(
-                    recipes=[
-                        ([], ProtocolConfig(input_resources={"iron": 10}, output_resources={"steel": 5}, cooldown=20))
+                    protocols=[
+                        ProtocolConfig(input_resources={"iron": 10}, output_resources={"steel": 5}, cooldown=20)
                     ],
                     max_uses=10,
                     allow_partial_usage=True,
@@ -113,6 +113,42 @@ def env_with_walls():
                 objects={"wall": 20},  # Add 20 random walls
                 border_width=1,  # Add border walls
                 seed=123,
+            ),
+        )
+    )
+    return MettaGridCore(config)
+
+
+@pytest.fixture
+def env_with_wall_vibe():
+    """Create environment with test wall vibe."""
+    config = MettaGridConfig(
+        game=GameConfig(
+            num_agents=1,
+            max_steps=100,
+            obs_width=5,
+            obs_height=5,
+            num_observation_tokens=100,
+            resource_names=["gold", "silver"],
+            actions=ActionsConfig(
+                noop=ActionConfig(),
+                move=ActionConfig(),
+            ),
+            objects={
+                "wall": WallConfig(
+                    vibe=138,  # In-range vibe value
+                ),
+                "chest": ChestConfig(
+                    resource_type="gold",
+                    position_deltas=[("NW", 1), ("N", 1), ("NE", 1), ("SW", -1), ("S", -1), ("SE", -1)],
+                ),
+            },
+            map_builder=RandomMapBuilder.Config(
+                width=10,
+                height=10,
+                agents=1,
+                objects={"chest": 1},  # Add one chest
+                seed=42,
             ),
         )
     )
@@ -246,8 +282,8 @@ class TestAssemblerProperties:
                 assert "current_recipe_cooldown" in assembler
                 assert isinstance(assembler["current_recipe_cooldown"], int)
 
-    def test_assembler_all_recipes(self, env_with_assembler):
-        """Test that all recipes are exposed."""
+    def test_assembler_all_protocols(self, env_with_assembler):
+        """Test that all protocols are exposed."""
         env_with_assembler.reset()
 
         objects = env_with_assembler.grid_objects()
@@ -256,21 +292,21 @@ class TestAssemblerProperties:
         assembler = next((obj for obj in objects.values() if obj.get("type_name") == "assembler"), None)
 
         if assembler:
-            # Check that recipes list exists
-            assert "recipes" in assembler
-            assert isinstance(assembler["recipes"], list)
+            # Check that protocols list exists
+            assert "protocols" in assembler
+            assert isinstance(assembler["protocols"], list)
 
-            # Check that at least one recipe exists (we defined one in the fixture)
-            assert len(assembler["recipes"]) > 0
+            # Check that at least one protocol exists (we defined one in the fixture)
+            assert len(assembler["protocols"]) > 0
 
-            # Verify structure of first recipe
-            recipe = assembler["recipes"][0]
-            assert "inputs" in recipe
-            assert "outputs" in recipe
-            assert "cooldown" in recipe
-            assert isinstance(recipe["inputs"], dict)
-            assert isinstance(recipe["outputs"], dict)
-            assert isinstance(recipe["cooldown"], int)
+            # Verify structure of first protocol
+            protocol = assembler["protocols"][0]
+            assert "inputs" in protocol
+            assert "outputs" in protocol
+            assert "cooldown" in protocol
+            assert isinstance(protocol["inputs"], dict)
+            assert isinstance(protocol["outputs"], dict)
+            assert isinstance(protocol["cooldown"], int)
 
 
 class TestChestProperties:
@@ -345,3 +381,28 @@ class TestAgentProperties:
         assert isinstance(agent["freeze_remaining"], (int, np.integer))
         assert isinstance(agent["freeze_duration"], (int, np.integer))
         assert isinstance(agent["inventory"], dict)
+
+
+class TestVibeProperty:
+    """Test vibe property in grid_objects."""
+
+    def test_vibe_property(self, env_with_wall_vibe):
+        """Test that out of range vibe property is not exposed."""
+        env_with_wall_vibe.reset()
+
+        objects = env_with_wall_vibe.grid_objects()
+
+        # Find a chest
+        chest = next((obj for obj in objects.values() if obj.get("type_name") == "chest"), None)
+
+        if chest:
+            # Check that chest does not expose vibe property
+            assert "vibe" not in chest
+
+        # Find a wall
+        wall = next((obj for obj in objects.values() if obj.get("type_name") == "wall"), None)
+
+        if wall:
+            # Check that wall has vibe property
+            assert "vibe" in wall
+            assert isinstance(wall["vibe"], (int, np.integer))

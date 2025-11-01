@@ -80,7 +80,7 @@ def upload_map_preview(
     try:
         write_file(path=s3_path, local_file=preview_path, content_type="application/x-compress")
     except Exception as e:
-        logger.error(f"Failed to upload preview map to S3: {str(e)}")
+        logger.error(f"Failed to upload preview map to S3: {str(e)}", exc_info=True)
 
     try:
         # If upload was successful, log the link to WandB
@@ -90,4 +90,4 @@ def upload_map_preview(
             wandb_run.log(link_summary)
             logger.info(f"Preview map available at: {player_url}")
     except Exception as e:
-        logger.error(f"Failed to log preview map to WandB: {str(e)}")
+        logger.error(f"Failed to log preview map to WandB: {str(e)}", exc_info=True)
