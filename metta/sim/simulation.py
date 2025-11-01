@@ -18,6 +18,7 @@ from metta.agent.utils import obs_to_td
 from metta.app_backend.clients.stats_client import HttpStatsClient, StatsClient
 from metta.cogworks.curriculum.curriculum import Curriculum, CurriculumConfig
 from metta.common.util.heartbeat import record_heartbeat
+from metta.doxascope.doxascope_data import DoxascopeLogger
 from metta.rl.checkpoint_manager import CheckpointManager
 from metta.rl.policy_artifact import PolicyArtifact
 from metta.rl.training.training_environment import GameRules
@@ -100,7 +101,7 @@ class Simulation:
             vectorization,
             num_envs=num_envs,
             stats_writer=self._stats_writer,
-            replay_writer=self._replay_writer,
+            replay_writer=None if cfg.doxascope_enabled else self._replay_writer,
         )
 
         self._num_envs = num_envs
@@ -158,6 +159,14 @@ class Simulation:
             else torch.tensor([], device=self._device, dtype=torch.long)
         )
         self._episode_counters = np.zeros(self._num_envs, dtype=int)
+
+        # doxascope setup
+        self._doxascope_logger = DoxascopeLogger(enabled=cfg.doxascope_enabled, simulation_id=self._id)
+        if self._doxascope_logger.enabled:
+            self._doxascope_logger.configure(
+                policy_uri=self._policy_uri,
+                object_type_names=metta_grid_env.object_type_names,
+            )
 
     def _materialize_policy(
         self,
@@ -290,6 +299,16 @@ class Simulation:
         return actions_np
 
     def step_simulation(self, actions_np: np.ndarray) -> None:
+        # doxascope logging
+        if self._doxascope_logger.enabled:
+            metta_grid_env: MettaGridEnv = self._vecenv.driver_env  # type: ignore
+            env_grid_objects = metta_grid_env.grid_objects()
+            self._doxascope_logger.log_timestep(
+                self._policy,
+                self._policy_idxs,
+                env_grid_objects,
+            )
+
         obs, rewards, dones, trunc, infos = self._vecenv.step(actions_np)
 
         done_now = np.logical_or(
@@ -340,11 +359,15 @@ class Simulation:
 
     def end_simulation(self) -> SimulationResults:
         self._vecenv.close()
+
+        if self._doxascope_logger.enabled:
+            self._doxascope_logger.save()
+
         db = self._from_shards_and_context()
 
-        # Generate thumbnail before writing to database so we can include the URL
-        thumbnail_url = self._maybe_generate_thumbnail()
-        self._write_remote_stats(db, thumbnail_url=thumbnail_url)
+        if not self._config.doxascope_enabled:
+            thumbnail_url = self._maybe_generate_thumbnail()
+            self._write_remote_stats(db, thumbnail_url=thumbnail_url)
 
         logger.info(
             "Sim '%s' finished: %d episodes in %.1fs",
