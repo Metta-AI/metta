@@ -3,9 +3,11 @@ import argparse
 import copy
 import json
 import logging
+import os
 import re
-import subprocess
 import sys
+import uuid
+from typing import Any
 
 import sky
 import yaml
@@ -15,15 +17,59 @@ from devops.skypilot.utils.job_helpers import (
     check_git_state,
     display_job_summary,
     launch_task,
+    open_job_log_from_request_id,
     set_task_secrets,
 )
 from metta.common.tool.tool_path import validate_module_path
 from metta.common.util.cli import get_user_confirmation
+from metta.common.util.constants import METTA_WANDB_ENTITY, METTA_WANDB_PROJECT
 from metta.common.util.fs import cd_repo_root
-from metta.common.util.text_styles import red
+from metta.common.util.text_styles import red, yellow
 from metta.tools.utils.auto_config import auto_run_name
 
-logger = logging.getLogger("launch.py")
+logger = logging.getLogger(__name__)
+
+# Known tool modules that we explicitly validate
+KNOWN_TOOL_MODULES = {
+    "devops.skypilot.tools.nccl",
+    "devops.skypilot.tools.restart_test",
+    "devops.skypilot.tools.run",
+}
+
+
+def _validate_tool_module(tool_module: str) -> bool:
+    """Validate tool module, with warnings for unknown tools.
+
+    For known tools (like devops.skypilot.tools.nccl), performs strict validation.
+    For unknown tools, logs a warning and allows them to pass (assumed valid).
+    """
+    # Check if this is a known tool that requires strict validation
+    if tool_module in KNOWN_TOOL_MODULES:
+        # Known tool - validate strictly
+        try:
+            if not validate_module_path(tool_module):
+                print(red(f"[VALIDATION] ❌ Known tool module failed validation: '{tool_module}'"))
+                return False
+            return True
+        except Exception as e:
+            print(red(f"[VALIDATION] ❌ Known tool module validation error: '{tool_module}'"))
+            print(red(f"             Error: {e}"))
+            return False
+
+    # Unknown tool - try to validate but warn and allow if validation fails
+    try:
+        if validate_module_path(tool_module):
+            # Validation passed
+            return True
+    except Exception:
+        # Validation failed due to exception
+        pass
+
+    # Validation failed for unknown tool - warn but allow
+    print(yellow(f"[VALIDATION] ⚠️  Unrecognized tool module: '{tool_module}'"))
+    print(yellow("             Assuming valid and continuing..."))
+    print(yellow("             If this is a new standard tool, add it to KNOWN_TOOL_MODULES in launch.py"))
+    return True
 
 
 def _validate_sky_cluster_name(run_name: str) -> bool:
@@ -47,29 +93,6 @@ def _validate_sky_cluster_name(run_name: str) -> bool:
         print()
 
     return valid
-
-
-def _validate_run_tool(module_path: str, run_id: str, filtered_args: list) -> None:
-    """Validate that run.py can successfully create a tool config with the given arguments."""
-    # Build the run.py command
-    run_cmd = ["uv", "run", "--active", "tools/run.py", module_path, "--dry-run"]
-
-    # Add args if provided (run= is already included in filtered_args)
-    if filtered_args:
-        run_cmd.extend(filtered_args)
-    try:
-        subprocess.run(run_cmd, capture_output=True, text=True, check=True)
-        print("[VALIDATION] ✅ Configuration validation successful")
-    except subprocess.CalledProcessError as e:
-        print(red("[VALIDATION] ❌ Configuration validation failed"))
-        if e.stdout:
-            print(e.stdout)
-        if e.stderr:
-            print(red(e.stderr))
-        sys.exit(1)
-    except FileNotFoundError:
-        print(red("[VALIDATION] ❌ Could not find run.py or uv command"))
-        sys.exit(1)
 
 
 def patch_task(
@@ -115,20 +138,31 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  # Basic:
-  %(prog)s arena.train run=test_123 trainer.total_timesteps=100000
+  # Using --tool flag (recommended for tools/run.py):
+  %(prog)s --tool arena.train run=test_123 trainer.total_timesteps=100000 --gpus 2
 
-  # Mix of launch flags and tool args:
-  %(prog)s arena.train --gpus 2 --nodes 4 -- run=test_123 trainer.steps=1000
+  # Arbitrary command:
+  %(prog)s "pytest tests/rl/" --gpus 1
+
+  # Both styles support resource flags:
+  %(prog)s --tool arena.train run=foo --gpus 2 --nodes 4
         """,
     )
 
     # First, we need to separate launch flags from tool args
     # We'll parse known args only, allowing unknown ones to be passed as tool args
     parser.add_argument(
-        "module_path",
-        help="Module path to run (e.g., arena.train or experiments.recipes.arena.train). "
-        "Any arguments following the module path will be passed to the tool.",
+        "command",
+        nargs="?",
+        help="Command to execute on remote cluster (required if --tool not used). "
+        "Will be wrapped with devops/run.sh for torchrun setup if it uses tools/run.py.",
+    )
+
+    parser.add_argument(
+        "--tool",
+        type=str,
+        help="Run a tool from tools/run.py. This auto-prefixes 'uv run ./tools/run.py' and validates the module. "
+        "Example: --tool arena.train run=foo trainer.steps=1000",
     )
 
     # Launch-specific flags
@@ -167,35 +201,56 @@ Examples:
     parser.add_argument(
         "--discord-webhook-url", type=str, default=None, help="Discord webhook URL for status update channel"
     )
-    parser.add_argument(
-        "--run-ci-tests",
-        action="store_true",
-        help="Run NCCL and job restart tests",
-    )
+    parser.add_argument("-jl", "--job-log", action="store_true", help="Open job log after launch")
+    parser.add_argument("--verbose", action="store_true", help="Print detailed request IDs and log instructions")
 
-    # Use parse_known_args to handle both launch flags and tool args
-    args, tool_args = parser.parse_known_args()
+    # Parse known args to handle --tool with remaining args
+    args, remaining_args = parser.parse_known_args()
 
-    # Handle run ID extraction
+    # When using --tool, argparse may assign positional args to 'command'
+    # Treat those as tool args instead
+    if args.tool and args.command:
+        remaining_args = [args.command] + remaining_args
+        args.command = None
+
+    # Validate that either --tool or command is provided
+    if not args.tool and not args.command:
+        parser.error("Must specify either --tool or command")
+
+    # Build command string
+    if args.tool:
+        # Using --tool: validate module and build command
+        if not _validate_tool_module(args.tool):
+            sys.exit(1)
+
+        # Combine tool module with remaining args
+        cmd_parts = [args.tool] + remaining_args
+        command = f"uv run ./tools/run.py {' '.join(cmd_parts)}"
+        use_torchrun = True
+    else:
+        # Using direct command
+        command = args.command
+        # Auto-detect if command uses tools/run.py
+        use_torchrun = "tools/run.py" in command
+
+    # Extract run ID from --run flag or from command string
     run_id = args.run
-    filtered_args = []
 
-    for arg in tool_args:
-        if arg.startswith("run="):
-            # Extract the run ID
-            new_run_id = arg[4:]
-            if run_id is not None and new_run_id != run_id:
-                raise ValueError(f"Conflicting run IDs specified: '{run_id}' and '{new_run_id}'")
-            run_id = new_run_id
-        else:
-            filtered_args.append(arg)
+    # Try to extract run= from command if not provided via flag
+    if run_id is None:
+        match = re.search(r"run=([^\s]+)", command)
+        if match:
+            run_id = match.group(1)
 
+    # Generate auto run ID if still not found
     if run_id is None:
         run_id = auto_run_name()
         logger.info(f"Using auto-generated run ID: {run_id}")
-        logger.info("To specify a run ID pass run=foo")
+        logger.info("To specify a run ID, add 'run=foo' to your command or use --run flag")
 
-    filtered_args.append(f"run={run_id}")
+    # Ensure command includes run= (append if missing)
+    if "run=" not in command:
+        command = f"{command} run={run_id}"
 
     cd_repo_root()
 
@@ -216,33 +271,27 @@ Examples:
                 print("  - Skip check: add --skip-git-check flag")
                 sys.exit(1)
 
-    # Validate module path (supports shorthand like 'arena.train')
-    if not validate_module_path(args.module_path):
-        sys.exit(1)
-
     assert commit_hash
-
-    # Validate the run.py tool configuration early to catch errors before setting up the task
-    _validate_run_tool(args.module_path, run_id, filtered_args)
 
     # Validate the provided run name
     if not _validate_sky_cluster_name(run_id):
         sys.exit(1)
 
-    task = sky.Task.from_yaml("./devops/skypilot/config/skypilot_run.yaml")
+    # Load the job configuration
+    task = sky.Task.from_yaml("./devops/skypilot/recipes/job.yaml")
 
     # Prepare environment variables including status parameters
     env_updates = dict(
         METTA_RUN_ID=run_id,
-        METTA_MODULE_PATH=args.module_path,
-        METTA_ARGS=" ".join(filtered_args),
-        METTA_GIT_REF=commit_hash,
+        METTA_CMD=command,
+        METTA_USE_TORCHRUN="true" if use_torchrun else "false",
+        METTA_GIT_REF=commit_hash or "main",
         HEARTBEAT_TIMEOUT=args.heartbeat_timeout_seconds,
-        GITHUB_PAT=args.github_pat,
         MAX_RUNTIME_HOURS=args.max_runtime_hours,
-        DISCORD_WEBHOOK_URL=args.discord_webhook_url,
-        TEST_JOB_RESTART="true" if args.run_ci_tests else "false",
-        TEST_NCCL="true" if args.run_ci_tests else "false",
+        DISCORD_WEBHOOK_URL=args.discord_webhook_url,  # enables discord notification
+        GITHUB_PAT=args.github_pat,  # enables github status update
+        WANDB_PROJECT=os.environ.get("WANDB_PROJECT", METTA_WANDB_PROJECT),
+        WANDB_ENTITY=os.environ.get("WANDB_ENTITY", METTA_WANDB_ENTITY),
     )
 
     env_updates = {k: v for k, v in env_updates.items() if v is not None}
@@ -287,8 +336,8 @@ Examples:
 
     display_job_summary(
         job_name=run_id,
-        cmd=f"{args.module_path} (args: {filtered_args})",
-        task_args=[],  # We're showing args differently now
+        cmd=command,
+        task_args=[],
         commit_hash=commit_hash,
         git_ref=args.git_ref,
         timeout_hours=args.max_runtime_hours,
@@ -306,15 +355,25 @@ Examples:
         sys.exit(0)
 
     # Launch the task(s)
-    if args.copies == 1:
-        launch_task(task)
-    else:
-        for _ in range(1, args.copies + 1):
-            copy_task = copy.deepcopy(task)
-            copy_task = copy_task.update_envs({"METTA_RUN_ID": run_id})
-            copy_task.name = run_id
-            copy_task.validate_name()
-            launch_task(copy_task)
+    def prepare_task(base_task: sky.Task, env_updates: dict[str, Any], run_id: str, copies: int) -> sky.Task:
+        prepared_task = copy.deepcopy(base_task).update_envs(env_updates)
+        if copies > 1:
+            suffix = f"_{uuid.uuid4().hex[:6]}"
+            max_name_length = 63
+            trimmed_base = run_id[: max_name_length - len(suffix)]
+            prepared_task.name = f"{trimmed_base}{suffix}"
+        else:
+            prepared_task.name = run_id
+        prepared_task.validate_name()
+        return prepared_task
+
+    request_ids = [
+        launch_task(prepare_task(task, env_updates, run_id, args.copies), verbose=args.verbose)
+        for _ in range(args.copies)
+    ]
+
+    if args.job_log:
+        open_job_log_from_request_id(request_ids[0])
 
 
 if __name__ == "__main__":

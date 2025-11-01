@@ -50,7 +50,7 @@ class WandbContext:
 
     Or with extra configuration:
 
-        with WandbContext(wandb_cfg, extra_cfg=config) as wandb_run:
+        with WandbContext(wandb_cfg, run_config=config) as wandb_run:
             ...
     """
 
