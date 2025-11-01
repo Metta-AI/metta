@@ -60,6 +60,12 @@ MettaGrid::MettaGrid(const GameConfig& game_config, const py::list map, unsigned
 
   current_step = 0;
 
+  // Initialize global observation features for fast lookup
+  for (const auto& feature : game_config.global_observations) {
+    _enabled_observations.insert(feature.name);
+    _global_obs_features.emplace(feature.name, feature);
+  }
+
   bool observation_size_is_packable =
       obs_width <= PackedCoordinate::MAX_PACKABLE_COORD + 1 && obs_height <= PackedCoordinate::MAX_PACKABLE_COORD + 1;
   if (!observation_size_is_packable) {
@@ -1149,7 +1155,8 @@ PYBIND11_MODULE(mettagrid_c, m) {
   bind_attack_action_config(m);
   bind_change_vibe_action_config(m);
   bind_resource_mod_config(m);
-  bind_global_obs_config(m);
+  bind_global_obs_feature(m);  // NEW: Flexible global observation features
+  bind_global_obs_config(m);   // OLD: Deprecated, for backwards compatibility
   bind_clipper_config(m);
   bind_game_config(m);
 
