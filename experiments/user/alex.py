@@ -5,8 +5,7 @@ from typing import List, Optional
 
 import metta.cogworks.curriculum as cc
 import mettagrid.builder.envs as eb
-from experiments.recipes import arena
-from metta.agent.policies.vit_sliding_trans import ViTSlidingTransConfig
+from metta.agent.meta_cog.mc_vit_reset import MCViTResetConfig
 from metta.agent.policy import PolicyArchitecture
 from metta.cogworks.curriculum.curriculum import (
     CurriculumAlgorithmConfig,
@@ -14,7 +13,10 @@ from metta.cogworks.curriculum.curriculum import (
 )
 from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
 from metta.rl.loss.loss_config import LossConfig
-from metta.rl.loss.ppo import PPOConfig
+from metta.rl.loss.mc_ppo import MCPPOConfig
+from metta.rl.system_config import SystemConfig
+
+# from metta.rl.loss.ppo import PPOConfig
 from metta.rl.trainer_config import TrainerConfig
 from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
 from metta.sim.simulation_config import SimulationConfig
@@ -23,6 +25,8 @@ from metta.tools.play import PlayTool
 from metta.tools.replay import ReplayTool
 from metta.tools.train import TrainTool
 from mettagrid import MettaGridConfig
+
+from experiments.recipes import arena
 
 
 def make_mettagrid(num_agents: int = 24) -> MettaGridConfig:
@@ -104,13 +108,14 @@ def train(
 
     eval_simulations = make_evals()
     trainer_cfg = TrainerConfig(
-        losses=LossConfig(loss_configs={"ppo": PPOConfig()}),
+        losses=LossConfig(loss_configs={"mc_ppo": MCPPOConfig()}),
     )
     # policy_config = FastDynamicsConfig()
     # policy_config = FastLSTMResetConfig()
     # policy_config = FastConfig()
     # policy_config = ViTSmallConfig()
-    policy_config = ViTSlidingTransConfig()
+    # policy_config = ViTSlidingTransConfig()
+    policy_config = MCViTResetConfig()
     training_env = TrainingEnvironmentConfig(curriculum=curriculum)
     evaluator = EvaluatorConfig(simulations=eval_simulations)
 
@@ -119,6 +124,9 @@ def train(
         training_env=training_env,
         evaluator=evaluator,
         policy_architecture=policy_config,
+        # wandb=WandbConfig.Off(),
+        stats_server_uri=None,
+        system=SystemConfig(local_only=True),
     )
 
 

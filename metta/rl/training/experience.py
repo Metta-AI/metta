@@ -159,6 +159,21 @@ class Experience:
                 stats["actions_mean"] = actions.mean().item()
                 stats["actions_std"] = actions.std().item()
 
+        # --- av delete ---
+        # Add MC-action statistics if present (mirrors action stats)
+        if "mc_actions" in self.buffer.keys():
+            mc_actions = self.buffer["mc_actions"]
+            if mc_actions.dtype in [torch.int32, torch.int64]:
+                stats["mc_actions_mean"] = mc_actions.float().mean().item()
+                stats["mc_actions_std"] = mc_actions.float().std().item()
+            else:
+                stats["mc_actions_mean"] = mc_actions.mean().item()
+                stats["mc_actions_std"] = mc_actions.std().item()
+
+        if "mc_act_log_prob" in self.buffer.keys():
+            stats["mc_act_log_prob"] = self.buffer["mc_act_log_prob"].mean().item()
+        # --- ^ av delete ---
+
         return stats
 
     def give_me_empty_md_td(self) -> TensorDict:
@@ -176,7 +191,7 @@ class Experience:
         minibatch_size: int,
         max_minibatch_size: int,
         policy_experience_spec: Composite,
-        losses: Dict[str, Any],  # av fix circular import issue when setting value to Loss
+        losses: Dict[str, Any],
         device: torch.device | str,
     ) -> "Experience":
         """Create experience buffer with merged specs from policy and losses."""
