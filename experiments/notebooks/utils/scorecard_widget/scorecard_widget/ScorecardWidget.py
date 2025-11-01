@@ -11,8 +11,10 @@ from typing import Any, Callable, Dict, List, Literal
 
 import anywidget
 import traitlets
-from metta.app_backend.clients.scorecard_client import ScorecardClient
-from metta.app_backend.routes.scorecard_routes import ScorecardData
+from metta.app_backend.clients.scorecard_client import (  # type: ignore[import-untyped]
+    ScorecardClient,
+)
+from metta.app_backend.routes.scorecard_routes import ScorecardData  # type: ignore[import-untyped]
 
 # FIXME: we need something like `dotenv` and `.env.local` files up in here.
 _DEV = False
@@ -48,10 +50,13 @@ class ScorecardWidget(anywidget.AnyWidget):
     num_policies_to_show = traitlets.Int(20).tag(sync=True)
     selected_cell = traitlets.Dict(allow_none=True, default_value=None).tag(sync=True)
     replay_opened = traitlets.Dict(allow_none=True, default_value=None).tag(sync=True)
+    available_metrics = traitlets.List(traitlets.Unicode(), default_value=[]).tag(
+        sync=True
+    )
 
     def __init__(self, client: ScorecardClient | None = None, **kwargs):
         super().__init__(**kwargs)
-        self._callbacks = {
+        self._callbacks: Dict[str, List[Callable[..., None]]] = {
             "selected_cell": [],
             "replay_opened": [],
             "metric_changed": [],
@@ -126,11 +131,21 @@ class ScorecardWidget(anywidget.AnyWidget):
             policy_average_scores: Dict mapping policy names to average scores
             selected_metric: Name of the selected metric
         """
+        eval_average_scores, eval_max_scores = self._compute_eval_statistics(
+            cells=cells,
+            eval_names=eval_names,
+            policy_names=policy_names,
+            value_getter=lambda cell: cell.get("value"),
+        )
+        self.available_metrics = [selected_metric] if selected_metric else []
         self.scorecard_data = {
             "cells": cells,
             "evalNames": eval_names,
             "policyNames": policy_names,
             "policyAverageScores": policy_average_scores,
+            "evalAverageScores": eval_average_scores,
+            "evalMaxScores": eval_max_scores,
+            "availableMetrics": self.available_metrics,
         }
         self.selected_metric = selected_metric
         print(
@@ -174,12 +189,21 @@ class ScorecardWidget(anywidget.AnyWidget):
                     count += 1
             policy_average_scores[policy_name] = total / count if count > 0 else 0
 
+        eval_average_scores, eval_max_scores = self._compute_eval_statistics(
+            cells=cells,
+            eval_names=eval_names,
+            policy_names=policy_names,
+            value_getter=lambda cell: (cell.get("metrics") or {}).get(selected_metric),
+        )
+        self.available_metrics = list(metrics)
         self.scorecard_data = {
             "cells": cells,
             "evalNames": eval_names,
             "policyNames": policy_names,
             "policyAverageScores": policy_average_scores,
-            "availableMetrics": metrics,
+            "evalAverageScores": eval_average_scores,
+            "evalMaxScores": eval_max_scores,
+            "availableMetrics": self.available_metrics,
         }
         self.selected_metric = selected_metric or ""
 
@@ -394,7 +418,7 @@ class ScorecardWidget(anywidget.AnyWidget):
                 p: avg_scores[p] for p in top_policies if p in avg_scores
             }
 
-        cells = {}
+        cells: Dict[str, Dict[str, Dict[str, Any]]] = {}
         for policy_name in scorecard_data.policyNames:
             cells[policy_name] = {}
             for eval_name in scorecard_data.evalNames:
@@ -413,6 +437,42 @@ class ScorecardWidget(anywidget.AnyWidget):
                     }
 
         return cells
+
+    def _compute_eval_statistics(
+        self,
+        *,
+        cells: Dict[str, Dict[str, Dict[str, Any]]],
+        eval_names: List[str],
+        policy_names: List[str],
+        value_getter: Callable[[Dict[str, Any]], Any],
+    ) -> tuple[Dict[str, float], Dict[str, float]]:
+        """Compute per-evaluation averages and maxima for alignment with observatory dashboards."""
+        eval_average_scores: Dict[str, float] = {}
+        eval_max_scores: Dict[str, float] = {}
+
+        for eval_name in eval_names:
+            values: List[float] = []
+            for policy_name in policy_names:
+                cell = cells.get(policy_name, {}).get(eval_name)
+                if not cell:
+                    continue
+
+                raw_value = value_getter(cell)
+                try:
+                    numeric_value = float(raw_value)
+                except (TypeError, ValueError):
+                    continue
+
+                values.append(numeric_value)
+
+            if values:
+                eval_average_scores[eval_name] = sum(values) / len(values)
+                eval_max_scores[eval_name] = max(values)
+            else:
+                eval_average_scores[eval_name] = 0.0
+                eval_max_scores[eval_name] = 0.0
+
+        return eval_average_scores, eval_max_scores
 
 
 def create_scorecard_widget(**kwargs) -> ScorecardWidget:
