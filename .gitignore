@@ -132,11 +132,10 @@ mettascope.out
 !packages/mettagrid/nim/mettascope/data/resources/
 packages/mettagrid/nim/mettascope/src/tmp
 packages/mettagrid/python/src/mettagrid/nim/mettascope/
+packages/mettagrid/nim/mettascope/nim.cfg
+
+# Uncategorized
 agent/src/metta/ops/agalite_kernels/_build/
-
-# Nim runtime
-.nim_runtime
-
 .terraform*
 terraform.tfstate
 .cache/torch_ext/

@@ -51,7 +51,21 @@ runs:
           nim-binary-${{ runner.os }}-
 
     - name: Set up nim
+      # if: inputs.install-mode != 'minimal' && steps.cache-bazel.outputs.cache-hit != 'true'
+      # id: setup-nim
       uses: treeform/setup-nim-action@v2
+
+    - name: Install Nimby Package Manager
+      # if: inputs.install-mode != 'minimal' && steps.cache-bazel.outputs.cache-hit != 'true'
+      # id: install-nimby
+      shell: bash
+      run: |
+        cd ..
+        git clone --depth 1 https://github.com/treeform/nimby.git
+        touch nim.cfg
+        cd nimby
+        nim c -d:release src/nimby.nim
+        mv src/nimby "$HOME/.nim_runtime/bin/nimby"
 
     - name: Cache Bazel binary
       if: inputs.install-mode != 'minimal'
