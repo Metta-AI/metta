@@ -2,7 +2,7 @@
 
 from metta.agent.policies.hrm import HRMTinyConfig
 from metta.agent.policy import PolicyArchitecture
-
+from metta.rl.trainer_config import OptimizerConfig
 from experiments.recipes import arena as base
 
 mettagrid = base.mettagrid
@@ -38,9 +38,26 @@ def train_shaped(
 ):
     """Train with HRM policy architecture using shaped rewards (defaults to HRMTinyConfig)."""
     tool = base.train_shaped(rewards=rewards, converters=converters)
-    # Update policy architecture
+
+    optimizer_config = OptimizerConfig(
+        type="adamw_schedulefree",
+        learning_rate=0.01,
+        beta1=0.9,
+        beta2=0.999,
+        eps=3.186531e-07,
+        weight_decay=0.01,  # Small weight decay for AdamW
+        warmup_steps=2000,  # Warmup steps for ScheduleFree
+    )
+
+    # Update trainer config with new optimizer
+    trainer_config = tool.trainer.model_copy(update={"optimizer": optimizer_config})
+
+    # Update policy architecture and trainer
     tool = tool.model_copy(
-        update={"policy_architecture": policy_architecture or HRMTinyConfig()}
+        update={
+            "policy_architecture": policy_architecture or HRMTinyConfig(),
+            "trainer": trainer_config,
+        }
     )
     return tool
 
