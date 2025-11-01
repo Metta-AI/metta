@@ -1,0 +1,57 @@
+# Development/testing values for dashboard-cronjob
+# Deploy to same monitoring namespace alongside production
+#
+# Usage:
+#   1. Uncomment dashboard-cronjob-dev section in devops/charts/helmfile.yaml
+#   2. Update image.tag to your feature branch
+#   3. Run: cd devops/charts && helmfile apply -i -l name=dashboard-cronjob-dev
+
+# Use same schedule as production
+schedule: "*/15 * * * *"
+
+image:
+  registry: 751442549699.dkr.ecr.us-east-1.amazonaws.com
+  name: softmax-dashboard
+  pullPolicy: Always
+  # Override tag when deploying feature branches:
+  # --set image.tag=robb-1022-datadog
+  tag: "latest"
+
+command: ["python", "/app/devops/datadog/scripts/run_all_collectors.py"]
+
+serviceAccount:
+  # Don't create a new service account - use the existing production one
+  create: false
+  # Reference the production service account name
+  name: dashboard-cronjob-dashboard-cronjob
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 2Gi
+  limits:
+    cpu: 500m
+    memory: 2Gi
+
+# Tag metrics as development environment
+datadog:
+  env: "development"
+  service: "datadog-collectors"
+  site: "datadoghq.com"
+
+github:
+  org: "PufferAI"
+  repo: "metta"
+
+asana:
+  workspaceGid: "1209016784099267"
+  bugsProjectGid: "1210062854657778"
+
+kubernetes:
+  clusterName: "main"
+
+successfulJobsHistoryLimit: 3
+failedJobsHistoryLimit: 3
+concurrencyPolicy: Forbid
+restartPolicy: OnFailure
+backoffLimit: 3
