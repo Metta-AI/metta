@@ -6,6 +6,7 @@ from pydantic import Field
 
 from metta.agent.policy import Policy
 from metta.rl.loss.contrastive import ContrastiveLoss
+from metta.rl.loss.loss_config import LossSchedule
 from metta.rl.training import TrainingEnvironment
 from mettagrid.base_config import Config
 
@@ -13,6 +14,7 @@ from mettagrid.base_config import Config
 class ContrastiveConfig(Config):
     """Configuration for contrastive loss."""
 
+    schedule: LossSchedule | None = None
     temperature: float = Field(default=0.1902943104505539, gt=0, description="Temperature for contrastive learning")
     contrastive_coef: float = Field(default=0.0006806607125326991, ge=0, description="Coefficient for contrastive loss")
     discount: float = Field(
