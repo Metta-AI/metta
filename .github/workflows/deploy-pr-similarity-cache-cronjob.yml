@@ -1,4 +1,4 @@
-name: "Build PR Similarity Cache CronJob Docker Image"
+name: "Deploy PR Similarity Cache CronJob"
 concurrency:
   group: ${{ github.workflow }}
   cancel-in-progress: true
@@ -12,7 +12,7 @@ on:
       - "metta/tools/pr_similarity.py"
       - "packages/gitta/**"
       - "devops/charts/pr-similarity-cache-cronjob/**"
-      - ".github/workflows/build-pr-similarity-cache-image.yml"
+      - ".github/workflows/deploy-pr-similarity-cache-cronjob.yml"
   workflow_dispatch:
     inputs:
       branch:

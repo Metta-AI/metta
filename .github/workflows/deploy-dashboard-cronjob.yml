@@ -1,4 +1,4 @@
-name: "Build Dashboard CronJob Docker Image"
+name: "Deploy Dashboard CronJob"
 concurrency:
   group: ${{ github.workflow }}
   cancel-in-progress: true
@@ -8,10 +8,9 @@ on:
     branches:
       - main
     paths:
-      - "devops/datadog/**"
       - "packages/gitta/**"
       - "devops/charts/dashboard-cronjob/**"
-      - ".github/workflows/build-dashboard-image.yml"
+      - ".github/workflows/deploy-dashboard-cronjob.yml"
   workflow_dispatch:
     inputs:
       branch:
