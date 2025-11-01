@@ -332,6 +332,7 @@ To use WandB with your personal account:
 
 1. Get your WandB API key from [wandb.ai](https://wandb.ai) (click your profile → API keys)
 2. Add it to your `~/.netrc` file:
+
    ```
    machine api.wandb.ai
      login user
@@ -375,6 +376,7 @@ To use `MettaAgent` with a non-default architecture config:
 - (Optional): Implement your own `PolicyArchitecture` subclass (for example by copying `ViTDefaultConfig` into
   `metta/agent/policies/my_agent.py`).
 - Run with the configuration file of your choice:
+
   ```bash
   ./tools/run.py train arena policy_architecture.agent_config=my_agent
   ```
@@ -388,6 +390,7 @@ We support agent architectures without using the MettaAgent system:
 - Register it in `metta/agent/src/metta/agent/agent_config.py` by adding an entry to `AGENT_REGISTRY` with a key name
   (e.g., `"my_agent"`).
 - Select it at runtime using the runner and an override on the agent config name:
+
   ```bash
   ./tools/run.py train arena policy_architecture.name=pytorch/my_agent
   ```
@@ -399,7 +402,7 @@ Further updates to support bringing your own agent are coming soon.
 To run the style checks and tests locally:
 
 ```bash
-metta lint
+uv run pre-commit run --all-files
 metta pytest
 pyright metta  # optional, some stubs are missing
 ```

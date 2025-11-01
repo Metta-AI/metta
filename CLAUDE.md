@@ -82,14 +82,18 @@ implementation.
 3. **Track deviations** - If you need to deviate from the plan, document why and update the approach
 4. **Keep it concise** - Focus on what changed and why, not how (the code shows how)
 5. **CRITICAL: Always format Python code** - After editing any Python file (\*.py), immediately run:
+
    ```bash
    metta lint --fix
    ```
+
    Or alternatively, for individual files:
+
    ```bash
    ruff format [file_path]
    ruff check --fix [file_path]
    ```
+
    Note: Only run these commands on Python files, not on other file types like Markdown, YAML, etc.
 
 ### After Implementation
@@ -100,10 +104,13 @@ implementation.
    - Lessons learned (if applicable)
 2. **Verify success criteria** - Check off completed criteria in the plan
 3. **Run CI checks** - ALWAYS run `metta ci` to verify all tests pass:
+
    ```bash
    metta ci
    ```
+
    Fix any test failures before marking the work complete.
+
 4. **Clean up** - Ensure all code is properly tested and documented
 
 ---
@@ -250,21 +257,21 @@ metta pytest --ci
 metta pytest tests/rl/test_trainer_config.py -v
 metta pytest tests/sim/ -v
 
-# Run linting and formatting (formats all file types by default)
-metta lint
+# Run linting and formatting checks (pre-commit manual stage, no edits)
+metta lint  # equivalent: metta lint --check
 
-# Format and lint with auto-fix
+# Apply the same hooks with fixes (pre-commit commit stage)
 metta lint --fix
 
-# Format specific file types only
-metta lint --type json,yaml
-metta lint --type python
+# Target specific file types through pre-commit
+metta lint --type json,yaml --check
+metta lint --type python --fix
 
-# Check formatting without modifying files
-metta lint --check
-
-# Format only staged files
+# Format only staged files (useful before committing)
 metta lint --staged --fix
+
+# Run the full hook suite exactly as CI
+uv run pre-commit run --all-files
 
 # Auto-fix Ruff errors with Claude (requires ANTHROPIC_API_KEY)
 uv run ./devops/tools/auto_ruff_fix.py path/to/file
@@ -359,6 +366,7 @@ Renovate groups related packages together to reduce PR noise:
 #### Handling Dependency Updates
 
 1. **Automatic Updates**
+
    - Patch updates for stable packages are auto-merged
    - Minor updates create PRs for review
    - Major updates require approval via dependency dashboard

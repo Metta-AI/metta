@@ -116,7 +116,7 @@ def _run_lint(*, verbose: bool = False, extra_args: Sequence[str] | None = None)
     _ensure_no_extra_args("lint", extra_args)
     _print_header("Linting")
 
-    cmd = ["uv", "run", "metta", "lint"]
+    cmd = ["uv", "run", "metta", "lint", "--check"]
     passed = _run_command(cmd, "Linting", verbose=verbose)
     return CheckResult("Lint", passed)
 

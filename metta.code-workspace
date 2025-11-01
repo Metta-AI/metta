@@ -9,8 +9,6 @@
     },
   ],
   "settings": {
-    "ruff.enable": true,
-    "ruff.nativeServer": "on",
     "terminal.integrated.profiles.osx": {
       "metta-0": {
         "path": "bash",
