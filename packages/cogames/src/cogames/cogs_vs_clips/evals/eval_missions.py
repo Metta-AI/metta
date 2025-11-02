@@ -3,9 +3,9 @@ from __future__ import annotations
 import logging
 import random
 
-from cogames.cogs_vs_clips.mission import Mission, MissionVariant, Site
+from cogames.cogs_vs_clips.mission import Mission, MissionVariant
 from cogames.cogs_vs_clips.mission_utils import _add_make_env_modifier, get_map
-from cogames.cogs_vs_clips.sites import EVALS
+from cogames.cogs_vs_clips.sites import EVALS, Site
 from mettagrid.config.mettagrid_config import MettaGridConfig, ProtocolConfig
 from mettagrid.map_builder.map_builder import MapBuilderConfig
 
@@ -34,9 +34,10 @@ class _EvalMissionBase(Mission):
     max_uses_silicon: int | None = None
     # Agent energy regen per step
     energy_regen: int = 1
+    inventory_regen_interval: int = 1
 
     def instantiate(
-        self, map_builder: MapBuilderConfig, num_cogs: int, variant: MissionVariant | None = None
+        self, map_builder: MapBuilderConfig, num_cogs: int, variant: MissionVariant | None = None, **kwargs
     ) -> "Mission":
         # Force map
         forced_map = get_map(self.map_name)
@@ -49,6 +50,7 @@ class _EvalMissionBase(Mission):
         mission.germanium_extractor.efficiency = self.germanium_eff
         mission.silicon_extractor.efficiency = self.silicon_eff
         mission.energy_regen_amount = self.energy_regen
+        mission.inventory_regen_interval = self.inventory_regen_interval
         mission.clip_rate = self.clip_rate
 
         # When clip_rate > 0, use explicit immune extractor or randomly select one
@@ -203,7 +205,8 @@ class EnergyStarved(_EvalMissionBase):
     description: str = "Low regen; requires careful charging and routing."
     map_name: str = "evals/eval_energy_starved.map"
     charger_eff: int = 80
-    energy_regen: int = 0
+    energy_regen: int = 1
+    inventory_regen_interval: int = 2
     max_uses_charger: int = 0
 
 
@@ -242,7 +245,7 @@ class ExtractorHub100(_EvalMissionBase):
     map_name: str = "evals/extractor_hub_100x100.map"
 
 
-# -----------------------------
+# -----------------------------m
 # Multi-agent Coordination Missions
 # -----------------------------
 
@@ -251,6 +254,12 @@ class CollectResourcesBase(_EvalMissionBase):
     name: str = "collect_resources_base"
     description: str = "Collect resources (near base), rally and chorus glyph; single carrier deposits."
     map_name: str = "evals/eval_collect_resources_easy.map"
+
+
+class CollectResourcesClassic(_EvalMissionBase):
+    name: str = "collect_resources_classic"
+    description: str = "Collect resources on the classic layout; balanced routing near base."
+    map_name: str = "evals/eval_collect_resources.map"
 
 
 class CollectResourcesSpread(_EvalMissionBase):
@@ -262,7 +271,7 @@ class CollectResourcesSpread(_EvalMissionBase):
 class CollectFar(_EvalMissionBase):
     name: str = "collect_far"
     description: str = "Collect resources scattered far; coordinate routes, chorus glyph, single carrier deposits."
-    map_name: str = "evals/eval_collect_the_resources_hard.map"
+    map_name: str = "evals/eval_collect_resources_hard.map"
 
 
 class DivideAndConquer(_EvalMissionBase):
@@ -277,32 +286,11 @@ class GoTogether(_EvalMissionBase):
     map_name: str = "evals/eval_balanced_spread.map"
 
     def instantiate(
-        self, map_builder: MapBuilderConfig, num_cogs: int, variant: MissionVariant | None = None
+        self, map_builder: MapBuilderConfig, num_cogs: int, variant: MissionVariant | None = None, **kwargs
     ) -> "Mission":
         # Enforce at least two agents
         enforced_cogs = max(2, num_cogs)
-        mission = super().instantiate(map_builder, enforced_cogs, variant)
-
-        # Require 2 glyphers at extractors; charger remains single-agent
-        def _collective(cfg: MettaGridConfig) -> None:
-            for key in [
-                "carbon_extractor",
-                "oxygen_extractor",
-                "germanium_extractor",
-                "silicon_extractor",
-            ]:
-                obj = cfg.game.objects.get(key)
-                if obj is None or not hasattr(obj, "recipes"):
-                    continue
-                adjusted = []
-                for glyphs, proto in obj.recipes:
-                    gl = list(glyphs)
-                    if len(gl) < 2:
-                        gl = gl + ["heart"] * (2 - len(gl))
-                    adjusted.append((gl, proto))
-                obj.recipes = adjusted
-
-        return _add_make_env_modifier(mission, _collective)
+        return super().instantiate(map_builder, enforced_cogs, variant)
 
 
 class SingleUseSwarm(_EvalMissionBase):
@@ -316,48 +304,11 @@ class SingleUseSwarm(_EvalMissionBase):
     max_uses_silicon: int = 1
 
     def instantiate(
-        self, map_builder: MapBuilderConfig, num_cogs: int, variant: MissionVariant | None = None
+        self, map_builder: MapBuilderConfig, num_cogs: int, variant: MissionVariant | None = None, **kwargs
     ) -> "Mission":
         # Enforce at least two agents
         enforced_cogs = max(2, num_cogs)
-        mission = super().instantiate(map_builder, enforced_cogs, variant)
-
-        def _balance_outputs(cfg: MettaGridConfig) -> None:
-            asm = cfg.game.objects.get("assembler")
-            required_g = 3
-            if asm is not None and getattr(asm, "recipes", None):
-                for _glyphs, proto in asm.recipes:
-                    out = getattr(proto, "output_resources", {}) or {}
-                    if out.get("heart", 0):
-                        req = getattr(proto, "input_resources", {}) or {}
-                        required_g = max(1, int(req.get("germanium", required_g)))
-                        break
-
-            car = cfg.game.objects.get("carbon_extractor")
-            if car is not None and getattr(car, "recipes", None):
-                glyphs, proto = car.recipes[0]
-                proto.output_resources = {"carbon": 20}
-                car.recipes = [(glyphs, proto)]
-
-            oxy = cfg.game.objects.get("oxygen_extractor")
-            if oxy is not None and getattr(oxy, "recipes", None):
-                glyphs, proto = oxy.recipes[0]
-                proto.output_resources = {"oxygen": 20}
-                oxy.recipes = [(glyphs, proto)]
-
-            sil = cfg.game.objects.get("silicon_extractor")
-            if sil is not None and getattr(sil, "recipes", None):
-                glyphs, proto = sil.recipes[0]
-                proto.output_resources = {"silicon": 50}
-                sil.recipes = [(glyphs, proto)]
-
-            ger = cfg.game.objects.get("germanium_extractor")
-            if ger is not None and getattr(ger, "recipes", None):
-                glyphs, proto = ger.recipes[0]
-                proto.output_resources = {"germanium": required_g}
-                ger.recipes = [(glyphs, proto)]
-
-        return _add_make_env_modifier(mission, _balance_outputs)
+        return super().instantiate(map_builder, enforced_cogs, variant)
 
 
 # -----------------------------
@@ -408,6 +359,7 @@ EVAL_MISSIONS = [
     ExtractorHub80,
     ExtractorHub100,
     CollectResourcesBase,
+    CollectResourcesClassic,
     CollectResourcesSpread,
     CollectFar,
     DivideAndConquer,

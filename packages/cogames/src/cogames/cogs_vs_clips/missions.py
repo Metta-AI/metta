@@ -4,10 +4,10 @@ from typing import Any, cast
 from pydantic import Field
 
 from cogames.cogs_vs_clips.evals import eval_missions
-from cogames.cogs_vs_clips.mission import Mission, MissionVariant, Site
+from cogames.cogs_vs_clips.mission import Mission, MissionVariant
 from cogames.cogs_vs_clips.mission_utils import get_map
 from cogames.cogs_vs_clips.procedural import MachinaArenaConfig, make_hub_only_map_builder
-from cogames.cogs_vs_clips.sites import EVALS
+from cogames.cogs_vs_clips.sites import EVALS, Site
 from cogames.cogs_vs_clips.stations import (
     CarbonExtractorConfig,
     ChargerConfig,
@@ -747,5 +747,7 @@ def make_game(num_cogs: int = 2, map_name: str = "training_facility_open_1.map")
 
 # noqa: E402
 
-# Eval missions are accessed via evaluate_scripted_agent.py, not through MISSIONS list
-# MISSIONS.extend([eval_missions...])
+# Import eval missions for CLI play access
+
+# Add all eval missions to MISSIONS list
+MISSIONS.extend(eval_missions.EVAL_MISSIONS)

@@ -7,8 +7,9 @@ from rich import box
 from rich.table import Table
 
 from cogames.cli.base import console
-from cogames.cogs_vs_clips.mission import Mission, MissionVariant, Site
+from cogames.cogs_vs_clips.mission import Mission, MissionVariant
 from cogames.cogs_vs_clips.missions import MISSIONS, SITES, VARIANTS
+from cogames.cogs_vs_clips.sites import Site
 from cogames.game import load_mission_config, load_mission_config_from_python
 from mettagrid import MettaGridConfig
 from mettagrid.config.mettagrid_config import AssemblerConfig

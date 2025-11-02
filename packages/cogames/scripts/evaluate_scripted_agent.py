@@ -27,15 +27,6 @@ import numpy as np
 
 from cogames.cogs_vs_clips.evals import (
     DIFFICULTY_LEVELS,
-    Experiment1Mission,
-    Experiment2Mission,
-    Experiment4Mission,
-    Experiment5Mission,
-    Experiment6Mission,
-    Experiment7Mission,
-    Experiment8Mission,
-    Experiment9Mission,
-    Experiment10Mission,
     apply_clip_profile,
     apply_difficulty,
 )
@@ -175,21 +166,9 @@ def run_training_facility_suite(
 # Test Suite 2: Full Evaluation (Comprehensive)
 # =============================================================================
 
-# All experiments to test (EXP* plus all eval missions)
-EXPERIMENTS = [
-    ("EXP1", Experiment1Mission),
-    ("EXP2", Experiment2Mission),
-    ("EXP4", Experiment4Mission),
-    ("EXP5", Experiment5Mission),
-    ("EXP6", Experiment6Mission),
-    ("EXP7", Experiment7Mission),
-    ("EXP8", Experiment8Mission),
-    ("EXP9", Experiment9Mission),
-    ("EXP10", Experiment10Mission),
-]
-
-# Add all eval missions by class name
-EXPERIMENTS += [(cls.__name__, cls) for cls in EVAL_MISSIONS]
+# All evaluation missions (each will be tested with all difficulty levels)
+# Difficulty variants (easy/medium/hard/extreme) are applied at runtime
+EXPERIMENTS = [(cls.__name__, cls) for cls in EVAL_MISSIONS]
 
 EXPERIMENT_MAP = dict(EXPERIMENTS)
 

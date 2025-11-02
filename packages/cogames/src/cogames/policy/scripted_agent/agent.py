@@ -3,133 +3,26 @@
 from __future__ import annotations
 
 import logging
-from collections import defaultdict, deque
-from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Set, Tuple
+from collections import Counter, defaultdict, deque
+from dataclasses import dataclass
+from math import ceil
+from typing import Dict, List, Optional, Set, Tuple
 
 from cogames.policy.interfaces import AgentPolicy, Policy, StatefulAgentPolicy, StatefulPolicyImpl
+from cogames.policy.scripted_agent.constants import C, FeatureNames, StationMaps
 from cogames.policy.scripted_agent.hyperparameters import Hyperparameters
 from cogames.policy.scripted_agent.navigator import Navigator
-from cogames.policy.scripted_agent.phase_controller import Context, GamePhase, create_controller
+from cogames.policy.scripted_agent.phase_controller import (
+    Context,
+    GamePhase,
+    create_controller,
+    has_all_materials,
+    have_assembler_discovered,
+)
+from cogames.policy.scripted_agent.state import AgentState
 from mettagrid import MettaGridAction, MettaGridEnv, MettaGridObservation, dtype_actions
 
 logger = logging.getLogger("cogames.policy.scripted_agent")
-
-# =============================================================================
-# GLOBAL CONSTANTS (single source of truth)
-# =============================================================================
-
-
-class C:
-    # Inventory requirements
-    REQ_CARBON: int = 20
-    REQ_OXYGEN: int = 20
-    REQ_SILICON: int = 50
-    REQ_ENERGY: int = 20
-
-    # Heart detection
-    HEART_FEATURE: str = "inv:heart"
-    HEART_SENTINEL_FIRST_FIELD: int = 85  # 0x55
-
-    # Observation window (must match env)
-    OBS_H: int = 11
-    OBS_W: int = 11
-    OBS_HR: int = OBS_H // 2
-    OBS_WR: int = OBS_W // 2
-
-    # Occupancy encoding
-    OCC_UNKNOWN, OCC_FREE, OCC_OBSTACLE = 0, 1, 2
-
-    # Scoring weights
-    W_DISTANCE: float = 0.7
-    W_EFFICIENCY: float = 0.3
-
-    # Thresholds / heuristics
-    DEFAULT_DEPLETION_THRESHOLD: float = 0.25
-    LOW_DEPLETION_THRESHOLD: float = 0.25
-    CLIPPED_SCORE_PENALTY: float = 0.5
-    WAIT_IF_COOLDOWN_LEQ: int = 3  # try-use when <= this
-    ROTATE_COOLDOWN_LT: int = 3  # consider alternatives if remaining < this
-    ALT_ROTATE_RADIUS: int = 7
-    PATIENCE_STEPS: int = 12  # how long to idle when waiting on cooldown
-    RECHARGE_BUFFER: float = 5.0
-    GATHER_BUFFER_SMALL: float = 10.0
-    GATHER_BUFFER_LARGE: float = 5.0
-    TASK_ENERGY_SILICON: int = 50
-
-    # Planner knobs
-    USE_ASTAR: bool = True
-    ASTAR_THRESHOLD: int = 20
-    FRONTIER_RADIUS_AROUND_HOME: int = 50
-    FRONTIER_SPAWN_RADIUS: int = 30
-
-    # Default (learned) cooldown fallbacks by resource
-    DEFAULT_COOLDOWNS: Dict[str, int] = {
-        "germanium": 0,
-        "silicon": 0,
-        "carbon": 10,
-        "oxygen": 100,
-        "charger": 10,
-    }
-
-
-class FeatureNames:
-    TYPE_ID = "type_id"
-    CONVERTING = "converting"
-    COOLDOWN_REMAINING = "cooldown_remaining"
-    CLIPPED = "clipped"
-    REMAINING_USES = "remaining_uses"
-    INV_CARBON = "inv:carbon"
-    INV_OXYGEN = "inv:oxygen"
-    INV_GERMANIUM = "inv:germanium"
-    INV_SILICON = "inv:silicon"
-    INV_ENERGY = "inv:energy"
-    GLOBAL_LAST_REWARD = "global:last_reward"
-
-
-class StationMaps:
-    # Which glyph to use per station; phase-specific overrides handled separately
-    STATION_TO_GLYPH: Dict[str, str] = {
-        "charger": "charger",
-        "carbon_extractor": "carbon",
-        "oxygen_extractor": "oxygen",
-        "germanium_extractor": "germanium",
-        "silicon_extractor": "silicon",
-        "assembler": "heart",
-        "chest": "chest",
-    }
-
-    # Which game object stations produce which resource
-    STATION_TO_RESOURCE: Dict[str, str] = {
-        "carbon_extractor": "carbon",
-        "oxygen_extractor": "oxygen",
-        "germanium_extractor": "germanium",
-        "silicon_extractor": "silicon",
-        "charger": "charger",
-    }
-
-    # Phase → desired station (high-level)
-    PHASE_TO_STATION: Dict[GamePhase, Optional[str]] = {
-        GamePhase.GATHER_GERMANIUM: "germanium_extractor",
-        GamePhase.GATHER_SILICON: "silicon_extractor",
-        GamePhase.GATHER_CARBON: "carbon_extractor",
-        GamePhase.GATHER_OXYGEN: "oxygen_extractor",
-        GamePhase.ASSEMBLE_HEART: "assembler",
-        GamePhase.DEPOSIT_HEART: "chest",
-        GamePhase.RECHARGE: "charger",
-        GamePhase.UNCLIP_STATION: None,
-        GamePhase.CRAFT_DECODER: "assembler",
-    }
-
-    # Phase-specific glyph overrides (e.g., crafting)
-    PHASE_TO_GLYPH: Dict[GamePhase, str] = {
-        GamePhase.CRAFT_DECODER: "gear",
-    }
-
-
-# =============================================================================
-# DATA CLASSES
-# =============================================================================
 
 
 @dataclass
@@ -222,81 +115,6 @@ class ExtractorMemory:
         return max(cands, key=score)
 
 
-@dataclass
-class AgentState:
-    agent_id: int = 0  # Which agent this state belongs to (for multi-agent)
-    current_phase: GamePhase = GamePhase.GATHER_GERMANIUM
-    phase_history: List[GamePhase] = field(default_factory=list)  # Last N phases for returning after interrupts
-    phase_runtime: Dict[str, Any] = field(
-        default_factory=dict
-    )  # Per-agent phase runtime tracking (entered_at_step, visits)
-    current_glyph: str = "default"
-    # Resource gathering order (randomized per agent for multi-agent diversity)
-    resource_order: List[str] = field(default_factory=lambda: ["germanium", "silicon", "carbon", "oxygen"])
-    # Inventory
-    carbon: int = 0
-    oxygen: int = 0
-    germanium: int = 0
-    silicon: int = 0
-    energy: int = 100
-    heart: int = 0
-    # Unclip items
-    decoder: int = 0
-    modulator: int = 0
-    resonator: int = 0
-    scrambler: int = 0
-    # Tracking
-    hearts_assembled: int = 0
-    wait_counter: int = 0
-    just_deposited: bool = False
-    # Position
-    agent_row: int = -1
-    agent_col: int = -1
-    # Home + critical stations
-    home_base_row: int = -1
-    home_base_col: int = -1
-    assembler_discovered: bool = False
-    chest_discovered: bool = False
-    # Waiting/targets
-    waiting_since_step: int = -1
-    wait_target: Optional[Tuple[int, int]] = None
-    unclip_target: Optional[Tuple[int, int]] = None
-    unclip_recipes: Dict[str, str] = field(default_factory=dict)
-    # Reactive clipping detection
-    blocked_by_clipped_extractor: Optional[Tuple[int, int]] = (
-        None  # Position of clipped extractor blocking current phase
-    )
-    # Exploration goal tracking
-    explore_goal: Optional[str] = (
-        None  # Why we're exploring: "find_charger", "find_assembler", "find_extractor", "find_unclipped", "unstuck"
-    )
-    # Progress bookkeeping
-    phase_entry_step: int = 0
-    phase_entry_inventory: Dict[str, int] = field(default_factory=dict)
-    unobtainable_resources: Set[str] = field(default_factory=set)
-    resource_gathering_start: Dict[str, int] = field(default_factory=dict)
-    resource_progress_tracking: Dict[str, int] = field(default_factory=dict)
-    phase_visit_count: Dict[str, int] = field(default_factory=dict)
-    phase_before_recharge: Optional[GamePhase] = None  # Track phase before recharging to return to it
-    # Misc
-    step_count: int = 0
-    last_heart: int = 0
-    stuck_counter: int = 0
-    last_reward: float = 0.0
-    total_reward: float = 0.0
-    # Per-agent navigation state (for multi-agent support)
-    occupancy_map: Optional[List[List[int]]] = None  # Will be initialized in agent_state()
-    prev_pos: Optional[Tuple[int, int]] = None
-    last_action_idx: Optional[int] = None
-    last_attempt_was_use: bool = False
-    visited_cells: Set[Tuple[int, int]] = field(default_factory=set)
-
-
-# =============================================================================
-# IMPLEMENTATION
-# =============================================================================
-
-
 class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
     def __init__(self, env: MettaGridEnv, hyperparams: Hyperparameters | None = None):
         self._env = env
@@ -326,6 +144,47 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
         self._phase_to_glyph = StationMaps.PHASE_TO_GLYPH
         self._phase_to_station = StationMaps.PHASE_TO_STATION
         self._station_to_resource_type = StationMaps.STATION_TO_RESOURCE
+        self._resource_to_station: Dict[str, str] = {
+            resource: station for station, resource in self._station_to_resource_type.items()
+        }
+        self._phase_to_resource: Dict[GamePhase, Optional[str]] = {
+            phase: self._station_to_resource_type.get(station) for phase, station in self._phase_to_station.items()
+        }
+        self._resource_to_phase: Dict[str, GamePhase] = {
+            resource: phase for phase, resource in self._phase_to_resource.items() if resource is not None
+        }
+        self._gather_phases: Set[GamePhase] = {
+            GamePhase.GATHER_GERMANIUM,
+            GamePhase.GATHER_SILICON,
+            GamePhase.GATHER_CARBON,
+            GamePhase.GATHER_OXYGEN,
+        }
+        self._gather_resources: Tuple[str, ...] = ("germanium", "silicon", "carbon", "oxygen")
+
+        # Shared debug + per-agent bookkeeping caches
+        self._prev_inventory: Dict[int, Dict[str, int]] = {}
+        self._recent_positions: Dict[int, deque[Tuple[int, int]]] = {}
+        self._max_recent_positions: int = 10
+        self._status_log_interval: int = 25
+        self._resource_focus_counts: Dict[str, int] = defaultdict(int)
+        self._num_agents: int = getattr(env, "num_agents", 1)
+        self._resource_focus_limits: Dict[str, int] = {
+            "oxygen": max(1, ceil(self._num_agents / 4)),
+            "silicon": max(2, ceil(self._num_agents / 2)),
+            "germanium": max(1, ceil(self._num_agents / 3)),
+            "carbon": max(1, ceil(self._num_agents / 3)),
+            "assembler": 1,
+        }
+        self._target_assignments: Dict[int, Tuple[int, int]] = {}
+        # Prefer side positions first so chest/charger approaches stay clear
+        self._assembler_offsets: list[tuple[int, int]] = [(0, -1), (0, 1), (1, 0), (-1, 0)]
+        self._assembler_slot_for_agent: Dict[int, int] = {}
+        self._resource_focus_limits["assembler"] = len(self._assembler_offsets)
+        self._assembly_signal = {"active": False, "requester": None, "position": None}
+        self._assembly_signal_participants: set[int] = set()
+        self.recharge_idle_tolerance: int = getattr(
+            self.hyperparams, "recharge_idle_tolerance", C.RECHARGE_IDLE_TOLERANCE
+        )
 
         # Object ids
         self._type_id_to_station: Dict[int, str] = {}
@@ -345,6 +204,8 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
         base = self.hyperparams.exploration_phase_steps
         self._explore_steps = int(base * math.sqrt((self._map_h * self._map_w) / 1600.0))
         logger.info(f"[Exploration] steps={self._explore_steps} for map {self._map_h}x{self._map_w}")
+        self._should_use_probes: bool = max(self._map_h, self._map_w) >= 60
+        self._hub_probe_offsets: list[Tuple[int, int]] = self._build_probe_offsets()
 
         # World state (shared across agents - only station positions)
         self._station_positions: Dict[str, Tuple[int, int]] = {}
@@ -353,6 +214,7 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
         # Components
         self.extractor_memory = ExtractorMemory(hyperparams=self.hyperparams)
         self._unclip_recipes = self._load_unclip_recipes_from_config()
+        self._heart_requirements = self._infer_heart_requirements()
         self.navigator = Navigator(self._map_h, self._map_w)
         # Note: _cached_state removed - it was shared across agents and caused bugs in multi-agent
 
@@ -372,6 +234,10 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
     # ----------------------------- Core loop -----------------------------
     def agent_state(self, agent_id: int = 0) -> AgentState:
         # Initialize per-agent state with fresh occupancy map
+        if agent_id == 0:
+            self._assembly_signal = {"active": False, "requester": None, "position": None}
+            self._assembly_signal_participants.clear()
+            self._assembler_slot_for_agent.clear()
         state = AgentState(agent_id=agent_id)
         state.occupancy_map = [[C.OCC_UNKNOWN for _ in range(self._map_w)] for _ in range(self._map_h)]
 
@@ -392,8 +258,321 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
             "oxygen": GamePhase.GATHER_OXYGEN,
         }
         state.current_phase = phase_map.get(state.resource_order[0], GamePhase.GATHER_GERMANIUM)
+        state.heart_requirements = dict(self._heart_requirements)
+        state.is_leader = agent_id == 0
 
         return state
+
+    # ----------------------- Resource bookkeeping -----------------------
+    def _infer_heart_requirements(self) -> Dict[str, int]:
+        defaults = {
+            "carbon": C.REQ_CARBON,
+            "oxygen": C.REQ_OXYGEN,
+            "silicon": C.REQ_SILICON,
+            "germanium": 5,
+            "energy": C.REQ_ENERGY,
+        }
+        try:
+            cfg = getattr(self._env, "env_cfg", None)
+            assembler = getattr(getattr(cfg, "game", None), "objects", {}).get("assembler") if cfg else None
+            recipes = getattr(assembler, "recipes", None)
+            if not recipes:
+                return defaults
+
+            best_inputs: Optional[Dict[str, int]] = None
+            best_cost = float("inf")
+            for _glyphs, protocol in recipes:
+                outputs = getattr(protocol, "output_resources", {}) or {}
+                if outputs.get("heart", 0) <= 0:
+                    continue
+                inputs = {k: int(v) for k, v in (getattr(protocol, "input_resources", {}) or {}).items()}
+                total_cost = sum(inputs.values())
+                if total_cost < best_cost:
+                    best_cost = total_cost
+                    best_inputs = inputs
+
+            if not best_inputs:
+                return defaults
+
+            inferred = defaults.copy()
+            for resource, default in defaults.items():
+                inferred[resource] = max(0, best_inputs.get(resource, default))
+            return inferred
+        except Exception as exc:  # pragma: no cover - defensive path
+            logger.debug("[Hearts] Failed to infer heart requirements: %s", exc)
+            return defaults
+
+    def _resource_requirements(self, s: AgentState) -> Dict[str, int]:
+        base = s.heart_requirements or self._heart_requirements
+        return {
+            "germanium": max(1, base.get("germanium", 5)),
+            "silicon": base.get("silicon", C.REQ_SILICON),
+            "carbon": base.get("carbon", C.REQ_CARBON),
+            "oxygen": base.get("oxygen", C.REQ_OXYGEN),
+        }
+
+    def _resource_deficits(self, s: AgentState) -> Dict[str, int]:
+        requirements = self._resource_requirements(s)
+        return {res: max(0, required - getattr(s, res, 0)) for res, required in requirements.items()}
+
+    def _next_needed_resource(self, s: AgentState, deficits: Dict[str, int]) -> Optional[str]:
+        for resource in s.resource_order:
+            if deficits.get(resource, 0) > 0:
+                return resource
+        for resource in self._gather_resources:
+            if deficits.get(resource, 0) > 0:
+                return resource
+        return None
+
+    def _choose_resource_focus(
+        self, s: AgentState, proposed_phase: GamePhase, deficits: Dict[str, int]
+    ) -> Optional[str]:
+        preferred = self._phase_to_resource.get(proposed_phase)
+        if preferred and deficits.get(preferred, 0) > 0 and self._can_focus_resource(preferred):
+            return preferred
+        next_needed = self._next_needed_resource(s, deficits)
+        if next_needed and not self._can_focus_resource(next_needed):
+            candidates = [res for res in s.resource_order if deficits.get(res, 0) > 0]
+            for resource in candidates:
+                if self._can_focus_resource(resource):
+                    return resource
+            for resource in self._gather_resources:
+                if deficits.get(resource, 0) > 0 and self._can_focus_resource(resource):
+                    return resource
+        if next_needed is not None and self._can_focus_resource(next_needed):
+            return next_needed
+        return preferred
+
+    def _resolve_gather_target(
+        self,
+        s: AgentState,
+        focus_resource: Optional[str],
+        deficits: Dict[str, int],
+    ) -> tuple[Optional[str], Optional[Tuple[int, int]]]:
+        if s.agent_row == -1:
+            return focus_resource, None
+
+        order: List[str] = []
+        if focus_resource and deficits.get(focus_resource, 0) > 0:
+            order.append(focus_resource)
+        for resource in s.resource_order:
+            if resource not in order and deficits.get(resource, 0) > 0:
+                order.append(resource)
+        for resource in self._gather_resources:
+            if resource not in order and deficits.get(resource, 0) > 0:
+                order.append(resource)
+
+        current = (s.agent_row, s.agent_col)
+        assignment_counts = Counter(self._target_assignments.values())
+        for resource in order:
+            candidates: list[tuple[int, int, float, ExtractorInfo]] = []
+            for extractor in self.extractor_memory.get_by_type(resource):
+                if extractor.is_depleted() or extractor.is_clipped:
+                    continue
+                distance = abs(extractor.position[0] - current[0]) + abs(extractor.position[1] - current[1])
+                assigned = assignment_counts.get(extractor.position, 0)
+                candidates.append((assigned, distance, -extractor.avg_output(), extractor))
+
+            if candidates:
+                candidates.sort(key=lambda item: (item[0], item[1], item[2]))
+                chosen = candidates[0][3]
+                self._target_assignments[s.agent_id] = chosen.position
+                s.explore_goal = None
+                return resource, chosen.position
+
+            extractor = self.extractor_memory.find_best_extractor(
+                resource, current, s.step_count, self.cooldown_remaining
+            )
+            if extractor is not None:
+                self._target_assignments[s.agent_id] = extractor.position
+                s.explore_goal = None
+                return resource, extractor.position
+
+            if deficits.get(resource, 0) > 0:
+                s.explore_goal = f"find_{resource}"
+                return resource, None
+
+        if focus_resource and deficits.get(focus_resource, 0) > 0:
+            s.explore_goal = f"find_{focus_resource}"
+        elif not deficits or all(v <= 0 for v in deficits.values()):
+            s.explore_goal = None
+        return focus_resource, None
+
+    def _log_agent_status(self, s: AgentState) -> None:
+        if self._status_log_interval <= 0 or not logger.isEnabledFor(logging.INFO):
+            return
+        if s.step_count % self._status_log_interval != 0:
+            return
+        deficits = self._resource_deficits(s)
+        logger.info(
+            "[Agent %s] step=%d phase=%s pos=(%d,%d) inv G:%d S:%d C:%d O:%d E:%d heart=%d target=%s deficits=%s",
+            s.agent_id,
+            s.step_count,
+            s.current_phase.name,
+            s.agent_row,
+            s.agent_col,
+            s.germanium,
+            s.silicon,
+            s.carbon,
+            s.oxygen,
+            s.energy,
+            s.heart,
+            s.active_resource_target,
+            deficits,
+        )
+
+    def _build_probe_offsets(self) -> list[Tuple[int, int]]:
+        if not self._should_use_probes:
+            return []
+        span = max(self._map_h, self._map_w)
+        base = max(8, span // 12)
+        distances = [base, base * 2]
+        offsets: list[Tuple[int, int]] = []
+        for dist in distances:
+            offsets.extend(
+                [
+                    (dist, 0),
+                    (-dist, 0),
+                    (0, dist),
+                    (0, -dist),
+                    (dist, dist),
+                    (dist, -dist),
+                    (-dist, dist),
+                    (-dist, -dist),
+                ]
+            )
+        # Remove duplicates while preserving order
+        unique_offsets: list[Tuple[int, int]] = []
+        seen: Set[Tuple[int, int]] = set()
+        for off in offsets:
+            if off not in seen:
+                seen.add(off)
+                unique_offsets.append(off)
+        return unique_offsets
+
+    def _maybe_prepare_probe_targets(self, s: AgentState) -> None:
+        if not self._should_use_probes or s.hub_probe_initialized or s.home_base_row < 0:
+            return
+        if not self._hub_probe_offsets:
+            s.hub_probe_initialized = True
+            return
+        rotation = s.agent_id % max(1, len(self._hub_probe_offsets))
+        ordered = self._hub_probe_offsets[rotation:] + self._hub_probe_offsets[:rotation]
+        for dr, dc in ordered:
+            target = (s.home_base_row + dr, s.home_base_col + dc)
+            if self._is_valid_position(*target):
+                s.hub_probe_targets.append(target)
+        s.hub_probe_initialized = True
+
+    def _clear_probe_state(self, s: AgentState) -> None:
+        s.hub_probe_targets.clear()
+        s.current_probe_target = None
+
+    def _all_core_extractors_known(self) -> bool:
+        return all(self.extractor_memory.get_by_type(r) for r in self._gather_resources)
+
+    def _ensure_probe_target(self, s: AgentState) -> Optional[Tuple[int, int]]:
+        if not s.hub_probe_targets:
+            return None
+        if s.current_probe_target is not None:
+            return s.current_probe_target
+        while s.hub_probe_targets:
+            candidate = s.hub_probe_targets[0]
+            if self._is_valid_position(*candidate):
+                s.current_probe_target = candidate
+                return candidate
+            s.hub_probe_targets.popleft()
+        return None
+
+    def _plan_probe_action(self, s: AgentState, focus_resource: Optional[str]) -> Optional[int]:
+        if not self._should_use_probes or focus_resource is None:
+            return None
+        if self.extractor_memory.get_by_type(focus_resource):
+            self._clear_probe_state(s)
+            return None
+        if self._all_core_extractors_known():
+            self._clear_probe_state(s)
+            return None
+        self._maybe_prepare_probe_targets(s)
+        target = self._ensure_probe_target(s)
+        if target is None:
+            return None
+        if (s.agent_row, s.agent_col) == target:
+            s.hub_probe_targets.popleft()
+            s.current_probe_target = None
+            return self._action_lookup.get("noop", 0)
+
+        res = self.navigator.navigate_to(
+            start=(s.agent_row, s.agent_col),
+            target=target,
+            occupancy_map=s.occupancy_map,
+            optimistic=True,
+            use_astar=C.USE_ASTAR,
+            astar_threshold=C.ASTAR_THRESHOLD,
+        )
+
+        if res.is_adjacent and res.next_step is None:
+            tr, tc = target
+            return self._step_toward(tr - s.agent_row, tc - s.agent_col)
+        if res.next_step:
+            nr, nc = res.next_step
+            return self._step_toward(nr - s.agent_row, nc - s.agent_col)
+
+        # Failed to path; drop this probe and try others next time
+        if s.hub_probe_targets:
+            s.hub_probe_targets.popleft()
+        s.current_probe_target = None
+        return None
+
+    def _release_resource_focus(self, resource: Optional[str]) -> None:
+        if not resource:
+            return
+        count = self._resource_focus_counts.get(resource, 0)
+        if count > 0:
+            self._resource_focus_counts[resource] = count - 1
+
+    def _acquire_resource_focus(self, resource: Optional[str]) -> None:
+        if not resource:
+            return
+        self._resource_focus_counts[resource] = self._resource_focus_counts.get(resource, 0) + 1
+
+    def _update_recharge_progress(self, s: AgentState) -> None:
+        if s.current_phase == GamePhase.RECHARGE:
+            if s.recharge_last_energy < 0:
+                s.recharge_last_energy = s.energy
+            if s.energy_delta > 0:
+                s.recharge_total_gained += s.energy_delta
+                s.recharge_ticks_without_gain = 0
+                s.recharge_last_energy = s.energy
+            elif s.last_attempt_was_use:
+                s.recharge_ticks_without_gain += 1
+            else:
+                s.recharge_last_energy = s.energy
+        else:
+            s.recharge_last_energy = -1
+            s.recharge_ticks_without_gain = 0
+            s.recharge_total_gained = 0
+
+    def _can_focus_resource(self, resource: Optional[str]) -> bool:
+        if not resource:
+            return True
+        limit = self._resource_focus_limits.get(resource)
+        if limit is None:
+            return True
+        return self._resource_focus_counts.get(resource, 0) < limit
+
+    def _assign_assembler_slot(self, agent_id: int) -> Optional[int]:
+        if agent_id in self._assembler_slot_for_agent:
+            return self._assembler_slot_for_agent[agent_id]
+        occupied = set(self._assembler_slot_for_agent.values())
+        for idx, _ in enumerate(self._assembler_offsets):
+            if idx not in occupied:
+                self._assembler_slot_for_agent[agent_id] = idx
+                return idx
+        return None
+
+    def _release_assembler_slot(self, agent_id: int) -> None:
+        self._assembler_slot_for_agent.pop(agent_id, None)
 
     def _update_extractor_after_use(
         self,
@@ -416,11 +595,14 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
 
     def _update_inventory(self, obs: MettaGridObservation, s: AgentState) -> None:
         """Read inventory strictly from observation tokens."""
+        prev_energy = s.energy
         s.carbon = self._read_int_feature(obs, FeatureNames.INV_CARBON)
         s.oxygen = self._read_int_feature(obs, FeatureNames.INV_OXYGEN)
         s.germanium = self._read_int_feature(obs, FeatureNames.INV_GERMANIUM)
         s.silicon = self._read_int_feature(obs, FeatureNames.INV_SILICON)
         s.energy = self._read_int_feature(obs, FeatureNames.INV_ENERGY)
+        s.energy_delta = s.energy - prev_energy
+        s.last_energy = prev_energy
         # Heart presence uses the sentinel rule (first field == 0x55)
         s.heart = 1 if self._has_heart_from_obs(obs) else 0
 
@@ -442,16 +624,22 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
             s = self.agent_state()
         else:
             s = state
+        if s.active_resource_target:
+            self._release_resource_focus(s.active_resource_target)
+            s.active_resource_target = None
+        self._target_assignments.pop(s.agent_id, None)
         s.step_count += 1
 
         self._update_inventory(obs, s)
         self._update_agent_position(s)
         self._update_rewards(obs, s)
+        self._update_recharge_progress(s)
 
         # Home
         if s.home_base_row == -1 and s.agent_row >= 0:
             s.home_base_row, s.home_base_col = s.agent_row, s.agent_col
             logger.info(f"[Init] Home base: ({s.home_base_row},{s.home_base_col})")
+        self._maybe_prepare_probe_targets(s)
 
         self._mark_cell(s, s.agent_row, s.agent_col, C.OCC_FREE)
         self._discover_stations_from_observation(obs, s)
@@ -468,7 +656,9 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
                     break
 
         if s.agent_row >= 0 and s.agent_col >= 0:
-            s.visited_cells.add((s.agent_row, s.agent_col))
+            pos = (s.agent_row, s.agent_col)
+            s.visited_cells.add(pos)
+            s.visit_counts[pos] = s.visit_counts.get(pos, 0) + 1
 
         # Deposit detection
         if (s.last_heart > 0 and s.heart == 0) or (s.current_phase == GamePhase.DEPOSIT_HEART and s.last_reward > 0):
@@ -477,6 +667,11 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
             s.current_phase = GamePhase.GATHER_GERMANIUM
             s.just_deposited = True
             logger.info(f"[Deposit] Heart deposited -> total={s.hearts_assembled}")
+            self._assembly_signal = {"active": False, "requester": None, "position": None}
+            self._assembly_signal_participants.clear()
+            self._assembler_slot_for_agent.clear()
+            self._target_assignments.clear()
+            self._release_assembler_slot(s.agent_id)
 
         # Phase selection via controller
         old_phase = s.current_phase
@@ -503,9 +698,17 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
                 s.resource_gathering_start[r] = s.step_count
 
         action_idx = self._execute_phase(s)
+
+        if self._target_assignments.get(s.agent_id) is not None:
+            self._acquire_resource_focus(s.active_resource_target)
         s.last_action_idx = action_idx
         s.prev_pos = (s.agent_row, s.agent_col)
         s.last_heart = s.heart
+        if s.current_phase == GamePhase.ASSEMBLE_HEART:
+            self._assembly_signal_participants.add(s.agent_id)
+        else:
+            self._assembly_signal_participants.discard(s.agent_id)
+        self._log_agent_status(s)
         return dtype_actions.type(action_idx), s
 
     # ------------------------ Phase determination ------------------------
@@ -515,7 +718,68 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
         ctx.policy_impl = self
         if not hasattr(self._env, "policy_impl"):
             self._env.policy_impl = self
-        return self.phase_controller.maybe_transition(s, ctx, logger)
+        assembler_known = have_assembler_discovered(s, ctx)
+        materials_ready = assembler_known and has_all_materials(s, ctx)
+
+        if self._assembly_signal["active"] and not assembler_known:
+            self._assembly_signal = {"active": False, "requester": None, "position": None}
+            self._assembly_signal_participants.clear()
+            self._assembler_slot_for_agent.clear()
+
+        if s.is_leader:
+            if assembler_known and materials_ready:
+                if not self._assembly_signal["active"]:
+                    self._assembly_signal = {
+                        "active": True,
+                        "requester": s.agent_id,
+                        "position": self._station_positions.get("assembler"),
+                    }
+                    self._assembly_signal_participants.clear()
+                    self._assembler_slot_for_agent.clear()
+            elif self._assembly_signal["active"] and self._assembly_signal.get("requester") == s.agent_id:
+                self._assembly_signal = {"active": False, "requester": None, "position": None}
+                self._assembly_signal_participants.clear()
+                self._assembler_slot_for_agent.clear()
+
+        proposed = self.phase_controller.maybe_transition(s, ctx, logger)
+
+        if self._assembly_signal["active"] and assembler_known:
+            if self._assembly_signal["position"] is None:
+                self._assembly_signal["position"] = self._station_positions.get("assembler")
+            if materials_ready:
+                proposed = GamePhase.ASSEMBLE_HEART
+                s.active_resource_target = "assembler"
+
+        if proposed in self._gather_phases:
+            deficits = self._resource_deficits(s)
+            focus = self._choose_resource_focus(s, proposed, deficits)
+            s.active_resource_target = focus
+            if focus is not None:
+                desired = self._resource_to_phase.get(focus, proposed)
+                if desired != proposed:
+                    logger.info(
+                        "[Agent %s] overriding phase %s → %s (focus=%s, deficits=%s)",
+                        s.agent_id,
+                        proposed.name,
+                        desired.name,
+                        focus,
+                        deficits,
+                    )
+                proposed = desired
+        elif proposed == GamePhase.ASSEMBLE_HEART:
+            slot = self._assign_assembler_slot(s.agent_id)
+            if slot is None:
+                logger.info("[Agent %s] no assembler slot available; continuing exploration", s.agent_id)
+                self._release_resource_focus("assembler")
+                self._release_assembler_slot(s.agent_id)
+                s.active_resource_target = None
+                return GamePhase.EXPLORE
+            s.active_resource_target = "assembler"
+        else:
+            s.active_resource_target = None
+            self._release_assembler_slot(s.agent_id)
+
+        return proposed
 
     # ---------------------- Phase → concrete action ----------------------
     def _execute_phase(self, s: AgentState) -> int:
@@ -530,12 +794,79 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
         if s.current_phase == GamePhase.CRAFT_DECODER:
             return self._do_craft_decoder(s)
 
-        # Gathering / targeting
         station = self._phase_to_station.get(s.current_phase)
-        if not station:
+        target: Optional[Tuple[int, int]] = None
+
+        if s.current_phase == GamePhase.ASSEMBLE_HEART:
+            station = "assembler"
+            asm = self._station_positions.get("assembler")
+            if asm is None:
+                s.last_attempt_was_use = False
+                plan = self._plan_to_frontier_action(s)
+                return plan if plan is not None else self._explore_simple(s)
+            slot = self._assembler_slot_for_agent.get(s.agent_id)
+            if slot is None:
+                slot = self._assign_assembler_slot(s.agent_id)
+            if slot is None:
+                logger.info("[Agent %s] assembler full, resuming exploration", s.agent_id)
+                s.last_attempt_was_use = False
+                return self._action_lookup.get("noop", 0)
+            offset_r, offset_c = self._assembler_offsets[slot]
+            approach = (asm[0] + offset_r, asm[1] + offset_c)
+            if (s.agent_row, s.agent_col) != approach:
+                target = approach
+            else:
+                target = asm
+            self._target_assignments[s.agent_id] = target
+            s.explore_goal = None
+        elif s.current_phase in self._gather_phases and s.agent_row != -1:
+            deficits = self._resource_deficits(s)
+            focus = s.active_resource_target or self._phase_to_resource.get(s.current_phase)
+            focus, target = self._resolve_gather_target(s, focus, deficits)
+            if target is None or focus is None:
+                probe_action = self._plan_probe_action(s, focus)
+                if probe_action is not None:
+                    s.last_attempt_was_use = False
+                    return probe_action
+                logger.info(
+                    "[Agent %s] %s: no extractor available (focus=%s, deficits=%s) -> exploring",
+                    s.agent_id,
+                    s.current_phase.name,
+                    focus,
+                    deficits,
+                )
+                s.last_attempt_was_use = False
+                plan = self._plan_to_frontier_action(s)
+                return plan if plan is not None else self._explore_simple(s)
+            station = self._resource_to_station.get(focus, station)
+            logger.info(
+                "[Agent %s] %s targeting %s extractor at %s",
+                s.agent_id,
+                s.current_phase.name,
+                focus,
+                target,
+            )
+            s.explore_goal = None
+        elif s.current_phase == GamePhase.RECHARGE and s.agent_row != -1:
+            target = self._find_best_extractor_for_phase(GamePhase.RECHARGE, s)
+            if target is None:
+                logger.info("[Agent %s] recharge: no charger known yet", s.agent_id)
+                s.last_attempt_was_use = False
+                plan = self._plan_to_frontier_action(s)
+                return plan if plan is not None else self._explore_simple(s)
+            self._target_assignments[s.agent_id] = target
+            s.explore_goal = None
+        else:
+            target = self._station_positions.get(station) if station else None
+            if station == "assembler" and target is not None:
+                self._target_assignments[s.agent_id] = target
+            if target is not None:
+                s.explore_goal = None
+
+        if station is None:
             return self._action_lookup.get("noop", 0)
 
-        # Glyph selection
+        # Glyph selection (after station possibly updated)
         need_glyph = self._phase_to_glyph.get(s.current_phase, self._station_to_glyph.get(station, "default"))
         if s.current_glyph != need_glyph:
             s.current_glyph = need_glyph
@@ -543,30 +874,10 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
             gid = self._glyph_name_to_id.get(need_glyph, 0)
             return self._action_lookup.get(f"change_glyph_{gid}", self._action_lookup.get("noop", 0))
 
-        # Choose target for gathering phases via extractor memory
-        target = None
-        gathering = s.current_phase in [
-            GamePhase.GATHER_CARBON,
-            GamePhase.GATHER_OXYGEN,
-            GamePhase.GATHER_GERMANIUM,
-            GamePhase.GATHER_SILICON,
-            GamePhase.RECHARGE,
-        ]
-        if gathering and s.agent_row != -1:
-            target = self._find_best_extractor_for_phase(s.current_phase, s)
-            if target is None:
-                # No extractor available - phase controller will transition to EXPLORE
-                logger.info(f"[Phase] {s.current_phase.value}: no available extractors, waiting for phase transition")
-                return self._action_lookup.get("noop", 0)
-            logger.info(f"[Phase] {s.current_phase.value}: using extractor at {target}")
-
-        # Fallback to known station position
         if target is None:
-            target = self._station_positions.get(station)
-            if not target or s.agent_row == -1:
-                s.last_attempt_was_use = False
-                plan = self._plan_to_frontier_action(s)
-                return plan if plan is not None else self._explore_simple(s)
+            s.last_attempt_was_use = False
+            plan = self._plan_to_frontier_action(s)
+            return plan if plan is not None else self._explore_simple(s)
 
         # Navigate
         res = self.navigator.navigate_to(
@@ -582,18 +893,30 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
             e = self.extractor_memory.get_at_position(target)
             if e and s.wait_target == target:
                 rem = self.cooldown_remaining(e, s.step_count)
+                resource_type = e.resource_type
+                patience_limit = C.PATIENCE_STEPS
+                allow_alternatives = True
+                if resource_type:
+                    allow_alternatives = len(self.extractor_memory.get_by_type(resource_type)) > 1
+                if resource_type in {"silicon", "carbon"}:
+                    patience_limit = max(C.PATIENCE_STEPS * 5, 40)
                 if rem > self.hyperparams.wait_if_cooldown_leq:  # hyperparam respected
-                    if self._exists_viable_alternative(e.resource_type, s, C.ALT_ROTATE_RADIUS):
+                    if allow_alternatives and self._exists_viable_alternative(e.resource_type, s, C.ALT_ROTATE_RADIUS):
                         s.last_attempt_was_use = False
                         logger.debug(f"[Wait→Rotate] cooldown~{rem}")
                         return self._navigate_to_best_alternative(e.resource_type, s)
                     if s.waiting_since_step < 0:
                         s.waiting_since_step = s.step_count
-                    if s.step_count - s.waiting_since_step <= C.PATIENCE_STEPS:
+                    if s.step_count - s.waiting_since_step <= patience_limit:
                         s.last_attempt_was_use = False
                         return self._action_lookup.get("noop", 0)
-                    return self._navigate_to_best_alternative(e.resource_type, s)
+                    if allow_alternatives:
+                        return self._navigate_to_best_alternative(e.resource_type, s)
+                    s.waiting_since_step = s.step_count
+                    s.last_attempt_was_use = False
+                    return self._action_lookup.get("noop", 0)
                 s.wait_target = None
+                s.waiting_since_step = -1
 
             tr, tc = target
             s.last_attempt_was_use = True
@@ -702,6 +1025,7 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
 
         logger.info(f"[Find] {r}: {len(self.extractor_memory.get_by_type(r))} known")
         cur = (s.agent_row, s.agent_col)
+        deficits = self._resource_deficits(s)
         best = self.extractor_memory.find_best_extractor(r, cur, s.step_count, self.cooldown_remaining)
         if best is None:
             xs = [e for e in self.extractor_memory.get_by_type(r) if not e.is_depleted()]
@@ -727,7 +1051,8 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
                 cd = est(cand)
                 dist = abs(cand.position[0] - s.agent_row) + abs(cand.position[1] - s.agent_col)
                 should_wait = (cd < 10) or (cd < 20 and dist < 5) or (cd < 100 and dist <= 1)
-                if should_wait:
+                must_wait = r in {"silicon", "carbon"} and deficits.get(r, 0) > 0 and len(xs) == 1
+                if should_wait or must_wait:
                     s.wait_target = cand.position
                     if s.waiting_since_step < 0:
                         s.waiting_since_step = s.step_count
@@ -759,7 +1084,7 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
         ]
         if not neighbors:
             return None
-        neighbors.sort(key=lambda p: abs(p[0] - sr) + abs(p[1] - sc))
+        neighbors.sort(key=lambda p: (s.visit_counts.get(p, 0), abs(p[0] - sr) + abs(p[1] - sc)))
         for goal in neighbors:
             step = self._bfs_next_step_occ(s, (sr, sc), goal)
             if step is not None:
@@ -822,10 +1147,14 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
         q, seen = deque([start]), {start}
         while q:
             r, c = q.popleft()
-            for nr, nc in self._neighbors4(r, c):
+            neighbors = sorted(
+                self._neighbors4(r, c),
+                key=lambda pos: (s.visit_counts.get(pos, 0), abs(pos[0] - start[0]) + abs(pos[1] - start[1])),
+            )
+            for nr, nc in neighbors:
                 if (nr, nc) in fronts:
                     return (nr, nc)
-            for nr, nc in self._neighbors4(r, c):
+            for nr, nc in neighbors:
                 if (nr, nc) in seen or s.occupancy_map[nr][nc] != C.OCC_FREE:
                     continue
                 seen.add((nr, nc))
@@ -863,7 +1192,11 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
         q, parent = deque([start]), {start: None}
         while q:
             r, c = q.popleft()
-            for nr, nc in self._neighbors4(r, c):
+            neighbors = sorted(
+                self._neighbors4(r, c),
+                key=lambda pos: (s.visit_counts.get(pos, 0), abs(pos[0] - goal[0]) + abs(pos[1] - goal[1])),
+            )
+            for nr, nc in neighbors:
                 if (nr, nc) in parent or not self._is_cell_passable(s, nr, nc, optimistic):
                     continue
                 parent[(nr, nc)] = (r, c)
@@ -1139,15 +1472,12 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
             "silicon": s.silicon,
             "energy": s.energy,
         }
-        if not hasattr(self, "_prev_inventory"):
-            self._prev_inventory = cur.copy()
+        prev = self._prev_inventory.get(s.agent_id)
+        if prev is None:
+            self._prev_inventory[s.agent_id] = cur.copy()
             return {}
-        changes = {
-            k: cur[k] - self._prev_inventory.get(k, cur[k])
-            for k in cur
-            if cur[k] != self._prev_inventory.get(k, cur[k])
-        }
-        self._prev_inventory = cur.copy()
+        changes = {k: cur[k] - prev.get(k, cur[k]) for k in cur if cur[k] != prev.get(k, cur[k])}
+        self._prev_inventory[s.agent_id] = cur.copy()
         return changes
 
     def cooldown_remaining(self, e: ExtractorInfo, step: int) -> int:
@@ -1237,14 +1567,13 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
         if s.agent_row == -1:
             return self._action_lookup.get("noop", 0)
         # Boustrophedon sweep with tiny memory
-        if not hasattr(self, "_recent_positions"):
-            self._recent_positions: List[Tuple[int, int]] = []
-            self._max_recent_positions = 10
         cur = (s.agent_row, s.agent_col)
-        if not self._recent_positions or self._recent_positions[-1] != cur:
-            self._recent_positions.append(cur)
-            if len(self._recent_positions) > self._max_recent_positions:
-                self._recent_positions.pop(0)
+        history = self._recent_positions.setdefault(s.agent_id, deque(maxlen=self._max_recent_positions))
+        if not history or history[-1] != cur:
+            history.append(cur)
+        history_list = list(history)
+        history_len = len(history_list)
+        visit_counts = s.visit_counts
 
         row_parity = s.agent_row % 2
         preferred = self._MOVE_E if row_parity == 0 else self._MOVE_W
@@ -1259,7 +1588,7 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
 
         # Choose any in-bounds, passable, not-recent direction
         options = [(self._MOVE_N, (-1, 0)), (self._MOVE_S, (1, 0)), (self._MOVE_E, (0, 1)), (self._MOVE_W, (0, -1))]
-        best, best_score = None, -1
+        best, best_score = None, (-float("inf"), -1)
         for a, (dr, dc) in options:
             nr, nc = s.agent_row + dr, s.agent_col + dc
             if not self._is_valid_position(nr, nc):
@@ -1267,15 +1596,15 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
             if not self._is_cell_passable(s, nr, nc):
                 continue
             pos = (nr, nc)
-            score = 10 if pos not in getattr(self, "_recent_positions", []) else self._recent_positions.index(pos)
+            if pos in history_list:
+                recency_score = history_len - history_list.index(pos)
+            else:
+                recency_score = history_len + 1
+            visit_score = -visit_counts.get(pos, 0)
+            score = (visit_score, recency_score)
             if score > best_score:
                 best_score, best = score, a
         return best if best is not None else (preferred if preferred != -1 else self._action_lookup.get("noop", 0))
-
-
-# =============================================================================
-# PUBLIC POLICY WRAPPER
-# =============================================================================
 
 
 class ScriptedAgentPolicy(Policy):

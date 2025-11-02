@@ -2,10 +2,12 @@
 
 from pydantic import Field
 
-from cogames.cogs_vs_clips.procedural import MachinaArenaConfig
+# Register MapBuilder subclasses before loading any maps
+import mettagrid.map_builder.ascii  # noqa: F401
+import mettagrid.map_builder.random  # noqa: F401
+from cogames.cogs_vs_clips.mission_utils import get_map
 from mettagrid.base_config import Config
 from mettagrid.map_builder.map_builder import MapBuilderConfig
-from mettagrid.mapgen.mapgen import MapGen
 
 
 class Site(Config):
@@ -18,11 +20,11 @@ class Site(Config):
 
 
 # Evals site used by evaluation missions
-# Note: Individual eval missions override this with their own maps
+# Note: Individual eval missions override this with their own specific maps
 EVALS = Site(
     name="evals",
     description="Evaluation missions for scripted agent testing",
-    map_builder=MapGen.Config(width=50, height=50, instance=MachinaArenaConfig(spawn_count=8)),
+    map_builder=get_map("evals/eval_oxygen_bottleneck.map"),  # Default map (rarely used)
     min_cogs=1,
     max_cogs=8,
 )
