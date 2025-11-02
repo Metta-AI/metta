@@ -14,10 +14,10 @@ class Hyperparameters:
     min_energy_for_silicon: int = 70
 
     # === Energy Management (IMPACTFUL) ===
-    recharge_start_small: int = 65  # When to start recharging on small maps
-    recharge_start_large: int = 45  # When to start recharging on large maps
-    recharge_stop_small: int = 90  # When to stop recharging on small maps
-    recharge_stop_large: int = 75  # When to stop recharging on large maps
+    recharge_start_small: int = 40  # When to start recharging on small maps
+    recharge_start_large: int = 25  # When to start recharging on large maps
+    recharge_stop_small: int = 100  # When to stop recharging on small maps (full charge)
+    recharge_stop_large: int = 100  # When to stop recharging on large maps (full charge)
 
     # === Cooldown/Waiting Behavior (IMPACTFUL) ===
     wait_if_cooldown_leq: int = 2  # Try using when cooldown <= this value
@@ -36,10 +36,10 @@ def create_aggressive_preset() -> Hyperparameters:
     """Aggressive energy management - recharges early and often."""
     return Hyperparameters(
         strategy_type="aggressive",
-        recharge_start_small=75,
-        recharge_start_large=55,
-        recharge_stop_small=95,
-        recharge_stop_large=80,
+        recharge_start_small=50,
+        recharge_start_large=35,
+        recharge_stop_small=100,
+        recharge_stop_large=100,
         wait_if_cooldown_leq=1,  # Very impatient
     )
 
@@ -48,10 +48,10 @@ def create_conservative_preset() -> Hyperparameters:
     """Conservative energy management - waits longer before recharging."""
     return Hyperparameters(
         strategy_type="conservative",
-        recharge_start_small=55,
-        recharge_start_large=35,
-        recharge_stop_small=85,
-        recharge_stop_large=70,
+        recharge_start_small=30,
+        recharge_start_large=15,
+        recharge_stop_small=100,
+        recharge_stop_large=100,
         wait_if_cooldown_leq=3,  # More patient
     )
 
@@ -60,10 +60,10 @@ def create_balanced_preset() -> Hyperparameters:
     """Balanced approach - middle ground."""
     return Hyperparameters(
         strategy_type="balanced",
-        recharge_start_small=65,
-        recharge_start_large=45,
-        recharge_stop_small=90,
-        recharge_stop_large=75,
+        recharge_start_small=40,
+        recharge_start_large=25,
+        recharge_stop_small=100,
+        recharge_stop_large=100,
         wait_if_cooldown_leq=2,
     )
 
@@ -72,10 +72,10 @@ def create_impatient_preset() -> Hyperparameters:
     """Impatient waiting - tries to use extractors even with high cooldown."""
     return Hyperparameters(
         strategy_type="impatient",
-        recharge_start_small=65,
-        recharge_start_large=45,
-        recharge_stop_small=90,
-        recharge_stop_large=75,
+        recharge_start_small=40,
+        recharge_start_large=25,
+        recharge_stop_small=100,
+        recharge_stop_large=100,
         wait_if_cooldown_leq=0,  # Always try to use
     )
 
@@ -84,10 +84,10 @@ def create_patient_preset() -> Hyperparameters:
     """Patient waiting - waits for low cooldown before using."""
     return Hyperparameters(
         strategy_type="patient",
-        recharge_start_small=65,
-        recharge_start_large=45,
-        recharge_stop_small=90,
-        recharge_stop_large=75,
+        recharge_start_small=40,
+        recharge_start_large=25,
+        recharge_stop_small=100,
+        recharge_stop_large=100,
         wait_if_cooldown_leq=4,  # Very patient
     )
 
@@ -99,48 +99,48 @@ def create_mixture_presets() -> list[Hyperparameters]:
         Hyperparameters(
             strategy_type="energy_aggressive",
             seed=1,
-            recharge_start_small=70,
-            recharge_start_large=50,
-            recharge_stop_small=95,
-            recharge_stop_large=80,
+            recharge_start_small=50,
+            recharge_start_large=35,
+            recharge_stop_small=100,
+            recharge_stop_large=100,
             wait_if_cooldown_leq=2,
         ),
         Hyperparameters(
             strategy_type="energy_conservative",
             seed=2,
-            recharge_start_small=60,
-            recharge_start_large=40,
-            recharge_stop_small=85,
-            recharge_stop_large=70,
+            recharge_start_small=30,
+            recharge_start_large=15,
+            recharge_stop_small=100,
+            recharge_stop_large=100,
             wait_if_cooldown_leq=2,
         ),
         # Waiting behavior variants
         Hyperparameters(
             strategy_type="waiting_impatient",
             seed=3,
-            recharge_start_small=65,
-            recharge_start_large=45,
-            recharge_stop_small=90,
-            recharge_stop_large=75,
+            recharge_start_small=40,
+            recharge_start_large=25,
+            recharge_stop_small=100,
+            recharge_stop_large=100,
             wait_if_cooldown_leq=0,
         ),
         Hyperparameters(
             strategy_type="waiting_patient",
             seed=4,
-            recharge_start_small=65,
-            recharge_start_large=45,
-            recharge_stop_small=90,
-            recharge_stop_large=75,
+            recharge_start_small=40,
+            recharge_start_large=25,
+            recharge_stop_small=100,
+            recharge_stop_large=100,
             wait_if_cooldown_leq=4,
         ),
         # Balanced default
         Hyperparameters(
             strategy_type="balanced_default",
             seed=5,
-            recharge_start_small=65,
-            recharge_start_large=45,
-            recharge_stop_small=90,
-            recharge_stop_large=75,
+            recharge_start_small=40,
+            recharge_start_large=25,
+            recharge_stop_small=100,
+            recharge_stop_large=100,
             wait_if_cooldown_leq=2,
         ),
     ]
@@ -163,10 +163,10 @@ class LegacyHyperparameters:
     min_energy_for_silicon: int = 70
 
     # Energy management
-    recharge_start_small: int = 65
-    recharge_start_large: int = 45
-    recharge_stop_small: int = 90
-    recharge_stop_large: int = 75
+    recharge_start_small: int = 40
+    recharge_start_large: int = 25
+    recharge_stop_small: int = 100
+    recharge_stop_large: int = 100
     passive_regen_per_step: float = 1.0
     risk_buffer_moves: int = 10
 

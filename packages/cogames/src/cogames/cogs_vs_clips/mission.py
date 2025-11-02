@@ -1,4 +1,6 @@
-from typing import Any
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Any
 
 from pydantic import Field
 
@@ -30,6 +32,9 @@ from mettagrid.config.mettagrid_config import (
 )
 from mettagrid.map_builder.map_builder import MapBuilderConfig
 
+if TYPE_CHECKING:
+    from cogames.cogs_vs_clips.sites import Site
+
 
 class MissionVariant(Config):
     name: str = Field()
@@ -37,15 +42,6 @@ class MissionVariant(Config):
 
     def apply(self, mission: "Mission") -> "Mission":
         return mission
-
-
-class Site(Config):
-    name: str
-    description: str
-    map_builder: MapBuilderConfig
-
-    min_cogs: int = Field(default=1, ge=1)
-    max_cogs: int = Field(default=1000, ge=1)
 
 
 class Mission(Config):
@@ -77,6 +73,7 @@ class Mission(Config):
     cargo_capacity: int = Field(default=255)
     energy_capacity: int = Field(default=100)
     energy_regen_amount: int = Field(default=1)
+    inventory_regen_interval: int = Field(default=1)
     gear_capacity: int = Field(default=5)
     move_energy_cost: int = Field(default=2)
     heart_capacity: int = Field(default=1)
@@ -184,7 +181,7 @@ class Mission(Config):
                 diversity_tracked_resources=["energy", "carbon", "oxygen", "germanium", "silicon"],
                 # supervisor=supervisor_config,
             ),
-            inventory_regen_interval=1,
+            inventory_regen_interval=self.inventory_regen_interval,
             clipper=ClipperConfig(
                 unclipping_recipes=[
                     ProtocolConfig(
