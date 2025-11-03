@@ -4,7 +4,6 @@ from typing import Optional
 import torch
 import triton
 import triton.language as tl
-from einops import rearrange
 
 from .triton_utils import is_power_of_2, next_multiple_of, torch2triton_dtype
 
@@ -619,13 +618,13 @@ def backward_sequence(
         resets_kshaped = torch.empty((0,), device=device, dtype=torch.float32)
 
     # Reshapes for kernel
-    R_kshaped = rearrange(R, "ngr nh dout din -> nh ngr dout din").contiguous()
+    R_kshaped = R.permute(1, 0, 2, 3).contiguous()
 
-    delta_states_all_outside_kshaped = rearrange(delta_states_all_outside, "t ns b nh dh -> nh t ns b dh").contiguous()
-    delta_states_last_outside_kshaped = rearrange(delta_states_last_outside, "ns b nh dh -> nh ns b dh").contiguous()
+    delta_states_all_outside_kshaped = delta_states_all_outside.permute(3, 0, 1, 2, 4).contiguous()
+    delta_states_last_outside_kshaped = delta_states_last_outside.permute(2, 0, 1, 3).contiguous()
 
-    states_all_kshaped = rearrange(states_all, "t ns b nh dh -> nh t ns b dh").contiguous()
-    gates_all_kshaped = rearrange(gates_all, "t ngi b nh dh -> nh t ngi b dh").contiguous()
+    states_all_kshaped = states_all.permute(3, 0, 1, 2, 4).contiguous()
+    gates_all_kshaped = gates_all.permute(3, 0, 1, 2, 4).contiguous()
 
     # kernel call
     num_B = triton.cdiv(effective_B, siz_B)
@@ -668,10 +667,10 @@ def backward_sequence(
     delta_R = delta_R.sum(0)
     delta_b = delta_b.sum(0)
 
-    delta_R = rearrange(delta_R, "nh ngr dout din -> ngr nh dout din")
-    delta_Wx = rearrange(delta_Wx, "nh t ngi b dh -> b t ngi nh dh")
-    delta_b = rearrange(delta_b, "nh ngi dh -> ngi nh dh")
-    delta_states_initial = rearrange(delta_states_initial, "nh ns b dh -> ns b nh dh")
+    delta_R = delta_R.permute(1, 0, 2, 3)
+    delta_Wx = delta_Wx.permute(3, 1, 2, 0, 4)
+    delta_b = delta_b.permute(1, 0, 2)
+    delta_states_initial = delta_states_initial.permute(1, 2, 0, 3)
     ## batch_size padding
     delta_states_initial = delta_states_initial[:, :true_B, ...]
     delta_Wx = delta_Wx[:true_B, ...]

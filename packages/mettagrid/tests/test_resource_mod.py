@@ -6,7 +6,6 @@ import pytest
 
 from mettagrid.mettagrid_c import ActionConfig as CppActionConfig
 from mettagrid.mettagrid_c import AgentConfig as CppAgentConfig
-from mettagrid.mettagrid_c import ConverterConfig as CppConverterConfig
 from mettagrid.mettagrid_c import GameConfig as CppGameConfig
 from mettagrid.mettagrid_c import GlobalObsConfig as CppGlobalObsConfig
 from mettagrid.mettagrid_c import InventoryConfig as CppInventoryConfig
@@ -29,7 +28,6 @@ def test_resource_mod_config():
         consumed_resources={0: 1.5},
         modifies={1: 2.0, 2: -0.5},
         agent_radius=2,
-        converter_radius=1,
         scales=True,
     )
 
@@ -37,7 +35,6 @@ def test_resource_mod_config():
     assert config.consumed_resources == {0: 1.5}
     assert config.modifies == {1: 2.0, 2: -0.5}
     assert config.agent_radius == 2
-    assert config.converter_radius == 1
     assert config.scales
 
 
@@ -58,7 +55,6 @@ def test_resource_mod_consumption():
         consumed_resources={0: 1.0},  # 100% chance to consume 1 unit of resource 0 (energy)
         modifies={1: 5.0},  # Add 5 health
         agent_radius=1,  # Affects self (distance 0)
-        converter_radius=0,
         scales=False,
     )
 
@@ -147,7 +143,6 @@ def test_resource_mod_aoe_agents():
         consumed_resources={0: 3.0},
         modifies={1: 6.0},  # Add 6 health total
         agent_radius=2,  # Affect agents within manhattan distance 2
-        converter_radius=0,
         scales=True,  # Divide by number of affected agents
     )
 
@@ -248,126 +243,6 @@ def test_resource_mod_aoe_agents():
         assert agent_healths_after[oid] == agent_healths_before[oid] + 2
 
 
-def test_resource_mod_converters():
-    """Test that ResourceMod can affect converters."""
-    # Create a map with agent and converters
-    game_map = [
-        ["wall", "wall", "wall", "wall", "wall"],
-        ["wall", "converter.blue", "agent.red", "converter.green", "wall"],
-        ["wall", "empty", "converter.yellow", "empty", "wall"],
-        ["wall", "wall", "wall", "wall", "wall"],
-    ]
-
-    modify_config = ResourceModConfig(
-        required_resources={},
-        consumed_resources={},
-        modifies={0: 12.0},  # Add 12 energy total
-        agent_radius=0,  # Don't affect agents
-        converter_radius=2,  # Affect converters within radius 2
-        scales=True,  # Divide by number of affected converters (3)
-    )
-
-    cpp_config = CppGameConfig(
-        max_steps=10,
-        num_agents=1,
-        episode_truncates=False,
-        obs_width=3,
-        obs_height=3,
-        num_observation_tokens=100,
-        resource_names=["energy", "health"],
-        track_movement_metrics=False,
-        actions=[
-            ("noop", CppActionConfig(required_resources={}, consumed_resources={})),
-            ("resource_mod", modify_config),
-        ],
-        objects={
-            "agent.red": CppAgentConfig(
-                type_id=0,
-                type_name="agent",
-                group_id=0,
-                group_name="red",
-                freeze_duration=10,
-                action_failure_penalty=0,
-                inventory_config=CppInventoryConfig(limits=[[[0], 100], [[1], 100]]),
-                initial_inventory={0: 50, 1: 50},
-            ),
-            "converter.blue": CppConverterConfig(
-                type_id=100,
-                type_name="converter",
-                input_resources={0: 1},  # Input resource requirements
-                output_resources={1: 1},  # Output resources produced
-                max_output=100,
-                max_conversions=1000,
-                conversion_ticks=1,
-                cooldown_time=[5],
-                initial_resource_count=0,
-                recipe_details_obs=False,
-            ),
-            "converter.green": CppConverterConfig(
-                type_id=101,
-                type_name="converter",
-                input_resources={0: 1},  # Input resource requirements
-                output_resources={1: 1},  # Output resources produced
-                max_output=100,
-                max_conversions=1000,
-                conversion_ticks=1,
-                cooldown_time=[5],
-                initial_resource_count=0,
-                recipe_details_obs=False,
-            ),
-            "converter.yellow": CppConverterConfig(
-                type_id=102,
-                type_name="converter",
-                input_resources={0: 1},  # Input resource requirements
-                output_resources={1: 1},  # Output resources produced
-                max_output=100,
-                max_conversions=1000,
-                conversion_ticks=1,
-                cooldown_time=[5],
-                initial_resource_count=0,
-                recipe_details_obs=False,
-            ),
-            "wall": CppWallConfig(type_id=1, type_name="wall"),
-        },
-        global_obs=CppGlobalObsConfig(),
-    )
-
-    env = MettaGrid(cpp_config, game_map, 42)
-
-    # Set up buffers
-    observations = np.zeros((1, 100, 3), dtype=dtype_observations)
-    terminals = np.zeros(1, dtype=dtype_terminals)
-    truncations = np.zeros(1, dtype=dtype_truncations)
-    rewards = np.zeros(1, dtype=dtype_rewards)
-    env.set_buffers(observations, terminals, truncations, rewards)
-
-    env.reset()
-
-    # Get initial states
-    objects = env.grid_objects()
-    converter_energies_before = {}
-    for oid, obj in objects.items():
-        if obj.get("type_name") == "converter":  # Converter types
-            converter_energies_before[oid] = obj.get("inventory", {}).get(0, 0)
-
-    # Agent uses resource_mod
-    action_idx = env.action_names().index("resource_mod")
-    actions = np.zeros(1, dtype=dtype_actions)
-    actions[0] = action_idx
-
-    env.step(actions)
-
-    # Check that converters gained energy
-    objects = env.grid_objects()
-    for oid in converter_energies_before:
-        obj = objects[oid]
-        energy_after = obj.get("inventory", {}).get(0, 0)
-        # Each converter should get 12/3 = 4 energy
-        # But converters auto-convert when they have resources, consuming 1 energy
-        # So they should have 3 left
-        assert energy_after == converter_energies_before[oid] + 3
-
-
 def test_resource_mod_negative():
     """Test that ResourceMod can apply negative modifications (damage)."""
     game_map = [
@@ -382,7 +257,6 @@ def test_resource_mod_negative():
         consumed_resources={},
         modifies={1: -6.0},  # Deal 6 damage total
         agent_radius=2,  # Affect all agents within radius 2
-        converter_radius=0,
         scales=True,  # Divide by number of affected (3 agents = -2 each)
     )
 
@@ -481,7 +355,6 @@ def test_resource_mod_scaling_vs_no_scaling():
         consumed_resources={},
         modifies={1: 10.0},
         agent_radius=1,
-        converter_radius=0,
         scales=True,  # Divide by number of affected
     )
 
@@ -491,7 +364,6 @@ def test_resource_mod_scaling_vs_no_scaling():
         consumed_resources={},
         modifies={1: 10.0},
         agent_radius=1,
-        converter_radius=0,
         scales=False,  # Each gets full amount
     )
 
@@ -622,7 +494,6 @@ def test_resource_mod_invalid_magnitude():
             consumed_resources={},
             modifies={0: float("nan")},
             agent_radius=1,
-            converter_radius=0,
             scales=False,
         )
 
@@ -633,7 +504,6 @@ def test_resource_mod_invalid_magnitude():
             consumed_resources={},
             modifies={0: 1000.0},
             agent_radius=1,
-            converter_radius=0,
             scales=False,
         )
 
@@ -644,7 +514,6 @@ def test_resource_mod_invalid_magnitude():
             consumed_resources={},
             modifies={0: -500.0},
             agent_radius=1,
-            converter_radius=0,
             scales=False,
         )
 
@@ -655,7 +524,6 @@ def test_resource_mod_invalid_magnitude():
             consumed_resources={},
             modifies={0: float("inf")},
             agent_radius=1,
-            converter_radius=0,
             scales=False,
         )
 
@@ -665,7 +533,6 @@ def test_resource_mod_invalid_magnitude():
         consumed_resources={},
         modifies={0: 255.0, 1: -255.0, 2: 0.5},
         agent_radius=1,
-        converter_radius=0,
         scales=False,
     )
     assert config.modifies[0] == 255.0

@@ -151,7 +151,7 @@ class CoreTrainingLoop:
                     actions_column.shape,
                     tuple(td["actions"].shape),
                 )
-                logger.error(msg)
+                logger.error(msg, exc_info=True)
                 raise RuntimeError(msg)
 
             target_buffer.copy_(actions_column)

@@ -27,7 +27,6 @@ import numpy as np
 
 from cogames.cogs_vs_clips.evals import (
     DIFFICULTY_LEVELS,
-    apply_clip_profile,
     apply_difficulty,
 )
 from cogames.cogs_vs_clips.evals.eval_missions import EVAL_MISSIONS
@@ -198,22 +197,24 @@ def run_full_evaluation_suite(
     if hyperparams is None:
         hyperparams = list(HYPERPARAMETER_PRESETS.keys())
     if clip_modes is None:
-        clip_modes = ["carbon", "oxygen", "germanium", "silicon"]
+        clip_modes = []
     if clip_rates is None:
-        clip_rates = [0.0, 0.25]
+        clip_rates = [0.0]
     if cogs_list is None:
         cogs_list = [1, 2, 4, 8]
 
-    # Clipping=True: all clip_rates × cogs × hyperparams
-    # Clipping=False: only clip_rate=0.0 × cogs × hyperparams
-    tests_with_clipping = len(experiments) * len(difficulties) * len(clip_rates) * len(cogs_list) * len(hyperparams)
-    tests_without_clipping = len(experiments) * len(difficulties) * 1 * len(cogs_list) * len(hyperparams)
-    total_tests = tests_with_clipping + tests_without_clipping
+    total_tests = (
+        len(experiments)
+        * len(difficulties)
+        * len(clip_rates)
+        * len(cogs_list)
+        * len(hyperparams)
+    )
 
     print(f"\nExperiments: {len(experiments)}")
     print(f"Difficulties: {len(difficulties)}")
     print(f"Hyperparams: {len(hyperparams)}")
-    print(f"Clip strategy: 50% no clipping, 50% random from {clip_modes}")
+    print("Clip strategy: unclipped only")
     print(f"Clip rates: {clip_rates}")
     print(f"Agent counts: {cogs_list}")
     print(f"Total tests: {total_tests}\n")
@@ -234,97 +235,89 @@ def run_full_evaluation_suite(
                 logger.error(f"Unknown difficulty: {difficulty_name}")
                 continue
 
-            for clipping in [True, False]:
-                if clipping:
-                    clip_mode = np.random.choice(clip_modes)
-                else:
-                    clip_mode = "none"
+            clip_mode = "none"
+            for clip_rate in clip_rates:
+                if clip_rate > 0:
+                    continue
 
-                for clip_rate in clip_rates:
-                    if not clipping and clip_rate > 0:
-                        continue
+                for num_cogs in cogs_list:
+                    for preset_name in hyperparams:
+                        if preset_name not in HYPERPARAMETER_PRESETS:
+                            logger.error(f"Unknown preset: {preset_name}")
+                            continue
 
-                    for num_cogs in cogs_list:
-                        for preset_name in hyperparams:
-                            if preset_name not in HYPERPARAMETER_PRESETS:
-                                logger.error(f"Unknown preset: {preset_name}")
-                                continue
+                        test_name = f"{exp_name}_{difficulty_name}_clip{clip_rate}_cogs{num_cogs}_{preset_name}"
+                        print(f"\n[{test_count}/{total_tests}] {test_name}")
 
-                            test_name = (
-                                f"{exp_name}_{difficulty_name}_{clip_mode}_clip{clip_rate}_cogs{num_cogs}_{preset_name}"
+                        try:
+                            # Build mission
+                            mission = mission_class()
+                            difficulty = DIFFICULTY_LEVELS[difficulty_name]
+                            apply_difficulty(mission, difficulty)
+
+                            # clipped variants are disabled in this sweep
+
+                            map_builder = mission.site.map_builder if mission.site else None
+                            mission = mission.instantiate(map_builder, num_cogs=num_cogs)
+                            env_config = mission.make_env()
+                            env_config.game.max_steps = max_steps
+
+                            # Run episode
+                            env = MettaGridEnv(env_config)
+                            hyperparams_obj = HYPERPARAMETER_PRESETS[preset_name]
+                            policy = ScriptedAgentPolicy(env, hyperparams=hyperparams_obj)
+
+                            obs, info = env.reset()
+                            policy.reset(obs, info)
+                            agents = [policy.agent_policy(i) for i in range(num_cogs)]
+
+                            total_reward = 0.0
+                            last_step = 0
+                            for step in range(max_steps):
+                                actions = np.zeros(num_cogs, dtype=dtype_actions)
+                                for i in range(num_cogs):
+                                    actions[i] = int(agents[i].step(obs[i]))
+                                obs, rewards, dones, truncated, info = env.step(actions)
+                                total_reward += float(rewards.sum())
+                                last_step = step
+                                if all(dones) or all(truncated):
+                                    break
+
+                            agent_state = getattr(agents[0], "_state", None)
+                            hearts_assembled = int(getattr(agent_state, "hearts_assembled", 0))
+                            steps_taken = last_step + 1
+                            final_energy = int(getattr(agent_state, "energy", 0))
+                            success = total_reward > 0
+
+                            env.close()
+
+                            result = EvalResult(
+                                suite="full",
+                                test_name=test_name,
+                                num_cogs=num_cogs,
+                                preset=preset_name,
+                                difficulty=difficulty_name,
+                                clip_mode=clip_mode,
+                                clip_rate=clip_rate,
+                                total_reward=float(total_reward),
+                                hearts_assembled=int(hearts_assembled),
+                                steps_taken=int(steps_taken),
+                                max_steps=max_steps,
+                                final_energy=int(final_energy),
+                                success=success,
                             )
-                            print(f"\n[{test_count}/{total_tests}] {test_name}")
+                            results.append(result)
+                            test_count += 1
+                            if success:
+                                success_count += 1
 
-                            try:
-                                # Build mission
-                                mission = mission_class()
-                                difficulty = DIFFICULTY_LEVELS[difficulty_name]
-                                apply_difficulty(mission, difficulty)
+                            print(f"  Reward: {total_reward:.1f}")
+                            print(f"  Steps: {steps_taken}/{max_steps}")
+                            print(f"  {'✅ SUCCESS' if success else '❌ FAILED'}")
 
-                                if clip_mode != "none":
-                                    mission = apply_clip_profile(mission, target=clip_mode, clip_rate=clip_rate)
-
-                                map_builder = mission.site.map_builder if mission.site else None
-                                mission = mission.instantiate(map_builder, num_cogs=num_cogs)
-                                env_config = mission.make_env()
-                                env_config.game.max_steps = max_steps
-
-                                # Run episode
-                                env = MettaGridEnv(env_config)
-                                hyperparams_obj = HYPERPARAMETER_PRESETS[preset_name]
-                                policy = ScriptedAgentPolicy(env, hyperparams=hyperparams_obj)
-
-                                obs, info = env.reset()
-                                policy.reset(obs, info)
-                                agents = [policy.agent_policy(i) for i in range(num_cogs)]
-
-                                total_reward = 0.0
-                                last_step = 0
-                                for step in range(max_steps):
-                                    actions = np.zeros(num_cogs, dtype=dtype_actions)
-                                    for i in range(num_cogs):
-                                        actions[i] = int(agents[i].step(obs[i]))
-                                    obs, rewards, dones, truncated, info = env.step(actions)
-                                    total_reward += float(rewards.sum())
-                                    last_step = step
-                                    if all(dones) or all(truncated):
-                                        break
-
-                                agent_state = getattr(agents[0], "_state", None)
-                                hearts_assembled = int(getattr(agent_state, "hearts_assembled", 0))
-                                steps_taken = last_step + 1
-                                final_energy = int(getattr(agent_state, "energy", 0))
-                                success = total_reward > 0
-
-                                env.close()
-
-                                result = EvalResult(
-                                    suite="full",
-                                    test_name=test_name,
-                                    num_cogs=num_cogs,
-                                    preset=preset_name,
-                                    difficulty=difficulty_name,
-                                    clip_mode=clip_mode,
-                                    clip_rate=clip_rate,
-                                    total_reward=float(total_reward),
-                                    hearts_assembled=int(hearts_assembled),
-                                    steps_taken=int(steps_taken),
-                                    max_steps=max_steps,
-                                    final_energy=int(final_energy),
-                                    success=success,
-                                )
-                                results.append(result)
-                                test_count += 1
-                                if success:
-                                    success_count += 1
-
-                                print(f"  Reward: {total_reward:.1f}")
-                                print(f"  Steps: {steps_taken}/{max_steps}")
-                                print(f"  {'✅ SUCCESS' if success else '❌ FAILED'}")
-
-                            except Exception as e:
-                                logger.error(f"Error in {test_name}: {e}")
-                                test_count += 1
+                        except Exception as e:
+                            logger.error(f"Error in {test_name}: {e}")
+                            test_count += 1
 
     print(f"\n{'=' * 80}")
     print(f"COMPLETED: {success_count}/{test_count} successful")

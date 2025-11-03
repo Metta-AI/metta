@@ -173,12 +173,18 @@ STACKS: Dict[str, StackSpec] = {
     # Mixed auto stack cycling Axon/mLSTM/sLSTM with PreUp/PreUp/PostUp
     "cortex_auto": StackSpec(
         name="cortex_auto_stack",
-        builder=lambda: build_cortex_auto_stack(d_hidden=128, num_layers=3),
+        builder=lambda: build_cortex_auto_stack(d_hidden=128, num_layers=2, compile_blocks=False, pattern="AMS"),
+        d_hidden=128,
+    ),
+    # Variant with per-block torch.compile enabled for A/B comparisons
+    "cortex_auto_compiled": StackSpec(
+        name="cortex_auto_stack",
+        builder=lambda: build_cortex_auto_stack(d_hidden=128, num_layers=2, compile_blocks=True, pattern="AXMS"),
         d_hidden=128,
     ),
     "cortex_auto_axon": StackSpec(
         name="cortex_auto_stack",
-        builder=lambda: build_cortex_auto_stack(d_hidden=128, num_layers=3, use_axonlayers=True),
+        builder=lambda: build_cortex_auto_stack(d_hidden=128, num_layers=2, pattern="M^X^S^"),
         d_hidden=128,
     ),
 }

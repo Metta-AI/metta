@@ -11,8 +11,8 @@
 #include "core/types.hpp"
 
 struct ChestConfig : public GridObjectConfig {
-  ChestConfig(TypeId type_id, const std::string& type_name)
-      : GridObjectConfig(type_id, type_name),
+  ChestConfig(TypeId type_id, const std::string& type_name, ObservationType initial_vibe = 0)
+      : GridObjectConfig(type_id, type_name, initial_vibe),
         resource_type(0),
         position_deltas({}),
         initial_inventory(0),
@@ -29,14 +29,18 @@ namespace py = pybind11;
 
 inline void bind_chest_config(py::module& m) {
   py::class_<ChestConfig, GridObjectConfig, std::shared_ptr<ChestConfig>>(m, "ChestConfig")
-      .def(py::init<TypeId, const std::string&>(), py::arg("type_id"), py::arg("type_name"))
+      .def(py::init<TypeId, const std::string&, ObservationType>(),
+           py::arg("type_id"),
+           py::arg("type_name"),
+           py::arg("initial_vibe") = 0)
       .def_readwrite("type_id", &ChestConfig::type_id)
       .def_readwrite("type_name", &ChestConfig::type_name)
       .def_readwrite("tag_ids", &ChestConfig::tag_ids)
       .def_readwrite("resource_type", &ChestConfig::resource_type)
       .def_readwrite("position_deltas", &ChestConfig::position_deltas)
       .def_readwrite("initial_inventory", &ChestConfig::initial_inventory)
-      .def_readwrite("max_inventory", &ChestConfig::max_inventory);
+      .def_readwrite("max_inventory", &ChestConfig::max_inventory)
+      .def_readwrite("initial_vibe", &ChestConfig::initial_vibe);
 }
 
 #endif  // PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_OBJECTS_CHEST_CONFIG_HPP_
