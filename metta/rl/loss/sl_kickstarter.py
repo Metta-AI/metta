@@ -2,12 +2,14 @@ from typing import Any
 
 import einops
 import torch
+import torch.nn.functional as F
 from pydantic import Field
 from tensordict import TensorDict
 from torch import Tensor
-from torchrl.data import Composite, UnboundedContinuous
+from torchrl.data import Composite
 
 from metta.agent.policy import Policy
+from metta.rl.checkpoint_manager import CheckpointManager
 from metta.rl.loss import Loss
 from metta.rl.trainer_config import TrainerConfig
 from metta.rl.training import ComponentContext
@@ -18,7 +20,7 @@ class SLKickstarterConfig(Config):
     teacher_uri: str = Field(default="")
     action_loss_coef: float = Field(default=0.995, ge=0, le=1.0)
     value_loss_coef: float = Field(default=1.0, ge=0, le=1.0)
-    anneal_ratio: float = Field(default=0.995, ge=0, le=1.0)
+    temperature: float = Field(default=2.0, gt=0)
 
     def create(
         self,
@@ -39,10 +41,8 @@ class SLKickstarter(Loss):
         "teacher_policy_spec",
         "action_loss_coef",
         "value_loss_coef",
-        "anneal_ratio",
-        "anneal_duration",
-        "ramp_down_start_epochs",
-        "anneal_factor",
+        "temperature",
+        "teacher_policy_spec",
     )
 
     def __init__(
@@ -60,10 +60,8 @@ class SLKickstarter(Loss):
         super().__init__(policy, trainer_cfg, vec_env, device, instance_name, loss_config)
         self.action_loss_coef = self.loss_cfg.action_loss_coef
         self.value_loss_coef = self.loss_cfg.value_loss_coef
-        self.anneal_ratio = self.loss_cfg.anneal_ratio
-
+        self.temperature = self.loss_cfg.temperature
         # load teacher policy
-        from metta.rl.checkpoint_manager import CheckpointManager
 
         game_rules = getattr(self.env, "game_rules", getattr(self.env, "meta_data", None))
         if game_rules is None:
@@ -71,33 +69,14 @@ class SLKickstarter(Loss):
 
         self.teacher_policy = CheckpointManager.load_from_uri(self.loss_cfg.teacher_uri, game_rules, self.device)
 
+        self.teacher_policy_spec = self.teacher_policy.get_agent_experience_spec()
+
         # Detach gradient
         for param in self.teacher_policy.parameters():
             param.requires_grad = False
 
-        # get the teacher policy experience spec
-        self.teacher_policy_spec = self.teacher_policy.get_agent_experience_spec()
-
-        # Calculate annealing schedule
-        self.anneal_duration = self.trainer_cfg.total_timesteps // self.trainer_cfg.update_epochs
-        # Start ramping down at 50% of training
-        self.ramp_down_start_epochs = int(0.50 * self.anneal_duration)
-
-        # Pre-compute the annealing factor
-        # We want to reach 1e-3 of the original value by the end
-        final_value = 0.001
-        self.anneal_factor = final_value ** (1.0 / (self.anneal_duration - self.ramp_down_start_epochs))
-
     def get_experience_spec(self) -> Composite:
-        scalar_f32 = UnboundedContinuous(shape=(), dtype=torch.float32)
-
-        return Composite(
-            # kickstarter loss data
-            teacher_action=UnboundedContinuous(
-                shape=(int(self.teacher_policy_spec["action"].shape[0]),), dtype=torch.int32
-            ),
-            teacher_value=scalar_f32,
-        )
+        return self.teacher_policy_spec
 
     def run_train(
         self,
@@ -105,43 +84,36 @@ class SLKickstarter(Loss):
         context: ComponentContext,
         mb_idx: int,
     ) -> tuple[Tensor, TensorDict, bool]:
-        policy_td = shared_loss_data["policy_td"]
+        policy_td = shared_loss_data["policy_td"].clone()
 
         # Teacher forward pass
         teacher_td = policy_td.select(*self.teacher_policy_spec.keys(include_nested=True)).clone()
         teacher_td = self.teacher_policy(teacher_td, action=None)
-        teacher_action = teacher_td["action"].to(dtype=torch.int32).detach()
-        teacher_value = teacher_td["values"].to(dtype=torch.float32).detach()
 
         # Student forward pass
-        student_td = policy_td.select(*self.policy_experience_spec.keys(include_nested=True)).clone()
+        student_td = policy_td.select(*self.policy_experience_spec.keys(include_nested=True))
         student_td = self.policy(student_td, action=None)
-        student_action = student_td["action"].to(dtype=torch.int32)
-        student_value = student_td["values"].to(dtype=torch.float32)
 
-        # Calculate annealing coefficient
-        update_epoch = getattr(context, "update_epoch", context.epoch)
-        if update_epoch < self.ramp_down_start_epochs:
-            anneal_coef = self.action_loss_coef  # Full strength
-        else:
-            # Exponential decay after ramp_down_start
-            epochs_since_ramp = update_epoch - self.ramp_down_start_epochs
-            anneal_coef = self.action_loss_coef * (self.anneal_factor**epochs_since_ramp)
+        temperature = self.temperature
+        teacher_logits = teacher_td["logits"].to(dtype=torch.float32)
+        student_logits = student_td["logits"].to(dtype=torch.float32)
 
-        # Action loss (only for matching actions)
-        matching_actions = (teacher_action == student_action).float()
-        ks_action_loss = (1.0 - matching_actions).mean() * anneal_coef
+        teacher_log_probs = F.log_softmax(teacher_logits / temperature, dim=-1).detach()
+        student_log_probs = F.log_softmax(student_logits / temperature, dim=-1)
+        student_probs = torch.exp(student_log_probs)
+
+        ks_action_loss = (temperature**2) * (
+            (student_probs * (student_log_probs - teacher_log_probs)).sum(dim=-1).mean()
+        )
 
         # Value loss
+        student_value = student_td["values"].to(dtype=torch.float32)
+        teacher_value = teacher_td["values"].to(dtype=torch.float32).detach()
         teacher_value = einops.rearrange(teacher_value, "b t 1 -> b (t 1)")
         student_value = einops.rearrange(student_value, "b t 1 -> b (t 1)")
-        ks_value_loss = ((teacher_value.detach() - student_value) ** 2).mean() * self.value_loss_coef
+        ks_value_loss = ((teacher_value.detach() - student_value) ** 2).mean()
 
-        # Clamp losses to avoid negative values
-        ks_action_loss = torch.clamp(ks_action_loss, min=0.0)  # av this should never go negative yet it seems to!!!
-        ks_value_loss = torch.clamp(ks_value_loss, min=-0.001)
-
-        loss = ks_action_loss + ks_value_loss
+        loss = ks_action_loss * self.action_loss_coef + ks_value_loss * self.value_loss_coef
 
         self.loss_tracker["sl_ks_action_loss"].append(float(ks_action_loss.item()))
         self.loss_tracker["sl_ks_value_loss"].append(float(ks_value_loss.item()))

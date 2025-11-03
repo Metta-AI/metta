@@ -19,7 +19,6 @@ from mettagrid.mettagrid_c import ClipperConfig as CppClipperConfig
 from mettagrid.mettagrid_c import GameConfig as CppGameConfig
 from mettagrid.mettagrid_c import GlobalObsConfig as CppGlobalObsConfig
 from mettagrid.mettagrid_c import InventoryConfig as CppInventoryConfig
-from mettagrid.mettagrid_c import PatrolSupervisorConfig as CppPatrolSupervisorConfig
 from mettagrid.mettagrid_c import Protocol as CppProtocol
 from mettagrid.mettagrid_c import ResourceModConfig as CppResourceModConfig
 from mettagrid.mettagrid_c import WallConfig as CppWallConfig
@@ -199,17 +198,6 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
 
         inventory_config = CppInventoryConfig(limits=limits_list)
 
-        # Convert supervisor configuration if present
-        supervisor_config = None
-        if first_agent.supervisor:
-            supervisor = first_agent.supervisor
-            if supervisor.type == "patrol":
-                supervisor_config = CppPatrolSupervisorConfig(
-                    steps_per_direction=supervisor.steps_per_direction,
-                    can_override_action=supervisor.can_override_action,
-                    name=supervisor.name,
-                )
-
         agent_cpp_params = {
             "freeze_duration": agent_props["freeze_duration"],
             "group_id": team_id,
@@ -228,10 +216,6 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
             "diversity_tracked_resources": diversity_tracked_resources,
             "initial_vibe": initial_vibe,
         }
-
-        if supervisor_config:
-            agent_cpp_params["supervisor_config"] = supervisor_config
-
         cpp_agent_config = CppAgentConfig(**agent_cpp_params)
         cpp_agent_config.tag_ids = tag_ids
 
