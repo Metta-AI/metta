@@ -129,7 +129,7 @@ class Mission(Config):
         mission.map = apply_procedural_overrides_to_builder(
             mission.map or map_builder,
             num_cogs=int(mission.num_cogs or 0),
-            overrides=getattr(mission, "procedural_overrides", {}) or {},
+            overrides=mission.procedural_overrides,
         )
 
         return mission
