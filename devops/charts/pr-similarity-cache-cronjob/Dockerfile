@@ -27,6 +27,7 @@ requires-python = ">=3.11"
 dependencies = [
     "numpy>=1.24.0",
     "google-generativeai>=0.3.0",
+    "boto3>=1.34.0",
 ]
 
 [build-system]
@@ -40,10 +41,11 @@ EOF
 # Install gitta as editable package
 RUN uv pip install --system -e ./packages/gitta
 
-# Install PR similarity dependencies
+# Install PR similarity dependencies (including boto3 for S3 cache management)
 RUN uv pip install --system \
     "numpy>=1.24.0" \
-    "google-generativeai>=0.3.0"
+    "google-generativeai>=0.3.0" \
+    "boto3>=1.34.0"
 
-# Default command runs PR similarity cache build
-CMD ["python", "mcp_servers/pr_similarity/build_cache.py"]
+# Default command runs PR similarity cache build with S3 download/upload
+CMD ["python", "mcp_servers/pr_similarity/build_cache.py", "--download-from-s3"]

@@ -7,20 +7,13 @@ image:
   tag: "latest"
 
 # Command to refresh PR similarity cache
-# This bash script ensures the container has the latest code from main branch
-# and uses uv run --no-sync to avoid installing unnecessary dependencies
+# Uses our lean Docker image with pre-installed dependencies
+# Container working directory is /app with PYTHONPATH=/app
+# Dependencies (numpy, google-genai, boto3) are pre-installed in the image
 command:
-  - /bin/bash
-  - -c
-  - |
-    set -e
-    cd /workspace/metta
-    git config --local --unset http.https://github.com/.extraheader 2>/dev/null || true
-    git remote set-url origin https://github.com/Metta-AI/metta.git
-    git fetch --unshallow origin main 2>/dev/null || git fetch origin main
-    git checkout -f origin/main
-    uv pip install numpy google-genai boto3
-    PYTHONPATH=/workspace/metta uv run --no-sync python mcp_servers/pr_similarity/build_cache.py --download-from-s3
+  - python
+  - mcp_servers/pr_similarity/build_cache.py
+  - --download-from-s3
 
 serviceAccount:
   create: true
