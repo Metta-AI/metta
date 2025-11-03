@@ -24,14 +24,12 @@ from metta.rl.loss import LossConfig
 from metta.rl.trainer_config import TorchProfilerConfig, TrainerConfig
 from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
 from metta.sim.simulation_config import SimulationConfig
-from metta.sweep.core import (
-    SweepParameters as SP,
-)
-from metta.sweep.core import (
-    grid_search,
-)
+from ray import tune
+
+from metta.sweep.core import ParameterSpec
+from metta.sweep.ray.ray_controller import SweepConfig
 from metta.tools.eval import EvaluateTool
-from metta.tools.sweep import SweepTool
+from metta.tools.ray_sweep import RaySweepTool
 from metta.tools.train import TrainTool
 from mettagrid import MettaGridConfig
 
@@ -191,16 +189,24 @@ def evaluate_in_sweep(policy_uri: str) -> EvaluateTool:
     )
 
 
-def sweep_architecture(sweep_name: str) -> SweepTool:
-    # NB: arch_type matches the corresponding input to "train", the train_entrypoint.
-    architecture_parameter = SP.categorical("arch_type", list(ARCHITECTURES.keys()))
-    return grid_search(
-        name=sweep_name,
-        recipe="experiments.recipes.simple_architecture_search.basic",
+def sweep_architecture(sweep_name: str) -> RaySweepTool:
+    # NB: arch_type matches the corresponding input to "train", the train entrypoint.
+    architectures = list(ARCHITECTURES.keys())
+    arch_param = ParameterSpec("arch_type", tune.grid_search(architectures))
+
+    search_space = {arch_param.path: arch_param.space}
+
+    sweep_config = SweepConfig(
+        sweep_id=sweep_name,
+        recipe_module="experiments.recipes.simple_architecture_search.basic",
         train_entrypoint="train",
         eval_entrypoint="evaluate_in_sweep",
-        objective="evaluator/eval_sweep/score",
-        parameters=[architecture_parameter],
-        max_trials=200,
-        num_parallel_trials=8,
+        score_key="evaluator/eval_sweep/score",
+        num_samples=len(architectures),
+        max_concurrent_trials=8,
+    )
+
+    return RaySweepTool(
+        sweep_config=sweep_config,
+        search_space=search_space,
     )

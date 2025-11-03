@@ -14,6 +14,7 @@ from ray.tune import RunConfig, TuneConfig, Tuner
 from ray.tune.search import ConcurrencyLimiter
 from ray.tune.search.optuna import OptunaSearch
 from ray.tune.search.repeater import Repeater
+from ray.tune.schedulers import ASHAScheduler
 
 from metta.common.util.constants import PROD_STATS_SERVER_URI
 from metta.sweep.ray.ray_run_trial import metta_train_fn
@@ -53,6 +54,7 @@ class SweepConfig(Config):
     fail_fast: bool = False  # Whether to stop the sweep if any trial fails permanently
 
     # TODO I don't like having a default score key
+    # TODO Add scheduler options here maybe
     score_key: str = Field(default="evaluator/eval_sweep/score")
 
     # Number of times to repeat each suggested configuration (e.g., multi-seed evaluation)
@@ -78,6 +80,7 @@ def ray_sweep(
     sweep_config = sweep_config or SweepConfig()
 
     if sweep_config.gpus_per_trial == "auto":
+        # This variable is populated during setup (on skypilot launch)
         gpus_from_env = os.getenv("METTA_DETECTED_GPUS_PER_NODE")
         if gpus_from_env:
             sweep_config.gpus_per_trial = int(gpus_from_env)
@@ -98,8 +101,8 @@ def ray_sweep(
 
     cluster_resources = ray.cluster_resources()
 
-    # Leave 4GPUs for other processes
-    total_cpus = max(float(cluster_resources.get("CPU", 0.0)) - 4, 1)
+    # Leave 4CPUs for other processes
+    total_cpus = float(cluster_resources.get("CPU", 1))
     total_gpus = float(cluster_resources.get("GPU", 0.0))
 
     logger.info(
@@ -111,9 +114,14 @@ def ray_sweep(
 
     # Handle auto-number of CPUs
     if sweep_config.cpus_per_trial == "auto":
-        sweep_config.cpus_per_trial = int(total_cpus / sweep_config.max_concurrent_trials)
+
+        # We reserve ~10% of CPUs for other processes
+        available_cpus = max(total_cpus - int(total_cpus * 0.1), 1)
+        sweep_config.cpus_per_trial = max(int(available_cpus / sweep_config.max_concurrent_trials), 1)
         logger.info("Auto-set CPUs per trial to %s", sweep_config.cpus_per_trial)
 
+    trial_resources["cpu"] = float(sweep_config.cpus_per_trial)
+    trial_resources["gpu"] = float(sweep_config.gpus_per_trial)
 
     space = {
         "params": search_space,
@@ -121,13 +129,6 @@ def ray_sweep(
     }
 
     trial_resources: dict[str, float] = {}
-
-    # At this point, cpus_per_trial and gpus_per_trial should be integers (auto already resolved)
-    if isinstance(sweep_config.cpus_per_trial, int) and sweep_config.cpus_per_trial > 0:
-        trial_resources["cpu"] = float(sweep_config.cpus_per_trial)
-
-    if isinstance(sweep_config.gpus_per_trial, int) and sweep_config.gpus_per_trial > 0:
-        trial_resources["gpu"] = float(sweep_config.gpus_per_trial)
 
     logger.info(
         "Trials will request resources: %s; max concurrent trials capped at %d",
@@ -161,10 +162,20 @@ def ray_sweep(
             repeat=sweep_config.num_seeds_per_trial,
         )
         # Limit Optuna to a single suggestion's repeats at a time so it averages seeds before proposing new configs
-        search_alg = ConcurrencyLimiter(
-            repeated_search,
-            max_concurrent=sweep_config.max_concurrent_trials,
-        )
+        # search_alg = ConcurrencyLimiter(
+        #     repeated_search,
+        #     max_concurrent=sweep_config.max_concurrent_trials,
+        # )
+
+    # asha_scheduler = ASHAScheduler(
+    #     time_attr='timestep',
+    #     metric='reward',
+    #     mode='max',
+    #     max_t=3_000_000_000,
+    #     grace_period=750_000_000,
+    #     reduction_factor=3,
+    #     brackets=1,
+    # )
 
     trial_counter = count()
 
@@ -180,6 +191,8 @@ def ray_sweep(
             mode="max",
             search_alg=search_alg,
             trial_name_creator=trial_name_creator,
+            # scheduler=asha_scheduler,
+            max_concurrent_trials=sweep_config.max_concurrent_trials,
         ),
         run_config=RunConfig(
             failure_config=failure_config,

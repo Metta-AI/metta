@@ -1,5 +1,6 @@
 from typing import Optional, Sequence
 from ray import tune
+from ray._private.worker import get_gpu_ids
 import metta.cogworks.curriculum as cc
 import mettagrid.builder.envs as eb
 from metta.agent.policies.vit import ViTDefaultConfig
@@ -14,13 +15,12 @@ from metta.rl.trainer_config import TorchProfilerConfig, TrainerConfig
 from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
 from metta.sim.simulation_config import SimulationConfig
 from metta.sweep.core import Distribution as D
+from metta.sweep.core import ParameterSpec
 from metta.sweep.core import SweepParameters as SP
-from metta.sweep.core import make_sweep
 from metta.sweep.ray.ray_controller import SweepConfig
 from metta.tools.eval import EvaluateTool
 from metta.tools.play import PlayTool
 from metta.tools.replay import ReplayTool
-from metta.tools.sweep import SweepTool
 from metta.tools.ray_sweep import RaySweepTool
 from metta.tools.train import TrainTool
 from mettagrid import MettaGridConfig
@@ -175,85 +175,66 @@ def evaluate_in_sweep(policy_uri: str) -> EvaluateTool:
     )
 
 
-def sweep(sweep_name: str) -> SweepTool:
+def sweep_full(sweep_name: str) -> RaySweepTool:
     """
-    Prototypical sweep function.
-    In your own recipe, you likely only every need this. You can override other SweepTool parameters in the CLI.
-
-    Example usage:
-        `uv run ./tools/run.py experiments.recipes.arena_basic_easy_shaped.sweep sweep_name="ak.baes.10081528" -- gpus=4 nodes=2`
-
-    We recommend running using local_test=True before running the sweep on the remote:
-        `uv run ./tools/run.py experiments.recipes.arena_basic_easy_shaped.sweep sweep_name="ak.baes.10081528.local_test" -- local_test=True`
-    This will run a quick local sweep and allow you to catch configuration bugs (NB: Unless those bugs are related to batch_size, minibatch_size, or hardware configuration).
-    If this runs smoothly, you must launch the sweep on a remote sandbox (otherwise sweep progress will halt when you close your computer).
-
-    Running on the remote:
-        1 - Start a sweep controller sandbox: `./devops/skypilot/sandbox.py --sweep-controller`, and ssh into it.
-        2 - Clean git pollution: `git clean -df && git stash`
-        3 - Ensure your sky credentials are present: `sky status` -- if not, follow the instructions on screen.
-        4 - Install tmux on the sandbox `apt install tmux`
-        5 - Launch tmux session: `tmux new -s sweep`
-        6 - Launch the sweep: `uv run ./tools/run.py experiments.recipes.arena_basic_easy_shaped.sweep sweep_name="ak.baes.10081528" -- gpus=4 nodes=2`
-        7 - Detach when you want: CTRL+B then d
-        8 - Attach to look at status/output: `tmux attach -t sweep_configs`
-
-    Please tag Axel (akerbec@softmax.ai) on any bug report.
+    Comprehensive Ray sweep covering TrainerConfig and PPOConfig hyperparameters.
     """
 
-    # Common parameters are accessible via SP (SweepParameters).
-    parameters = [
+    trainer_specs: list[ParameterSpec] = [
         SP.LEARNING_RATE,
-        SP.PPO_CLIP_COEF,
-        SP.PPO_GAE_LAMBDA,
-        SP.PPO_VF_COEF,
-        SP.ADAM_EPS,
-        SP.param(
-            "trainer.total_timesteps",
-            D.INT_UNIFORM,
-            min=5e8,
-            max=2e9,
-            search_center=7.5e8,
-        ),
+        ParameterSpec("trainer.optimizer.beta1", tune.uniform(0.85, 0.99)),
+        ParameterSpec("trainer.optimizer.beta2", tune.uniform(0.95, 0.9999)),
+        ParameterSpec("trainer.optimizer.eps", tune.loguniform(1e-8, 1e-5)),
+        ParameterSpec("trainer.optimizer.weight_decay", tune.choice([0.0, 1e-6, 1e-5, 1e-4])),
+        ParameterSpec("trainer.optimizer.momentum", tune.uniform(0.8, 0.99)),
+        # ParameterSpec("trainer.batch_size", tune.choice([131_072, 262_144, 524_288])),
+        # ParameterSpec("trainer.minibatch_size", tune.choice([8_192, 16_384, 32_768])),
+        # ParameterSpec("trainer.bptt_horizon", tune.choice([16, 32, 64, 128])),
+        # ParameterSpec("trainer.update_epochs", tune.randint(1, 6)),
     ]
 
-    return make_sweep(
-        name=sweep_name,
-        recipe="experiments.recipes.arena_basic_easy_shaped",
-        train_entrypoint="train",
-        # NB: You MUST use a specific sweep eval suite, different than those in training.
-        # Besides this being a recommended practice, using the same eval suite in both
-        # training and scoring will lead to key conflicts that will lock the sweep.
-        eval_entrypoint="evaluate_in_sweep",
-        # Typically, "evaluator/eval_{suite}/score"
-        objective="evaluator/eval_sweep/score",
-        parameters=parameters,
-        max_trials=80,
-        # Default value is 1. We don't recommend going higher than 4.
-        # The faster each individual trial, the lower you should set this number.
-        num_parallel_trials=4,
-    )
+    ppo_specs: list[ParameterSpec] = [
+        ParameterSpec("trainer.losses.loss_configs.ppo.clip_coef", tune.uniform(0.005, 0.3)),
+        ParameterSpec("trainer.losses.loss_configs.ppo.ent_coef", tune.loguniform(1e-4, 1e-1)),
+        ParameterSpec("trainer.losses.loss_configs.ppo.gae_lambda", tune.uniform(0.8, 0.99)),
+        ParameterSpec("trainer.losses.loss_configs.ppo.gamma", tune.uniform(0.95, 0.999)),
+        ParameterSpec("trainer.losses.loss_configs.ppo.max_grad_norm", tune.uniform(0.1, 1.0)),
+        ParameterSpec("trainer.losses.loss_configs.ppo.vf_clip_coef", tune.uniform(0.0, 0.5)),
+        ParameterSpec("trainer.losses.loss_configs.ppo.vf_coef", tune.uniform(0.1, 1.0)),
+        ParameterSpec("trainer.losses.loss_configs.ppo.l2_reg_loss_coef", tune.choice([0.0, 1e-6, 1e-5, 1e-4])),
+        ParameterSpec("trainer.losses.loss_configs.ppo.l2_init_loss_coef", tune.choice([0.0, 1e-6, 1e-5, 1e-4])),
+        ParameterSpec("trainer.losses.loss_configs.ppo.norm_adv", tune.choice([True, False])),
+        ParameterSpec("trainer.losses.loss_configs.ppo.clip_vloss", tune.choice([True, False])),
+        ParameterSpec("trainer.losses.loss_configs.ppo.target_kl", tune.choice([None, 0.01, 0.05, 0.1])),
+        ParameterSpec("trainer.losses.loss_configs.ppo.vtrace.rho_clip", tune.uniform(0.5, 2.0)),
+        ParameterSpec("trainer.losses.loss_configs.ppo.vtrace.c_clip", tune.uniform(0.5, 2.0)),
+        ParameterSpec("trainer.losses.loss_configs.ppo.prioritized_experience_replay.prio_alpha", tune.uniform(0.0, 1.0)),
+        ParameterSpec("trainer.losses.loss_configs.ppo.prioritized_experience_replay.prio_beta0", tune.uniform(0.4, 1.0)),
+    ]
 
+    search_space = {spec.path: spec.space for spec in (*trainer_specs, *ppo_specs)}
+    search_space["trainer.total_timesteps"] = 2_000_000_000
 
-def ray_mini_sweep(sweep_name: str):
-    search_space = {
-        "trainer.optimizer.learning_rate": tune.loguniform(1e-5, 3e-3),
-        "trainer.total_timesteps": 50_000,
-    }
-    config = SweepConfig(
+    sweep_config = SweepConfig(
         sweep_id=sweep_name,
         recipe_module="experiments.recipes.arena_basic_easy_shaped",
         train_entrypoint="train",
+
+        # No evals yet
         eval_entrypoint="evaluate_in_sweep",
-        num_samples=10,
+
+        # No score key yet
+        score_key="evaluator/eval_sweep/score",
+        num_samples=100,
+        num_seeds_per_trial=1,
+        gpus_per_trial=4,
+
+        # Issues with concurrent trials computations
+        # Issues with CPU compuations
         max_concurrent_trials=4,
-        fail_fast=True,
-        max_failures_per_trial=0,
     )
 
-    # This sweep will use the default search space.
-
     return RaySweepTool(
+        sweep_config=sweep_config,
         search_space=search_space,
-        sweep_config=config,
     )
