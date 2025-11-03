@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Any, cast
+from typing import Any
 
 from pydantic import Field
 
@@ -73,11 +73,10 @@ class LonelyHeartVariant(MissionVariant):
                 assembler.protocols = [heart_protocol, *remaining_protocols]
 
             germanium = cfg.game.objects.get("germanium_extractor")
-            if germanium is not None:
-                gm = cast(Any, germanium)
-                gm.max_uses = 0
+            if isinstance(germanium, AssemblerConfig):
+                germanium.max_uses = 0
                 updated_protocols: list[ProtocolConfig] = []
-                for proto in getattr(gm, "protocols", []):
+                for proto in germanium.protocols:
                     new_proto = proto.model_copy(deep=True)
                     output = dict(new_proto.output_resources)
                     output["germanium"] = max(output.get("germanium", 0), 1)
@@ -85,7 +84,7 @@ class LonelyHeartVariant(MissionVariant):
                     new_proto.cooldown = max(new_proto.cooldown, 1)
                     updated_protocols.append(new_proto)
                 if updated_protocols:
-                    gm.protocols = updated_protocols
+                    germanium.protocols = updated_protocols
 
         mission.add_env_modifier(modifier)
         return mission
@@ -512,8 +511,8 @@ class HarvestMission(Mission):
         # Ensure that the extractors are configured to have high max uses
         for name in ("germanium_extractor", "carbon_extractor", "oxygen_extractor", "silicon_extractor"):
             cfg = env.game.objects.get(name)
-            if cfg is not None:
-                cast(Any, cfg).max_uses = 100
+            if isinstance(cfg, AssemblerConfig):
+                cfg.max_uses = 100
         return env
 
 
@@ -530,8 +529,8 @@ class AssembleMission(Mission):
         env = super().make_env()
         for name in ("germanium_extractor", "carbon_extractor", "oxygen_extractor", "silicon_extractor"):
             cfg = env.game.objects.get(name)
-            if cfg is not None:
-                cast(Any, cfg).max_uses = 100
+            if isinstance(cfg, AssemblerConfig):
+                cfg.max_uses = 100
         return env
 
 
@@ -870,7 +869,7 @@ class MachinaProceduralExploreMission(ProceduralMissionBase):
         if self.num_cogs and self.num_cogs > 0:
             reward_weight = 1.0 / self.num_cogs
         else:
-            reward_weight = 1.0 / max(1, getattr(env.game, "num_agents", 1))
+            reward_weight = 1.0 / max(1, env.game.num_agents)
         env.game.agent.rewards.inventory = {"heart": reward_weight}
         env.game.agent.rewards.stats = {}
         env.game.agent.rewards.inventory_max = {}
