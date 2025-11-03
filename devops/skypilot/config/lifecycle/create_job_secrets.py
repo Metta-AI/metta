@@ -35,7 +35,8 @@ def main():
             print("~/.metta/config.yaml already exists")
         else:
             os.makedirs(os.path.expanduser("~/.metta"), exist_ok=True)
-            observatory_auth_config.save_token(args.observatory_token, "https://api.observatory.softmax-research.net")
+
+        observatory_auth_config.save_token(args.observatory_token, "https://api.observatory.softmax-research.net")
 
 
 if __name__ == "__main__":
