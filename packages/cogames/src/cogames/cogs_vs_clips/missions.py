@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Any, cast
+from typing import Any
 
 from pydantic import Field
 
@@ -55,8 +55,9 @@ class LonelyHeartVariant(MissionVariant):
         def modifier(cfg: MettaGridConfig) -> None:
             simplified_inputs = {"carbon": 1, "oxygen": 1, "germanium": 1, "silicon": 1, "energy": 1}
 
-            assembler = cfg.game.objects.get("assembler")
-            if assembler is not None and getattr(assembler, "protocols", None):
+            assembler = cfg.game.objects["assembler"]
+            if not isinstance(assembler, AssemblerConfig):
+                raise TypeError("Expected 'assembler' to be AssemblerConfig")
                 heart_protocol = ProtocolConfig(
                     vibes=["default"],
                     input_resources=dict(simplified_inputs),
@@ -72,19 +73,20 @@ class LonelyHeartVariant(MissionVariant):
 
                 assembler.protocols = [heart_protocol, *remaining_protocols]
 
-            germanium = cfg.game.objects.get("germanium_extractor")
-            if germanium is not None and getattr(germanium, "protocols", None):
-                germanium.max_uses = 0
-                updated_protocols: list[ProtocolConfig] = []
-                for proto in germanium.protocols:
-                    new_proto = proto.model_copy(deep=True)
-                    output = dict(new_proto.output_resources)
-                    output["germanium"] = max(output.get("germanium", 0), 1)
-                    new_proto.output_resources = output
-                    new_proto.cooldown = max(new_proto.cooldown, 1)
-                    updated_protocols.append(new_proto)
-                if updated_protocols:
-                    germanium.protocols = updated_protocols
+            germanium = cfg.game.objects["germanium_extractor"]
+            if not isinstance(germanium, AssemblerConfig):
+                raise TypeError("Expected 'germanium_extractor' to be AssemblerConfig")
+            germanium.max_uses = 0
+            updated_protocols: list[ProtocolConfig] = []
+            for proto in germanium.protocols:
+                new_proto = proto.model_copy(deep=True)
+                output = dict(new_proto.output_resources)
+                output["germanium"] = max(output.get("germanium", 0), 1)
+                new_proto.output_resources = output
+                new_proto.cooldown = max(new_proto.cooldown, 1)
+                updated_protocols.append(new_proto)
+            if updated_protocols:
+                germanium.protocols = updated_protocols
 
         mission.add_env_modifier(modifier)
         return mission
@@ -170,6 +172,141 @@ class HeartChorusVariant(MissionVariant):
             }
 
         mission.add_env_modifier(modifier)
+        return mission
+
+
+class SmallMapVariant(MissionVariant):
+    name: str = "small_50"
+    description: str = "Set map size to 50x50 for quick runs."
+
+    def apply(self, mission: Mission) -> Mission:
+        mission.procedural_overrides["width"] = 50
+        mission.procedural_overrides["height"] = 50
+        return mission
+
+
+class CogToolsOnlyVariant(MissionVariant):
+    name: str = "cog_tools_only"
+    description: str = "Gear tools (decoder/modulator/scrambler/resonator) require only the 'gear/cog' vibe."
+
+    def apply(self, mission: Mission) -> Mission:
+        def modifier(env: MettaGridConfig) -> None:
+            assembler_cfg = env.game.objects["assembler"]
+            if not isinstance(assembler_cfg, AssemblerConfig):
+                raise TypeError("Expected 'assembler' to be AssemblerConfig")
+            gear_outputs = {"decoder", "modulator", "scrambler", "resonator"}
+            for protocol in assembler_cfg.protocols:
+                if any(k in protocol.output_resources for k in gear_outputs):
+                    protocol.vibes = ["gear"]
+
+        mission.add_env_modifier(modifier)
+        return mission
+
+
+class SeedOneHeartInputsVariant(MissionVariant):
+    name: str = "seed_one_heart_inputs"
+    description: str = "Agents start with exactly one HEART recipe worth of inputs."
+
+    def apply(self, mission: Mission) -> Mission:
+        def modifier(env: MettaGridConfig) -> None:
+            heart_cost = mission.assembler.heart_cost
+            inputs = {
+                "carbon": heart_cost * 2,
+                "oxygen": heart_cost * 2,
+                "germanium": max(heart_cost // 2, 1),
+                "silicon": heart_cost * 5,
+                "energy": heart_cost * 2,
+            }
+            agent_cfg = env.game.agent
+            agent_cfg.initial_inventory = dict(agent_cfg.initial_inventory)
+            for k, v in inputs.items():
+                agent_cfg.initial_inventory[k] = v
+
+        mission.add_env_modifier(modifier)
+        return mission
+
+
+class ChestsTwoHeartsVariant(MissionVariant):
+    name: str = "chests_two_hearts"
+    description: str = "Base resource chests start with two HEARTs worth of resources."
+
+    def apply(self, mission: Mission) -> Mission:
+        def modifier(env: MettaGridConfig) -> None:
+            heart_cost = mission.assembler.heart_cost
+            two_hearts = {
+                "carbon": heart_cost * 2 * 2,
+                "oxygen": heart_cost * 2 * 2,
+                "germanium": max(heart_cost // 2, 1) * 2,
+                "silicon": heart_cost * 5 * 2,
+            }
+            for chest_name, resource in (
+                ("chest_carbon", "carbon"),
+                ("chest_oxygen", "oxygen"),
+                ("chest_germanium", "germanium"),
+                ("chest_silicon", "silicon"),
+            ):
+                chest_cfg = env.game.objects[chest_name]
+                if not isinstance(chest_cfg, ChestConfig):
+                    raise TypeError(f"Expected '{chest_name}' to be ChestConfig")
+                chest_cfg.initial_inventory = max(chest_cfg.initial_inventory, two_hearts[resource])
+
+        mission.add_env_modifier(modifier)
+        return mission
+
+
+class FiveHeartsTuningVariant(MissionVariant):
+    name: str = "five_hearts_tuning"
+    description: str = "Tune extractors so the base can produce five HEARTs (germanium fixed)."
+
+    def apply(self, mission: Mission) -> Mission:
+        heart_cost = mission.assembler.heart_cost
+        one_heart = {
+            "carbon": heart_cost * 2,
+            "oxygen": heart_cost * 2,
+            "germanium": max(heart_cost // 2, 1),
+            "silicon": heart_cost * 5,
+        }
+        five = 5
+
+        # Carbon per-use depends on efficiency
+        carbon_per_use = max(1, 4 * mission.carbon_extractor.efficiency // 100)
+        carbon_needed = one_heart["carbon"] * five
+        mission.carbon_extractor.max_uses = (carbon_needed + carbon_per_use - 1) // carbon_per_use
+
+        # Oxygen is 20 per use
+        oxygen_per_use = 20
+        oxygen_needed = one_heart["oxygen"] * five
+        mission.oxygen_extractor.max_uses = (oxygen_needed + oxygen_per_use - 1) // oxygen_per_use
+
+        # Silicon is ~25 per use (scaled by efficiency); silicon extractor divides by 10 internally
+        silicon_per_use = max(1, int(25 * mission.silicon_extractor.efficiency // 100))
+        silicon_needed = one_heart["silicon"] * five
+        silicon_uses = (silicon_needed + silicon_per_use - 1) // silicon_per_use
+        mission.silicon_extractor.max_uses = max(1, silicon_uses * 10)
+
+        # Germanium: fixed one use producing all required
+        mission.germanium_extractor.efficiency = int(one_heart["germanium"] * five)
+        return mission
+
+
+class ClipBaseExceptCarbonVariant(MissionVariant):
+    name: str = "clip_base_except_carbon"
+    description: str = "Start base extractors clipped except carbon."
+
+    def apply(self, mission: Mission) -> Mission:
+        mission.carbon_extractor.start_clipped = False
+        mission.oxygen_extractor.start_clipped = True
+        mission.germanium_extractor.start_clipped = True
+        mission.silicon_extractor.start_clipped = True
+        return mission
+
+
+class ClipRateOnVariant(MissionVariant):
+    name: str = "clip_rate_on"
+    description: str = "Enable global clipping with a small non-zero clip rate."
+
+    def apply(self, mission: Mission) -> Mission:
+        mission.clip_rate = 0.02
         return mission
 
 
@@ -261,6 +398,19 @@ class CyclicalUnclipVariant(MissionVariant):
     description: str = "Required resources for unclipping recipes are cyclical. \
                         So Germanium extractors require silicon-based unclipping recipes."
 
+    def apply(self, mission: Mission) -> Mission:
+        def modifier(env: MettaGridConfig) -> None:
+            if env.game.clipper is not None:
+                env.game.clipper.unclipping_protocols = [
+                    ProtocolConfig(input_resources={"scrambler": 1}, cooldown=1),
+                    ProtocolConfig(input_resources={"resonator": 1}, cooldown=1),
+                    ProtocolConfig(input_resources={"modulator": 1}, cooldown=1),
+                    ProtocolConfig(input_resources={"decoder": 1}, cooldown=1),
+                ]
+
+        mission.add_env_modifier(modifier)
+        return mission
+
 
 VARIANTS = [
     MinedOutVariant,
@@ -280,6 +430,15 @@ VARIANTS = [
     PackRatVariant,
     EnergizedVariant,
     NeutralFacedVariant,
+    SmallMapVariant,
+    CogToolsOnlyVariant,
+    SeedOneHeartInputsVariant,
+    ChestsTwoHeartsVariant,
+    FiveHeartsTuningVariant,
+    ClipBaseExceptCarbonVariant,
+    CyclicalUnclipVariant,
+    ClipRateOnVariant,
+    # HeartChorusVariant,
 ]
 
 
@@ -355,9 +514,10 @@ class HarvestMission(Mission):
 
         # Ensure that the extractors are configured to have high max uses
         for name in ("germanium_extractor", "carbon_extractor", "oxygen_extractor", "silicon_extractor"):
-            cfg = env.game.objects.get(name)
-            if cfg is not None:
-                cast(Any, cfg).max_uses = 100
+            cfg = env.game.objects[name]
+            if not isinstance(cfg, AssemblerConfig):
+                raise TypeError(f"Expected '{name}' to be AssemblerConfig")
+            cfg.max_uses = 100
         return env
 
 
@@ -373,9 +533,10 @@ class AssembleMission(Mission):
     def make_env(self) -> MettaGridConfig:
         env = super().make_env()
         for name in ("germanium_extractor", "carbon_extractor", "oxygen_extractor", "silicon_extractor"):
-            cfg = env.game.objects.get(name)
-            if cfg is not None:
-                cast(Any, cfg).max_uses = 100
+            cfg = env.game.objects[name]
+            if not isinstance(cfg, AssemblerConfig):
+                raise TypeError(f"Expected '{name}' to be AssemblerConfig")
+            cfg.max_uses = 100
         return env
 
 
@@ -390,18 +551,19 @@ class VibeCheckMission(Mission):
     def make_env(self) -> MettaGridConfig:
         env = super().make_env()
         # Require exactly 4 heart vibes for HEART crafting; keep gear recipes intact
-        assembler_cfg = env.game.objects.get("assembler")
-        if isinstance(assembler_cfg, AssemblerConfig):
-            filtered: list[ProtocolConfig] = []
-            for protocol in assembler_cfg.protocols:
-                if "heart" in protocol.vibes:
-                    # Keep only the 4-heart recipe for heart crafting
-                    if len(protocol.vibes) == 4 and all(v == "heart" for v in protocol.vibes):
-                        filtered.append(protocol)
-                else:
-                    # Preserve non-heart (e.g., gear) recipes
+        assembler_cfg = env.game.objects["assembler"]
+        if not isinstance(assembler_cfg, AssemblerConfig):
+            raise TypeError("Expected 'assembler' to be AssemblerConfig")
+        filtered: list[ProtocolConfig] = []
+        for protocol in assembler_cfg.protocols:
+            if "heart" in protocol.vibes:
+                # Keep only the 4-heart recipe for heart crafting
+                if len(protocol.vibes) == 4 and all(v == "heart" for v in protocol.vibes):
                     filtered.append(protocol)
-            assembler_cfg.protocols = filtered
+            else:
+                # Preserve non-heart (e.g., gear) recipes
+                filtered.append(protocol)
+        assembler_cfg.protocols = filtered
         return env
 
     def instantiate(
@@ -481,9 +643,10 @@ class UnclipDrillsMission(Mission):
         env = super().make_env()
 
         for chest_name in ("chest_carbon", "chest_oxygen", "chest_germanium", "chest_silicon"):
-            chest_cfg = env.game.objects.get(chest_name)
-            if isinstance(chest_cfg, ChestConfig):
-                chest_cfg.initial_inventory = max(chest_cfg.initial_inventory, 3)
+            chest_cfg = env.game.objects[chest_name]
+            if not isinstance(chest_cfg, ChestConfig):
+                raise TypeError(f"Expected '{chest_name}' to be ChestConfig")
+            chest_cfg.initial_inventory = max(chest_cfg.initial_inventory, 3)
 
         agent_cfg = env.game.agent
         agent_cfg.initial_inventory = dict(agent_cfg.initial_inventory)
@@ -563,9 +726,10 @@ class HelloWorldUnclipMission(Mission):
             "chest_germanium",
             "chest_silicon",
         ):
-            chest_cfg = env.game.objects.get(chest_name)
-            if isinstance(chest_cfg, ChestConfig):
-                chest_cfg.initial_inventory = max(chest_cfg.initial_inventory, 2)
+            chest_cfg = env.game.objects[chest_name]
+            if not isinstance(chest_cfg, ChestConfig):
+                raise TypeError(f"Expected '{chest_name}' to be ChestConfig")
+            chest_cfg.initial_inventory = max(chest_cfg.initial_inventory, 2)
 
         agent_cfg = env.game.agent
         agent_cfg.initial_inventory = dict(agent_cfg.initial_inventory)
@@ -714,16 +878,17 @@ class MachinaProceduralExploreMission(ProceduralMissionBase):
         if self.num_cogs and self.num_cogs > 0:
             reward_weight = 1.0 / self.num_cogs
         else:
-            reward_weight = 1.0 / max(1, getattr(env.game, "num_agents", 1))
+            reward_weight = 1.0 / max(1, env.game.num_agents)
         env.game.agent.rewards.inventory = {"heart": reward_weight}
         env.game.agent.rewards.stats = {}
         env.game.agent.rewards.inventory_max = {}
         env.game.agent.rewards.stats_max = {}
 
         # Ensure every chest template starts with one heart
-        chest_cfg = env.game.objects.get("chest")
-        if isinstance(chest_cfg, ChestConfig):
-            chest_cfg.initial_inventory = 1
+        chest_cfg = env.game.objects["chest"]
+        if not isinstance(chest_cfg, ChestConfig):
+            raise TypeError("Expected 'chest' to be ChestConfig")
+        chest_cfg.initial_inventory = 1
         return env
 
 
