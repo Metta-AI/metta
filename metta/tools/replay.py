@@ -46,7 +46,7 @@ class ReplayTool(Tool):
         # Get all replay URLs (no filtering needed since we just ran this simulation)
         replay_urls = result.stats_db.get_replay_urls()
         if not replay_urls:
-            logger.error("No replay URLs found in simulation results")
+            logger.error("No replay URLs found in simulation results", exc_info=True)
             return 1
         replay_url = replay_urls[0]
 

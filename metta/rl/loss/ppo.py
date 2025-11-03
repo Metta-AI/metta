@@ -166,7 +166,7 @@ class PPO(Loss):
         # Store experience
         env_slice = context.training_env_id
         if env_slice is None:
-            raise RuntimeError("ComponentContext.training_env_id is required for PPO rollout")
+            raise RuntimeError("ComponentContext.training_env_id is missing in rollout.")
         self.replay.store(data_td=td, env_id=env_slice)
 
         return

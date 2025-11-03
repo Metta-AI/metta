@@ -347,7 +347,7 @@ class Simulation:
                 return None
 
         except Exception as e:
-            logger.error(f"Thumbnail generation failed for {self._full_name}: {e}")
+            logger.error(f"Thumbnail generation failed for {self._full_name}: {e}", exc_info=True)
             return None
 
     def end_simulation(self) -> SimulationResults:
@@ -484,7 +484,7 @@ class Simulation:
                         thumbnail_url=thumbnail_url,
                     )
                 except Exception as e:
-                    logger.error(f"Failed to record episode {episode_id} remotely: {e}")
+                    logger.error(f"Failed to record episode {episode_id} remotely: {e}", exc_info=True)
                     # Continue with other episodes even if one fails
 
     def get_policy_state(self):
