@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import logging
 import os
+import time
 from itertools import count
 from typing import TYPE_CHECKING, Any, Dict
 
@@ -10,7 +11,9 @@ import ray
 from pydantic import Field
 from ray import init, tune
 from ray.tune import RunConfig, TuneConfig, Tuner
+from ray.tune.search import ConcurrencyLimiter
 from ray.tune.search.optuna import OptunaSearch
+from ray.tune.search.repeater import Repeater
 
 from metta.common.util.constants import PROD_STATS_SERVER_URI
 from metta.sweep.ray.ray_run_trial import metta_train_fn
@@ -33,7 +36,7 @@ class SweepConfig(Config):
     # And we could add those in to the search space??
     train_entrypoint: str = "train"
     eval_entrypoint: str = "evaluate_in_sweep"
-    stats_server_uri: str = PROD_STATS_SERVER_URI
+    stats_server_uri: str | None = PROD_STATS_SERVER_URI
 
     # We can get rid of the train_overrids I think now
     train_overrides: dict[str, Any] = Field(default_factory=dict)
@@ -52,10 +55,13 @@ class SweepConfig(Config):
     # TODO I don't like having a default score key
     score_key: str = Field(default="evaluator/eval_sweep/score")
 
+    # Number of times to repeat each suggested configuration (e.g., multi-seed evaluation)
+    num_seeds_per_trial: int = Field(default=1, gt=0)
+
 
 def ray_sweep(
     *,
-    search_space: Dict[str, Any] | None = None,
+    search_space: Dict[str, Any],
     sweep_config: SweepConfig | None = None,
     ray_address: str | None = None,
 ) -> None:
@@ -71,19 +77,6 @@ def ray_sweep(
     """
     sweep_config = sweep_config or SweepConfig()
 
-    # Handle "auto" values for cpus_per_trial and gpus_per_trial
-    # These environment variables are detected and set by our launch script, not provided by SkyPilot
-    if sweep_config.cpus_per_trial == "auto":
-        cpus_from_env = os.getenv("METTA_DETECTED_CPUS_PER_NODE")
-        if cpus_from_env:
-            sweep_config.cpus_per_trial = int(cpus_from_env)
-            logger.info(f"Auto-detected CPUs per trial from node hardware: {sweep_config.cpus_per_trial}")
-        else:
-            logger.warning(
-                "'auto' specified for cpus_per_trial but METTA_DETECTED_CPUS_PER_NODE not set, defaulting to 1"
-            )
-            sweep_config.cpus_per_trial = 1
-
     if sweep_config.gpus_per_trial == "auto":
         gpus_from_env = os.getenv("METTA_DETECTED_GPUS_PER_NODE")
         if gpus_from_env:
@@ -98,60 +91,46 @@ def ray_sweep(
     init_kwargs: dict[str, Any] = {"ignore_reinit_error": True}
 
     if ray_address:
-        # Check if this is a client mode address (ray://) or local mode address
-        if ray_address.startswith("ray://"):
-            # Client mode - use as is but may have GPU allocation issues
-            init_kwargs["address"] = ray_address
-            logger.warning(
-                "Using Ray client mode (ray://) which may not properly allocate GPUs to trials. "
-                "Consider using local mode (host:port) instead."
-            )
-        else:
-            # Local mode - better for GPU allocation
-            init_kwargs["address"] = ray_address
+        init_kwargs["address"] = ray_address
     init_kwargs["runtime_env"] = {"working_dir": None}
 
     init(**init_kwargs)
 
     cluster_resources = ray.cluster_resources()
-    total_cpus = float(cluster_resources.get("CPU", 0.0))
+
+    # Leave 4GPUs for other processes
+    total_cpus = max(float(cluster_resources.get("CPU", 0.0)) - 4, 1)
     total_gpus = float(cluster_resources.get("GPU", 0.0))
 
-    accelerator_keys = [k for k in cluster_resources if k.startswith("accelerator_type:")]
-    accelerator_resource = os.getenv("RAY_ACCELERATOR_RESOURCE")
-    if accelerator_resource and accelerator_resource not in cluster_resources:
-        accelerator_resource = None
-    if not accelerator_resource and accelerator_keys:
-        accelerator_resource = accelerator_keys[0]
-
     logger.info(
-        "Connected to Ray cluster: CPUs=%s, GPUs=%s, accelerator_resource=%s, mode=%s",
+        "Connected to Ray cluster: CPUs=%s, GPUs=%s, mode=%s",
         total_cpus,
         total_gpus,
-        accelerator_resource,
         "client" if ray_address and ray_address.startswith("ray://") else "local",
     )
 
-    default_space: Dict[str, Any] = {
-        "params": {
-            "trainer.optimizer.learning_rate": tune.loguniform(1e-5, 3e-3),
-            "trainer.total_timesteps": 50_000,
-        },
+    # Handle auto-number of CPUs
+    if sweep_config.cpus_per_trial == "auto":
+        sweep_config.cpus_per_trial = int(total_cpus / sweep_config.max_concurrent_trials)
+        logger.info("Auto-set CPUs per trial to %s", sweep_config.cpus_per_trial)
+
+
+    space = {
+        "params": search_space,
         "sweep_config": sweep_config.model_dump(),
     }
-
-    if not search_space:
-        space = default_space
-    else:
-        space = {
-            "params": search_space,
-            "sweep_config": sweep_config.model_dump(),
-        }
 
     trial_resources: dict[str, float] = {}
     # At this point, cpus_per_trial and gpus_per_trial should be integers (auto already resolved)
     if isinstance(sweep_config.cpus_per_trial, int) and sweep_config.cpus_per_trial > 0:
         trial_resources["cpu"] = float(sweep_config.cpus_per_trial)
+    else:
+        resources = ray.cluster_resources()
+        available_cpus = resources.get("CPU", 0)
+
+        # We save 4 cores for other processed
+        trial_resources["cpu"] = float(available_cpus - 4)//sweep_config.max_concurrent_trials
+
     if isinstance(sweep_config.gpus_per_trial, int) and sweep_config.gpus_per_trial > 0:
         trial_resources["gpu"] = float(sweep_config.gpus_per_trial)
 
@@ -206,6 +185,18 @@ def ray_sweep(
 
     optuna_search = OptunaSearch(metric="reward", mode="max")
 
+    search_alg = optuna_search
+    if sweep_config.num_seeds_per_trial > 1:
+        repeated_search = Repeater(
+            optuna_search,
+            repeat=sweep_config.num_seeds_per_trial,
+        )
+        # Limit Optuna to a single suggestion's repeats at a time so it averages seeds before proposing new configs
+        search_alg = ConcurrencyLimiter(
+            repeated_search,
+            max_concurrent=sweep_config.num_seeds_per_trial,
+        )
+
     trial_counter = count()
 
     def trial_name_creator(trial: Trial) -> str:
@@ -218,8 +209,8 @@ def ray_sweep(
             num_samples=sweep_config.num_samples,
             metric="reward",
             mode="max",
-            max_concurrent_trials=effective_max_concurrent,
-            search_alg=optuna_search,
+            # max_concurrent_trials=effective_max_concurrent,
+            search_alg=search_alg,
             trial_name_creator=trial_name_creator,
         ),
         run_config=RunConfig(
