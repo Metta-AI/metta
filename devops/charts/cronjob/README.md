@@ -32,13 +32,25 @@ For testing new collectors or configurations, deploy a `-dev` copy alongside pro
 1. **Uncomment the dev section** in `devops/charts/helmfile.yaml`:
    ```yaml
    - name: dashboard-cronjob-dev
-     chart: ./dashboard-cronjob
-     version: 0.1.0
-     namespace: monitoring
+     <<: *cronjob_template
      values:
-       - ./dashboard-cronjob/values-dev.yaml
+       - schedule: "*/5 * * * *"  # More frequent for testing
        - image:
+           name: dashboard-collector
            tag: "your-feature-branch"
+       - command:
+           - python
+           - -m
+           - devops.datadog.cli
+           - dashboard
+           - push
+           - devops/datadog/dashboards/templates/
+       - serviceAccount:
+           annotations:
+             eks.amazonaws.com/role-arn: arn:aws:iam::751442549699:role/dashboard-cronjob
+       - datadog:
+           service: dashboard-collector-dev
+           env: dev
    ```
 
 2. **Deploy**:
