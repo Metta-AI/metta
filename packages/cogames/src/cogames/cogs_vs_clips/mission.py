@@ -1,6 +1,7 @@
+from types import MethodType
 from typing import Any, Callable
 
-from pydantic import Field
+from pydantic import Field, PrivateAttr
 
 from cogames.cogs_vs_clips import vibes
 from cogames.cogs_vs_clips.procedural import apply_procedural_overrides_to_builder
@@ -83,8 +84,8 @@ class Mission(Config):
     # Control vibe swapping in variants
     enable_vibe_change: bool = Field(default=True)
     vibe_count: int | None = Field(default=None)
-    # Optional post-processors for env config (used by variants)
-    post_make_env_modifiers: list[Callable[[MettaGridConfig], None]] = Field(default_factory=list)
+    _env_modifiers: list[Callable[[MettaGridConfig], None]] = PrivateAttr(default_factory=list)
+    _env_modifier_hooked: bool = PrivateAttr(default=False)
 
     def configure(self):
         pass
@@ -109,6 +110,10 @@ class Mission(Config):
             New Mission instance with map and num_cogs set
         """
         mission = self.model_copy(deep=True)
+        if "make_env" in mission.__dict__:
+            delattr(mission, "make_env")
+        mission._env_modifiers = []
+        mission._env_modifier_hooked = False
         mission.configure()
         mission.map = map_builder
 
@@ -129,6 +134,27 @@ class Mission(Config):
 
         return mission
 
+    def add_env_modifier(self, modifier: Callable[[MettaGridConfig], None]) -> "Mission":
+        """Register a callable to mutate the environment config after creation."""
+        self._ensure_env_modifier_wrapper()
+        self._env_modifiers.append(modifier)
+        return self
+
+    def _ensure_env_modifier_wrapper(self) -> None:
+        if self._env_modifier_hooked:
+            return
+
+        original_make_env = self.make_env
+
+        def wrapped_make_env(_self: "Mission", *args: Any, **kwargs: Any) -> MettaGridConfig:
+            env_cfg = original_make_env(*args, **kwargs)
+            for modifier in _self._env_modifiers:
+                modifier(env_cfg)
+            return env_cfg
+
+        object.__setattr__(self, "make_env", MethodType(wrapped_make_env, self))
+        self._env_modifier_hooked = True
+
     def make_env(self) -> MettaGridConfig:
         """Create a MettaGridConfig from this mission.
 
@@ -144,12 +170,6 @@ class Mission(Config):
             raise ValueError("Cannot make_env without a map. Call instantiate() first.")
         if self.num_cogs is None:
             raise ValueError("Cannot make_env without num_cogs. Call instantiate() first.")
-
-        # supervisor_config = PatrolSupervisorConfig(
-        #     steps_per_direction=5,
-        #     can_override_action=True,
-        #     name="patrol_supervisor",
-        # )
 
         game = GameConfig(
             map_builder=self.map,
@@ -183,7 +203,6 @@ class Mission(Config):
                 shareable_resources=["energy"],
                 inventory_regen_amounts={"energy": self.energy_regen_amount},
                 diversity_tracked_resources=["energy", "carbon", "oxygen", "germanium", "silicon"],
-                # supervisor=supervisor_config,
             ),
             inventory_regen_interval=1,
             clipper=ClipperConfig(
@@ -240,16 +259,4 @@ class Mission(Config):
         #             if recipe.output_resources.get("heart", 0) == 0
         #         ]
         #         assembler_cfg.recipes = [(["heart"] * chorus_len, chorus), *non_heart]
-        modifiers = self.post_make_env_modifiers
-        if not modifiers:
-            return MettaGridConfig(game=game)
-
-        env_cfg = MettaGridConfig(game=game)
-        # Apply any post-make_env modifiers
-        for modifier in modifiers:
-            try:
-                modifier(env_cfg)
-            except Exception:
-                # Best-effort: ignore modifier failures to avoid breaking mission
-                pass
-        return env_cfg
+        return MettaGridConfig(game=game)
