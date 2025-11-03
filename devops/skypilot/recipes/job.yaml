@@ -43,21 +43,21 @@ file_mounts:
     source: s3://softmax-train-dir
     mode: MOUNT_CACHED
 
-# `set -u`: Exit on undefined variables to catch missing env vars early
-setup: set -u && bash <(curl -fsSL "https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/${METTA_GIT_REF}/devops/skypilot/config/lifecycle/setup.sh")
+setup: set -u && bash <(curl -fsSL "https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/${METTA_GIT_REF}/devops/skypilot/recipes/setup.sh")
 
-# `set -e`: Ensure SkyPilot propagates exit codes from skypilot_run.sh (otherwise restart test fails)
-run: set -e && /workspace/metta/devops/skypilot/config/skypilot_run.sh
+run: |
+  eval "$(curl -fsSL "https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/${METTA_GIT_REF}/devops/skypilot/recipes/init_run.py" | python3)"
+
+  echo "Starting skypilot run script..."
+  uv run ./devops/skypilot/recipes/skypilot_run.py
 
 envs:
-  TEST_NCCL: "false"
-
   GITHUB_REPOSITORY: Metta-AI/metta
   GITHUB_PAT: ""
 
   METTA_RUN_ID: ""
-  METTA_MODULE_PATH: ""
-  METTA_ARGS: ""
+  METTA_CMD: ""
+  METTA_USE_TORCHRUN: "false"
   METTA_GIT_REF: main
   HEARTBEAT_TIMEOUT: 600
 

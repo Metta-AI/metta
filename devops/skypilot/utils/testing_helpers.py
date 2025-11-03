@@ -32,7 +32,6 @@ class TestCondition:
     name: str
     extra_args: list[str]
     description: str
-    ci: bool = False
 
 
 @dataclass
@@ -147,24 +146,26 @@ class SkyPilotTestLauncher:
         base_args: list[str],
         extra_args: list[str],
         test_config: dict[str, Any],
-        enable_ci_tests: bool = False,
         max_attempts: int = 3,
     ) -> LaunchedJob:
         """Launch a single job and track its status with retry logic."""
         # Build the command
-        cmd = [
+        # All launch.py flags must come before tool args to avoid argparse confusion
+        launch_flags = [
             "devops/skypilot/launch.py",
-            *base_args,
+            "--tool",
             module,
-            f"run={run_name}",
-            *extra_args,
+            "--run",
+            run_name,
+            "--verbose",  # Needed to print request ID for parsing
+            *base_args,
         ]
 
-        if enable_ci_tests:
-            cmd.append("--run-ci-tests")
-
         if self.skip_git_check:
-            cmd.append("--skip-git-check")
+            launch_flags.append("--skip-git-check")
+
+        # Tool args go after all launch.py flags
+        cmd = [*launch_flags, *extra_args]
 
         # Display launch info
         print(f"\n{bold('Launching job:')} {magenta(run_name)}")

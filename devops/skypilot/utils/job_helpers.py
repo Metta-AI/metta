@@ -1,6 +1,7 @@
 import netrc
 import os
 import re
+import sys
 import time
 from io import StringIO, TextIOBase
 from pathlib import Path
@@ -15,6 +16,7 @@ from sky.server.common import RequestId, get_server_url
 import gitta as git
 from metta.app_backend.clients.base_client import get_machine_token
 from metta.common.util.git_repo import REPO_SLUG
+from metta.common.util.retry import retry_function
 from metta.common.util.text_styles import blue, bold, cyan, green, red, yellow
 
 
@@ -29,16 +31,17 @@ def get_jobs_controller_name() -> str:
     return job_clusters[0]["name"]
 
 
-def launch_task(task: sky.Task) -> str:
+def launch_task(task: sky.Task, verbose: bool = False) -> str:
     request_id = sky.jobs.launch(task)
 
-    print(green(f"Submitted sky.jobs.launch request: {request_id}"))
+    if verbose:
+        print(green(f"Submitted sky.jobs.launch request: {request_id}"))
 
-    short_request_id = request_id.split("-")[0]
+        short_request_id = request_id.split("-")[0]
 
-    print(f"- Check logs with: {yellow(f'sky api logs {short_request_id}')}")
-    dashboard_url = get_server_url() + "/dashboard/jobs"
-    print(f"- Or, visit: {yellow(dashboard_url)}")
+        print(f"- Check logs with: {yellow(f'sky api logs {short_request_id}')}")
+        dashboard_url = get_server_url() + "/dashboard/jobs"
+        print(f"- Or, visit: {yellow(dashboard_url)}")
 
     return request_id
 
@@ -147,13 +150,20 @@ def display_job_summary(
         first_line = commit_message.split("\n")[0]
         print(f"{bold('Commit Message:')} {yellow(first_line)}")
 
-    pr_info = git.get_matched_pr(commit_hash, REPO_SLUG)
-    if pr_info:
-        pr_number, pr_title = pr_info
-        first_line = pr_title.split("\n")[0]
-        print(f"{bold('PR:')} {yellow(f'#{pr_number} - {first_line}')}")
-    else:
-        print(f"{bold('PR:')} {red('Not an open PR HEAD')}")
+    try:
+        pr_info = git.get_matched_pr(commit_hash, REPO_SLUG)
+        if pr_info:
+            pr_number, pr_title = pr_info
+            first_line = pr_title.split("\n")[0]
+            print(f"{bold('PR:')} {yellow(f'#{pr_number} - {first_line}')}")
+        else:
+            print(f"{bold('PR:')} {red('Not an open PR HEAD')}")
+    except git.GitError as e:
+        # Handle rate limiting and other GitHub API errors gracefully
+        if "rate limit" in str(e).lower():
+            print(f"{bold('PR:')} {yellow('(GitHub API rate limited)')}")
+        else:
+            print(f"{bold('PR:')} {yellow(f'(GitHub API error: {e})')}")
 
     print(blue("-" * divider_length))
     print(f"\n{bold('Command:')} {yellow(cmd)}")
@@ -210,13 +220,24 @@ def get_request_id_from_launch_output(output: str) -> str | None:
     return None
 
 
-def get_job_id_from_request_id(request_id: str, wait_seconds: float = 1.0) -> str | None:
-    """Get job ID from a request ID."""
-    time.sleep(wait_seconds)  # Wait for job to be registered
+def get_job_id_from_request_id(request_id: str, max_retries: int = 5) -> str | None:
+    """Get job ID from a request ID with retry logic."""
+
+    def _get_job_id():
+        job_id, _ = sky.get(RequestId(request_id))
+        if job_id is None:
+            raise ValueError("Job ID not yet registered")
+        return str(job_id)
 
     try:
-        job_id, _ = sky.get(RequestId(request_id))
-        return str(job_id) if job_id is not None else None
+        return retry_function(
+            _get_job_id,
+            max_retries=max_retries,
+            initial_delay=1.0,
+            max_delay=10.0,
+            backoff_factor=1.5,
+            exceptions=(Exception,),
+        )
     except Exception:
         return None
 
@@ -317,3 +338,65 @@ def tail_job_log(job_id: str, lines: int = 100) -> str | None:
         return f"Error: Invalid job ID format: {job_id}"
     except Exception as e:
         return f"Error: {str(e)}"
+
+
+def open_job_log_from_request_id(request_id: str, max_retries: int = 5) -> None:
+    """Stream job logs to stdout from a request ID.
+
+    This is a CLI function that prints all output directly to the terminal.
+    """
+
+    def _get_job_from_request():
+        job_id, handle = sky.get(RequestId(request_id))
+        if job_id is None:
+            raise ValueError("Job ID not yet registered")
+        return job_id, handle
+
+    try:
+        # Get the job ID and handle from the request with retry
+        job_id, _handle = retry_function(
+            _get_job_from_request,
+            max_retries=max_retries,
+            initial_delay=1.0,
+            max_delay=10.0,
+            backoff_factor=1.5,
+            exceptions=(Exception,),
+        )
+
+        if job_id is None:
+            print(yellow("Job ID not found in output"))
+            return
+
+        print(green(f"Job submitted with ID: {job_id}"))
+
+        # Stream the initial request logs
+        print("\nRequest submission logs:")
+        sky.stream_and_get(
+            request_id=RequestId(request_id),
+            log_path=None,
+            tail=None,
+            follow=False,
+            output_stream=cast(TextIOBase, sys.stdout),
+        )
+
+        print(f"\n{blue('Tailing job logs...')}")
+
+        try:
+            # Tail the job logs - returns exit code
+            exit_code = sky.jobs.tail_logs(job_id=job_id, follow=True, output_stream=cast(TextIOBase, sys.stdout))
+
+            # Print completion status based on exit code
+            if exit_code == 0:
+                print(green("\nJob completed successfully"))
+            else:
+                print(red(f"\nJob failed with exit code: {exit_code}"))
+
+        except KeyboardInterrupt:
+            print("\n" + yellow("Stopped tailing logs"))
+
+    except sky.exceptions.ClusterNotUpError:
+        print(red("Error: Jobs controller is not up"))
+    except sky.exceptions.CommandError as e:
+        print(red(f"Error getting logs: {str(e)}"))
+    except Exception as e:
+        print(red(f"Error: {str(e)}"))

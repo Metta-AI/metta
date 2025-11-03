@@ -25,8 +25,6 @@ class JobConfig:
     max_runtime_hours: Optional[float] = None
     heartbeat_timeout: Optional[int] = None
     restart_count: int = 0
-    test_nccl: bool = False
-    test_job_restart: bool = False
     start_time: Optional[int] = None
 
     # File paths
@@ -68,7 +66,7 @@ class JobConfig:
 def log_job_config(jc: JobConfig):
     """Log job configuration with sensitive values redacted."""
     logger.info("Run Configuration:")
-    for field_name, value in jc.to_filtered_dict().items():  # Need .items() here
+    for field_name, value in jc.to_filtered_dict().items():
         logger.info(f"  - {field_name}: {value}")
 
 

@@ -52,8 +52,8 @@ RECIPES = {
 # Test condition - normal completion with short training
 TEST_CONDITION = TestCondition(
     name="Normal Completion",
-    extra_args=["trainer.total_timesteps=50000"],
-    description="Exit normally after 50k timesteps",
+    extra_args=["trainer.total_timesteps=50_000_000"],
+    description="Exit normally after 50M timesteps",
     ci=False,
 )
 
@@ -104,7 +104,6 @@ class RecipeTestRunner(BaseTestRunner):
                 "description": recipe["description"],
                 "timesteps": 50000,
                 "nodes": 1,
-                "ci_tests_enabled": False,
             }
 
             # Launch the job
@@ -114,7 +113,6 @@ class RecipeTestRunner(BaseTestRunner):
                 base_args=BASE_ARGS,
                 extra_args=TEST_CONDITION.extra_args,
                 test_config=test_config,
-                enable_ci_tests=False,
             )
 
         # Save results

@@ -65,12 +65,6 @@ def get_notification_config(termination_reason: str, job_config: JobConfig) -> N
             send_discord=False,
             send_wandb=False,
         ),
-        "nccl_tests_failed": NotificationConfig(
-            title="🔧 SkyPilot Job NCCL Test Error",
-            description="NCCL tests failed",
-            github_state="error",
-            send_wandb=False,
-        ),
         "rapid_restarts": NotificationConfig(
             title="⚠️ SkyPilot Job Failing Repeatedly",
             description=f"Job terminated after {job_config.restart_count} restarts with average runtime < 3 minutes",

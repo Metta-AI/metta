@@ -173,10 +173,9 @@ def get_gpu_instance_info(num_gpus: int, gpu_type: str = "L4", region: str = "us
     hourly_cost = None
     try:
         with spinner(f"Calculating cost for {instance_type}", style=cyan):
-            hourly_cost = get_instance_cost(instance_type=instance_type, region=region, use_spot=False)
-
-        if hourly_cost is not None:
-            hourly_cost *= estimated_multiplier
+            hourly_cost = (
+                get_instance_cost(instance_type=instance_type, region=region, use_spot=False) * estimated_multiplier
+            )
 
     except Exception as e:
         print(f"\n{yellow('⚠️  Unable to calculate cost:')} {str(e)}")
@@ -201,7 +200,7 @@ def print_cost_info(hourly_cost, num_gpus):
         print(f"Approximate cost: {yellow(estimate)} (estimated for {num_gpus} L4 GPU{'s' if num_gpus > 1 else ''})")
 
 
-def check_cluster_status(cluster_name: str) -> str:
+def check_cluster_status(cluster_name: str) -> str | None:
     """Check the status of a specific cluster.
 
     Returns:
@@ -251,7 +250,6 @@ def wait_for_cluster_ready(cluster_name: str, timeout_seconds: int = 300) -> boo
             check_and_validate_status,
             max_retries=timeout_seconds // 5,
             max_delay=5.0,
-            exceptions=(Exception,),
         )
         print(f"{green('✓')} Cluster is now UP and ready")
         return True

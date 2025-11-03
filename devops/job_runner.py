@@ -428,7 +428,6 @@ class RemoteJob(Job):
                 base_args=self.base_args,
                 extra_args=self.args,
                 test_config={"name": self.name},
-                enable_ci_tests=False,
             )
 
             self._job_id = int(self._launched_job.job_id) if self._launched_job.job_id else None

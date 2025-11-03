@@ -28,7 +28,7 @@ setup: |
   # Create directories for credentials that will be SCP'd later
   mkdir -p ~/.metta
 
-  bash <(curl -fsSL "https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/${METTA_GIT_REF}/devops/skypilot/config/lifecycle/setup.sh")
+  bash <(curl -fsSL "https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/${METTA_GIT_REF}/devops/skypilot/recipes/setup.sh")
 
 run: |
   set -e
@@ -43,8 +43,7 @@ run: |
   echo "Setting up Python environment..."
   uv sync
 
-  bash ./devops/skypilot/config/lifecycle/configure_environment.sh
-
+  uv run ./devops/skypilot/utils/configure_environment.py --sandbox
   METTA_ENV_FILE="$(uv run ./common/src/metta/common/util/constants.py METTA_ENV_FILE)"
   source "$METTA_ENV_FILE"
 
