@@ -151,6 +151,19 @@ class NeutralFacedVariant(MissionVariant):
             change_vibe.enabled = False
             change_vibe.number_of_vibes = 1
 
+            neutral_vibe = "default"
+            for obj in cfg.game.objects.values():
+                if not isinstance(obj, AssemblerConfig):
+                    continue
+                updated_protocols: list[ProtocolConfig] = []
+                for proto in obj.protocols:
+                    new_proto = proto.model_copy(deep=True)
+                    if new_proto.vibes:
+                        new_proto.vibes = [neutral_vibe] * len(new_proto.vibes)
+                    updated_protocols.append(new_proto)
+                if updated_protocols:
+                    obj.protocols = updated_protocols
+
         mission.add_env_modifier(modifier)
         return mission
 
