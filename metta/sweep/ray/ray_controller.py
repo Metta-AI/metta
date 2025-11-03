@@ -121,44 +121,18 @@ def ray_sweep(
     }
 
     trial_resources: dict[str, float] = {}
+
     # At this point, cpus_per_trial and gpus_per_trial should be integers (auto already resolved)
     if isinstance(sweep_config.cpus_per_trial, int) and sweep_config.cpus_per_trial > 0:
         trial_resources["cpu"] = float(sweep_config.cpus_per_trial)
     else:
         resources = ray.cluster_resources()
-        available_cpus = resources.get("CPU", 0)
 
         # We save 4 cores for other processed
-        trial_resources["cpu"] = float(available_cpus - 4)//sweep_config.max_concurrent_trials
+        trial_resources["cpu"] = int(total_cpus / sweep_config.max_concurrent_trials)
 
     if isinstance(sweep_config.gpus_per_trial, int) and sweep_config.gpus_per_trial > 0:
         trial_resources["gpu"] = float(sweep_config.gpus_per_trial)
-
-    effective_max_concurrent = max(int(sweep_config.max_concurrent_trials), 1)
-
-    if isinstance(sweep_config.cpus_per_trial, int) and sweep_config.cpus_per_trial > 0:
-        if total_cpus <= 0:
-            logger.warning("Cluster reports zero CPUs; cannot derive CPU-based concurrency limit.")
-        else:
-            cpu_limit = int(total_cpus // sweep_config.cpus_per_trial)
-            if cpu_limit == 0:
-                raise ValueError(
-                    "Requested %.2f CPUs per trial, but the cluster only reports %.2f CPUs."
-                    % (sweep_config.cpus_per_trial, total_cpus)
-                )
-            effective_max_concurrent = min(effective_max_concurrent, cpu_limit)
-
-    if isinstance(sweep_config.gpus_per_trial, int) and sweep_config.gpus_per_trial > 0:
-        if total_gpus <= 0:
-            logger.warning("Cluster reports zero GPUs; cannot derive GPU-based concurrency limit.")
-        else:
-            gpu_limit = int(total_gpus // sweep_config.gpus_per_trial)
-            if gpu_limit == 0:
-                raise ValueError(
-                    "Requested %.2f GPUs per trial, but the cluster only reports %.2f GPUs."
-                    % (sweep_config.gpus_per_trial, total_gpus)
-                )
-            effective_max_concurrent = min(effective_max_concurrent, gpu_limit)
 
     logger.info(
         "Trials will request resources: %s; max concurrent trials capped at %d",
