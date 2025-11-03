@@ -50,7 +50,7 @@ class Simulation:
         policy_uri: str | None,
         device: torch.device,
         vectorization: str,
-        replay_dir: str,
+        replay_dir: str | None,
         stats_dir: str = "/tmp/stats",
         stats_client: StatsClient | None = None,
         stats_epoch_id: uuid.UUID | None = None,
@@ -64,7 +64,9 @@ class Simulation:
         sim_stats_dir.mkdir(parents=True, exist_ok=True)
         self._stats_dir = sim_stats_dir
         self._stats_writer = DuckDBStatsWriter(sim_stats_dir)
-        self._replay_writer = ReplayLogRenderer(f"{replay_dir}/{self._id}")
+        self._replay_writer: ReplayLogRenderer | None = None
+        if replay_dir is not None:
+            self._replay_writer = ReplayLogRenderer(f"{replay_dir}/{self._id}")
         self._device = device
 
         self._full_name = f"{cfg.suite}/{cfg.name}"
@@ -183,12 +185,12 @@ class Simulation:
         device: str,
         vectorization: str,
         stats_dir: str = "./train_dir/stats",
-        replay_dir: str = "./train_dir/replays",
+        replay_dir: str | None = "./train_dir/replays",
         policy_uri: str | None = None,
     ) -> "Simulation":
         """Create a Simulation with sensible defaults."""
         # Create replay directory path with simulation name
-        full_replay_dir = f"{replay_dir}/{sim_config.name}"
+        full_replay_dir = f"{replay_dir}/{sim_config.name}" if replay_dir is not None else None
 
         # Create and return simulation
         return cls(
@@ -304,6 +306,10 @@ class Simulation:
     def _maybe_generate_thumbnail(self) -> str | None:
         """Generate thumbnail if this is the first run for this eval_name."""
         try:
+            if self._replay_writer is None:
+                logger.debug("Replay logging disabled; skipping thumbnail generation")
+                return None
+
             # Skip synthetic evaluation framework simulations
             if self._config.suite == SYNTHETIC_EVAL_SUITE:
                 logger.debug(f"Skipping thumbnail generation for synthetic simulation: {self._full_name}")
@@ -329,7 +335,7 @@ class Simulation:
                 return None
 
         except Exception as e:
-            logger.error(f"Thumbnail generation failed for {self._full_name}: {e}")
+            logger.error(f"Thumbnail generation failed for {self._full_name}: {e}", exc_info=True)
             return None
 
     def end_simulation(self) -> SimulationResults:
@@ -466,7 +472,7 @@ class Simulation:
                         thumbnail_url=thumbnail_url,
                     )
                 except Exception as e:
-                    logger.error(f"Failed to record episode {episode_id} remotely: {e}")
+                    logger.error(f"Failed to record episode {episode_id} remotely: {e}", exc_info=True)
                     # Continue with other episodes even if one fails
 
     def get_policy_state(self):
@@ -492,10 +498,15 @@ class Simulation:
 
     def get_replays(self) -> dict:
         """Get all replays for this simulation."""
+        if self._replay_writer is None:
+            return {}
         return self._replay_writer.episodes.values()
 
     def get_replay(self) -> dict:
         """Makes sure this sim has a single replay, and return it."""
+        if self._replay_writer is None:
+            raise ValueError("Attempting to get single replay, but simulation has no replay writer.")
+
         # If no episodes yet, create initial replay data from the environment
         if len(self._replay_writer.episodes) == 0:
             env = self.get_env()

@@ -83,6 +83,7 @@ class _RunSeries:
     run_id: str
     steps: np.ndarray
     values: np.ndarray
+    has_real_step: bool
 
 
 def get_run(
@@ -151,6 +152,12 @@ def _fetch_series(run_id: str, metric_key: str, fetch: FetchSpec) -> _RunSeries:
 
                 for _ in range(max_attempts):
                     df_all = run.history(samples=samples_n, keys=keys, pandas=True)  # type: ignore[assignment]
+                    if ("_step" not in df_all.columns) and (
+                        "step" not in df_all.columns
+                    ):
+                        raise ValueError(
+                            "Requested step window but no step column ('_step' or 'step') is present in fetched history."
+                        )
                     steps_all = _resolve_step_column(df_all)
                     lo = float(fetch.min_step)
                     hi = float(fetch.max_step)
@@ -195,19 +202,16 @@ def _fetch_series(run_id: str, metric_key: str, fetch: FetchSpec) -> _RunSeries:
     if metric_key not in df.columns:
         raise ValueError(f"Metric '{metric_key}' not found in run {run_id}")
 
+    has_real_step = ("_step" in df.columns) or ("step" in df.columns)
     steps = _resolve_step_column(df)
     values = df[metric_key].to_numpy(dtype=float)
 
     # raise value error if any values are NaN
     if np.isnan(values).any():
         raise ValueError(f"NaN values for metric '{metric_key}' in run {run_id}")
-    return _RunSeries(run_id=run_id, steps=steps, values=values)
-
-    # # Drop NaNs # av delete after testing
-    # mask = np.isfinite(values)
-    # if mask.sum() == 0:
-    #     raise ValueError(f"No finite values for metric '{metric_key}' in run {run_id}")
-    # return _RunSeries(run_id=run_id, steps=steps[mask], values=values[mask])
+    return _RunSeries(
+        run_id=run_id, steps=steps, values=values, has_real_step=has_real_step
+    )
 
 
 def _reduce_summary(series: _RunSeries, summary: SummarySpec) -> float:
@@ -230,6 +234,10 @@ def _reduce_summary(series: _RunSeries, summary: SummarySpec) -> float:
             vals_w = vals[-k:]
     else:
         # Apply step bounds if provided; require both bounds if any is set
+        if not series.has_real_step:
+            raise ValueError(
+                "summary.step_min/step_max requested but no step column ('_step' or 'step') is present"
+            )
         if (s.step_min is None) and (s.step_max is None):
             steps_w = steps
             vals_w = vals
@@ -244,14 +252,18 @@ def _reduce_summary(series: _RunSeries, summary: SummarySpec) -> float:
             steps_w = steps[mask]
             vals_w = vals[mask]
 
-    if len(steps_w) < 30:  # this is kind of arbitrary
+    if len(steps_w) < 15:  # this is kind of arbitrary
         raise ValueError(
-            f"Insufficient points in window for AUC (need >=2) in run {series.run_id}"
+            f"Insufficient points in window for AUC (need >= 15) in run {series.run_id}"
         )
 
     auc = float(np.trapz(vals_w, steps_w))
     # below, we normalize by the duration of steps: this makes sense if the denominator is the same for all.
     if s.normalize_steps:
+        if not series.has_real_step:
+            raise ValueError(
+                "summary.normalize_steps=True requires a real step column ('_step' or 'step')"
+            )
         duration = float(steps_w[-1] - steps_w[0])
         if duration <= 0:
             raise ValueError(f"Non-positive duration for window in run {series.run_id}")
@@ -264,6 +276,7 @@ def _mean_confidence_interval_bca(
     t_hat: float,
     alpha: float,
     jackknife_stats: Optional[np.ndarray] = None,
+    side: Literal["two-sided", "greater", "less"] = "two-sided",
 ) -> tuple[float, float]:
     # Bias-correction
     eps = 1e-12
@@ -287,18 +300,36 @@ def _mean_confidence_interval_bca(
         adj = z0 + (zalpha / (1 - a * (zalpha - z0) + eps))
         return float(dist.cdf(adj))
 
-    lower_pct = pct(alpha / 2)
-    upper_pct = pct(1 - alpha / 2)
-    return (
-        float(np.quantile(samples, lower_pct)),
-        float(np.quantile(samples, upper_pct)),
-    )
+    if side == "two-sided":
+        lower_pct = pct(alpha / 2)
+        upper_pct = pct(1 - alpha / 2)
+        return (
+            float(np.quantile(samples, lower_pct)),
+            float(np.quantile(samples, upper_pct)),
+        )
+    if side == "greater":
+        lower_pct = pct(alpha)
+        return (float(np.quantile(samples, lower_pct)), float("inf"))
+    # side == "less"
+    upper_pct = pct(1 - alpha)
+    return (float("-inf"), float(np.quantile(samples, upper_pct)))
 
 
-def _percentile_ci(samples: np.ndarray, alpha: float) -> tuple[float, float]:
-    lo = float(np.quantile(samples, alpha / 2))
-    hi = float(np.quantile(samples, 1 - alpha / 2))
-    return lo, hi
+def _percentile_ci(
+    samples: np.ndarray,
+    alpha: float,
+    side: Literal["two-sided", "greater", "less"] = "two-sided",
+) -> tuple[float, float]:
+    if side == "two-sided":
+        lo = float(np.quantile(samples, alpha / 2))
+        hi = float(np.quantile(samples, 1 - alpha / 2))
+        return lo, hi
+    if side == "greater":
+        lo = float(np.quantile(samples, alpha))
+        return lo, float("inf")
+    # side == "less"
+    hi = float(np.quantile(samples, 1 - alpha))
+    return float("-inf"), hi
 
 
 def _paired_bootstrap_ci(
@@ -306,6 +337,7 @@ def _paired_bootstrap_ci(
     n_resamples: int,
     alpha: float,
     method: Literal["bca", "percentile"],
+    side: Literal["two-sided", "greater", "less"] = "two-sided",
 ) -> tuple[float, float, np.ndarray]:
     n = len(diffs)
     if n == 0:
@@ -317,10 +349,32 @@ def _paired_bootstrap_ci(
     if method == "bca":
         # Jackknife leave-one-out means
         jack = np.array([float(np.mean(np.delete(diffs, i))) for i in range(n)])
-        lo, hi = _mean_confidence_interval_bca(boot, t_hat, alpha, jackknife_stats=jack)
+        # CI via BCa
+        lo, hi = _mean_confidence_interval_bca(
+            boot, t_hat, alpha, jackknife_stats=jack, side=side
+        )
+        # Bias-corrected point estimate via BCa median
+        eps = 1e-12
+        frac = float(np.mean(boot < t_hat))
+        frac = min(max(frac, eps), 1 - eps)
+        z0 = NormalDist().inv_cdf(frac)
+        a = 0.0
+        if len(jack) > 1:
+            t_dot = float(np.mean(jack))
+            diffs_j = t_dot - jack
+            num = float(np.sum(diffs_j**3))
+            den = float(6.0 * (np.sum(diffs_j**2) ** 1.5) + eps)
+            if den != 0.0:
+                a = num / den
+        dist = NormalDist()
+        zalpha = dist.inv_cdf(0.5)
+        adj = z0 + (zalpha / (1 - a * (zalpha - z0) + eps))
+        median_pct = float(dist.cdf(adj))
+        point = float(np.quantile(boot, median_pct))
     else:
-        lo, hi = _percentile_ci(boot, alpha)
-    return t_hat, (lo, hi), boot
+        lo, hi = _percentile_ci(boot, alpha, side=side)
+        point = t_hat
+    return point, (lo, hi), boot
 
 
 def _unpaired_bootstrap_ci(
@@ -329,6 +383,7 @@ def _unpaired_bootstrap_ci(
     n_resamples: int,
     alpha: float,
     method: Literal["bca", "percentile"],
+    side: Literal["two-sided", "greater", "less"] = "two-sided",
 ) -> tuple[float, tuple[float, float], np.ndarray]:
     if len(control) == 0 or len(candidate) == 0:
         raise ValueError("Control and candidate must have at least one sample each")
@@ -345,35 +400,60 @@ def _unpaired_bootstrap_ci(
         for j in range(len(candidate)):
             jack_vals.append(float(np.mean(np.delete(candidate, j)) - np.mean(control)))
         jack = np.array(jack_vals)
-        lo, hi = _mean_confidence_interval_bca(boot, t_hat, alpha, jackknife_stats=jack)
+        # CI via BCa
+        lo, hi = _mean_confidence_interval_bca(
+            boot, t_hat, alpha, jackknife_stats=jack, side=side
+        )
+        # Bias-corrected point estimate via BCa median
+        eps = 1e-12
+        frac = float(np.mean(boot < t_hat))
+        frac = min(max(frac, eps), 1 - eps)
+        z0 = NormalDist().inv_cdf(frac)
+        a = 0.0
+        if len(jack) > 1:
+            t_dot = float(np.mean(jack))
+            diffs_j = t_dot - jack
+            num = float(np.sum(diffs_j**3))
+            den = float(6.0 * (np.sum(diffs_j**2) ** 1.5) + eps)
+            if den != 0.0:
+                a = num / den
+        dist = NormalDist()
+        zalpha = dist.inv_cdf(0.5)
+        adj = z0 + (zalpha / (1 - a * (zalpha - z0) + eps))
+        median_pct = float(dist.cdf(adj))
+        point = float(np.quantile(boot, median_pct))
     else:
-        lo, hi = _percentile_ci(boot, alpha)
-    return t_hat, (lo, hi), boot
+        lo, hi = _percentile_ci(boot, alpha, side=side)
+        point = t_hat
+    return point, (lo, hi), boot
 
 
 def _ttest_optional(
     paired: bool, control: np.ndarray, candidate: np.ndarray, assumption_alpha: float
 ) -> dict[str, Any]:
+    result: dict[str, Any] = {"warnings": [], "assumptions": {}}
     try:
-        result: dict[str, Any] = {"warnings": [], "assumptions": {}}
-
         if paired:
             if len(control) != len(candidate):
                 raise ValueError(
                     "paired t-test requires equal-length samples (control vs candidate)"
                 )
             diffs = candidate - control
-            # Core test
-            t_stat, p_val = st.ttest_rel(candidate, control, nan_policy="raise")  # type: ignore
             # Assumptions: normality on differences
+            if len(diffs) < 2:
+                result["warnings"].append(
+                    "Insufficient samples for Shapiro-Wilk (n<2); skipping t-test"
+                )
+                return result
             w_stat, w_p = st.shapiro(diffs)
+            # Compute test statistics but only report if assumptions pass
+            t_stat, p_val = st.ttest_rel(candidate, control, nan_policy="raise")  # type: ignore
             if float(w_p) < assumption_alpha:
                 result["warnings"].append(
-                    f"Shapiro–Wilk normality on diffs failed (p={float(w_p):.6g})"
+                    f"Shapiro-Wilk normality on diffs failed (p={float(w_p):.6g})"
                 )
             else:
                 result["ttest"] = {"t_stat": float(t_stat), "p_value": float(p_val)}
-            # Always include test stats for transparency
             result["assumptions"].update(
                 {
                     "normality_shapiro_W": float(w_stat),
@@ -381,29 +461,30 @@ def _ttest_optional(
                 }
             )
         else:
-            # Welch's t-test
-            t_stat, p_val = st.ttest_ind(
-                candidate, control, equal_var=False, nan_policy="raise"
-            )
             # Assumptions: approximate normality of each group; report Levene as well
+            if len(control) < 2 or len(candidate) < 2:
+                result["warnings"].append(
+                    "Insufficient samples for Shapiro-Wilk (n<2) in one or both groups; skipping t-test"
+                )
+                return result
             w_stat_c, w_p_c = st.shapiro(control)
             w_stat_t, w_p_t = st.shapiro(candidate)
             lev_stat, lev_p = st.levene(control, candidate, center="mean")
-
+            # Compute Welch's t-test but only report if normality checks pass
+            t_stat, p_val = st.ttest_ind(
+                candidate, control, equal_var=False, nan_policy="raise"
+            )
             violations: list[str] = []
             if float(w_p_c) < assumption_alpha:
                 violations.append(f"control normality (p={float(w_p_c):.6g})")
             if float(w_p_t) < assumption_alpha:
                 violations.append(f"candidate normality (p={float(w_p_t):.6g})")
-            # Welch's test does not assume equal variances; report Levene but do not suppress on it
-
-            if violations:
+            if not violations:
+                result["ttest"] = {"t_stat": float(t_stat), "p_value": float(p_val)}
+            else:
                 result["warnings"].append(
                     "Assumption violations: " + "; ".join(violations)
                 )
-            else:
-                result["ttest"] = {"t_stat": float(t_stat), "p_value": float(p_val)}
-
             result["assumptions"].update(
                 {
                     "normality_control_W": float(w_stat_c),
@@ -414,16 +495,11 @@ def _ttest_optional(
                     "levene_p": float(lev_p),
                 }
             )
-
         return result
     except Exception as e:  # noqa: BLE001
-        # Any failure in computing the tests should fail the run loudly
-        raise RuntimeError(f"t-test computation failed: {e}") from e
-
-
-def _required_keys(metric_key: str, summary: SummarySpec) -> list[str]:
-    # For all types, we only need the metric key; step is auto-included in history/scan
-    return [metric_key]
+        # Do not fail the overall analysis; record the failure and continue
+        result["warnings"].append(f"t-test computation failed: {e}")
+        return result
 
 
 class CompareTool(Tool):
@@ -465,7 +541,8 @@ class CompareTool(Tool):
         fetch_spec = self.fetch.model_copy()
         # Default keys to fetch only what's required
         if not fetch_spec.keys:
-            fetch_spec.keys = _required_keys(self.metric_key, self.summary)
+            # Request step columns explicitly along with the metric
+            fetch_spec.keys = ["_step", "step", self.metric_key]
 
         if self.pairs is not None:
             # Paired analysis
@@ -489,10 +566,11 @@ class CompareTool(Tool):
             point, (ci_lo, ci_hi), boot = _paired_bootstrap_ci(
                 diffs=diffs,
                 n_resamples=self.bootstrap.n_resamples,
-                alpha=self._alpha_for_side(),
+                alpha=self.bootstrap.alpha,
                 method=(
                     "percentile" if self.bootstrap.method == "percentile" else "bca"
                 ),
+                side=self.bootstrap.side,
             )
 
             ttest_result = (
@@ -514,6 +592,7 @@ class CompareTool(Tool):
                 n_candidate=len(candidate_arr),
                 point=point,
                 ci=(ci_lo, ci_hi),
+                boot=boot,
                 ttest=ttest_result,
                 power=power_info,
             )
@@ -553,10 +632,11 @@ class CompareTool(Tool):
                 control=control_arr,
                 candidate=candidate_arr,
                 n_resamples=self.bootstrap.n_resamples,
-                alpha=self._alpha_for_side(),
+                alpha=self.bootstrap.alpha,
                 method=(
                     "percentile" if self.bootstrap.method == "percentile" else "bca"
                 ),
+                side=self.bootstrap.side,
             )
 
             ttest_result = (
@@ -584,6 +664,7 @@ class CompareTool(Tool):
                 n_candidate=len(candidate_arr),
                 point=point,
                 ci=(ci_lo, ci_hi),
+                boot=boot,
                 ttest=ttest_result,
                 power=power_info,
             )
@@ -613,10 +694,8 @@ class CompareTool(Tool):
     # Helpers
     # ----------------------------------------------------------------------------------
     def _alpha_for_side(self) -> float:
-        if self.bootstrap.side == "two-sided":
-            return self.bootstrap.alpha
-        # For one-sided, we compute a two-sided-equivalent alpha to keep endpoints consistent
-        return self.bootstrap.alpha * 2.0
+        # Always return the user-specified alpha; one-sided handling is done in CI routines
+        return self.bootstrap.alpha
 
     def _print_results(
         self,
@@ -625,6 +704,7 @@ class CompareTool(Tool):
         n_candidate: int,
         point: float,
         ci: tuple[float, float],
+        boot: Optional[np.ndarray],
         ttest: Optional[dict[str, Any]],
         power: Optional[dict[str, Any]],
     ) -> None:
@@ -638,7 +718,21 @@ class CompareTool(Tool):
         print(f"  N_control={n_control}, N_candidate={n_candidate}")
         side = self.bootstrap.side
         print(f"  bootstrapped effect size (candidate - control): {point:.6g}")
-        print(f"  {side} {1 - self.bootstrap.alpha:.0%} CI: [{ci[0]:.6g}, {ci[1]:.6g}]")
+        if side == "two-sided":
+            print(
+                f"  two-sided {1 - self.bootstrap.alpha:.0%} CI: [{ci[0]:.6g}, {ci[1]:.6g}]"
+            )
+        elif side == "greater":
+            print(
+                f"  one-sided {1 - self.bootstrap.alpha:.0%} CI (lower): [{ci[0]:.6g}, +inf)"
+            )
+        else:  # side == "less"
+            print(
+                f"  one-sided {1 - self.bootstrap.alpha:.0%} CI (upper): (-inf, {ci[1]:.6g}]"
+            )
+        if boot is not None:
+            print("  bootstrap_samples:")
+            print(f"    {boot}")
         if ttest is not None:
             print("  t-test:")
             # Loudly print any assumption warnings
@@ -716,7 +810,6 @@ def compare(
     pairs: list[RunPair] | None = None,
     metric_key: str = "overview/reward",
     summary: SummarySpec | None = None,
-    methods: list[str] = ["bootstrap"],  # reserved for future multi-method selection
     fetch: FetchSpec | None = None,
     bootstrap: BootstrapSpec | None = None,
     ttest: TTestSpec | None = None,

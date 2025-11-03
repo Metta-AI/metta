@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from mettagrid.renderer.miniscope.buffer import MapBuffer
-from mettagrid.renderer.miniscope.components.glyph_picker import GlyphPickerComponent
+from mettagrid.renderer.miniscope.components.vibe_picker import VibePickerComponent
 from mettagrid.renderer.miniscope.miniscope import MiniscopeRenderer
 from mettagrid.renderer.miniscope.miniscope_state import (
     RenderMode,
@@ -42,7 +42,7 @@ def test_help_modal_entry_and_exit() -> None:
     """The help modal should open on '?' and close on any subsequent key."""
 
     renderer = _minimal_renderer()
-    renderer._state.initialize_sidebar_visibility(["agent_info", "object_info", "symbols", "glyph_picker", "help"])
+    renderer._state.initialize_sidebar_visibility(["agent_info", "object_info", "symbols", "vibe_picker", "help"])
     renderer._sidebar_hotkeys = {}
 
     renderer._state.mode = RenderMode.FOLLOW
@@ -76,25 +76,25 @@ class _DummyComponent:
         return False
 
 
-def test_glyph_picker_captures_input_exclusively() -> None:
-    """Glyph picker mode should intercept input before other components."""
+def test_vibe_picker_captures_input_exclusively() -> None:
+    """Vibe picker mode should intercept input before other components."""
 
     renderer = _minimal_renderer()
-    renderer._state.initialize_sidebar_visibility(["glyph_picker"])
-    renderer._panels.register_sidebar_panel("glyph_picker")
+    renderer._state.initialize_sidebar_visibility(["vibe_picker"])
+    renderer._panels.register_sidebar_panel("vibe_picker")
 
-    env = _DummyEnv(action_names=["noop", "change_glyph_0"], num_agents=1)
+    env = _DummyEnv(action_names=["noop", "change_vibe_0"], num_agents=1)
     renderer._env = env
 
-    glyph_picker = GlyphPickerComponent(env=env, state=renderer._state, panels=renderer._panels)
+    vibe_picker = VibePickerComponent(env=env, state=renderer._state, panels=renderer._panels)
     other_component = _DummyComponent()
-    renderer._components = [glyph_picker, other_component]
+    renderer._components = [vibe_picker, other_component]
 
-    renderer._state.mode = RenderMode.GLYPH_PICKER
+    renderer._state.mode = RenderMode.VIBE_PICKER
     renderer._state.user_input = "a"
     renderer._handle_user_input()
 
-    assert glyph_picker._glyph_query == "a"
+    assert vibe_picker._vibe_query == "a"
     assert other_component.handled == []
 
 
@@ -193,33 +193,33 @@ def test_help_modal_restores_sidebar_state() -> None:
     assert renderer._state.sidebar_visibility["help"] == original_state["help"]
 
 
-def test_glyph_picker_restores_sidebar_state() -> None:
-    """Glyph picker modal should restore previous sidebar visibility state on exit."""
+def test_vibe_picker_restores_sidebar_state() -> None:
+    """Vibe picker modal should restore previous sidebar visibility state on exit."""
 
     renderer = _minimal_renderer()
-    renderer._state.initialize_sidebar_visibility(["agent_info", "object_info", "symbols", "glyph_picker"])
+    renderer._state.initialize_sidebar_visibility(["agent_info", "object_info", "symbols", "vibe_picker"])
 
     # Set specific visibility state
     renderer._state.sidebar_visibility["agent_info"] = False
     renderer._state.sidebar_visibility["object_info"] = True
     renderer._state.sidebar_visibility["symbols"] = False
-    renderer._state.sidebar_visibility["glyph_picker"] = False
+    renderer._state.sidebar_visibility["vibe_picker"] = False
 
     # Save the state to compare later
     original_state = renderer._state.sidebar_visibility.copy()
 
-    # Enter glyph picker mode
-    renderer._state.enter_glyph_picker()
-    assert renderer._state.mode == RenderMode.GLYPH_PICKER
-    assert renderer._state.is_sidebar_visible("glyph_picker") is True
+    # Enter vibe picker mode
+    renderer._state.enter_vibe_picker()
+    assert renderer._state.mode == RenderMode.VIBE_PICKER
+    assert renderer._state.is_sidebar_visible("vibe_picker") is True
     assert renderer._state.is_sidebar_visible("agent_info") is True
     assert renderer._state.is_sidebar_visible("object_info") is False
 
-    # Exit glyph picker mode
-    renderer._state.exit_glyph_picker()
+    # Exit vibe picker mode
+    renderer._state.exit_vibe_picker()
 
     # Sidebar should be restored to original state
     assert renderer._state.sidebar_visibility["agent_info"] == original_state["agent_info"]
     assert renderer._state.sidebar_visibility["object_info"] == original_state["object_info"]
     assert renderer._state.sidebar_visibility["symbols"] == original_state["symbols"]
-    assert renderer._state.sidebar_visibility["glyph_picker"] == original_state["glyph_picker"]
+    assert renderer._state.sidebar_visibility["vibe_picker"] == original_state["vibe_picker"]

@@ -22,7 +22,7 @@ def evaluate_policy(
     simulations: list[SimulationConfig],
     device: torch.device,
     vectorization: str,
-    replay_dir: str,
+    replay_dir: str | None,
     stats_dir: str = "/tmp/stats",
     export_stats_db_uri: str | None = None,
     stats_epoch_id: uuid.UUID | None = None,
@@ -75,7 +75,9 @@ def evaluate_policy(
                 continue
             else:
                 # Re-raise for non-NPC compatibility issues
-                logger.error("Critical compatibility error in simulation '%s': %s", sim.full_name, str(e))
+                logger.error(
+                    "Critical compatibility error in simulation '%s': %s", sim.full_name, str(e), exc_info=True
+                )
                 raise
     if successful_simulations == 0:
         raise RuntimeError("No simulations could be run successfully")

@@ -4,13 +4,14 @@ import logging
 import math
 import multiprocessing
 import platform
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable, Optional
 
 import psutil
 from rich.console import Console
 
-from cogames.cli.mission import MAP_MISSION_DELIMITER
+from cogames.cli.policy import POLICY_ARG_DELIMITER
 from cogames.policy.interfaces import TrainablePolicy
 from cogames.policy.signal_handler import DeferSigintContextManager
 from cogames.policy.utils import (
@@ -87,6 +88,7 @@ def train(
     vector_batch_size: Optional[int] = None,
     vector_num_workers: Optional[int] = None,
     env_cfg_supplier: Optional[Callable[[], MettaGridConfig]] = None,
+    log_outputs: bool = False,
 ) -> None:
     import pufferlib.pytorch  # noqa: F401 - ensure modules register with torch
 
@@ -228,17 +230,10 @@ def train(
 
     env_name = "cogames.cogs_vs_clips"
 
-    if use_rnn:
-        learning_rate = 0.0003
-        bptt_horizon = 1
-        optimizer = "adam"
-        adam_eps = 1e-8
-        logger.info("Using RNN-specific hyperparameters: lr=0.0003, bptt=1, optimizer=adam")
-    else:
-        learning_rate = 0.015
-        bptt_horizon = 1
-        optimizer = "muon"
-        adam_eps = 1e-12
+    learning_rate = 0.001153637
+    bptt_horizon = 64 if use_rnn else 1
+    optimizer = "adam"
+    adam_eps = 1e-8
 
     total_agents = max(1, getattr(vecenv, "num_agents", 1))
     num_envs = max(1, getattr(vecenv, "num_envs", 1))
@@ -302,7 +297,7 @@ def train(
         vf_coef=2.0,
         vf_clip_coef=0.2,
         max_grad_norm=1.5,
-        ent_coef=0.001,
+        ent_coef=0.01,
         adam_beta1=0.95,
         adam_beta2=0.999,
         adam_eps=adam_eps,
@@ -315,29 +310,40 @@ def train(
     )
 
     trainer = pufferl.PuffeRL(train_args, vecenv, policy.network())
+    if log_outputs:
+        console.clear()
+        console.print("[dim]Evaluation stats will stream below; disabling Rich dashboard.[/dim]")
+        trainer.print_dashboard = lambda *_, **__: None  # type: ignore[assignment]
 
     training_diverged = False
 
     with DeferSigintContextManager():
         try:
             while trainer.global_step < num_steps:
-                trainer.evaluate()
-                trainer.train()
+                eval_stats = trainer.evaluate()
+                if log_outputs and eval_stats:
+                    console.log(f"Evaluation: {datetime.now(UTC)}")
+                    console.log(dict(eval_stats))
+                trainer_stats = trainer.train()
+                if log_outputs and trainer_stats:
+                    console.log(f"Training: {datetime.now(UTC)}")
+                    console.log(dict(trainer_stats))
                 # Check for NaN in network parameters after each training step
                 network = policy.network()
                 has_nan = False
                 for name, param in network.named_parameters():
                     if param.grad is not None and not param.grad.isfinite().all():
-                        logger.error(f"NaN/Inf detected in gradients for parameter: {name}")
+                        logger.error(f"NaN/Inf detected in gradients for parameter: {name}", exc_info=True)
                         has_nan = True
                     if not param.isfinite().all():
-                        logger.error(f"NaN/Inf detected in parameter: {name}")
+                        logger.error(f"NaN/Inf detected in parameter: {name}", exc_info=True)
                         has_nan = True
 
                 if has_nan:
                     logger.error(
                         f"Training diverged at step {trainer.global_step}! "
-                        "Stopping early to prevent saving corrupted checkpoint."
+                        "Stopping early to prevent saving corrupted checkpoint.",
+                        exc_info=True,
                     )
                     training_diverged = True
                     break
@@ -387,7 +393,7 @@ def train(
 
             # Build the command with game name if provided
             policy_class_arg = policy_shorthand if policy_shorthand else policy_class_path
-            policy_arg = f"{policy_class_arg}{MAP_MISSION_DELIMITER}{final_checkpoint}"
+            policy_arg = f"{policy_class_arg}{POLICY_ARG_DELIMITER}{final_checkpoint}"
 
             first_mission = missions_arg[0] if missions_arg else "training_facility_1"
             all_missions = " ".join(f"-m {m}" for m in (missions_arg or ["training_facility_1"]))

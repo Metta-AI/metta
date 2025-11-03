@@ -35,7 +35,7 @@ def _run_bazel_build() -> None:
     """Run Bazel build to compile the C++ extension."""
     # Check if bazel is available
     if shutil.which("bazel") is None:
-        raise RuntimeError("Bazel is required to build mettagrid. Please install Bazel: https://bazel.build/install")
+        raise RuntimeError("Bazel is required to build mettagrid. Run ./devops/tools/install-system.sh to install it.")
 
     # Determine build configuration from environment
     debug = os.environ.get("DEBUG", "").lower() in ("1", "true", "yes")
@@ -194,14 +194,18 @@ def _run_mettascope_build() -> None:
 
     print(f"Building mettascope from {METTASCOPE_DIR}")
 
-    # Build the Nim bindings library
-    result = subprocess.run(["nimble", "bindings", "-y"], cwd=METTASCOPE_DIR, capture_output=True, text=True)
-    print(result.stderr, file=sys.stderr)
-    print(result.stdout, file=sys.stderr)
-    if result.returncode != 0:
-        print("Warning: Mettascope build failed. bindings failed. STDERR:", file=sys.stderr)
-        print("Mettascope build bindings STDOUT:", file=sys.stderr)
-        raise RuntimeError("Mettascope build failed")
+    # Run nimble commands in sequence
+    for cmd in ["update", "bindings"]:
+        full_cmd = f"nimble {cmd} -y"
+        print(f"Running: {full_cmd}")
+        result = subprocess.run(full_cmd.split(), cwd=METTASCOPE_DIR, capture_output=True, text=True)
+        print(result.stderr, file=sys.stderr)
+        print(result.stdout, file=sys.stderr)
+        if result.returncode != 0:
+            print(f"Error: {full_cmd} failed. STDERR:", file=sys.stderr)
+            print(f"{full_cmd} STDOUT:", file=sys.stderr)
+            raise RuntimeError(f"Mettascope build failed: {full_cmd}")
+
     print("Successfully built mettascope")
     _sync_mettascope_package_data()
 

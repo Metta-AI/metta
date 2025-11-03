@@ -22,7 +22,6 @@ def basic_env() -> MettaGrid:
             actions=ActionsConfig(
                 noop=ActionConfig(),
                 move=ActionConfig(),
-                rotate=ActionConfig(),
             ),
             map_builder=RandomMapBuilder.Config(
                 width=8,

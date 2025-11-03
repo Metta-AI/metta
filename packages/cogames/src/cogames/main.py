@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Literal, Optional, TypeVar
 
 import typer
-import yaml
+import yaml  # type: ignore[import]
 from click.core import ParameterSource
 from packaging.version import Version
 from rich.table import Table
@@ -154,7 +154,8 @@ def play_cmd(
         ParameterSource.ENVIRONMENT,
         ParameterSource.PROMPT,
     ):
-        env_cfg.game.num_agents = cogs
+        if cogs is not None:
+            env_cfg.game.num_agents = cogs
 
     play_module.play(
         console,
@@ -223,7 +224,7 @@ def train_cmd(
         "-v",
         help="Mission variant (can be used multiple times, e.g., --variant solar_flare --variant dark_side)",
     ),
-    policy: str = typer.Option("simple", "--policy", "-p", help=f"Policy ({policy_arg_example})"),
+    policy: str = typer.Option("lstm", "--policy", "-p", help=f"Policy ({policy_arg_example})"),
     checkpoints_path: str = typer.Option(
         "./train_dir",
         "--checkpoints",
@@ -256,8 +257,13 @@ def train_cmd(
         help="Override vectorized environment batch size",
         min=1,
     ),
+    log_outputs: bool = typer.Option(
+        False,
+        "--log-outputs",
+        help="Log statistics to stdout, do not use Rich dashboard",
+    ),
 ) -> None:
-    selected_missions = get_mission_names_and_configs(ctx, missions)
+    selected_missions = get_mission_names_and_configs(ctx, missions, variants_arg=variant, cogs=cogs)
     if len(selected_missions) == 1:
         mission_name, env_cfg = selected_missions[0]
         supplier = None
@@ -289,6 +295,7 @@ def train_cmd(
             vector_batch_size=vector_batch_size,
             env_cfg_supplier=supplier,
             missions_arg=missions,
+            log_outputs=log_outputs,
         )
 
     except ValueError as exc:  # pragma: no cover - user input
@@ -300,12 +307,17 @@ def train_cmd(
 
 @app.command(
     name="eval",
-    help="Evaluate one or more policies on a mission",
+    help="Evaluate one or more policies on one or more missions",
 )
 @app.command("evaluate", hidden=True)
 def evaluate_cmd(
     ctx: typer.Context,
-    mission: Optional[str] = typer.Option(None, "--mission", "-m", help="Name of the mission"),
+    missions: Optional[list[str]] = typer.Option(  # noqa: B008
+        None,
+        "--mission",
+        "-m",
+        help="Missions to evaluate (supports wildcards, e.g., --mission training_facility.*)",
+    ),
     cogs: Optional[int] = typer.Option(None, "--cogs", "-c", help="Number of cogs (agents)"),
     variant: Optional[list[str]] = typer.Option(  # noqa: B008
         None,
@@ -327,34 +339,27 @@ def evaluate_cmd(
         min=1,
     ),
     steps: Optional[int] = typer.Option(1000, "--steps", "-s", help="Max steps per episode", min=1),
-    print_cvc_config: bool = typer.Option(
-        False, "--print-cvc-config", help="Print Mission config (CVC config) and exit"
+    format_: Optional[Literal["yaml", "json"]] = typer.Option(
+        None,
+        "--format",
+        help="Serialize evaluation summary to YAML or JSON",
     ),
-    print_mg_config: bool = typer.Option(False, "--print-mg-config", help="Print MettaGridConfig and exit"),
 ) -> None:
-    resolved_mission, env_cfg, mission_cfg = get_mission_name_and_config(ctx, mission, variant, cogs)
-
-    if print_cvc_config or print_mg_config:
-        try:
-            verbose.print_configs(console, env_cfg, mission_cfg, print_cvc_config, print_mg_config)
-        except Exception as exc:
-            console.print(f"[red]Error printing config: {exc}[/red]")
-            raise typer.Exit(1) from exc
-
+    selected_missions = get_mission_names_and_configs(ctx, missions, variants_arg=variant, cogs=cogs)
     policy_specs = get_policy_specs(ctx, policies)
 
     console.print(
-        f"[cyan]Evaluating {len(policy_specs)} policies on {resolved_mission} over {episodes} episodes[/cyan]"
+        f"[cyan]Preparing evaluation for {len(policy_specs)} policies across {len(selected_missions)} mission(s)[/cyan]"
     )
 
     evaluate_module.evaluate(
         console,
-        resolved_game=resolved_mission,
-        env_cfg=env_cfg,
+        missions=selected_missions,
         policy_specs=policy_specs,
         action_timeout_ms=action_timeout_ms,
         episodes=episodes,
         max_steps=steps,
+        output_format=format_,
     )
 
 
@@ -401,12 +406,11 @@ def login_cmd(
     from cogames.auth import BaseCLIAuthenticator
 
     temp_auth = BaseCLIAuthenticator(
-        auth_server_url=server,
         token_file_name="cogames.yaml",
         token_storage_key="login_tokens",
     )
 
-    if temp_auth.has_saved_token() and not force:
+    if temp_auth.has_saved_token(server) and not force:
         console.print(f"[green]Already authenticated with {urlparse(server).hostname}[/green]")
         return
 

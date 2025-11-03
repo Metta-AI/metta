@@ -67,6 +67,7 @@ ignore = [
 # See fixing documentation: https://docs.astral.sh/ruff/linter/#fix-mode
 fixable = ["E", "F", "B", "I"]
 unfixable = []
+extend-safe-fixes = ["E501"]
 
 # For more configuration options, see: https://docs.astral.sh/ruff/configuration/
 

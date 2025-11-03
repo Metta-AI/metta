@@ -8,17 +8,22 @@ on:
     branches:
       - main
     paths:
-      - "softmax/**"
-      - "common/**"
-      - "devops/tools/install-system.sh"
-      - "install.sh"
+      - "devops/datadog/**"
+      - "packages/gitta/**"
+      - "devops/charts/dashboard-cronjob/**"
       - ".github/workflows/build-dashboard-image.yml"
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: "Branch to build from (defaults to current branch)"
+        required: false
+        type: string
+        default: ""
 
 jobs:
   build-and-push-image:
     runs-on: ubuntu-4core
-    timeout-minutes: 20 # up from default of 10 minutes
+    timeout-minutes: 20
     permissions:
       id-token: write
       contents: read
@@ -26,18 +31,26 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - name: Build Docker image
         id: build-image
         uses: ./.github/actions/docker-build
         with:
           image_name: softmax-dashboard
-          dockerfile: ./softmax/Dockerfile
+          dockerfile: ./devops/datadog/Dockerfile.collectors
           aws_role: ${{ vars.AWS_ROLE }}
 
-      - name: Deploy helm chart
+      - name: Configure EKS
         if: github.ref == 'refs/heads/main'
-        run: |
-          aws eks update-kubeconfig --name main --region us-east-1
-          helm upgrade -n monitoring dashboard-cronjob ./devops/charts/dashboard-cronjob \
-            --set image.tag=${{ steps.build-image.outputs.tag }}
+        uses: ./.github/actions/eks-configure
+
+      - name: Deploy with Helm
+        if: github.ref == 'refs/heads/main'
+        uses: ./.github/actions/helm-deploy
+        with:
+          namespace: monitoring
+          release: dashboard-cronjob
+          chart: ./devops/charts/dashboard-cronjob
+          image_tag: ${{ steps.build-image.outputs.tag }}

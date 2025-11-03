@@ -38,9 +38,8 @@ class TestComprehensiveEnvironmentIntegration:
                         "altar": building.assembler_altar,
                     },
                     actions=ActionsConfig(
+                        noop=ActionConfig(),
                         move=ActionConfig(),
-                        rotate=ActionConfig(),
-                        get_items=ActionConfig(),
                     ),
                     agent=AgentConfig(
                         rewards=AgentRewards(
@@ -100,8 +99,7 @@ class TestComprehensiveEnvironmentIntegration:
                     },
                     actions=ActionsConfig(
                         move=ActionConfig(),
-                        rotate=ActionConfig(),
-                        get_items=ActionConfig(),
+                        noop=ActionConfig(),
                     ),
                     agent=AgentConfig(
                         rewards=AgentRewards(
@@ -135,8 +133,7 @@ class TestComprehensiveEnvironmentIntegration:
                     },
                     actions=ActionsConfig(
                         move=ActionConfig(),
-                        rotate=ActionConfig(),
-                        get_items=ActionConfig(),
+                        noop=ActionConfig(),
                     ),
                     agent=AgentConfig(
                         rewards=AgentRewards(

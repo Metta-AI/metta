@@ -199,6 +199,7 @@ python -m gitta.split
 ```
 
 The splitter will:
+
 1. Analyze your changes using Claude AI
 2. Determine logical groupings (e.g., refactors vs features, frontend vs backend)
 3. Create two new branches with split changes
@@ -240,22 +241,39 @@ split_pr(
 
 ### Environment Variables
 
-| Variable | Required | Default | Description |
-|----------|----------|---------|-------------|
-| `GITHUB_TOKEN` | No | - | GitHub personal access token for API operations |
-| `ANTHROPIC_API_KEY` | Yes (for splitting) | - | Anthropic API key for AI-powered PR analysis |
-| `GITTA_SPLIT_MODEL` | No | `claude-sonnet-4-5` | Anthropic model name to use for PR splitting |
-| `GITTA_SKIP_HOOKS` | No | `false` | Set to `1` to skip git hooks (use `--no-verify`) when committing |
-| `GITTA_COMMIT_TIMEOUT` | No | `300` | Git commit timeout in seconds |
+| Variable               | Required            | Default             | Description                                                      |
+| ---------------------- | ------------------- | ------------------- | ---------------------------------------------------------------- |
+| `GITHUB_TOKEN`         | No                  | -                   | GitHub personal access token for API operations                  |
+| `ANTHROPIC_API_KEY`    | Yes (for splitting) | -                   | Anthropic API key for AI-powered PR analysis                     |
+| `GITTA_SPLIT_MODEL`    | No                  | `claude-sonnet-4-5` | Anthropic model name to use for PR splitting                     |
+| `GITTA_SKIP_HOOKS`     | No                  | `false`             | Set to `1` to skip git hooks (use `--no-verify`) when committing |
+| `GITTA_COMMIT_TIMEOUT` | No                  | `300`               | Git commit timeout in seconds                                    |
+| `AWS_REGION`           | No                  | `us-east-1`         | AWS region for Secrets Manager (when using AWS secrets)          |
+
+### AWS Secrets Manager
+
+Gitta can automatically retrieve secrets from AWS Secrets Manager when environment variables are not set. This is useful
+in AWS production environments.
+
+**Secret Mapping:**
+
+- `GITHUB_TOKEN` → AWS secret: `github/token`
+- `ANTHROPIC_API_KEY` → AWS secret: `anthropic/api-key`
+
+**Fallback Order:** Environment variable → AWS Secrets Manager → Error (if required)
+
+**Caching:** AWS secrets are cached for 1 hour to minimize API calls.
 
 ### Getting API Keys
 
 **GitHub Token:**
+
 1. Go to GitHub Settings → Developer settings → Personal access tokens
 2. Generate a token with `repo` scope
 3. Set as `GITHUB_TOKEN` environment variable
 
 **Anthropic API Key:**
+
 1. Sign up at [console.anthropic.com](https://console.anthropic.com)
 2. Generate an API key from your account settings
 3. Set as `ANTHROPIC_API_KEY` environment variable
@@ -296,14 +314,17 @@ This typically occurs in Docker containers or when repository ownership differs 
 ### PR Splitting Issues
 
 **"Need at least 2 files to split"**
+
 - PR splitting requires changes in at least 2 files to create meaningful splits
 - Consider making your PR smaller or keeping it as-is
 
 **"Working tree has uncommitted changes"**
+
 - Commit or stash your changes before running the splitter
 - The splitter requires a clean working tree to safely create branches
 
 **API Rate Limits**
+
 - GitHub API has rate limits (5000/hour authenticated, 60/hour unauthenticated)
 - Anthropic API has usage limits based on your plan
 - Use tokens to get higher rate limits
@@ -474,6 +495,7 @@ Part of the Metta AI project. See main repository for license information.
 
 ## Contributing
 
-This package is currently maintained as part of the Metta monorepo. When exported as a standalone package, contribution guidelines will be added.
+This package is currently maintained as part of the Metta monorepo. When exported as a standalone package, contribution
+guidelines will be added.
 
 For now, follow the main Metta repository's contribution process.

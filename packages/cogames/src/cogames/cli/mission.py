@@ -93,7 +93,11 @@ def get_mission_name_and_config(
 
 
 def get_mission_names_and_configs(
-    ctx: typer.Context, missions_arg: Optional[list[str]]
+    ctx: typer.Context,
+    missions_arg: Optional[list[str]],
+    *,
+    variants_arg: Optional[list[str]] = None,
+    cogs: Optional[int] = None,
 ) -> list[tuple[str, MettaGridConfig]]:
     if not missions_arg:
         console.print(ctx.get_help())
@@ -101,7 +105,9 @@ def get_mission_names_and_configs(
     else:
         try:
             not_deduped = [
-                mission for missions in missions_arg for mission in _get_missions_by_possible_wildcard(missions)
+                mission
+                for missions in missions_arg
+                for mission in _get_missions_by_possible_wildcard(missions, variants_arg, cogs)
             ]
             name_set: set[str] = set()
             deduped = []
@@ -122,15 +128,22 @@ def get_mission_names_and_configs(
     raise typer.Exit(0)
 
 
-def _get_missions_by_possible_wildcard(mission_arg: str) -> list[tuple[str, MettaGridConfig]]:
+def _get_missions_by_possible_wildcard(
+    mission_arg: str,
+    variants_arg: Optional[list[str]],
+    cogs: Optional[int],
+) -> list[tuple[str, MettaGridConfig]]:
     if "*" in mission_arg:
         # Convert shell-style wildcard to regex pattern
         regex_pattern = mission_arg.replace(".", "\\.").replace("*", ".*")
         missions = [m for m in get_all_missions() if re.search(regex_pattern, m)]
         # Drop the Mission (3rd element) for wildcard results
-        return [(name, env_cfg) for name, env_cfg, _ in (get_mission(m) for m in missions)]
+        return [
+            (name, env_cfg)
+            for name, env_cfg, _ in (get_mission(m, variants_arg=variants_arg, cogs=cogs) for m in missions)
+        ]
     # Drop the Mission for single mission
-    name, env_cfg, _ = get_mission(mission_arg)
+    name, env_cfg, _ = get_mission(mission_arg, variants_arg=variants_arg, cogs=cogs)
     return [(name, env_cfg)]
 
 
@@ -182,20 +195,44 @@ def get_mission(
 
     # Determine number of cogs to use
     num_cogs = cogs if cogs is not None else site.min_cogs
+    cli_override = cogs is not None
 
     # Apply variants to the mission
     def apply_variants_to_config(
-        mission: Mission, map_builder: MapBuilderConfig, num_cogs: int
+        mission: Mission,
+        map_builder: MapBuilderConfig,
+        num_cogs: int,
+        *,
+        cli_override: bool = False,
     ) -> tuple[MettaGridConfig, Mission]:
-        """Apply variants and return both MettaGridConfig and Mission."""
-        # Instantiate the mission with specific map and num_cogs, applying variants in the process
-        instantiated_mission = mission.instantiate(map_builder, num_cogs)
+        """Apply variants and return both MettaGridConfig and Mission.
+
+        Important: Variants must be applied BEFORE finalizing the map builder.
+        For procedural missions, the map builder is reconstructed inside
+        `instantiate` based on `procedural_overrides`. If we apply variants
+        after instantiation, those overrides won't affect the generated map.
+        To preserve existing variant semantics (multiple variants in order and
+        after `configure()`), we compose the provided variants into a single
+        variant and pass it into `instantiate`.
+        """
 
         if variants:
-            # Apply all variants in sequence
-            for variant in variants:
-                instantiated_mission = variant.apply(instantiated_mission)
+            # Compose multiple variants so they apply in order during instantiate
+            class _CombinedVariant(MissionVariant):
+                name: str = "combined"
+                description: str = "Composite of CLI variants applied in order"
 
+                def apply(self, m: Mission) -> Mission:  # type: ignore[override]
+                    for v in variants:
+                        m = v.apply(m)
+                    return m
+
+            combined_variant = _CombinedVariant()
+        else:
+            combined_variant = None
+
+        # Instantiate with the combined variant to ensure overrides affect map
+        instantiated_mission = mission.instantiate(map_builder, num_cogs, combined_variant, cli_override=cli_override)
         return instantiated_mission.make_env(), instantiated_mission
 
     if mission_name is not None:
@@ -211,7 +248,9 @@ def get_mission(
             raise ValueError(f"Mission {mission_name} not available on site {site_name}")
 
         mission_instance = matching_mission_class()
-        env_cfg, mission_cfg = apply_variants_to_config(mission_instance, site.map_builder, num_cogs)
+        env_cfg, mission_cfg = apply_variants_to_config(
+            mission_instance, site.map_builder, num_cogs, cli_override=cli_override
+        )
         return (
             f"{site.name}{MAP_MISSION_DELIMITER}{mission_name}",
             env_cfg,
@@ -223,7 +262,9 @@ def get_mission(
         if site_missions:
             first_mission_class = site_missions[0]
             first_mission = first_mission_class()
-            env_cfg, mission_cfg = apply_variants_to_config(first_mission, site.map_builder, num_cogs)
+            env_cfg, mission_cfg = apply_variants_to_config(
+                first_mission, site.map_builder, num_cogs, cli_override=cli_override
+            )
             return (
                 f"{site.name}{MAP_MISSION_DELIMITER}{first_mission.name}",
                 env_cfg,
@@ -368,11 +409,11 @@ def describe_mission(mission_name: str, game_config: MettaGridConfig) -> None:
     for obj_name, obj_config in game_config.game.objects.items():
         console.print(f"  • {obj_name}")
         if isinstance(obj_config, AssemblerConfig):
-            for _, recipe in obj_config.recipes:
-                if recipe.input_resources:
-                    inputs = ", ".join(f"{k}:{v}" for k, v in recipe.input_resources.items())
-                    outputs = ", ".join(f"{k}:{v}" for k, v in recipe.output_resources.items())
-                    console.print(f"    {inputs} → {outputs} (cooldown: {recipe.cooldown})")
+            for protocol in obj_config.protocols:
+                if protocol.input_resources:
+                    inputs = ", ".join(f"{k}:{v}" for k, v in protocol.input_resources.items())
+                    outputs = ", ".join(f"{k}:{v}" for k, v in protocol.output_resources.items())
+                    console.print(f"    {inputs} → {outputs} (cooldown: {protocol.cooldown})")
 
     # Display agent configuration
     console.print("\n[bold]Agent Configuration:[/bold]")

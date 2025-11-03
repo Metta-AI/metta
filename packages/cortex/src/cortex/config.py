@@ -1,10 +1,4 @@
-"""Configuration classes for Cortex cells, blocks, and stacks.
-
-This module now includes lightweight type tags (``cell_type`` / ``block_type``)
-and parsing validators so JSON round‑trips reconstruct concrete subclasses
-without central hard‑coded unions. Adding a new cell/block remains as simple as
-defining the config class with its tag and registering the implementation.
-"""
+"""Configuration classes for Cortex cells, blocks, and stacks with type tags for JSON serialization."""
 
 from __future__ import annotations
 
@@ -86,13 +80,24 @@ class sLSTMCellConfig(CellConfig):
     axon_layer_config: AxonConfig | None = Field(default=None)
 
 
-class AxonConfig(CellConfig):
-    """Configuration for the Axons cell (streaming RTU, diagonal input weights).
+class XLCellConfig(CellConfig):
+    """Configuration for Transformer-XL style attention cell."""
 
-    Assumes D == H (identity input map) and uses per‑channel diagonal input
-    weights (w1, w2). The kernel returns a 2H activation that the cell projects
-    to ``out_dim`` with a single linear layer.
-    """
+    cell_type: str = "xl"
+    hidden_size: int | None = Field(default=None)
+    n_heads: int = Field(default=4, ge=1)
+    head_dim: int | None = Field(default=None, ge=1)
+    mem_len: int = Field(default=128, ge=0)
+    attn_dropout: float = Field(default=0.0, ge=0.0, le=1.0)
+    out_dropout: float = Field(default=0.0, ge=0.0, le=1.0)
+    use_bias: bool = Field(default=True)
+    # Optional AxonLayer-backed Q/K/V projections
+    use_axon_qkv: bool = Field(default=False)
+    axon_qkv_config: AxonConfig | None = Field(default=None)
+
+
+class AxonConfig(CellConfig):
+    """Configuration for Axon cell with streaming RTU and diagonal input weights."""
 
     cell_type: str = "axon"
     hidden_size: int | None = Field(default=None)
@@ -214,12 +219,13 @@ class AdapterBlockConfig(BlockConfig):
 
 
 class CortexStackConfig(BaseModel):
-    """Configuration for building a sequential stack of blocks."""
+    """Configuration for a sequential stack of blocks."""
 
     # Preserve subclass fields/tags for each block on dump
     blocks: list[SerializeAsAny[BlockConfig]]  # Accept any BlockConfig subclass
     d_hidden: int = Field(ge=1)
     post_norm: bool = Field(default=True)
+    compile_blocks: bool = Field(default=True)
 
     # Coerce list items into correct BlockConfig subclass using tag
     @field_validator("blocks", mode="before")
@@ -244,12 +250,80 @@ class CortexStackConfig(BaseModel):
         return out
 
 
+class RouterConfig(BaseModel):
+    """Router settings with global prior and optional per-token refinement."""
+
+    # Global prior settings
+    d_key: int | None = Field(default=None, ge=1, description="Key/query dim for global prior; defaults to d_hidden.")
+    temperature: float = Field(default=1.0, gt=0.0, description="Softmax temperature for the global gate.")
+    top_k: int | None = Field(default=None, ge=1, description="If set, keep only top‑k experts in the global prior.")
+    use_sqrt_scale: bool = Field(default=True, description="Use 1/sqrt(d_key) (vs 1/d_key) dot‑product scaling.")
+    init_scale_wq: float = Field(default=0.0, description="Uniform init scale for Wq; 0 → near‑uniform prior.")
+    init_scale_wk: float = Field(default=0.0, description="Uniform init scale for Wk; 0 → near‑uniform prior.")
+
+    # Per-token refinement (optional; disabled when whisper_lambda == 0)
+    d_key_local: int | None = Field(default=None, ge=1, description="Key dim for per‑token refiner; defaults to d_key.")
+    local_temperature: float = Field(default=1.0, gt=0.0, description="Temperature for token‑refiner logits.")
+    whisper_lambda: float = Field(default=0.1, ge=0.0, description="Strength λ of per‑token refinement (0 disables).")
+    center_refine: bool = Field(default=True, description="Center token logits over experts to redistribute mass only.")
+    restrict_to_topk: bool = Field(default=True, description="Limit refinement to the global top‑k support if set.")
+
+    class Config:
+        extra = "allow"
+
+
+class ColumnBlockConfig(BlockConfig):
+    """Column of experts with a shared router."""
+
+    block_type: str = "column"
+    experts: list[SerializeAsAny[BlockConfig]]
+    router: RouterConfig = Field(default_factory=RouterConfig, description="Router hyperparameters for this column.")
+    alpha_init: float = Field(
+        default=1.0,
+        ge=0.0,
+        description=(
+            "Initial scale for the shared ReZero gate α applied to BOTH the main MoE residual r_t "
+            "and the correction head ρ(r_t): out = x + α·r_t + α·ρ(r_t). "
+            "Smaller values keep the block near-identity at init; "
+            "larger values engage both paths more strongly. Also scales gradient flow through both paths."
+        ),
+    )
+
+    class Config:
+        extra = "allow"
+
+    def get_cell_hidden_size(self, d_hidden: int) -> int:  # type: ignore[override]
+        return d_hidden
+
+    @field_validator("experts", mode="before")
+    @classmethod
+    def _coerce_experts(cls, value):
+        if not isinstance(value, list):
+            return value
+        out: list[BlockConfig] = []
+        for item in value:
+            if isinstance(item, BlockConfig):
+                out.append(item)
+                continue
+            if isinstance(item, Mapping):
+                tag = item.get("block_type")
+                if isinstance(tag, str) and tag:
+                    from cortex.blocks.registry import get_block_config_class
+
+                    cfg_cls = get_block_config_class(tag)
+                    out.append(cfg_cls.model_validate(item))
+                    continue
+            out.append(item)
+        return out
+
+
 __all__ = [
     "CellConfig",
     "CausalConv1dConfig",
     "LSTMCellConfig",
     "mLSTMCellConfig",
     "sLSTMCellConfig",
+    "XLCellConfig",
     "AxonConfig",
     "BlockConfig",
     "PassThroughBlockConfig",
@@ -257,4 +331,6 @@ __all__ = [
     "PostUpBlockConfig",
     "AdapterBlockConfig",
     "CortexStackConfig",
+    "RouterConfig",
+    "ColumnBlockConfig",
 ]

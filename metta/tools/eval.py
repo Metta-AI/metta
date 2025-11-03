@@ -38,6 +38,7 @@ class EvaluateRemoteJobTool(RemoteJobTool):
     simulations: Sequence[SimulationConfig]  # list of simulations to run
     policy_uri: str  # policy uri to evaluate
     replay_dir: str = Field(default=f"{SOFTMAX_S3_BASE}/replays/{str(uuid.uuid4())}")
+    enable_replays: bool = True
     job_result_file_path: str  # path to the file where the results will be written
 
     group: str | None = None  # Separate group parameter like in train.py
@@ -51,6 +52,7 @@ class EvaluateRemoteJobTool(RemoteJobTool):
             simulations=self.simulations,
             policy_uris=[self.policy_uri],
             replay_dir=self.replay_dir,
+            enable_replays=self.enable_replays,
             group=self.group,
             stats_server_uri=self.stats_server_uri,
             eval_task_id=self.eval_task_id,
@@ -88,6 +90,7 @@ class EvaluateTool(Tool):
     simulations: Sequence[SimulationConfig]  # list of simulations to run
     policy_uris: str | Sequence[str] | None = None  # list of policy uris to evaluate
     replay_dir: str = Field(default=f"{SOFTMAX_S3_BASE}/replays/{str(uuid.uuid4())}")
+    enable_replays: bool = True
 
     group: str | None = None  # Separate group parameter like in train.py
 
@@ -170,14 +173,14 @@ class EvaluateTool(Tool):
                 try:
                     rl_stats.process_policy_evaluator_stats(policy_uri, eval_results, wandb_run, 0, 0, False)
                 except Exception as e:
-                    logger.error("Fallback WandB logging failed: %s", e)
+                    logger.error("Fallback WandB logging failed: %s", e, exc_info=True)
             except Exception as e:
-                logger.error(f"Error logging evaluation results to wandb: {e}")
+                logger.error(f"Error logging evaluation results to wandb: {e}", exc_info=True)
                 # Best-effort fallback logging with default indices
                 try:
                     rl_stats.process_policy_evaluator_stats(policy_uri, eval_results, wandb_run, 0, 0, False)
                 except Exception as e2:
-                    logger.error("Fallback WandB logging failed: %s", e2)
+                    logger.error("Fallback WandB logging failed: %s", e2, exc_info=True)
 
     def eval_policy(self, normalized_uri: str, device: torch.device, stats_client: StatsClient | None) -> EvalResults:
         game_rules = self._build_game_rules()
@@ -202,7 +205,11 @@ class EvaluateTool(Tool):
             checkpoint_uri=normalized_uri,
             simulations=list(self.simulations),
             stats_dir=self.stats_dir,
-            replay_dir=f"{self.replay_dir}/{eval_run_name}/{metadata.get('run_name', 'unknown')}",
+            replay_dir=(
+                f"{self.replay_dir}/{eval_run_name}/{metadata.get('run_name', 'unknown')}"
+                if self.enable_replays
+                else None
+            ),
             device=device,
             vectorization=self.system.vectorization,
             export_stats_db_uri=self.stats_db_uri,

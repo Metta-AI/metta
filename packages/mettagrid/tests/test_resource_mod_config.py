@@ -23,7 +23,6 @@ def test_resource_mod_config_creation():
         consumed_resources={"mana": 3.0},
         modifies={"health": 10.0, "gold": -5.0},
         agent_radius=2,
-        converter_radius=1,
         scales=True,
     )
 
@@ -32,7 +31,6 @@ def test_resource_mod_config_creation():
     assert config.consumed_resources == {"mana": 3.0}
     assert config.modifies == {"health": 10.0, "gold": -5.0}
     assert config.agent_radius == 2
-    assert config.converter_radius == 1
     assert config.scales is True
 
 
@@ -41,7 +39,6 @@ def test_resource_mod_default_values():
     config = ResourceModActionConfig(enabled=True, modifies={"health": 10.0})
 
     assert config.agent_radius == 0
-    assert config.converter_radius == 0
     assert config.scales is False
 
 
@@ -71,7 +68,6 @@ def test_resource_mod_conversion_to_cpp():
                 consumed_resources={"mana": 3.0},
                 modifies={"health": 10.0, "gold": -5.0},
                 agent_radius=2,
-                converter_radius=1,
                 scales=True,
             ),
         ),
@@ -108,7 +104,6 @@ def test_resource_mod_passthrough_fields_to_cpp():
                 consumed_resources={"energy": 1.0},
                 modifies={"health": 3.0, "gold": -1.0},
                 agent_radius=1,
-                converter_radius=2,
                 scales=True,
             )
         ),

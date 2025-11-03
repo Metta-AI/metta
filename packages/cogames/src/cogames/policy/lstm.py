@@ -184,21 +184,22 @@ class LSTMAgentPolicy(StatefulAgentPolicy[LSTMState]):
 
             # Debug: check observation
             if torch.isnan(obs_tensor).any():
-                logger.error(f"NaN in observation! obs shape: {obs_tensor.shape}, obs: {obs_tensor}")
+                logger.error(f"NaN in observation! obs shape: {obs_tensor.shape}, obs: {obs_tensor}", exc_info=True)
             if torch.isinf(obs_tensor).any():
-                logger.error(f"Inf in observation! obs shape: {obs_tensor.shape}")
+                logger.error(f"Inf in observation! obs shape: {obs_tensor.shape}", exc_info=True)
 
             logits, _ = self._net.forward_eval(obs_tensor, state_dict)
 
             # Debug: check logits
             if torch.isnan(logits).any():
                 logger.error(
-                    f"NaN in logits! obs shape: {obs_tensor.shape}, obs min/max: {obs_tensor.min()}/{obs_tensor.max()}"
+                    f"NaN in logits! obs shape: {obs_tensor.shape}, obs min/max: {obs_tensor.min()}/{obs_tensor.max()}",
+                    exc_info=True,
                 )
-                logger.error(f"Logits: {logits}")
+                logger.error(f"Logits: {logits}", exc_info=True)
                 for name, param in self._net.named_parameters():
                     if torch.isnan(param).any():
-                        logger.error(f"NaN in parameter {name}")
+                        logger.error(f"NaN in parameter {name}", exc_info=True)
 
             # Extract the new state from the dict
             new_state: Optional[LSTMState] = None
@@ -232,6 +233,9 @@ class LSTMPolicy(TrainablePolicy):
     def agent_policy(self, agent_id: int) -> AgentPolicy:
         """Create a StatefulPolicy wrapper for a specific agent."""
         return StatefulAgentPolicy(self._agent_policy, agent_id)
+
+    def is_recurrent(self) -> bool:
+        return True
 
     def load_policy_data(self, checkpoint_path: str) -> None:
         self._net.load_state_dict(torch.load(checkpoint_path, map_location=self._device))
