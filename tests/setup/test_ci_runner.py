@@ -23,9 +23,9 @@ def test_ci_help_shows_all_stages() -> None:
     )
 
     assert result.returncode == 0
-    # Check that all 5 stages are mentioned in help
+    # Check that all 4 stages are mentioned in help
     assert "lint" in result.stdout
-    assert "python-tests" in result.stdout
+    assert "python-tests-and-benchmarks" in result.stdout
     assert "cpp-tests" in result.stdout
     assert "cpp-benchmarks" in result.stdout
 
@@ -57,9 +57,9 @@ def test_ci_lint_stage_runs() -> None:
 
 
 def test_ci_python_tests_stage_runs() -> None:
-    """Test that metta ci --stage python-tests runs successfully."""
+    """Test that metta ci --stage python-tests-and-benchmarks runs successfully."""
     result = subprocess.run(
-        [sys.executable, "-m", "metta.setup.metta_cli", "ci", "--stage", "python-tests", "--help"],
+        [sys.executable, "-m", "metta.setup.metta_cli", "ci", "--stage", "python-tests-and-benchmarks", "--help"],
         capture_output=True,
         text=True,
         check=False,
@@ -79,7 +79,7 @@ def test_ci_python_tests_stage_rejects_unknown_args() -> None:
             "metta.setup.metta_cli",
             "ci",
             "--stage",
-            "python-tests",
+            "python-tests-and-benchmarks",
             "--",
             "--bogus",
         ],
