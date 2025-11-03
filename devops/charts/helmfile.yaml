@@ -194,6 +194,8 @@ releases:
       - serviceAccount:
           annotations:
             eks.amazonaws.com/role-arn: arn:aws:iam::751442549699:role/pr-similarity-cache-cronjob
+      - rbac:
+          enabled: false  # No k8s API access needed, only AWS S3 via IAM role
       - datadog:
           service: pr-similarity-cache-refresh
 
@@ -233,6 +235,8 @@ releases:
   #     - serviceAccount:
   #         annotations:
   #           eks.amazonaws.com/role-arn: arn:aws:iam::751442549699:role/pr-similarity-cache-cronjob
+  #     - rbac:
+  #         enabled: false  # No k8s API access needed
   #     - datadog:
   #         service: pr-similarity-cache-refresh-dev
   #         env: dev
