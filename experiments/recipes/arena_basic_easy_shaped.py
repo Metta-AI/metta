@@ -1,5 +1,5 @@
 from typing import Optional, Sequence
-
+from ray import tune
 import metta.cogworks.curriculum as cc
 import mettagrid.builder.envs as eb
 from metta.agent.policies.vit import ViTDefaultConfig
@@ -236,6 +236,10 @@ def sweep(sweep_name: str) -> SweepTool:
 
 
 def ray_mini_sweep(sweep_name: str):
+    search_space = {
+        "trainer.optimizer.learning_rate": tune.loguniform(1e-5, 3e-3),
+        "trainer.total_timesteps": 50_000,
+    }
     config = SweepConfig(
         sweep_id=sweep_name,
         recipe_module="experiments.recipes.arena_basic_easy_shaped",
@@ -245,12 +249,11 @@ def ray_mini_sweep(sweep_name: str):
         max_concurrent_trials=4,
         fail_fast=True,
         max_failures_per_trial=0,
-        cpus_per_trial=4,
-        gpus_per_trial=0,
     )
 
     # This sweep will use the default search space.
 
     return RaySweepTool(
+        search_space=search_space,
         sweep_config=config,
     )
