@@ -106,7 +106,7 @@ proc onScrubberChange(localX, panelWidth: float32) =
 
 proc centerTracesOnStep(targetStep: int) =
   ## Recenters the Agent Traces panel on the given step.
-  if agentTracesPanel.isNil:
+  if agentTracesPanel.isNil or agentTracesPanel.rect.w <= 0 or agentTracesPanel.rect.h <= 0:
     return
   let zoom2 = agentTracesPanel.zoom * agentTracesPanel.zoom
   let worldX = targetStep.float32 * TraceWidth
