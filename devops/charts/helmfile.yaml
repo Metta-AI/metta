@@ -187,10 +187,6 @@ releases:
       - schedule: "0 0 * * *"  # Daily at midnight
       - image:
           name: pr-similarity-cache
-      - command:
-          - python
-          - mcp_servers/pr_similarity/build_cache.py
-          - --download-from-s3
       - serviceAccount:
           annotations:
             eks.amazonaws.com/role-arn: arn:aws:iam::751442549699:role/pr-similarity-cache-cronjob
@@ -205,13 +201,6 @@ releases:
       - schedule: "0 */6 * * *"  # Every 6 hours
       - image:
           name: dashboard-collector
-      - command:
-          - python
-          - -m
-          - devops.datadog.cli
-          - dashboard
-          - push
-          - devops/datadog/dashboards/templates/
       - serviceAccount:
           annotations:
             eks.amazonaws.com/role-arn: arn:aws:iam::751442549699:role/dashboard-cronjob
@@ -228,10 +217,6 @@ releases:
   #     - image:
   #         name: pr-similarity-cache
   #         tag: dev  # Use dev tag
-  #     - command:
-  #         - python
-  #         - mcp_servers/pr_similarity/build_cache.py
-  #         - --download-from-s3
   #     - serviceAccount:
   #         annotations:
   #           eks.amazonaws.com/role-arn: arn:aws:iam::751442549699:role/pr-similarity-cache-cronjob
@@ -248,13 +233,6 @@ releases:
   #     - image:
   #         name: dashboard-collector
   #         tag: dev  # Use dev tag
-  #     - command:
-  #         - python
-  #         - -m
-  #         - devops.datadog.cli
-  #         - dashboard
-  #         - push
-  #         - devops/datadog/dashboards/templates/
   #     - serviceAccount:
   #         annotations:
   #           eks.amazonaws.com/role-arn: arn:aws:iam::751442549699:role/dashboard-cronjob

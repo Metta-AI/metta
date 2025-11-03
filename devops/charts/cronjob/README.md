@@ -37,14 +37,7 @@ For testing new collectors or configurations, deploy a `-dev` copy alongside pro
        - schedule: "*/5 * * * *"  # More frequent for testing
        - image:
            name: dashboard-collector
-           tag: "your-feature-branch"
-       - command:
-           - python
-           - -m
-           - devops.datadog.cli
-           - dashboard
-           - push
-           - devops/datadog/dashboards/templates/
+           tag: "your-feature-branch"  # Command comes from Dockerfile CMD
        - serviceAccount:
            annotations:
              eks.amazonaws.com/role-arn: arn:aws:iam::751442549699:role/dashboard-cronjob
