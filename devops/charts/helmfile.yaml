@@ -184,11 +184,84 @@ releases:
       - datadog:
           service: pr-similarity-cache-refresh
 
-  # Example: Dashboard cronjob (commented out - datadog collector code not yet in this repo)
-  # - name: dashboard-cronjob
+  - name: dashboard-cronjob
+    <<: *cronjob_template
+    values:
+      - schedule: "0 */6 * * *"  # Every 6 hours
+      - image:
+          name: dashboard-collector
+      - command:
+          - python
+          - -m
+          - devops.datadog.cli
+          - dashboard
+          - push
+          - devops/datadog/dashboards/templates/
+      - serviceAccount:
+          annotations:
+            eks.amazonaws.com/role-arn: arn:aws:iam::751442549699:role/dashboard-cronjob
+      - rbac:
+          enabled: true
+          rules:
+            - apiGroups: [""]
+              resources: ["pods", "nodes"]
+              verbs: ["get", "list"]
+            - apiGroups: ["batch"]
+              resources: ["jobs"]
+              verbs: ["get", "list"]
+      - datadog:
+          service: dashboard-collector
+
+  # Dev cronjob examples (commented out - use for testing in dev environments)
+  # Uncomment and deploy with: helmfile apply -i -l name=pr-similarity-cache-cronjob-dev
+  #
+  # - name: pr-similarity-cache-cronjob-dev
   #   <<: *cronjob_template
   #   values:
-  #     - ./cronjob/values-dashboard.yaml
+  #     - schedule: "*/5 * * * *"  # Every 5 minutes for testing
+  #     - image:
+  #         name: pr-similarity-cache
+  #         tag: dev  # Use dev tag
+  #     - command:
+  #         - python
+  #         - mcp_servers/pr_similarity/build_cache.py
+  #         - --download-from-s3
+  #     - serviceAccount:
+  #         annotations:
+  #           eks.amazonaws.com/role-arn: arn:aws:iam::751442549699:role/pr-similarity-cache-cronjob
+  #     - datadog:
+  #         service: pr-similarity-cache-refresh-dev
+  #         env: dev
+  #
+  # - name: dashboard-cronjob-dev
+  #   <<: *cronjob_template
+  #   values:
+  #     - schedule: "*/5 * * * *"  # Every 5 minutes for testing
+  #     - image:
+  #         name: dashboard-collector
+  #         tag: dev  # Use dev tag
+  #     - command:
+  #         - python
+  #         - -m
+  #         - devops.datadog.cli
+  #         - dashboard
+  #         - push
+  #         - devops/datadog/dashboards/templates/
+  #     - serviceAccount:
+  #         annotations:
+  #           eks.amazonaws.com/role-arn: arn:aws:iam::751442549699:role/dashboard-cronjob
+  #     - rbac:
+  #         enabled: true
+  #         rules:
+  #           - apiGroups: [""]
+  #             resources: ["pods", "nodes"]
+  #             verbs: ["get", "list"]
+  #           - apiGroups: ["batch"]
+  #             resources: ["jobs"]
+  #             verbs: ["get", "list"]
+  #     - datadog:
+  #         service: dashboard-collector-dev
+  #         env: dev
 
 # Helpful commands:
 #   Deploy cronjob definition: cd devops/charts && helmfile -l name=<release-name> apply
