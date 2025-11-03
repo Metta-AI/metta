@@ -3,12 +3,7 @@ FROM python:3.11-slim
 # Install system dependencies (minimal)
 RUN apt-get update && apt-get install -y \
     git \
-    curl \
     && rm -rf /var/lib/apt/lists/*
-
-# Install uv
-RUN curl -LsSf https://astral.sh/uv/install.sh | sh
-ENV PATH="/root/.local/bin:$PATH"
 
 # Copy PR similarity code with its pyproject.toml
 WORKDIR /app/mcp_servers/pr_similarity
@@ -19,10 +14,10 @@ COPY metta/tools/pr_similarity.py /app/metta/tools/pr_similarity.py
 COPY packages/gitta /app/packages/gitta
 
 # Install gitta as editable package
-RUN uv pip install --system -e /app/packages/gitta
+RUN pip install -e /app/packages/gitta
 
 # Install dependencies from pyproject.toml to system Python
-RUN uv pip install --system -e .
+RUN pip install -e .
 
 ENV PYTHONPATH="/app"
 

@@ -3,12 +3,7 @@ FROM python:3.11-slim
 # Install system dependencies (minimal)
 RUN apt-get update && apt-get install -y \
     git \
-    curl \
     && rm -rf /var/lib/apt/lists/*
-
-# Install uv
-RUN curl -LsSf https://astral.sh/uv/install.sh | sh
-ENV PATH="/root/.local/bin:$PATH"
 
 # Copy datadog collector code with its pyproject.toml
 # Note: devops/datadog code will be added in a future PR with its own pyproject.toml
@@ -16,7 +11,7 @@ WORKDIR /app/devops/datadog
 COPY devops/datadog /app/devops/datadog
 
 # Install dependencies from pyproject.toml to system Python
-RUN uv pip install --system -e .
+RUN pip install -e .
 
 ENV PYTHONPATH="/app"
 
