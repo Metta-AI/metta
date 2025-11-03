@@ -9,9 +9,8 @@ on:
       - main
     paths:
       - "mcp_servers/pr_similarity/**"
-      - "metta/tools/pr_similarity.py"
       - "packages/gitta/**"
-      - "devops/charts/pr-similarity-cache-cronjob/**"
+      - "devops/charts/cronjob/**"
       - ".github/workflows/deploy-pr-similarity-cache-cronjob.yml"
   workflow_dispatch:
     inputs:
@@ -40,7 +39,7 @@ jobs:
         uses: ./.github/actions/docker-build
         with:
           image_name: pr-similarity-cache
-          dockerfile: ./devops/charts/pr-similarity-cache-cronjob/Dockerfile
+          dockerfile: ./devops/charts/cronjob/Dockerfile.pr-similarity
           aws_role: ${{ vars.AWS_ROLE }}
 
       - name: Configure EKS
@@ -53,5 +52,5 @@ jobs:
         with:
           namespace: monitoring
           release: pr-similarity-cache-cronjob
-          chart: ./devops/charts/pr-similarity-cache-cronjob
+          chart: ./devops/charts/cronjob
           image_tag: ${{ steps.build-image.outputs.tag }}

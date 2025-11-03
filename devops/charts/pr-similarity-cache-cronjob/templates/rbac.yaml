@@ -1,6 +1,0 @@
-{{- if .Values.serviceAccount.create -}}
-# PR similarity cache doesn't need any Kubernetes RBAC permissions
-# It only needs AWS IAM permissions (via serviceAccount annotation) to:
-# - Read/write to S3 for cache storage
-# - Access Secrets Manager for API keys (GEMINI_API_KEY, GITHUB_TOKEN)
-{{- end }}

@@ -8,8 +8,9 @@ on:
     branches:
       - main
     paths:
+      - "devops/datadog/**"
       - "packages/gitta/**"
-      - "devops/charts/dashboard-cronjob/**"
+      - "devops/charts/cronjob/**"
       - ".github/workflows/deploy-dashboard-cronjob.yml"
   workflow_dispatch:
     inputs:
@@ -38,7 +39,7 @@ jobs:
         uses: ./.github/actions/docker-build
         with:
           image_name: softmax-dashboard
-          dockerfile: ./devops/charts/dashboard-cronjob/Dockerfile
+          dockerfile: ./devops/charts/cronjob/Dockerfile.dashboard
           aws_role: ${{ vars.AWS_ROLE }}
 
       - name: Configure EKS
@@ -51,5 +52,5 @@ jobs:
         with:
           namespace: monitoring
           release: dashboard-cronjob
-          chart: ./devops/charts/dashboard-cronjob
+          chart: ./devops/charts/cronjob
           image_tag: ${{ steps.build-image.outputs.tag }}

@@ -1,10 +1,10 @@
-schedule: "*/15 * * * *"  # Run every 15 minutes
+# Dashboard cronjob specific values
+# Runs every 15 minutes to collect and push metrics to Datadog
+
+schedule: "*/15 * * * *"
 
 image:
-  registry: 751442549699.dkr.ecr.us-east-1.amazonaws.com
   name: softmax-dashboard
-  pullPolicy: Always
-  tag: "latest"
 
 # Command to run all collectors
 # Uses the new modular collector architecture
@@ -13,23 +13,28 @@ image:
 command: ["python", "/app/devops/datadog/scripts/run_all_collectors.py"]
 
 serviceAccount:
-  create: true
   annotations:
     eks.amazonaws.com/role-arn: arn:aws:iam::751442549699:role/dashboard-cronjob
 
-resources:
-  requests:
-    cpu: 100m
-    memory: 2Gi
-  limits:
-    cpu: 500m
-    memory: 2Gi
+# Enable RBAC for Kubernetes API access (needed for KubernetesCollector)
+rbac:
+  enabled: true
+  rules:
+    # Kubernetes collector needs to read pods and deployments
+    - apiGroups: [""]
+      resources: ["pods"]
+      verbs: ["get", "list"]
+    - apiGroups: ["apps"]
+      resources: ["deployments"]
+      verbs: ["get", "list"]
+    # Kubernetes collector needs to read pod metrics from metrics-server
+    - apiGroups: ["metrics.k8s.io"]
+      resources: ["pods"]
+      verbs: ["get", "list"]
 
-# Datadog metric tagging (for organizing metrics in Datadog)
+# Datadog metric tagging
 datadog:
-  env: "production"
-  service: "datadog-collectors"  # Changed from github-collector to reflect all collectors
-  site: "datadoghq.com"
+  service: "datadog-collectors"
 
 # GitHub configuration
 github:
@@ -44,10 +49,3 @@ asana:
 # Kubernetes configuration
 kubernetes:
   clusterName: "main"  # Cluster name for metric tagging
-
-# CronJob configuration
-successfulJobsHistoryLimit: 3
-failedJobsHistoryLimit: 3
-concurrencyPolicy: Forbid  # Don't allow concurrent executions
-restartPolicy: OnFailure
-backoffLimit: 3

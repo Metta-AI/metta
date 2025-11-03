@@ -157,28 +157,33 @@ releases:
     namespace: library
 
   ########## Cronjobs ##########
-  - name: dashboard-cronjob
-    chart: ./dashboard-cronjob
+  # Shared cronjob template for all periodic tasks
+  cronjob: &cronjob_template
+    chart: ./cronjob
     version: 0.1.0
     namespace: monitoring
+
+  - name: dashboard-cronjob
+    <<: *cronjob_template
+    values:
+      - ./cronjob/values-dashboard.yaml
 
   # Uncomment the following section if you want to test new dashboard collectors or configurations.
   # Deploy with `helmfile apply -l name=dashboard-cronjob-dev`.
   # This deploys to the same namespace with -dev suffix and reuses the prod service account.
 
   - name: dashboard-cronjob-dev
-    chart: ./dashboard-cronjob
-    version: 0.1.0
-    namespace: monitoring
+    <<: *cronjob_template
     values:
-      - ./dashboard-cronjob/values-dev.yaml
+      - ./cronjob/values-dashboard.yaml
+      - ./cronjob/values-dev.yaml
       - image:
           tag: "sha-410e6a4"  # WandB refactor: instantaneous per-run metrics with Datadog aggregation
 
   - name: pr-similarity-cache-cronjob
-    chart: ./pr-similarity-cache-cronjob
-    version: 0.1.0
-    namespace: monitoring
+    <<: *cronjob_template
+    values:
+      - ./cronjob/values-pr-similarity.yaml
 
 # Helpful commands:
 #   Deploy cronjob definition: cd devops/charts && helmfile -l name=<release-name> apply

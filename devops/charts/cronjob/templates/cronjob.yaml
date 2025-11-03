@@ -1,9 +1,9 @@
 apiVersion: batch/v1
 kind: CronJob
 metadata:
-  name: {{ include "pr-similarity-cache-cronjob.fullname" . }}
+  name: {{ include "cronjob.fullname" . }}
   labels:
-    {{- include "pr-similarity-cache-cronjob.labels" . | nindent 4 }}
+    {{- include "cronjob.labels" . | nindent 4 }}
 spec:
   schedule: {{ .Values.schedule | quote }}
   successfulJobsHistoryLimit: {{ .Values.successfulJobsHistoryLimit }}
@@ -15,9 +15,9 @@ spec:
       template:
         metadata:
           labels:
-            {{- include "pr-similarity-cache-cronjob.selectorLabels" . | nindent 12 }}
+            {{- include "cronjob.selectorLabels" . | nindent 12 }}
         spec:
-          serviceAccountName: {{ include "pr-similarity-cache-cronjob.serviceAccountName" . }}
+          serviceAccountName: {{ include "cronjob.serviceAccountName" . }}
           restartPolicy: {{ .Values.restartPolicy }}
           containers:
           - name: {{ .Chart.Name }}
@@ -29,7 +29,7 @@ spec:
             - name: DD_ENV
               value: {{ .Values.datadog.env | quote }}
             - name: DD_SERVICE
-              value: {{ default .Release.Name .Values.datadog.service | quote }}
+              value: {{ .Values.datadog.service | quote }}
             - name: DD_VERSION
               value: {{ .Values.image.tag | quote }}
             - name: DD_SITE

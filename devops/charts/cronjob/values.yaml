@@ -1,0 +1,45 @@
+# Default values for cronjob chart
+# These can be overridden by specific cronjob values files
+
+schedule: "*/15 * * * *"  # Default: run every 15 minutes
+
+image:
+  registry: 751442549699.dkr.ecr.us-east-1.amazonaws.com
+  name: ""  # Must be set by specific cronjob values
+  pullPolicy: Always
+  tag: "latest"
+
+# Command to run (must be set by specific cronjob values)
+command: []
+
+serviceAccount:
+  create: true
+  name: ""  # Will use release name if not specified
+  annotations: {}
+
+# RBAC configuration (disabled by default, enable for cronjobs that need K8s API access)
+rbac:
+  enabled: false
+  rules: []
+
+# Datadog metric tagging
+datadog:
+  env: "production"
+  service: ""  # Should be set by specific cronjob values
+  site: "datadoghq.com"
+
+# Resource limits
+resources:
+  requests:
+    cpu: 100m
+    memory: 2Gi
+  limits:
+    cpu: 500m
+    memory: 2Gi
+
+# CronJob configuration
+successfulJobsHistoryLimit: 3
+failedJobsHistoryLimit: 3
+concurrencyPolicy: Forbid  # Don't allow concurrent executions
+restartPolicy: OnFailure
+backoffLimit: 3
