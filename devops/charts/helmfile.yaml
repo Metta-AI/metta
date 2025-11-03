@@ -156,6 +156,7 @@ releases:
     version: 0.1.0
     namespace: library
 
+  ########## Cronjobs ##########
   - name: dashboard-cronjob
     chart: ./dashboard-cronjob
     version: 0.1.0
@@ -178,3 +179,9 @@ releases:
     chart: ./pr-similarity-cache-cronjob
     version: 0.1.0
     namespace: monitoring
+
+# Helpful commands:
+#   Deploy cronjob definition: cd devops/charts && helmfile -l name=<release-name> apply
+#   Inspect cronjob definition: kubectl get cronjobs -n monitoring
+#   Trigger a run of cronjob off-schedule: kubectl -n monitoring create job <custom-name> --from=cronjob/<release-name>
+#   Inspect runs/logs: kubectl get jobs -n monitoring && kubectl logs -n monitoring job/<job-name>
