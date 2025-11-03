@@ -7,14 +7,6 @@ import
 const TS = 1.0 / 64.0 # Tile scale.
 const TILE_SIZE = 64
 
-# Double-click detection variables for worldmap
-const
-  ClickInterval = 0.3 # seconds
-  ClickDistance = 10.0 # pixels
-var
-  worldmapLastClickTime = 0.0
-  worldmapLastClickPos = vec2(0, 0)
-
 proc centerAt*(panel: Panel, entity: Entity) # Forward declaration
 
 var
@@ -220,21 +212,11 @@ proc useSelections*(panel: Panel) =
   if window.buttonPressed[MouseLeft] and not modifierDown:
     mouseDownPos = window.mousePos.vec2
 
-  # Handle double-click detection
-  if window.buttonPressed[MouseLeft] and not modifierDown:
-    let currentTime = epochTime()
-    let mousePos = bxy.getTransform().inverse * window.mousePos.vec2
-    let isClick = dist(mousePos, worldmapLastClickPos) < ClickDistance
-
-    if currentTime - worldmapLastClickTime < ClickInterval and isClick:
-      settings.lockFocus = not settings.lockFocus
-      if settings.lockFocus and selection != nil:
-        centerAt(panel, selection)
-    else:
-      settings.lockFocus = false
-
-    worldmapLastClickTime = currentTime
-    worldmapLastClickPos = mousePos
+  # Focus agent on double-click.
+  if window.buttonPressed[DoubleClick] and not modifierDown:
+    settings.lockFocus = not settings.lockFocus
+    if settings.lockFocus and selection != nil:
+      centerAt(panel, selection)
 
   # Only select on mouse up, and only if we didn't drag much.
   if window.buttonReleased[MouseLeft] and not modifierDown:
