@@ -21,8 +21,8 @@ COPY packages/gitta /app/packages/gitta
 # Install gitta as editable package
 RUN uv pip install --system -e /app/packages/gitta
 
-# Sync dependencies from pyproject.toml
-RUN uv sync --frozen
+# Install dependencies from pyproject.toml to system Python
+RUN uv pip install --system -e .
 
 ENV PYTHONPATH="/app"
 
