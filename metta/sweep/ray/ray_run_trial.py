@@ -18,6 +18,8 @@ from metta.adaptive.utils import create_eval_job, create_training_job
 
 logger = logging.getLogger(__name__)
 
+SWEEP_SEEDS: list[int] = [11, 23, 37, 53, 67]
+
 
 def _fallback_run_id() -> str:
     return f"local-{datetime.now().strftime('%Y%m%d-%H%M%S')}"
@@ -119,6 +121,21 @@ def metta_train_fn(config: dict[str, Any]) -> None:
     merged_overrides = dict(sweep_config.get("train_overrides", {}))
     merged_overrides.update(config["params"])
 
+    assigned_seed: int | None = None
+    if "system.seed" in merged_overrides:
+        assigned_seed = merged_overrides["system.seed"]
+    else:
+        trial_index: int | None = None
+        try:
+            parts = trial_name.split(".")
+            if len(parts) >= 3:
+                trial_index = int(parts[-22])
+        except (ValueError, IndexError):
+            trial_index = None
+        if trial_index is not None and SWEEP_SEEDS:
+            assigned_seed = SWEEP_SEEDS[trial_index % len(SWEEP_SEEDS)]
+            merged_overrides["system.seed"] = assigned_seed
+
     job = create_training_job(
         run_id=trial_name,
         experiment_id=sweep_config.get("sweep_id"),
@@ -130,6 +147,8 @@ def metta_train_fn(config: dict[str, Any]) -> None:
     job.metadata["sweep/suggestion"] = config["params"]
     job.metadata["sweep/assigned_gpus"] = assigned_gpus
     job.metadata["sweep/trial_id"] = ctx.get_trial_id()
+    if assigned_seed is not None:
+        job.metadata["sweep/seed"] = assigned_seed
 
     # TODO: Register SIGINTs for pruning
     job_pid = training_dispatcher.dispatch(job)
@@ -164,40 +183,40 @@ def metta_train_fn(config: dict[str, Any]) -> None:
             logging.error(f"Trial failed with exit code {exit_code}")
             sys.exit(exit_code if exit_code else 1)
 
-    # TODO Run evaluation
-    evaluation_dispatcher = LocalDispatcher(capture_output=True)
-    eval_job = create_eval_job(
-        run_id=trial_name,
-        experiment_id=sweep_config.get("sweep_id"),
-        recipe_module=sweep_config.get("recipe_module"),
-        eval_entrypoint=sweep_config.get("eval_entrypoint"),
-        stats_server_uri=sweep_config.get("stats_server_uri"),
-    )
-    eval_proc_id = evaluation_dispatcher.dispatch(eval_job)
-    eval_proc = evaluation_dispatcher.get_process(eval_proc_id)
+    # # TODO Run evaluation
+    # evaluation_dispatcher = LocalDispatcher(capture_output=True)
+    # eval_job = create_eval_job(
+    #     run_id=trial_name,
+    #     experiment_id=sweep_config.get("sweep_id"),
+    #     recipe_module=sweep_config.get("recipe_module"),
+    #     eval_entrypoint=sweep_config.get("eval_entrypoint"),
+    #     stats_server_uri=sweep_config.get("stats_server_uri"),
+    # )
+    # eval_proc_id = evaluation_dispatcher.dispatch(eval_job)
+    # eval_proc = evaluation_dispatcher.get_process(eval_proc_id)
 
-    # polling returns None as long as the process is running
-    # Wait for the process to finish
-    while eval_proc and eval_proc.poll() is None:
-        # TODO Make this configurable
-        time.sleep(60)
+    # # polling returns None as long as the process is running
+    # # Wait for the process to finish
+    # while eval_proc and eval_proc.poll() is None:
+    #     # TODO Make this configurable
+    #     time.sleep(60)
 
     # Check exit code to determine if this was a normal exit or failure
     # TODO This requires some care -- will the resumption work as expected and
     # re-run the evaluation if necessary?
-    if eval_proc:
-        exit_code = eval_proc.returncode
-        if exit_code == 124:
-            # Spot termination - should be retried
-            logging.info("Evaluation terminated due to spot instance preemption (exit code 124)")
-            sys.exit(124)
-        elif exit_code != 0:
-            # Other failure
-            logging.error(f"Evaluation failed with exit code {exit_code}")
-            sys.exit(exit_code if exit_code else 1)
+    # if eval_proc:
+    #     exit_code = eval_proc.returncode
+    #     if exit_code == 124:
+    #         # Spot termination - should be retried
+    #         logging.info("Evaluation terminated due to spot instance preemption (exit code 124)")
+    #         sys.exit(124)
+    #     elif exit_code != 0:
+    #         # Other failure
+    #         logging.error(f"Evaluation failed with exit code {exit_code}")
+    #         sys.exit(exit_code if exit_code else 1)
 
     # Give WandB time to sync
-    time.sleep(10)
+    # time.sleep(10)
 
     # No failure
-    _report_metrics(trial_name, score_key=sweep_config.get("score_key"))
+    # _report_metrics(trial_name, score_key=sweep_config.get("score_key"))

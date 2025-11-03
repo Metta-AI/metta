@@ -12,6 +12,8 @@ try:
     from ray.tune.search.sample import Float as _RayFloat
     from ray.tune.search.sample import Integer as _RayInteger
 
+    # TODO I don't think we need any of this stuff
+
     _KNOWN_RAY_DOMAINS = {_RayDomain, _RayFloat, _RayInteger, _RayCategorical}
 except (ModuleNotFoundError, ImportError):  # pragma: no cover - ray not available in all environments
     class _RayDomain:  # type: ignore[too-many-ancestors]

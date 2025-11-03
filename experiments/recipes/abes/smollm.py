@@ -24,7 +24,7 @@ from metta.cogworks.curriculum.curriculum import (
 )
 from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
 from metta.tools.train import TrainTool
-from metta.tools.sweep import SweepTool
+from metta.tools.ray_sweep import RaySweepTool
 from mettagrid import MettaGridConfig
 
 _FLASH_ATTENTION_AVAILABLE = importlib.util.find_spec("flash_attn") is not None
@@ -161,7 +161,7 @@ def make_curriculum(
 def sweep(
     sweep_name: str,
     **kwargs: object,
-) -> SweepTool:
+) -> RaySweepTool:
     """Expose the canonical arena sweep for SmolLLM recipes."""
 
     return _delegate_sweep(sweep_name, **kwargs)
@@ -170,11 +170,11 @@ def sweep(
 def sweep_async_progressive(
     sweep_name: str,
     **kwargs: object,
-) -> SweepTool:
+) -> RaySweepTool:
     """Backward-compatible alias retained for historical CLI invocations."""
 
     return _delegate_sweep(sweep_name, **kwargs)
 
 
-def _delegate_sweep(sweep_name: str, **kwargs: object) -> SweepTool:
+def _delegate_sweep(sweep_name: str, **kwargs: object) -> RaySweepTool:
     return _arena_sweep(sweep_name, **kwargs)

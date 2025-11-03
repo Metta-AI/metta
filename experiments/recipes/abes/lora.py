@@ -18,7 +18,7 @@ from experiments.recipes.arena_basic_easy_shaped import (
 from metta.agent.policies.smollm import SmolLLMConfig
 from metta.agent.policy import PolicyArchitecture
 from metta.cogworks.curriculum.curriculum import CurriculumConfig
-from metta.tools.sweep import SweepTool
+from metta.tools.ray_sweep import RaySweepTool
 from metta.tools.train import TrainTool
 
 DEFAULT_LORA_TARGETS = ["q_proj", "k_proj", "v_proj", "o_proj"]
@@ -125,7 +125,7 @@ make_curriculum = smollm_recipe.make_curriculum
 def sweep(
     sweep_name: str,
     **kwargs: object,
-) -> SweepTool:
+) -> RaySweepTool:
     """Expose the canonical arena sweep for SmolLLM LoRA recipes."""
 
     return _delegate_sweep(sweep_name, **kwargs)
@@ -134,11 +134,11 @@ def sweep(
 def sweep_async_progressive(
     sweep_name: str,
     **kwargs: object,
-) -> SweepTool:
+) -> RaySweepTool:
     """Backward-compatible alias maintained for historical CLI usage."""
 
     return _delegate_sweep(sweep_name, **kwargs)
 
 
-def _delegate_sweep(sweep_name: str, **kwargs: object) -> SweepTool:
+def _delegate_sweep(sweep_name: str, **kwargs: object) -> RaySweepTool:
     return _arena_sweep(sweep_name, **kwargs)

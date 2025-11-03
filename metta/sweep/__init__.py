@@ -1,6 +1,6 @@
 """Sweep orchestration package for Metta."""
 
-from .core import ParameterConfig
+from .core import Distribution, ParameterSpec, SweepParameters
 from .optimizer.protein import ProteinOptimizer
 from .protein import Protein
 from .protein_config import ProteinConfig, ProteinSettings
@@ -22,8 +22,10 @@ __all__ = [
     "Protein",
     "ProteinOptimizer",
     "ProteinConfig",
-    "ParameterConfig",
     "ProteinSettings",
+    "SweepParameters",
+    "ParameterSpec",
+    "Distribution",
     # Schedulers
     "BatchedSyncedOptimizingScheduler",
     "BatchedSyncedSchedulerConfig",

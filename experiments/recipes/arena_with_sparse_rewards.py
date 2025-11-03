@@ -17,12 +17,12 @@ from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
 from metta.sim.simulation_config import SimulationConfig
 from metta.sweep.core import Distribution as D
 from metta.sweep.core import SweepParameters as SP
-from metta.sweep.core import make_sweep
+from metta.sweep.ray.ray_controller import SweepConfig
 from metta.tools.eval import EvaluateTool
 from metta.tools.eval_remote import EvalRemoteTool
 from metta.tools.play import PlayTool
 from metta.tools.replay import ReplayTool
-from metta.tools.sweep import SweepTool
+from metta.tools.ray_sweep import RaySweepTool
 from metta.tools.train import TrainTool
 from mettagrid import MettaGridConfig
 
@@ -195,8 +195,8 @@ def evaluate_in_sweep(policy_uri: str) -> EvaluateTool:
     )
 
 
-def sweep(sweep_name: str) -> SweepTool:
-    parameters = [
+def sweep(sweep_name: str) -> RaySweepTool:
+    parameter_specs = [
         SP.LEARNING_RATE,
         SP.PPO_CLIP_COEF,
         SP.PPO_GAE_LAMBDA,
@@ -215,16 +215,20 @@ def sweep(sweep_name: str) -> SweepTool:
         SP.param("contrastive_coef", D.UNIFORM, min=0.0001, max=1, search_center=0.2),
     ]
 
-    return make_sweep(
-        name=sweep_name,
-        recipe="experiments.recipes.arena_with_sparse_rewards",
+    search_space = {spec.path: spec.space for spec in parameter_specs}
+
+    sweep_config = SweepConfig(
+        sweep_id=sweep_name,
+        recipe_module="experiments.recipes.arena_with_sparse_rewards",
         train_entrypoint="train",
-        # We can set global overrides for training here.
-        # These are passed via the CLI
-        train_overrides={"enable_contrastive": True},
         eval_entrypoint="evaluate_in_sweep",
-        objective=f"evaluator/eval_{SWEEP_EVAL_SUITE}/score",
-        parameters=parameters,
-        max_trials=80,
-        num_parallel_trials=4,
+        score_key=f"evaluator/eval_{SWEEP_EVAL_SUITE}/score",
+        num_samples=80,
+        max_concurrent_trials=4,
+        train_overrides={"enable_contrastive": True},
+    )
+
+    return RaySweepTool(
+        sweep_config=sweep_config,
+        search_space=search_space,
     )

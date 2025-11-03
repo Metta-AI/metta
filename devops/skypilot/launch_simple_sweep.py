@@ -37,7 +37,7 @@ Examples:
     parser.add_argument("--ray-client-port", type=int, default=10001, help="Ray client port")
     parser.add_argument("--skip-git-check", action="store_true", help="Skip clean git tree check")
     parser.add_argument("--dry-run", action="store_true", help="Show summary and exit")
-    parser.add_argument("--wandb-project", type=str, default="sweep-prototyping", help="WandB project name")
+    parser.add_argument("--wandb-project", type=str, default="sweeps", help="WandB project name")
     return parser.parse_known_args()
 
 

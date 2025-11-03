@@ -7,9 +7,9 @@ from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
 from metta.sim.simulation_config import SimulationConfig
 from metta.sweep.core import Distribution as D
 from metta.sweep.core import SweepParameters as SP
-from metta.sweep.core import make_sweep
+from metta.sweep.ray.ray_controller import SweepConfig
 from metta.tools.eval import EvaluateTool
-from metta.tools.sweep import SweepTool
+from metta.tools.ray_sweep import RaySweepTool
 from metta.tools.train import TrainTool
 
 # Import everything from the base arena recipe
@@ -131,7 +131,7 @@ def evaluate_in_sweep(policy_uri: str) -> EvaluateTool:
     )
 
 
-def sweep(sweep_name: str) -> SweepTool:
+def sweep(sweep_name: str) -> RaySweepTool:
     """Hyperparameter sweep for ScheduleFree optimizer.
 
     This sweep explores ScheduleFree-specific parameters along with standard RL hyperparameters.
@@ -151,7 +151,7 @@ def sweep(sweep_name: str) -> SweepTool:
         - learning_rate: Base learning rate
     """
     # ScheduleFree-specific and general RL parameters
-    parameters = [
+    parameter_specs = [
         # Learning rate - critical for ScheduleFree
         SP.LEARNING_RATE,
         # Weight decay - important for AdamW variant
@@ -185,13 +185,19 @@ def sweep(sweep_name: str) -> SweepTool:
         ),
     ]
 
-    return make_sweep(
-        name=sweep_name,
-        recipe="experiments.recipes.losses.schedulefree",
+    search_space = {spec.path: spec.space for spec in parameter_specs}
+
+    sweep_config = SweepConfig(
+        sweep_id=sweep_name,
+        recipe_module="experiments.recipes.losses.schedulefree",
         train_entrypoint="train",
         eval_entrypoint="evaluate_in_sweep",
-        objective="evaluator/eval_sweep/score",
-        parameters=parameters,
-        max_trials=80,
-        num_parallel_trials=4,
+        score_key="evaluator/eval_sweep/score",
+        num_samples=80,
+        max_concurrent_trials=4,
+    )
+
+    return RaySweepTool(
+        sweep_config=sweep_config,
+        search_space=search_space,
     )
