@@ -5,17 +5,26 @@ import os
 import subprocess
 import sys
 import time
+import warnings
 
-import sky
-import sky.exceptions
-import yaml
+# Suppress Pydantic warnings from SkyPilot dependencies before importing sky
+# SkyPilot v0.10.3.post2 with Pydantic 2.12.3 generates UnsupportedFieldAttributeWarning
+# for 'repr' and 'frozen' attributes used in Field() definitions that have no effect.
+# This is a known issue in Pydantic 2.12+ affecting multiple projects (wandb, pytorch, etc.)
+# See: https://github.com/pydantic/pydantic/issues/10497
+# These warnings are harmless and come from upstream dependencies, not our code.
+warnings.filterwarnings("ignore", category=UserWarning, module="pydantic._internal._generate_schema")
 
-import gitta as git
-from devops.skypilot.utils.cost_monitor import get_instance_cost
-from devops.skypilot.utils.job_helpers import set_task_secrets
-from metta.common.util.cli import spinner
-from metta.common.util.retry import retry_function
-from metta.common.util.text_styles import blue, bold, cyan, green, red, yellow
+import sky  # noqa: E402
+import sky.exceptions  # noqa: E402
+import yaml  # noqa: E402
+
+import gitta as git  # noqa: E402
+from devops.skypilot.utils.cost_monitor import get_instance_cost  # noqa: E402
+from devops.skypilot.utils.job_helpers import set_task_secrets  # noqa: E402
+from metta.common.util.cli import spinner  # noqa: E402
+from metta.common.util.retry import retry_function  # noqa: E402
+from metta.common.util.text_styles import blue, bold, cyan, green, red, yellow  # noqa: E402
 
 
 class CredentialWarningHandler(logging.Handler):
