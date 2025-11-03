@@ -5,17 +5,26 @@ import os
 import subprocess
 import sys
 import time
+import warnings
 
-import sky
-import sky.exceptions
-import yaml
+# Suppress Pydantic warnings from SkyPilot dependencies before importing sky
+# SkyPilot v0.10.3.post2 with Pydantic 2.12.3 generates UnsupportedFieldAttributeWarning
+# for 'repr' and 'frozen' attributes used in Field() definitions that have no effect.
+# This is a known issue in Pydantic 2.12+ affecting multiple projects (wandb, pytorch, etc.)
+# See: https://github.com/pydantic/pydantic/issues/10497
+# These warnings are harmless and come from upstream dependencies, not our code.
+warnings.filterwarnings("ignore", category=UserWarning, module="pydantic._internal._generate_schema")
 
-import gitta as git
-from devops.skypilot.utils.cost_monitor import get_instance_cost
-from devops.skypilot.utils.job_helpers import set_task_secrets
-from metta.common.util.cli import spinner
-from metta.common.util.retry import retry_function
-from metta.common.util.text_styles import blue, bold, cyan, green, red, yellow
+import sky  # noqa: E402
+import sky.exceptions  # noqa: E402
+import yaml  # noqa: E402
+
+import gitta as git  # noqa: E402
+from devops.skypilot.utils.cost_monitor import get_instance_cost  # noqa: E402
+from devops.skypilot.utils.job_helpers import set_task_secrets  # noqa: E402
+from metta.common.util.cli import spinner  # noqa: E402
+from metta.common.util.retry import retry_function  # noqa: E402
+from metta.common.util.text_styles import blue, bold, cyan, green, red, yellow  # noqa: E402
 
 
 class CredentialWarningHandler(logging.Handler):
@@ -114,8 +123,10 @@ def print_cluster_status(clusters, title=None):
         # Additional guidance for INIT state clusters
         if cluster["status"].name == "INIT":
             cluster_name = cluster["name"]
-            print(f"    💡 If stuck in INIT for >10min, try: {green(f'sky launch -c {cluster_name} --no-setup')}")
-            print(f"    📊 Check logs: {green(f'sky logs {cluster_name}')}")
+            print(
+                f"    💡 If stuck in INIT for >10min, try: {green(f'uv run sky launch -c {cluster_name} --no-setup')}"
+            )
+            print(f"    📊 Check logs: {green(f'uv run sky logs {cluster_name}')}")
 
 
 def print_management_commands(clusters):
@@ -130,9 +141,9 @@ def print_management_commands(clusters):
     print(f"  Launch new:     {green('./devops/skypilot/sandbox.py --new')}")
     print(f"  Connect:        {green(f'ssh {first_cluster_name}')}")
     if first_stopped_cluster:
-        print(f"  Restart:        {green(f'sky start {first_stopped_cluster}')}")
-    print(f"  Stop:           {green(f'sky stop {first_cluster_name}')}")
-    print(f"  Delete:         {red(f'sky down {first_cluster_name}')}")
+        print(f"  Restart:        {green(f'uv run sky start {first_stopped_cluster}')}")
+    print(f"  Stop:           {green(f'uv run sky stop {first_cluster_name}')}")
+    print(f"  Delete:         {red(f'uv run sky down {first_cluster_name}')}")
 
 
 def get_gpu_instance_info(num_gpus: int, gpu_type: str = "L4", region: str = "us-east-1", cloud: str = "aws"):
@@ -317,12 +328,12 @@ Examples:
   %(prog)s --new --wait-timeout 600  # Wait up to 10 minutes for cluster to be ready
 
 Common management commands:
-  ssh <sandbox-name>     # Connect to a running sandbox
-  sky stop <name>        # Stop a sandbox (keeps data)
-  sky start <name>       # Restart a stopped sandbox
-  sky down <name>        # Delete a sandbox completely
-  sky logs <name>        # Check cluster logs
-  sky launch -c <name> --no-setup  # Retry launch for stuck clusters
+  ssh <sandbox-name>                 # Connect to a running sandbox
+  uv run sky stop <name>             # Stop a sandbox (keeps data)
+  uv run sky start <name>            # Restart a stopped sandbox
+  uv run sky down <name>             # Delete a sandbox completely
+  uv run sky logs <name>             # Check cluster logs
+  uv run sky launch -c <name> --no-setup  # Retry launch for stuck clusters
         """,
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
@@ -483,9 +494,9 @@ Common management commands:
     # Wait for cluster to be ready using retry utility
     if not wait_for_cluster_ready(cluster_name, args.wait_timeout):
         print("Current status might still be INIT. You can:")
-        print(f"  • Check status manually: {green(f'sky status {cluster_name}')}")
+        print(f"  • Check status manually: {green(f'uv run sky status {cluster_name}')}")
         print(f"  • Try connecting anyway: {green(f'ssh {cluster_name}')}")
-        print(f"  • Re-run launch to retry: {green(f'sky launch -c {cluster_name} --no-setup')}")
+        print(f"  • Re-run launch to retry: {green(f'uv run sky launch -c {cluster_name} --no-setup')}")
         print(f"  • Increase timeout: {green(f'--wait-timeout {args.wait_timeout + 300}')}")
         return 1
 
@@ -495,11 +506,11 @@ Common management commands:
         setup_result = sky.tail_logs(cluster_name, job_id=1, follow=True)
         if setup_result != 0:
             print(f"{red('✗')} Setup job failed with exit code {setup_result}")
-            print(f"You can check logs with: {green(f'sky logs {cluster_name}')}")
+            print(f"You can check logs with: {green(f'uv run sky logs {cluster_name}')}")
             return 1
     except Exception as e:
         print(f"{red('✗')} Failed to tail setup logs: {str(e)}")
-        print(f"You can check logs manually with: {green(f'sky logs {cluster_name}')}")
+        print(f"You can check logs manually with: {green(f'uv run sky logs {cluster_name}')}")
         return 1
 
     # Configure SSH access
@@ -509,7 +520,7 @@ Common management commands:
         except subprocess.CalledProcessError as e:
             print(f"\n{yellow('⚠')} SSH setup may not be complete. You can try:")
             print(f"  • Manual SSH: {green(f'ssh {cluster_name}')}")
-            print(f"  • Update SSH config: {green(f'sky status {cluster_name}')}")
+            print(f"  • Update SSH config: {green(f'uv run sky status {cluster_name}')}")
             print(f"Error: {str(e)}")
 
     # For CPU-only mode, SCP the additional files over
@@ -589,7 +600,7 @@ Common management commands:
     print(f"  {green(f'ssh {cluster_name}')}")
     print(f"\n\n⚠️ The cluster will be automatically stopped after {bold(str(autostop_hours))} hours.")
     print("To disable autostop:")
-    print(f"  {green(f'sky autostop --cancel {cluster_name}')}")
+    print(f"  {green(f'uv run sky autostop --cancel {cluster_name}')}")
 
     return 0
 
