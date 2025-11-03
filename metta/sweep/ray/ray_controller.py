@@ -132,7 +132,7 @@ def ray_sweep(
     logger.info(
         "Trials will request resources: %s; max concurrent trials capped at %d",
         trial_resources if trial_resources else "(none)",
-        effective_max_concurrent,
+        sweep_config.max_concurrent_trials,
     )
 
     if trial_resources:
@@ -163,7 +163,7 @@ def ray_sweep(
         # Limit Optuna to a single suggestion's repeats at a time so it averages seeds before proposing new configs
         search_alg = ConcurrencyLimiter(
             repeated_search,
-            max_concurrent=sweep_config.num_seeds_per_trial,
+            max_concurrent=sweep_config.max_concurrent_trials,
         )
 
     trial_counter = count()
@@ -178,7 +178,6 @@ def ray_sweep(
             num_samples=sweep_config.num_samples,
             metric="reward",
             mode="max",
-            # max_concurrent_trials=effective_max_concurrent,
             search_alg=search_alg,
             trial_name_creator=trial_name_creator,
         ),
