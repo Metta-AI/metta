@@ -171,7 +171,18 @@ releases:
   - name: pr-similarity-cache-cronjob
     <<: *cronjob_template
     values:
-      - ./cronjob/values-pr-similarity.yaml
+      - schedule: "0 0 * * *"  # Daily at midnight
+      - image:
+          name: pr-similarity-cache
+      - command:
+          - python
+          - mcp_servers/pr_similarity/build_cache.py
+          - --download-from-s3
+      - serviceAccount:
+          annotations:
+            eks.amazonaws.com/role-arn: arn:aws:iam::751442549699:role/pr-similarity-cache-cronjob
+      - datadog:
+          service: pr-similarity-cache-refresh
 
   # Example: Dashboard cronjob (commented out - datadog collector code not yet in this repo)
   # - name: dashboard-cronjob
