@@ -158,32 +158,26 @@ releases:
 
   ########## Cronjobs ##########
   # Shared cronjob template for all periodic tasks
+  # To add a new cronjob:
+  #   1. Create Dockerfile.{name} in devops/charts/cronjob/
+  #   2. Create values-{name}.yaml with specific configuration
+  #   3. Add release entry below using <<: *cronjob_template
+  #   4. Create GitHub workflow to build and deploy
   cronjob: &cronjob_template
     chart: ./cronjob
     version: 0.1.0
     namespace: monitoring
 
-  - name: dashboard-cronjob
-    <<: *cronjob_template
-    values:
-      - ./cronjob/values-dashboard.yaml
-
-  # Uncomment the following section if you want to test new dashboard collectors or configurations.
-  # Deploy with `helmfile apply -l name=dashboard-cronjob-dev`.
-  # This deploys to the same namespace with -dev suffix and reuses the prod service account.
-
-  - name: dashboard-cronjob-dev
-    <<: *cronjob_template
-    values:
-      - ./cronjob/values-dashboard.yaml
-      - ./cronjob/values-dev.yaml
-      - image:
-          tag: "sha-410e6a4"  # WandB refactor: instantaneous per-run metrics with Datadog aggregation
-
   - name: pr-similarity-cache-cronjob
     <<: *cronjob_template
     values:
       - ./cronjob/values-pr-similarity.yaml
+
+  # Example: Dashboard cronjob (commented out - datadog collector code not yet in this repo)
+  # - name: dashboard-cronjob
+  #   <<: *cronjob_template
+  #   values:
+  #     - ./cronjob/values-dashboard.yaml
 
 # Helpful commands:
 #   Deploy cronjob definition: cd devops/charts && helmfile -l name=<release-name> apply
