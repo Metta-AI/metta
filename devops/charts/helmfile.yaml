@@ -160,13 +160,26 @@ releases:
   # Shared cronjob template for all periodic tasks
   # To add a new cronjob:
   #   1. Create Dockerfile.{name} in devops/charts/cronjob/
-  #   2. Create values-{name}.yaml with specific configuration
-  #   3. Add release entry below using <<: *cronjob_template
-  #   4. Create GitHub workflow to build and deploy
+  #   2. Add release entry below using <<: *cronjob_template
+  #   3. Create GitHub workflow to build and deploy
   cronjob: &cronjob_template
     chart: ./cronjob
     version: 0.1.0
     namespace: monitoring
+    values:
+      # Default RBAC permissions for all cronjobs (broad access for simplicity)
+      - rbac:
+          enabled: true
+          rules:
+            - apiGroups: [""]
+              resources: ["pods", "nodes", "services", "endpoints"]
+              verbs: ["get", "list", "watch"]
+            - apiGroups: ["batch"]
+              resources: ["jobs", "cronjobs"]
+              verbs: ["get", "list", "watch"]
+            - apiGroups: ["apps"]
+              resources: ["deployments", "statefulsets"]
+              verbs: ["get", "list", "watch"]
 
   - name: pr-similarity-cache-cronjob
     <<: *cronjob_template
@@ -200,15 +213,6 @@ releases:
       - serviceAccount:
           annotations:
             eks.amazonaws.com/role-arn: arn:aws:iam::751442549699:role/dashboard-cronjob
-      - rbac:
-          enabled: true
-          rules:
-            - apiGroups: [""]
-              resources: ["pods", "nodes"]
-              verbs: ["get", "list"]
-            - apiGroups: ["batch"]
-              resources: ["jobs"]
-              verbs: ["get", "list"]
       - datadog:
           service: dashboard-collector
 
@@ -250,15 +254,6 @@ releases:
   #     - serviceAccount:
   #         annotations:
   #           eks.amazonaws.com/role-arn: arn:aws:iam::751442549699:role/dashboard-cronjob
-  #     - rbac:
-  #         enabled: true
-  #         rules:
-  #           - apiGroups: [""]
-  #             resources: ["pods", "nodes"]
-  #             verbs: ["get", "list"]
-  #           - apiGroups: ["batch"]
-  #             resources: ["jobs"]
-  #             verbs: ["get", "list"]
   #     - datadog:
   #         service: dashboard-collector-dev
   #         env: dev

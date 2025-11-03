@@ -1,7 +1,5 @@
 FROM python:3.11-slim
 
-WORKDIR /app
-
 # Install system dependencies (minimal)
 RUN apt-get update && apt-get install -y \
     git \
@@ -11,28 +9,15 @@ RUN apt-get update && apt-get install -y \
 # Install uv
 RUN curl -LsSf https://astral.sh/uv/install.sh | sh
 ENV PATH="/root/.local/bin:$PATH"
-ENV PYTHONPATH="/app"
 
-# Copy datadog collector code
+# Copy datadog collector code with its pyproject.toml
+# Note: devops/datadog code will be added in a future PR with its own pyproject.toml
+WORKDIR /app/devops/datadog
 COPY devops/datadog /app/devops/datadog
 
-# Create minimal pyproject.toml with dashboard dependencies
-RUN cat > /app/pyproject.toml <<'EOF'
-[project]
-name = "dashboard-collector"
-version = "1.0.0"
-requires-python = ">=3.11"
-dependencies = [
-    "requests>=2.31.0",
-    "datadog-api-client>=2.0.0",
-    "python-dotenv>=1.0.0",
-]
-EOF
+# Sync dependencies from pyproject.toml
+RUN uv sync --frozen
 
-# Install dependencies
-RUN uv pip install --system \
-    "requests>=2.31.0" \
-    "datadog-api-client>=2.0.0" \
-    "python-dotenv>=1.0.0"
+ENV PYTHONPATH="/app"
 
-CMD ["python", "-m", "devops.datadog.cli", "dashboard", "push", "devops/datadog/dashboards/templates/"]
+CMD ["python", "-m", "devops.datadog.cli", "dashboard", "push", "dashboards/templates/"]
