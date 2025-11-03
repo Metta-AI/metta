@@ -31,7 +31,7 @@ class EvaluatorConfig(Config):
 
     epoch_interval: int = 100  # 0 to disable
     evaluate_local: bool = True
-    evaluate_remote: bool = False
+    evaluate_remote: bool = True
     num_training_tasks: int = 2
     simulations: list[SimulationConfig] = Field(default_factory=list)
     training_replay_envs: list[SimulationConfig] = Field(
