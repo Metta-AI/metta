@@ -561,12 +561,12 @@ Common management commands:
                 scp_success = False
 
         # Transfer observatory tokens
-        with spinner("Copying ~/.metta/observatory_tokens.yaml", style=cyan):
+        with spinner("Copying ~/.metta/config.yaml", style=cyan):
             try:
-                obs_path = os.path.expanduser("~/.metta/observatory_tokens.yaml")
+                obs_path = os.path.expanduser("~/.metta/config.yaml")
                 if os.path.exists(obs_path):
                     subprocess.run(
-                        ["scp", "-q", obs_path, f"{cluster_name}:~/.metta/observatory_tokens.yaml"],
+                        ["scp", "-q", obs_path, f"{cluster_name}:~/.metta/config.yaml"],
                         check=True,
                         capture_output=True,
                     )
@@ -581,7 +581,7 @@ Common management commands:
             print(f"\n{yellow('⚠')} Some files failed to transfer.")
             print("  You can manually copy them later with:")
             print(f"    {green(f'scp -r ~/.sky {cluster_name}:~/')}")
-            print(f"    {green(f'scp ~/.metta/observatory_tokens.yaml {cluster_name}:~/.metta/')}")
+            print(f"    {green(f'scp ~/.metta/config.yaml {cluster_name}:~/.metta/')}")
 
     # Success!
     print(f"\n{green('✓')} Sandbox is ready!")

@@ -5,7 +5,7 @@
 import
   std/[os, tables],
   fidget2, windy,
-  common, panels, replays, actions
+  common, panels, replays, actions, pathfinding
 
 find "/UI/Main/**/VibePanel":
   find "**/Button":
@@ -43,6 +43,7 @@ find "/UI/Main/**/VibePanel":
       else:
         # Execute immediately.
         sendAction(selection.agentId, vibeActionId)
+        clearPath(selection.agentId)
 
 proc updateVibePanel*() =
   ## Updates the vibe panel to display the current vibe frequency for the agent.

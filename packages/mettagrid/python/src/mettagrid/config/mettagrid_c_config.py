@@ -5,7 +5,6 @@ from mettagrid.config.mettagrid_config import (
     AssemblerConfig,
     ChestConfig,
     ClipperConfig,
-    ConverterConfig,
     FixedPosition,
     GameConfig,
     WallConfig,
@@ -17,12 +16,10 @@ from mettagrid.mettagrid_c import AttackActionConfig as CppAttackActionConfig
 from mettagrid.mettagrid_c import ChangeVibeActionConfig as CppChangeVibeActionConfig
 from mettagrid.mettagrid_c import ChestConfig as CppChestConfig
 from mettagrid.mettagrid_c import ClipperConfig as CppClipperConfig
-from mettagrid.mettagrid_c import ConverterConfig as CppConverterConfig
 from mettagrid.mettagrid_c import GameConfig as CppGameConfig
 from mettagrid.mettagrid_c import GlobalObsConfig as CppGlobalObsConfig
 from mettagrid.mettagrid_c import InventoryConfig as CppInventoryConfig
-from mettagrid.mettagrid_c import PatrolSupervisorConfig as CppPatrolSupervisorConfig
-from mettagrid.mettagrid_c import Recipe as CppRecipe
+from mettagrid.mettagrid_c import Protocol as CppProtocol
 from mettagrid.mettagrid_c import ResourceModConfig as CppResourceModConfig
 from mettagrid.mettagrid_c import WallConfig as CppWallConfig
 
@@ -65,7 +62,7 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
     vibe_names = list(game_config.vibe_names)
     vibe_name_to_id = {name: i for i, name in enumerate(vibe_names)}
 
-    objects_cpp_params = {}  # params for CppConverterConfig or CppWallConfig
+    objects_cpp_params = {}  # params for CppWallConfig and other object configs
 
     # These are the baseline settings for all agents
     default_agent_config_dict = game_config.agent.model_dump()
@@ -201,17 +198,6 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
 
         inventory_config = CppInventoryConfig(limits=limits_list)
 
-        # Convert supervisor configuration if present
-        supervisor_config = None
-        if first_agent.supervisor:
-            supervisor = first_agent.supervisor
-            if supervisor.type == "patrol":
-                supervisor_config = CppPatrolSupervisorConfig(
-                    steps_per_direction=supervisor.steps_per_direction,
-                    can_override_action=supervisor.can_override_action,
-                    name=supervisor.name,
-                )
-
         agent_cpp_params = {
             "freeze_duration": agent_props["freeze_duration"],
             "group_id": team_id,
@@ -230,10 +216,6 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
             "diversity_tracked_resources": diversity_tracked_resources,
             "initial_vibe": initial_vibe,
         }
-
-        if supervisor_config:
-            agent_cpp_params["supervisor_config"] = supervisor_config
-
         cpp_agent_config = CppAgentConfig(**agent_cpp_params)
         cpp_agent_config.tag_ids = tag_ids
 
@@ -249,26 +231,7 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
 
     # Convert other objects
     for object_type, object_config in game_config.objects.items():
-        if isinstance(object_config, ConverterConfig):
-            # Convert tag names to IDs
-            tag_ids = [tag_name_to_id[tag] for tag in object_config.tags]
-
-            cpp_converter_config = CppConverterConfig(
-                type_id=object_config.type_id,
-                type_name=object_type,
-                input_resources={resource_name_to_id[k]: v for k, v in object_config.input_resources.items()},
-                output_resources={resource_name_to_id[k]: v for k, v in object_config.output_resources.items()},
-                max_output=object_config.max_output,
-                max_conversions=object_config.max_conversions,
-                conversion_ticks=object_config.conversion_ticks,
-                cooldown_time=list(object_config.cooldown),
-                initial_resource_count=object_config.initial_resource_count,
-                recipe_details_obs=game_config.recipe_details_obs,
-                initial_vibe=object_config.vibe,
-            )
-            cpp_converter_config.tag_ids = tag_ids
-            objects_cpp_params[object_type] = cpp_converter_config
-        elif isinstance(object_config, WallConfig):
+        if isinstance(object_config, WallConfig):
             # Convert tag names to IDs
             tag_ids = [tag_name_to_id[tag] for tag in object_config.tags]
 
@@ -279,25 +242,24 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
             cpp_wall_config.tag_ids = tag_ids
             objects_cpp_params[object_type] = cpp_wall_config
         elif isinstance(object_config, AssemblerConfig):
-            recipes = {}
+            protocols = []
+            seen_vibes = []
 
-            for vibes, recipe_config in reversed(object_config.recipes):
+            for protocol_config in reversed(object_config.protocols):
                 # Convert vibe names to IDs
-                vibe_ids = sorted([vibe_name_to_id[vibe] for vibe in vibes])
-                overall_vibe = 0
-                for vibe_id in vibe_ids:
-                    overall_vibe = overall_vibe << 8 | vibe_id
-                # Create C++ recipe - must use keyword args for pybind11
-                input_res = {resource_name_to_id[k]: int(v) for k, v in recipe_config.input_resources.items()}
-                output_res = {resource_name_to_id[k]: int(v) for k, v in recipe_config.output_resources.items()}
-                cpp_recipe = CppRecipe(
-                    input_resources=input_res, output_resources=output_res, cooldown=int(recipe_config.cooldown)
-                )
-                if overall_vibe in recipes:
-                    raise ValueError(
-                        f"Recipe with vibe {overall_vibe} (from vibes {vibes}) already exists in {object_type}"
-                    )
-                recipes[overall_vibe] = cpp_recipe
+                vibe_ids = sorted([vibe_name_to_id[vibe] for vibe in protocol_config.vibes])
+                # Check for duplicate vibes
+                if vibe_ids in seen_vibes:
+                    raise ValueError(f"Protocol with vibes {protocol_config.vibes} already exists in {object_type}")
+                seen_vibes.append(vibe_ids)
+                input_res = {resource_name_to_id[k]: int(v) for k, v in protocol_config.input_resources.items()}
+                output_res = {resource_name_to_id[k]: int(v) for k, v in protocol_config.output_resources.items()}
+                cpp_protocol = CppProtocol()
+                cpp_protocol.vibes = vibe_ids
+                cpp_protocol.input_resources = input_res
+                cpp_protocol.output_resources = output_res
+                cpp_protocol.cooldown = protocol_config.cooldown
+                protocols.append(cpp_protocol)
 
             # Convert tag names to IDs
             tag_ids = [tag_name_to_id[tag] for tag in object_config.tags]
@@ -306,7 +268,7 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
                 type_id=object_config.type_id, type_name=object_type, initial_vibe=object_config.vibe
             )
             cpp_assembler_config.tag_ids = tag_ids
-            cpp_assembler_config.recipes = recipes
+            cpp_assembler_config.protocols = protocols
             cpp_assembler_config.allow_partial_usage = object_config.allow_partial_usage
             cpp_assembler_config.max_uses = object_config.max_uses
             cpp_assembler_config.exhaustion = object_config.exhaustion
@@ -445,18 +407,24 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
     # Add clipper if configured
     if game_config.clipper is not None:
         clipper: ClipperConfig = game_config.clipper
-        clipper_recipes = []
-        for recipe_config in clipper.unclipping_recipes:
-            input_res = {resource_name_to_id[k]: int(v) for k, v in recipe_config.input_resources.items()}
-            output_res = {resource_name_to_id[k]: int(v) for k, v in recipe_config.output_resources.items()}
-            cpp_recipe = CppRecipe(input_res, output_res, int(recipe_config.cooldown))
-            clipper_recipes.append(cpp_recipe)
+        clipper_protocols = []
+        for protocol_config in clipper.unclipping_protocols:
+            cpp_protocol = CppProtocol()
+            cpp_protocol.vibes = sorted([vibe_name_to_id[vibe] for vibe in protocol_config.vibes])
+            cpp_protocol.input_resources = {
+                resource_name_to_id[k]: int(v) for k, v in protocol_config.input_resources.items()
+            }
+            cpp_protocol.output_resources = {
+                resource_name_to_id[k]: int(v) for k, v in protocol_config.output_resources.items()
+            }
+            cpp_protocol.cooldown = protocol_config.cooldown
+            clipper_protocols.append(cpp_protocol)
         game_cpp_params["clipper"] = CppClipperConfig(
-            clipper_recipes, clipper.length_scale, clipper.cutoff_distance, clipper.clip_rate
+            clipper_protocols, clipper.length_scale, clipper.cutoff_distance, clipper.clip_rate
         )
 
     # Set feature flags
-    game_cpp_params["recipe_details_obs"] = game_config.recipe_details_obs
+    game_cpp_params["protocol_details_obs"] = game_config.protocol_details_obs
     game_cpp_params["allow_diagonals"] = game_config.allow_diagonals
     game_cpp_params["track_movement_metrics"] = game_config.track_movement_metrics
 
