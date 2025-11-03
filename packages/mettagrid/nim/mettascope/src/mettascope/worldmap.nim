@@ -7,7 +7,7 @@ import
 const TS = 1.0 / 64.0 # Tile scale.
 const TILE_SIZE = 64
 
-proc centerAt*(panel: Panel, entity: Entity) # Forward declaration
+proc centerAt*(panel: Panel, entity: Entity)
 
 var
   terrainMap*: TileMap
