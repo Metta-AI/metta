@@ -125,11 +125,6 @@ def ray_sweep(
     # At this point, cpus_per_trial and gpus_per_trial should be integers (auto already resolved)
     if isinstance(sweep_config.cpus_per_trial, int) and sweep_config.cpus_per_trial > 0:
         trial_resources["cpu"] = float(sweep_config.cpus_per_trial)
-    else:
-        resources = ray.cluster_resources()
-
-        # We save 4 cores for other processed
-        trial_resources["cpu"] = int(total_cpus / sweep_config.max_concurrent_trials)
 
     if isinstance(sweep_config.gpus_per_trial, int) and sweep_config.gpus_per_trial > 0:
         trial_resources["gpu"] = float(sweep_config.gpus_per_trial)
