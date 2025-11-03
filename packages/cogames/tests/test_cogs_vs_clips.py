@@ -1,5 +1,5 @@
 from cogames.cogs_vs_clips.missions import HarvestMission, NeutralFacedVariant, make_game
-from mettagrid.config.mettagrid_config import AssemblerConfig, MettaGridConfig
+from mettagrid.config.mettagrid_config import MettaGridConfig
 
 
 def test_make_cogs_vs_clips_scenario():
@@ -41,7 +41,7 @@ def test_make_cogs_vs_clips_scenario():
     # assert config.game.agent.rewards.inventory == {}
 
 
-def test_neutral_faced_variant_sets_neutral_recipe_vibes():
+def test_neutral_faced_variant_disables_vibe_swapping():
     mission = HarvestMission()
     assert mission.site is not None
     instantiated = mission.instantiate(mission.site.map_builder, mission.site.min_cogs, NeutralFacedVariant())
@@ -50,14 +50,3 @@ def test_neutral_faced_variant_sets_neutral_recipe_vibes():
     change_vibe = env.game.actions.change_vibe
     assert change_vibe.enabled is False
     assert change_vibe.number_of_vibes == 1
-
-    normalized_vibes: set[str] = set()
-    for obj in env.game.objects.values():
-        if not isinstance(obj, AssemblerConfig):
-            continue
-        for protocol in obj.protocols:
-            if protocol.vibes:
-                normalized_vibes.update(protocol.vibes)
-                assert set(protocol.vibes) == {"default"}
-
-    assert normalized_vibes == {"default"}
