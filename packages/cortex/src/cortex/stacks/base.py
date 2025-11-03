@@ -1,28 +1,47 @@
-"""Sequential stack of blocks with unified state management."""
+"""Sequential stack with optional per-block torch.compile."""
 
 from __future__ import annotations
 
+import logging
 from typing import Optional
 
 import torch
 import torch.nn as nn
 from tensordict import TensorDict
 
-from cortex.blocks import build_block
+from cortex.blocks import ColumnBlock, build_block
 from cortex.blocks.base import BaseBlock
 from cortex.cells import build_cell
 from cortex.config import CortexStackConfig
 from cortex.types import MaybeState, ResetMask, Tensor
 
+logger = logging.getLogger(__name__)
+
 
 class CortexStack(nn.Module):
-    """Stack of blocks defined by a recipe, preserving external hidden size."""
+    """Stack of blocks that preserves external hidden size."""
 
     def __init__(self, cfg: CortexStackConfig) -> None:
         super().__init__()
         self.cfg = cfg
         self.blocks = nn.ModuleList(self._build_blocks(cfg))
         self.norm = nn.LayerNorm(cfg.d_hidden) if cfg.post_norm else nn.Identity()
+        self._compiled_blocks: list | None = None
+
+        compile_requested = bool(getattr(cfg, "compile_blocks", False))
+        if compile_requested and not torch.cuda.is_available():
+            logger.warning("Disabling block compilation for CortexStack: running on CPU.")
+            compile_requested = False
+
+        if compile_requested and hasattr(torch, "compile"):
+            compiled: list[nn.Module] = []
+            for b in self.blocks:
+                if isinstance(b, ColumnBlock):
+                    b._compiled_experts = [torch.compile(e) for e in b.experts]  # type: ignore[attr-defined]
+                    compiled.append(b)
+                else:
+                    compiled.append(torch.compile(b))
+            self._compiled_blocks = compiled
 
     def _build_blocks(self, cfg: CortexStackConfig) -> list[BaseBlock]:
         blocks: list[BaseBlock] = []
@@ -72,8 +91,17 @@ class CortexStack(nn.Module):
         next_state = TensorDict({}, batch_size=[batch_size])
         for i, block in enumerate(self.blocks):
             block_key = f"{block.__class__.__name__}_{i}"
-            block_state = state.get(block_key) if isinstance(state, TensorDict) else None
-            y, block_next_state = block(y, block_state, resets=resets)
+            if isinstance(state, TensorDict):
+                block_state = state.get(block_key)
+                if block_state is None:
+                    block_state = TensorDict({}, batch_size=[batch_size], device=y.device)
+            else:
+                block_state = TensorDict({}, batch_size=[batch_size], device=y.device)
+            if self._compiled_blocks is not None and torch.is_grad_enabled():
+                call = self._compiled_blocks[i]
+            else:
+                call = block
+            y, block_next_state = call(y, block_state, resets=resets)
             next_state[block_key] = (
                 block_next_state
                 if isinstance(block_next_state, TensorDict)

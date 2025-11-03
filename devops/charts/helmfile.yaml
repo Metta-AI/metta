@@ -158,8 +158,7 @@ releases:
         args: ["create", "namespace", "home", "--dry-run=client"]
   # Note: Observatory is deployed automatically by Github Actions.
 
-
-# Below are helm releases for cronjobs that run on a docker image with the `softmax` package installed.
+  # Below are helm releases for cronjobs that run on a docker image with the `softmax` package installed.
 
   - name: softmax-cronjob-serviceaccount
     <<: *softmax_cronjob
@@ -185,28 +184,40 @@ releases:
   - name: pr-similarity-cache-refresh-cronjob
     <<: *softmax_cronjob
     values:
-      - schedule: "0 0 * * *"  # Once daily at midnight
+      - schedule: "0 0 * * *" # Once daily at midnight
       - command:
-          - uv
-          - run
-          - python
-          - -m
-          - softmax.pr_similarity.cache_refresh
-
+          - /bin/bash
+          - -c
+          - |
+            set -e
+            cd /workspace/metta
+            git config --local --unset http.https://github.com/.extraheader 2>/dev/null || true
+            git remote set-url origin https://github.com/Metta-AI/metta.git
+            git fetch --unshallow origin main 2>/dev/null || git fetch origin main
+            git checkout -f origin/main
+            uv pip install numpy google-genai boto3
+            PYTHONPATH=/workspace/metta uv run --no-sync python mcp_servers/pr_similarity/build_cache.py --download-from-s3
+      - resources:
+          requests:
+            cpu: 100m
+            memory: 2Gi
+          limits:
+            cpu: 500m
+            memory: 2Gi
 # To add a new cronjob, copy the example below and fill in the details.
 # It will be deployed within the production `cronjobs` namespace
 # Remove the `datadog.env` value if you don't want to tag pushes to datadog as development
-  # - name: example-dev-cronjob
-  #   <<: *softmax_cronjob
-  #   values:
-  #     - command:
-  #         - uv
-  #         - run
-  #         - python
-  #         - -m
-  #         - my.example.main
-  #     - datadog:
-  #         env: development
+# - name: example-dev-cronjob
+#   <<: *softmax_cronjob
+#   values:
+#     - command:
+#         - uv
+#         - run
+#         - python
+#         - -m
+#         - my.example.main
+#     - datadog:
+#         env: development
 
 # Helpful commands:
 #   Deploy cronjob definition: cd devops/charts && helmfile -l name=<release-name> apply

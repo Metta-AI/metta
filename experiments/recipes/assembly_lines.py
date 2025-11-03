@@ -177,15 +177,12 @@ class AssemblyLinesTaskGenerator(TaskGenerator):
         assembler = self.assembler_types[assembler_name].copy()
         cfg.used_objects.append(assembler_name)
 
-        recipe = (
-            [],
-            ProtocolConfig(
-                input_resources=input_resources,
-                output_resources=output_resources,
-                cooldown=cooldown,
-            ),
+        protocol = ProtocolConfig(
+            input_resources=input_resources,
+            output_resources=output_resources,
+            cooldown=cooldown,
         )
-        assembler.recipes = [recipe]
+        assembler.protocols = [protocol]
         cfg.game_objects[assembler_name] = assembler
         cfg.map_builder_objects[assembler_name] = 1
 
