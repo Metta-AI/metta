@@ -58,20 +58,21 @@ class LonelyHeartVariant(MissionVariant):
             assembler = cfg.game.objects["assembler"]
             if not isinstance(assembler, AssemblerConfig):
                 raise TypeError("Expected 'assembler' to be AssemblerConfig")
-                heart_protocol = ProtocolConfig(
-                    vibes=["default"],
-                    input_resources=dict(simplified_inputs),
-                    output_resources={"heart": 1},
-                    cooldown=1,
-                )
 
-                remaining_protocols = []
-                for proto in assembler.protocols:
-                    if proto.output_resources.get("heart", 0) > 0:
-                        continue
-                    remaining_protocols.append(proto.model_copy(deep=True))
+            heart_protocol = ProtocolConfig(
+                vibes=["default"],
+                input_resources=dict(simplified_inputs),
+                output_resources={"heart": 1},
+                cooldown=1,
+            )
 
-                assembler.protocols = [heart_protocol, *remaining_protocols]
+            remaining_protocols = []
+            for proto in assembler.protocols:
+                if proto.output_resources.get("heart", 0) > 0:
+                    continue
+                remaining_protocols.append(proto.model_copy(deep=True))
+
+            assembler.protocols = [heart_protocol, *remaining_protocols]
 
             germanium = cfg.game.objects["germanium_extractor"]
             if not isinstance(germanium, AssemblerConfig):

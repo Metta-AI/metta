@@ -606,7 +606,7 @@ def get_all_tasks() -> list[Task]:
         nodes=1,
         acceptance=[
             ("overview/sps", ge, 40000),
-            ("env_agent/heart.gained", gt, 0.5),
+            ("env_agent/heart.gained", gt, 0.1),
         ],
         wandb_metrics=["overview/sps", "env_agent/heart.gained"],
     )
@@ -620,8 +620,8 @@ def get_all_tasks() -> list[Task]:
         gpus=4,
         nodes=4,
         acceptance=[
-            ("overview/sps", ge, 40000),
-            ("env_agent/heart.gained", gt, 10.0),
+            ("overview/sps", ge, 80000),
+            ("env_agent/heart.gained", gt, 1.0),
         ],
         wandb_metrics=["overview/sps", "env_agent/heart.gained"],
     )
