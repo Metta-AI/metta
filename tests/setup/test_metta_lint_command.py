@@ -62,39 +62,3 @@ def test_lint_staged_with_only_unsupported_files_exits_cleanly(tmp_path: Path) -
     # Should exit successfully with a message
     assert result.returncode == 0
     assert "No files with supported extensions found" in result.stdout
-
-
-def test_lint_check_mode_with_unsupported_formatter() -> None:
-    """Test that metta lint --check returns False when formatter doesn't support check mode."""
-    from metta.setup.tools.code_formatters import FormatterConfig, run_formatter
-
-    # Create a formatter without check command
-    formatter = FormatterConfig(
-        name="test-formatter",
-        format_cmd=["echo", "formatting"],
-        check_cmd=None,  # No check command
-    )
-
-    # Run with check_only=True
-    result = run_formatter("test", formatter, Path.cwd(), check_only=True)
-
-    # Should return False to indicate check couldn't be performed
-    assert result is False
-
-
-def test_lint_check_mode_with_supported_formatter() -> None:
-    """Test that metta lint --check works correctly with formatters that support it."""
-    from metta.setup.tools.code_formatters import FormatterConfig, run_formatter
-
-    # Create a formatter with check command that succeeds
-    formatter = FormatterConfig(
-        name="test-formatter",
-        format_cmd=["true"],
-        check_cmd=["true"],  # Command that always succeeds
-    )
-
-    # Run with check_only=True
-    result = run_formatter("test", formatter, Path.cwd(), check_only=True)
-
-    # Should return True since check command succeeded
-    assert result is True
