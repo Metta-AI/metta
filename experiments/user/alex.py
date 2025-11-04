@@ -113,7 +113,6 @@ def train(
         losses=LossConfig(loss_configs={"ppo": PPOConfig()}),
     )
     # policy_config = FastDynamicsConfig()
-    # policy_config = FastLSTMResetConfig()
     # policy_config = FastConfig()
     # policy_config = ViTSmallConfig()
     policy_config = ViTSlidingTransConfig()

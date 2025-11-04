@@ -10,8 +10,8 @@ import torch.nn as nn
 from pydantic import Field
 from tensordict import TensorDict
 
+from metta.agent.components.cortex import CortexTD
 from metta.agent.policies.fast import FastConfig
-from metta.agent.policies.fast_lstm_reset import FastLSTMResetConfig
 from metta.agent.policies.vit import ViTDefaultConfig
 from metta.agent.policy import Policy, PolicyArchitecture
 from metta.rl.policy_artifact import (
@@ -159,7 +159,7 @@ def test_policy_architecture_from_string_with_args_round_trip() -> None:
     assert round_tripped.model_dump() == architecture.model_dump()
 
 
-def test_safetensors_save_with_shared_lstm_parameters(tmp_path: Path) -> None:
+def test_safetensors_save_with_fast_core(tmp_path: Path) -> None:
     obs_features = {"token": SimpleNamespace(id=0, normalization=1.0)}
     game_rules = GameRules(
         obs_width=1,
@@ -172,7 +172,7 @@ def test_safetensors_save_with_shared_lstm_parameters(tmp_path: Path) -> None:
         feature_normalizations={0: 1.0},
     )
 
-    architecture = FastLSTMResetConfig()
+    architecture = FastConfig()
     policy = architecture.make_policy(game_rules)
     policy.initialize_to_environment(game_rules, torch.device("cpu"))
 
@@ -186,4 +186,5 @@ def test_safetensors_save_with_shared_lstm_parameters(tmp_path: Path) -> None:
     loaded = load_policy_artifact(artifact_path)
     reloaded = loaded.instantiate(game_rules, torch.device("cpu"))
 
-    assert reloaded.network.module.lstm_reset.func.lstm_h.size(1) == 0
+    assert hasattr(reloaded, "core")
+    assert isinstance(reloaded.core, CortexTD)

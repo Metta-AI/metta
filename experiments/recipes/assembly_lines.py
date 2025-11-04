@@ -4,7 +4,7 @@ import time
 from dataclasses import dataclass, field
 from typing import Any, Optional
 
-from metta.agent.policies.vit_reset import ViTResetConfig
+from metta.agent.policies.vit import ViTDefaultConfig
 from metta.cogworks.curriculum.curriculum import CurriculumConfig
 from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
 from metta.cogworks.curriculum.task_generator import TaskGenerator, TaskGeneratorConfig
@@ -344,7 +344,7 @@ def train(
         task_generator=task_generator_cfg, algorithm_config=LearningProgressConfig()
     )
 
-    policy_config = ViTResetConfig()
+    policy_config = ViTDefaultConfig()
 
     trainer_cfg = TrainerConfig(losses=LossConfig())
 

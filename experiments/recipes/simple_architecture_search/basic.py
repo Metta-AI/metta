@@ -25,24 +25,20 @@ from mettagrid.config import ConverterConfig
 from metta.agent.policies.agalite import AGaLiTeConfig
 from metta.agent.policies.fast import FastConfig
 from metta.agent.policies.fast_dynamics import FastDynamicsConfig
-from metta.agent.policies.fast_lstm_reset import FastLSTMResetConfig
 from metta.agent.policies.gtrxl import gtrxl_policy_config
 from metta.agent.policies.memory_free import MemoryFreeConfig
 from metta.agent.policies.puffer import PufferPolicyConfig
 from metta.agent.policies.transformer import TransformerPolicyConfig
 from metta.agent.policies.trxl import trxl_policy_config
 from metta.agent.policies.trxl_nvidia import trxl_nvidia_policy_config
-from metta.agent.policies.vit_reset import ViTResetConfig
 from metta.agent.policies.vit_sliding_trans import ViTSlidingTransConfig
 
 # Architecture configurations for benchmark testing
 ARCHITECTURES = {
     "vit": ViTDefaultConfig(),
     "vit_sliding": ViTSlidingTransConfig(),
-    "vit_reset": ViTResetConfig(),
     "transformer": TransformerPolicyConfig(),
     "fast": FastConfig(),
-    "fast_lstm_reset": FastLSTMResetConfig(),
     "fast_dynamics": FastDynamicsConfig(),
     "memory_free": MemoryFreeConfig(),
     "agalite": AGaLiTeConfig(),

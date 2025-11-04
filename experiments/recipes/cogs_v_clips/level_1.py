@@ -32,8 +32,8 @@ import subprocess
 import time
 
 from cogames.cogs_vs_clips.missions import make_game
-from metta.agent.policies.fast_lstm_reset import FastLSTMResetConfig
-from metta.agent.policies.vit_reset import ViTResetConfig
+from metta.agent.policies.fast import FastConfig
+from metta.agent.policies.vit import ViTDefaultConfig
 from metta.agent.policies.vit_sliding_trans import ViTSlidingTransConfig
 from metta.cogworks.curriculum.curriculum import CurriculumConfig
 from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
@@ -335,9 +335,7 @@ def play(curriculum_style: str = "test") -> PlayTool:
     )
 
 
-def train(
-    curriculum_style: str = "multi_agent_pairs", architecture="vit_reset"
-) -> TrainTool:
+def train(curriculum_style: str = "multi_agent_pairs", architecture="vit") -> TrainTool:
     task_generator_cfg = CogsVsClippiesTaskGenerator.Config(
         **curriculum_args[curriculum_style]
     )
@@ -353,10 +351,10 @@ def train(
     trainer_cfg = TrainerConfig(
         losses=LossConfig(),
     )
-    if architecture == "vit_reset":
-        policy_config = ViTResetConfig()
-    elif architecture == "lstm_reset":
-        policy_config = FastLSTMResetConfig()
+    if architecture == "vit":
+        policy_config = ViTDefaultConfig()
+    elif architecture == "fast":
+        policy_config = FastConfig()
     elif architecture == "transformer":
         policy_config = ViTSlidingTransConfig()
         trainer_cfg.batch_size = 516096
@@ -424,7 +422,7 @@ def make_eval_suite():
 
 def experiment():
     for curriculum_style in curriculum_args:
-        for architecture in ["vit_reset", "lstm_reset", "transformer"]:
+        for architecture in ["vit", "fast", "transformer"]:
             subprocess.run(
                 [
                     "./devops/skypilot/launch.py",
