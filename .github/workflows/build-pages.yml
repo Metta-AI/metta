@@ -33,6 +33,20 @@ jobs:
         with:
           install-mode: "minimal"
 
+      # setup-environment has it's own cache for installing `nim` however it lacks dependencies for mettascope
+      # so we add our own cache step here to cache dependencies for mettascope for performance
+      - name: Cache Nim dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.nimble
+          key: nim-binary-${{ runner.os }}-${{ hashFiles('packages/mettagrid/nim/mettascope/mettascope.nimble') }}
+          restore-keys: |
+            nim-binary-${{ runner.os }}-
+
+      - name: Install Mettascope
+        run: |
+          ./mettascope/install.sh
+
       - name: Setup Emscripten
         uses: mymindstorm/setup-emsdk@v14
 

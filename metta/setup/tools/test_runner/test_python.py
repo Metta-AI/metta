@@ -202,7 +202,7 @@ def run(
             "--timeout=100",
             "--timeout-method=thread",
             "--disable-warnings",
-            "--color=yes",
+            "--color=no",
             "-v",
         ]
 
