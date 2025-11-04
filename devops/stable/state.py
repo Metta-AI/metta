@@ -79,13 +79,14 @@ def load_or_create_state(version: str, commit_sha: str) -> ReleaseState:
 def get_most_recent_state() -> Optional[tuple[str, ReleaseState]]:
     """
     Only considers state files with valid timestamp-based version format vYYYY.MM.DD-HHMMSS.json
+    Also accepts legacy 4-digit format vYYYY.MM.DD-HHMM.json for backward compatibility.
     """
     state_base = get_repo_root() / "devops/stable/state"
     if not state_base.exists():
         return None
 
-    # Pattern for valid timestamp-based version format: vYYYY.MM.DD-HHMMSS
-    version_pattern = re.compile(r"^v\d{4}\.\d{2}\.\d{2}-\d{6}$")
+    # Pattern for valid timestamp-based version format: vYYYY.MM.DD-HHMMSS or vYYYY.MM.DD-HHMM
+    version_pattern = re.compile(r"^v\d{4}\.\d{2}\.\d{2}-\d{4,6}$")
 
     # Find all .json files with valid version format
     state_files = []
