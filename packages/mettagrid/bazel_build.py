@@ -37,8 +37,6 @@ def cmd(cmd: str) -> None:
     print(result.stderr, file=sys.stderr)
     print(result.stdout, file=sys.stderr)
     if result.returncode != 0:
-        print(f"Error: {cmd} failed. STDERR:", file=sys.stderr)
-        print(f"{cmd} STDOUT:", file=sys.stderr)
         raise RuntimeError(f"Mettascope build failed: {cmd}")
 
 def _run_bazel_build() -> None:

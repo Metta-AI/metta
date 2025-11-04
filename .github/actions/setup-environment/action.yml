@@ -41,31 +41,14 @@ runs:
         # Get year and week number for weekly cache invalidation
         echo "yearweek=$(date +%Y-%U)" >> "$GITHUB_OUTPUT"
 
-    - name: Cache nimble
-      id: cache-nimble
-      uses: actions/cache@v4
-      with:
-        path: ~/.nimble
-        key: nim-binary-${{ runner.os }}-${{ steps.get-week.outputs.yearweek }}
-        restore-keys: |
-          nim-binary-${{ runner.os }}-
-
     - name: Set up nim
-      # if: inputs.install-mode != 'minimal' && steps.cache-bazel.outputs.cache-hit != 'true'
-      # id: setup-nim
-      uses: treeform/setup-nim-action@v2
-
-    - name: Install Nimby Package Manager
-      # if: inputs.install-mode != 'minimal' && steps.cache-bazel.outputs.cache-hit != 'true'
-      # id: install-nimby
       shell: bash
       run: |
-        cd ..
-        git clone --depth 1 https://github.com/treeform/nimby.git
-        touch nim.cfg
-        cd nimby
-        nim c -d:release src/nimby.nim
-        mv src/nimby "$HOME/.nim_runtime/bin/nimby"
+        curl -L -o nimby https://github.com/treeform/nimby/releases/download/0.1.6/nimby-Linux-X64
+        chmod +x nimby
+        nimby use 2.2.6
+        echo "$HOME/.nimby/nim/bin" >> "$GITHUB_PATH"
+        mv nimby "$HOME/.nimby/nim/bin/nimby"
 
     - name: Cache Bazel binary
       if: inputs.install-mode != 'minimal'

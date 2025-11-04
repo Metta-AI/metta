@@ -195,5 +195,3 @@ when isMainModule:
   while isRunning():
     tickFidget()
   closeFidget()
-
-# 2

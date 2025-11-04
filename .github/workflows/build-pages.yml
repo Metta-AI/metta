@@ -1,4 +1,4 @@
-name: "Build (and sometimes Deploy) to GitHub Pages"
+name: "Build (and sometimes Deploy) to WASM MetaScope"
 on:
   push:
     paths: &site_paths
@@ -54,6 +54,7 @@ jobs:
           mkdir -p packages/mettagrid/nim/mettascope/dist
           nim c -d:emscripten packages/mettagrid/nim/mettascope/src/mettascope.nim
           ls -la packages/mettagrid/nim/mettascope/dist
+
 
       - name: Setup Pages
         uses: actions/configure-pages@v4
