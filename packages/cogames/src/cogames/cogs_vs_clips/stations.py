@@ -3,8 +3,7 @@ from typing import Literal
 from pydantic import Field
 
 from cogames.cogs_vs_clips import vibes
-from cogames.cogs_vs_clips.vibes import VIBE_BY_NAME
-from mettagrid.base_config import Config
+from mettagrid.config import Config
 from mettagrid.config.mettagrid_config import AssemblerConfig, ChestConfig, GridObjectConfig, ProtocolConfig, WallConfig
 
 resources = [
@@ -33,7 +32,7 @@ class CvCWallConfig(CvCStationConfig):
     type: Literal["wall"] = Field(default="wall")
 
     def station_cfg(self) -> WallConfig:
-        return WallConfig(name="wall", map_char="#", render_symbol=VIBE_BY_NAME["wall"].symbol)
+        return WallConfig(name="wall", map_char="#", render_symbol=vibes.VIBE_BY_NAME["wall"].symbol)
 
 
 class ExtractorConfig(CvCStationConfig):
@@ -50,7 +49,7 @@ class ChargerConfig(ExtractorConfig):
         return AssemblerConfig(
             name="charger",
             map_char="+",
-            render_symbol=VIBE_BY_NAME["charger"].symbol,
+            render_symbol=vibes.VIBE_BY_NAME["charger"].symbol,
             # Protocols
             allow_partial_usage=True,  # can use it while its on cooldown
             max_uses=0,  # unlimited uses
@@ -74,13 +73,13 @@ class CarbonExtractorConfig(ExtractorConfig):
         return AssemblerConfig(
             name=self.type,
             map_char="C",
-            render_symbol=VIBE_BY_NAME["carbon"].symbol,
+            render_symbol=vibes.VIBE_BY_NAME["carbon"].symbol,
             # Protocols
             max_uses=self.max_uses,
             protocols=[
                 ProtocolConfig(
                     output_resources={"carbon": 4 * self.efficiency // 100},
-                    cooldown=10,
+                    cooldown=0,
                 )
             ],
             # Clipping
@@ -98,7 +97,7 @@ class OxygenExtractorConfig(ExtractorConfig):
         return AssemblerConfig(
             name="oxygen_extractor",
             map_char="O",
-            render_symbol=VIBE_BY_NAME["oxygen"].symbol,
+            render_symbol=vibes.VIBE_BY_NAME["oxygen"].symbol,
             # Protocols
             max_uses=self.max_uses,
             allow_partial_usage=True,  # can use it while its on cooldown

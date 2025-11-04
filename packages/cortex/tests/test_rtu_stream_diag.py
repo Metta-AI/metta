@@ -175,14 +175,14 @@ def test_streaming_grads_match_fd_and_whole(with_resets: bool) -> None:
 
     # Autograd grads (whole)
     for p in params:
-        if p.grad is not None:
+        if p.is_leaf and p.grad is not None:
             p.grad.zero_()
     loss_w = loss_whole()
     g_w = torch.autograd.grad(loss_w, params, retain_graph=True, allow_unused=False)
 
     # Autograd grads (stream)
     for p in params:
-        if p.grad is not None:
+        if p.is_leaf and p.grad is not None:
             p.grad.zero_()
     loss_s = loss_stream()
     g_s = torch.autograd.grad(loss_s, params, retain_graph=True, allow_unused=False)
