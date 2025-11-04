@@ -1,5 +1,5 @@
 import warnings
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING, Any, Optional
 
 import torch
 import torch.nn as nn
@@ -50,16 +50,8 @@ class ObsTokenPadStrip(nn.Module):
     ) -> str:
         # Build feature mappings
         # obs_features can be a list[ObservationFeatureSpec] or dict[str, ObservationFeatureSpec]
-        obs_features = policy_env_info.obs_features
-        if isinstance(obs_features, dict):
-            features_list = list(obs_features.values())
-            features = obs_features
-            # For dict format, names come from keys
-            self.feature_id_to_name = {props.id: name for name, props in obs_features.items()}
-        else:
-            features_list = obs_features
-            features = {props.name: props for props in features_list}
-            self.feature_id_to_name = {props.id: props.name for props in features_list}
+        features, features_list = _coerce_obs_feature_iter(policy_env_info.obs_features)
+        self.feature_id_to_name = {props.id: name for name, props in features.items()}
         self.feature_normalizations = {
             props.id: props.normalization for props in features_list if hasattr(props, "normalization")
         }
@@ -181,13 +173,8 @@ class ObsAttrValNorm(nn.Module):
     def _set_feature_normalizations(self, policy_env_info, device: Optional[torch.device] = None):
         # Extract features consistently from obs_features
         # Handle both list[ObservationFeatureSpec] (real PolicyEnvInterface) and dict (test fixtures)
-        obs_features = policy_env_info.obs_features
-        if isinstance(obs_features, dict):
-            # Test fixture format: dict[name: SimpleNamespace(id=..., normalization=...)]
-            features = {feat.id: feat.normalization for feat in obs_features.values()}
-        else:
-            # Real format: list[ObservationFeatureSpec]
-            features = {feat.id: feat.normalization for feat in obs_features}
+        _, feature_list = _coerce_obs_feature_iter(policy_env_info.obs_features)
+        features = {feat.id: feat.normalization for feat in feature_list}
         self._feature_normalizations = features
         self._update_norm_factors(device)
         return None
@@ -282,18 +269,11 @@ class ObsTokenToBoxShim(nn.Module):
         self.out_width = policy_env_info.obs_width
         self.out_height = policy_env_info.obs_height
 
-        # Determine num_layers from either obs_features or feature_normalizations
-        if hasattr(policy_env_info, "obs_features"):
-            self.num_layers = (
-                max(feat.id for feat in policy_env_info.obs_features) + 1 if policy_env_info.obs_features else 1
-            )
-        elif hasattr(policy_env_info, "feature_normalizations"):
-            # Legacy format - use feature_normalizations
-            self.num_layers = (
-                max(policy_env_info.feature_normalizations.keys()) + 1 if policy_env_info.feature_normalizations else 1
-            )
-        else:
-            self.num_layers = 1
+        # Determine num_layers from obs_features; legacy feature_normalizations are no longer supported.
+        _, feature_list = _coerce_obs_feature_iter(policy_env_info.obs_features)
+        self.num_layers = max((feat.id for feat in feature_list), default=-1) + 1 if feature_list else 0
+        if self.num_layers == 0:
+            raise ValueError("policy_env_info.obs_features must define at least one feature.")
 
     def forward(self, td: TensorDict):
         token_observations = td[self.in_key]
@@ -371,7 +351,8 @@ class ObservationNormalizer(nn.Module):
         self.in_key = in_key
         self.out_key = out_key
         # Compute feature_normalizations from policy_env_info.obs_features
-        feature_normalizations = {feat.id: feat.normalization for feat in policy_env_info.obs_features}
+        _, feature_list = _coerce_obs_feature_iter(policy_env_info.obs_features)
+        feature_normalizations = {feat.id: feat.normalization for feat in feature_list}
         self._initialize_to_environment(feature_normalizations)
 
     def forward(self, td: TensorDict):
@@ -383,20 +364,20 @@ class ObservationNormalizer(nn.Module):
         policy_env_info: "PolicyEnvInterface",
         device: torch.device,
     ) -> None:
-        # Extract features consistently from obs_features
-        features = {feat.id: feat.normalization for feat in policy_env_info.obs_features}
+        _, feature_list = _coerce_obs_feature_iter(policy_env_info.obs_features)
+        features = {feat.id: feat.normalization for feat in feature_list}
         self._initialize_to_environment(features, device)
 
-    def _initialize_to_environment(self, features: dict[str, dict], device: Optional[torch.device] = None):
+    def _initialize_to_environment(self, features: dict[int, float], device: Optional[torch.device] = None):
         self.feature_normalizations = features
         if not features:
-            # No features case - create a minimal tensor
-            obs_norm = torch.ones(1, 1, 1, 1, dtype=torch.float32)
-        else:
-            obs_norm = torch.ones(max(self.feature_normalizations.keys()) + 1, dtype=torch.float32)
-            for i, val in self.feature_normalizations.items():
-                obs_norm[i] = val
-            obs_norm = obs_norm.view(1, len(self.feature_normalizations), 1, 1)
+            raise ValueError("policy_env_info.obs_features must define at least one feature.")
+
+        depth = max(self.feature_normalizations.keys()) + 1
+        obs_norm = torch.ones(depth, dtype=torch.float32)
+        for i, val in self.feature_normalizations.items():
+            obs_norm[i] = val
+        obs_norm = obs_norm.view(1, depth, 1, 1)
 
         self.register_buffer("obs_norm", obs_norm)
         if device:
@@ -431,3 +412,17 @@ class ObsShimBox(nn.Module):
         td = self.token_to_box_shim(td)
         td = self.observation_normalizer(td)
         return td
+
+
+def _coerce_obs_feature_iter(obs_features: Any) -> tuple[dict[str, Any], list[Any]]:
+    """
+    Return both a dict keyed by feature name and an ordered list of feature specs.
+
+    Test fixtures sometimes provide {name: spec}; the production interface returns a list.
+    This helper normalizes both shapes so downstream code can assume list semantics.
+    """
+    if isinstance(obs_features, dict):
+        feature_list = list(obs_features.values())
+        return obs_features, feature_list
+    feature_list = list(obs_features)
+    return {feat.name: feat for feat in feature_list}, feature_list

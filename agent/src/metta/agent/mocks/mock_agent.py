@@ -2,6 +2,7 @@ import torch
 from tensordict import TensorDict
 
 from metta.agent.policy import Policy
+from mettagrid.config.mettagrid_config import MettaGridConfig
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 
 
@@ -15,8 +16,6 @@ class MockAgent(Policy):
 
     def __init__(self, policy_env_info: PolicyEnvInterface | None = None) -> None:
         if policy_env_info is None:
-            from mettagrid.config.mettagrid_config import MettaGridConfig
-
             policy_env_info = PolicyEnvInterface.from_mg_cfg(MettaGridConfig())
         super().__init__(policy_env_info)
 
