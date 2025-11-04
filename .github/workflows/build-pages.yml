@@ -59,6 +59,7 @@ jobs:
 
       - name: Create deployment directory
         run: |
+          mkdir -p deploy/mettascope
           cp -r packages/mettagrid/nim/mettascope/dist/* deploy/mettascope/
 
       - name: Upload artifact
