@@ -7,11 +7,12 @@ Phase 1: CI/CD metrics (7 FoMs)
 Future phases: Training metrics (WandB), Eval metrics
 """
 
+import os
 from typing import Any
 
 from devops.datadog.utils.base import BaseCollector
-from devops.datadog.utils.dashboard_client import get_datadog_credentials
 from devops.datadog.utils.datadog_client import DatadogClient
+from devops.datadog.utils.secrets import get_secretsmanager_secret
 
 
 class HealthFomCollector(BaseCollector):
@@ -31,7 +32,9 @@ class HealthFomCollector(BaseCollector):
         super().__init__(name="health_fom")
 
         # Initialize Datadog client for querying metrics
-        api_key, app_key, site = get_datadog_credentials()
+        api_key = os.getenv("DD_API_KEY") or get_secretsmanager_secret("datadog/api-key")
+        app_key = os.getenv("DD_APP_KEY") or get_secretsmanager_secret("datadog/app-key")
+        site = os.getenv("DD_SITE", "datadoghq.com")
         self._dd_client = DatadogClient(api_key=api_key, app_key=app_key, site=site)
 
     def collect_metrics(self) -> dict[str, Any]:
