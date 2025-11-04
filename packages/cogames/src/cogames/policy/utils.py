@@ -24,6 +24,7 @@ _POLICY_CLASS_SHORTHAND: dict[str, str] = {
     "simple_baseline": "cogames.policy.simple_baseline_policy.SimpleBaselinePolicy",
     "unclipping": "cogames.policy.unclipping_policy.UnclippingPolicy",
     "coordinating": "cogames.policy.coordinating_policy.CoordinatingPolicy",
+    "coordinating_v2": "cogames.policy.coordinating_policy_v2.CoordinatingPolicyV2",
 }
 
 

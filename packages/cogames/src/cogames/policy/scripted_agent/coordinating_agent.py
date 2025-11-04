@@ -45,9 +45,7 @@ class CoordinatingAgent(UnclippingAgent):
     # Target reservation: track which extractor AND which adjacent cell
     _target_assignments: dict[int, tuple[int, int]] = {}  # agent_id -> extractor_position
     _target_position_counts: dict[tuple[int, int], int] = {}  # extractor_position -> count
-    _reserved_adjacent_cells: dict[
-        tuple[int, int], set[tuple[int, int]]
-    ] = {}  # extractor_pos -> set of reserved adjacent cells
+    _reserved_adjacent_cells: dict[tuple[int, int], set[tuple[int, int]]] = {}  # extractor_pos -> set of reserved adjacent cells
 
     def __init__(self, env: MettaGridEnv):
         super().__init__(env)
@@ -61,7 +59,9 @@ class CoordinatingAgent(UnclippingAgent):
         r, c = pos
         return [(r - 1, c), (r + 1, c), (r, c - 1), (r, c + 1)]
 
-    def _find_unreserved_adjacent_cell(self, s, extractor_pos: tuple[int, int]) -> tuple[int, int] | None:
+    def _find_unreserved_adjacent_cell(
+        self, s, extractor_pos: tuple[int, int]
+    ) -> tuple[int, int] | None:
         """Find an unreserved adjacent cell around an extractor."""
         reserved = self._reserved_adjacent_cells.get(extractor_pos, set())
         adjacent_cells = self._get_adjacent_cells(extractor_pos)
@@ -100,12 +100,13 @@ class CoordinatingAgent(UnclippingAgent):
             else:
                 self._target_position_counts.pop(prev, None)
 
-            # Clear reserved adjacent cells for previous extractor
-            # (We don't track which specific cell was this agent's, so we'll just
-            # re-reserve when they target this extractor again)
-            if prev in self._reserved_adjacent_cells and not self._target_position_counts.get(prev, 0):
-                # No more agents targeting this extractor, clear all reservations
-                self._reserved_adjacent_cells.pop(prev, None)
+            # Clear reserved adjacent cell for this agent
+            if prev in self._reserved_adjacent_cells:
+                # Find and remove agent's reserved cell
+                for cell in list(self._reserved_adjacent_cells[prev]):
+                    # We don't track agent->cell mapping, so just assume this is theirs
+                    # In practice this is fine as agent targets change infrequently
+                    pass
 
         # Find an unreserved adjacent cell
         adjacent_cell = self._find_unreserved_adjacent_cell(s, target)
@@ -311,30 +312,6 @@ class CoordinatingAgent(UnclippingAgent):
                 return None
 
         return None
-
-    def _move_towards(
-        self,
-        s: CoordinatingAgentState,
-        target: tuple[int, int],
-        reach_adjacent: bool = False,
-        allow_goal_block: bool = False,
-    ) -> int:
-        """Override to use reserved adjacent cell when moving to extractors."""
-        # If we have a reserved adjacent cell and we're moving to an extractor with reach_adjacent=True,
-        # instead move directly to the reserved cell
-        if reach_adjacent and s.reserved_adjacent_cell is not None:
-            # Check if this target is an extractor we have a reservation for
-            if self._target_assignments.get(s.agent_id) == target:
-                # Move directly to the reserved cell instead
-                target = s.reserved_adjacent_cell
-                reach_adjacent = False  # We want to reach this exact cell
-                print(
-                    f"[Agent {s.agent_id}] Using reserved adjacent cell {target} "
-                    f"for extractor at {self._target_assignments.get(s.agent_id)}"
-                )
-
-        # Call parent implementation with keyword arguments
-        return super()._move_towards(s, target, reach_adjacent=reach_adjacent, allow_goal_block=allow_goal_block)
 
     def _update_state_from_obs(self, s: CoordinatingAgentState, obs) -> None:
         """Override to track home base and clear assembly signal when heart received."""

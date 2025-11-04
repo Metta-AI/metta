@@ -21,7 +21,7 @@ import argparse
 import json
 import logging
 from dataclasses import asdict, dataclass, replace
-from typing import Any, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional
 
 import numpy as np
 
@@ -32,7 +32,10 @@ from cogames.cogs_vs_clips.evals import (
 )
 from cogames.cogs_vs_clips.evals.eval_missions import EVAL_MISSIONS
 from cogames.cogs_vs_clips.missions import make_game
+from cogames.policy.coordinating_policy import CoordinatingPolicy
 from cogames.policy.scripted_agent import HYPERPARAMETER_PRESETS, Hyperparameters, ScriptedAgentPolicy
+from cogames.policy.simple_baseline_policy import SimpleBaselinePolicy
+from cogames.policy.unclipping_policy import UnclippingPolicy
 from mettagrid import MettaGridEnv, dtype_actions
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s:%(name)s:%(message)s")
@@ -49,6 +52,7 @@ class EvalResult:
     """Results from a single evaluation run."""
 
     suite: str
+    agent: str
     test_name: str
     num_cogs: int
     preset: str | None
@@ -62,6 +66,72 @@ class EvalResult:
     final_energy: int
     success: bool
     metrics: Optional[Dict[str, Any]] = None
+
+
+@dataclass
+class AgentEvalConfig:
+    """Configuration for running a scripted agent variant."""
+
+    key: str
+    label: str
+    policy_factory: Callable[[MettaGridEnv], Any]
+    cogs_list: List[int]
+    difficulties: List[str]
+    preset_name: Optional[str] = None
+
+
+def is_clipping_difficulty(name: str) -> bool:
+    """Return True if the difficulty definition introduces clipping."""
+
+    level = DIFFICULTY_LEVELS[name]
+    clip_rate = float(level.clip_rate or 0.0)
+    clip_target = level.clip_target
+    return clip_rate > 0.0 or (clip_target is not None and clip_target.lower() != "none")
+
+
+def partition_difficulties(names: List[str]) -> tuple[List[str], List[str]]:
+    """Split difficulty names into (clipping, non_clipping)."""
+
+    clipping: List[str] = []
+    non_clipping: List[str] = []
+    for name in names:
+        if is_clipping_difficulty(name):
+            clipping.append(name)
+        else:
+            non_clipping.append(name)
+    return clipping, non_clipping
+
+
+ALL_DIFFICULTIES: List[str] = [name for name in CANONICAL_DIFFICULTY_ORDER if name in DIFFICULTY_LEVELS]
+CLIPPING_DIFFICULTIES, NON_CLIPPING_DIFFICULTIES = partition_difficulties(ALL_DIFFICULTIES)
+
+
+AGENT_CONFIGS: Dict[str, AgentEvalConfig] = {
+    "simple": AgentEvalConfig(
+        key="simple",
+        label="SimpleBaseline",
+        policy_factory=lambda env: SimpleBaselinePolicy(env),
+        cogs_list=[1],
+        difficulties=NON_CLIPPING_DIFFICULTIES,
+        preset_name="simple_defaults",
+    ),
+    "unclipping": AgentEvalConfig(
+        key="unclipping",
+        label="UnclippingAgent",
+        policy_factory=lambda env: UnclippingPolicy(env),
+        cogs_list=[1],
+        difficulties=CLIPPING_DIFFICULTIES,
+        preset_name="unclipping_defaults",
+    ),
+    "coordinating": AgentEvalConfig(
+        key="coordinating",
+        label="CoordinatingAgent",
+        policy_factory=lambda env: CoordinatingPolicy(env),
+        cogs_list=[1, 2, 4, 8],
+        difficulties=ALL_DIFFICULTIES,
+        preset_name="coordinating_defaults",
+    ),
+}
 
 
 # =============================================================================
@@ -229,6 +299,7 @@ def run_training_facility_suite(
 
             result = EvalResult(
                 suite="training_facility",
+                agent="ScriptedAgentPolicy",
                 test_name=map_name,
                 num_cogs=cogs,
                 preset=None,
@@ -264,48 +335,63 @@ EXPERIMENT_MAP = dict(EXPERIMENTS)
 
 
 def run_full_evaluation_suite(
+    agent_config: AgentEvalConfig,
     experiments: Optional[List[str]] = None,
     difficulties: Optional[List[str]] = None,
-    hyperparams: Optional[List[str]] = None,
-    clip_modes: Optional[List[str]] = None,
-    clip_rates: Optional[List[float]] = None,
     cogs_list: Optional[List[int]] = None,
     max_steps: int = 1000,
     feature_overrides: Optional[Dict[str, bool]] = None,
 ) -> List[EvalResult]:
-    """
-    Run comprehensive evaluation:
-    experiments × difficulties × hyperparameters × clipping × agent counts
-    """
+    """Run comprehensive evaluation for a specific scripted agent variant."""
+
     print("\n" + "=" * 80)
     print("FULL EVALUATION SUITE")
     print("=" * 80)
 
-    # Defaults
+    # Defaults / filtering
     if experiments is None:
         experiments = [name for name, _ in EXPERIMENTS]
+
+    available_difficulties = agent_config.difficulties
+    if not available_difficulties:
+        logger.warning("Agent %s has no configured difficulties", agent_config.label)
+        return []
+
     if difficulties is None:
-        difficulties = CANONICAL_DIFFICULTY_ORDER
-    if hyperparams is None:
-        hyperparams = list(HYPERPARAMETER_PRESETS.keys())
-    if clip_modes is None:
-        clip_modes = []
-    if clip_rates is None:
-        clip_rates = [0.0]
+        selected_difficulties = available_difficulties
+    else:
+        selected_difficulties = [d for d in difficulties if d in available_difficulties]
+        dropped = sorted(set(difficulties) - set(selected_difficulties))
+        if dropped:
+            logger.warning("Dropping unsupported difficulties %s for agent %s", dropped, agent_config.label)
+        if not selected_difficulties:
+            logger.warning("No valid difficulties left for agent %s", agent_config.label)
+            return []
+
     if cogs_list is None:
-        cogs_list = [1, 2, 4, 8]
+        selected_cogs = agent_config.cogs_list
+    else:
+        if set(cogs_list) != set(agent_config.cogs_list):
+            logger.warning(
+                "Ignoring --cogs override %s for agent %s; enforcing %s",
+                cogs_list,
+                agent_config.label,
+                agent_config.cogs_list,
+            )
+        selected_cogs = agent_config.cogs_list
 
-    total_tests = len(experiments) * len(difficulties) * len(clip_rates) * len(cogs_list) * len(hyperparams)
+    clip_rates_summary = sorted({float(DIFFICULTY_LEVELS[d].clip_rate or 0.0) for d in selected_difficulties})
+    total_tests = len(experiments) * len(selected_difficulties) * len(selected_cogs)
 
-    print(f"\nExperiments: {len(experiments)}")
-    print(f"Difficulties: {len(difficulties)}")
-    print(f"Hyperparams: {len(hyperparams)}")
-    print("Clip strategy: unclipped only")
-    print(f"Clip rates: {clip_rates}")
-    print(f"Agent counts: {cogs_list}")
+    print(f"\nAgent Variant: {agent_config.label} ({agent_config.key})")
+    print(f"Experiments: {len(experiments)}")
+    print(f"Difficulties: {len(selected_difficulties)}")
+    print(f"Agent counts: {selected_cogs}")
+    print(f"Hyperparams preset: {agent_config.preset_name or 'n/a'}")
+    print(f"Difficulty clip rates: {clip_rates_summary}")
     print(f"Total tests: {total_tests}\n")
 
-    results = []
+    results: List[EvalResult] = []
     success_count = 0
     test_count = 0
 
@@ -318,116 +404,117 @@ def run_full_evaluation_suite(
 
         mission_class = EXPERIMENT_MAP[exp_name]
 
-        for difficulty_name in difficulties:
+        for difficulty_name in selected_difficulties:
             if difficulty_name not in DIFFICULTY_LEVELS:
                 logger.error(f"Unknown difficulty: {difficulty_name}")
                 continue
 
-            clip_mode = "none"
-            for clip_rate in clip_rates:
-                if clip_rate > 0:
-                    continue
+            difficulty_level = DIFFICULTY_LEVELS[difficulty_name]
+            clip_mode = "difficulty" if is_clipping_difficulty(difficulty_name) else "none"
+            clip_rate = float(difficulty_level.clip_rate or 0.0)
 
-                for num_cogs in cogs_list:
-                    for preset_name in hyperparams:
-                        if preset_name not in HYPERPARAMETER_PRESETS:
-                            logger.error(f"Unknown preset: {preset_name}")
-                            continue
+            for num_cogs in selected_cogs:
+                test_name = f"{agent_config.key}_{exp_name}_{difficulty_name}_cogs{num_cogs}"
+                print(f"\n[{test_count}/{total_tests}] {test_name}")
 
-                        test_name = f"{exp_name}_{difficulty_name}_clip{clip_rate}_cogs{num_cogs}_{preset_name}"
-                        print(f"\n[{test_count}/{total_tests}] {test_name}")
+                try:
+                    mission = mission_class()
+                    apply_difficulty(mission, difficulty_level)
 
-                        try:
-                            # Build mission
-                            mission = mission_class()
-                            difficulty = DIFFICULTY_LEVELS[difficulty_name]
-                            apply_difficulty(mission, difficulty)
+                    map_builder = mission.site.map_builder if mission.site else None
+                    mission = mission.instantiate(map_builder, num_cogs=num_cogs)
+                    env_config = mission.make_env()
+                    env_config.game.max_steps = max_steps
 
-                            # clipped variants are disabled in this sweep
+                    env = MettaGridEnv(env_config)
+                    policy = agent_config.policy_factory(env)
 
-                            map_builder = mission.site.map_builder if mission.site else None
-                            mission = mission.instantiate(map_builder, num_cogs=num_cogs)
-                            env_config = mission.make_env()
-                            env_config.game.max_steps = max_steps
+                    obs, info = env.reset()
+                    policy.reset(obs, info)
+                    policy_impl = getattr(policy, "_impl", None)
+                    if policy_impl is not None and hasattr(policy_impl, "reset_metrics"):
+                        policy_impl.reset_metrics()
+                    agents = [policy.agent_policy(i) for i in range(num_cogs)]
 
-                            # Run episode
-                            env = MettaGridEnv(env_config)
-                            hyperparams_obj = clone_hyperparameters(preset_name)
-                            resolved_flags = apply_feature_overrides(hyperparams_obj, overrides)
-                            policy = ScriptedAgentPolicy(env, hyperparams=hyperparams_obj)
+                    total_reward = 0.0
+                    last_step = 0
+                    for step in range(max_steps):
+                        actions = np.zeros(num_cogs, dtype=dtype_actions)
+                        for i in range(num_cogs):
+                            actions[i] = int(agents[i].step(obs[i]))
+                        obs, rewards, dones, truncated, info = env.step(actions)
+                        total_reward += float(rewards.sum())
+                        last_step = step
+                        if all(dones) or all(truncated):
+                            break
 
-                            obs, info = env.reset()
-                            policy.reset(obs, info)
-                            policy_impl = getattr(policy, "_impl", None)
-                            if policy_impl is not None:
-                                policy_impl.reset_metrics()
-                            agents = [policy.agent_policy(i) for i in range(num_cogs)]
+                    agent_state = getattr(agents[0], "_state", None)
+                    if agent_state is None and policy_impl is not None and hasattr(policy_impl, "_agent_states"):
+                        agent_state = policy_impl._agent_states.get(0)  # type: ignore[attr-defined]
 
-                            total_reward = 0.0
-                            last_step = 0
-                            for step in range(max_steps):
-                                actions = np.zeros(num_cogs, dtype=dtype_actions)
-                                for i in range(num_cogs):
-                                    actions[i] = int(agents[i].step(obs[i]))
-                                obs, rewards, dones, truncated, info = env.step(actions)
-                                total_reward += float(rewards.sum())
-                                last_step = step
-                                if all(dones) or all(truncated):
-                                    break
-
-                            agent_state = getattr(agents[0], "_state", None)
-                            hearts_assembled = int(getattr(agent_state, "hearts_assembled", 0))
-                            steps_taken = last_step + 1
-                            final_energy = int(getattr(agent_state, "energy", 0))
-                            success = total_reward > 0
-
-                            metrics: Optional[Dict[str, Any]] = None
-                            if policy_impl is not None:
-                                metrics = policy_impl.export_metrics()
-                                if resolved_flags:
-                                    metrics = dict(metrics)
-                                    metrics.setdefault("feature_overrides", dict(resolved_flags))
-
-                            env.close()
-
-                            result = EvalResult(
-                                suite="full",
-                                test_name=test_name,
-                                num_cogs=num_cogs,
-                                preset=preset_name,
-                                difficulty=difficulty_name,
-                                clip_mode=clip_mode,
-                                clip_rate=clip_rate,
-                                total_reward=float(total_reward),
-                                hearts_assembled=int(hearts_assembled),
-                                steps_taken=int(steps_taken),
-                                max_steps=max_steps,
-                                final_energy=int(final_energy),
-                                success=success,
-                                metrics=metrics,
+                    hearts_assembled = 0
+                    final_energy = 0
+                    if agent_state is not None:
+                        hearts_assembled = int(
+                            getattr(
+                                agent_state,
+                                "hearts_assembled",
+                                getattr(agent_state, "hearts", 0),
                             )
-                            results.append(result)
-                            test_count += 1
-                            if success:
-                                success_count += 1
+                        )
+                        final_energy = int(getattr(agent_state, "energy", 0))
 
-                            print(f"  Reward: {total_reward:.1f}")
-                            print(f"  Steps: {steps_taken}/{max_steps}")
-                            print(f"  {'✅ SUCCESS' if success else '❌ FAILED'}")
-                            if metrics:
-                                print(
-                                    "  Metrics: nav_calls={nav} cache_hits={cache} "
-                                    "astar={astar} assembly_latencies={latencies}".format(
-                                        nav=metrics.get("navigation_calls"),
-                                        cache=metrics.get("navigation_cache_hits"),
-                                        astar=metrics.get("navigation_astar_calls"),
-                                        latencies=metrics.get("assembly_latencies"),
-                                    )
-                                )
+                    steps_taken = last_step + 1
+                    success = total_reward > 0
 
-                        except Exception as e:
-                            logger.error(f"Error in {test_name}: {e}")
-                            test_count += 1
+                    metrics: Optional[Dict[str, Any]] = None
+                    if policy_impl is not None and hasattr(policy_impl, "export_metrics"):
+                        metrics = policy_impl.export_metrics()  # type: ignore[assignment]
+                        if overrides:
+                            metrics = dict(metrics)
+                            metrics.setdefault("feature_overrides", dict(overrides))
+
+                    env.close()
+
+                    result = EvalResult(
+                        suite="full",
+                        agent=agent_config.label,
+                        test_name=test_name,
+                        num_cogs=num_cogs,
+                        preset=agent_config.preset_name,
+                        difficulty=difficulty_name,
+                        clip_mode=clip_mode,
+                        clip_rate=clip_rate,
+                        total_reward=float(total_reward),
+                        hearts_assembled=int(hearts_assembled),
+                        steps_taken=int(steps_taken),
+                        max_steps=max_steps,
+                        final_energy=int(final_energy),
+                        success=success,
+                        metrics=metrics,
+                    )
+                    results.append(result)
+                    test_count += 1
+                    if success:
+                        success_count += 1
+
+                    print(f"  Reward: {total_reward:.1f}")
+                    print(f"  Steps: {steps_taken}/{max_steps}")
+                    print(f"  {'✅ SUCCESS' if success else '❌ FAILED'}")
+                    if metrics:
+                        print(
+                            "  Metrics: nav_calls={nav} cache_hits={cache} "
+                            "astar={astar} assembly_latencies={latencies}".format(
+                                nav=metrics.get("navigation_calls"),
+                                cache=metrics.get("navigation_cache_hits"),
+                                astar=metrics.get("navigation_astar_calls"),
+                                latencies=metrics.get("assembly_latencies"),
+                            )
+                        )
+
+                except Exception as e:
+                    logger.error(f"Error in {test_name}: {e}")
+                    test_count += 1
 
     print(f"\n{'=' * 80}")
     print(f"COMPLETED: {success_count}/{test_count} successful")
@@ -657,6 +744,19 @@ def print_summary(results: List[EvalResult], suite_name: str):
     print(f"Failures: {total - successes}")
     print(f"Success rate: {100 * successes / total:.1f}%" if total > 0 else "N/A")
 
+    # Group by agent variant
+    by_agent: Dict[str, List[EvalResult]] = {}
+    for r in results:
+        by_agent.setdefault(r.agent, []).append(r)
+
+    print("\n## Success Rate by Agent")
+    for agent_label in sorted(by_agent.keys()):
+        agent_results = by_agent[agent_label]
+        agent_success = sum(1 for r in agent_results if r.success)
+        print(
+            f"  {agent_label}: {agent_success}/{len(agent_results)} ({100 * agent_success / len(agent_results):.1f}%)"
+        )
+
     # Group by agent count
     by_cogs = {}
     for r in results:
@@ -713,11 +813,14 @@ def main():
     full_parser = subparsers.add_parser("full", help="Run full evaluation suite")
     full_parser.add_argument("--experiments", nargs="*", default=None, help="Experiments to test (default: all)")
     full_parser.add_argument("--difficulties", nargs="*", default=None, help="Difficulties (default: all)")
-    full_parser.add_argument("--hyperparams", nargs="*", default=None, help="Hyperparameter presets (default: all)")
-    full_parser.add_argument("--clip-modes", nargs="*", default=None, help="Clip modes (default: none + all resources)")
-    full_parser.add_argument("--clip-rates", nargs="*", type=float, default=None, help="Clip rates (default: 0.0 0.25)")
     full_parser.add_argument("--cogs", nargs="*", type=int, default=None, help="Agent counts (default: 1 2 4 8)")
     full_parser.add_argument("--steps", type=int, default=1000, help="Max steps per episode")
+    full_parser.add_argument(
+        "--agent",
+        choices=[*AGENT_CONFIGS.keys(), "all"],
+        default="all",
+        help="Scripted agent variant to evaluate (default: all)",
+    )
     full_parser.add_argument(
         "--feature-bundle",
         choices=list(FEATURE_BUNDLES.keys()),
@@ -840,18 +943,36 @@ def main():
         print_summary(tf_results, "Training Facility")
 
     if args.suite in ["full", "all"]:
-        full_args = {} if args.suite == "all" else vars(args)
-        feature_overrides = collect_feature_overrides(args)
-        full_results = run_full_evaluation_suite(
-            experiments=full_args.get("experiments"),
-            difficulties=full_args.get("difficulties"),
-            hyperparams=full_args.get("hyperparams"),
-            clip_modes=full_args.get("clip_modes"),
-            clip_rates=full_args.get("clip_rates"),
-            cogs_list=full_args.get("cogs"),
-            max_steps=full_args.get("steps", 1000),
-            feature_overrides=feature_overrides,
-        )
+        if args.suite == "full":
+            agent_selection = args.agent
+            experiments = args.experiments
+            difficulties = args.difficulties
+            steps = args.steps
+            feature_overrides = collect_feature_overrides(args)
+        else:
+            agent_selection = "all"
+            experiments = None
+            difficulties = None
+            steps = 1000
+            feature_overrides = None
+
+        if agent_selection == "all":
+            selected_configs = list(AGENT_CONFIGS.values())
+        else:
+            selected_configs = [AGENT_CONFIGS[agent_selection]]
+
+        full_results: List[EvalResult] = []
+        for config in selected_configs:
+            config_results = run_full_evaluation_suite(
+                agent_config=config,
+                experiments=experiments,
+                difficulties=difficulties,
+                cogs_list=args.cogs if args.suite == "full" else None,
+                max_steps=steps,
+                feature_overrides=feature_overrides,
+            )
+            full_results.extend(config_results)
+
         all_results.extend(full_results)
         print_summary(full_results, "Full Evaluation")
 

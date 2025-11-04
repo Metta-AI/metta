@@ -48,10 +48,7 @@ class UnclippingAgent(SimpleBaselineAgent):
 
     def __init__(self, env: MettaGridEnv):
         super().__init__(env)
-
-        # Load unclip recipes from environment or use defaults
         self._unclip_recipes = self._load_unclip_recipes()
-        print(f"[UnclippingAgent] Initialized with recipes: {self._unclip_recipes}")
 
     def _load_unclip_recipes(self) -> dict[str, str]:
         """
@@ -105,7 +102,8 @@ class UnclippingAgent(SimpleBaselineAgent):
         if item_name is None:
             return False
 
-        return getattr(s, item_name, 0) > 0
+        has_item = getattr(s, item_name, 0) > 0
+        return has_item
 
     def _update_phase(self, s: UnclippingAgentState) -> None:
         """Override to add unclipping phase priorities."""
@@ -119,16 +117,13 @@ class UnclippingAgent(SimpleBaselineAgent):
         # Stay in RECHARGE until energy is fully restored (>= 90)
         if s.phase == Phase.RECHARGE:
             if s.energy >= 90:
-                print(f"[Agent {s.agent_id}] Phase: RECHARGE -> GATHER (energy={s.energy})")
                 s.phase = Phase.GATHER
                 s.target_position = None
-            # Still recharging, stay in this phase
             return
 
         # Priority 2: Deliver hearts if we have any
         if s.hearts > 0:
             if s.phase != Phase.DELIVER:
-                print(f"[Agent {s.agent_id}] Phase: {s.phase.name} -> DELIVER ({s.hearts} hearts)")
                 s.phase = Phase.DELIVER
             return
 
@@ -142,33 +137,41 @@ class UnclippingAgent(SimpleBaselineAgent):
 
         if can_assemble:
             if s.phase != Phase.ASSEMBLE:
-                print(f"[Agent {s.agent_id}] Phase: {s.phase.name} -> ASSEMBLE (all resources ready)")
                 s.phase = Phase.ASSEMBLE
             return
 
         # Priority 4: Unclip if blocked and have unclip item
         if s.blocked_by_clipped_extractor is not None and self._has_unclip_item(s):
             if s.phase != Phase.UNCLIP:
-                print(
-                    f"[Agent {s.agent_id}] Phase: {s.phase.name} -> UNCLIP "
-                    f"(have unclip item for {s.unclip_target_resource})"
-                )
                 s.phase = Phase.UNCLIP
             return
 
         # Priority 5: Craft unclip item if blocked but don't have item
+        # Only transition to CRAFT_UNCLIP if we have EXTRA craft resource (beyond what's needed for heart)
+        # This prevents us from using our only carbon to craft decoder, then being stuck without carbon for hearts
         if s.blocked_by_clipped_extractor is not None and not self._has_unclip_item(s):
-            if s.phase != Phase.CRAFT_UNCLIP:
-                print(
-                    f"[Agent {s.agent_id}] Phase: {s.phase.name} -> CRAFT_UNCLIP "
-                    f"(need to craft for {s.unclip_target_resource})"
-                )
-                s.phase = Phase.CRAFT_UNCLIP
-            return
+            craft_resource = self._unclip_recipes.get(s.unclip_target_resource) if s.unclip_target_resource else None
+
+            if craft_resource:
+                current_amount = getattr(s, craft_resource, 0)
+                needed_for_heart = self._heart_recipe.get(craft_resource, 0)
+                needed_for_craft = 1  # Need 1 unit to craft the unclip item
+                total_needed = needed_for_heart + needed_for_craft
+
+                has_enough = current_amount >= total_needed
+
+                if has_enough:
+                    if s.phase != Phase.CRAFT_UNCLIP:
+                        s.phase = Phase.CRAFT_UNCLIP
+                    return
+                else:
+                    # Stay in GATHER to collect more craft resource
+                    if s.phase != Phase.GATHER:
+                        s.phase = Phase.GATHER
+                    return
 
         # Priority 6: Default to GATHER
         if s.phase != Phase.GATHER:
-            print(f"[Agent {s.agent_id}] Phase: {s.phase.name} -> GATHER (need resources)")
             s.phase = Phase.GATHER
             s.target_position = None
 
@@ -181,8 +184,20 @@ class UnclippingAgent(SimpleBaselineAgent):
         """
         deficits = self._calculate_deficits(s)
 
+        # If blocked and need craft resource, treat it as a deficit
+        if s.blocked_by_clipped_extractor is not None and s.unclip_target_resource:
+            craft_resource = self._unclip_recipes.get(s.unclip_target_resource)
+            if craft_resource:
+                current_amount = getattr(s, craft_resource, 0)
+                needed_for_heart = self._heart_recipe.get(craft_resource, 0)
+                total_needed = needed_for_heart + 1  # +1 for crafting decoder
+                if current_amount < total_needed:
+                    deficits[craft_resource] = total_needed - current_amount
+
+        # Check for needed resources
         for resource_type in ["carbon", "oxygen", "germanium", "silicon"]:
-            if deficits.get(resource_type, 0) <= 0:
+            deficit = deficits.get(resource_type, 0)
+            if deficit <= 0:
                 continue
 
             extractors = self._extractors.get(resource_type, [])
@@ -196,9 +211,7 @@ class UnclippingAgent(SimpleBaselineAgent):
             available = [
                 e
                 for e in extractors
-                if not e.clipped
-                and e.remaining_uses > 0
-                and s.unreachable_extractors.get(e.position, 0) < 5
+                if not e.clipped and e.remaining_uses > 0 and s.unreachable_extractors.get(e.position, 0) < 5
             ]
 
             if available:
@@ -209,8 +222,8 @@ class UnclippingAgent(SimpleBaselineAgent):
                 nearest = min(available, key=lambda e: distance(e.position))
                 return (nearest, resource_type)
 
-            # No available extractors - check if any are clipped or depleted
-            clipped = [e for e in extractors if e.clipped or e.remaining_uses == 0]
+            # No available extractors - check if any are clipped (not just depleted!)
+            clipped = [e for e in extractors if e.clipped and e.remaining_uses > 0]
             if clipped:
                 # Found clipped extractor that we need
                 def distance(pos: tuple[int, int]) -> int:
@@ -219,10 +232,11 @@ class UnclippingAgent(SimpleBaselineAgent):
                 nearest_clipped = min(clipped, key=lambda e: distance(e.position))
                 s.blocked_by_clipped_extractor = nearest_clipped.position
                 s.unclip_target_resource = resource_type
-                print(
-                    f"[Agent {s.agent_id}] All {resource_type} extractors clipped! "
-                    f"Need to unclip at {nearest_clipped.position}"
-                )
+                return None
+
+            # Check if we just have depleted extractors (can't unclip those)
+            depleted = [e for e in extractors if e.remaining_uses == 0]
+            if depleted:
                 return None
 
         return None
@@ -246,14 +260,12 @@ class UnclippingAgent(SimpleBaselineAgent):
     def _do_craft_unclip(self, s: UnclippingAgentState) -> int:
         """Craft unclip item at assembler."""
         if s.unclip_target_resource is None:
-            print(f"[Agent {s.agent_id}] CRAFT_UNCLIP: No target resource, returning to GATHER")
             s.phase = Phase.GATHER
             return self._NOOP
 
         # Get craft resource needed
         craft_resource = self._unclip_recipes.get(s.unclip_target_resource)
         if craft_resource is None:
-            print(f"[Agent {s.agent_id}] CRAFT_UNCLIP: No recipe for {s.unclip_target_resource}")
             s.phase = Phase.GATHER
             return self._NOOP
 
@@ -261,9 +273,8 @@ class UnclippingAgent(SimpleBaselineAgent):
         current_amount = getattr(s, craft_resource, 0)
         if current_amount < 1:
             # Need to gather craft resource first
-            print(f"[Agent {s.agent_id}] CRAFT_UNCLIP: Need {craft_resource} to craft, have {current_amount}")
-            # Temporarily go back to GATHER to get craft resource
-            return self._do_gather(s)
+            s.phase = Phase.GATHER
+            return self._NOOP
 
         # Explore until we find assembler
         explore_action = self._explore_until(
@@ -275,19 +286,20 @@ class UnclippingAgent(SimpleBaselineAgent):
         # Change glyph to "gear" for crafting unclip items
         if s.current_glyph != "gear":
             vibe_action = self._change_vibe_actions["gear"]
-            print(f"[Agent {s.agent_id}] Changing glyph to 'gear' for crafting (action {vibe_action})")
             s.current_glyph = "gear"
             return vibe_action
 
         # Move to assembler and use it
         assembler = self._stations["assembler"]
+        if assembler is None:
+            return self._NOOP
+
         ar, ac = assembler
         dr = abs(s.row - ar)
         dc = abs(s.col - ac)
         is_adjacent = (dr == 1 and dc == 0) or (dr == 0 and dc == 1)
 
         if is_adjacent:
-            print(f"[Agent {s.agent_id}] Crafting unclip item at assembler")
             return self._move_into_cell(s, assembler)
 
         return self._move_towards(s, assembler, reach_adjacent=True)
@@ -295,7 +307,6 @@ class UnclippingAgent(SimpleBaselineAgent):
     def _do_unclip(self, s: UnclippingAgentState) -> int:
         """Use unclip item on clipped extractor."""
         if s.blocked_by_clipped_extractor is None:
-            print(f"[Agent {s.agent_id}] UNCLIP: No blocked extractor, returning to GATHER")
             s.phase = Phase.GATHER
             s.unclip_target_resource = None
             return self._NOOP
@@ -309,7 +320,6 @@ class UnclippingAgent(SimpleBaselineAgent):
 
         if is_adjacent:
             # Adjacent to clipped extractor - move into it to unclip
-            print(f"[Agent {s.agent_id}] Unclipping extractor at {target}")
             # Clear blocked state after unclipping
             s.blocked_by_clipped_extractor = None
             s.unclip_target_resource = None

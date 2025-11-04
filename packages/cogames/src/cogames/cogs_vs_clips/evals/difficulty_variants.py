@@ -406,21 +406,33 @@ def _apply_clipping(mission, difficulty: DifficultyLevel) -> None:
 
     def _tweak_assembler(cfg: MettaGridConfig) -> None:
         """Add gear crafting protocol to assembler."""
+        print(f"[_tweak_assembler] Called with resource_for_gear={resource_for_gear}, required_gear={required_gear}")
         asm = cfg.game.objects.get("assembler")
         if asm is None:
+            print("[_tweak_assembler] assembler not found")
             logger.warning("_tweak_assembler: assembler not found")
             return
         try:
+            print(f"[_tweak_assembler] Current protocols ({len(asm.protocols)}):")
+            for i, p in enumerate(asm.protocols):
+                print(f"  [{i}] vibes={p.vibes}, in={p.input_resources}, out={p.output_resources}")
+
             protocol = ProtocolConfig(
                 vibes=["gear"], input_resources={resource_for_gear: 1}, output_resources={required_gear: 1}
             )
+            print(f"[_tweak_assembler] Created protocol: vibes=['gear'], input={resource_for_gear}:1, output={required_gear}:1")
             # Check if this protocol already exists
             if not any(p.vibes == ["gear"] and p.output_resources == {required_gear: 1} for p in asm.protocols):
-                asm.protocols = [protocol, *asm.protocols]
+                # APPEND to end (highest priority) instead of prepending (lowest priority)
+                # Note: protocols are in "reverse order of priority" per AssemblerConfig
+                asm.protocols = [*asm.protocols, protocol]
+                print(f"[_tweak_assembler] ✓ Added gear protocol {resource_for_gear} -> {required_gear} at END (highest priority)")
                 logger.info(f"_tweak_assembler: Added gear protocol {resource_for_gear} -> {required_gear}")
             else:
+                print(f"[_tweak_assembler] gear protocol {resource_for_gear} -> {required_gear} already exists")
                 logger.info(f"_tweak_assembler: gear protocol {resource_for_gear} -> {required_gear} already exists")
         except Exception as e:
+            print(f"[_tweak_assembler] ERROR: {e}")
             logger.error(f"_tweak_assembler failed: {e}")
             pass
 
@@ -451,11 +463,9 @@ def _apply_clipping(mission, difficulty: DifficultyLevel) -> None:
             except Exception:
                 pass
 
-    logger.info(f"Adding env modifiers for clipping (target={target})")
     mission = _add_make_env_modifier(mission, _filter_unclip)
     logger.info("Added _filter_unclip modifier")
     mission = _add_make_env_modifier(mission, _tweak_assembler)
-    logger.info("Added _tweak_assembler modifier")
     mission = _add_make_env_modifier(mission, _ensure_gear_resource_immune)
     logger.info("Added _ensure_gear_resource_immune modifier")
     mission = _add_make_env_modifier(mission, _ensure_critical_stations_immune)

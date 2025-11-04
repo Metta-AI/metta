@@ -102,6 +102,10 @@ class ParsedObservation:
     germanium: int
     silicon: int
     hearts: int
+    decoder: int
+    modulator: int
+    resonator: int
+    scrambler: int
 
     # Nearby objects with full state (position -> ObjectState)
     nearby_objects: dict[tuple[int, int], ObjectState]
@@ -280,6 +284,10 @@ class SimpleBaselineAgent:
         germanium = 0
         silicon = 0
         hearts = 0
+        decoder = 0
+        modulator = 0
+        resonator = 0
+        scrambler = 0
         nearby_objects: dict[tuple[int, int], ObjectState] = {}
 
         # Feature IDs - spatial object features
@@ -306,6 +314,14 @@ class SimpleBaselineAgent:
                     silicon = value
                 elif feature_id == self._fid.get("inv:heart"):
                     hearts = value
+                elif feature_id == self._fid.get("inv:decoder"):
+                    decoder = value
+                elif feature_id == self._fid.get("inv:modulator"):
+                    modulator = value
+                elif feature_id == self._fid.get("inv:resonator"):
+                    resonator = value
+                elif feature_id == self._fid.get("inv:scrambler"):
+                    scrambler = value
             # Spatial features (relative to agent)
             elif agent_row >= 0 and agent_col >= 0:
                 # Convert observation-relative coords to world coords
@@ -360,6 +376,10 @@ class SimpleBaselineAgent:
             germanium=germanium,
             silicon=silicon,
             hearts=hearts,
+            decoder=decoder,
+            modulator=modulator,
+            resonator=resonator,
+            scrambler=scrambler,
             nearby_objects=nearby_objects,
         )
 
@@ -439,6 +459,10 @@ class SimpleBaselineAgent:
         s.germanium = parsed.germanium
         s.silicon = parsed.silicon
         s.hearts = parsed.hearts
+        s.decoder = parsed.decoder
+        s.modulator = parsed.modulator
+        s.resonator = parsed.resonator
+        s.scrambler = parsed.scrambler
 
         # Check if we received the resource from an extractor activation
         if s.pending_use_resource is not None:
@@ -537,10 +561,11 @@ class SimpleBaselineAgent:
         extractor.clipped = obj_state.clipped > 0
         extractor.remaining_uses = obj_state.remaining_uses
 
-        if s.step_count < 100 and extractor.converting:
+        if s.step_count < 100 and (extractor.converting or extractor.clipped):
             state_str = (
                 f"converting={extractor.converting}, "
-                f"cooldown={extractor.cooldown_remaining}, clipped={extractor.clipped}"
+                f"cooldown={extractor.cooldown_remaining}, clipped={extractor.clipped}, "
+                f"uses={extractor.remaining_uses}"
             )
             print(f"  -> {resource_type} @ {pos}: {state_str}")
 
@@ -550,10 +575,9 @@ class SimpleBaselineAgent:
 
         Priority order:
         1. RECHARGE if energy low
-        2. DELIVER if have hearts (TODO: track hearts)
+        2. DELIVER if have hearts
         3. ASSEMBLE if have all 4 resources
-        4. UNCLIP if see clipped extractors
-        5. GATHER (default) - collect resources, explore if needed
+        4. GATHER (default) - collect resources, explore if needed
         """
         # Priority 1: Recharge if energy low
         # Enter RECHARGE if energy drops below 30
@@ -587,9 +611,23 @@ class SimpleBaselineAgent:
             and s.silicon >= self._heart_recipe["silicon"]
         )
 
+        # Debug: log inventory periodically
+        if s.step_count % 50 == 0:
+            print(
+                f"[Agent {s.agent_id}] Inventory check: "
+                f"C={s.carbon}/{self._heart_recipe['carbon']} "
+                f"O={s.oxygen}/{self._heart_recipe['oxygen']} "
+                f"G={s.germanium}/{self._heart_recipe['germanium']} "
+                f"S={s.silicon}/{self._heart_recipe['silicon']} "
+                f"can_assemble={can_assemble}"
+            )
+
         if can_assemble:
             if s.phase != Phase.ASSEMBLE:
-                print(f"[Agent {s.agent_id}] Phase: {s.phase.name} -> ASSEMBLE (all resources ready)")
+                print(
+                    f"[Agent {s.agent_id}] Phase: {s.phase.name} -> ASSEMBLE "
+                    f"(C={s.carbon} O={s.oxygen} G={s.germanium} S={s.silicon})"
+                )
                 s.phase = Phase.ASSEMBLE
             return
 
@@ -888,7 +926,6 @@ class SimpleBaselineAgent:
             s.wait_steps = 0
             # Will find another extractor on next iteration
             return self._NOOP
-
         # Extractor is usable! Track inventory before use, then move into it to activate
         old_amount = getattr(s, resource_type, 0)
 
