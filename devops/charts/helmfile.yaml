@@ -156,7 +156,65 @@ releases:
     version: 0.1.0
     namespace: library
 
-  - name: dashboard-cronjob
-    chart: ./dashboard-cronjob
+  ########## Cronjobs ##########
+  # Shared cronjob template for all periodic tasks
+  # All cronjobs get broad read-only cluster permissions (see cronjob/templates/rbac.yaml).
+  # We value simplicity over fine-grained security - some cronjobs get more access than needed.
+  #
+  # To add a new cronjob:
+  #   1. Create Dockerfile.{name} in devops/charts/cronjob/
+  #   2. Add release entry below using <<: *cronjob_template
+  #   3. Create GitHub workflow to build and deploy
+  cronjob: &cronjob_template
+    chart: ./cronjob
     version: 0.1.0
     namespace: monitoring
+
+  - name: pr-similarity-cache-cronjob
+    <<: *cronjob_template
+    values:
+      - schedule: "0 0 * * *"  # Daily at midnight
+      - image:
+          name: pr-similarity-cache
+      - datadog:
+          service: pr-similarity-cache-refresh
+
+  - name: dashboard-cronjob
+    <<: *cronjob_template
+    values:
+      - schedule: "0 */6 * * *"  # Every 6 hours
+      - image:
+          name: dashboard-collector
+      - datadog:
+          service: dashboard-collector
+
+  # Dev cronjob examples (commented out - use for testing in dev environments)
+  # Uncomment and deploy with: helmfile apply -i -l name=pr-similarity-cache-cronjob-dev
+  #
+  # - name: pr-similarity-cache-cronjob-dev
+  #   <<: *cronjob_template
+  #   values:
+  #     - schedule: "*/5 * * * *"  # Every 5 minutes for testing
+  #     - image:
+  #         name: pr-similarity-cache
+  #         tag: dev  # Use dev tag
+  #     - datadog:
+  #         service: pr-similarity-cache-refresh-dev
+  #         env: dev
+  #
+  # - name: dashboard-cronjob-dev
+  #   <<: *cronjob_template
+  #   values:
+  #     - schedule: "*/5 * * * *"  # Every 5 minutes for testing
+  #     - image:
+  #         name: dashboard-collector
+  #         tag: dev  # Use dev tag
+  #     - datadog:
+  #         service: dashboard-collector-dev
+  #         env: dev
+
+# Helpful commands:
+#   Deploy cronjob definition: cd devops/charts && helmfile -l name=<release-name> apply
+#   Inspect cronjob definition: kubectl get cronjobs -n monitoring
+#   Trigger a run of cronjob off-schedule: kubectl -n monitoring create job <custom-name> --from=cronjob/<release-name>
+#   Inspect runs/logs: kubectl get jobs -n monitoring && kubectl logs -n monitoring job/<job-name>

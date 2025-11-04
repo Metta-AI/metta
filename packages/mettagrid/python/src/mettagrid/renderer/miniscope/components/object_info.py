@@ -2,14 +2,9 @@
 
 from typing import Dict
 
-from mettagrid import MettaGridEnv
-from mettagrid.core import BoundingBox
 from mettagrid.renderer.miniscope.miniscope_panel import SIDEBAR_WIDTH, PanelLayout
-from mettagrid.renderer.miniscope.miniscope_state import (
-    SELECT_MODE_KEY,
-    MiniscopeState,
-    RenderMode,
-)
+from mettagrid.renderer.miniscope.miniscope_state import MiniscopeState, RenderMode
+from mettagrid.simulator import BoundingBox, Simulation
 
 from .base import MiniscopeComponent
 
@@ -19,13 +14,22 @@ class ObjectInfoComponent(MiniscopeComponent):
 
     def __init__(
         self,
-        env: MettaGridEnv,
+        sim: Simulation,
         state: MiniscopeState,
         panels: PanelLayout,
     ):
-        """Initialize the object info component."""
-        super().__init__(env=env, state=state, panels=panels)
-        self._set_panel(panels.get_sidebar_panel("object_info"))
+        """Initialize the object info component.
+
+        Args:
+            sim: MettaGrid simulator reference
+            state: Miniscope state reference
+            panels: Panel layout containing all panels
+        """
+        super().__init__(sim=sim, state=state, panels=panels)
+        sidebar_panel = panels.get_sidebar_panel("object_info")
+        if sidebar_panel is None:
+            sidebar_panel = panels.register_sidebar_panel("object_info")
+        self._set_panel(sidebar_panel)
 
     def _get_object_type_names(self) -> list[str]:
         """Get object type names from state."""
@@ -42,14 +46,14 @@ class ObjectInfoComponent(MiniscopeComponent):
             return
 
         if not self.env or not self.state:
-            width = self._width if self._width else SIDEBAR_WIDTH
+            width = self._width if self._width else 40
             lines = ["Object Info", "-" * min(width, 40), "Object info unavailable"]
             self._panel.set_content(lines)
             return
 
         if self.state.mode != RenderMode.SELECT:
-            width = self._width if self._width else SIDEBAR_WIDTH
-            select_hint = f"Switch to Select mode (press {SELECT_MODE_KEY})"
+            width = self._width if self._width else 40
+            select_hint = "Switch to Select mode (press t)"
             lines = [
                 "Object Info",
                 "-" * min(width, 40),
@@ -60,11 +64,11 @@ class ObjectInfoComponent(MiniscopeComponent):
 
         bbox = BoundingBox(
             min_row=0,
-            max_row=self.env.map_height,
+            max_row=self._sim.map_height,
             min_col=0,
-            max_col=self.env.map_width,
+            max_col=self._sim.map_width,
         )
-        grid_objects = self.env.grid_objects(bbox)
+        grid_objects = self._sim.grid_objects(bbox)
 
         panel_height = self.state.viewport_height // 2 if self.state.viewport_height else 20
 
@@ -115,15 +119,15 @@ class ObjectInfoComponent(MiniscopeComponent):
         max_property_rows = max(1, panel_height - 6)
         properties_added = 0
 
-        current_recipe_inputs = selected_obj.get("current_recipe_inputs")
-        has_recipes = "recipes" in selected_obj
+        current_protocol_inputs = selected_obj.get("current_protocol_inputs")
+        has_protocols = "protocols" in selected_obj
 
-        if current_recipe_inputs and has_recipes and isinstance(selected_obj["recipes"], list):
-            for recipe in selected_obj["recipes"]:
-                if isinstance(recipe, dict):
-                    inputs = recipe.get("inputs", {})
-                    if inputs == current_recipe_inputs:
-                        outputs = recipe.get("outputs", {})
+        if current_protocol_inputs and has_protocols and isinstance(selected_obj["protocols"], list):
+            for protocol in selected_obj["protocols"]:
+                if isinstance(protocol, dict):
+                    inputs = protocol.get("inputs", {})
+                    if inputs == current_protocol_inputs:
+                        outputs = protocol.get("outputs", {})
                         resource_names = self._get_resource_names()
                         if resource_names:
                             inputs_str = ", ".join(f"{resource_names[k]}:{v}" for k, v in inputs.items())
@@ -132,7 +136,7 @@ class ObjectInfoComponent(MiniscopeComponent):
                             inputs_str = ", ".join(f"{k}:{v}" for k, v in inputs.items())
                             outputs_str = ", ".join(f"{k}:{v}" for k, v in outputs.items())
 
-                        lines.append("Recipe:"[:width].ljust(width))
+                        lines.append("Protocol:"[:width].ljust(width))
                         lines.append(f"  {inputs_str} -> {outputs_str}"[:width].ljust(width))
                         properties_added += 2
                         break
@@ -140,13 +144,13 @@ class ObjectInfoComponent(MiniscopeComponent):
         for key, value in sorted(selected_obj.items()):
             if properties_added >= max_property_rows:
                 remaining = len(selected_obj) - properties_added - 4
-                if has_recipes:
+                if has_protocols:
                     remaining -= 1
                 if remaining > 0:
                     lines.append(f"... ({remaining} more)"[:width].ljust(width))
                 break
 
-            if key in ["r", "c", "type", "recipes", "current_recipe_inputs", "current_recipe_outputs"]:
+            if key in ["r", "c", "type", "protocols", "current_protocol_inputs", "current_protocol_outputs"]:
                 continue
 
             if isinstance(value, dict):

@@ -25,6 +25,8 @@ def test_grpo_recipes_support_dry_run(
         capsys=capsys,
     )
 
-    assert result.returncode == 0
+    if result.returncode != 0:
+        raise RuntimeError(f"Failed to run tool {tool_path}: {result.stderr}")
+
     combined_output = result.stdout + result.stderr
     assert "Configuration validation successful" in combined_output

@@ -26,7 +26,8 @@ from cogames.cli.policy import get_policy_spec, get_policy_specs, policy_arg_exa
 from cogames.cli.submit import DEFAULT_SUBMIT_SERVER, submit_command
 from cogames.curricula import make_rotation
 from cogames.device import resolve_training_device
-from mettagrid import MettaGridEnv
+from mettagrid.renderer.renderer import RenderMode
+from mettagrid.simulator import Simulator
 
 # Always add current directory to Python path
 sys.path.insert(0, ".")
@@ -121,9 +122,7 @@ def play_cmd(
     ),
     policy: str = typer.Option("noop", "--policy", "-p", help=f"Policy ({policy_arg_example})"),
     steps: int = typer.Option(1000, "--steps", "-s", help="Number of steps to run", min=1),
-    render: Literal["gui", "unicode", "none"] = typer.Option(
-        "gui", "--render", "-r", help="Render mode: 'gui', 'unicode' (interactive terminal), or 'none'"
-    ),
+    render: RenderMode = typer.Option("gui", "--render", "-r", help="Render mode"),  # noqa: B008
     print_cvc_config: bool = typer.Option(
         False, "--print-cvc-config", help="Print Mission config (CVC config) and exit"
     ),
@@ -149,21 +148,15 @@ def play_cmd(
     ):
         env_cfg.game.max_steps = steps
 
-    if ctx.get_parameter_source("cogs") in (
-        ParameterSource.COMMANDLINE,
-        ParameterSource.ENVIRONMENT,
-        ParameterSource.PROMPT,
-    ):
-        if cogs is not None:
-            env_cfg.game.num_agents = cogs
+    if cogs is not None:
+        env_cfg.game.num_agents = cogs
 
     play_module.play(
         console,
         env_cfg=env_cfg,
         policy_spec=policy_spec,
-        max_steps=steps,
         seed=42,
-        render=render,
+        render_mode=render,
         game_name=resolved_mission,
     )
 
@@ -200,7 +193,8 @@ def make_mission(
             env_cfg.game.num_agents = num_agents
 
         # Validate the environment configuration
-        _ = MettaGridEnv(env_cfg)
+
+        _ = Simulator().new_simulation(env_cfg)
 
         if output:
             game.save_mission_config(env_cfg, output)
@@ -334,7 +328,13 @@ def evaluate_cmd(
     ),
     steps: Optional[int] = typer.Option(1000, "--steps", "-s", help="Max steps per episode", min=1),
 ) -> None:
-    selected_missions = get_mission_names_and_configs(ctx, missions, variants_arg=variant, cogs=cogs)
+    selected_missions = get_mission_names_and_configs(ctx, missions, variants_arg=variant, cogs=cogs, steps=steps)
+
+    # Override num_agents if --cogs was explicitly provided
+    if cogs is not None:
+        for _, env_cfg in selected_missions:
+            env_cfg.game.num_agents = cogs
+
     policy_specs = get_policy_specs(ctx, policies)
 
     console.print(
@@ -347,7 +347,6 @@ def evaluate_cmd(
         policy_specs=policy_specs,
         action_timeout_ms=action_timeout_ms,
         episodes=episodes,
-        max_steps=steps,
     )
 
 

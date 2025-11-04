@@ -52,8 +52,6 @@ class CurriculumEnv(PufferEnv):
 
     def reset(self, *args, **kwargs):
         """Reset the environment and get a new task from curriculum."""
-        obs, info = self._env.reset(*args, **kwargs)
-
         # Get a new task from curriculum, with retry logic for invalid configurations
         max_retries = 10
         for attempt in range(max_retries):
@@ -85,6 +83,7 @@ class CurriculumEnv(PufferEnv):
                     )
                     raise
 
+        obs, info = self._env.reset(*args, **kwargs)
         return obs, info
 
     def step(self, *args, **kwargs):

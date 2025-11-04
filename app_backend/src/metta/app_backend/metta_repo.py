@@ -735,7 +735,7 @@ class MettaRepo:
                 yield conn
         except PoolTimeout as e:
             stats = pool.get_stats()
-            logger.error(f"Error connecting to database: {e}. Pool stats: {stats}")
+            logger.error(f"Error connecting to database: {e}. Pool stats: {stats}", exc_info=True)
 
             await pool.check()
             async with pool.connection() as conn:

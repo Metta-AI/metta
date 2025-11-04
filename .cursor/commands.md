@@ -96,6 +96,29 @@ grep -r "agent_raw" train_dir/test_$TEST_ID/wandb || echo "✓ No agent_raw metr
 
 ## Code Quality
 
+### Python Testing
+
+```bash
+# Run tests only (default, fastest for development - skips benchmarks)
+metta pytest
+
+# Run benchmarks only
+metta pytest --benchmark
+
+# Run both tests and benchmarks together
+metta pytest --test --benchmark
+
+# Run specific test modules
+metta pytest tests/rl/test_trainer_config.py -v
+metta pytest tests/sim/ -v
+
+# Run in CI mode (parallel execution, includes both tests and benchmarks)
+metta pytest --ci --test --benchmark
+
+# Run only changed tests (fast iteration)
+metta pytest --changed
+```
+
 ### Linting and Formatting
 
 ```bash

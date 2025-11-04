@@ -238,14 +238,22 @@ See @.cursor/commands.md for quick test commands and examples.
 metta ci
 
 # Run specific CI stages (used by GitHub Actions)
-metta ci --stage lint                       # Linting only
-metta ci --stage python-tests               # Python tests only
-metta ci --stage python-benchmarks          # Python benchmarks only
-metta ci --stage cpp-tests                  # C++ tests only
-metta ci --stage cpp-benchmarks             # C++ benchmarks only
+metta ci --stage lint                            # Linting only
+metta ci --stage python-tests-and-benchmarks     # Python tests and benchmarks together
+metta ci --stage cpp-tests                       # C++ tests only
+metta ci --stage cpp-benchmarks                  # C++ benchmarks only
 
-# Run full Python test sweep (CI-style)
-metta pytest --ci
+# Run Python tests (default, fastest for development - skips benchmarks)
+metta pytest
+
+# Run Python benchmarks only
+metta pytest --benchmark
+
+# Run both Python tests and benchmarks together
+metta pytest --test --benchmark
+
+# Run full Python test sweep (CI-style, includes both tests and benchmarks)
+metta pytest --ci --test --benchmark
 
 # Run specific test modules
 metta pytest tests/rl/test_trainer_config.py -v

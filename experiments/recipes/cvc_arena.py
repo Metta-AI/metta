@@ -142,7 +142,7 @@ def train_shaped(rewards: bool = True, assemblers: bool = True) -> TrainTool:
         # Update altar recipe to require battery_red input
         altar_config = env_cfg.game.objects["altar"]
         assert isinstance(altar_config, AssemblerConfig)
-        altar_config.recipes[0][1].input_resources["battery_red"] = 1
+        altar_config.protocols[0].input_resources["battery_red"] = 1
 
     trainer_cfg = TrainerConfig(
         losses=LossConfig(),
