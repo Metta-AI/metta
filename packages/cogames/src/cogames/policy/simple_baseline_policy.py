@@ -23,18 +23,17 @@ class SimpleBaselinePolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
         """Get initial state for an agent."""
         # Make sure agent states are initialized
         if agent_id not in self._agent._agent_states:
+            from cogames.policy.scripted_agent.simple_baseline_agent import CellType
+
             self._agent._agent_states[agent_id] = SimpleAgentState(
                 agent_id=agent_id,
                 map_height=self._agent._map_h,
                 map_width=self._agent._map_w,
-                occupancy=[[0] * self._agent._map_w for _ in range(self._agent._map_h)],
-                max_explore_steps=80,
+                occupancy=[[CellType.FREE.value] * self._agent._map_w for _ in range(self._agent._map_h)],
             )
         return self._agent._agent_states[agent_id]
 
-    def step_with_state(
-        self, obs: MettaGridObservation, state: SimpleAgentState
-    ) -> tuple[int, SimpleAgentState]:
+    def step_with_state(self, obs: MettaGridObservation, state: SimpleAgentState) -> tuple[int, SimpleAgentState]:
         """Compute action and return updated state."""
         # The state passed in tells us which agent this is
         agent_id = state.agent_id
@@ -61,6 +60,11 @@ class SimpleBaselinePolicy(Policy):
             if self._env is None:
                 raise RuntimeError("SimpleBaselinePolicy needs env - provide during __init__ or via info['env']")
             self._impl = SimpleBaselinePolicyImpl(self._env)
+
+        # Extract agent spawn positions from info if available (for tests)
+        if "agent_spawn_positions" in info and self._impl is not None:
+            self._impl._agent._agent_spawn_positions = info["agent_spawn_positions"]
+
         # Clear cached agent policies on reset
         self._agent_policies.clear()
 
