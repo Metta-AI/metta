@@ -1,28 +1,29 @@
-import numpy as np
 import pytest
 
-from mettagrid.config.mettagrid_config import ActionConfig, ActionsConfig, GameConfig, MettaGridConfig
-from mettagrid.core import MettaGridCore
+from mettagrid.config.mettagrid_config import (
+    ActionsConfig,
+    GameConfig,
+    MettaGridConfig,
+    MoveActionConfig,
+    NoopActionConfig,
+    ObsConfig,
+)
 from mettagrid.map_builder.random import RandomMapBuilder
-from mettagrid.mettagrid_c import MettaGrid, PackedCoordinate, dtype_actions
+from mettagrid.mettagrid_c import PackedCoordinate
+from mettagrid.simulator import Simulation
 from mettagrid.test_support import TokenTypes
 
 NUM_OBS_TOKENS = 50
 
 
 @pytest.fixture
-def basic_env() -> MettaGrid:
+def basic_env() -> Simulation:
     """Create a basic test environment with 8x4 grid and 2 agents."""
     cfg = MettaGridConfig(
         game=GameConfig(
             num_agents=2,
-            obs_width=3,
-            obs_height=3,
-            num_observation_tokens=NUM_OBS_TOKENS,
-            actions=ActionsConfig(
-                noop=ActionConfig(),
-                move=ActionConfig(),
-            ),
+            obs=ObsConfig(width=3, height=3, num_tokens=NUM_OBS_TOKENS),
+            actions=ActionsConfig(noop=NoopActionConfig(), move=MoveActionConfig()),
             map_builder=RandomMapBuilder.Config(
                 width=8,
                 height=4,
@@ -31,40 +32,43 @@ def basic_env() -> MettaGrid:
             ),
         )
     )
-    return MettaGridCore(cfg)
+    return Simulation(cfg)
 
 
 class TestBasicFunctionality:
     """Test basic environment functionality."""
 
-    def test_environment_initialization(self, basic_env: MettaGrid):
+    def test_environment_initialization(self, basic_env: Simulation):
         """Test basic environment properties."""
         assert basic_env.map_width == 8
         assert basic_env.map_height == 4
         assert len(basic_env.action_names) > 0
         assert "noop" in basic_env.action_names
 
-        obs, info = basic_env.reset()
+        obs = basic_env._c_sim.observations()
 
         assert obs.shape == (basic_env.num_agents, NUM_OBS_TOKENS, TokenTypes.OBS_TOKEN_SIZE)
-        assert isinstance(info, dict)
 
-    def test_grid_hash(self, basic_env: MettaGrid):
+    def test_grid_hash(self, basic_env: Simulation):
         """Test grid hash consistency."""
         assert basic_env.initial_grid_hash == 14602406112020495965  # Updated for RandomMapBuilder with seed=42
 
-    def test_action_interface(self, basic_env: MettaGrid):
+    def test_action_interface(self, basic_env: Simulation):
         """Test action interface and basic action execution."""
-        basic_env.reset()
 
         action_names = basic_env.action_names
         assert "noop" in action_names
         assert any(name.startswith("move") for name in action_names)
 
-        noop_idx = action_names.index("noop")
-        actions = np.full(basic_env.num_agents, noop_idx, dtype=dtype_actions)
+        for agent_id in range(basic_env.num_agents):
+            basic_env.agent(agent_id).set_action("noop")
 
-        obs, rewards, terminals, truncations, info = basic_env.step(actions)
+        basic_env.step()
+        obs = basic_env._c_sim.observations()
+        rewards = basic_env._c_sim.rewards()
+        terminals = basic_env._c_sim.terminals()
+        truncations = basic_env._c_sim.truncations()
+        info = {}
 
         # Check shapes and types
         assert obs.shape == (basic_env.num_agents, NUM_OBS_TOKENS, TokenTypes.OBS_TOKEN_SIZE)
@@ -74,19 +78,18 @@ class TestBasicFunctionality:
         assert isinstance(info, dict)
 
         # Action success should be boolean and per-agent
-        action_success = basic_env.action_success
+        action_success = [basic_env.agent(i).last_action_success for i in range(basic_env.num_agents)]
         assert len(action_success) == basic_env.num_agents
         assert all(isinstance(x, bool) for x in action_success)
 
-    def test_environment_state_consistency(self, basic_env: MettaGrid):
+    def test_environment_state_consistency(self, basic_env: Simulation):
         """Test that environment state remains consistent across operations."""
-        obs1, _ = basic_env.reset()
         initial_objects = basic_env.grid_objects()
 
-        noop_idx = basic_env.action_names.index("noop")
-        actions = np.full(basic_env.num_agents, noop_idx, dtype=dtype_actions)
+        for agent_id in range(basic_env.num_agents):
+            basic_env.agent(agent_id).set_action("noop")
 
-        obs2, _, _, _, _ = basic_env.step(actions)
+        basic_env.step()
         post_step_objects = basic_env.grid_objects()
 
         # Object count should remain unchanged
@@ -98,7 +101,9 @@ class TestBasicFunctionality:
 
         # Action set should remain unchanged after stepping
         actions1 = basic_env.action_names
-        basic_env.step(actions)
+        for agent_id in range(basic_env.num_agents):
+            basic_env.agent(agent_id).set_action("noop")
+        basic_env.step()
         actions2 = basic_env.action_names
         assert actions1 == actions2
 

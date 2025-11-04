@@ -5,28 +5,31 @@ import torch
 import torch.nn as nn
 
 import pufferlib.pytorch
-from cogames.policy.interfaces import AgentPolicy, TrainablePolicy
-from mettagrid import MettaGridAction, MettaGridEnv, MettaGridObservation, dtype_actions
+from mettagrid.config.id_map import ObservationFeatureSpec
+from mettagrid.config.mettagrid_config import ActionsConfig
+from mettagrid.mettagrid_c import dtype_actions
+from mettagrid.policy.policy import AgentPolicy, TrainablePolicy
+from mettagrid.policy.policy_env_interface import PolicyEnvInterface
+from mettagrid.simulator import Action as MettaGridAction
+from mettagrid.simulator import AgentObservation as MettaGridObservation
 
-logger = logging.getLogger("cogames.policies.token_policy")
+logger = logging.getLogger("mettagrid.policy.token_policy")
 
 
 class TokenPolicyNet(torch.nn.Module):
     """Token-aware per-step encoder inspired by Metta's basic baseline."""
 
-    def __init__(self, env: MettaGridEnv):
+    def __init__(self, features: list[ObservationFeatureSpec], actions_cfg: ActionsConfig):
         super().__init__()
 
         self.hidden_size = 192
 
-        feature_norms = getattr(env, "feature_normalizations", {})
+        feature_norms = {feature.id: feature.normalization for feature in features}
         max_feature_id = max((int(feature_id) for feature_id in feature_norms.keys()), default=-1)
         num_feature_embeddings = max(256, max_feature_id + 1)
         feature_scale = torch.ones(num_feature_embeddings, dtype=torch.float32)
         for feature_id, norm in feature_norms.items():
-            index = int(feature_id)
-            if 0 <= index < num_feature_embeddings:
-                feature_scale[index] = max(float(norm), 1.0)
+            feature_scale[feature_id] = max(float(norm), 1.0)
 
         self.register_buffer("_feature_scale", feature_scale)
 
@@ -48,7 +51,7 @@ class TokenPolicyNet(torch.nn.Module):
             nn.ReLU(),
         )
 
-        self.num_actions = int(env.single_action_space.n)
+        self.num_actions = len(actions_cfg.actions())
 
         self.action_head = pufferlib.pytorch.layer_init(nn.Linear(self.hidden_size, self.num_actions))
         self.value_head = pufferlib.pytorch.layer_init(nn.Linear(self.hidden_size, 1))
@@ -134,11 +137,17 @@ class TokenAgentPolicyImpl(AgentPolicy):
 class TokenPolicy(TrainablePolicy):
     """Feed-forward token encoder baseline derived from Metta's token-based basic policy."""
 
-    def __init__(self, env: MettaGridEnv, device: torch.device):
-        super().__init__()
-        self._net = TokenPolicyNet(env).to(device)
+    def __init__(
+        self,
+        features: list[ObservationFeatureSpec],
+        actions_cfg: ActionsConfig,
+        device: torch.device,
+        policy_env_info: PolicyEnvInterface,
+    ):
+        super().__init__(policy_env_info)
+        self._net = TokenPolicyNet(features, actions_cfg).to(device)
         self._device = device
-        self._num_actions = int(env.single_action_space.n)
+        self._num_actions = len(actions_cfg.actions())
 
     def network(self) -> nn.Module:
         return self._net

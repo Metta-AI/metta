@@ -11,8 +11,10 @@ class Noop : public ActionHandler {
 public:
   explicit Noop(const ActionConfig& cfg) : ActionHandler(cfg, "noop") {}
 
-  unsigned char max_arg() const override {
-    return 0;
+  std::vector<Action> create_actions() override {
+    std::vector<Action> actions;
+    actions.emplace_back(this, "noop", 0);
+    return actions;
   }
 
 protected:
