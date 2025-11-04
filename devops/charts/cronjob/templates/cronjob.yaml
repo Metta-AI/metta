@@ -34,32 +34,6 @@ spec:
               value: {{ .Values.image.tag | quote }}
             - name: DD_SITE
               value: {{ .Values.datadog.site | quote }}
-<<<<<<<< HEAD:devops/charts/pr-similarity-cache-cronjob/templates/cronjob.yaml
-            {{- if .Values.github }}
-            # GitHub configuration
-            - name: GITHUB_ORG
-              value: {{ .Values.github.org | quote }}
-            - name: GITHUB_REPO
-              value: {{ .Values.github.repo | quote }}
-            {{- end }}
-            {{- if .Values.asana }}
-            # Asana configuration (workspace and project IDs are not secrets)
-            - name: ASANA_WORKSPACE_GID
-              value: {{ .Values.asana.workspaceGid | quote }}
-            {{- if .Values.asana.bugsProjectGid }}
-            - name: ASANA_BUGS_PROJECT_GID
-              value: {{ .Values.asana.bugsProjectGid | quote }}
-            {{- end }}
-            {{- end }}
-            {{- if .Values.kubernetes }}
-            # Kubernetes configuration
-            - name: K8S_CLUSTER_NAME
-              value: {{ .Values.kubernetes.clusterName | quote }}
-            {{- end }}
-            # Secrets are accessed from AWS Secrets Manager via the serviceAccount IAM role
-            # The softmax.aws.secrets_manager module handles fetching them at runtime
-========
             # Secrets are fetched from AWS Secrets Manager at runtime via the serviceAccount IAM role
->>>>>>>> origin/main:devops/charts/cronjob/templates/cronjob.yaml
             resources:
               {{- toYaml .Values.resources | nindent 14 }}
