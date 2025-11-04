@@ -11,7 +11,24 @@ import torch.nn.functional as F
 
 from metta.agent.components.agalite_kernel import AGaLiTeKernelConfig
 from metta.agent.components.agalite_optimized import discounted_sum
-from metta.agent.policies.gtrxl import FusedGRUGating
+
+
+class FusedGRUGating(nn.Module):
+    """Fused GRU-style gating used by GTrXL/AGaLiTe blocks (local copy)."""
+
+    def __init__(self, d_model: int, bias: float = 2.0) -> None:
+        super().__init__()
+        self.gate_proj = nn.Linear(2 * d_model, 3 * d_model, bias=False)
+        self.bg = nn.Parameter(torch.full((d_model,), bias))
+        nn.init.xavier_uniform_(self.gate_proj.weight, gain=1.0)
+
+    def forward(self, residual: torch.Tensor, transformed: torch.Tensor) -> torch.Tensor:
+        gates = self.gate_proj(torch.cat([residual, transformed], dim=-1))
+        gates = gates.view(*gates.shape[:-1], 3, -1)
+        reset = torch.sigmoid(gates[..., 0, :])
+        update = torch.sigmoid(gates[..., 1, :] - self.bg)
+        candidate = torch.tanh(gates[..., 2, :] * reset)
+        return (1.0 - update) * residual + update * candidate
 
 
 class AGaLiTeAttentionLayer(nn.Module):
