@@ -28,11 +28,6 @@ resource "aws_ecr_lifecycle_policy" "metta" {
   })
 }
 
-# Create ECR repository for softmax dashboard
-resource "aws_ecr_repository" "dashboard" {
-  name = "softmax-dashboard"
-}
-
 # Create shared ECR repository for all cronjobs (dashboard metrics, PR similarity cache, etc.)
 resource "aws_ecr_repository" "cronjobs" {
   name                 = "metta-cronjobs"
