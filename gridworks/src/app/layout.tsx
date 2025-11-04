@@ -8,7 +8,7 @@ import { FC, PropsWithChildren, Suspense } from "react";
 import { JsonSchemasProvider } from "@/components/global-contexts/JsonSchemasContext";
 import { RepoRootProvider } from "@/components/global-contexts/RepoRootContext";
 import { getRepoRoot } from "@/lib/api";
-import { configsRoute, mapEditorRoute } from "@/lib/routes";
+import { cogamesRoute, configsRoute, mapEditorRoute } from "@/lib/routes";
 
 import { TopMenuLink } from "./TopMenuLink";
 
@@ -36,6 +36,7 @@ const TopMenu: FC = () => {
         Gridworks
       </Link>
       <TopMenuLink href={configsRoute()}>Config Makers</TopMenuLink>
+      <TopMenuLink href={cogamesRoute()}>CoGames</TopMenuLink>
       <TopMenuLink href={mapEditorRoute()}>Map Editor</TopMenuLink>
     </div>
   );

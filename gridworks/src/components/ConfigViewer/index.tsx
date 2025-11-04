@@ -15,6 +15,7 @@ export const ConfigViewer: FC<{
   onSelectLine?: (key: string, value: string) => void;
 }> = ({ value, isSelected, onSelectLine, unsetFields, kind }) => {
   const [showDebugInfo, setShowDebugInfo] = useState(false);
+  const [showDefaultValues, setShowDefaultValues] = useState(true);
 
   return (
     <YamlContext
@@ -24,6 +25,8 @@ export const ConfigViewer: FC<{
         unsetFields: new Set(unsetFields ?? []),
         kind,
         topValue: value,
+        showDefaultValues,
+        setShowDefaultValues,
         showDebugInfo,
         setShowDebugInfo,
       }}
