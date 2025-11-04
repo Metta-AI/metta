@@ -267,6 +267,35 @@ Examples:
     if not args.tool and not args.command:
         parser.error("Must specify either --tool or command")
 
+    # NORMALIZATION: If command looks like a module path, treat it as --tool
+    # This allows both `launch.py arena.train` and `launch.py --tool arena.train` to work the same
+    if not args.tool and args.command:
+        # Check if command looks like a module path:
+        # - Contains a dot (e.g., arena.train)
+        # - OR first word + remaining_args[0] could be two-token syntax
+        command_parts = args.command.split()
+        first_word = command_parts[0] if command_parts else args.command
+
+        # Check if it looks like a module path (has dots and no spaces in first token)
+        if "." in first_word and " " not in first_word:
+            # Normalize to --tool
+            args.tool = first_word
+            # Everything after the module path becomes tool args
+            remaining_args = command_parts[1:] + remaining_args
+            args.command = None
+        # Check if it could be two-token syntax (e.g., "train arena")
+        elif remaining_args and not first_word.startswith("-"):
+            # Try to resolve as two-token syntax
+            second_token = remaining_args[0] if remaining_args[0] and not remaining_args[0].startswith("-") else None
+            if second_token:
+                resolved_path, args_consumed = parse_two_token_syntax(first_word, second_token)
+                # If it resolved to something different, it's likely two-token syntax
+                if resolved_path != first_word and args_consumed > 0:
+                    # Normalize to --tool
+                    args.tool = first_word
+                    # Don't consume args yet, let the --tool handler do it below
+                    args.command = None
+
     # Build command string
     if args.tool:
         # Using --tool: handle two-token syntax if applicable
@@ -292,8 +321,15 @@ Examples:
         # Auto-detect if command uses tools/run.py
         use_torchrun = "tools/run.py" in command
 
-    # Extract run ID from --run flag or from command string
+    # Extract run ID from --run flag, tool_args, or command string
     run_id = args.run
+
+    # Try to extract run= from tool_args if using --tool
+    if run_id is None and args.tool:
+        for arg in tool_args:
+            if arg.startswith("run="):
+                run_id = arg.split("=", 1)[1]
+                break
 
     # Try to extract run= from command if not provided via flag
     if run_id is None:
