@@ -8,9 +8,9 @@ from metta.agent.components.obs_tokenizers import ObsAttrEmbedFourier, ObsAttrEm
 
 
 def _make_policy_env_info(feature_map):
-    obs_features = {
-        name: SimpleNamespace(id=feat_id, normalization=norm) for name, (feat_id, norm) in feature_map.items()
-    }
+    obs_features = [
+        SimpleNamespace(name=name, id=feat_id, normalization=norm) for name, (feat_id, norm) in feature_map.items()
+    ]
     return SimpleNamespace(
         obs_features=obs_features, feature_normalizations={feat_id: norm for feat_id, norm in (feature_map.values())}
     )
