@@ -20,9 +20,8 @@ The `setup.sh` script performs the following actions:
    - Performs comprehensive sanity checks
    - Sets up the complete development environment
 4. **Verifies installation** by testing core module imports
-5. **Displays helpful information** about available commands
-
-The script leverages the existing `devops/setup_dev.sh` infrastructure rather than duplicating setup logic.
+5. **Displays helpful information** about available commands The script leverages the existing `devops/setup_dev.sh`
+   infrastructure rather than duplicating setup logic.
 
 ## Manual setup
 
@@ -48,13 +47,10 @@ After setup, use `uv run` to execute commands in the project environment:
 ```bash
 # Run Python scripts
 uv run python -c "import metta; print('Metta is ready!')"
-
 # Run training
 uv run ./tools/run.py train arena run=my_experiment wandb.enabled=false
-
 # Run tests
 uv run pytest
-
 # Format code
 uv run ruff format && uv run ruff check
 ```
@@ -68,6 +64,4 @@ The Metta AI project includes:
 - **tools/** - Training and evaluation scripts
 - **tests/** - Test suite
 - **devops/** - Development and deployment tools
-- **docs/** - Documentation
-
-For more information, see the main [README.md](../README.md) in the project root.
+- **docs/** - Documentation For more information, see the main [README.md](../README.md) in the project root.

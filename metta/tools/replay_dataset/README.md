@@ -6,11 +6,9 @@ Mine game replays into supervised learning datasets using Parquet + DuckDB.
 
 ```python
 from metta.tools.replay_dataset import ReplayDataset
-
 # Load datasets from S3
 dataset = ReplayDataset(start_date="2025-10-10", end_date="2025-10-17")
 print(f"Loaded {len(dataset)} samples")
-
 # Use with PyTorch
 from torch.utils.data import DataLoader
 loader = DataLoader(dataset, batch_size=256, shuffle=True)
@@ -26,7 +24,6 @@ data into training datasets.
 ```bash
 # Process yesterday's replays (default)
 uv run python -m metta.tools.replay_dataset.replay_mine
-
 # Process specific date
 uv run python -m metta.tools.replay_dataset.replay_mine --date 2025-10-15
 ```
@@ -38,10 +35,8 @@ uv run python -m metta.tools.replay_dataset.replay_mine --date 2025-10-15
 uv run python -m metta.tools.replay_dataset.replay_mine \
   --start-date 2025-10-10 \
   --end-date 2025-10-17
-
 # Full backfill: earliest replay → yesterday (auto-discovers earliest date)
 uv run python -m metta.tools.replay_dataset.replay_mine --backfill-all
-
 # Full backfill up to specific date
 uv run python -m metta.tools.replay_dataset.replay_mine \
   --backfill-all \
@@ -53,12 +48,10 @@ uv run python -m metta.tools.replay_dataset.replay_mine \
 ```bash
 # Save to production S3 (default)
 uv run python -m metta.tools.replay_dataset.replay_mine --date 2025-10-15
-
 # Save to local directory (for testing)
 uv run python -m metta.tools.replay_dataset.replay_mine \
   --date 2025-10-15 \
   --output-prefix ./local_datasets
-
 # Save to custom S3 bucket
 uv run python -m metta.tools.replay_dataset.replay_mine \
   --date 2025-10-15 \
@@ -72,12 +65,10 @@ uv run python -m metta.tools.replay_dataset.replay_mine \
 uv run python -m metta.tools.replay_dataset.replay_mine \
   --date 2025-10-15 \
   --environment arena
-
 # Minimum reward threshold
 uv run python -m metta.tools.replay_dataset.replay_mine \
   --date 2025-10-15 \
   --min-reward 10.0
-
 # Custom stats database
 uv run python -m metta.tools.replay_dataset.replay_mine \
   --date 2025-10-15 \
@@ -93,7 +84,6 @@ dataset = ReplayDataset(
     end_date="2025-10-17",
     filters={"agent_id": "= 5"}
 )
-
 # Multiple filters
 dataset = ReplayDataset(
     start_date="2025-10-15",
@@ -106,9 +96,7 @@ dataset = ReplayDataset(
 
 ```python
 import duckdb
-
 con = duckdb.connect()
-
 # Query S3 directly without downloading
 result = con.execute("""
     SELECT agent_id, COUNT(*) as samples
@@ -120,9 +108,7 @@ result = con.execute("""
 
 ## Dataset Format
 
-Files: `s3://softmax-public/datasets/replays/replays_YYYYMMDD.parquet`
-
-Columns:
+Files: `s3://softmax-public/datasets/replays/replays_YYYYMMDD.parquet` Columns:
 
 - `observation` (str): JSON-serialized observation dict
 - `action` (int): Action taken
@@ -152,10 +138,8 @@ Columns:
 uv run python -m metta.tools.replay_dataset.replay_mine \
   --date 2025-10-15 \
   --output-prefix ./test_datasets
-
 # Production backfill (saves to S3)
 uv run python -m metta.tools.replay_dataset.replay_mine --backfill-all
-
 # Weekly update (last 7 days)
 END_DATE=$(date -v-1d +%Y-%m-%d)  # Yesterday
 START_DATE=$(date -v-7d +%Y-%m-%d)  # 7 days ago

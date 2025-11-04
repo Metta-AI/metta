@@ -18,10 +18,8 @@ The experiments framework provides:
 ```bash
 # Preview what will be launched
 uv run experiments/recipes/arena_experiment.py --no-launch
-
 # Launch to Skypilot
 uv run experiments/recipes/arena_experiment.py
-
 # Customize infrastructure
 uv run experiments/recipes/arena_experiment.py --gpus=4 --nodes=2 --spot=false
 ```
@@ -39,10 +37,8 @@ from experiments.training_run_config import TrainingRunConfig
 from experiments.skypilot_job_config import SkypilotJobConfig
 from metta.rl.trainer_config import TrainerConfig, OptimizerConfig, TorchProfilerConfig
 from metta.sim.simulation_config import SimulationConfig
-
 class LearningRateABTest(Experiment):
     """A/B test comparing two learning rates."""
-
     def training_job_configs(self) -> List[TrainingJobConfig]:
         configs = []
         for lr in [0.0001, 0.0005]:  # Test two learning rates
@@ -66,7 +62,6 @@ class LearningRateABTest(Experiment):
                 training=training,
             ))
         return configs
-
 class LearningRateABTestConfig(ExperimentConfig):
     name: str = "lr_ab_test"
     # Infrastructure params passed by runner
@@ -74,7 +69,6 @@ class LearningRateABTestConfig(ExperimentConfig):
     nodes: int = 1
     spot: bool = True
     git_check: bool = True
-
 if __name__ == "__main__":
     from experiments.runner import runner
     runner(LearningRateABTest, LearningRateABTestConfig)
@@ -89,7 +83,6 @@ ExperimentConfig                    # Base: name, launch, instance_name
 ├── SingleJobExperimentConfig       # Inherits from both ExperimentConfig and TrainingJobConfig
 │   └── ArenaExperimentConfig       # Specific experiment implementation
 └── LearningRateABTestConfig        # Multi-job experiment config
-
 TrainingJobConfig                   # Complete job specification
 ├── SkypilotJobConfig              # Infrastructure: GPUs, nodes, spot instances
 └── TrainingRunConfig              # Training: agent, curriculum, hyperparameters
@@ -101,9 +94,8 @@ TrainingJobConfig                   # Complete job specification
 1. **Local**: Python config objects are created and validated
 2. **Serialization**: `TrainingRunConfig.serialize_to_yaml_file()` creates a YAML in `configs/experiments/`
 3. **Transfer**: Skypilot mounts the YAML and copies it to `configs/experiments/` on remote
-4. **Execution**: Remote training loads via `+experiments={instance_name}` Hydra override
-
-Example serialized YAML structure:
+4. **Execution**: Remote training loads via `+experiments={instance_name}` Hydra override Example serialized YAML
+   structure:
 
 ```yaml
 defaults:
@@ -113,7 +105,6 @@ defaults:
   - ../sim/arena
   - ../wandb/metta_research
   - _self_
-
 trainer:
   curriculum: env/mettagrid/curriculum/arena/basic
   total_timesteps: 10000000
@@ -130,7 +121,6 @@ For experiments requiring specific hyperparameters:
 from metta.rl.trainer_config import (
     TrainerConfig, OptimizerConfig, TorchProfilerConfig
 from metta.sim.simulation_config import SimulationConfig
-
 trainer = TrainerConfig(
     total_timesteps=50_000_000,
     batch_size=8192,
@@ -143,7 +133,6 @@ trainer = TrainerConfig(
     simulation=SimulationConfig(replay_dir="${run_dir}/replays"),
     profiler=TorchProfilerConfig(profile_dir="${run_dir}/torch_traces"),
 )
-
 training = TrainingRunConfig(
     curriculum="env/mettagrid/curriculum/arena/basic",
     trainer=trainer,
@@ -157,12 +146,10 @@ The framework provides service classes for programmatic access:
 ```python
 from experiments.skypilot_service import get_skypilot_service
 from experiments.wandb_service import get_wandb_service
-
 # Query job status
 sky_service = get_skypilot_service()
 job_status = sky_service.get_job_status("sky-job-id")
 wandb_run = sky_service.get_wandb_run_name_from_sky_job("sky-job-id")
-
 # Access metrics (requires wandb API key)
 wandb_service = get_wandb_service()
 runs = wandb_service.get_runs_for_experiment("experiment_name")

@@ -27,11 +27,9 @@ This command will automatically build the JavaScript components and install the 
 ### Manual Installation
 
 1. Install the Python package:
-
    ```bash
    pip install -e .
    ```
-
 2. Build the JavaScript components:
    ```bash
    pnpm install
@@ -45,19 +43,14 @@ This command will automatically build the JavaScript components and install the 
 For active development, you can use the development mode which provides hot-reloading:
 
 1. **Enable Development Mode**: Edit `scorecard_widget/ScorecardWidget.py` and set:
-
    ```python
    _DEV = True
    ```
-
 2. **Start the Development Server**:
-
    ```bash
    pnpm run dev
    ```
-
    This starts the Vite development server on `http://localhost:5174`
-
 3. **Develop with Hot Reload**:
    - The widget will now load JavaScript from the development server
    - Changes to React/TypeScript files will automatically reload
@@ -68,17 +61,13 @@ For active development, you can use the development mode which provides hot-relo
 For production use or when you're done developing:
 
 1. **Build the Production Assets**:
-
    ```bash
    pnpm run build
    ```
-
 2. **Disable Development Mode**: Edit `scorecard_widget/ScorecardWidget.py` and set:
-
    ```python
    _DEV = False
    ```
-
 3. **Reinstall the Package** (if needed):
    ```bash
    pip install -e .
@@ -90,7 +79,6 @@ For production use or when you're done developing:
 
 ```python
 from scorecard_widget import ScorecardWidget
-
 # Create a demo widget with sample data
 widget = ScorecardWidget()
 widget
@@ -101,7 +89,6 @@ widget
 ```python
 from scorecard_widget import ScorecardWidget
 from scorecard_widget.util import fetch_real_scorecard_data
-
 # Fetch real data from the Metta backend
 data = fetch_real_scorecard_data()
 widget = ScorecardWidget()
@@ -115,19 +102,14 @@ widget
 # Handle cell selection
 def on_cell_selected(selected_cell):
     print(f"Selected: {selected_cell}")
-
 widget.on_cell_selected(on_cell_selected)
-
 # Handle metric changes
 def on_metric_changed(metric):
     print(f"Metric changed to: {metric}")
-
 widget.on_metric_changed(on_metric_changed)
-
 # Handle replay opening
 def on_replay_opened(replay_info):
     print(f"Opened replay: {replay_info}")
-
 widget.on_replay_opened(on_replay_opened)
 ```
 
@@ -137,17 +119,14 @@ widget.on_replay_opened(on_replay_opened)
    - Set `_DEV = True` in `ScorecardWidget.py`
    - Run `pnpm run dev`
    - Start Jupyter and create/modify widgets
-
 2. **Test Changes**:
    - Edit React/TypeScript files in `src/`
    - Changes will hot-reload in Jupyter
    - Check browser console for debugging
-
 3. **Build for Production**:
    - Set `_DEV = False` in `ScorecardWidget.py`
    - Run `pnpm run build`
    - Test the built version
-
 4. **Deploy**:
    - Commit your changes
    - Users can install with `metta install scorecardwidget`

@@ -15,23 +15,17 @@ metta install nodejs
 ## Development
 
 1. If you need to manually install dependencies:
-
    ```bash
    pnpm install
    ```
-
 2. Start the development server:
-
    ```bash
    pnpm run dev
    ```
-
    or
-
    ```bash
    metta local observatory [--backend {prod, local}]
    ```
-
 3. Open your browser to the URL shown in the terminal (typically http://localhost:5173)
 
 ## Production Build

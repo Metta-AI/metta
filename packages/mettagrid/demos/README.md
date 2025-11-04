@@ -11,15 +11,12 @@ and run them with only the target library installed.
 1. **Prove Compatibility**
    - Show each adapter (PettingZoo, Gymnasium/SB3, PufferLib) can reset/step/close cleanly
    - Run a short end-to-end "training" loop in the target ecosystem to exercise the whole API
-
 2. **Keep Boundaries Clean**
    - No calls into Metta training utilities (`train.py`, simulation loops, etc.)
    - Only import the adapter (`MettaGridPettingZooEnv`, `MettaGridGymEnv`, `MettaGridPufferEnv`) + curriculum
-
 3. **Be CI-Friendly**
    - Hard cap on steps/timesteps (≤~300) so they finish fast
    - Deterministic seeds and simple asserts to catch regressions
-
 4. **Serve as Reference Code**
    - Researchers can see exactly how to wire MettaGrid into their pipelines
    - Internal devs can sanity-check changes against real external APIs
@@ -47,7 +44,6 @@ All scripts are **PEP 723 compliant** with inline dependency specifications. Fro
 uv run python demos/demo_train_pettingzoo.py
 uv run python demos/demo_train_gym.py
 uv run python demos/demo_train_puffer.py
-
 # Or test all demos via GitHub Actions workflow
 gh workflow run test-demo-environments.yml
 ```
@@ -114,10 +110,9 @@ We primarily want to slot in next to popular open-source MARL / game RL stacks:
 - **MiniGrid / BabyAI** – curriculum + gridworld baselines (single & multi-agent)
 - **SMAC / SMACv2** – cooperative multi-agent control benchmarks
 - **MELTINGPOT** – social dilemma / generalization focus (JAX, but PettingZoo-compatible adapters exist)
-- **SampleFactory v2 / ENVPOOL** – high-throughput env runners
-
-These demos serve as proof that MettaGrid can drop into the same pipelines as the above. Future work: add benchmark
-scripts that mirror their training configs for apples-to-apples comparisons.
+- **SampleFactory v2 / ENVPOOL** – high-throughput env runners These demos serve as proof that MettaGrid can drop into
+  the same pipelines as the above. Future work: add benchmark scripts that mirror their training configs for
+  apples-to-apples comparisons.
 
 ---
 
@@ -165,24 +160,17 @@ Each demo runs with:
 ### Common Issues
 
 **ImportErrors**: The demos only import the specific adapter + curriculum. If something else slips in, that's a red
-flag.
-
-**PettingZoo test closes env**: Don't try to reuse the same env instance after `parallel_api_test`; create a new one.
-
-**Action data types**: Make sure actions are `int32` scalars for the discrete action space.
-
-**SB3 shape complaints**: Verify you're using the single-agent wrapper and that obs/action spaces match SB3
-expectations.
+flag. **PettingZoo test closes env**: Don't try to reuse the same env instance after `parallel_api_test`; create a new
+one. **Action data types**: Make sure actions are `int32` scalars for the discrete action space. **SB3 shape
+complaints**: Verify you're using the single-agent wrapper and that obs/action spaces match SB3 expectations.
 
 ### Debug Commands
 
 ```bash
 # Check demo dependencies
 uv run python -c "import sys; print(sys.path)"
-
 # Test specific adapter import
 uv run python -c "from mettagrid import MettaGridPettingZooEnv; print('Import works')"
-
 # Verbose demo run
 uv run python demos/demo_train_gym.py --verbose  # (if supported)
 ```

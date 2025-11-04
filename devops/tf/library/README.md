@@ -20,16 +20,11 @@ After Spacelift applies the changes, add these DNS records to **Cloudflare** (no
    - **Spacelift UI**: Stack → Resources → Outputs tab
    - **GitHub**: PR comment from Spacelift shows outputs after apply
    - **CLI**:
-
    ```bash
    spacectl stack output library
    ```
-
 2. Look for `ses_domain_verification_record` (1 TXT record) and `ses_dkim_records` (3 CNAME records)
-
-3. Add all 4 records to the `softmax.com` domain in Cloudflare
-
-Verification typically completes within 5-30 minutes.
+3. Add all 4 records to the `softmax.com` domain in Cloudflare Verification typically completes within 5-30 minutes.
 
 ### Variables
 

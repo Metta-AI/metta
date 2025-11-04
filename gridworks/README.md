@@ -1,9 +1,7 @@
 # Gridworks
 
 This directory contains the web UI for viewing and editing the environments and maps.
-
 The Next.js app relies on the `metta.gridworks.server` FastAPI server. A convenience launcher (`gridworks/start.py`) boots both servers in one command and opens the app in your browser.
-
 The project is designed to be run locally.
 
 ## Running the app
@@ -21,10 +19,8 @@ The launcher will:
 3. Start the **Next.js** dev server via `pnpm start` (or `pnpm dev` if you use `--dev` flag).
 4. Stream colored logs for both processes, prefixing them with `[BACKEND]` and `[FRONTEND]`.
 5. Open `http://localhost:3000`.
-
-Use `./gridworks/start.py --dev` to run the app in development mode. This will start the Next.js dev server that will automatically reload when you make changes to the code.
-
-Press <kbd>Ctrl</kbd>+<kbd>C</kbd> in the terminal to shut everything down.
+   Use `./gridworks/start.py --dev` to run the app in development mode. This will start the Next.js dev server that will automatically reload when you make changes to the code.
+   Press <kbd>Ctrl</kbd>+<kbd>C</kbd> in the terminal to shut everything down.
 
 ## Useful commands
 
@@ -44,5 +40,4 @@ pnpm run gen
 
 - calls a small Python snippet in the `mettagrid` package and writes the resulting JSON file to `src/lib/encoding.json`
 - converts the JSON schema for Pydantic models to JSON files
-
-Run it again whenever you change the encoder definitions or Pydantic models.
+  Run it again whenever you change the encoder definitions or Pydantic models.

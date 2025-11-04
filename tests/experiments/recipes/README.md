@@ -7,10 +7,8 @@ A unified script for launching and checking SkyPilot test jobs across all active
 ```bash
 # Launch 5 jobs: one per recipe
 ./recipe_test.py launch
-
 # Check results
 ./recipe_test.py check
-
 # Check with detailed logs
 ./recipe_test.py check -l
 ```
@@ -23,7 +21,6 @@ A unified script for launching and checking SkyPilot test jobs across all active
   - `icl_resource_chain`: In-context learning resource chain
   - `navigation`: Navigation task
   - `navigation_sequence`: Sequential navigation task
-
 - **Fixed parameters**:
   - Single node configuration
   - 50,000 timesteps
@@ -91,13 +88,10 @@ Each job entry includes:
 ```bash
 # Launch with custom base name
 ./recipe_test.py launch --base-name my_recipe_validation
-
 # Check specific output file with more log lines
 ./recipe_test.py check -f my_recipes.json -n 500
-
 # Launch without git validation
 ./recipe_test.py launch --skip-git-check
-
 # Get help for specific commands
 ./recipe_test.py launch --help
 ./recipe_test.py check --help
@@ -109,6 +103,5 @@ This test suite validates that all active recipes can:
 
 - Launch successfully on SkyPilot
 - Complete training without errors
-- Exit cleanly after the specified timesteps
-
-It serves as a smoke test to ensure recipe configurations remain valid across updates.
+- Exit cleanly after the specified timesteps It serves as a smoke test to ensure recipe configurations remain valid
+  across updates.

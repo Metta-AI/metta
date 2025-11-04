@@ -122,6 +122,5 @@ The patched Protein optimizer successfully demonstrates:
 1. **Correct acquisition function behavior** aligned with Bayesian optimization theory
 2. **Strong performance** across problems of varying difficulty
 3. **Proper handling of minimize/maximize** objectives
-4. **Numerical stability** even in challenging optimization landscapes
-
-The optimizer is now ready for production use in hyperparameter optimization tasks.
+4. **Numerical stability** even in challenging optimization landscapes The optimizer is now ready for production use in
+   hyperparameter optimization tasks.

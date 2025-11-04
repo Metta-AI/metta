@@ -23,10 +23,8 @@ echo "Test ID: $TEST_ID"
 ```bash
 # Basic training with arena recipe (will run indefinitely, terminate with Ctrl+C after ~30 seconds)
 uv run ./tools/run.py train arena run=test_$TEST_ID
-
 # Training with navigation recipe
 uv run ./tools/run.py train navigation run=test_$TEST_ID
-
 # Limited training for testing (you can also terminate with Ctrl+C)
 uv run ./tools/run.py train arena run=cursor_$TEST_ID trainer.total_timesteps=100000
 ```
@@ -36,10 +34,8 @@ uv run ./tools/run.py train arena run=cursor_$TEST_ID trainer.total_timesteps=10
 ```bash
 # Run evaluations on the checkpoint from step 1
 uv run ./tools/run.py evaluate arena policy_uri=file://./train_dir/test_$TEST_ID/checkpoints
-
 # Run navigation evaluations
 uv run ./tools/run.py evaluate navigation policy_uri=file://./train_dir/test_$TEST_ID/checkpoints
-
 # Using wandb artifact
 uv run ./tools/run.py evaluate arena policy_uri=wandb://run/test_$TEST_ID
 ```
@@ -49,7 +45,6 @@ uv run ./tools/run.py evaluate arena policy_uri=wandb://run/test_$TEST_ID
 ```bash
 # Analyze the simulation results from step 2
 uv run ./tools/run.py analyze arena eval_db_uri=./train_dir/eval_$TEST_ID/stats.db
-
 # Analyze navigation results
 uv run ./tools/run.py analyze navigation eval_db_uri=./train_dir/eval_$TEST_ID/stats.db
 ```
@@ -80,16 +75,12 @@ uv run ./tools/run.py analyze arena eval_db_uri=./train_dir/eval_$TEST_ID/stats.
 # Set test ID
 export TEST_ID=$(date +%Y%m%d_%H%M%S)
 echo "Running full integration test with ID: $TEST_ID"
-
 # 1. Train for 100k steps (~1 minute on GPU)
 uv run ./tools/run.py train arena run=test_$TEST_ID trainer.total_timesteps=100000
-
 # 2. Run evaluations (~30 seconds)
 uv run ./tools/run.py evaluate arena policy_uri=file://./train_dir/test_$TEST_ID/checkpoints
-
 # 3. Analyze results
 uv run ./tools/run.py analyze arena eval_db_uri=./train_dir/eval_$TEST_ID/stats.db
-
 # 4. Check for wandb metrics filtering (if wandb is enabled)
 grep -r "agent_raw" train_dir/test_$TEST_ID/wandb || echo "✓ No agent_raw metrics in wandb logs"
 ```
@@ -101,20 +92,15 @@ grep -r "agent_raw" train_dir/test_$TEST_ID/wandb || echo "✓ No agent_raw metr
 ```bash
 # Run tests only (default, fastest for development - skips benchmarks)
 metta pytest
-
 # Run benchmarks only
 metta pytest --benchmark
-
 # Run both tests and benchmarks together
 metta pytest --test --benchmark
-
 # Run specific test modules
 metta pytest tests/rl/test_trainer_config.py -v
 metta pytest tests/sim/ -v
-
 # Run in CI mode (parallel execution, includes both tests and benchmarks)
 metta pytest --ci --test --benchmark
-
 # Run only changed tests (fast iteration)
 metta pytest --changed
 ```
@@ -124,17 +110,13 @@ metta pytest --changed
 ```bash
 # Run linting and formatting (all file types by default)
 metta lint
-
 # Format and lint with auto-fix
 metta lint --fix
-
 # Format specific file types only
 metta lint --type json,yaml
 metta lint --type python
-
 # Check formatting without modifying files
 metta lint --check
-
 # Format only staged files
 metta lint --staged --fix
 ```
@@ -167,7 +149,6 @@ metta lint --staged --fix
 ```bash
 # Interactive play for manual testing and exploration
 uv run ./tools/run.py play arena policy_uri=file://./train_dir/test_$TEST_ID/checkpoints
-
 # Interactive play with navigation environment
 uv run ./tools/run.py play navigation policy_uri=file://./train_dir/test_$TEST_ID/checkpoints
 ```
@@ -179,7 +160,6 @@ uv run ./tools/run.py play navigation policy_uri=file://./train_dir/test_$TEST_I
 ```bash
 # Add a policy to the navigation evals database
 uv run ./tools/run.py evaluate navigation policy_uri=POLICY_URI
-
 # Analyze results with scorecard
 uv run ./tools/run.py analyze navigation eval_db_uri=./path/to/eval/stats.db
 ```
@@ -192,9 +172,8 @@ The system supports two-token syntax for conciseness:
 - **Evaluation**: `evaluate arena` or `evaluate navigation`
 - **Analysis**: `analyze arena` or `analyze navigation`
 - **Interactive**: `play arena` or `play navigation`
-- **Replay**: `replay arena` for viewing recorded gameplay
-
-Alternative dot-notation also works: `arena.train`, `navigation.evaluate`, etc.
+- **Replay**: `replay arena` for viewing recorded gameplay Alternative dot-notation also works: `arena.train`,
+  `navigation.evaluate`, etc.
 
 ### Discovering Available Tools
 
@@ -202,7 +181,6 @@ Alternative dot-notation also works: `arena.train`, `navigation.evaluate`, etc.
 # List all tools in a specific recipe
 uv run ./tools/run.py arena --list
 uv run ./tools/run.py navigation --list
-
 # List all recipes that provide a specific tool
 uv run ./tools/run.py train --list          # Shows all recipes with train
 uv run ./tools/run.py evaluate --list           # Shows all recipes with eval

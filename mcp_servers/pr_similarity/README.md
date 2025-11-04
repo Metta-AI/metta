@@ -64,7 +64,5 @@ Claude Desktop (or reload the project) and it will discover the `metta-pr-simila
 
 `metta install` registers the MCP server via `codex mcp add metta-pr-similarity -- metta-pr-similarity-mcp`, so any
 Codex CLI that enters this repository will auto-register the server. You can confirm with `codex mcp list` after opening
-a new Codex session.
-
-Make sure the executable is on `PATH` (e.g. use the repo virtualenv). Once wired up, Codex and Claude can query the same
-similarity data the original CLI script uses.
+a new Codex session. Make sure the executable is on `PATH` (e.g. use the repo virtualenv). Once wired up, Codex and
+Claude can query the same similarity data the original CLI script uses.

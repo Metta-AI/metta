@@ -35,14 +35,11 @@ uv pip install gitta
 
 ```python
 import gitta
-
 # Get current branch and commit
 branch = gitta.get_current_branch()
 commit = gitta.get_current_commit()
-
 # Check for changes
 has_changes, status = gitta.has_unstaged_changes()
-
 # Run git commands safely
 try:
     output = gitta.run_git("log", "--oneline", "-5")
@@ -59,21 +56,18 @@ Gitta supports multiple authentication methods for GitHub API requests:
 ```python
 # Using GITHUB_TOKEN environment variable (automatic)
 commits = gitta.get_commits(repo="owner/repo", branch="main")
-
 # Passing token explicitly
 commits = gitta.get_commits(
     repo="owner/repo",
     branch="main",
     token="ghp_your_token_here"
 )
-
 # Custom authentication headers (e.g., Basic auth)
 commits = gitta.get_commits(
     repo="owner/repo",
     branch="main",
     Authorization="Basic your_base64_token"
 )
-
 # Using the github_client context manager for custom requests
 with gitta.github_client(repo="owner/repo", token="ghp_token") as client:
     response = client.get("/issues")
@@ -90,7 +84,6 @@ commits = gitta.get_commits(
     since="2024-01-01T00:00:00Z",  # ISO 8601 timestamp
     per_page=100
 )
-
 for commit in commits:
     print(f"{commit['sha'][:7]} - {commit['commit']['message']}")
 ```
@@ -106,7 +99,6 @@ runs = gitta.get_workflow_runs(
     status="completed",  # or "in_progress", "queued"
     per_page=10
 )
-
 # Get jobs for a specific workflow run
 if runs:
     run_id = runs[0]["id"]
@@ -115,7 +107,6 @@ if runs:
         run_id=run_id,
         per_page=100
     )
-
     for job in jobs:
         print(f"{job['name']}: {job['status']} - {job['conclusion']}")
 ```
@@ -124,7 +115,6 @@ if runs:
 
 ```python
 import gitta
-
 # Create a pull request (requires GITHUB_TOKEN)
 pr = gitta.create_pr(
     repo="owner/repo",
@@ -135,7 +125,6 @@ pr = gitta.create_pr(
     token="ghp_your_token"  # Optional
 )
 print(f"Created PR: {pr['html_url']}")
-
 # Post commit status
 gitta.post_commit_status(
     commit_sha="abc123def456",
@@ -144,7 +133,6 @@ gitta.post_commit_status(
     description="Tests passed",
     token="ghp_your_token"  # Optional
 )
-
 # Check if commit is part of an open PR
 pr_info = gitta.get_matched_pr(
     commit_hash="abc123",
@@ -160,10 +148,8 @@ if pr_info:
 ```python
 from pathlib import Path
 import gitta
-
 # Find git repository root
 repo_root = gitta.find_root(Path.cwd())
-
 # Validate repository state before running operations
 commit_hash = gitta.validate_commit_state(
     require_clean=True,           # No uncommitted changes
@@ -171,7 +157,6 @@ commit_hash = gitta.validate_commit_state(
     target_repo="owner/repo",      # Optional: verify correct repo
     allow_untracked=False          # No untracked files
 )
-
 # Check if specific commit is pushed
 if gitta.is_commit_pushed("abc123"):
     print("Commit is on remote")
@@ -186,7 +171,6 @@ Split large pull requests into smaller, logically isolated PRs using AI analysis
 ```bash
 # Required: Anthropic API key for AI analysis
 export ANTHROPIC_API_KEY="your-anthropic-api-key"
-
 # Optional: GitHub token for automatic PR creation
 export GITHUB_TOKEN="your-github-token"
 ```
@@ -215,7 +199,6 @@ python -m gitta.split \
   --model claude-sonnet-4-5 \
   --skip-hooks \
   --commit-timeout 600
-
 # Or set environment variables
 export GITTA_SPLIT_MODEL="claude-sonnet-4-5"
 export GITTA_SKIP_HOOKS="1"
@@ -227,7 +210,6 @@ python -m gitta.split
 
 ```python
 from gitta.split import split_pr
-
 split_pr(
     anthropic_api_key="your-key",
     github_token="your-token",
@@ -253,16 +235,11 @@ split_pr(
 ### AWS Secrets Manager
 
 Gitta can automatically retrieve secrets from AWS Secrets Manager when environment variables are not set. This is useful
-in AWS production environments.
-
-**Secret Mapping:**
+in AWS production environments. **Secret Mapping:**
 
 - `GITHUB_TOKEN` → AWS secret: `github/token`
-- `ANTHROPIC_API_KEY` → AWS secret: `anthropic/api-key`
-
-**Fallback Order:** Environment variable → AWS Secrets Manager → Error (if required)
-
-**Caching:** AWS secrets are cached for 1 hour to minimize API calls.
+- `ANTHROPIC_API_KEY` → AWS secret: `anthropic/api-key` **Fallback Order:** Environment variable → AWS Secrets Manager →
+  Error (if required) **Caching:** AWS secrets are cached for 1 hour to minimize API calls.
 
 ### Getting API Keys
 
@@ -270,13 +247,10 @@ in AWS production environments.
 
 1. Go to GitHub Settings → Developer settings → Personal access tokens
 2. Generate a token with `repo` scope
-3. Set as `GITHUB_TOKEN` environment variable
-
-**Anthropic API Key:**
-
-1. Sign up at [console.anthropic.com](https://console.anthropic.com)
-2. Generate an API key from your account settings
-3. Set as `ANTHROPIC_API_KEY` environment variable
+3. Set as `GITHUB_TOKEN` environment variable **Anthropic API Key:**
+4. Sign up at [console.anthropic.com](https://console.anthropic.com)
+5. Generate an API key from your account settings
+6. Set as `ANTHROPIC_API_KEY` environment variable
 
 ## Error Handling
 
@@ -284,7 +258,6 @@ Gitta provides specific exception types for different error conditions:
 
 ```python
 import gitta
-
 try:
     gitta.run_git("push", "origin", "main")
 except gitta.GitNotInstalledError:
@@ -316,15 +289,9 @@ This typically occurs in Docker containers or when repository ownership differs 
 **"Need at least 2 files to split"**
 
 - PR splitting requires changes in at least 2 files to create meaningful splits
-- Consider making your PR smaller or keeping it as-is
-
-**"Working tree has uncommitted changes"**
-
+- Consider making your PR smaller or keeping it as-is **"Working tree has uncommitted changes"**
 - Commit or stash your changes before running the splitter
-- The splitter requires a clean working tree to safely create branches
-
-**API Rate Limits**
-
+- The splitter requires a clean working tree to safely create branches **API Rate Limits**
 - GitHub API has rate limits (5000/hour authenticated, 60/hour unauthenticated)
 - Anthropic API has usage limits based on your plan
 - Use tokens to get higher rate limits
@@ -336,10 +303,8 @@ This typically occurs in Docker containers or when repository ownership differs 
 ```bash
 # Run all tests
 uv run pytest
-
 # Run with coverage
 uv run pytest --cov=gitta --cov-report=term-missing
-
 # Run specific test file
 uv run pytest tests/test_split.py -v
 ```
@@ -350,19 +315,14 @@ uv run pytest tests/test_split.py -v
 
 #### `github_client(repo, token=None, base_url=None, timeout=30.0, **headers)`
 
-Context manager that creates an authenticated httpx.Client for GitHub API requests.
-
-**Parameters:**
+Context manager that creates an authenticated httpx.Client for GitHub API requests. **Parameters:**
 
 - `repo` (str): Repository in format "owner/repo"
 - `token` (str, optional): GitHub token. Uses GITHUB_TOKEN env var if not provided
 - `base_url` (str, optional): Custom base URL for API
 - `timeout` (float): Request timeout in seconds (default: 30.0)
-- `**headers`: Additional headers (can override Authorization for custom auth)
-
-**Returns:** httpx.Client configured for GitHub API
-
-**Example:**
+- `**headers`: Additional headers (can override Authorization for custom auth) **Returns:** httpx.Client configured for
+  GitHub API **Example:**
 
 ```python
 with gitta.github_client(repo="owner/repo", token="ghp_token") as client:
@@ -372,26 +332,19 @@ with gitta.github_client(repo="owner/repo", token="ghp_token") as client:
 
 #### `get_commits(repo, branch="main", since=None, per_page=100, token=None, **headers)`
 
-Get list of commits from a repository with automatic pagination.
-
-**Parameters:**
+Get list of commits from a repository with automatic pagination. **Parameters:**
 
 - `repo` (str): Repository in format "owner/repo"
 - `branch` (str): Branch name (default: "main")
 - `since` (str, optional): ISO 8601 timestamp to filter commits
 - `per_page` (int): Number of commits per page, max 100 (default: 100)
 - `token` (str, optional): GitHub token for authentication
-- `**headers`: Additional headers (can override Authorization)
-
-**Returns:** List of commit objects from GitHub API
-
-**Raises:** GitError if API request fails
+- `**headers`: Additional headers (can override Authorization) **Returns:** List of commit objects from GitHub API
+  **Raises:** GitError if API request fails
 
 #### `get_workflow_runs(repo, workflow_filename, branch=None, status=None, per_page=1, token=None, **headers)`
 
-Get workflow runs for a specific GitHub Actions workflow.
-
-**Parameters:**
+Get workflow runs for a specific GitHub Actions workflow. **Parameters:**
 
 - `repo` (str): Repository in format "owner/repo"
 - `workflow_filename` (str): Workflow filename (e.g., "checks.yml")
@@ -399,27 +352,19 @@ Get workflow runs for a specific GitHub Actions workflow.
 - `status` (str, optional): Filter by status ("completed", "in_progress", "queued")
 - `per_page` (int): Number of runs per page (default: 1)
 - `token` (str, optional): GitHub token for authentication
-- `**headers`: Additional headers (can override Authorization)
-
-**Returns:** List of workflow run objects
-
-**Raises:** GitError if API request fails
+- `**headers`: Additional headers (can override Authorization) **Returns:** List of workflow run objects **Raises:**
+  GitError if API request fails
 
 #### `get_workflow_run_jobs(repo, run_id, per_page=100, token=None, **headers)`
 
-Get jobs for a specific workflow run.
-
-**Parameters:**
+Get jobs for a specific workflow run. **Parameters:**
 
 - `repo` (str): Repository in format "owner/repo"
 - `run_id` (int): Workflow run ID
 - `per_page` (int): Number of jobs per page (default: 100)
 - `token` (str, optional): GitHub token for authentication
-- `**headers`: Additional headers (can override Authorization)
-
-**Returns:** List of job objects
-
-**Raises:** GitError if API request fails
+- `**headers`: Additional headers (can override Authorization) **Returns:** List of job objects **Raises:** GitError if
+  API request fails
 
 ## Module Structure
 
@@ -448,7 +393,6 @@ gitta/
 
 ```python
 import gitta
-
 # Validate state before pushing
 try:
     commit = gitta.validate_commit_state(
@@ -464,11 +408,9 @@ except gitta.GitError as e:
 
 ```python
 import gitta
-
 # Get current branch
 current = gitta.get_current_branch()
 print(f"On branch: {current}")
-
 # Check if commit is on remote
 commit = gitta.get_current_commit()
 if gitta.is_commit_pushed(commit):
@@ -480,7 +422,6 @@ if gitta.is_commit_pushed(commit):
 ```python
 import gitta
 from pathlib import Path
-
 # Extract subdirectory to new repo
 gitta.filter_repo(
     source_repo=Path("/path/to/source"),
@@ -496,6 +437,4 @@ Part of the Metta AI project. See main repository for license information.
 ## Contributing
 
 This package is currently maintained as part of the Metta monorepo. When exported as a standalone package, contribution
-guidelines will be added.
-
-For now, follow the main Metta repository's contribution process.
+guidelines will be added. For now, follow the main Metta repository's contribution process.
