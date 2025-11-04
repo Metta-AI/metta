@@ -1,4 +1,4 @@
-"""Auto-build Column from AXMS-like patterns; built-ins live in tokens.py."""
+"""Auto-build Column from AXMS-like patterns; built-ins live in cortex.tokens."""
 
 from __future__ import annotations
 
@@ -7,11 +7,6 @@ from typing import Dict, List
 from pydantic import BaseModel
 
 from cortex.blocks.column import ColumnBlock
-from cortex.blocks.column.tokens import (
-    builtin_block_for_token,
-    can_use_caret,
-    get_single_char_builtin_symbols,
-)
 from cortex.blocks.registry import build_block
 from cortex.config import (
     BlockConfig,
@@ -21,6 +16,7 @@ from cortex.config import (
     mLSTMCellConfig,
     sLSTMCellConfig,
 )
+from cortex.tokens import builtin_block_for_token, can_use_caret, get_single_char_builtin_symbols
 
 
 def _clone_model(model: BaseModel) -> BaseModel:
@@ -101,7 +97,9 @@ def build_column_auto_config(
                 cfg = _builtin_for_token(tok)
 
         if cfg is None:
-            raise ValueError(f"Unknown token '{tok}'. Use A|X|M|S|M^|X^|S^ or provide a custom_map entry.")
+            raise ValueError(
+                f"Unknown token '{tok}'. Use A|C|L|M|S|X (with ^ for M/X/S) or provide a custom_map entry."
+            )
 
         experts.append(_clone_model(cfg))  # new instance per expert
 

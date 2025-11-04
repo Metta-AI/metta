@@ -1,4 +1,5 @@
-"""Built‑in Column expert symbols and helpers."""
+"""Built-in Column expert symbols and helpers.
+"""
 
 from __future__ import annotations
 
@@ -7,6 +8,9 @@ from typing import Callable, Dict, Iterable, List
 from cortex.config import (
     AxonConfig,
     BlockConfig,
+    CausalConv1dConfig,
+    LSTMCellConfig,
+    PassThroughBlockConfig,
     PostUpBlockConfig,
     PreUpBlockConfig,
     XLCellConfig,
@@ -52,15 +56,27 @@ def _build_S(ax: bool) -> BlockConfig:
     return PostUpBlockConfig(cell=cell)
 
 
-# Registry of built‑in symbols.
+def _build_L(ax: bool) -> BlockConfig:
+    # Standard LSTM expert, passthrough block to keep projections external.
+    return PassThroughBlockConfig(cell=LSTMCellConfig())
+
+
+def _build_C(ax: bool) -> BlockConfig:
+    # Causal convolution expert, passthrough block.
+    return PassThroughBlockConfig(cell=CausalConv1dConfig())
+
+
+# Registry of built-in symbols.
 BUILTIN_TOKENS: Dict[str, BuilderFn] = {
     "A": _build_A,
+    "C": _build_C,
+    "L": _build_L,
     "X": _build_X,
     "M": _build_M,
     "S": _build_S,
 }
 
-# Single‑character built‑ins allowed in concatenated patterns.
+# Single-character built-ins allowed in concatenated patterns.
 SINGLE_CHAR_BUILTINS: List[str] = [k for k in BUILTIN_TOKENS.keys() if len(k) == 1]
 
 # Symbols for which the "^" suffix is supported.
@@ -68,7 +84,7 @@ CARET_ALLOWED_BASES = frozenset({"M", "X", "S"})
 
 
 def builtin_block_for_token(token: str) -> BlockConfig | None:
-    """Return a BlockConfig for a built‑in token, or None if unknown.
+    """Return a BlockConfig for a built-in token, or None if unknown.
 
     The token may optionally end with "^" to request Axon-backed projections
     where applicable.
