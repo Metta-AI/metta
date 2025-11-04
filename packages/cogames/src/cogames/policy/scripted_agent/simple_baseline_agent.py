@@ -47,6 +47,7 @@ class Phase(Enum):
     ASSEMBLE = "assemble"  # Make hearts at assembler
     DELIVER = "deliver"  # Deposit hearts to chest
     RECHARGE = "recharge"  # Recharge energy at charger
+    CRAFT_UNCLIP = "craft_unclip"  # Craft unclip items at assembler
     UNCLIP = "unclip"  # Unclip extractors
 
 
