@@ -1,16 +1,22 @@
+from __future__ import annotations
+
 from types import MethodType
-from typing import Any, Callable
+from typing import TYPE_CHECKING, Any, Callable
 
 from pydantic import Field, PrivateAttr
 
 from cogames.cogs_vs_clips import vibes
 from cogames.cogs_vs_clips.procedural import apply_procedural_overrides_to_builder
 from cogames.cogs_vs_clips.stations import (
+    RESOURCE_CHESTS,
     CarbonExtractorConfig,
     ChargerConfig,
+    CvCAssemblerConfig,
+    CvCChestConfig,
     CvCWallConfig,
     GermaniumExtractorConfig,
     OxygenExtractorConfig,
+    SiliconExtractorConfig,
     resources,
 )
 from mettagrid.base_config import Config

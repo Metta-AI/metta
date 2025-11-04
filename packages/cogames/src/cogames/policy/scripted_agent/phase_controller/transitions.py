@@ -7,6 +7,7 @@ from typing import List
 
 from .controller import GamePhase, PhaseController, Transition
 from .guards import (
+    assemble_slot_available,
     blocked_by_clipped,
     carrying_heart,
     decoder_ready_for_unclipping,
@@ -173,7 +174,9 @@ def create_transitions() -> List[Transition]:
             Transition(
                 src=phase,
                 dst=GamePhase.ASSEMBLE_HEART,
-                guard=lambda s, c: has_all_materials(s, c) and have_assembler_discovered(s, c),
+                guard=lambda s, c: has_all_materials(s, c)
+                and have_assembler_discovered(s, c)
+                and assemble_slot_available(s, c),
                 priority=40,
                 min_dwell_steps=2,
             )

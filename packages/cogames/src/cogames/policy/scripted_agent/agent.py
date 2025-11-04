@@ -3,15 +3,14 @@
 from __future__ import annotations
 
 import logging
-from collections import Counter, defaultdict, deque
+from collections import defaultdict, deque
 from dataclasses import dataclass
-from math import ceil
 from typing import Dict, List, Optional, Set, Tuple
 
 from cogames.policy.interfaces import AgentPolicy, Policy, StatefulAgentPolicy, StatefulPolicyImpl
 from cogames.policy.scripted_agent.constants import C, FeatureNames, StationMaps
 from cogames.policy.scripted_agent.hyperparameters import Hyperparameters
-from cogames.policy.scripted_agent.navigator import Navigator
+from cogames.policy.scripted_agent.navigator import NavigationResult, Navigator
 from cogames.policy.scripted_agent.phase_controller import (
     Context,
     GamePhase,
@@ -102,6 +101,13 @@ class ExtractorMemory:
             logger.info(f"[Find] No available {resource} extractors (known={len(self.get_by_type(resource))})")
             return None
 
+        # Minimal mode: use distance-only scoring for simplicity
+        use_minimal_scoring = self.hyperparams and getattr(self.hyperparams, "strategy_type", "") == "minimal_baseline"
+
+        if use_minimal_scoring:
+            # Simple distance-only scoring: just pick the nearest
+            return min(cands, key=lambda e: md(e.position, cur))
+
         def score(e: ExtractorInfo) -> float:
             distance_score = 1.0 / (1.0 + md(e.position, cur))
             eff = e.avg_output()
@@ -118,7 +124,26 @@ class ExtractorMemory:
 class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
     def __init__(self, env: MettaGridEnv, hyperparams: Hyperparameters | None = None):
         self._env = env
-        self.hyperparams = hyperparams or Hyperparameters()
+        # TEMPORARY: Use minimal_baseline as default for testing
+        from cogames.policy.scripted_agent.hyperparameters import minimal_baseline_params
+
+        self.hyperparams = hyperparams or minimal_baseline_params()
+        print(f"[DEBUG] ScriptedAgent initialized with strategy: {self.hyperparams.strategy_type}")
+
+        default_limits = {"carbon": 3, "oxygen": 3, "germanium": 2, "silicon": 2}
+        hp_limits = self.hyperparams.resource_focus_limits or default_limits
+
+        self._enable_visit_scoring = getattr(self.hyperparams, "enable_visit_scoring", True)
+        self._enable_probe_module = bool(
+            self.hyperparams.use_probes and getattr(self.hyperparams, "enable_probe_module", True)
+        )
+        self._enable_target_reservation = getattr(self.hyperparams, "enable_target_reservation", True)
+        self._enable_resource_focus_limits = getattr(self.hyperparams, "enable_resource_focus_limits", True)
+        self._enable_assembly_coordination = getattr(self.hyperparams, "enable_assembly_coordination", True)
+        self._enable_navigation_cache = getattr(self.hyperparams, "enable_navigation_cache", True)
+
+        self._resource_focus_limits = dict(hp_limits) if self._enable_resource_focus_limits else {}
+        self._probe_visit_times: dict[Tuple[int, int], int] = {}
         self.phase_controller = create_controller(GamePhase.GATHER_GERMANIUM)
 
         # Names / lookups
@@ -164,27 +189,30 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
         # Shared debug + per-agent bookkeeping caches
         self._prev_inventory: Dict[int, Dict[str, int]] = {}
         self._recent_positions: Dict[int, deque[Tuple[int, int]]] = {}
-        self._max_recent_positions: int = 10
-        self._status_log_interval: int = 25
+        self._max_recent_positions: int = self.hyperparams.max_recent_positions
+        self._status_log_interval: int = 100
         self._resource_focus_counts: Dict[str, int] = defaultdict(int)
         self._num_agents: int = getattr(env, "num_agents", 1)
-        self._resource_focus_limits: Dict[str, int] = {
-            "oxygen": max(1, ceil(self._num_agents / 4)),
-            "silicon": max(2, ceil(self._num_agents / 2)),
-            "germanium": max(1, ceil(self._num_agents / 3)),
-            "carbon": max(1, ceil(self._num_agents / 3)),
-            "assembler": 1,
-        }
         self._target_assignments: Dict[int, Tuple[int, int]] = {}
+        self._target_position_counts: Dict[Tuple[int, int], int] = defaultdict(int)
         # Prefer side positions first so chest/charger approaches stay clear
         self._assembler_offsets: list[tuple[int, int]] = [(0, -1), (0, 1), (1, 0), (-1, 0)]
         self._assembler_slot_for_agent: Dict[int, int] = {}
-        self._resource_focus_limits["assembler"] = len(self._assembler_offsets)
+        if self._enable_resource_focus_limits:
+            self._resource_focus_limits["assembler"] = 1
         self._assembly_signal = {"active": False, "requester": None, "position": None}
         self._assembly_signal_participants: set[int] = set()
+        self._reserved_assembler_cells: set[tuple[int, int]] = set()
         self.recharge_idle_tolerance: int = getattr(
             self.hyperparams, "recharge_idle_tolerance", C.RECHARGE_IDLE_TOLERANCE
         )
+
+        # Diagnostics
+        self._nav_calls: int = 0
+        self._nav_cache_hits: int = 0
+        self._nav_astar_calls: int = 0
+        self._assembly_request_steps: Dict[int, int] = {}
+        self._assembly_latencies: List[int] = []
 
         # Object ids
         self._type_id_to_station: Dict[int, str] = {}
@@ -203,8 +231,22 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
 
         base = self.hyperparams.exploration_phase_steps
         self._explore_steps = int(base * math.sqrt((self._map_h * self._map_w) / 1600.0))
-        logger.info(f"[Exploration] steps={self._explore_steps} for map {self._map_h}x{self._map_w}")
-        self._should_use_probes: bool = max(self._map_h, self._map_w) >= 60
+
+        # Minimal mode: stay local, limit exploration radius
+        self._is_minimal_mode = getattr(self.hyperparams, "strategy_type", "") == "minimal_baseline"
+        if self._is_minimal_mode:
+            # For 30x30 map, use full exploration (agents need to find all extractors)
+            # Keep the calculated exploration steps, don't limit it artificially
+            print(f"[DEBUG] MINIMAL MODE ACTIVE - exploration steps: {self._explore_steps}")
+            logger.info(f"[Minimal Mode] Exploration steps: {self._explore_steps} for {self._map_h}x{self._map_w} map")
+            # Enable detailed trace logging for minimal mode
+            self._trace_log_interval = 20  # Log every 20 steps
+        else:
+            print(f"[DEBUG] Normal mode - exploration steps: {self._explore_steps}")
+            logger.info(f"[Exploration] steps={self._explore_steps} for map {self._map_h}x{self._map_w}")
+            self._trace_log_interval = 0  # No trace logging for other modes
+
+        self._should_use_probes: bool = self._enable_probe_module and max(self._map_h, self._map_w) >= 60
         self._hub_probe_offsets: list[Tuple[int, int]] = self._build_probe_offsets()
 
         # World state (shared across agents - only station positions)
@@ -219,6 +261,119 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
         # Note: _cached_state removed - it was shared across agents and caused bugs in multi-agent
 
         logger.info("Scripted agent ready (visual discovery + frontier exploration)")
+
+    def _clear_agent_target(self, agent_id: int) -> None:
+        prev = self._target_assignments.pop(agent_id, None)
+        if prev is None:
+            return
+        if not self._enable_target_reservation:
+            return
+        remaining = self._target_position_counts.get(prev, 0) - 1
+        if remaining <= 0:
+            self._target_position_counts.pop(prev, None)
+        else:
+            self._target_position_counts[prev] = remaining
+
+    def _set_agent_target(self, agent_id: int, target: Optional[Tuple[int, int]]) -> None:
+        if target is None:
+            self._clear_agent_target(agent_id)
+            return
+        prev = self._target_assignments.get(agent_id)
+        if prev == target:
+            return
+        if prev is not None:
+            self._clear_agent_target(agent_id)
+        self._target_assignments[agent_id] = target
+        if not self._enable_target_reservation:
+            return
+        self._target_position_counts[target] = self._target_position_counts.get(target, 0) + 1
+
+    def _clear_all_targets(self) -> None:
+        if not self._target_assignments:
+            return
+        for agent_id in list(self._target_assignments.keys()):
+            self._clear_agent_target(agent_id)
+
+    def _target_count(self, position: Tuple[int, int]) -> int:
+        if not self._enable_target_reservation:
+            return 0
+        return self._target_position_counts.get(position, 0)
+
+    @staticmethod
+    def _manhattan(a: Tuple[int, int], b: Tuple[int, int]) -> int:
+        return abs(a[0] - b[0]) + abs(a[1] - b[1])
+
+    def _clear_nav_cache(self, s: AgentState) -> None:
+        s.nav_target = None
+        s.nav_path.clear()
+
+    def _navigation_result(
+        self,
+        s: AgentState,
+        target: Optional[Tuple[int, int]],
+        *,
+        optimistic: bool,
+        use_astar: bool,
+        astar_threshold: int,
+    ) -> NavigationResult:
+        if target is None or s.agent_row < 0:
+            self._clear_nav_cache(s)
+            return NavigationResult(next_step=None, is_adjacent=False, method="invalid", path=None)
+
+        current = (s.agent_row, s.agent_col)
+
+        self._nav_calls += 1
+
+        if s.nav_target != target:
+            self._clear_nav_cache(s)
+            s.nav_target = target
+
+        if not self._enable_navigation_cache:
+            res = self.navigator.navigate_to(
+                start=current,
+                target=target,
+                occupancy_map=s.occupancy_map,
+                optimistic=optimistic,
+                use_astar=use_astar,
+                astar_threshold=astar_threshold,
+            )
+            if getattr(res, "method", None) == "astar":
+                self._nav_astar_calls += 1
+            return res
+
+        while s.nav_path and s.nav_path[0] == current:
+            s.nav_path.popleft()
+
+        if s.nav_path:
+            next_pos = s.nav_path[0]
+            is_adjacent = len(s.nav_path) == 1 and self._manhattan(current, target) == 1
+            self._nav_cache_hits += 1
+            return NavigationResult(next_step=next_pos, is_adjacent=is_adjacent, method="cache", path=None)
+
+        res = self.navigator.navigate_to(
+            start=current,
+            target=target,
+            occupancy_map=s.occupancy_map,
+            optimistic=optimistic,
+            use_astar=use_astar,
+            astar_threshold=astar_threshold,
+        )
+        if getattr(res, "method", None) == "astar":
+            self._nav_astar_calls += 1
+
+        s.nav_path.clear()
+        if res.path and len(res.path) > 1:
+            s.nav_path.extend(res.path[1:])
+            while s.nav_path and s.nav_path[0] == current:
+                s.nav_path.popleft()
+        if s.nav_path:
+            next_pos = s.nav_path[0]
+            is_adjacent = len(s.nav_path) == 1 and self._manhattan(current, target) == 1
+            s.nav_target = target
+            return NavigationResult(next_step=next_pos, is_adjacent=is_adjacent, method=res.method, path=res.path)
+
+        s.nav_target = target if res.is_adjacent else None
+        return res
 
     # ------------------- Recharge thresholds (derived) -------------------
     @property
@@ -235,9 +390,7 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
     def agent_state(self, agent_id: int = 0) -> AgentState:
         # Initialize per-agent state with fresh occupancy map
         if agent_id == 0:
-            self._assembly_signal = {"active": False, "requester": None, "position": None}
-            self._assembly_signal_participants.clear()
-            self._assembler_slot_for_agent.clear()
+            self._clear_assembly_signal()
         state = AgentState(agent_id=agent_id)
         state.occupancy_map = [[C.OCC_UNKNOWN for _ in range(self._map_w)] for _ in range(self._map_h)]
 
@@ -363,48 +516,87 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
                 order.append(resource)
 
         current = (s.agent_row, s.agent_col)
-        assignment_counts = Counter(self._target_assignments.values())
         for resource in order:
-            candidates: list[tuple[int, int, float, ExtractorInfo]] = []
-            for extractor in self.extractor_memory.get_by_type(resource):
-                if extractor.is_depleted() or extractor.is_clipped:
-                    continue
-                distance = abs(extractor.position[0] - current[0]) + abs(extractor.position[1] - current[1])
-                assigned = assignment_counts.get(extractor.position, 0)
-                candidates.append((assigned, distance, -extractor.avg_output(), extractor))
+            # Minimal mode: skip complex candidate sorting with target reservation
+            if self._enable_target_reservation:
+                candidates: list[tuple[int, int, float, ExtractorInfo]] = []
+                for extractor in self.extractor_memory.get_by_type(resource):
+                    if extractor.is_depleted() or extractor.is_clipped:
+                        continue
+                    distance = abs(extractor.position[0] - current[0]) + abs(extractor.position[1] - current[1])
+                    assigned = self._target_count(extractor.position)
+                    candidates.append((assigned, distance, -extractor.avg_output(), extractor))
 
-            if candidates:
-                candidates.sort(key=lambda item: (item[0], item[1], item[2]))
-                chosen = candidates[0][3]
-                self._target_assignments[s.agent_id] = chosen.position
-                s.explore_goal = None
-                return resource, chosen.position
+                if candidates:
+                    candidates.sort(key=lambda item: (item[0], item[1], item[2]))
+                    chosen = candidates[0][3]
+                    self._set_agent_target(s.agent_id, chosen.position)
+                    s.explore_goal = None
+                    return resource, chosen.position
 
+            # Simple path: just use find_best_extractor (distance-based in minimal mode)
             extractor = self.extractor_memory.find_best_extractor(
                 resource, current, s.step_count, self.cooldown_remaining
             )
             if extractor is not None:
-                self._target_assignments[s.agent_id] = extractor.position
+                if self._enable_target_reservation:
+                    self._set_agent_target(s.agent_id, extractor.position)
                 s.explore_goal = None
                 return resource, extractor.position
 
             if deficits.get(resource, 0) > 0:
+                if self._enable_target_reservation:
+                    self._clear_agent_target(s.agent_id)
                 s.explore_goal = f"find_{resource}"
                 return resource, None
 
         if focus_resource and deficits.get(focus_resource, 0) > 0:
+            if self._enable_target_reservation:
+                self._clear_agent_target(s.agent_id)
             s.explore_goal = f"find_{focus_resource}"
         elif not deficits or all(v <= 0 for v in deficits.values()):
             s.explore_goal = None
+            if self._enable_target_reservation:
+                self._clear_agent_target(s.agent_id)
         return focus_resource, None
 
+    def _trace_log(self, s: AgentState) -> None:
+        """Detailed trace logging for minimal mode."""
+        if not self._is_minimal_mode or self._trace_log_interval <= 0:
+            return
+        if s.step_count % self._trace_log_interval != 0:
+            return
+
+        extractors_known = {
+            "carbon": len(self.extractor_memory.get_by_type("carbon")),
+            "oxygen": len(self.extractor_memory.get_by_type("oxygen")),
+            "germanium": len(self.extractor_memory.get_by_type("germanium")),
+            "silicon": len(self.extractor_memory.get_by_type("silicon")),
+        }
+
+        print(f"[TRACE Step {s.step_count}] Agent {s.agent_id} @ ({s.agent_row},{s.agent_col})")
+        inv_str = f"C={s.carbon} O={s.oxygen} G={s.germanium} S={s.silicon} E={s.energy}"
+        print(f"  Phase: {s.current_phase.name}, Inventory: {inv_str}")
+        print(f"  Extractors known: {extractors_known}")
+        stations = f"assembler={('assembler' in self._station_positions)}"
+        stations += f" chest={('chest' in self._station_positions)}"
+        stations += f" charger={('charger' in self._station_positions)}"
+        print(f"  Stations found: {stations}")
+        if s.explore_goal:
+            print(f"  Explore goal: {s.explore_goal}")
+
+        # Debug: Show if agent is actually trying to move
+        if s.current_phase.name == "EXPLORE":
+            steps_stuck = s.step_count - s.last_position_change if hasattr(s, "last_position_change") else "?"
+            print(f"  [DEBUG] In EXPLORE phase but position unchanged for {steps_stuck} steps")
+
     def _log_agent_status(self, s: AgentState) -> None:
-        if self._status_log_interval <= 0 or not logger.isEnabledFor(logging.INFO):
+        if self._status_log_interval <= 0 or not logger.isEnabledFor(logging.DEBUG):
             return
         if s.step_count % self._status_log_interval != 0:
             return
         deficits = self._resource_deficits(s)
-        logger.info(
+        logger.debug(
             "[Agent %s] step=%d phase=%s pos=(%d,%d) inv G:%d S:%d C:%d O:%d E:%d heart=%d target=%s deficits=%s",
             s.agent_id,
             s.step_count,
@@ -500,12 +692,12 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
         if (s.agent_row, s.agent_col) == target:
             s.hub_probe_targets.popleft()
             s.current_probe_target = None
+            self._clear_nav_cache(s)
             return self._action_lookup.get("noop", 0)
 
-        res = self.navigator.navigate_to(
-            start=(s.agent_row, s.agent_col),
-            target=target,
-            occupancy_map=s.occupancy_map,
+        res = self._navigation_result(
+            s,
+            target,
             optimistic=True,
             use_astar=C.USE_ASTAR,
             astar_threshold=C.ASTAR_THRESHOLD,
@@ -522,9 +714,12 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
         if s.hub_probe_targets:
             s.hub_probe_targets.popleft()
         s.current_probe_target = None
+        self._clear_nav_cache(s)
         return None
 
     def _release_resource_focus(self, resource: Optional[str]) -> None:
+        if not self._enable_resource_focus_limits:
+            return
         if not resource:
             return
         count = self._resource_focus_counts.get(resource, 0)
@@ -532,9 +727,46 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
             self._resource_focus_counts[resource] = count - 1
 
     def _acquire_resource_focus(self, resource: Optional[str]) -> None:
+        if not self._enable_resource_focus_limits:
+            return
         if not resource:
             return
         self._resource_focus_counts[resource] = self._resource_focus_counts.get(resource, 0) + 1
+
+    def _clear_assembly_signal(self) -> None:
+        self._assembly_signal = {"active": False, "requester": None, "position": None}
+        self._assembly_signal_participants.clear()
+        self._assembler_slot_for_agent.clear()
+        if self._enable_resource_focus_limits:
+            self._resource_focus_counts.pop("assembler", None)
+        self._reserved_assembler_cells.clear()
+        self._assembly_request_steps.clear()
+
+    def can_agent_reserve_assembler(self, state: AgentState) -> bool:
+        signal = getattr(self, "_assembly_signal", None) or {}
+        if not signal.get("active"):
+            return True
+        return signal.get("requester") == state.agent_id
+
+    def _compute_reserved_assembler_cells(self) -> set[tuple[int, int]]:
+        asm = self._station_positions.get("assembler")
+        reserved: set[tuple[int, int]] = set()
+        if not asm:
+            return reserved
+        reserved.add(asm)
+        for offset_r, offset_c in self._assembler_offsets:
+            pos = (asm[0] + offset_r, asm[1] + offset_c)
+            if self._is_valid_position(*pos):
+                reserved.add(pos)
+        return reserved
+
+    def _get_yield_target(self, s: AgentState) -> Optional[Tuple[int, int]]:
+        if s.home_base_row >= 0 and s.home_base_col >= 0:
+            return (s.home_base_row, s.home_base_col)
+        chest = self._station_positions.get("chest")
+        if chest and self._is_valid_position(*chest):
+            return chest
+        return None
 
     def _update_recharge_progress(self, s: AgentState) -> None:
         if s.current_phase == GamePhase.RECHARGE:
@@ -554,6 +786,8 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
             s.recharge_total_gained = 0
 
     def _can_focus_resource(self, resource: Optional[str]) -> bool:
+        if not self._enable_resource_focus_limits:
+            return True
         if not resource:
             return True
         limit = self._resource_focus_limits.get(resource)
@@ -627,7 +861,7 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
         if s.active_resource_target:
             self._release_resource_focus(s.active_resource_target)
             s.active_resource_target = None
-        self._target_assignments.pop(s.agent_id, None)
+        self._clear_agent_target(s.agent_id)
         s.step_count += 1
 
         self._update_inventory(obs, s)
@@ -645,6 +879,9 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
         self._discover_stations_from_observation(obs, s)
         self._update_wall_knowledge(s)
 
+        # Detailed trace logging for minimal mode
+        self._trace_log(s)
+
         # Track extractor usage if inventory changed
         inv_changes = self._detect_inventory_changes(s)
         if inv_changes and s.agent_row >= 0:
@@ -658,7 +895,8 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
         if s.agent_row >= 0 and s.agent_col >= 0:
             pos = (s.agent_row, s.agent_col)
             s.visited_cells.add(pos)
-            s.visit_counts[pos] = s.visit_counts.get(pos, 0) + 1
+            if self._enable_visit_scoring:
+                s.visit_counts[pos] = s.visit_counts.get(pos, 0) + 1
 
         # Deposit detection
         if (s.last_heart > 0 and s.heart == 0) or (s.current_phase == GamePhase.DEPOSIT_HEART and s.last_reward > 0):
@@ -667,11 +905,12 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
             s.current_phase = GamePhase.GATHER_GERMANIUM
             s.just_deposited = True
             logger.info(f"[Deposit] Heart deposited -> total={s.hearts_assembled}")
-            self._assembly_signal = {"active": False, "requester": None, "position": None}
-            self._assembly_signal_participants.clear()
-            self._assembler_slot_for_agent.clear()
-            self._target_assignments.clear()
-            self._release_assembler_slot(s.agent_id)
+            self._clear_assembly_signal()
+            self._clear_all_targets()
+            started = self._assembly_request_steps.pop(s.agent_id, None)
+            if started is not None:
+                latency = max(0, s.step_count - started)
+                self._assembly_latencies.append(latency)
 
         # Phase selection via controller
         old_phase = s.current_phase
@@ -721,14 +960,13 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
         assembler_known = have_assembler_discovered(s, ctx)
         materials_ready = assembler_known and has_all_materials(s, ctx)
 
-        if self._assembly_signal["active"] and not assembler_known:
-            self._assembly_signal = {"active": False, "requester": None, "position": None}
-            self._assembly_signal_participants.clear()
-            self._assembler_slot_for_agent.clear()
+        requester = self._assembly_signal.get("requester")
+        if self._enable_assembly_coordination:
+            if self._assembly_signal.get("active") and not assembler_known:
+                self._clear_assembly_signal()
 
-        if s.is_leader:
             if assembler_known and materials_ready:
-                if not self._assembly_signal["active"]:
+                if not self._assembly_signal.get("active"):
                     self._assembly_signal = {
                         "active": True,
                         "requester": s.agent_id,
@@ -736,19 +974,61 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
                     }
                     self._assembly_signal_participants.clear()
                     self._assembler_slot_for_agent.clear()
-            elif self._assembly_signal["active"] and self._assembly_signal.get("requester") == s.agent_id:
-                self._assembly_signal = {"active": False, "requester": None, "position": None}
-                self._assembly_signal_participants.clear()
-                self._assembler_slot_for_agent.clear()
+                    self._reserved_assembler_cells = self._compute_reserved_assembler_cells()
+                    self._assembly_request_steps[s.agent_id] = s.step_count
+                elif requester == s.agent_id and self._assembly_signal.get("position") is None:
+                    self._assembly_signal["position"] = self._station_positions.get("assembler")
+            elif self._assembly_signal.get("active") and requester == s.agent_id:
+                self._clear_assembly_signal()
+        else:
+            if self._assembly_signal.get("active"):
+                self._clear_assembly_signal()
 
         proposed = self.phase_controller.maybe_transition(s, ctx, logger)
 
-        if self._assembly_signal["active"] and assembler_known:
-            if self._assembly_signal["position"] is None:
-                self._assembly_signal["position"] = self._station_positions.get("assembler")
-            if materials_ready:
-                proposed = GamePhase.ASSEMBLE_HEART
-                s.active_resource_target = "assembler"
+        if self._enable_assembly_coordination:
+            if s.current_phase == GamePhase.ASSEMBLE_HEART and not materials_ready:
+                deficits = self._resource_deficits(s)
+                if requester == s.agent_id:
+                    self._clear_assembly_signal()
+                else:
+                    self._release_assembler_slot(s.agent_id)
+                next_resource = self._next_needed_resource(s, deficits)
+                proposed = (
+                    self._resource_to_phase.get(next_resource, GamePhase.EXPLORE)
+                    if next_resource
+                    else GamePhase.EXPLORE
+                )
+
+            if self._assembly_signal.get("active") and assembler_known:
+                if self._assembly_signal.get("position") is None:
+                    self._assembly_signal["position"] = self._station_positions.get("assembler")
+                if materials_ready:
+                    if s.agent_id == requester:
+                        proposed = GamePhase.ASSEMBLE_HEART
+                        s.active_resource_target = "assembler"
+                    else:
+                        s.active_resource_target = None
+                        self._release_assembler_slot(s.agent_id)
+                        yield_target = self._get_yield_target(s)
+                        if yield_target is not None:
+                            self._set_agent_target(s.agent_id, yield_target)
+                            s.explore_goal = "yield_assembler"
+                        else:
+                            self._clear_agent_target(s.agent_id)
+                            if s.explore_goal == "yield_assembler":
+                                s.explore_goal = None
+                        return GamePhase.EXPLORE
+        else:
+            if proposed == GamePhase.ASSEMBLE_HEART and not materials_ready:
+                deficits = self._resource_deficits(s)
+                next_resource = self._next_needed_resource(s, deficits)
+                self._assembly_request_steps.pop(s.agent_id, None)
+                proposed = (
+                    self._resource_to_phase.get(next_resource, GamePhase.EXPLORE)
+                    if next_resource
+                    else GamePhase.EXPLORE
+                )
 
         if proposed in self._gather_phases:
             deficits = self._resource_deficits(s)
@@ -767,17 +1047,36 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
                     )
                 proposed = desired
         elif proposed == GamePhase.ASSEMBLE_HEART:
-            slot = self._assign_assembler_slot(s.agent_id)
-            if slot is None:
-                logger.info("[Agent %s] no assembler slot available; continuing exploration", s.agent_id)
-                self._release_resource_focus("assembler")
-                self._release_assembler_slot(s.agent_id)
-                s.active_resource_target = None
-                return GamePhase.EXPLORE
-            s.active_resource_target = "assembler"
+            if self._enable_assembly_coordination:
+                if not self._assembly_signal.get("active"):
+                    self._assembly_signal = {
+                        "active": True,
+                        "requester": s.agent_id,
+                        "position": self._station_positions.get("assembler"),
+                    }
+                    self._assembly_signal_participants.clear()
+                    self._assembler_slot_for_agent.clear()
+                    requester = s.agent_id
+                    self._reserved_assembler_cells = self._compute_reserved_assembler_cells()
+                    self._assembly_request_steps[s.agent_id] = s.step_count
+                    self._assembly_request_steps[s.agent_id] = s.step_count
+                slot = self._assign_assembler_slot(s.agent_id)
+                if slot is None:
+                    logger.info("[Agent %s] no assembler slot available; continuing exploration", s.agent_id)
+                    self._release_resource_focus("assembler")
+                    self._release_assembler_slot(s.agent_id)
+                    s.active_resource_target = None
+                    self._assembly_request_steps.pop(s.agent_id, None)
+                    return GamePhase.EXPLORE
+                s.active_resource_target = "assembler"
+            else:
+                s.active_resource_target = "assembler" if materials_ready else None
+                if materials_ready:
+                    self._assembly_request_steps.setdefault(s.agent_id, s.step_count)
         else:
             s.active_resource_target = None
-            self._release_assembler_slot(s.agent_id)
+            if self._enable_assembly_coordination:
+                self._release_assembler_slot(s.agent_id)
 
         return proposed
 
@@ -785,8 +1084,36 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
     def _execute_phase(self, s: AgentState) -> int:
         if s.current_phase == GamePhase.EXPLORE:
             s.last_attempt_was_use = False
+            if s.explore_goal == "yield_assembler":
+                yield_target = self._target_assignments.get(s.agent_id)
+                if yield_target is not None and s.agent_row >= 0:
+                    if (s.agent_row, s.agent_col) != yield_target:
+                        res = self._navigation_result(
+                            s,
+                            yield_target,
+                            optimistic=True,
+                            use_astar=C.USE_ASTAR,
+                            astar_threshold=C.ASTAR_THRESHOLD,
+                        )
+                        if res.next_step:
+                            nr, nc = res.next_step
+                            return self._step_toward(nr - s.agent_row, nc - s.agent_col)
+                        if res.is_adjacent and res.next_step is None:
+                            tr, tc = yield_target
+                            return self._step_toward(tr - s.agent_row, tc - s.agent_col)
+                    else:
+                        s.explore_goal = None
+                        self._clear_agent_target(s.agent_id)
+                else:
+                    s.explore_goal = None
+                    self._clear_agent_target(s.agent_id)
             plan = self._plan_to_frontier_action(s)
-            return plan if plan is not None else self._explore_simple(s)
+            if plan is not None:
+                return plan
+            # No frontier available, return noop (was calling non-existent _explore_simple)
+            if self._is_minimal_mode:
+                print(f"  [BUG FIX] Agent {s.agent_id}: No exploration action, returning noop")
+            return self._action_lookup.get("noop", 0)
 
         if s.current_phase == GamePhase.UNCLIP_STATION:
             return self._do_unclip(s)
@@ -804,6 +1131,16 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
                 s.last_attempt_was_use = False
                 plan = self._plan_to_frontier_action(s)
                 return plan if plan is not None else self._explore_simple(s)
+            if self._enable_assembly_coordination:
+                requester = self._assembly_signal.get("requester")
+                if requester is not None and requester != s.agent_id:
+                    self._release_assembler_slot(s.agent_id)
+                    self._release_resource_focus("assembler")
+                    s.active_resource_target = None
+                    s.last_attempt_was_use = False
+                    plan = self._plan_to_frontier_action(s)
+                    return plan if plan is not None else self._explore_simple(s)
+
             slot = self._assembler_slot_for_agent.get(s.agent_id)
             if slot is None:
                 slot = self._assign_assembler_slot(s.agent_id)
@@ -811,14 +1148,10 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
                 logger.info("[Agent %s] assembler full, resuming exploration", s.agent_id)
                 s.last_attempt_was_use = False
                 return self._action_lookup.get("noop", 0)
+
             offset_r, offset_c = self._assembler_offsets[slot]
             approach = (asm[0] + offset_r, asm[1] + offset_c)
-            if (s.agent_row, s.agent_col) != approach:
-                target = approach
-            else:
-                target = asm
-            self._target_assignments[s.agent_id] = target
-            s.explore_goal = None
+            target = approach if (s.agent_row, s.agent_col) != approach else asm
         elif s.current_phase in self._gather_phases and s.agent_row != -1:
             deficits = self._resource_deficits(s)
             focus = s.active_resource_target or self._phase_to_resource.get(s.current_phase)
@@ -854,16 +1187,17 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
                 s.last_attempt_was_use = False
                 plan = self._plan_to_frontier_action(s)
                 return plan if plan is not None else self._explore_simple(s)
-            self._target_assignments[s.agent_id] = target
+            self._set_agent_target(s.agent_id, target)
             s.explore_goal = None
         else:
             target = self._station_positions.get(station) if station else None
             if station == "assembler" and target is not None:
-                self._target_assignments[s.agent_id] = target
+                self._set_agent_target(s.agent_id, target)
             if target is not None:
                 s.explore_goal = None
 
         if station is None:
+            self._clear_agent_target(s.agent_id)
             return self._action_lookup.get("noop", 0)
 
         # Glyph selection (after station possibly updated)
@@ -872,18 +1206,17 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
             s.current_glyph = need_glyph
             s.wait_counter = 0
             gid = self._glyph_name_to_id.get(need_glyph, 0)
-            return self._action_lookup.get(f"change_glyph_{gid}", self._action_lookup.get("noop", 0))
+            return self._action_lookup.get(f"change_vibe_{gid}", self._action_lookup.get("noop", 0))
 
-        if target is None:
-            s.last_attempt_was_use = False
-            plan = self._plan_to_frontier_action(s)
-            return plan if plan is not None else self._explore_simple(s)
-
+            if target is None:
+                self._clear_agent_target(s.agent_id)
+                s.last_attempt_was_use = False
+                plan = self._plan_to_frontier_action(s)
+                return plan if plan is not None else self._explore_simple(s)
         # Navigate
-        res = self.navigator.navigate_to(
-            start=(s.agent_row, s.agent_col),
-            target=target,
-            occupancy_map=s.occupancy_map,
+        res = self._navigation_result(
+            s,
+            target,
             optimistic=True,
             use_astar=C.USE_ASTAR,
             astar_threshold=C.ASTAR_THRESHOLD,
@@ -915,7 +1248,6 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
                     s.waiting_since_step = s.step_count
                     s.last_attempt_was_use = False
                     return self._action_lookup.get("noop", 0)
-                s.wait_target = None
                 s.waiting_since_step = -1
 
             tr, tc = target
@@ -954,10 +1286,9 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
             s.unclip_target = tgt
             logger.info(f"[Unclip] new target {tgt} ({chosen.resource_type})")
 
-        res = self.navigator.navigate_to(
-            start=(s.agent_row, s.agent_col),
-            target=tgt,
-            occupancy_map=s.occupancy_map,
+        res = self._navigation_result(
+            s,
+            tgt,
             optimistic=True,
             use_astar=C.USE_ASTAR,
             astar_threshold=C.ASTAR_THRESHOLD,
@@ -981,7 +1312,7 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
             s.current_glyph = need_glyph
             s.wait_counter = 0
             gid = self._glyph_name_to_id.get(need_glyph, 0)
-            return self._action_lookup.get(f"change_glyph_{gid}", self._action_lookup.get("noop", 0))
+            return self._action_lookup.get(f"change_vibe_{gid}", self._action_lookup.get("noop", 0))
 
         asm = self._station_positions.get("assembler")
         if not asm:
@@ -989,10 +1320,9 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
             plan = self._plan_to_frontier_action(s)
             return plan if plan is not None else self._explore_simple(s)
 
-        res = self.navigator.navigate_to(
-            start=(s.agent_row, s.agent_col),
-            target=asm,
-            occupancy_map=s.occupancy_map,
+        res = self._navigation_result(
+            s,
+            asm,
             optimistic=True,
             use_astar=C.USE_ASTAR,
             astar_threshold=C.ASTAR_THRESHOLD,
@@ -1071,6 +1401,8 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
     def _plan_to_frontier_action(self, s: AgentState) -> Optional[int]:
         t = self._choose_frontier(s)
         if not t:
+            if self._is_minimal_mode and s.step_count % 20 == 0:
+                print(f"  [DEBUG] Agent {s.agent_id}: No frontier chosen, falling back to _explore_simple")
             return None
         tr, tc = t
         sr, sc = s.agent_row, s.agent_col
@@ -1084,7 +1416,12 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
         ]
         if not neighbors:
             return None
-        neighbors.sort(key=lambda p: (s.visit_counts.get(p, 0), abs(p[0] - sr) + abs(p[1] - sc)))
+        neighbors.sort(
+            key=lambda p: (
+                s.visit_counts.get(p, 0) if self._enable_visit_scoring else 0,
+                abs(p[0] - sr) + abs(p[1] - sc),
+            )
+        )
         for goal in neighbors:
             step = self._bfs_next_step_occ(s, (sr, sc), goal)
             if step is not None:
@@ -1149,7 +1486,10 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
             r, c = q.popleft()
             neighbors = sorted(
                 self._neighbors4(r, c),
-                key=lambda pos: (s.visit_counts.get(pos, 0), abs(pos[0] - start[0]) + abs(pos[1] - start[1])),
+                key=lambda pos: (
+                    s.visit_counts.get(pos, 0) if self._enable_visit_scoring else 0,
+                    abs(pos[0] - start[0]) + abs(pos[1] - start[1]),
+                ),
             )
             for nr, nc in neighbors:
                 if (nr, nc) in fronts:
@@ -1162,7 +1502,10 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
         return None
 
     def _compute_frontiers(self, s: AgentState) -> List[Tuple[int, int]]:
-        res = []
+        if s.frontier_cache_revision == s.occupancy_revision:
+            return list(s.frontier_cache)
+
+        res: List[Tuple[int, int]] = []
         for r in range(self._map_h):
             for c in range(self._map_w):
                 if s.occupancy_map[r][c] != C.OCC_UNKNOWN:
@@ -1171,6 +1514,9 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
                     if s.occupancy_map[nr][nc] == C.OCC_FREE:
                         res.append((r, c))
                         break
+
+        s.frontier_cache = res
+        s.frontier_cache_revision = s.occupancy_revision
         return res
 
     # ------------------------------ Movement -----------------------------
@@ -1194,7 +1540,10 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
             r, c = q.popleft()
             neighbors = sorted(
                 self._neighbors4(r, c),
-                key=lambda pos: (s.visit_counts.get(pos, 0), abs(pos[0] - goal[0]) + abs(pos[1] - goal[1])),
+                key=lambda pos: (
+                    s.visit_counts.get(pos, 0) if self._enable_visit_scoring else 0,
+                    abs(pos[0] - goal[0]) + abs(pos[1] - goal[1]),
+                ),
             )
             for nr, nc in neighbors:
                 if (nr, nc) in parent or not self._is_cell_passable(s, nr, nc, optimistic):
@@ -1215,6 +1564,10 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
 
     def _is_cell_passable(self, s: AgentState, r: int, c: int, optimistic: bool = False) -> bool:
         cell = s.occupancy_map[r][c]
+        if (r, c) in self._reserved_assembler_cells:
+            requester = self._assembly_signal.get("requester")
+            if requester is not None and requester != s.agent_id:
+                return False
         return (cell != C.OCC_OBSTACLE) if optimistic else (cell == C.OCC_FREE)
 
     def _action_to_dir(self, idx: int) -> Tuple[Optional[int], Optional[int]]:
@@ -1288,10 +1641,9 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
         if not alts:
             return self._explore_simple(s)
         best = min(alts, key=lambda e: abs(e.position[0] - cur[0]) + abs(e.position[1] - cur[1]))
-        res = self.navigator.navigate_to(
-            start=cur,
-            target=best.position,
-            occupancy_map=s.occupancy_map,
+        res = self._navigation_result(
+            s,
+            best.position,
             optimistic=True,
             use_astar=C.USE_ASTAR,
             astar_threshold=C.ASTAR_THRESHOLD,
@@ -1419,7 +1771,7 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
             return
 
         # Mark as obstacle (wall)
-        s.occupancy_map[wr][wc] = C.OCC_OBSTACLE
+        self._mark_cell(s, wr, wc, C.OCC_OBSTACLE)
 
     def _update_agent_position(self, s: AgentState) -> None:
         try:
@@ -1552,8 +1904,13 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
         return 0 <= r < self._map_h and 0 <= c < self._map_w
 
     def _mark_cell(self, s: AgentState, r: int, c: int, cell_type: int) -> None:
-        if self._is_valid_position(r, c):
+        if not self._is_valid_position(r, c):
+            return
+        if s.occupancy_map[r][c] == cell_type:
+            return
             s.occupancy_map[r][c] = cell_type
+        s.occupancy_revision += 1
+        s.frontier_cache_revision = -1
 
     def _neighbors4(self, r: int, c: int) -> List[Tuple[int, int]]:
         res: List[Tuple[int, int]] = []
@@ -1568,7 +1925,7 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
             return self._action_lookup.get("noop", 0)
         # Boustrophedon sweep with tiny memory
         cur = (s.agent_row, s.agent_col)
-        history = self._recent_positions.setdefault(s.agent_id, deque(maxlen=self._max_recent_positions))
+        history = self._recent_positions.setdefault(s.agent_id, deque(maxlen=self.hyperparams.max_recent_positions))
         if not history or history[-1] != cur:
             history.append(cur)
         history_list = list(history)
@@ -1579,11 +1936,15 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
         preferred = self._MOVE_E if row_parity == 0 else self._MOVE_W
         dr, dc = self._action_to_dir(preferred)
         nr, nc = s.agent_row + (dr or 0), s.agent_col + (dc or 0)
-        if preferred in self._MOVE_SET and self._is_valid_position(nr, nc) and self._is_cell_passable(s, nr, nc):
+        if (
+            preferred in self._MOVE_SET
+            and self._is_valid_position(nr, nc)
+            and self._is_cell_passable(s, nr, nc, optimistic=True)
+        ):
             return preferred
 
         down_r, down_c = s.agent_row + 1, s.agent_col
-        if self._is_valid_position(down_r, down_c) and self._is_cell_passable(s, down_r, down_c):
+        if self._is_valid_position(down_r, down_c) and self._is_cell_passable(s, down_r, down_c, optimistic=True):
             return self._MOVE_S if self._MOVE_S != -1 else self._action_lookup.get("noop", 0)
 
         # Choose any in-bounds, passable, not-recent direction
@@ -1593,18 +1954,47 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
             nr, nc = s.agent_row + dr, s.agent_col + dc
             if not self._is_valid_position(nr, nc):
                 continue
-            if not self._is_cell_passable(s, nr, nc):
+            if not self._is_cell_passable(s, nr, nc, optimistic=True):
                 continue
             pos = (nr, nc)
             if pos in history_list:
                 recency_score = history_len - history_list.index(pos)
             else:
                 recency_score = history_len + 1
-            visit_score = -visit_counts.get(pos, 0)
+            visit_score = -(visit_counts.get(pos, 0) if self._enable_visit_scoring else 0)
             score = (visit_score, recency_score)
             if score > best_score:
                 best_score, best = score, a
         return best if best is not None else (preferred if preferred != -1 else self._action_lookup.get("noop", 0))
+
+    def _prepare_probe_queue(self, s: AgentState) -> None:
+        if s.hub_probe_initialized:
+            return
+        offsets = list(self._hub_probe_offsets)
+        if self.hyperparams.probe_frontier_radius > 0:
+            offsets = [o for o in offsets if abs(o[0]) + abs(o[1]) <= self.hyperparams.probe_frontier_radius]
+        s.hub_probe_targets.extend(offsets[: self.hyperparams.probe_max_targets])
+        s.hub_probe_initialized = True
+
+    def _last_probe_visit(self, offset: Tuple[int, int]) -> int:
+        return self._probe_visit_times.get(offset, -(10**6))
+
+    # -------------------------- Metrics helpers ---------------------------
+    def reset_metrics(self) -> None:
+        self._nav_calls = 0
+        self._nav_cache_hits = 0
+        self._nav_astar_calls = 0
+        self._assembly_latencies.clear()
+        self._assembly_request_steps.clear()
+
+    def export_metrics(self) -> dict[str, object]:
+        return {
+            "navigation_calls": self._nav_calls,
+            "navigation_cache_hits": self._nav_cache_hits,
+            "navigation_astar_calls": self._nav_astar_calls,
+            "assembly_latencies": list(self._assembly_latencies),
+            "assembly_count": len(self._assembly_latencies),
+        }
 
 
 class ScriptedAgentPolicy(Policy):

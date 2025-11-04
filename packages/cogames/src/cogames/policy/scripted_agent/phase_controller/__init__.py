@@ -2,6 +2,7 @@
 
 from .controller import Context, GamePhase, Guard, Hook, PhaseController, Transition
 from .guards import (
+    assemble_slot_available,
     blocked_by_clipped,
     carrying_heart,
     decoder_ready_for_unclipping,
@@ -38,6 +39,7 @@ __all__ = [
     "create_controller",
     "create_transitions",
     # Guards
+    "assemble_slot_available",
     "blocked_by_clipped",
     "carrying_heart",
     "decoder_ready_for_unclipping",

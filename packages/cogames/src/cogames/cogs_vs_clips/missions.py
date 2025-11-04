@@ -8,13 +8,6 @@ from cogames.cogs_vs_clips.mission import Mission, MissionVariant
 from cogames.cogs_vs_clips.mission_utils import get_map
 from cogames.cogs_vs_clips.procedural import MachinaArenaConfig, make_hub_only_map_builder
 from cogames.cogs_vs_clips.sites import EVALS, Site
-from cogames.cogs_vs_clips.stations import (
-    CarbonExtractorConfig,
-    ChargerConfig,
-    CvCWallConfig,
-    GermaniumExtractorConfig,
-    OxygenExtractorConfig,
-)
 from mettagrid.config.mettagrid_config import (
     AssemblerConfig,
     ChestConfig,

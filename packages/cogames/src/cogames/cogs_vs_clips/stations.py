@@ -126,7 +126,7 @@ class GermaniumExtractorConfig(ExtractorConfig):
             map_char="G",
             render_symbol=vibes.VIBE_BY_NAME["germanium"].symbol,
             # Protocols
-            max_uses=1,
+            max_uses=self.max_uses,
             protocols=[
                 ProtocolConfig(output_resources={"germanium": self.efficiency}),
                 *[

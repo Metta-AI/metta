@@ -20,18 +20,19 @@ Usage:
 import argparse
 import json
 import logging
-from dataclasses import asdict, dataclass
-from typing import List, Optional
+from dataclasses import asdict, dataclass, replace
+from typing import Any, Dict, List, Optional
 
 import numpy as np
 
 from cogames.cogs_vs_clips.evals import (
+    CANONICAL_DIFFICULTY_ORDER,
     DIFFICULTY_LEVELS,
     apply_difficulty,
 )
 from cogames.cogs_vs_clips.evals.eval_missions import EVAL_MISSIONS
 from cogames.cogs_vs_clips.missions import make_game
-from cogames.policy.scripted_agent import HYPERPARAMETER_PRESETS, ScriptedAgentPolicy
+from cogames.policy.scripted_agent import HYPERPARAMETER_PRESETS, Hyperparameters, ScriptedAgentPolicy
 from mettagrid import MettaGridEnv, dtype_actions
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s:%(name)s:%(message)s")
@@ -60,6 +61,96 @@ class EvalResult:
     max_steps: int
     final_energy: int
     success: bool
+    metrics: Optional[Dict[str, Any]] = None
+
+
+# =============================================================================
+# Feature Toggle Helpers
+# =============================================================================
+
+
+FEATURE_BUNDLES: Dict[str, Dict[str, bool]] = {
+    "baseline": {},
+    "no_coordination": {
+        "enable_assembly_coordination": False,
+        "enable_target_reservation": False,
+    },
+    "no_reservation": {
+        "enable_target_reservation": False,
+    },
+    "lightweight_nav": {
+        "enable_navigation_cache": False,
+        "enable_target_reservation": False,
+        "enable_visit_scoring": False,
+    },
+    "minimal": {
+        "enable_assembly_coordination": False,
+        "enable_target_reservation": False,
+        "enable_resource_focus_limits": False,
+        "enable_navigation_cache": False,
+        "enable_probe_module": False,
+        "enable_visit_scoring": False,
+        "use_probes": False,
+    },
+}
+
+
+def clone_hyperparameters(preset_name: str) -> Hyperparameters:
+    base = HYPERPARAMETER_PRESETS[preset_name]
+    hp = replace(base)
+    if base.resource_focus_limits is not None:
+        hp.resource_focus_limits = dict(base.resource_focus_limits)
+    return hp
+
+
+def build_feature_overrides(bundle: Optional[str], explicit: Dict[str, bool]) -> Dict[str, bool]:
+    overrides: Dict[str, bool] = {}
+    if bundle:
+        bundle_overrides = FEATURE_BUNDLES.get(bundle)
+        if bundle_overrides is None:
+            raise ValueError(f"Unknown feature bundle: {bundle}")
+        overrides.update(bundle_overrides)
+    overrides.update(explicit)
+    return overrides
+
+
+def apply_feature_overrides(hp: Hyperparameters, overrides: Dict[str, bool]) -> Dict[str, bool]:
+    resolved: Dict[str, bool] = {}
+    for attr, value in overrides.items():
+        if hasattr(hp, attr):
+            setattr(hp, attr, value)
+            resolved[attr] = value
+    if not getattr(hp, "enable_probe_module", True):
+        hp.use_probes = False
+        resolved["enable_probe_module"] = False
+        resolved["use_probes"] = False
+    if not getattr(hp, "enable_resource_focus_limits", True):
+        hp.resource_focus_limits = None
+        resolved["enable_resource_focus_limits"] = False
+    return resolved
+
+
+def collect_feature_overrides(args: Any) -> Dict[str, bool]:
+    explicit: Dict[str, bool] = {}
+    if getattr(args, "disable_probes", False):
+        explicit["enable_probe_module"] = False
+        explicit["use_probes"] = False
+    if getattr(args, "disable_visit_scoring", False):
+        explicit["enable_visit_scoring"] = False
+    if getattr(args, "disable_target_reservation", False):
+        explicit["enable_target_reservation"] = False
+    if getattr(args, "disable_resource_focus", False):
+        explicit["enable_resource_focus_limits"] = False
+    if getattr(args, "disable_assembly_coordination", False):
+        explicit["enable_assembly_coordination"] = False
+    if getattr(args, "disable_nav_cache", False):
+        explicit["enable_navigation_cache"] = False
+
+    bundle = getattr(args, "feature_bundle", None)
+    if bundle == "baseline":
+        bundle = None
+
+    return build_feature_overrides(bundle, explicit)
 
 
 # =============================================================================
@@ -180,6 +271,7 @@ def run_full_evaluation_suite(
     clip_rates: Optional[List[float]] = None,
     cogs_list: Optional[List[int]] = None,
     max_steps: int = 1000,
+    feature_overrides: Optional[Dict[str, bool]] = None,
 ) -> List[EvalResult]:
     """
     Run comprehensive evaluation:
@@ -193,7 +285,7 @@ def run_full_evaluation_suite(
     if experiments is None:
         experiments = [name for name, _ in EXPERIMENTS]
     if difficulties is None:
-        difficulties = list(DIFFICULTY_LEVELS.keys())  # easy, medium, hard, extreme
+        difficulties = CANONICAL_DIFFICULTY_ORDER
     if hyperparams is None:
         hyperparams = list(HYPERPARAMETER_PRESETS.keys())
     if clip_modes is None:
@@ -203,13 +295,7 @@ def run_full_evaluation_suite(
     if cogs_list is None:
         cogs_list = [1, 2, 4, 8]
 
-    total_tests = (
-        len(experiments)
-        * len(difficulties)
-        * len(clip_rates)
-        * len(cogs_list)
-        * len(hyperparams)
-    )
+    total_tests = len(experiments) * len(difficulties) * len(clip_rates) * len(cogs_list) * len(hyperparams)
 
     print(f"\nExperiments: {len(experiments)}")
     print(f"Difficulties: {len(difficulties)}")
@@ -222,6 +308,8 @@ def run_full_evaluation_suite(
     results = []
     success_count = 0
     test_count = 0
+
+    overrides = feature_overrides or {}
 
     for exp_name in experiments:
         if exp_name not in EXPERIMENT_MAP:
@@ -264,11 +352,15 @@ def run_full_evaluation_suite(
 
                             # Run episode
                             env = MettaGridEnv(env_config)
-                            hyperparams_obj = HYPERPARAMETER_PRESETS[preset_name]
+                            hyperparams_obj = clone_hyperparameters(preset_name)
+                            resolved_flags = apply_feature_overrides(hyperparams_obj, overrides)
                             policy = ScriptedAgentPolicy(env, hyperparams=hyperparams_obj)
 
                             obs, info = env.reset()
                             policy.reset(obs, info)
+                            policy_impl = getattr(policy, "_impl", None)
+                            if policy_impl is not None:
+                                policy_impl.reset_metrics()
                             agents = [policy.agent_policy(i) for i in range(num_cogs)]
 
                             total_reward = 0.0
@@ -289,6 +381,13 @@ def run_full_evaluation_suite(
                             final_energy = int(getattr(agent_state, "energy", 0))
                             success = total_reward > 0
 
+                            metrics: Optional[Dict[str, Any]] = None
+                            if policy_impl is not None:
+                                metrics = policy_impl.export_metrics()
+                                if resolved_flags:
+                                    metrics = dict(metrics)
+                                    metrics.setdefault("feature_overrides", dict(resolved_flags))
+
                             env.close()
 
                             result = EvalResult(
@@ -305,6 +404,7 @@ def run_full_evaluation_suite(
                                 max_steps=max_steps,
                                 final_energy=int(final_energy),
                                 success=success,
+                                metrics=metrics,
                             )
                             results.append(result)
                             test_count += 1
@@ -314,6 +414,16 @@ def run_full_evaluation_suite(
                             print(f"  Reward: {total_reward:.1f}")
                             print(f"  Steps: {steps_taken}/{max_steps}")
                             print(f"  {'✅ SUCCESS' if success else '❌ FAILED'}")
+                            if metrics:
+                                print(
+                                    "  Metrics: nav_calls={nav} cache_hits={cache} "
+                                    "astar={astar} assembly_latencies={latencies}".format(
+                                        nav=metrics.get("navigation_calls"),
+                                        cache=metrics.get("navigation_cache_hits"),
+                                        astar=metrics.get("navigation_astar_calls"),
+                                        latencies=metrics.get("assembly_latencies"),
+                                    )
+                                )
 
                         except Exception as e:
                             logger.error(f"Error in {test_name}: {e}")
@@ -324,6 +434,204 @@ def run_full_evaluation_suite(
     print(f"{'=' * 80}")
 
     return results
+
+
+# =============================================================================
+# Trace utilities
+# =============================================================================
+
+
+def _make_serializable(value: Any) -> Any:
+    if isinstance(value, np.ndarray):
+        return value.tolist()
+    if isinstance(value, (np.generic,)):
+        return value.item()
+    if isinstance(value, dict):
+        return {k: _make_serializable(v) for k, v in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_make_serializable(v) for v in value]
+    if isinstance(value, (bool, int, float, str)) or value is None:
+        return value
+    return str(value)
+
+
+def _summarize_extractors(policy_impl: Any, step_count: int) -> Dict[str, Dict[str, int]]:
+    summary: Dict[str, Dict[str, int]] = {}
+    resources = ["germanium", "silicon", "carbon", "oxygen", "charger"]
+    for resource in resources:
+        extractors = policy_impl.extractor_memory.get_by_type(resource)
+        known = len(extractors)
+        if known == 0:
+            summary[resource] = {"known": 0, "available": 0, "clipped": 0, "depleted": 0}
+            continue
+
+        available = 0
+        clipped = 0
+        depleted = 0
+        for ex in extractors:
+            if ex.is_clipped:
+                clipped += 1
+            if ex.permanently_depleted or ex.is_depleted():
+                depleted += 1
+            if not ex.is_clipped and not ex.is_depleted() and policy_impl.cooldown_remaining(ex, step_count) <= 0:
+                available += 1
+        summary[resource] = {
+            "known": known,
+            "available": available,
+            "clipped": clipped,
+            "depleted": depleted,
+        }
+    return summary
+
+
+def run_trace_episode(
+    experiment: str,
+    difficulty_name: str,
+    preset_name: str,
+    num_cogs: int,
+    max_steps: int,
+    seed: int = 42,
+    feature_overrides: Optional[Dict[str, bool]] = None,
+) -> Dict[str, Any]:
+    if experiment not in EXPERIMENT_MAP:
+        raise ValueError(f"Unknown experiment: {experiment}")
+    if difficulty_name not in DIFFICULTY_LEVELS:
+        raise ValueError(f"Unknown difficulty: {difficulty_name}")
+    if preset_name not in HYPERPARAMETER_PRESETS:
+        raise ValueError(f"Unknown preset: {preset_name}")
+
+    mission_class = EXPERIMENT_MAP[experiment]
+    mission = mission_class()
+    difficulty = DIFFICULTY_LEVELS[difficulty_name]
+    apply_difficulty(mission, difficulty)
+
+    map_builder = mission.site.map_builder if mission.site else None
+    mission = mission.instantiate(map_builder, num_cogs=num_cogs)
+    env_config = mission.make_env()
+    env_config.game.max_steps = max_steps
+
+    env = MettaGridEnv(env_config)
+    hyperparams_obj = clone_hyperparameters(preset_name)
+    resolved_flags = apply_feature_overrides(hyperparams_obj, feature_overrides or {})
+    policy = ScriptedAgentPolicy(env, hyperparams=hyperparams_obj)
+
+    obs, info = env.reset(seed=seed)
+    policy.reset(obs, info)
+    policy_impl = policy._impl  # type: ignore[attr-defined]
+    if policy_impl is not None:
+        policy_impl.reset_metrics()
+    agents = [policy.agent_policy(i) for i in range(num_cogs)]
+
+    trace: Dict[str, Any] = {
+        "experiment": experiment,
+        "difficulty": difficulty_name,
+        "preset": preset_name,
+        "num_cogs": num_cogs,
+        "max_steps": max_steps,
+        "seed": seed,
+        "steps": [],
+    }
+
+    cumulative_reward = 0.0
+
+    for step in range(max_steps):
+        actions = np.zeros(num_cogs, dtype=dtype_actions)
+        step_record: Dict[str, Any] = {
+            "step": step,
+            "agents": [],
+        }
+
+        # Capture per-agent decision context before env.step()
+        for agent_id in range(num_cogs):
+            current_obs = obs[agent_id]
+            obs_summary = {
+                "shape": list(current_obs.shape),
+                "nonzero": int(np.count_nonzero(current_obs)),
+                "max": int(current_obs.max()) if current_obs.size else 0,
+                "min": int(current_obs.min()) if current_obs.size else 0,
+            }
+
+            action = int(agents[agent_id].step(current_obs))
+            actions[agent_id] = action
+
+            agent_state = getattr(agents[agent_id], "_state", None)
+            if agent_state is None:
+                step_record["agents"].append(
+                    {
+                        "agent_id": agent_id,
+                        "action_index": action,
+                        "action_name": env.action_names[action] if action < len(env.action_names) else str(action),
+                        "observation_summary": obs_summary,
+                    }
+                )
+                continue
+
+            inventory = {
+                "carbon": int(agent_state.carbon),
+                "oxygen": int(agent_state.oxygen),
+                "germanium": int(agent_state.germanium),
+                "silicon": int(agent_state.silicon),
+                "energy": int(agent_state.energy),
+                "heart": int(agent_state.heart),
+            }
+
+            deficits = {k: int(v) for k, v in policy_impl._resource_deficits(agent_state).items()}
+
+            agent_entry = {
+                "agent_id": agent_id,
+                "step_count": int(agent_state.step_count),
+                "phase": agent_state.current_phase.name if agent_state.current_phase else None,
+                "position": [int(agent_state.agent_row), int(agent_state.agent_col)],
+                "action_index": action,
+                "action_name": env.action_names[action] if action < len(env.action_names) else str(action),
+                "inventory": inventory,
+                "deficits": deficits,
+                "active_target": agent_state.active_resource_target,
+                "explore_goal": agent_state.explore_goal,
+                "wait_target": list(agent_state.wait_target) if agent_state.wait_target else None,
+                "waiting_since_step": int(agent_state.waiting_since_step),
+                "recharge_total_gained": int(agent_state.recharge_total_gained),
+                "recharge_ticks_without_gain": int(agent_state.recharge_ticks_without_gain),
+                "known_extractors": {
+                    res: len(policy_impl.extractor_memory.get_by_type(res))
+                    for res in ["germanium", "silicon", "carbon", "oxygen", "charger"]
+                },
+                "observation_summary": obs_summary,
+            }
+            step_record["agents"].append(agent_entry)
+
+        obs, rewards, dones, truncated, info = env.step(actions)
+        cumulative_reward += float(rewards.sum())
+
+        step_record["reward_sum"] = float(rewards.sum())
+        step_record["rewards"] = rewards.astype(float).tolist()
+        step_record["dones"] = [bool(x) for x in dones]
+        step_record["truncated"] = [bool(x) for x in truncated]
+        step_counts = [agent_entry.get("step_count", 0) for agent_entry in step_record["agents"]]
+        step_record["extractors"] = _summarize_extractors(policy_impl, max(step_counts) if step_counts else 0)
+        step_record["env_info"] = _make_serializable(info)
+
+        trace["steps"].append(step_record)
+
+        if all(dones) or all(truncated):
+            break
+
+    metrics: Optional[Dict[str, Any]] = None
+    if policy_impl is not None:
+        metrics = policy_impl.export_metrics()
+        if resolved_flags:
+            metrics = dict(metrics)
+            metrics.setdefault("feature_overrides", dict(resolved_flags))
+
+    env.close()
+
+    agent_state = getattr(agents[0], "_state", None)
+    trace["final_energy"] = int(getattr(agent_state, "energy", 0)) if agent_state else 0
+    trace["hearts_assembled"] = int(getattr(agent_state, "hearts_assembled", 0)) if agent_state else 0
+    trace["total_reward"] = cumulative_reward
+    trace["metrics"] = metrics
+
+    return trace
 
 
 # =============================================================================
@@ -410,6 +718,85 @@ def main():
     full_parser.add_argument("--clip-rates", nargs="*", type=float, default=None, help="Clip rates (default: 0.0 0.25)")
     full_parser.add_argument("--cogs", nargs="*", type=int, default=None, help="Agent counts (default: 1 2 4 8)")
     full_parser.add_argument("--steps", type=int, default=1000, help="Max steps per episode")
+    full_parser.add_argument(
+        "--feature-bundle",
+        choices=list(FEATURE_BUNDLES.keys()),
+        default="baseline",
+        help="Preset feature toggle bundle (default: baseline)",
+    )
+    full_parser.add_argument("--disable-probes", action="store_true", help="Disable probe exploration module")
+    full_parser.add_argument(
+        "--disable-visit-scoring",
+        action="store_true",
+        help="Disable visit-count based frontier scoring",
+    )
+    full_parser.add_argument(
+        "--disable-target-reservation",
+        action="store_true",
+        help="Disable shared target reservation/assignment",
+    )
+    full_parser.add_argument(
+        "--disable-resource-focus",
+        action="store_true",
+        help="Disable resource focus limits (all agents can pursue any resource)",
+    )
+    full_parser.add_argument(
+        "--disable-assembly-coordination",
+        action="store_true",
+        help="Disable assembly coordination and slot management",
+    )
+    full_parser.add_argument(
+        "--disable-nav-cache",
+        action="store_true",
+        help="Disable navigation path caching and reuse",
+    )
+
+    # Trace single episode
+    trace_parser = subparsers.add_parser("trace", help="Record detailed trajectory for a single configuration")
+    trace_parser.add_argument(
+        "--experiment", required=True, choices=list(EXPERIMENT_MAP.keys()), help="Experiment/mission name"
+    )
+    trace_parser.add_argument(
+        "--difficulty", required=True, choices=list(DIFFICULTY_LEVELS.keys()), help="Difficulty variant"
+    )
+    trace_parser.add_argument(
+        "--preset", required=True, choices=list(HYPERPARAMETER_PRESETS.keys()), help="Hyperparameter preset"
+    )
+    trace_parser.add_argument("--cogs", type=int, default=2, help="Number of agents (default: 2)")
+    trace_parser.add_argument("--steps", type=int, default=600, help="Max steps for the trace (default: 600)")
+    trace_parser.add_argument("--seed", type=int, default=42, help="Random seed (default: 42)")
+    trace_parser.add_argument(
+        "--feature-bundle",
+        choices=list(FEATURE_BUNDLES.keys()),
+        default="baseline",
+        help="Preset feature toggle bundle (default: baseline)",
+    )
+    trace_parser.add_argument("--disable-probes", action="store_true", help="Disable probe exploration module")
+    trace_parser.add_argument(
+        "--disable-visit-scoring",
+        action="store_true",
+        help="Disable visit-count based frontier scoring",
+    )
+    trace_parser.add_argument(
+        "--disable-target-reservation",
+        action="store_true",
+        help="Disable shared target reservation/assignment",
+    )
+    trace_parser.add_argument(
+        "--disable-resource-focus",
+        action="store_true",
+        help="Disable resource focus limits",
+    )
+    trace_parser.add_argument(
+        "--disable-assembly-coordination",
+        action="store_true",
+        help="Disable assembly coordination",
+    )
+    trace_parser.add_argument(
+        "--disable-nav-cache",
+        action="store_true",
+        help="Disable navigation path caching",
+    )
 
     # All suites
     subparsers.add_parser("all", help="Run all evaluation suites")
@@ -418,6 +805,24 @@ def main():
 
     if args.suite is None:
         parser.print_help()
+        return
+
+    if args.suite == "trace":
+        if not args.output:
+            parser.error("Trace mode requires --output to specify the trace file path")
+        feature_overrides = collect_feature_overrides(args)
+        trace_data = run_trace_episode(
+            experiment=args.experiment,
+            difficulty_name=args.difficulty,
+            preset_name=args.preset,
+            num_cogs=args.cogs,
+            max_steps=args.steps,
+            seed=args.seed,
+            feature_overrides=feature_overrides,
+        )
+        with open(args.output, "w") as f:
+            json.dump(_make_serializable(trace_data), f, indent=2)
+        print(f"Trace saved to: {args.output}")
         return
 
     all_results = []
@@ -436,6 +841,7 @@ def main():
 
     if args.suite in ["full", "all"]:
         full_args = {} if args.suite == "all" else vars(args)
+        feature_overrides = collect_feature_overrides(args)
         full_results = run_full_evaluation_suite(
             experiments=full_args.get("experiments"),
             difficulties=full_args.get("difficulties"),
@@ -444,6 +850,7 @@ def main():
             clip_rates=full_args.get("clip_rates"),
             cogs_list=full_args.get("cogs"),
             max_steps=full_args.get("steps", 1000),
+            feature_overrides=feature_overrides,
         )
         all_results.extend(full_results)
         print_summary(full_results, "Full Evaluation")

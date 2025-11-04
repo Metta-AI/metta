@@ -78,6 +78,15 @@ class AgentState:
     current_probe_target: Optional[Tuple[int, int]] = None
     hub_probe_initialized: bool = False
 
+    # Occupancy tracking & cached exploration helpers
+    occupancy_revision: int = 0
+    frontier_cache: List[Tuple[int, int]] = field(default_factory=list)
+    frontier_cache_revision: int = -1
+
+    # Navigation caching
+    nav_target: Optional[Tuple[int, int]] = None
+    nav_path: Deque[Tuple[int, int]] = field(default_factory=deque)
+
     recharge_last_energy: int = -1
     recharge_ticks_without_gain: int = 0
     recharge_total_gained: int = 0

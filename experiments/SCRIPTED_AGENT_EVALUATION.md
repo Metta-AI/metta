@@ -27,16 +27,19 @@ Agent counts were restricted to {2, 4, 8}. The sweep covered every evaluation mi
 | 4    | 329 / 980       | 33.6 %    | 1.31       |
 | 8    | 184 / 770       | 23.9 %    | 0.57       |
 
-| Difficulty    | Success / Total | Success % | Avg Reward |
-|---------------|-----------------|-----------|------------|
-| easy          | 135 / 390       | 34.6 %    | 1.41       |
-| medium        | 135 / 390       | 34.6 %    | 1.41       |
-| hard          | 135 / 390       | 34.6 %    | 1.41       |
-| extreme       | 135 / 390       | 34.6 %    | 1.41       |
-| energy_crisis | 135 / 390       | 34.6 %    | 1.41       |
-| speed_run     | 135 / 390       | 34.6 %    | 1.41       |
-| single_use    | 14 / 390        | 3.6 %     | 0.11       |
+| Difficulty Tier (legacy name) | Success / Total | Success % | Avg Reward |
+|-------------------------------|-----------------|-----------|------------|
+| story_mode (easy)             | 135 / 390       | 34.6 %    | 1.41       |
+| standard (medium)             | 135 / 390       | 34.6 %    | 1.41       |
+| hard                          | 135 / 390       | 34.6 %    | 1.41       |
+| brutal (extreme)              | 135 / 390       | 34.6 %    | 1.41       |
+| energy_crisis                 | 135 / 390       | 34.6 %    | 1.41       |
+| speed_run                     | 135 / 390       | 34.6 %    | 1.41       |
+| single_use                    | 14 / 390        | 3.6 %     | 0.11       |
 
+*These per-tier results reflect the pre-overhaul run with legacy difficulty settings; updated numbers will be generated after the new tiers are re-evaluated.*
+
+**New canonical tiers:** `story_mode` (former easy), `standard` (former medium), `hard`, and `brutal` (former extreme), plus specialised tiers `single_use`, `speed_run`, and `energy_crisis`.
 
 | Hyperparameter Preset | Success / Total | Success % |
 |-----------------------|-----------------|-----------|
@@ -128,7 +131,7 @@ These timings align with a roughly linear cost increase per additional agent pai
 ## Observations & Next Steps
 
 1. **Oxygen scarcity dominates failures**: many missions log “No available oxygen extractors,” indicating extractor detection and rotation still need targeted fixes (especially in clip scenarios).
-2. **Difficulty variants need retuning**: despite multiplier differences, the current difficulty presets converge to near-identical behaviour after floors and agent-based scaling. Revise the variant definitions (or the scaling logic) so “hard/extreme” actually feel distinct.
+2. **Difficulty tiers overhauled**: the legacy “easy/medium/hard/extreme” presets converged to identical behaviour, so we replaced them with `story_mode`, `standard`, `hard`, and `brutal` (plus specialised tiers). Re-run the full sweep to validate the new overrides once agent scaling fixes land.
 3. **Clipped & single-use missions require bespoke strategy**: zero successes on every `clip_rate = 0.25` scenario and on `SingleUseSwarm` underscore the need for deterministic unclipping and single-use routing policies.
 4. **8-agent coordination**: charger congestion and shared pathfinding slowdowns continue to suppress success rates and runtime efficiency; charger load balancing and decentralized exploration should be prioritized.
 5. **Runtime headroom**: 8-agent runs are ~4× slower than 2-agent runs; any future evaluation automation should parallelize across agent counts to keep turnaround reasonable.
