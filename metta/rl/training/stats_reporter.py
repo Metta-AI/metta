@@ -424,8 +424,6 @@ class StatsReporter(TrainerComponent):
         elif self._state.last_environment_stats:
             environment_stats.update(self._state.last_environment_stats)
 
-        environment_stats.setdefault("env_agent/heart.gained", 0.0)
-
         timing_info = compute_timing_stats(timer=timer, agent_step=agent_step)
         self._normalize_steps_per_second(timing_info, agent_step)
 
