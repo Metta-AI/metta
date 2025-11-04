@@ -5,13 +5,13 @@ RUN apt-get update && apt-get install -y \
     git \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy datadog collector code with its pyproject.toml
-# Note: devops/datadog code will be added in a future PR with its own pyproject.toml
-WORKDIR /app/devops/datadog
-COPY devops/datadog /app/devops/datadog
+# Copy everything (copying is cheap, reduces maintenance burden)
+WORKDIR /app
+COPY . .
 
-# Install dependencies from pyproject.toml to system Python
-RUN pip install -e .
+# Install dependencies inline (no pyproject.toml yet - devops/datadog is just scripts)
+# When devops/datadog becomes a proper package, we can switch to pip install -e
+RUN pip install boto3 kubernetes pandas pyarrow
 
 ENV PYTHONPATH="/app"
 
