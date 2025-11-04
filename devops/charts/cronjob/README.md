@@ -37,10 +37,7 @@ For testing new collectors or configurations, deploy a `-dev` copy alongside pro
        - schedule: "*/5 * * * *"  # More frequent for testing
        - image:
            name: dashboard-collector
-           tag: "your-feature-branch"  # Command comes from Dockerfile CMD
-       - serviceAccount:
-           annotations:
-             eks.amazonaws.com/role-arn: arn:aws:iam::751442549699:role/dashboard-cronjob
+           tag: "your-feature-branch"
        - datadog:
            service: dashboard-collector-dev
            env: dev
@@ -65,28 +62,38 @@ To add another collector (e.g., AWS infrastructure metrics):
    - Create `devops/datadog/collectors/aws/collector.py` extending `BaseCollector`
    - Implement `collect_metrics()` method
 
-2. **Add to `helmfile.yaml`** (reuse the SAME chart):
+2. **Create Dockerfile** defining the command to run:
+   ```dockerfile
+   FROM python:3.11-slim
+   # ... dependencies setup ...
+   CMD ["python", "devops/datadog/run_collector.py", "aws", "--push"]
+   ```
+
+3. **Add to `helmfile.yaml`** (reuse the SAME chart):
    ```yaml
    - name: aws-collector
-     chart: ./dashboard-cronjob  # Same chart, different collector
+     chart: ./cronjob  # Same chart, different collector
      version: 0.1.0
      namespace: monitoring
      values:
        - schedule: "*/15 * * * *"  # Every 15 minutes
-         command: ["uv", "run", "python", "devops/datadog/run_collector.py", "aws", "--push"]
-         datadog:
+       - image:
+           name: "aws-collector"
+       - datadog:
            service: "aws-collector"
    ```
 
-That's it! One chart, multiple collectors with different schedules and commands.
+That's it! One chart, multiple collectors with different schedules. Commands come from Dockerfiles.
 
 ## Configuration
 
 Edit `values.yaml`:
 - `schedule`: Cron schedule (default: every 15 minutes)
-- `command`: Command to run in the container
+- `image.name`: Docker image name to run
 - `resources`: CPU/memory limits
 - `datadog.env`: Environment tag for metrics
+
+Note: Commands are defined in Dockerfile CMD, not in Helm values. All cronjobs share the same IAM role and RBAC permissions for simplicity.
 
 ## Troubleshooting
 
