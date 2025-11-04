@@ -13,7 +13,7 @@ Cell = tuple[int, int]
 
 
 class MakeConnectedConfig(SceneConfig):
-    pass
+    min_component_size: int = 3
 
 
 class MakeConnected(Scene[MakeConnectedConfig]):
@@ -35,6 +35,16 @@ class MakeConnected(Scene[MakeConnectedConfig]):
         height, width = self.grid.shape
 
         component_cells = self._make_components()
+        min_component_size = max(1, int(self.config.min_component_size))
+        if min_component_size > 1:
+            removed_any = False
+            for component in component_cells:
+                if len(component) < min_component_size:
+                    removed_any = True
+                    for y, x in component:
+                        self.grid[y, x] = "wall"
+            if removed_any:
+                component_cells = self._make_components()
         component_sizes = [len(cells) for cells in component_cells]
 
         if len(component_sizes) == 1:

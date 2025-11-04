@@ -279,8 +279,17 @@ class UniformExtractorScene(Scene[UniformExtractorParams]):
             if max_possible == 0:
                 return
 
-            desired = int(params.target_coverage * interior_width * interior_height)
-            placement_goal = min(max_possible, max(1, desired))
+            if params.target_coverage <= 0:
+                return
+
+            footprint_side = (2 * padding) + 1
+            footprint_area = max(1, footprint_side * footprint_side)
+            desired_area = float(params.target_coverage) * interior_width * interior_height
+            desired_centers = desired_area / footprint_area
+            if desired_centers <= 0:
+                return
+
+            placement_goal = min(max_possible, max(1, int(np.ceil(desired_centers))))
 
             placed_centers_tc: list[tuple[int, int]] = []
 
