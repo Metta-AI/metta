@@ -2,10 +2,10 @@ import contextlib
 import os
 import platform
 from datetime import timedelta
-from typing import Any, Optional
+from typing import Any, Callable, Optional
 
 import torch
-from pydantic import Field, model_validator
+from pydantic import Field, PrivateAttr, model_validator
 
 from metta.agent.policies.vit import ViTDefaultConfig
 from metta.agent.policy import Policy, PolicyArchitecture
@@ -77,6 +77,8 @@ class TrainTool(Tool):
     map_preview_uri: str | None = None
     disable_macbook_optimize: bool = False
 
+    _training_hooks: list[Callable[[Policy, Trainer], None]] = PrivateAttr(default_factory=list)
+
     @model_validator(mode="after")
     def validate_fields(self) -> "TrainTool":
         if self.evaluator.epoch_interval != 0:
@@ -129,6 +131,7 @@ class TrainTool(Tool):
 
         policy_checkpointer, policy = self._load_or_create_policy(checkpoint_manager, distributed_helper, env)
         trainer = self._initialize_trainer(env, policy, distributed_helper)
+        self._run_training_hooks(policy=policy, trainer=trainer)
 
         self._log_run_configuration(distributed_helper, checkpoint_manager, env)
 
@@ -207,6 +210,16 @@ class TrainTool(Tool):
             self.gradient_reporter.epoch_interval = self.stats_reporter.grad_mean_variance_interval
 
         return trainer
+
+    def add_training_hook(self, hook: Callable[[Policy, Trainer], None]) -> None:
+        """Register a hook that receives (policy, trainer) after initialization."""
+        self._training_hooks.append(hook)
+
+    def _run_training_hooks(self, *, policy: Policy, trainer: Trainer) -> None:
+        if not self._training_hooks:
+            return
+        for hook in self._training_hooks:
+            hook(policy, trainer)
 
     def _register_components(
         self,

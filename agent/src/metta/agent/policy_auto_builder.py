@@ -1,13 +1,15 @@
 import logging
 from collections import OrderedDict
 from contextlib import ExitStack
-from dataclasses import dataclass
-from typing import Any, Optional
+from dataclasses import dataclass, field
+from typing import Any, Callable, Optional
 
 import torch
-from tensordict import TensorDict, TensorDictBase
+import torch.nn as nn
+from tensordict import TensorDict
 from tensordict.nn import TensorDictSequential
 from torch.nn.parameter import UninitializedParameter
+from torch.utils.hooks import RemovableHandle
 from torchrl.data import Composite, UnboundedDiscrete
 
 from metta.agent.policy import Policy
@@ -22,68 +24,42 @@ def log_on_master(*args, **argv):
         logger.info(*args, **argv)
 
 
+@dataclass(frozen=True)
+class _ComponentHookRule:
+    hook_factory: Callable[["PolicyAutoBuilder", str, nn.Module], RemovableHandle]
+    component_name: str
+
+
 @dataclass
-class _ActivationTracker:
-    """Track ReLU activation rates per feature."""
-
-    total: torch.Tensor
-    active: torch.Tensor
-
-    @classmethod
-    def new(cls, features: int) -> "_ActivationTracker":
-        zeros = torch.zeros(features, dtype=torch.float64)
-        return cls(total=zeros.clone(), active=zeros.clone())
-
-    def update(self, output: torch.Tensor) -> None:
-        tensor = output.detach()
-        if tensor.ndim == 0:
-            return
-        if tensor.ndim == 1:
-            flat = tensor.unsqueeze(0)
-        else:
-            last_dim = tensor.shape[-1]
-            flat = tensor.reshape(-1, last_dim)
-
-        active_counts = (flat > 0).sum(dim=0, dtype=torch.float64)
-        active_counts = active_counts.to(self.active.device)
-        batch = float(flat.shape[0])
-
-        if self.total.numel() != active_counts.numel():
-            raise ValueError("Activation tracker feature size mismatch.")
-
-        self.total += batch
-        self.active += active_counts
-
-    def fractions(self) -> torch.Tensor:
-        mask = self.total > 0
-        fraction = torch.zeros_like(self.active)
-        fraction[mask] = self.active[mask] / self.total[mask]
-        return fraction
-
-    def reset(self) -> None:
-        self.total.zero_()
-        self.active.zero_()
+class _HookRegistry:
+    forward_rules: dict[str, list[_ComponentHookRule]] = field(default_factory=dict)
+    forward_handles: dict[str, list[RemovableHandle]] = field(default_factory=dict)
+    pre_rules: dict[str, list[_ComponentHookRule]] = field(default_factory=dict)
+    pre_handles: dict[str, list[RemovableHandle]] = field(default_factory=dict)
 
 
 class PolicyAutoBuilder(Policy):
     """Generic policy builder for use with configs."""
 
-    def __init__(self, game_rules: GameRules, config: Config | None = None):
+    def __init__(
+        self,
+        game_rules: GameRules,
+        config: Config | None = None,
+    ):
         super().__init__()
         self.config = config
 
-        self.components = OrderedDict()
+        self._hooks = _HookRegistry()
+
+        self.components: OrderedDict[str, nn.Module] = OrderedDict()
         for component_config in self.config.components:
             name = component_config.name
-            self.components[name] = component_config.make_component(game_rules)
+            component = component_config.make_component(game_rules)
+            self.components[name] = component
 
         self.action_probs = self.config.action_probs_config.make_component()
         self.network = TensorDictSequential(self.components, inplace=True)
         self._sdpa_context = ExitStack()
-
-        self._activation_trackers: dict[str, _ActivationTracker] = {}
-        self._activation_hooks: list[Any] = []
-        self._register_activation_tracking()
 
         self._total_params = sum(
             param.numel()
@@ -212,57 +188,29 @@ class PolicyAutoBuilder(Policy):
     def device(self) -> torch.device:
         return next(self.parameters()).device
 
-    # Activation tracking -------------------------------------------------
+    # Hook registration ---------------------------------------------------
 
-    def _register_activation_tracking(self) -> None:
-        for handle in self._activation_hooks:
-            handle.remove()
-        self._activation_hooks.clear()
-        self._activation_trackers.clear()
+    def register_component_hook_rule(
+        self,
+        *,
+        component_name: str,
+        hook_factory: Callable[["PolicyAutoBuilder", str, nn.Module], RemovableHandle],
+        hook_type: str = "forward",
+    ) -> None:
+        component = self.components.get(component_name)
+        if component is None:
+            raise KeyError(f"Component '{component_name}' not found in policy.")
 
-        for name, module in self.network.named_modules():
-            if isinstance(module, torch.nn.ReLU):
-                hook = module.register_forward_hook(self._make_activation_hook(name))
-                self._activation_hooks.append(hook)
+        rule = _ComponentHookRule(component_name=component_name, hook_factory=hook_factory)
 
-    def _make_activation_hook(self, name: str):
-        def hook(module: torch.nn.Module, inputs: tuple[Any, ...], output: Any) -> None:
-            tensor = self._extract_tensor(output)
-            if tensor is None or tensor.numel() == 0:
-                return
+        def _attach(rules: dict[str, list[_ComponentHookRule]], handles: dict[str, list[RemovableHandle]]) -> None:
+            rules.setdefault(component_name, []).append(rule)
+            handle = rule.hook_factory(self, component_name, component)
+            handles.setdefault(component_name, []).append(handle)
 
-            tracker = self._activation_trackers.get(name)
-            features = tensor.shape[-1] if tensor.ndim >= 1 else 1
-            if tracker is None:
-                tracker = _ActivationTracker.new(features)
-                self._activation_trackers[name] = tracker
-
-            tracker.update(tensor)
-
-        return hook
-
-    @staticmethod
-    def _extract_tensor(output: Any) -> Optional[torch.Tensor]:
-        if isinstance(output, torch.Tensor):
-            return output
-        if isinstance(output, (list, tuple)):
-            for item in output:
-                tensor = PolicyAutoBuilder._extract_tensor(item)
-                if tensor is not None:
-                    return tensor
-        if isinstance(output, TensorDictBase):
-            for value in output.values():
-                tensor = PolicyAutoBuilder._extract_tensor(value)
-                if tensor is not None:
-                    return tensor
-        return None
-
-    def get_activation_rate_metrics(self, *, reset: bool = False) -> dict[str, float]:
-        metrics: dict[str, float] = {}
-        for name, tracker in self._activation_trackers.items():
-            fractions = tracker.fractions()
-            for idx, value in enumerate(fractions.tolist()):
-                metrics[f"activations/relu/{name}/{idx}"] = float(value)
-            if reset:
-                tracker.reset()
-        return metrics
+        if hook_type == "forward":
+            _attach(self._hooks.forward_rules, self._hooks.forward_handles)
+        elif hook_type == "forward_pre":
+            _attach(self._hooks.pre_rules, self._hooks.pre_handles)
+        else:
+            raise ValueError(f"Unsupported hook_type '{hook_type}'. Expected 'forward' or 'forward_pre'.")
