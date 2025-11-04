@@ -54,6 +54,6 @@ def test_neutral_faced_variant_neutralizes_recipes():
     for obj in env.game.objects.values():
         if not isinstance(obj, AssemblerConfig):
             continue
-        for protocol in obj.protocols:
-            if protocol.vibes:
-                assert set(protocol.vibes) == {"default"}
+        assert len(obj.protocols) == 1
+        protocol = obj.protocols[0]
+        assert protocol.vibes == ["default"]

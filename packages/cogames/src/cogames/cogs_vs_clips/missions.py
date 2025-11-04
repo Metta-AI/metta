@@ -59,14 +59,12 @@ class LonelyHeartVariant(MissionVariant):
             if not isinstance(assembler, AssemblerConfig):
                 raise TypeError("Expected 'assembler' to be AssemblerConfig")
 
-            updated_protocols: list[ProtocolConfig] = []
-            for proto in assembler.protocols:
-                new_proto = proto.model_copy(deep=True)
-                if new_proto.output_resources.get("heart", 0) > 0:
-                    new_proto.input_resources = dict(simplified_inputs)
-                updated_protocols.append(new_proto)
-            if updated_protocols:
-                assembler.protocols = updated_protocols
+            for idx, proto in enumerate(assembler.protocols):
+                if proto.output_resources.get("heart", 0) == 0:
+                    continue
+                updated = proto.model_copy(deep=True)
+                updated.input_resources = dict(simplified_inputs)
+                assembler.protocols[idx] = updated
 
             germanium = cfg.game.objects["germanium_extractor"]
             if not isinstance(germanium, AssemblerConfig):
@@ -146,25 +144,15 @@ class NeutralFacedVariant(MissionVariant):
             change_vibe.enabled = False
             change_vibe.number_of_vibes = 1
 
-            neutral_vibe = "default"
+            neutral_vibe = ["default"]
             for obj in cfg.game.objects.values():
                 if not isinstance(obj, AssemblerConfig):
                     continue
-                used_counts: set[int] = set()
-                rewritten_protocols: list[ProtocolConfig] = []
-                for proto in obj.protocols:
-                    new_proto = proto.model_copy(deep=True)
-                    if new_proto.vibes:
-                        desired_count = len(new_proto.vibes)
-                    else:
-                        desired_count = 1
-                    while desired_count in used_counts:
-                        desired_count += 1
-                    used_counts.add(desired_count)
-                    new_proto.vibes = [neutral_vibe] * desired_count
-                    rewritten_protocols.append(new_proto)
-                if rewritten_protocols:
-                    obj.protocols = rewritten_protocols
+                if not obj.protocols:
+                    continue
+                primary_protocol = obj.protocols[0].model_copy(deep=True)
+                primary_protocol.vibes = list(neutral_vibe)
+                obj.protocols = [primary_protocol]
 
         mission.add_env_modifier(modifier)
         return mission
