@@ -244,9 +244,15 @@ class AgentState:
     phase_entry_step: int = 0  # When we entered current phase
     phase_entry_inventory: Dict[str, int] = field(default_factory=dict)  # Inventory when we entered phase
     unobtainable_resources: Set[str] = field(default_factory=set)  # Resources we've given up on (too hard to get)
-    resource_gathering_start: Dict[str, int] = field(default_factory=dict)  # When we first started trying to gather each resource
-    resource_progress_tracking: Dict[str, int] = field(default_factory=dict)  # Initial amount of each resource when we started
-    phase_visit_count: Dict[str, int] = field(default_factory=dict)  # Count how many times we've entered each gathering phase
+    resource_gathering_start: Dict[str, int] = field(
+        default_factory=dict
+    )  # When we first started trying to gather each resource
+    resource_progress_tracking: Dict[str, int] = field(
+        default_factory=dict
+    )  # Initial amount of each resource when we started
+    phase_visit_count: Dict[str, int] = field(
+        default_factory=dict
+    )  # Count how many times we've entered each gathering phase
 
     # Misc
     step_count: int = 0
@@ -1583,8 +1589,8 @@ class ScriptedAgentPolicyImpl(StatefulPolicyImpl[AgentState]):
         # Try to access assembler config from environment
         try:
             # Access the config through the env_cfg attribute
-            env_cfg = getattr(self._env, 'env_cfg', None)
-            if env_cfg and hasattr(env_cfg, 'game') and hasattr(env_cfg.game, 'objects'):
+            env_cfg = getattr(self._env, "env_cfg", None)
+            if env_cfg and hasattr(env_cfg, "game") and hasattr(env_cfg.game, "objects"):
                 assembler_config = env_cfg.game.objects.get("assembler")
                 if assembler_config and hasattr(assembler_config, "recipes"):
                     for glyph_seq, protocol in assembler_config.recipes:
