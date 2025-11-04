@@ -16,21 +16,13 @@ from pydantic import (
 from mettagrid.config import Config
 from mettagrid.config.obs_config import ObsConfig
 from mettagrid.config.vibes import VIBES, Vibe
+from mettagrid.map_builder.map_builder import AnyMapBuilderConfig
 
 if TYPE_CHECKING:
     from mettagrid.config.id_map import IdMap
     from mettagrid.simulator import Action
 
 # Forward reference - actual import happens at runtime when needed
-try:
-    from mettagrid.map_builder.map_builder import MapBuilderConfig
-
-    AnyMapBuilderConfig = SerializeAsAny[MapBuilderConfig]
-except ImportError:
-    # During module initialization, MapBuilderConfig might not be available yet
-    # We'll use string annotation and let Pydantic resolve it later
-    AnyMapBuilderConfig = "SerializeAsAny[MapBuilderConfig]"  # type: ignore
-
 # ===== Python Configuration Models =====
 
 # Left to right, top to bottom.
@@ -405,7 +397,7 @@ class GameConfig(Config):
     clipper: Optional[ClipperConfig] = Field(default=None, description="Global clipper configuration")
 
     # Map builder configuration - accepts any MapBuilder config
-    map_builder: "AnyMapBuilderConfig" = Field(
+    map_builder: AnyMapBuilderConfig = Field(
         default_factory=lambda: __import__(
             "mettagrid.map_builder.random", fromlist=["RandomMapBuilder"]
         ).RandomMapBuilder.Config(agents=24)

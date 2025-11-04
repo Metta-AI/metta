@@ -64,11 +64,13 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
     resource_names = list(game_config.resource_names)
     resource_name_to_id = {name: i for i, name in enumerate(resource_names)}
 
-    # Set up vibe mappings from the change_vibe action config
-
+    # Set up vibe mappings from the change_vibe action config.
+    # The C++ bindings expect dense uint8 identifiers, so keep a name->id lookup.
     num_vibes = game_config.actions.change_vibe.number_of_vibes
-    vibe_names = [vibe.name for vibe in VIBES[:num_vibes]]
-    vibe_name_to_id = {name: i for i, name in enumerate(vibe_names)}
+    supported_vibes = VIBES[:num_vibes]
+    if not game_config.vibe_names:
+        game_config.vibe_names = [vibe.name for vibe in supported_vibes]
+    vibe_name_to_id = {vibe.name: i for i, vibe in enumerate(supported_vibes)}
 
     objects_cpp_params = {}  # params for CppWallConfig
 
