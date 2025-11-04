@@ -124,7 +124,7 @@ compact patterns of expert tokens. Each layer is a Column whose experts are chos
 Built‑in expert tokens:
 
 - `A` = Axon (PostUp)
-- `X` = Transformer‑XL (PostUp)
+- `X` = Transformer‑XL (PostUp, GRU‑gated)
 - `M` = mLSTM (PreUp)
 - `S` = sLSTM (PostUp)
 - Suffix `^` enables Axon projections for that expert where supported (e.g., `M^`, `X^`, `S^`).
@@ -165,6 +165,51 @@ Advanced control:
 - Column implementation: `packages/cortex/src/cortex/blocks/column/column.py`; pattern builder:
   `packages/cortex/src/cortex/blocks/column/auto.py`.
 
+### Global overrides (type‑based)
+
+You can override default configs produced by the token builder by passing `override_global_configs` to the auto stack
+builders. Overrides are applied by type across the entire generated config graph (Column → experts → blocks → cells),
+merging only the explicitly set fields on your override instance.
+
+Examples:
+
+```python
+from cortex.stacks import build_cortex_auto_stack
+from cortex.config import XLCellConfig, RouterConfig, PostUpGatedBlockConfig
+
+# 1) Override Transformer‑XL memory length globally (affects X/X^)
+stack = build_cortex_auto_stack(
+    d_hidden=256,
+    num_layers=2,
+    pattern="X^X",
+    override_global_configs=[XLCellConfig(mem_len=64)],
+)
+
+# 2) Change Column router defaults (e.g., key dim and temperature)
+stack = build_cortex_auto_stack(
+    d_hidden=256,
+    num_layers=2,
+    pattern="AXMS",
+    override_global_configs=[RouterConfig(d_key=128, temperature=0.7)],
+)
+
+# 3) Tweak block‑level projection width for gated post‑up (used by token X)
+stack = build_cortex_auto_stack(
+    d_hidden=256,
+    num_layers=2,
+    pattern="XX",
+    override_global_configs=[PostUpGatedBlockConfig(proj_factor=2.0)],
+)
+```
+
+Notes:
+
+- Type‑based: every instance matching the override type is updated.
+- Explicit‑fields only: only fields you set on the override are merged; others keep their original values
+  (e.g., `X^` still enables `use_axon_qkv=True`).
+- `cell.hidden_size` is always inferred from the enclosing block/stack and cannot be overridden.
+- Per‑layer targeting is not supported by this API; provide a custom pattern/map if you need per‑layer differences.
+
 ## Supported Components
 
 ### Memory Cells
@@ -193,10 +238,11 @@ Wrappers around cells that handle projections, normalization, and information fl
 
 | Block              | Description                                                                                                                                      |
 | ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `PassThroughBlock` | Applies the nested cell directly at `d_hidden` with residual; no projections.                                                                    |
-| `PreUpBlock`       | Pre-upsamples to `d_inner = int(proj_factor * d_hidden)`, runs the cell at `d_inner`, gates and projects back to `d_hidden`, then adds residual. |
-| `PostUpBlock`      | Runs the cell at `d_hidden`, then applies a gated feed-forward projection up and back down before residual. Useful for deep stacks.              |
-| `AdapterBlock`     | Wraps another block with a trainable residual adapter (identity at init). Lets you insert capacity without changing behavior at t=0.             |
+| `PassThroughBlock`     | Applies the nested cell directly at `d_hidden` with residual; no projections.                                                                    |
+| `PreUpBlock`           | Pre-upsamples to `d_inner = int(proj_factor * d_hidden)`, runs the cell at `d_inner`, gates and projects back to `d_hidden`, then adds residual. |
+| `PostUpBlock`          | Runs the cell at `d_hidden`, then applies a gated feed-forward projection up and back down before residual. Useful for deep stacks.              |
+| `PostUpGatedBlock`     | Like `PostUpBlock` but with GRU‑style gating (GTrXL‑inspired) for both sublayers (cell and FFN) to stabilize deep training.                     |
+| `AdapterBlock`         | Wraps another block with a trainable residual adapter (identity at init). Lets you insert capacity without changing behavior at t=0.             |
 
 #### Hidden Size Inference in Blocks
 

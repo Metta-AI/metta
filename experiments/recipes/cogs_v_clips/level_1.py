@@ -34,7 +34,7 @@ import time
 from cogames.cogs_vs_clips.missions import make_game
 from metta.agent.policies.fast import FastConfig
 from metta.agent.policies.vit import ViTDefaultConfig
-from metta.agent.policies.vit_sliding_trans import ViTSlidingTransConfig
+from metta.agent.policies.trxl import TRXLConfig
 from metta.cogworks.curriculum.curriculum import CurriculumConfig
 from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
 from metta.cogworks.curriculum.task_generator import TaskGenerator, TaskGeneratorConfig
@@ -356,7 +356,7 @@ def train(curriculum_style: str = "multi_agent_pairs", architecture="vit") -> Tr
     elif architecture == "fast":
         policy_config = FastConfig()
     elif architecture == "transformer":
-        policy_config = ViTSlidingTransConfig()
+        policy_config = TRXLConfig()
         trainer_cfg.batch_size = 516096
         trainer_cfg.minibatch_size = 4096
     else:
