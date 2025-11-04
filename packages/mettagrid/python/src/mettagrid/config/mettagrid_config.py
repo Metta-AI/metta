@@ -284,7 +284,7 @@ class ChestConfig(GridObjectConfig):
     type: Literal["chest"] = Field(default="chest")
 
     # Vibe-based transfers: vibe -> resource -> delta
-    vibe_deltas: dict[str, dict[str, int]] = Field(
+    vibe_transfers: dict[str, dict[str, int]] = Field(
         default_factory=dict,
         description=(
             "Map from vibe to resource deltas. "

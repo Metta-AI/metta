@@ -172,7 +172,7 @@ class CvCChestConfig(CvCStationConfig):
             name=self.type,
             map_char="C",
             render_symbol=vibes.VIBE_BY_NAME["chest"].symbol,
-            vibe_deltas={
+            vibe_transfers={
                 "default": {"heart": 255, "carbon": 255, "oxygen": 255, "germanium": 255, "silicon": 255},
                 "heart": {"heart": -1},
                 "carbon": {"carbon": -10},

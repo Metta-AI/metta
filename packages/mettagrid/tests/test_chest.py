@@ -18,7 +18,7 @@ class TestChest:
         cfg.game.objects["chest"] = ChestConfig(
             map_char="C",
             name="chest",
-            vibe_deltas={
+            vibe_transfers={
                 "deposit": {"gold": 1},  # When showing deposit vibe, deposit 1 gold
                 "withdraw": {"gold": -1},  # When showing withdraw vibe, withdraw 1 gold
             },

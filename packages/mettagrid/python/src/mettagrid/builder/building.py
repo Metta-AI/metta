@@ -100,7 +100,7 @@ assembler_temple = AssemblerConfig(
 
 # Chest building definitions. Maybe not needed beyond the raw config?
 def make_chest(
-    vibe_deltas: dict[str | int, dict[str, int]] | None = None,
+    vibe_transfers: dict[str | int, dict[str, int]] | None = None,
     initial_inventory: dict[str, int] | None = None,
     resource_limits: dict[str, int] | None = None,
     name: str | None = None,
@@ -113,14 +113,14 @@ def make_chest(
         name: Name of the chest
         map_char: Character for ASCII maps
         render_symbol: Symbol for rendering
-        vibe_deltas: Map from vibe to resource deltas. E.g. {'carbon': {'carbon': 10, 'energy': -5}}
+        vibe_transfers: Map from vibe to resource deltas. E.g. {'carbon': {'carbon': 10, 'energy': -5}}
         initial_inventory: Initial amounts for each resource type
         resource_limits: Maximum amount per resource (uses inventory system's built-in limits)
     """
-    if vibe_deltas is None:
+    if vibe_transfers is None:
         # By default, deposit everything when you have a neutral expression, and withdraw specific resources when you
         # show that vibe.
-        vibe_deltas = {
+        vibe_transfers = {
             "default": {"heart": 255, "carbon": 255, "oxygen": 255, "germanium": 255, "silicon": 255},
             "heart": {"heart": -1},
             "carbon": {"carbon": -10},
@@ -142,7 +142,7 @@ def make_chest(
         name=name,
         map_char=map_char,
         render_symbol=render_symbol,
-        vibe_deltas=vibe_deltas,
+        vibe_transfers=vibe_transfers,
         initial_inventory=initial_inventory,
         resource_limits=resource_limits,
     )

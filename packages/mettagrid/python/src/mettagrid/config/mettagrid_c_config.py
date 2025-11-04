@@ -286,14 +286,14 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
             # Convert tag names to IDs
             tag_ids = [tag_name_to_id[tag] for tag in object_config.tags]
 
-            # Convert vibe_deltas: vibe -> resource -> delta
-            vibe_deltas_map = {}
-            for vibe_name, resource_deltas in object_config.vibe_deltas.items():
+            # Convert vibe_transfers: vibe -> resource -> delta
+            vibe_transfers_map = {}
+            for vibe_name, resource_deltas in object_config.vibe_transfers.items():
                 vibe_id = vibe_name_to_id[vibe_name]
                 resource_deltas_cpp = {
                     resource_name_to_id[resource]: delta for resource, delta in resource_deltas.items()
                 }
-                vibe_deltas_map[vibe_id] = resource_deltas_cpp
+                vibe_transfers_map[vibe_id] = resource_deltas_cpp
 
             # Convert initial inventory
             initial_inventory_cpp = {}
@@ -312,7 +312,7 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
             cpp_chest_config = CppChestConfig(
                 type_id=object_config.type_id, type_name=object_type, initial_vibe=object_config.vibe
             )
-            cpp_chest_config.vibe_deltas = vibe_deltas_map
+            cpp_chest_config.vibe_transfers = vibe_transfers_map
             cpp_chest_config.initial_inventory = initial_inventory_cpp
             cpp_chest_config.inventory_config = inventory_config
             cpp_chest_config.tag_ids = tag_ids

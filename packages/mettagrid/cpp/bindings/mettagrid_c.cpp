@@ -833,16 +833,16 @@ py::dict MettaGrid::grid_objects(int min_row, int max_row, int min_col, int max_
 
     // Add chest-specific info
     if (auto* chest = dynamic_cast<Chest*>(obj)) {
-      // Convert vibe_deltas map to dict
-      py::dict vibe_deltas_dict;
-      for (const auto& [vibe, resource_deltas] : chest->vibe_deltas) {
+      // Convert vibe_transfers map to dict
+      py::dict vibe_transfers_dict;
+      for (const auto& [vibe, resource_deltas] : chest->vibe_transfers) {
         py::dict resource_dict;
         for (const auto& [resource, delta] : resource_deltas) {
           resource_dict[py::int_(resource)] = delta;
         }
-        vibe_deltas_dict[py::int_(vibe)] = resource_dict;
+        vibe_transfers_dict[py::int_(vibe)] = resource_dict;
       }
-      obj_dict["vibe_deltas"] = vibe_deltas_dict;
+      obj_dict["vibe_transfers"] = vibe_transfers_dict;
     }
 
     objects[py::int_(obj_id)] = obj_dict;

@@ -14,12 +14,12 @@
 struct ChestConfig : public GridObjectConfig {
   ChestConfig(TypeId type_id, const std::string& type_name, ObservationType initial_vibe = 0)
       : GridObjectConfig(type_id, type_name, initial_vibe),
-        vibe_deltas({}),
+        vibe_transfers({}),
         initial_inventory({}),
         inventory_config() {}
 
   // Maps vibe to resource deltas (positive = deposit, negative = withdraw)
-  std::unordered_map<ObservationType, std::unordered_map<InventoryItem, int>> vibe_deltas;
+  std::unordered_map<ObservationType, std::unordered_map<InventoryItem, int>> vibe_transfers;
 
   // Initial inventory for each resource type
   std::unordered_map<InventoryItem, int> initial_inventory;
@@ -39,7 +39,7 @@ inline void bind_chest_config(py::module& m) {
       .def_readwrite("type_id", &ChestConfig::type_id)
       .def_readwrite("type_name", &ChestConfig::type_name)
       .def_readwrite("tag_ids", &ChestConfig::tag_ids)
-      .def_readwrite("vibe_deltas", &ChestConfig::vibe_deltas)
+      .def_readwrite("vibe_transfers", &ChestConfig::vibe_transfers)
       .def_readwrite("initial_inventory", &ChestConfig::initial_inventory)
       .def_readwrite("inventory_config", &ChestConfig::inventory_config)
       .def_readwrite("initial_vibe", &ChestConfig::initial_vibe);

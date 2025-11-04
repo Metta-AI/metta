@@ -53,7 +53,7 @@ private:
 
 public:
   // Configuration
-  std::unordered_map<ObservationType, std::unordered_map<InventoryItem, int>> vibe_deltas;  // vibe -> resource -> delta
+  std::unordered_map<ObservationType, std::unordered_map<InventoryItem, int>> vibe_transfers;  // vibe -> resource -> delta
 
   // Grid access for finding agent positions
   class Grid* grid;
@@ -61,7 +61,7 @@ public:
   Chest(GridCoord r, GridCoord c, const ChestConfig& cfg, StatsTracker* stats_tracker)
       : GridObject(),
         HasInventory(cfg.inventory_config),
-        vibe_deltas(cfg.vibe_deltas),
+        vibe_transfers(cfg.vibe_transfers),
         stats_tracker(stats_tracker),
         grid(nullptr) {
     GridObject::init(
@@ -87,14 +87,14 @@ public:
       return false;
     }
 
-    // First check if vibe_deltas is configured and use it
-    if (!vibe_deltas.empty()) {
+    // First check if vibe_transfers is configured and use it
+    if (!vibe_transfers.empty()) {
       // Get the agent's current vibe
       ObservationType agent_vibe = actor.vibe;
 
       // Check if there's a configured resource deltas for this vibe
-      auto vibe_it = vibe_deltas.find(agent_vibe);
-      if (vibe_it != vibe_deltas.end()) {
+      auto vibe_it = vibe_transfers.find(agent_vibe);
+      if (vibe_it != vibe_transfers.end()) {
         return transfer_resources(actor, vibe_it->second);
       }
       return false;  // No action configured for this vibe

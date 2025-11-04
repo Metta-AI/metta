@@ -65,7 +65,7 @@ def sim_with_chest():
             actions=ActionsConfig(noop=NoopActionConfig(), move=MoveActionConfig()),
             objects={
                 "wall": WallConfig(),
-                "chest": ChestConfig(vibe_deltas={}),
+                "chest": ChestConfig(vibe_transfers={}),
             },
             map_builder=RandomMapBuilder.Config(
                 width=10,
@@ -265,11 +265,11 @@ class TestChestProperties:
 
         if chest:
             # Check chest-specific properties
-            assert "vibe_deltas" in chest
+            assert "vibe_transfers" in chest
 
             # Check values match config
-            vibe_deltas = chest["vibe_deltas"]
-            assert isinstance(vibe_deltas, dict)
+            vibe_transfers = chest["vibe_transfers"]
+            assert isinstance(vibe_transfers, dict)
 
             # Check that chest has inventory dict
             assert "inventory" in chest
