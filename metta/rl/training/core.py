@@ -8,7 +8,7 @@ from tensordict import TensorDict
 from metta.agent.policy import Policy
 from metta.rl.loss import Loss
 from metta.rl.training import ComponentContext, Experience, TrainingEnvironment
-from mettagrid.base_config import Config
+from mettagrid.config import Config
 
 logger = logging.getLogger(__name__)
 
@@ -91,9 +91,8 @@ class CoreTrainingLoop:
         while not self.experience.ready_for_training:
             # Get observation from environment
             with context.stopwatch("_rollout.env_wait"):
-                o, r, d, t, info, training_env_id, _, num_steps = env.get_observations()
+                o, r, d, t, ta, info, training_env_id, _, num_steps = env.get_observations()
             last_env_id = training_env_id
-
             # Prepare data for policy
             with context.stopwatch("_rollout.td_prep"):
                 td = buffer_step[training_env_id].clone()
@@ -151,7 +150,7 @@ class CoreTrainingLoop:
                     actions_column.shape,
                     tuple(td["actions"].shape),
                 )
-                logger.error(msg)
+                logger.error(msg, exc_info=True)
                 raise RuntimeError(msg)
 
             target_buffer.copy_(actions_column)

@@ -23,7 +23,6 @@ from metta.tools.play import PlayTool
 from metta.tools.replay import ReplayTool
 from metta.tools.train import TrainTool
 from mettagrid import MettaGridConfig
-from mettagrid.config import ConverterConfig
 
 
 def make_mettagrid(num_agents: int = 24) -> MettaGridConfig:
@@ -45,11 +44,6 @@ def make_mettagrid(num_agents: int = 24) -> MettaGridConfig:
         "armor": 1,
         "blueprint": 1,
     }
-
-    # Easy converter: 1 battery_red to 1 heart (instead of 3 to 1)
-    altar = arena_env.game.objects.get("altar")
-    if isinstance(altar, ConverterConfig) and hasattr(altar, "input_resources"):
-        altar.input_resources["battery_red"] = 1
 
     return arena_env
 
