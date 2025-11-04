@@ -1,0 +1,44 @@
+# Default values for cronjob chart
+# These can be overridden by specific cronjob values files
+
+schedule: "*/15 * * * *"  # Default: run every 15 minutes
+
+image:
+  registry: 751442549699.dkr.ecr.us-east-1.amazonaws.com
+  name: ""  # Must be set by specific cronjob values
+  pullPolicy: Always
+  tag: "latest"
+
+# Note: Commands are defined in Dockerfile CMD, not in Helm values
+
+serviceAccount:
+  name: ""  # Will use release name if not specified
+  annotations: {}
+
+# Note: ServiceAccount is always created with hardcoded IAM role (see templates/serviceaccount.yaml)
+# All cronjobs share: arn:aws:iam::751442549699:role/monitoring-cronjobs
+
+# Note: RBAC is always enabled for all cronjobs (see templates/rbac.yaml)
+# All cronjobs get broad read-only cluster permissions for simplicity.
+
+# Datadog metric tagging
+datadog:
+  env: "production"
+  service: ""  # Should be set by specific cronjob values
+  site: "datadoghq.com"
+
+# Resource limits
+resources:
+  requests:
+    cpu: 100m
+    memory: 2Gi
+  limits:
+    cpu: 500m
+    memory: 2Gi
+
+# CronJob configuration
+successfulJobsHistoryLimit: 3
+failedJobsHistoryLimit: 3
+concurrencyPolicy: Forbid  # Don't allow concurrent executions
+restartPolicy: OnFailure
+backoffLimit: 3
