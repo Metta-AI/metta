@@ -1,0 +1,626 @@
+{
+   "description": "WandB ML training metrics: run status, model performance, and GPU resource usage tracking",
+   "id": "dr3-pdj-rrw",
+   "layout_type": "ordered",
+   "template_variables": [ ],
+   "title": "WandB Training Metrics",
+   "widgets": [
+      {
+         "definition": {
+            "background_color": "white",
+            "content": "# WandB Training Metrics\n\nTrack GitHub CI training runs (github.sky.main.*) from the last 24 hours. Metrics include training throughput (SPS), agent survival (heart amount), and infrastructure latency. Data collected every 15 minutes from Weights & Biases.",
+            "font_size": "14",
+            "has_padding": true,
+            "show_tick": false,
+            "text_align": "left",
+            "tick_edge": "left",
+            "tick_pos": "50%",
+            "type": "note",
+            "vertical_align": "top"
+         },
+         "layout": {
+            "height": 1,
+            "width": 12,
+            "x": 0,
+            "y": 0
+         }
+      },
+      {
+         "definition": {
+            "background_color": "gray",
+            "content": "## Training Run Status (Last 24 Hours)",
+            "font_size": "16",
+            "has_padding": true,
+            "show_tick": false,
+            "text_align": "left",
+            "tick_edge": "left",
+            "tick_pos": "50%",
+            "type": "note",
+            "vertical_align": "top"
+         },
+         "layout": {
+            "height": 1,
+            "width": 12,
+            "x": 0,
+            "y": 1
+         }
+      },
+      {
+         "definition": {
+            "autoscale": true,
+            "precision": 0,
+            "requests": [
+               {
+                  "formulas": [
+                     {
+                        "formula": "query1"
+                     }
+                  ],
+                  "queries": [
+                     {
+                        "aggregator": "last",
+                        "data_source": "metrics",
+                        "name": "query1",
+                        "query": "avg:wandb.runs.active{*}"
+                     }
+                  ],
+                  "response_format": "scalar"
+               }
+            ],
+            "title": "Active Training Runs",
+            "title_align": "left",
+            "title_size": "16",
+            "type": "query_value"
+         },
+         "layout": {
+            "height": 2,
+            "width": 3,
+            "x": 0,
+            "y": 2
+         }
+      },
+      {
+         "definition": {
+            "autoscale": true,
+            "precision": 0,
+            "requests": [
+               {
+                  "formulas": [
+                     {
+                        "formula": "query1"
+                     }
+                  ],
+                  "queries": [
+                     {
+                        "aggregator": "last",
+                        "data_source": "metrics",
+                        "name": "query1",
+                        "query": "avg:wandb.runs.completed_24h{*}"
+                     }
+                  ],
+                  "response_format": "scalar"
+               }
+            ],
+            "title": "Completed Runs (24h)",
+            "title_align": "left",
+            "title_size": "16",
+            "type": "query_value"
+         },
+         "layout": {
+            "height": 2,
+            "width": 3,
+            "x": 3,
+            "y": 2
+         }
+      },
+      {
+         "definition": {
+            "autoscale": true,
+            "precision": 0,
+            "requests": [
+               {
+                  "formulas": [
+                     {
+                        "formula": "query1"
+                     }
+                  ],
+                  "queries": [
+                     {
+                        "aggregator": "last",
+                        "data_source": "metrics",
+                        "name": "query1",
+                        "query": "avg:wandb.runs.failed_24h{*}"
+                     }
+                  ],
+                  "response_format": "scalar"
+               }
+            ],
+            "title": "Failed Runs (24h)",
+            "title_align": "left",
+            "title_size": "16",
+            "type": "query_value"
+         },
+         "layout": {
+            "height": 2,
+            "width": 3,
+            "x": 6,
+            "y": 2
+         }
+      },
+      {
+         "definition": {
+            "autoscale": true,
+            "precision": 0,
+            "requests": [
+               {
+                  "formulas": [
+                     {
+                        "formula": "query1"
+                     }
+                  ],
+                  "queries": [
+                     {
+                        "aggregator": "last",
+                        "data_source": "metrics",
+                        "name": "query1",
+                        "query": "avg:wandb.runs.total_recent{*}"
+                     }
+                  ],
+                  "response_format": "scalar"
+               }
+            ],
+            "title": "Total Recent Runs",
+            "title_align": "left",
+            "title_size": "16",
+            "type": "query_value"
+         },
+         "layout": {
+            "height": 2,
+            "width": 3,
+            "x": 9,
+            "y": 2
+         }
+      },
+      {
+         "definition": {
+            "legend_columns": [
+               "avg",
+               "min",
+               "max",
+               "value",
+               "sum"
+            ],
+            "legend_layout": "auto",
+            "requests": [
+               {
+                  "display_type": "line",
+                  "formulas": [
+                     {
+                        "formula": "query1"
+                     }
+                  ],
+                  "queries": [
+                     {
+                        "data_source": "metrics",
+                        "name": "query1",
+                        "query": "avg:wandb.runs.active{*}, avg:wandb.runs.completed_24h{*}, avg:wandb.runs.failed_24h{*}"
+                     }
+                  ],
+                  "response_format": "timeseries",
+                  "style": {
+                     "line_type": "solid",
+                     "line_width": "normal",
+                     "order_by": "values",
+                     "palette": "cool"
+                  }
+               }
+            ],
+            "show_legend": true,
+            "time": { },
+            "title": "Training Run Activity (24h window)",
+            "title_align": "left",
+            "title_size": "16",
+            "type": "timeseries"
+         },
+         "layout": {
+            "height": 3,
+            "width": 12,
+            "x": 0,
+            "y": 4
+         }
+      },
+      {
+         "definition": {
+            "background_color": "gray",
+            "content": "## Training Performance & Agent Metrics",
+            "font_size": "16",
+            "has_padding": true,
+            "show_tick": false,
+            "text_align": "left",
+            "tick_edge": "left",
+            "tick_pos": "50%",
+            "type": "note",
+            "vertical_align": "top"
+         },
+         "layout": {
+            "height": 1,
+            "width": 12,
+            "x": 0,
+            "y": 7
+         }
+      },
+      {
+         "definition": {
+            "autoscale": true,
+            "custom_unit": "steps/s",
+            "precision": 0,
+            "requests": [
+               {
+                  "formulas": [
+                     {
+                        "formula": "query1"
+                     }
+                  ],
+                  "queries": [
+                     {
+                        "aggregator": "last",
+                        "data_source": "metrics",
+                        "name": "query1",
+                        "query": "avg:wandb.metrics.latest_sps{*}"
+                     }
+                  ],
+                  "response_format": "scalar"
+               }
+            ],
+            "title": "Training Throughput (SPS)",
+            "title_align": "left",
+            "title_size": "16",
+            "type": "query_value"
+         },
+         "layout": {
+            "height": 2,
+            "width": 4,
+            "x": 0,
+            "y": 8
+         }
+      },
+      {
+         "definition": {
+            "autoscale": true,
+            "precision": 3,
+            "requests": [
+               {
+                  "formulas": [
+                     {
+                        "formula": "query1"
+                     }
+                  ],
+                  "queries": [
+                     {
+                        "aggregator": "last",
+                        "data_source": "metrics",
+                        "name": "query1",
+                        "query": "avg:wandb.metrics.avg_heart_amount_24h{*}"
+                     }
+                  ],
+                  "response_format": "scalar"
+               }
+            ],
+            "title": "Avg Heart Amount (24h)",
+            "title_align": "left",
+            "title_size": "16",
+            "type": "query_value"
+         },
+         "layout": {
+            "height": 2,
+            "width": 4,
+            "x": 4,
+            "y": 8
+         }
+      },
+      {
+         "definition": {
+            "autoscale": true,
+            "custom_unit": "s",
+            "precision": 1,
+            "requests": [
+               {
+                  "formulas": [
+                     {
+                        "formula": "query1"
+                     }
+                  ],
+                  "queries": [
+                     {
+                        "aggregator": "last",
+                        "data_source": "metrics",
+                        "name": "query1",
+                        "query": "avg:wandb.metrics.latest_queue_latency_s{*}"
+                     }
+                  ],
+                  "response_format": "scalar"
+               }
+            ],
+            "title": "Queue Latency",
+            "title_align": "left",
+            "title_size": "16",
+            "type": "query_value"
+         },
+         "layout": {
+            "height": 2,
+            "width": 4,
+            "x": 8,
+            "y": 8
+         }
+      },
+      {
+         "definition": {
+            "legend_columns": [
+               "avg",
+               "min",
+               "max",
+               "value",
+               "sum"
+            ],
+            "legend_layout": "auto",
+            "requests": [
+               {
+                  "display_type": "line",
+                  "formulas": [
+                     {
+                        "formula": "query1"
+                     }
+                  ],
+                  "queries": [
+                     {
+                        "data_source": "metrics",
+                        "name": "query1",
+                        "query": "avg:wandb.metrics.latest_sps{*}"
+                     }
+                  ],
+                  "response_format": "timeseries",
+                  "style": {
+                     "line_type": "solid",
+                     "line_width": "normal",
+                     "order_by": "values",
+                     "palette": "green"
+                  }
+               }
+            ],
+            "show_legend": true,
+            "time": { },
+            "title": "Training Throughput Trend",
+            "title_align": "left",
+            "title_size": "16",
+            "type": "timeseries"
+         },
+         "layout": {
+            "height": 3,
+            "width": 6,
+            "x": 0,
+            "y": 10
+         }
+      },
+      {
+         "definition": {
+            "legend_columns": [
+               "avg",
+               "min",
+               "max",
+               "value",
+               "sum"
+            ],
+            "legend_layout": "auto",
+            "requests": [
+               {
+                  "display_type": "line",
+                  "formulas": [
+                     {
+                        "formula": "query1"
+                     }
+                  ],
+                  "queries": [
+                     {
+                        "data_source": "metrics",
+                        "name": "query1",
+                        "query": "avg:wandb.metrics.avg_heart_amount_24h{*}"
+                     }
+                  ],
+                  "response_format": "timeseries",
+                  "style": {
+                     "line_type": "solid",
+                     "line_width": "normal",
+                     "order_by": "values",
+                     "palette": "warm"
+                  }
+               }
+            ],
+            "show_legend": false,
+            "time": { },
+            "title": "Agent Survival Trend (Heart Amount)",
+            "title_align": "left",
+            "title_size": "16",
+            "type": "timeseries"
+         },
+         "layout": {
+            "height": 3,
+            "width": 6,
+            "x": 6,
+            "y": 10
+         }
+      },
+      {
+         "definition": {
+            "background_color": "gray",
+            "content": "## GPU Resource Usage",
+            "font_size": "16",
+            "has_padding": true,
+            "show_tick": false,
+            "text_align": "left",
+            "tick_edge": "left",
+            "tick_pos": "50%",
+            "type": "note",
+            "vertical_align": "top"
+         },
+         "layout": {
+            "height": 1,
+            "width": 12,
+            "x": 0,
+            "y": 13
+         }
+      },
+      {
+         "definition": {
+            "autoscale": true,
+            "custom_unit": "hours",
+            "precision": 1,
+            "requests": [
+               {
+                  "formulas": [
+                     {
+                        "formula": "query1"
+                     }
+                  ],
+                  "queries": [
+                     {
+                        "aggregator": "last",
+                        "data_source": "metrics",
+                        "name": "query1",
+                        "query": "avg:wandb.training.avg_duration_hours{*}"
+                     }
+                  ],
+                  "response_format": "scalar"
+               }
+            ],
+            "title": "Avg Training Duration",
+            "title_align": "left",
+            "title_size": "16",
+            "type": "query_value"
+         },
+         "layout": {
+            "height": 2,
+            "width": 4,
+            "x": 0,
+            "y": 14
+         }
+      },
+      {
+         "definition": {
+            "autoscale": true,
+            "custom_unit": "%",
+            "precision": 1,
+            "requests": [
+               {
+                  "formulas": [
+                     {
+                        "formula": "query1"
+                     }
+                  ],
+                  "queries": [
+                     {
+                        "aggregator": "last",
+                        "data_source": "metrics",
+                        "name": "query1",
+                        "query": "avg:wandb.training.gpu_utilization_avg{*}"
+                     }
+                  ],
+                  "response_format": "scalar"
+               }
+            ],
+            "title": "Avg GPU Utilization",
+            "title_align": "left",
+            "title_size": "16",
+            "type": "query_value"
+         },
+         "layout": {
+            "height": 2,
+            "width": 4,
+            "x": 4,
+            "y": 14
+         }
+      },
+      {
+         "definition": {
+            "autoscale": true,
+            "custom_unit": "hours",
+            "precision": 1,
+            "requests": [
+               {
+                  "formulas": [
+                     {
+                        "formula": "query1"
+                     }
+                  ],
+                  "queries": [
+                     {
+                        "aggregator": "last",
+                        "data_source": "metrics",
+                        "name": "query1",
+                        "query": "avg:wandb.training.total_gpu_hours_24h{*}"
+                     }
+                  ],
+                  "response_format": "scalar"
+               }
+            ],
+            "title": "Total GPU Hours (24h)",
+            "title_align": "left",
+            "title_size": "16",
+            "type": "query_value"
+         },
+         "layout": {
+            "height": 2,
+            "width": 4,
+            "x": 8,
+            "y": 14
+         }
+      },
+      {
+         "definition": {
+            "legend_columns": [
+               "avg",
+               "min",
+               "max",
+               "value",
+               "sum"
+            ],
+            "legend_layout": "auto",
+            "requests": [
+               {
+                  "display_type": "area",
+                  "formulas": [
+                     {
+                        "formula": "query1"
+                     }
+                  ],
+                  "queries": [
+                     {
+                        "data_source": "metrics",
+                        "name": "query1",
+                        "query": "avg:wandb.training.gpu_utilization_avg{*}, avg:wandb.training.total_gpu_hours_24h{*}"
+                     }
+                  ],
+                  "response_format": "timeseries",
+                  "style": {
+                     "line_type": "solid",
+                     "line_width": "normal",
+                     "order_by": "values",
+                     "palette": "purple"
+                  }
+               }
+            ],
+            "show_legend": true,
+            "time": { },
+            "title": "GPU Resource Usage Trends (24h window)",
+            "title_align": "left",
+            "title_size": "16",
+            "type": "timeseries"
+         },
+         "layout": {
+            "height": 3,
+            "width": 12,
+            "x": 0,
+            "y": 16
+         }
+      }
+   ]
+}

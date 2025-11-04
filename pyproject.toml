@@ -31,6 +31,7 @@ dependencies = [
   "httpx>=0.28.1",
   "imageio>=2.37.0",
   "jmespath>=1.0.1",
+  "kubernetes>=31.0.0",
   "matplotlib>=3.10.3",
   "metta-agent",
   "metta-app-backend",
@@ -60,7 +61,6 @@ dependencies = [
   "setuptools>=80.9.0",
   "simple-term-menu>=1.6.4",
   "skypilot==0.10.3.post2",
-  "softmax",
   "sympy>=1.13.3",
   "tabulate>=0.9.0",
   "tensordict>=0.8.3",
@@ -137,6 +137,9 @@ python_classes = ["Test*"]
 filterwarnings = [
   "ignore::DeprecationWarning:wandb.analytics.sentry",
   "ignore:The @wait_container_is_ready decorator is deprecated.*:DeprecationWarning",
+  "ignore:OpenTelemetry configuration OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE is not supported by Datadog.:UserWarning",
+  "ignore:The 'repr' attribute with value.*was provided to the `Field.*:UserWarning:pydantic",
+  "ignore:The 'frozen' attribute with value.*was provided to the `Field.*:UserWarning:pydantic",
 ]
 markers = [
   "slow: marks tests as slow (deselect with '-m \"not slow\"')",
@@ -169,7 +172,6 @@ members = [
   "packages/gitta",
   "packages/mettagrid",
   "packages/pufferlib-core",
-  "softmax",
 ]
 
 [tool.uv.sources]
@@ -181,4 +183,3 @@ metta-agent = { workspace = true }
 metta-app-backend = { workspace = true }
 metta-common = { workspace = true }
 pufferlib-core = { workspace = true }
-softmax = { workspace = true }
