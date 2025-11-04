@@ -42,15 +42,15 @@ def test_add_training_hook_invokes_registered_hook() -> None:
     calls: list[tuple[str, str]] = []
     original_register = policy.register_component_hook_rule
 
-    def tracking_register(self, *, component_name: str, hook, hook_type: str = "forward"):
-        calls.append((component_name, hook_type))
-        return original_register(component_name=component_name, hook=hook, hook_type=hook_type)
+    def tracking_register(self, *, component_name: str, hook):
+        calls.append(component_name)
+        return original_register(component_name=component_name, hook=hook)
 
     policy.register_component_hook_rule = types.MethodType(tracking_register, policy)
 
     tool._register_policy_hooks(policy=policy, trainer=trainer)
 
-    assert calls == [("actor_mlp", "forward")]
+    assert calls == ["actor_mlp"]
     assert len(tool._active_policy_hooks) == 1  # type: ignore[attr-defined]
 
     tool._clear_policy_hooks()  # type: ignore[attr-defined]

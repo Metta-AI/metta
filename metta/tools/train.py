@@ -55,13 +55,8 @@ from metta.tools.utils.auto_config import (
 logger = getRankAwareLogger(__name__)
 
 # Forward hook: called after forward pass with (module, input, output) -> None
-PostHookBuilder = Callable[[str, Trainer], Optional[Callable[[Any, tuple[Any, ...], Any], None]]]
-
-# Forward pre hook: called before forward pass with (module, input) -> None
-PreHookBuilder = Callable[[str, Trainer], Optional[Callable[[Any, tuple[Any, ...]], None]]]
-
-HookBuilder = PreHookBuilder | PostHookBuilder
-HookSpec = Tuple[str, HookBuilder, str]
+HookBuilder = Callable[[str, Trainer], Optional[Callable[[Any, tuple[Any, ...], Any], None]]]
+HookSpec = Tuple[str, HookBuilder]
 
 
 class TrainTool(Tool):
@@ -228,10 +223,9 @@ class TrainTool(Tool):
         self,
         component_name: str,
         hook_builder: HookBuilder,
-        hook_type: str = "forward",
     ) -> None:
         """Register a hook-producing builder for a specific component after initialization."""
-        self._training_hooks.append((component_name, hook_builder, hook_type))
+        self._training_hooks.append((component_name, hook_builder))
 
     def _register_policy_hooks(self, *, policy: Policy, trainer: Trainer) -> None:
         if not self._training_hooks:
@@ -240,7 +234,7 @@ class TrainTool(Tool):
         if not isinstance(policy, PolicyAutoBuilder):
             return
 
-        for component_name, hook_builder, hook_type in self._training_hooks:
+        for component_name, hook_builder in self._training_hooks:
             module = policy.components.get(component_name)
             if module is None:
                 continue
@@ -250,7 +244,6 @@ class TrainTool(Tool):
             handle = policy.register_component_hook_rule(
                 component_name=component_name,
                 hook=hook,
-                hook_type=hook_type,
             )
             self._active_policy_hooks.append(handle)
 

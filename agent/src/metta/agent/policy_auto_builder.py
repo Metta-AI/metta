@@ -178,13 +178,8 @@ class PolicyAutoBuilder(Policy):
         *,
         component_name: str,
         hook: Callable[..., None],
-        hook_type: str = "forward",
     ) -> RemovableHandle:
         module = self.components.get(component_name)
         if module is None:
             raise KeyError(f"Component '{component_name}' not found in policy.")
-        if hook_type == "forward":
-            return module.register_forward_hook(hook)  # type: ignore[arg-type]
-        if hook_type == "forward_pre":
-            return module.register_forward_pre_hook(hook)  # type: ignore[arg-type]
-        raise ValueError(f"Unsupported hook_type '{hook_type}'. Expected 'forward' or 'forward_pre'.")
+        return module.register_forward_hook(hook)  # type: ignore[arg-type]

@@ -33,13 +33,6 @@ def _forward_hook(events: list[str]) -> Callable[..., None]:
     return hook
 
 
-def _forward_pre_hook(events: list[str]) -> Callable[..., None]:
-    def hook(module: nn.Module, *_args: Any) -> None:
-        events.append(module.__class__.__name__)
-
-    return hook
-
-
 def test_register_forward_hook_rule_records_rule_and_handle() -> None:
     policy = ViTDefaultConfig().make_policy(_game_rules())
     events: list[str] = []
@@ -47,21 +40,6 @@ def test_register_forward_hook_rule_records_rule_and_handle() -> None:
     handle = policy.register_component_hook_rule(
         component_name="actor_mlp",
         hook=_forward_hook(events),
-        hook_type="forward",
-    )
-
-    assert isinstance(handle, RemovableHandle)
-    handle.remove()
-
-
-def test_register_forward_pre_hook_rule_records_rule_and_handle() -> None:
-    policy = ViTDefaultConfig().make_policy(_game_rules())
-    events: list[str] = []
-
-    handle = policy.register_component_hook_rule(
-        component_name="actor_mlp",
-        hook=_forward_pre_hook(events),
-        hook_type="forward_pre",
     )
 
     assert isinstance(handle, RemovableHandle)
@@ -75,12 +53,10 @@ def test_multiple_forward_hooks_are_appended() -> None:
     handle1 = policy.register_component_hook_rule(
         component_name="actor_mlp",
         hook=_forward_hook(events),
-        hook_type="forward",
     )
     handle2 = policy.register_component_hook_rule(
         component_name="actor_mlp",
         hook=_forward_hook(events),
-        hook_type="forward",
     )
 
     assert isinstance(handle1, RemovableHandle)
@@ -97,7 +73,6 @@ def test_register_hook_missing_component_raises() -> None:
         policy.register_component_hook_rule(
             component_name="does_not_exist",
             hook=_forward_hook([]),
-            hook_type="forward",
         )
 
 
@@ -111,7 +86,6 @@ def test_attach_relu_activation_hooks_registers_forward_hook() -> None:
     handle = policy.register_component_hook_rule(
         component_name="actor_mlp",
         hook=hook,
-        hook_type="forward",
     )
     assert isinstance(handle, RemovableHandle)
 

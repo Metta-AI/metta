@@ -9,7 +9,7 @@ import torch.nn as nn
 from tensordict import TensorDictBase
 
 if TYPE_CHECKING:
-    from metta.tools.train import PostHookBuilder
+    from metta.tools.train import HookBuilder
 
 
 def compute_dormant_neuron_stats(policy: nn.Module, *, threshold: float = 1e-6) -> Dict[str, float]:
@@ -125,7 +125,7 @@ class ReLUActivationState:
 def attach_relu_activation_hooks(
     *,
     extractor: Any = "actor_hidden",
-) -> "PostHookBuilder":
+) -> "HookBuilder":
     """Create a builder that prepares ReLU activation tracking for a given component."""
 
     def builder(component_name: str, trainer: Any) -> Optional[Callable[..., None]]:
