@@ -1,5 +1,5 @@
 import warnings
-from typing import TYPE_CHECKING, Any, Optional
+from typing import TYPE_CHECKING, Optional
 
 import torch
 import torch.nn as nn
@@ -48,16 +48,15 @@ class ObsTokenPadStrip(nn.Module):
         policy_env_info: "PolicyEnvInterface",
         device: torch.device,
     ) -> str:
-        # Build feature mappings
-        # obs_features can be a list[ObservationFeatureSpec] or dict[str, ObservationFeatureSpec]
-        features, features_list = _coerce_obs_feature_iter(policy_env_info.obs_features)
-        self.feature_id_to_name = {props.id: name for name, props in features.items()}
+        # Build feature mappings from policy_env_info.obs_features list
+        features_list = list(policy_env_info.obs_features)
+        self.feature_id_to_name = {props.id: props.name for props in features_list}
         self.feature_normalizations = {
             props.id: props.normalization for props in features_list if hasattr(props, "normalization")
         }
 
         if not hasattr(self, "original_feature_mapping"):
-            self.original_feature_mapping = {name: props.id for name, props in features.items()}  # {name: id}
+            self.original_feature_mapping = {props.name: props.id for props in features_list}
             return f"Stored original feature mapping with {len(self.original_feature_mapping)} features"
         else:
             # Re-initialization - create remapping for agent portability
@@ -65,7 +64,8 @@ class ObsTokenPadStrip(nn.Module):
             feature_remap: dict[int, int] = {}
             unknown_features = []
 
-            for name, props in features.items():
+            for props in features_list:
+                name = props.name
                 new_id = props.id
                 if name in self.original_feature_mapping:
                     # Remap known features to their original IDs
@@ -82,7 +82,8 @@ class ObsTokenPadStrip(nn.Module):
 
             if feature_remap:
                 # Apply the remapping
-                self._apply_feature_remapping(feature_remap, features, UNKNOWN_FEATURE_ID, device)
+                current_features = {feat.name: feat for feat in features_list}
+                self._apply_feature_remapping(feature_remap, current_features, UNKNOWN_FEATURE_ID, device)
                 return f"Created feature remapping: {len(feature_remap)} remapped, {len(unknown_features)} unknown"
             else:
                 return "No feature remapping created"
@@ -171,9 +172,7 @@ class ObsAttrValNorm(nn.Module):
         self._set_feature_normalizations(policy_env_info, device)
 
     def _set_feature_normalizations(self, policy_env_info, device: Optional[torch.device] = None):
-        # Extract features consistently from obs_features
-        # Handle both list[ObservationFeatureSpec] (real PolicyEnvInterface) and dict (test fixtures)
-        _, feature_list = _coerce_obs_feature_iter(policy_env_info.obs_features)
+        feature_list = list(policy_env_info.obs_features)
         features = {feat.id: feat.normalization for feat in feature_list}
         self._feature_normalizations = features
         self._update_norm_factors(device)
@@ -269,8 +268,8 @@ class ObsTokenToBoxShim(nn.Module):
         self.out_width = policy_env_info.obs_width
         self.out_height = policy_env_info.obs_height
 
-        # Determine num_layers from obs_features; legacy feature_normalizations are no longer supported.
-        _, feature_list = _coerce_obs_feature_iter(policy_env_info.obs_features)
+        # Determine num_layers directly from obs_features
+        feature_list = list(policy_env_info.obs_features)
         self.num_layers = max((feat.id for feat in feature_list), default=-1) + 1 if feature_list else 0
         if self.num_layers == 0:
             raise ValueError("policy_env_info.obs_features must define at least one feature.")
@@ -351,7 +350,7 @@ class ObservationNormalizer(nn.Module):
         self.in_key = in_key
         self.out_key = out_key
         # Compute feature_normalizations from policy_env_info.obs_features
-        _, feature_list = _coerce_obs_feature_iter(policy_env_info.obs_features)
+        feature_list = list(policy_env_info.obs_features)
         feature_normalizations = {feat.id: feat.normalization for feat in feature_list}
         self._initialize_to_environment(feature_normalizations)
 
@@ -364,7 +363,7 @@ class ObservationNormalizer(nn.Module):
         policy_env_info: "PolicyEnvInterface",
         device: torch.device,
     ) -> None:
-        _, feature_list = _coerce_obs_feature_iter(policy_env_info.obs_features)
+        feature_list = list(policy_env_info.obs_features)
         features = {feat.id: feat.normalization for feat in feature_list}
         self._initialize_to_environment(features, device)
 
@@ -412,17 +411,3 @@ class ObsShimBox(nn.Module):
         td = self.token_to_box_shim(td)
         td = self.observation_normalizer(td)
         return td
-
-
-def _coerce_obs_feature_iter(obs_features: Any) -> tuple[dict[str, Any], list[Any]]:
-    """
-    Return both a dict keyed by feature name and an ordered list of feature specs.
-
-    Test fixtures sometimes provide {name: spec}; the production interface returns a list.
-    This helper normalizes both shapes so downstream code can assume list semantics.
-    """
-    if isinstance(obs_features, dict):
-        feature_list = list(obs_features.values())
-        return obs_features, feature_list
-    feature_list = list(obs_features)
-    return {feat.name: feat for feat in feature_list}, feature_list
