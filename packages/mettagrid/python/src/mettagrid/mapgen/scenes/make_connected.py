@@ -13,7 +13,7 @@ Cell = tuple[int, int]
 
 
 class MakeConnectedConfig(SceneConfig):
-    min_component_size: int = 3
+    min_component_size: int = 25
 
 
 class MakeConnected(Scene[MakeConnectedConfig]):

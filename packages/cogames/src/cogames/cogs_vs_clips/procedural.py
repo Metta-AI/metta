@@ -37,6 +37,7 @@ class MachinaArenaConfig(SceneConfig):
     spawn_count: int
     base_biome: str = "caves"
     base_biome_config: dict[str, Any] = {}
+    dither_edges: bool = False
 
     # Building placement
     building_coverage: float = 0.01
@@ -81,6 +82,8 @@ class MachinaArena(Scene[MachinaArenaConfig]):
             raise ValueError(f"Unknown base_biome '{cfg.base_biome}'. Valid: {sorted(biome_map.keys())}")
         BaseCfgModel: type[SceneConfig] = biome_map[cfg.base_biome]
         base_cfg: SceneConfig = BaseCfgModel.model_validate(cfg.base_biome_config or {})
+        if hasattr(base_cfg, "dither_edges"):
+            setattr(base_cfg, "dither_edges", bool(cfg.dither_edges))
 
         # Building weights
         default_building_weights = {
@@ -135,18 +138,30 @@ class MachinaArena(Scene[MachinaArenaConfig]):
         dungeon_count = max(int(dungeon_count), _min_count_for_fraction(cfg.max_dungeon_zone_fraction))
 
         # Candidates
+        def _disable_dither(scene_cfg: SceneConfig) -> None:
+            if hasattr(scene_cfg, "dither_edges"):
+                setattr(scene_cfg, "dither_edges", bool(cfg.dither_edges))
+
         def _make_biome_candidates(weights: dict[str, float] | None) -> list[RandomSceneCandidate]:
             defaults = {"caves": 1.0, "forest": 1.0, "desert": 1.0, "city": 1.0}
             w = {**defaults, **(weights or {})}
             cands: list[RandomSceneCandidate] = []
             if w.get("caves", 0) > 0:
-                cands.append(RandomSceneCandidate(scene=BiomeCavesConfig(), weight=w["caves"]))
+                cfg_caves = BiomeCavesConfig()
+                _disable_dither(cfg_caves)
+                cands.append(RandomSceneCandidate(scene=cfg_caves, weight=w["caves"]))
             if w.get("forest", 0) > 0:
-                cands.append(RandomSceneCandidate(scene=BiomeForestConfig(), weight=w["forest"]))
+                cfg_forest = BiomeForestConfig()
+                _disable_dither(cfg_forest)
+                cands.append(RandomSceneCandidate(scene=cfg_forest, weight=w["forest"]))
             if w.get("desert", 0) > 0:
-                cands.append(RandomSceneCandidate(scene=BiomeDesertConfig(), weight=w["desert"]))
+                cfg_desert = BiomeDesertConfig()
+                _disable_dither(cfg_desert)
+                cands.append(RandomSceneCandidate(scene=cfg_desert, weight=w["desert"]))
             if w.get("city", 0) > 0:
-                cands.append(RandomSceneCandidate(scene=BiomeCityConfig(), weight=w["city"]))
+                cfg_city = BiomeCityConfig()
+                _disable_dither(cfg_city)
+                cands.append(RandomSceneCandidate(scene=cfg_city, weight=w["city"]))
             return cands
 
         def _make_dungeon_candidates(weights: dict[str, float] | None) -> list[RandomSceneCandidate]:
