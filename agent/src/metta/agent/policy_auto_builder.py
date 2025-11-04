@@ -161,10 +161,7 @@ class PolicyAutoBuilder(Policy):
         return spec
 
     def network(self) -> torch.nn.Module:
-        """Get the underlying neural network for training.
-
-        Returns the TensorDictSequential network that contains all components.
-        """
+        """Return the sequential component stack used for inference and training."""
         return self._sequential_network
 
     @property
