@@ -7,30 +7,31 @@ import torch.nn as nn
 from einops import rearrange
 
 import pufferlib.pytorch
-from cogames.policy.interfaces import AgentPolicy, StatefulAgentPolicy, TrainablePolicy
-from cogames.policy.utils import LSTMState, LSTMStateDict
-from mettagrid import MettaGridAction, MettaGridEnv, MettaGridObservation, dtype_actions
+from mettagrid.config.mettagrid_config import ActionsConfig
+from mettagrid.policy.policy import AgentPolicy, StatefulAgentPolicy, TrainablePolicy
+from mettagrid.policy.policy_env_interface import PolicyEnvInterface
+from mettagrid.policy.utils import LSTMState, LSTMStateDict
+from mettagrid.simulator import Action as MettaGridAction
+from mettagrid.simulator import AgentObservation as MettaGridObservation
 
-logger = logging.getLogger("cogames.policies.lstm_policy")
+logger = logging.getLogger("mettagrid.policy.lstm_policy")
 
 
 class LSTMPolicyNet(torch.nn.Module):
-    def __init__(self, env):
+    def __init__(self, actions_cfg: ActionsConfig, obs_shape: tuple):
         super().__init__()
         # Public: Required by PufferLib for RNN state management
         self.hidden_size = 128
 
         self._net = torch.nn.Sequential(
-            pufferlib.pytorch.layer_init(
-                torch.nn.Linear(np.prod(env.single_observation_space.shape), self.hidden_size)
-            ),
+            pufferlib.pytorch.layer_init(torch.nn.Linear(np.prod(obs_shape).item(), self.hidden_size)),
             torch.nn.ReLU(),
             pufferlib.pytorch.layer_init(torch.nn.Linear(self.hidden_size, self.hidden_size)),
         )
 
         self._rnn = torch.nn.LSTM(self.hidden_size, self.hidden_size, batch_first=True)
 
-        self._num_actions = int(env.single_action_space.n)
+        self._num_actions = len(actions_cfg.actions())
 
         self._action_head = torch.nn.Linear(self.hidden_size, self._num_actions)
         self._value_head = torch.nn.Linear(self.hidden_size, 1)
@@ -150,10 +151,12 @@ class LSTMPolicyNet(torch.nn.Module):
 class LSTMAgentPolicy(StatefulAgentPolicy[LSTMState]):
     """Per-agent policy that uses the shared LSTM network."""
 
-    def __init__(self, net: LSTMPolicyNet, device: torch.device, num_actions: int):
+    def __init__(self, net: LSTMPolicyNet, device: torch.device, num_actions: int, obs_shape: tuple, actions: list):
         self._net = net
         self._device = device
         self._num_actions = num_actions
+        self._obs_shape = obs_shape
+        self._actions = actions
 
     def agent_state(self) -> Optional[LSTMState]:
         """Get initial state for a new agent.
@@ -171,6 +174,26 @@ class LSTMAgentPolicy(StatefulAgentPolicy[LSTMState]):
         # Convert single observation to batch of 1 for network forward pass
         if isinstance(obs, torch.Tensor):
             obs_tensor = obs.to(self._device).unsqueeze(0) if obs.dim() < 2 else obs.to(self._device)
+        elif isinstance(obs, MettaGridObservation):
+            # Convert AgentObservation to token array format
+            tokens = []
+            for token in obs.tokens:
+                col, row = token.location
+                # Pack coordinates into a single byte: first 4 bits are col, last 4 bits are row
+                coords_byte = ((col & 0x0F) << 4) | (row & 0x0F)
+                feature_id = token.feature.id
+                value = token.value
+                tokens.append([coords_byte, feature_id, value])
+
+            # Pad to expected shape (num_tokens, token_dim)
+            # obs_shape is (num_tokens, token_dim) e.g. (200, 3)
+            num_tokens, token_dim = self._obs_shape
+            while len(tokens) < num_tokens:
+                tokens.append([0xFF, 0, 0])
+
+            # Convert to numpy array and flatten: [num_tokens, token_dim] -> [num_tokens * token_dim]
+            obs_array = np.array(tokens, dtype=np.uint8).flatten()
+            obs_tensor = torch.from_numpy(obs_array).unsqueeze(0).to(self._device).float()
         else:
             obs_tensor = torch.tensor(obs, device=self._device, dtype=torch.float32).unsqueeze(0)
 
@@ -184,22 +207,21 @@ class LSTMAgentPolicy(StatefulAgentPolicy[LSTMState]):
 
             # Debug: check observation
             if torch.isnan(obs_tensor).any():
-                logger.error(f"NaN in observation! obs shape: {obs_tensor.shape}, obs: {obs_tensor}", exc_info=True)
+                logger.error(f"NaN in observation! obs shape: {obs_tensor.shape}, obs: {obs_tensor}")
             if torch.isinf(obs_tensor).any():
-                logger.error(f"Inf in observation! obs shape: {obs_tensor.shape}", exc_info=True)
+                logger.error(f"Inf in observation! obs shape: {obs_tensor.shape}")
 
             logits, _ = self._net.forward_eval(obs_tensor, state_dict)
 
             # Debug: check logits
             if torch.isnan(logits).any():
                 logger.error(
-                    f"NaN in logits! obs shape: {obs_tensor.shape}, obs min/max: {obs_tensor.min()}/{obs_tensor.max()}",
-                    exc_info=True,
+                    f"NaN in logits! obs shape: {obs_tensor.shape}, obs min/max: {obs_tensor.min()}/{obs_tensor.max()}"
                 )
-                logger.error(f"Logits: {logits}", exc_info=True)
+                logger.error(f"Logits: {logits}")
                 for name, param in self._net.named_parameters():
                     if torch.isnan(param).any():
-                        logger.error(f"NaN in parameter {name}", exc_info=True)
+                        logger.error(f"NaN in parameter {name}")
 
             # Extract the new state from the dict
             new_state: Optional[LSTMState] = None
@@ -212,20 +234,24 @@ class LSTMAgentPolicy(StatefulAgentPolicy[LSTMState]):
             # Sample action from the logits
             dist = torch.distributions.Categorical(logits=logits)
             sampled_action = dist.sample().cpu().item()
-            action = dtype_actions.type(sampled_action)
-
+            # Convert action index to Action object
+            action = self._actions[sampled_action]
             return action, new_state.detach() if new_state is not None else None
 
 
 class LSTMPolicy(TrainablePolicy):
     """LSTM-based policy that creates StatefulPolicy wrappers for each agent."""
 
-    def __init__(self, env: MettaGridEnv, device: torch.device):
-        super().__init__()
-        self._net = LSTMPolicyNet(env).to(device)
+    def __init__(
+        self, actions_cfg: ActionsConfig, obs_shape: tuple, device: torch.device, policy_env_info: PolicyEnvInterface
+    ):
+        super().__init__(policy_env_info)
+        self._net = LSTMPolicyNet(actions_cfg, obs_shape).to(device)
         self._device = device
-        self._num_actions = int(env.single_action_space.n)
-        self._agent_policy = LSTMAgentPolicy(self._net, device, self._num_actions)
+        self._num_actions = len(actions_cfg.actions())
+        self._obs_shape = obs_shape
+        self._actions = actions_cfg.actions()
+        self._agent_policy = LSTMAgentPolicy(self._net, device, self._num_actions, obs_shape, self._actions)
 
     def network(self) -> nn.Module:
         return self._net

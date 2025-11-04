@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING, Any, Dict, List, Literal, Optional, Union
 
 from pydantic import Field, model_validator
 
-from mettagrid.base_config import Config
+from mettagrid.config import Config
 
 if TYPE_CHECKING:
     # For type checking only; avoid runtime import cycles

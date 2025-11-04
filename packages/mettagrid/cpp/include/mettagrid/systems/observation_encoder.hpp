@@ -1,51 +1,52 @@
 #ifndef PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_SYSTEMS_OBSERVATION_ENCODER_HPP_
 #define PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_SYSTEMS_OBSERVATION_ENCODER_HPP_
 
+#include <cstdint>
 #include <memory>
 #include <string>
 #include <unordered_map>
 #include <vector>
 
+#include "config/mettagrid_config.hpp"
 #include "core/grid_object.hpp"
 #include "core/types.hpp"
-#include "objects/agent.hpp"
-#include "objects/constants.hpp"
 
 class ObservationEncoder {
 public:
-  explicit ObservationEncoder(const std::vector<std::string>& resource_names, bool protocol_details_obs = false)
-      : protocol_details_obs(protocol_details_obs), resource_count(resource_names.size()) {
-    _feature_normalizations = FeatureNormalizations;
-    _feature_names = FeatureNames;
-    assert(_feature_names.size() == InventoryFeatureOffset);
-    assert(_feature_names.size() == _feature_normalizations.size());
+  explicit ObservationEncoder(size_t resource_count,
+                              bool protocol_details_obs = false,
+                              const std::vector<std::string>* resource_names = nullptr,
+                              const std::unordered_map<std::string, ObservationType>* feature_ids = nullptr)
+      : protocol_details_obs(protocol_details_obs), resource_count(resource_count) {
+    // Build feature ID maps for protocol details if enabled
+    if (protocol_details_obs) {
+      if (resource_names && feature_ids && !resource_names->empty()) {
+        // Build maps from resource_id -> feature_id for both input and output
+        _input_feature_ids.resize(resource_names->size());
+        _output_feature_ids.resize(resource_names->size());
 
-    // Add inventory features
-    for (size_t i = 0; i < resource_names.size(); i++) {
-      auto observation_feature = InventoryFeatureOffset + static_cast<ObservationType>(i);
-      _feature_normalizations.insert({observation_feature, DEFAULT_INVENTORY_NORMALIZATION});
-      _feature_names.insert({observation_feature, "inv:" + resource_names[i]});
-    }
+        for (size_t i = 0; i < resource_names->size(); ++i) {
+          const std::string& resource_name = (*resource_names)[i];
 
-    if (this->protocol_details_obs) {
-      // Define offsets based on actual inventory item count
-      const ObservationType input_protocol_offset =
-          InventoryFeatureOffset + static_cast<ObservationType>(resource_count);
-      const ObservationType output_protocol_offset =
-          input_protocol_offset + static_cast<ObservationType>(resource_count);
+          // Look up input feature ID
+          auto input_it = feature_ids->find("input:" + resource_name);
+          if (input_it != feature_ids->end()) {
+            _input_feature_ids[i] = input_it->second;
+          } else {
+            throw std::runtime_error("Protocol input feature 'input:" + resource_name + "' not found in feature_ids");
+          }
 
-      // Add input recipe features
-      for (size_t i = 0; i < resource_names.size(); i++) {
-        auto input_feature = input_protocol_offset + static_cast<ObservationType>(i);
-        _feature_normalizations.insert({input_feature, DEFAULT_INVENTORY_NORMALIZATION});
-        _feature_names.insert({input_feature, "input:" + resource_names[i]});
-      }
-
-      // Add output recipe features
-      for (size_t i = 0; i < resource_names.size(); i++) {
-        auto output_feature = output_protocol_offset + static_cast<ObservationType>(i);
-        _feature_normalizations.insert({output_feature, DEFAULT_INVENTORY_NORMALIZATION});
-        _feature_names.insert({output_feature, "output:" + resource_names[i]});
+          // Look up output feature ID
+          auto output_it = feature_ids->find("output:" + resource_name);
+          if (output_it != feature_ids->end()) {
+            _output_feature_ids[i] = output_it->second;
+          } else {
+            throw std::runtime_error("Protocol output feature 'output:" + resource_name + "' not found in feature_ids");
+          }
+        }
+      } else {
+        throw std::runtime_error(
+            "ObservationEncoder with protocol_details_obs requires resource_names and feature_ids");
       }
     }
   }
@@ -68,32 +69,30 @@ public:
     return append_tokens_if_room_available(tokens, obj->obs_features(), location);
   }
 
-  const std::unordered_map<ObservationType, float>& feature_normalizations() const {
-    return _feature_normalizations;
-  }
-
-  const std::unordered_map<ObservationType, std::string>& feature_names() const {
-    return _feature_names;
-  }
-
   size_t get_resource_count() const {
     return resource_count;
   }
 
-  ObservationType get_input_protocol_offset() const {
-    return InventoryFeatureOffset + static_cast<ObservationType>(resource_count);
+  ObservationType get_input_feature_id(size_t resource_id) const {
+    if (resource_id >= _input_feature_ids.size()) {
+      throw std::runtime_error("Invalid resource_id for input feature lookup");
+    }
+    return _input_feature_ids[resource_id];
   }
 
-  ObservationType get_output_protocol_offset() const {
-    return InventoryFeatureOffset + static_cast<ObservationType>(2 * resource_count);
+  ObservationType get_output_feature_id(size_t resource_id) const {
+    if (resource_id >= _output_feature_ids.size()) {
+      throw std::runtime_error("Invalid resource_id for output feature lookup");
+    }
+    return _output_feature_ids[resource_id];
   }
 
   bool protocol_details_obs;
 
 private:
   size_t resource_count;
-  std::unordered_map<ObservationType, float> _feature_normalizations;
-  std::unordered_map<ObservationType, std::string> _feature_names;
+  std::vector<ObservationType> _input_feature_ids;
+  std::vector<ObservationType> _output_feature_ids;
 };
 
 #endif  // PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_SYSTEMS_OBSERVATION_ENCODER_HPP_
