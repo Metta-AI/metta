@@ -14,11 +14,11 @@ on:
       - ".github/workflows/deploy-pr-similarity-cache-cronjob.yml"
   workflow_dispatch:
     inputs:
-      branch:
-        description: "Branch to build from (defaults to current branch)"
+      dev:
+        description: "Deploy as dev variant (uses -dev suffix and separate release)"
         required: false
-        type: string
-        default: ""
+        type: boolean
+        default: false
 
 jobs:
   build-and-push-image:
@@ -39,19 +39,19 @@ jobs:
         uses: ./.github/actions/docker-build
         with:
           image_name: metta-cronjobs
-          suffix: -pr-similarity
+          suffix: ${{ inputs.dev && '-pr-similarity-dev' || '-pr-similarity' }}
           dockerfile: ./devops/charts/cronjob/Dockerfile.pr-similarity
           aws_role: ${{ vars.AWS_ROLE }}
 
       - name: Configure EKS
-        if: github.ref == 'refs/heads/main'
+        if: github.ref == 'refs/heads/main' || inputs.dev
         uses: ./.github/actions/eks-configure
 
       - name: Deploy with Helm
-        if: github.ref == 'refs/heads/main'
+        if: github.ref == 'refs/heads/main' || inputs.dev
         uses: ./.github/actions/helm-deploy
         with:
           namespace: monitoring
-          release: pr-similarity-cache-cronjob
+          release: ${{ inputs.dev && 'pr-similarity-cache-cronjob-dev' || 'pr-similarity-cache-cronjob' }}
           chart: ./devops/charts/cronjob
           image_tag: ${{ steps.build-image.outputs.tag }}
