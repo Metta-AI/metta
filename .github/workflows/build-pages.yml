@@ -43,10 +43,6 @@ jobs:
           restore-keys: |
             nim-binary-${{ runner.os }}-
 
-      - name: Install Mettascope
-        run: |
-          ./mettascope/install.sh
-
       - name: Setup Emscripten
         uses: mymindstorm/setup-emsdk@v14
 
