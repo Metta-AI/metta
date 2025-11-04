@@ -14,6 +14,13 @@ repositories:
   - name: datadog
     url: https://helm.datadoghq.com
 
+templates:
+  softmax-cronjob: &softmax_cronjob
+    chart: ./softmax-cronjob
+    version: 0.1.0
+    namespace: cronjobs
+    createNamespace: true
+
 releases:
   ########## System configurations ##########
   - name: system
@@ -151,12 +158,71 @@ releases:
         args: ["create", "namespace", "home", "--dry-run=client"]
   # Note: Observatory is deployed automatically by Github Actions.
 
-  - name: library
-    chart: ./library
-    version: 0.1.0
-    namespace: library
+  # Below are helm releases for cronjobs that run on a docker image with the `softmax` package installed.
 
-  - name: login
-    chart: ./login
-    version: 0.1.0
-    namespace: login
+  - name: softmax-cronjob-serviceaccount
+    <<: *softmax_cronjob
+    values:
+      - cronjobEnabled: false
+      - serviceAccount:
+          create: true
+          name: standard-service-account
+          annotations:
+            eks.amazonaws.com/role-arn: arn:aws:iam::751442549699:role/standard-service-account
+
+  - name: dashboard-cronjob
+    <<: *softmax_cronjob
+    values:
+      - command:
+          - uv
+          - run
+          - python
+          - -m
+          - softmax.dashboard.report
+          - --push
+
+  - name: pr-similarity-cache-refresh-cronjob
+    <<: *softmax_cronjob
+    values:
+      - schedule: "0 0 * * *" # Once daily at midnight
+      - command:
+          - /bin/bash
+          - -c
+          - |
+            set -e
+            cd /workspace/metta
+            git config --local --unset http.https://github.com/.extraheader 2>/dev/null || true
+            git remote set-url origin https://github.com/Metta-AI/metta.git
+            git fetch --unshallow origin main 2>/dev/null || git fetch origin main
+            git checkout -f origin/main
+            uv pip install numpy google-genai boto3
+            PYTHONPATH=/workspace/metta uv run --no-sync python mcp_servers/pr_similarity/build_cache.py --download-from-s3
+      - resources:
+          requests:
+            cpu: 100m
+            memory: 2Gi
+          limits:
+            cpu: 500m
+            memory: 2Gi
+# To add a new cronjob, copy the example below and fill in the details.
+# It will be deployed within the production `cronjobs` namespace
+# Remove the `datadog.env` value if you don't want to tag pushes to datadog as development
+# - name: example-dev-cronjob
+#   <<: *softmax_cronjob
+#   values:
+#     - command:
+#         - uv
+#         - run
+#         - python
+#         - -m
+#         - my.example.main
+#     - datadog:
+#         env: development
+
+# Helpful commands:
+#   Deploy cronjob definition: cd devops/charts && helmfile -l name=<release-name> apply
+#   Inspect cronjob definition: kubectl get cronjobs -n cronjobs
+#   Trigger a run of cronjob off-schedule: kubectl -n cronjobs create job <custom-name> --from=cronjob/<release-name>
+#   Inspect runs/logs: kubectl get jobs -n cronjobs && kubectl logs -n cronjobs job/<job-name>
+
+# If you need to expand permissions, update the `standard-service-account-access` IAM policy in `tf/eks/standard_service_account.tf`.

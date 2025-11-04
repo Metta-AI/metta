@@ -126,6 +126,10 @@ def build_eval_overrides(
     # Use 'group' instead of 'wandb.group' to match train.py pattern
     eval_overrides["group"] = experiment_id
 
+    # Ensure evaluation has a stats directory to avoid Path(None) errors downstream
+    eval_overrides.setdefault("stats_dir", "/tmp/eval_sweep_stats")
+    eval_overrides.setdefault("enable_replays", False)
+
     # Stats server configuration
     if stats_server_uri:
         eval_overrides["stats_server_uri"] = stats_server_uri
@@ -191,7 +195,7 @@ def create_eval_job(
         run_id=run_id,
         cmd=f"{recipe_module}.{eval_entrypoint}",
         type=JobTypes.LAUNCH_EVAL,
-        args={"policy_uri": f"{SOFTMAX_S3_POLICY_PREFIX}/{run_id}/{run_id}:latest"},
+        args={"policy_uri": f"{SOFTMAX_S3_POLICY_PREFIX}/{run_id}:latest"},
         overrides=overrides,
         metadata={},
     )

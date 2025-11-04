@@ -8,11 +8,13 @@ from uuid import UUID
 
 import numpy as np
 import torch
+import torch.nn as nn
 from pydantic import Field
 
 from metta.app_backend.clients.stats_client import StatsClient
 from metta.common.wandb.context import WandbRun
 from metta.eval.eval_request_config import EvalRewardSummary
+from metta.rl.model_analysis import compute_dormant_neuron_stats
 from metta.rl.stats import accumulate_rollout_stats, compute_timing_stats, process_training_stats
 from metta.rl.training.component import TrainerComponent
 from metta.rl.utils import should_run
@@ -121,6 +123,8 @@ class StatsReporterConfig(Config):
     """How often to report stats (in epochs)"""
     analyze_weights_interval: int = 0
     """How often to compute weight metrics (0 disables)."""
+    dormant_neuron_threshold: float = 1e-6
+    """Threshold for considering a neuron dormant based on mean absolute weight magnitude."""
 
 
 class StatsReporterState(Config):
@@ -421,6 +425,9 @@ class StatsReporter(TrainerComponent):
         self._normalize_steps_per_second(timing_info, agent_step)
 
         weight_stats = self._collect_weight_stats(policy=policy, epoch=epoch)
+        dormant_stats = self._compute_dormant_neuron_stats(policy=policy)
+        if dormant_stats:
+            weight_stats.update(dormant_stats)
         system_stats = self._collect_system_stats()
         memory_stats = self._collect_memory_stats()
         parameters = self._collect_parameters(
@@ -498,6 +505,16 @@ class StatsReporter(TrainerComponent):
             logger.warning("Failed to compute weight metrics: %s", exc, exc_info=True)
         return weight_stats
 
+    def _compute_dormant_neuron_stats(self, *, policy: Any) -> dict[str, float]:
+        if not isinstance(policy, nn.Module):
+            return {}
+        threshold = getattr(self._config, "dormant_neuron_threshold", 1e-6)
+        try:
+            return compute_dormant_neuron_stats(policy, threshold=threshold)
+        except Exception as exc:  # pragma: no cover - safeguard against model-specific failures
+            logger.debug("Failed to compute dormant neuron stats: %s", exc, exc_info=True)
+            return {}
+
     def _collect_system_stats(self) -> dict[str, Any]:
         system_monitor = getattr(self.context, "system_monitor", None)
         if system_monitor is None:
@@ -533,8 +550,21 @@ class StatsReporter(TrainerComponent):
             "learning_rate": learning_rate,
             "epoch_steps": timing_info.get("epoch_steps", 0),
             "num_minibatches": getattr(experience, "num_minibatches", 0),
-            "latest_saved_policy_epoch": getattr(self.context.state, "latest_saved_policy_epoch", 0),
         }
+
+        # Add ScheduleFree optimizer information
+        if optimizer and optimizer.param_groups:
+            param_group = optimizer.param_groups[0]
+            is_schedulefree = "train_mode" in param_group
+
+            if is_schedulefree:
+                scheduled_lr = param_group.get("scheduled_lr")
+                if scheduled_lr is not None:
+                    parameters["schedulefree_scheduled_lr"] = scheduled_lr
+                lr_max = param_group.get("lr_max")
+                if lr_max is not None:
+                    parameters["schedulefree_lr_max"] = lr_max
+
         return parameters
 
     def _collect_hyperparameters(
@@ -546,6 +576,14 @@ class StatsReporter(TrainerComponent):
         hyperparameters: dict[str, Any] = {}
         if "learning_rate" in parameters:
             hyperparameters["learning_rate"] = parameters["learning_rate"]
+
+        optimizer_cfg = getattr(trainer_cfg, "optimizer", None)
+        if optimizer_cfg:
+            hyperparameters["optimizer_type"] = optimizer_cfg.type
+            if "schedulefree" in optimizer_cfg.type:
+                warmup_steps = getattr(optimizer_cfg, "warmup_steps", None)
+                if warmup_steps is not None:
+                    hyperparameters["schedulefree_warmup_steps"] = warmup_steps
 
         losses = getattr(trainer_cfg, "losses", None)
         loss_configs = getattr(losses, "loss_configs", {}) if losses else {}

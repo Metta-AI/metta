@@ -21,7 +21,7 @@ class ReplayTool(Tool):
     """Tool for generating and viewing replay files in MettaScope.
     Creates a simulation specifically to generate replay files and automatically
     opens them in a browser for visualization. This tool focuses on replay viewing
-    and browser integration, unlike SimTool which focuses on policy evaluation."""
+    and browser integration, unlike EvaluateTool which focuses on policy evaluation."""
 
     wandb: WandbConfig = auto_wandb_config()
     sim: SimulationConfig
@@ -29,6 +29,7 @@ class ReplayTool(Tool):
     replay_dir: str = "./train_dir/replays"
     stats_dir: str = "./train_dir/stats"
     open_browser_on_start: bool = True
+    launch_viewer: bool = True
 
     def invoke(self, args: dict[str, str]) -> int | None:
         # Create simulation using CheckpointManager integration
@@ -45,11 +46,17 @@ class ReplayTool(Tool):
         # Get all replay URLs (no filtering needed since we just ran this simulation)
         replay_urls = result.stats_db.get_replay_urls()
         if not replay_urls:
-            logger.error("No replay URLs found in simulation results")
+            logger.error("No replay URLs found in simulation results", exc_info=True)
             return 1
         replay_url = replay_urls[0]
 
-        open_browser(replay_url, self)
+        if self.launch_viewer:
+            open_browser(replay_url, self)
+        else:
+            logger.info(
+                "Generated replay at %s (MettaScope viewer launch skipped because launch_viewer=False)",
+                get_clean_path(replay_url),
+            )
         return 0
 
 

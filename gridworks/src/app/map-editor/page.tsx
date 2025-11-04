@@ -6,7 +6,7 @@ import { MapViewer } from "@/components/MapViewer";
 import { useSpacePressed } from "@/components/MapViewer/hooks";
 import { Tabs } from "@/components/Tabs";
 import { useIsMouseDown } from "@/hooks/useIsMouseDown";
-import { Cell, MettaGrid } from "@/lib/MettaGrid";
+import { AsciiEncoding, Cell, MettaGrid } from "@/lib/MettaGrid";
 
 import { AsciiEditor } from "./AsciiEditor";
 import { ObjectsPanel } from "./ObjectsPanel";
@@ -84,7 +84,9 @@ export default function MapEditorPage() {
           <div className="flex items-center gap-4">
             <Button
               onClick={() => {
-                navigator.clipboard.writeText(grid.toAscii());
+                navigator.clipboard.writeText(
+                  grid.toAscii(AsciiEncoding.default())
+                );
               }}
               theme="primary"
               size="sm"

@@ -40,7 +40,7 @@ def environment(num_agents: int):
 
     print(f"\nConfiguring environment with {num_agents} agents")
 
-    env = MettaGridEnv(cfg, render_mode="human")
+    env = MettaGridEnv(cfg)
 
     # Verify deterministic grid generation
     assert env.initial_grid_hash == expected_grid_hash, (
@@ -154,7 +154,7 @@ def test_create_env_performance(benchmark):
 
     def create_and_reset():
         """Create a new environment and reset it."""
-        env = MettaGridEnv(MettaGridConfig(), render_mode="human")
+        env = MettaGridEnv(MettaGridConfig())
         obs = env.reset()
         # Cleanup
         del env

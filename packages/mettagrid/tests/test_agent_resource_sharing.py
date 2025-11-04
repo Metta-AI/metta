@@ -3,6 +3,8 @@ import numpy as np
 from mettagrid.config.mettagrid_config import MettaGridConfig
 from mettagrid.core import MettaGridCore
 from mettagrid.mettagrid_c import dtype_actions
+from mettagrid.test_support.actions import action_index
+from mettagrid.test_support.orientation import Orientation
 
 
 class TestAgentResourceSharing:
@@ -59,9 +61,9 @@ class TestAgentResourceSharing:
         # Have agent 0 move onto agent 1 to trigger onUse
         # Agent 0 is at position (1,1), Agent 1 is at position (1,2)
         # So agent 0 needs to move to the right (East)
-        move_idx = env.action_names.index("move")
-        noop_idx = env.action_names.index("noop")
-        actions = np.array([[move_idx, 3], [noop_idx, 0]], dtype=dtype_actions)
+        move_idx = action_index(env, "move", Orientation.EAST)
+        noop_idx = action_index(env, "noop")
+        actions = np.array([move_idx, noop_idx], dtype=dtype_actions)
 
         obs, rewards, terminals, truncations, info = env.step(actions)
 

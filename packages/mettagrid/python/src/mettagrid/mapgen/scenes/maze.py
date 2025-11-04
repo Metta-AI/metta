@@ -135,8 +135,11 @@ class Maze(Scene[MazeConfig]):
 
     def post_init(self):
         # Calculate number of maze cells and adjust overall dimensions.
-        room_size = self.config.room_size.sample(self.rng)
-        wall_size = self.config.wall_size.sample(self.rng)
+        sampled_room_size = self.config.room_size.sample(self.rng)
+        room_size = max(1, min(sampled_room_size, self.width, self.height))
+
+        sampled_wall_size = self.config.wall_size.sample(self.rng)
+        wall_size = max(1, sampled_wall_size)
 
         self.maze = MazeGrid(self.grid, room_size, wall_size)
 
@@ -182,20 +185,26 @@ class Maze(Scene[MazeConfig]):
         self.grid[:] = "wall"
         visited = np.zeros((self.maze.rows, self.maze.cols), dtype=bool)
 
-        def carve_passages_from(i: int, j: int):
-            nonlocal visited
+        # Iterative DFS using explicit stack to avoid Python recursion limits.
+        stack: list[tuple[int, int]] = [(0, 0)]
+        visited[0, 0] = True
+        self.maze.carve_cell(0, 0)
 
-            visited[j, i] = True
-            self.maze.carve_cell(i, j)
-            directions = self.maze.valid_directions(i, j)
-            self.rng.shuffle(directions)
-            for d in directions:
-                ni, nj = i + d[0], j + d[1]
-                if not visited[nj, ni]:
-                    self.maze.remove_wall_in_direction(i, j, d)
-                    carve_passages_from(ni, nj)
+        while stack:
+            i, j = stack[-1]
+            # Find unvisited neighbors
+            dirs = [d for d in self.maze.valid_directions(i, j) if not visited[j + d[1], i + d[0]]]
+            if not dirs:
+                stack.pop()
+                continue
 
-        carve_passages_from(0, 0)
+            # Randomly pick next direction
+            d = dirs[int(self.rng.integers(0, len(dirs)))]
+            ni, nj = i + d[0], j + d[1]
+            self.maze.remove_wall_in_direction(i, j, d)
+            visited[nj, ni] = True
+            self.maze.carve_cell(ni, nj)
+            stack.append((ni, nj))
 
     def render(self):
         if self.config.algorithm == "kruskal":
@@ -205,7 +214,11 @@ class Maze(Scene[MazeConfig]):
         else:
             raise ValueError(f"Unknown algorithm: {self.config.algorithm}")
 
+        # Create clamped anchor sub-areas; avoid overflow in small zones
         for anchor in ALL_ANCHORS:
             i, j = anchor_to_position(anchor, self.maze.cols, self.maze.rows)
             x, y = self.maze.cell_top_left(i, j)
-            self.make_area(x, y, self.maze.room_size, self.maze.room_size, tags=[anchor])
+            w = max(1, min(self.maze.room_size, self.width - x))
+            h = max(1, min(self.maze.room_size, self.height - y))
+            if w > 0 and h > 0:
+                self.make_area(x, y, w, h, tags=[anchor])

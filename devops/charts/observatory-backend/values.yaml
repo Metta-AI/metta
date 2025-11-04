@@ -10,6 +10,11 @@ image:
   name: metta-app-backend
   tag: "" # will be set by CI/CD pipeline
 
+serviceAccount:
+  create: true
+  annotations:
+    eks.amazonaws.com/role-arn: arn:aws:iam::751442549699:role/observatory-backend
+
 # created by terraform
 secret_name: observatory-backend-env
 

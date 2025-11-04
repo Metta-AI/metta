@@ -19,9 +19,10 @@ from metta.app_backend.clients.stats_client import HttpStatsClient, StatsClient
 from metta.cogworks.curriculum.curriculum import Curriculum, CurriculumConfig
 from metta.common.util.heartbeat import record_heartbeat
 from metta.rl.checkpoint_manager import CheckpointManager
-from metta.rl.training.training_environment import EnvironmentMetaData
+from metta.rl.policy_artifact import PolicyArtifact
+from metta.rl.training.training_environment import GameRules
 from metta.rl.vecenv import make_vecenv
-from metta.sim.replay_writer import S3ReplayWriter
+from metta.sim.replay_log_renderer import ReplayLogRenderer
 from metta.sim.simulation_config import SimulationConfig
 from metta.sim.simulation_stats_db import SimulationStatsDB
 from metta.sim.stats import DuckDBStatsWriter
@@ -46,12 +47,11 @@ class Simulation:
     def __init__(
         self,
         cfg: SimulationConfig,
-        policy: Policy,
-        policy_uri: str,
+        policy_uri: str | None,
         device: torch.device,
         vectorization: str,
+        replay_dir: str | None,
         stats_dir: str = "/tmp/stats",
-        replay_dir: str | None = None,
         stats_client: StatsClient | None = None,
         stats_epoch_id: uuid.UUID | None = None,
         eval_task_id: uuid.UUID | None = None,
@@ -59,18 +59,24 @@ class Simulation:
         self._config = cfg
         self._id = uuid.uuid4().hex[:12]
         self._eval_task_id = eval_task_id
-        self._policy_uri = policy_uri
-
-        replay_dir = f"{replay_dir}/{self._id}" if replay_dir else None
 
         sim_stats_dir = (Path(stats_dir) / self._id).resolve()
         sim_stats_dir.mkdir(parents=True, exist_ok=True)
         self._stats_dir = sim_stats_dir
         self._stats_writer = DuckDBStatsWriter(sim_stats_dir)
-        self._replay_writer = S3ReplayWriter(replay_dir)
+        self._replay_writer: ReplayLogRenderer | None = None
+        if replay_dir is not None:
+            self._replay_writer = ReplayLogRenderer(f"{replay_dir}/{self._id}")
         self._device = device
 
         self._full_name = f"{cfg.suite}/{cfg.name}"
+
+        if policy_uri:
+            policy_artifact = CheckpointManager.load_artifact_from_uri(policy_uri)
+            resolved_policy_uri = CheckpointManager.normalize_uri(policy_uri)
+        else:
+            policy_artifact = PolicyArtifact(policy=MockAgent())
+            resolved_policy_uri = "mock://"
 
         # Calculate number of parallel environments and episodes per environment
         # to achieve the target total number of episodes
@@ -102,15 +108,18 @@ class Simulation:
         self._max_time_s = cfg.max_time_s
         self._agents_per_env = cfg.env.game.num_agents
 
-        self._policy = policy
-        self._policy_uri = policy_uri
+        self._policy_artifact = policy_artifact
+        self._policy: Policy | None = None
+        self._policy_uri = resolved_policy_uri
         # Load NPC policy if specified
         if cfg.npc_policy_uri:
-            self._npc_policy = CheckpointManager.load_from_uri(cfg.npc_policy_uri)
+            self._npc_artifact = CheckpointManager.load_artifact_from_uri(cfg.npc_policy_uri)
+            self._npc_policy: Policy | None = None
         else:
+            self._npc_artifact = None
             self._npc_policy = None
         self._npc_policy_uri = cfg.npc_policy_uri
-        self._policy_agents_pct = cfg.policy_agents_pct if self._npc_policy is not None else 1.0
+        self._policy_agents_pct = cfg.policy_agents_pct if cfg.npc_policy_uri else 1.0
 
         self._stats_client: StatsClient | None = stats_client
         self._stats_epoch_id: uuid.UUID | None = stats_epoch_id
@@ -119,26 +128,21 @@ class Simulation:
         metta_grid_env: MettaGridEnv = getattr(driver_env, "_env", driver_env)
         assert isinstance(metta_grid_env, MettaGridEnv), f"Expected MettaGridEnv, got {type(metta_grid_env)}"
 
-        env_metadata = EnvironmentMetaData(
+        game_rules = GameRules(
             obs_width=metta_grid_env.obs_width,
             obs_height=metta_grid_env.obs_height,
             obs_features=metta_grid_env.observation_features,
             action_names=metta_grid_env.action_names,
-            max_action_args=metta_grid_env.max_action_args,
             num_agents=metta_grid_env.num_agents,
             observation_space=metta_grid_env.observation_space,
-            action_space=metta_grid_env.action_space,
+            action_space=metta_grid_env.single_action_space,
             feature_normalizations=metta_grid_env.feature_normalizations,
         )
 
-        # Initialize policy to environment
-        self._policy.eval()  # Set to evaluation mode for simulation
-        self._policy.initialize_to_environment(env_metadata, self._device)
+        self._policy = self._materialize_policy(self._policy_artifact, self._policy, game_rules)
 
-        if self._npc_policy is not None:
-            # Initialize NPC policy to environment
-            self._npc_policy.eval()  # Set to evaluation mode for simulation
-            self._npc_policy.initialize_to_environment(env_metadata, self._device)
+        if self._npc_artifact is not None:
+            self._npc_policy = self._materialize_policy(self._npc_artifact, self._npc_policy, game_rules)
 
         # agent-index bookkeeping
         idx_matrix = torch.arange(metta_grid_env.num_agents * self._num_envs, device=self._device).reshape(
@@ -155,6 +159,25 @@ class Simulation:
         )
         self._episode_counters = np.zeros(self._num_envs, dtype=int)
 
+    def _materialize_policy(
+        self,
+        artifact: PolicyArtifact,
+        existing_policy: Policy | None,
+        game_rules: GameRules,
+    ) -> Policy:
+        using_existing = existing_policy is not None
+        if using_existing:
+            policy = existing_policy
+        else:
+            policy = artifact.instantiate(game_rules, device=self._device)
+
+        policy = policy.to(self._device)
+        policy.eval()
+
+        if using_existing and hasattr(policy, "initialize_to_environment"):
+            policy.initialize_to_environment(game_rules, self._device)
+        return policy
+
     @classmethod
     def create(
         cls,
@@ -162,24 +185,17 @@ class Simulation:
         device: str,
         vectorization: str,
         stats_dir: str = "./train_dir/stats",
-        replay_dir: str = "./train_dir/replays",
+        replay_dir: str | None = "./train_dir/replays",
         policy_uri: str | None = None,
     ) -> "Simulation":
         """Create a Simulation with sensible defaults."""
-        # Create policy record from URI
-        if policy_uri:
-            policy = CheckpointManager.load_from_uri(policy_uri, device=device)
-        else:
-            policy = MockAgent()
-
         # Create replay directory path with simulation name
-        full_replay_dir = f"{replay_dir}/{sim_config.name}"
+        full_replay_dir = f"{replay_dir}/{sim_config.name}" if replay_dir is not None else None
 
         # Create and return simulation
         return cls(
             sim_config,
-            policy,
-            policy_uri or "mock://",
+            policy_uri,
             device=torch.device(device),
             vectorization=vectorization,
             stats_dir=stats_dir,
@@ -246,32 +262,31 @@ class Simulation:
                 )
 
         with torch.no_grad():
-            policy_actions = self._get_actions_for_agents(self._policy_idxs.cpu(), self._policy)
+            policy_actions = self._get_actions_for_agents(self._policy_idxs.cpu(), self._policy).to(dtype=torch.int32)
 
             npc_actions = None
             if self._npc_policy is not None and len(self._npc_idxs):
-                npc_actions = self._get_actions_for_agents(self._npc_idxs, self._npc_policy)
+                npc_actions = self._get_actions_for_agents(self._npc_idxs, self._npc_policy).to(dtype=torch.int32)
 
-        actions = policy_actions
         if self._npc_agents_per_env:
             policy_actions = rearrange(
                 policy_actions,
-                "(envs policy_agents) act -> envs policy_agents act",
+                "(envs policy_agents) -> envs policy_agents",
                 envs=self._num_envs,
                 policy_agents=self._policy_agents_per_env,
             )
             npc_actions = rearrange(
                 npc_actions,
-                "(envs npc_agents) act -> envs npc_agents act",
+                "(envs npc_agents) -> envs npc_agents",
                 envs=self._num_envs,
                 npc_agents=self._npc_agents_per_env,
             )
-            # Concatenate along agents dimension
             actions = torch.cat([policy_actions, npc_actions], dim=1)
-            # Flatten back to (total_agents, action_dim)
-            actions = rearrange(actions, "envs agents act -> (envs agents) act")
+            actions = rearrange(actions, "envs agents -> (envs agents)")
+        else:
+            actions = policy_actions
 
-        actions_np = actions.cpu().numpy().astype(dtype_actions)
+        actions_np = actions.to(dtype=torch.int32).cpu().numpy().astype(dtype_actions, copy=False)
         return actions_np
 
     def step_simulation(self, actions_np: np.ndarray) -> None:
@@ -291,6 +306,10 @@ class Simulation:
     def _maybe_generate_thumbnail(self) -> str | None:
         """Generate thumbnail if this is the first run for this eval_name."""
         try:
+            if self._replay_writer is None:
+                logger.debug("Replay logging disabled; skipping thumbnail generation")
+                return None
+
             # Skip synthetic evaluation framework simulations
             if self._config.suite == SYNTHETIC_EVAL_SUITE:
                 logger.debug(f"Skipping thumbnail generation for synthetic simulation: {self._full_name}")
@@ -316,7 +335,7 @@ class Simulation:
                 return None
 
         except Exception as e:
-            logger.error(f"Thumbnail generation failed for {self._full_name}: {e}")
+            logger.error(f"Thumbnail generation failed for {self._full_name}: {e}", exc_info=True)
             return None
 
     def end_simulation(self) -> SimulationResults:
@@ -453,7 +472,7 @@ class Simulation:
                         thumbnail_url=thumbnail_url,
                     )
                 except Exception as e:
-                    logger.error(f"Failed to record episode {episode_id} remotely: {e}")
+                    logger.error(f"Failed to record episode {episode_id} remotely: {e}", exc_info=True)
                     # Continue with other episodes even if one fails
 
     def get_policy_state(self):
@@ -479,10 +498,15 @@ class Simulation:
 
     def get_replays(self) -> dict:
         """Get all replays for this simulation."""
+        if self._replay_writer is None:
+            return {}
         return self._replay_writer.episodes.values()
 
     def get_replay(self) -> dict:
         """Makes sure this sim has a single replay, and return it."""
+        if self._replay_writer is None:
+            raise ValueError("Attempting to get single replay, but simulation has no replay writer.")
+
         # If no episodes yet, create initial replay data from the environment
         if len(self._replay_writer.episodes) == 0:
             env = self.get_env()

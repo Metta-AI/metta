@@ -1,6 +1,8 @@
 from mettagrid.mapgen.scenes.maze import Maze
 from mettagrid.mapgen.scenes.mirror import Mirror
-from mettagrid.test_support.mapgen import assert_grid, render_scene
+from mettagrid.test_support.mapgen import render_scene
+
+from .test_utils import assert_grid
 
 
 def test_horizontal():

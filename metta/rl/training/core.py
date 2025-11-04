@@ -1,7 +1,6 @@
 import logging
 from typing import Any
 
-import numpy as np
 import torch
 from pydantic import ConfigDict
 from tensordict import TensorDict
@@ -91,43 +90,75 @@ class CoreTrainingLoop:
 
         while not self.experience.ready_for_training:
             # Get observation from environment
-            o, r, d, t, info, training_env_id, _, num_steps = env.get_observations()
+            with context.stopwatch("_rollout.env_wait"):
+                o, r, d, t, info, training_env_id, _, num_steps = env.get_observations()
             last_env_id = training_env_id
 
             # Prepare data for policy
-            td = buffer_step[training_env_id].clone()
-            target_device = td.device
-            td["env_obs"] = o.to(device=target_device, non_blocking=True)
+            with context.stopwatch("_rollout.td_prep"):
+                td = buffer_step[training_env_id].clone()
+                target_device = td.device
+                td["env_obs"] = o.to(device=target_device, non_blocking=True)
 
-            td["rewards"] = r.to(device=target_device, non_blocking=True)
+                td["rewards"] = r.to(device=target_device, non_blocking=True)
 
-            # CRITICAL FIX for MPS: Convert dtype BEFORE moving to device, and use blocking transfer
-            # MPS has two bugs:
-            # 1. bool->float32 conversion during .to(device=mps, dtype=float32) produces NaN
-            # 2. non_blocking=True causes race conditions with uninitialized data
-            # Solution: Convert dtype on CPU first, then use blocking transfer to MPS
-            if target_device.type == "mps":
-                td["dones"] = d.to(dtype=torch.float32).to(device=target_device, non_blocking=False)
-                td["truncateds"] = t.to(dtype=torch.float32).to(device=target_device, non_blocking=False)
-            else:
-                # On CUDA/CPU, combined conversion is safe and faster
-                td["dones"] = d.to(device=target_device, dtype=torch.float32, non_blocking=True)
-                td["truncateds"] = t.to(device=target_device, dtype=torch.float32, non_blocking=True)
-            td["training_env_ids"] = self._gather_env_indices(training_env_id, td.device).unsqueeze(1)
-            self.add_last_action_to_td(td, env)
+                # CRITICAL FIX for MPS: Convert dtype BEFORE moving to device, and use blocking transfer
+                # MPS has two bugs:
+                # 1. bool->float32 conversion during .to(device=mps, dtype=float32) produces NaN
+                # 2. non_blocking=True causes race conditions with uninitialized data
+                # Solution: Convert dtype on CPU first, then use blocking transfer to MPS
+                if target_device.type == "mps":
+                    td["dones"] = d.to(dtype=torch.float32).to(device=target_device, non_blocking=False)
+                    td["truncateds"] = t.to(dtype=torch.float32).to(device=target_device, non_blocking=False)
+                else:
+                    # On CUDA/CPU, combined conversion is safe and faster
+                    td["dones"] = d.to(device=target_device, dtype=torch.float32, non_blocking=True)
+                    td["truncateds"] = t.to(device=target_device, dtype=torch.float32, non_blocking=True)
+                td["training_env_ids"] = self._gather_env_indices(training_env_id, td.device).unsqueeze(1)
+                self.add_last_action_to_td(td, env)
 
-            self._ensure_rollout_metadata(td)
+                self._ensure_rollout_metadata(td)
 
             # Allow losses to mutate td (policy inference, bookkeeping, etc.)
-            context.training_env_id = training_env_id
-            for loss in self.losses.values():
-                loss.rollout(td, context)
+            with context.stopwatch("_rollout.inference"):
+                context.training_env_id = training_env_id
+                for loss in self.losses.values():
+                    loss.rollout(td, context)
 
             assert "actions" in td, "No loss performed inference - at least one loss must generate actions"
-            self.last_action[training_env_id] = td["actions"].detach()
+            raw_actions = td["actions"].detach()
+            if raw_actions.dim() != 1:
+                raise ValueError(
+                    "Policies must emit a single discrete action id per agent; "
+                    f"received tensor of shape {tuple(raw_actions.shape)}"
+                )
+
+            actions_column = raw_actions.view(-1, 1)
+
+            if self.last_action is None:
+                raise RuntimeError("last_action buffer was not initialized before rollout actions were generated")
+
+            if self.last_action.device != actions_column.device:
+                self.last_action = self.last_action.to(device=actions_column.device)
+
+            if self.last_action.dtype != actions_column.dtype:
+                actions_column = actions_column.to(dtype=self.last_action.dtype)
+
+            target_buffer = self.last_action[training_env_id]
+            if target_buffer.shape != actions_column.shape:
+                msg = "last_action buffer shape mismatch: target=%s actions=%s raw=%s" % (
+                    target_buffer.shape,
+                    actions_column.shape,
+                    tuple(td["actions"].shape),
+                )
+                logger.error(msg, exc_info=True)
+                raise RuntimeError(msg)
+
+            target_buffer.copy_(actions_column)
 
             # Ship actions to the environment
-            env.send_actions(td["actions"].cpu().numpy())
+            with context.stopwatch("_rollout.send"):
+                env.send_actions(td["actions"].cpu().numpy())
 
             infos_list: list[dict[str, Any]] = list(info) if info else []
             if infos_list:
@@ -278,9 +309,23 @@ class CoreTrainingLoop:
     def add_last_action_to_td(self, td: TensorDict, env: TrainingEnvironment) -> None:
         env_ids = td["training_env_ids"]
         if env_ids.dim() == 2:
-            env_ids = td["training_env_ids"].squeeze(-1)
-        if self.last_action is None or len(self.last_action) < env_ids.max() + 1:
-            act_space = env.single_action_space
-            act_dtype = torch.int32 if np.issubdtype(act_space.dtype, np.integer) else torch.float32
-            self.last_action = torch.zeros(env_ids.max() + 1, len(act_space.nvec), dtype=act_dtype, device=td.device)
+            env_ids = env_ids.squeeze(-1)
+
+        if env_ids.numel() == 0:
+            td["last_actions"] = torch.zeros((0, 1), dtype=torch.int32, device=td.device)
+            return
+
+        max_env_id = int(env_ids.max().item())
+        target_length = max_env_id + 1
+
+        if self.last_action is None:
+            self.last_action = torch.zeros(target_length, 1, dtype=torch.int32, device=td.device)
+        else:
+            if self.last_action.size(0) < target_length:
+                pad_shape = (target_length - self.last_action.size(0), self.last_action.size(1))
+                pad_tensor = torch.zeros(pad_shape, dtype=self.last_action.dtype, device=self.last_action.device)
+                self.last_action = torch.cat((self.last_action, pad_tensor), dim=0)
+            if self.last_action.device != td.device:
+                self.last_action = self.last_action.to(device=td.device)
+
         td["last_actions"] = self.last_action[env_ids].detach()

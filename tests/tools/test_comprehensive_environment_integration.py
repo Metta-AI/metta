@@ -35,12 +35,11 @@ class TestComprehensiveEnvironmentIntegration:
                     max_steps=100,
                     objects={
                         "wall": building.wall,
-                        "altar": building.altar,
+                        "altar": building.assembler_altar,
                     },
                     actions=ActionsConfig(
+                        noop=ActionConfig(),
                         move=ActionConfig(),
-                        rotate=ActionConfig(),
-                        get_items=ActionConfig(),
                     ),
                     agent=AgentConfig(
                         rewards=AgentRewards(
@@ -95,13 +94,12 @@ class TestComprehensiveEnvironmentIntegration:
                     max_steps=100,
                     objects={
                         "wall": building.wall,
-                        "mine_red": building.mine_red,
-                        "generator_red": building.generator_red,
+                        "mine_red": building.assembler_mine_red,
+                        "generator_red": building.assembler_generator_red,
                     },
                     actions=ActionsConfig(
                         move=ActionConfig(),
-                        rotate=ActionConfig(),
-                        get_items=ActionConfig(),
+                        noop=ActionConfig(),
                     ),
                     agent=AgentConfig(
                         rewards=AgentRewards(
@@ -129,14 +127,13 @@ class TestComprehensiveEnvironmentIntegration:
                     max_steps=100,
                     objects={
                         "wall": building.wall,
-                        "altar": building.altar,
-                        "mine_red": building.mine_red,
-                        "generator_red": building.generator_red,
+                        "altar": building.assembler_altar,
+                        "mine_red": building.assembler_mine_red,
+                        "generator_red": building.assembler_generator_red,
                     },
                     actions=ActionsConfig(
                         move=ActionConfig(),
-                        rotate=ActionConfig(),
-                        get_items=ActionConfig(),
+                        noop=ActionConfig(),
                     ),
                     agent=AgentConfig(
                         rewards=AgentRewards(
@@ -230,7 +227,7 @@ class TestComprehensiveEnvironmentIntegration:
         assert replay_tool.sim.name == "test_resource"
 
         # Test PlayTool configuration
-        play_tool = PlayTool(sim=sim_config, policy_uri=None, open_browser_on_start=False)
+        play_tool = PlayTool(sim=sim_config, policy_uri=None)
         assert play_tool.sim.name == "test_resource"
 
     def test_agents_count_in_environments(self):

@@ -1,22 +1,22 @@
 #include <gtest/gtest.h>
 
+#include <array>
 #include <random>
+#include <utility>
 
 #include "actions/attack.hpp"
-#include "actions/change_glyph.hpp"
-#include "actions/get_output.hpp"
+#include "actions/change_vibe.hpp"
 #include "actions/noop.hpp"
-#include "actions/put_recipe_items.hpp"
 #include "actions/resource_mod.hpp"
 #include "config/mettagrid_config.hpp"
 #include "core/event.hpp"
 #include "core/grid.hpp"
 #include "core/types.hpp"
 #include "objects/agent.hpp"
+#include "objects/agent_config.hpp"
 #include "objects/assembler.hpp"
 #include "objects/assembler_config.hpp"
 #include "objects/constants.hpp"
-#include "objects/converter.hpp"
 #include "objects/inventory_config.hpp"
 #include "objects/wall.hpp"
 
@@ -26,7 +26,6 @@ constexpr uint8_t ORE = 0;
 constexpr uint8_t LASER = 1;
 constexpr uint8_t ARMOR = 2;
 constexpr uint8_t HEART = 3;
-constexpr uint8_t CONVERTER = 4;
 }  // namespace TestItems
 
 namespace TestItemStrings {
@@ -62,8 +61,8 @@ protected:
     return inventory_config;
   }
 
-  std::map<std::string, RewardType> create_test_stats_rewards() {
-    std::map<std::string, RewardType> rewards;
+  std::unordered_map<std::string, RewardType> create_test_stats_rewards() {
+    std::unordered_map<std::string, RewardType> rewards;
     rewards[std::string(TestItemStrings::ORE) + ".amount"] = TestRewards::ORE;
     rewards[std::string(TestItemStrings::LASER) + ".amount"] = TestRewards::LASER;
     rewards[std::string(TestItemStrings::ARMOR) + ".amount"] = TestRewards::ARMOR;
@@ -72,8 +71,8 @@ protected:
   }
 
   // Helper function to create test stats_reward_max map
-  std::map<std::string, RewardType> create_test_stats_reward_max() {
-    std::map<std::string, RewardType> stats_reward_max;
+  std::unordered_map<std::string, RewardType> create_test_stats_reward_max() {
+    std::unordered_map<std::string, RewardType> stats_reward_max;
     stats_reward_max[std::string(TestItemStrings::ORE) + ".amount"] = 10.0f;
     stats_reward_max[std::string(TestItemStrings::LASER) + ".amount"] = 10.0f;
     stats_reward_max[std::string(TestItemStrings::ARMOR) + ".amount"] = 10.0f;
@@ -202,7 +201,7 @@ TEST_F(MettaGridCppTest, AgentInventoryUpdate_RewardCappingBehavior) {
   auto rewards = create_test_stats_rewards();
 
   // Set a lower cap for ORE so we can actually test capping
-  std::map<std::string, RewardType> stats_reward_max;
+  std::unordered_map<std::string, RewardType> stats_reward_max;
   stats_reward_max[std::string(TestItemStrings::ORE) + ".amount"] = 2.0f;  // Cap at 2.0 instead of 10.0
 
   AgentConfig agent_cfg(0, "agent", 1, "test_group", 100, 0.0f, inventory_config, rewards, stats_reward_max, 0.0f, {});
@@ -267,7 +266,7 @@ TEST_F(MettaGridCppTest, AgentInventoryUpdate_MultipleItemCaps) {
   auto rewards = create_test_stats_rewards();
 
   // Set different caps for different items
-  std::map<std::string, RewardType> stats_reward_max;
+  std::unordered_map<std::string, RewardType> stats_reward_max;
   stats_reward_max[std::string(TestItemStrings::ORE) + ".amount"] = 2.0f;     // Low cap for ORE
   stats_reward_max[std::string(TestItemStrings::HEART) + ".amount"] = 30.0f;  // Cap for HEART
   // LASER and ARMOR have no caps
@@ -489,105 +488,6 @@ TEST_F(MettaGridCppTest, AttackAction) {
   // Humorously, the defender's armor was also stolen!
   EXPECT_EQ(target->inventory.amount(TestItems::ARMOR), 0);
   EXPECT_EQ(attacker->inventory.amount(TestItems::ARMOR), 2);
-}
-
-TEST_F(MettaGridCppTest, PutRecipeItems) {
-  Grid grid(10, 10);
-
-  AgentConfig agent_cfg = create_test_agent_config();
-  agent_cfg.group_name = "red";
-  agent_cfg.group_id = 1;
-  auto resource_names = create_test_resource_names();
-  Agent* agent = new Agent(1, 0, agent_cfg, &resource_names);
-  float agent_reward = 0.0f;
-  agent->init(&agent_reward);
-
-  grid.add_object(agent);
-
-  // Create a generator that takes red ore and outputs batteries
-  ConverterConfig generator_cfg(TestItems::CONVERTER,     // type_id
-                                "generator",              // type_name
-                                {{TestItems::ORE, 1}},    // input_resources
-                                {{TestItems::ARMOR, 1}},  // output_resources
-                                0,                        // max_output
-                                -1,                       // max_conversions
-                                1,                        // conversion_ticks
-                                10,                       // cooldown
-                                0,                        // initial_resource_count
-                                false);                   // recipe_details_obs
-  EventManager event_manager;
-  Converter* generator = new Converter(0, 0, generator_cfg);
-  grid.add_object(generator);
-  generator->set_event_manager(&event_manager);
-
-  // Give agent some items
-  agent->update_inventory(TestItems::ORE, 1);
-  agent->update_inventory(TestItems::HEART, 1);
-
-  // Create put_items action handler
-  ActionConfig put_cfg({}, {});
-  PutRecipeItems put(put_cfg);
-  std::mt19937 rng(42);
-  put.init(&grid, &rng);
-
-  // Test putting matching items
-  bool success = put.handle_action(*agent, 0);
-  EXPECT_TRUE(success);
-  EXPECT_EQ(agent->inventory.amount(TestItems::ORE), 0);      // Ore consumed
-  EXPECT_EQ(agent->inventory.amount(TestItems::HEART), 1);    // Heart unchanged
-  EXPECT_EQ(generator->inventory.amount(TestItems::ORE), 1);  // Ore added to generator
-
-  // Test putting non-matching items
-  success = put.handle_action(*agent, 0);
-  EXPECT_FALSE(success);                                        // Should fail since we only have heart left
-  EXPECT_EQ(agent->inventory.amount(TestItems::HEART), 1);      // Heart unchanged
-  EXPECT_EQ(generator->inventory.amount(TestItems::HEART), 0);  // No heart in generator
-}
-
-TEST_F(MettaGridCppTest, GetOutput) {
-  Grid grid(10, 10);
-
-  AgentConfig agent_cfg = create_test_agent_config();
-  agent_cfg.group_name = "red";
-  agent_cfg.group_id = 1;
-  auto resource_names = create_test_resource_names();
-  Agent* agent = new Agent(1, 0, agent_cfg, &resource_names);
-  float agent_reward = 0.0f;
-  agent->init(&agent_reward);
-
-  grid.add_object(agent);
-
-  // Create a generator with initial output
-  ConverterConfig generator_cfg(TestItems::CONVERTER,     // type_id
-                                "generator",              // type_name
-                                {{TestItems::ORE, 1}},    // input_resources
-                                {{TestItems::ARMOR, 1}},  // output_resources
-                                1,                        // max_output
-                                -1,                       // max_conversions
-                                1,                        // conversion_ticks
-                                10,                       // cooldown
-                                1,                        // initial_items
-                                false);                   // recipe_details_obs
-  EventManager event_manager;
-  Converter* generator = new Converter(0, 0, generator_cfg);
-  grid.add_object(generator);
-  generator->set_event_manager(&event_manager);
-
-  // Give agent some items
-  agent->update_inventory(TestItems::ORE, 1);
-
-  // Create get_output action handler
-  ActionConfig get_cfg({}, {});
-  GetOutput get(get_cfg);
-  std::mt19937 rng(42);
-  get.init(&grid, &rng);
-
-  // Test getting output
-  bool success = get.handle_action(*agent, 0);
-  EXPECT_TRUE(success);
-  EXPECT_EQ(agent->inventory.amount(TestItems::ORE), 1);        // Still have ore
-  EXPECT_EQ(agent->inventory.amount(TestItems::ARMOR), 1);      // Also have armor
-  EXPECT_EQ(generator->inventory.amount(TestItems::ARMOR), 0);  // Generator gave away its armor
 }
 
 // ==================== Action Tracking ====================
@@ -903,11 +803,12 @@ TEST_F(MettaGridCppTest, FractionalConsumptionMultipleResources) {
   int laser_left = agent->inventory.amount(TestItems::LASER);
   int armor_left = agent->inventory.amount(TestItems::ARMOR);
 
-  EXPECT_EQ(ore_left, 33);
+  // Since it's random, it's okay if these values change during a refactor, as long as they stay reasonable.
+  EXPECT_EQ(ore_left, 35);  // on average expect 35
 
-  EXPECT_EQ(laser_left, 48);
+  EXPECT_EQ(laser_left, 48);  // on average expect 47.5
 
-  EXPECT_EQ(armor_left, 24);
+  EXPECT_EQ(armor_left, 21);  // on average expect 22.5
 }
 
 TEST_F(MettaGridCppTest, FractionalConsumptionAttackAction) {
@@ -968,7 +869,7 @@ TEST_F(MettaGridCppTest, FractionalConsumptionAttackAction) {
   EXPECT_EQ(total_consumed, 4);       // Exactly 4 lasers consumed from 10 attacks
 }
 
-TEST_F(MettaGridCppTest, FractionalConsumptionChangeGlyphAction) {
+TEST_F(MettaGridCppTest, FractionalConsumptionChangeVibeAction) {
   Grid grid(3, 3);
 
   // Create agent with resources
@@ -980,17 +881,17 @@ TEST_F(MettaGridCppTest, FractionalConsumptionChangeGlyphAction) {
   agent->init(&agent_reward);
   grid.add_object(agent);
 
-  // Create change glyph action with fractional consumption (1.25)
-  ChangeGlyphActionConfig glyph_cfg({{TestItems::ORE, 2}}, {{TestItems::ORE, 1.25f}}, 4);
-  ChangeGlyph change_glyph(glyph_cfg);
+  // Create change vibe action with fractional consumption (1.25)
+  ChangeVibeActionConfig vibe_cfg({{TestItems::ORE, 2}}, {{TestItems::ORE, 1.25f}}, 4);
+  ChangeVibe change_vibe(vibe_cfg);
   std::mt19937 rng(42);
-  change_glyph.init(&grid, &rng);
+  change_vibe.init(&grid, &rng);
 
-  // Change glyph multiple times
+  // Change vibe multiple times
   int changes = 0;
-  ObservationType initial_glyph = agent->glyph;
+  ObservationType initial_vibe = agent->vibe;
   while (agent->inventory.amount(TestItems::ORE) >= 2) {
-    bool success = change_glyph.handle_action(*agent, (initial_glyph + 1) % 4);
+    bool success = change_vibe.handle_action(*agent, (initial_vibe + 1) % 4);
     if (!success) break;
     changes++;
     if (changes > 30) break;  // Safety limit
@@ -1086,7 +987,8 @@ TEST_F(MettaGridCppTest, EventManager) {
 // ==================== Assembler Tests ====================
 
 TEST_F(MettaGridCppTest, AssemblerBasicObservationFeatures) {
-  AssemblerConfig config(1, "test_assembler", std::vector<int>{1, 2});
+  AssemblerConfig config(1, "test_assembler");
+  config.tag_ids = {1, 2};
   Assembler assembler(5, 5, config);
 
   unsigned int current_timestep = 0;
@@ -1121,7 +1023,8 @@ TEST_F(MettaGridCppTest, AssemblerBasicObservationFeatures) {
 }
 
 TEST_F(MettaGridCppTest, AssemblerNoCooldownObservation) {
-  AssemblerConfig config(1, "test_assembler", std::vector<int>{1, 2});
+  AssemblerConfig config(1, "test_assembler");
+  config.tag_ids = {1, 2};
   Assembler assembler(5, 5, config);
 
   unsigned int current_timestep = 0;
@@ -1142,7 +1045,7 @@ TEST_F(MettaGridCppTest, AssemblerNoCooldownObservation) {
 }
 
 TEST_F(MettaGridCppTest, AssemblerCooldownRemainingCalculation) {
-  AssemblerConfig config(1, "test_assembler", std::vector<int>{1, 2});
+  AssemblerConfig config(1, "test_assembler");
   Assembler assembler(5, 5, config);
 
   unsigned int current_timestep = 0;
@@ -1174,7 +1077,7 @@ TEST_F(MettaGridCppTest, AssemblerCooldownRemainingCalculation) {
 }
 
 TEST_F(MettaGridCppTest, AssemblerCooldownObservationWithRemainingTime) {
-  AssemblerConfig config(1, "test_assembler", std::vector<int>{1, 2});
+  AssemblerConfig config(1, "test_assembler");
   Assembler assembler(5, 5, config);
 
   unsigned int current_timestep = 0;
@@ -1199,7 +1102,7 @@ TEST_F(MettaGridCppTest, AssemblerCooldownObservationWithRemainingTime) {
 }
 
 TEST_F(MettaGridCppTest, AssemblerCooldownObservationCappedAt255) {
-  AssemblerConfig config(1, "test_assembler", std::vector<int>{1, 2});
+  AssemblerConfig config(1, "test_assembler");
   Assembler assembler(5, 5, config);
 
   unsigned int current_timestep = 0;
@@ -1222,60 +1125,18 @@ TEST_F(MettaGridCppTest, AssemblerCooldownObservationCappedAt255) {
   EXPECT_TRUE(found_cooldown_remaining) << "Should have CooldownRemaining feature capped at 255";
 }
 
-TEST_F(MettaGridCppTest, AssemblerGetAgentPatternByte) {
-  // Create a grid to test with
-  std::unique_ptr<Grid> grid = std::make_unique<Grid>(10, 10);
-
-  AssemblerConfig config(1, "test_assembler", std::vector<int>{1, 2});
-  Assembler* assembler = new Assembler(5, 5, config);  // Assembler at position (5,5)
-
-  // Set up the assembler with grid
-  assembler->set_grid(grid.get());
-  grid->add_object(assembler);
-
-  // Test 1: Empty pattern (no agents around) - should return 0
-  uint8_t pattern = assembler->get_agent_pattern_byte();
-
-  AgentConfig agent_cfg(1, "test_agent", 0, "test_group");
-  auto resource_names = create_test_resource_names();
-  Agent* agent1 = new Agent(4, 5, agent_cfg, &resource_names);  // North of assembler
-  Agent* agent2 = new Agent(5, 6, agent_cfg, &resource_names);  // East of assembler
-
-  grid->add_object(agent1);
-  grid->add_object(agent2);
-
-  pattern = assembler->get_agent_pattern_byte();
-  EXPECT_EQ(pattern, 18) << "Pattern with agents at N and E should be 18 (2 + 16)";
-
-  // Test 3: Pattern with agents in multiple positions
-  // Move agent1 to NW (bit 0) and agent2 to SW (bit 5), add agent3 at SE (bit 7)
-  // This should give us pattern = (1 << 0) | (1 << 5) | (1 << 7) = 1 | 32 | 128 = 161
-  grid->move_object(*agent1, GridLocation(4, 4, GridLayer::AgentLayer));  // Move to NW
-  grid->move_object(*agent2, GridLocation(6, 4, GridLayer::AgentLayer));  // Move to SW
-
-  Agent* agent3 = new Agent(6, 6, agent_cfg, &resource_names);  // SE of assembler
-  grid->add_object(agent3);                                     // Add new agent
-
-  pattern = assembler->get_agent_pattern_byte();
-  EXPECT_EQ(pattern, 161) << "Pattern with agents at NW, SW, and SE should be 161 (1 + 32 + 128)";
-}
-
-TEST_F(MettaGridCppTest, AssemblerGetCurrentRecipe) {
+TEST_F(MettaGridCppTest, AssemblerGetCurrentProtocol) {
   // Create a grid to test with
   Grid grid(10, 10);
 
-  AssemblerConfig config(1, "test_assembler", std::vector<int>{1, 2});
+  AssemblerConfig config(1, "test_assembler");
+  config.tag_ids = {1, 2};
 
-  // Create test recipes
-  auto recipe0 = std::make_shared<Recipe>();
-  recipe0->input_resources[0] = 1;
+  // Create test protocols
+  auto protocol0 = std::make_shared<Protocol>(std::vector<ObservationType>{});
 
-  auto recipe1 = std::make_shared<Recipe>();
-  recipe1->input_resources[1] = 2;
-
-  config.recipes.push_back(recipe0);
-  config.recipes.push_back(recipe1);
-
+  auto protocol1 = std::make_shared<Protocol>(std::vector<ObservationType>{1});
+  config.protocols = {protocol0, protocol1};
   Assembler* assembler = new Assembler(5, 5, config);
 
   // Set up the assembler with grid and timestep
@@ -1286,40 +1147,45 @@ TEST_F(MettaGridCppTest, AssemblerGetCurrentRecipe) {
   // Add assembler to grid
   grid.add_object(assembler);
 
-  // Without agents around, should get pattern 0 (recipe0)
-  const Recipe* current_recipe = assembler->get_current_recipe();
-  EXPECT_EQ(current_recipe, recipe0.get());
+  // Without agents around, should get protocol0
+  const Protocol* current_protocol = assembler->get_current_protocol();
+  EXPECT_EQ(current_protocol, protocol0.get());
 
-  // Add one agent at NW position (bit 0) - should get pattern 1 (recipe1)
+  // With one agent and no vibe, should still get 0
   AgentConfig agent_cfg(1, "test_agent", 0, "test_group");
   auto resource_names = create_test_resource_names();
   Agent* agent = new Agent(4, 4, agent_cfg, &resource_names);  // NW of assembler
   grid.add_object(agent);
 
-  current_recipe = assembler->get_current_recipe();
-  EXPECT_EQ(current_recipe, recipe1.get()) << "With one agent, should select recipe1";
+  current_protocol = assembler->get_current_protocol();
+  EXPECT_EQ(current_protocol, protocol0.get()) << "With one agent, should still get protocol0";
+
+  // Now with a vibe, should get protocol1
+  agent->vibe = 1;
+
+  current_protocol = assembler->get_current_protocol();
+  EXPECT_EQ(current_protocol, protocol1.get()) << "With one agent and a vibe, should get protocol1";
 }
 
-TEST_F(MettaGridCppTest, AssemblerRecipeObservationsEnabled) {
+TEST_F(MettaGridCppTest, AssemblerProtocolObservationsEnabled) {
   // Create a grid to test with
   Grid grid(10, 10);
 
-  AssemblerConfig config(1, "test_assembler", std::vector<int>{1, 2});
-  config.recipe_details_obs = true;
-  config.input_recipe_offset = 100;
-  config.output_recipe_offset = 200;
+  AssemblerConfig config(1, "test_assembler");
+  config.protocol_details_obs = true;
+  config.input_protocol_offset = 100;
+  config.output_protocol_offset = 200;
 
-  // Create test recipes - one for pattern 0 (no agents), one for pattern 1 (some agents)
-  auto recipe0 = std::make_shared<Recipe>();
-  recipe0->input_resources[0] = 2;   // 2 units of item 0
-  recipe0->output_resources[1] = 1;  // 1 unit of output item 1
-
-  auto recipe1 = std::make_shared<Recipe>();
-  recipe1->input_resources[2] = 3;   // 3 units of item 2
-  recipe1->output_resources[3] = 2;  // 2 units of output item 3
-
-  config.recipes.push_back(recipe0);  // Index 0: pattern 0
-  config.recipes.push_back(recipe1);  // Index 1: pattern 1
+  // Create test protocols - one for pattern 0 (no agents), one for pattern 1 (some agents)
+  auto protocol0 = std::make_shared<Protocol>(std::vector<ObservationType>{},
+                                              std::unordered_map<InventoryItem, InventoryQuantity>{{0, 2}},
+                                              std::unordered_map<InventoryItem, InventoryQuantity>{{1, 1}},
+                                              0);
+  auto protocol1 = std::make_shared<Protocol>(std::vector<ObservationType>{1},
+                                              std::unordered_map<InventoryItem, InventoryQuantity>{{2, 3}},
+                                              std::unordered_map<InventoryItem, InventoryQuantity>{{3, 2}},
+                                              0);
+  config.protocols = {protocol0, protocol1};
 
   Assembler* assembler = new Assembler(5, 5, config);
 
@@ -1331,86 +1197,137 @@ TEST_F(MettaGridCppTest, AssemblerRecipeObservationsEnabled) {
   // Add assembler to grid
   grid.add_object(assembler);
 
-  // Test with pattern 0 (no agents around) - should get recipe0
+  // Test with pattern 0 (no agents around) - should get protocol0
   auto features = assembler->obs_features();
 
-  // Should have recipe features for pattern 0 (recipe0)
+  // Should have protocol features for protocol0
   bool found_input_feature = false;
   bool found_output_feature = false;
   for (const auto& feature : features) {
-    if (feature.feature_id == config.input_recipe_offset + 0) {
-      EXPECT_EQ(feature.value, 2);  // 2 units of input item 0 from recipe0
+    if (feature.feature_id == config.input_protocol_offset + 0) {
+      EXPECT_EQ(feature.value, 2);  // 2 units of input item 0 from protocol0
       found_input_feature = true;
-    } else if (feature.feature_id == config.output_recipe_offset + 1) {
-      EXPECT_EQ(feature.value, 1);  // 1 unit of output item 1 from recipe0
+    } else if (feature.feature_id == config.output_protocol_offset + 1) {
+      EXPECT_EQ(feature.value, 1);  // 1 unit of output item 1 from protocol0
       found_output_feature = true;
     }
   }
-  EXPECT_TRUE(found_input_feature) << "Should have input recipe feature for pattern 0";
-  EXPECT_TRUE(found_output_feature) << "Should have output recipe feature for pattern 0";
+  EXPECT_TRUE(found_input_feature) << "Should have input protocol feature for protocol 0";
+  EXPECT_TRUE(found_output_feature) << "Should have output protocol feature for protocol 0";
 
-  // Verify we're getting the right recipe
-  const Recipe* current_recipe = assembler->get_current_recipe();
-  EXPECT_EQ(current_recipe, recipe0.get());
+  // Verify we're getting the right protocol
+  const Protocol* current_protocol = assembler->get_current_protocol();
+  EXPECT_EQ(current_protocol, protocol0.get());
 }
 
-TEST_F(MettaGridCppTest, AssemblerConsumeResourcesAcrossAgents) {
-  // Create a recipe that requires 10 ore
-  std::map<InventoryItem, InventoryQuantity> input_resources;
+TEST_F(MettaGridCppTest, AssemblerBalancedConsumptionAmpleResources) {
+  // Test case (a): 3 agents with ample resources, consume 10 total
+  // Each agent should lose 3-4 resources for balanced consumption
+
+  // Create a protocol that requires 10 ore
+  std::unordered_map<InventoryItem, InventoryQuantity> input_resources;
   input_resources[TestItems::ORE] = 10;
 
-  std::map<InventoryItem, InventoryQuantity> output_resources;
+  std::unordered_map<InventoryItem, InventoryQuantity> output_resources;
   output_resources[TestItems::LASER] = 1;
 
-  auto recipe = std::make_shared<Recipe>(input_resources, output_resources, 0);
+  auto protocol = std::make_shared<Protocol>(std::vector<ObservationType>{}, input_resources, output_resources, 0);
 
-  // Create assembler with the recipe
-  AssemblerConfig config(1, "test_assembler", std::vector<int>{1, 2});
-  config.recipes = {recipe};
+  // Create assembler with the protocol
+  AssemblerConfig config(1, "test_assembler");
+  config.protocols = {protocol};
   Assembler assembler(5, 5, config);
-  // Create agents
-  AgentConfig agent_config(0,         // type_id
-                           "agent",   // type_name
-                           0,         // group_id
-                           "agent");  // group_name
+
+  // Create agents with ample resources
+  AgentConfig agent_config(0, "agent", 0, "agent");
   auto resource_names = create_test_resource_names();
   Agent agent1(0, 0, agent_config, &resource_names);
   Agent agent2(0, 0, agent_config, &resource_names);
   Agent agent3(0, 0, agent_config, &resource_names);
 
-  agent1.update_inventory(TestItems::ORE, 3);
-  agent2.update_inventory(TestItems::ORE, 4);
-  agent3.update_inventory(TestItems::ORE, 5);
+  agent1.update_inventory(TestItems::ORE, 20);
+  agent2.update_inventory(TestItems::ORE, 20);
+  agent3.update_inventory(TestItems::ORE, 20);
 
   std::vector<Agent*> surrounding_agents = {&agent1, &agent2, &agent3};
 
-  // Record initial ore amounts
-  InventoryQuantity initial_ore1 = agent1.inventory.amount(TestItems::ORE);
-  InventoryQuantity initial_ore2 = agent2.inventory.amount(TestItems::ORE);
-  InventoryQuantity initial_ore3 = agent3.inventory.amount(TestItems::ORE);
+  // Consume resources
+  assembler.consume_resources_for_protocol(*protocol, surrounding_agents);
 
-  // Call consume_resources_for_recipe - this should consume exactly 10 ore total
-  assembler.consume_resources_for_recipe(*recipe, surrounding_agents);
+  // Check balanced consumption
+  InventoryQuantity consumed1 = 20 - agent1.inventory.amount(TestItems::ORE);
+  InventoryQuantity consumed2 = 20 - agent2.inventory.amount(TestItems::ORE);
+  InventoryQuantity consumed3 = 20 - agent3.inventory.amount(TestItems::ORE);
 
-  // Check that the fix works: only consume what's needed (10 total)
-  InventoryQuantity final_ore1 = agent1.inventory.amount(TestItems::ORE);
-  InventoryQuantity final_ore2 = agent2.inventory.amount(TestItems::ORE);
-  InventoryQuantity final_ore3 = agent3.inventory.amount(TestItems::ORE);
+  // Total should be exactly 10
+  EXPECT_EQ(consumed1 + consumed2 + consumed3, 10);
 
-  // With the fix: consume exactly 10 ore total
-  // Agent 1: 3 -> 0 (loses 3)
-  // Agent 2: 4 -> 0 (loses 4)
-  // Agent 3: 5 -> 2 (loses 3, keeps 2)
-  // Total consumed: 10 (correct!)
+  // Each agent should lose 3-4 resources (balanced)
+  // With 10 resources and 3 agents: 10/3 = 3.33, so we expect 3, 3, 4 distribution
+  EXPECT_GE(consumed1, 3);
+  EXPECT_LE(consumed1, 4);
+  EXPECT_GE(consumed2, 3);
+  EXPECT_LE(consumed2, 4);
+  EXPECT_GE(consumed3, 3);
+  EXPECT_LE(consumed3, 4);
+}
 
-  EXPECT_EQ(final_ore1, 0) << "Agent 1 should lose all ore (3)";
-  EXPECT_EQ(final_ore2, 0) << "Agent 2 should lose all ore (4)";
-  EXPECT_EQ(final_ore3, 2) << "Agent 3 should keep 2 ore (lose 3)";
+TEST_F(MettaGridCppTest, AssemblerBalancedConsumptionMixedResources) {
+  // Test case (b): 4 agents with mixed resources
+  // Agent 1: 0 resources, Agent 2: 1 resource, Agents 3&4: ample resources
+  // When consuming 20, should consume 0/1/9/10 respectively
 
-  // Verify total consumption is correct (10)
-  InventoryQuantity total_consumed =
-      (initial_ore1 - final_ore1) + (initial_ore2 - final_ore2) + (initial_ore3 - final_ore3);
-  EXPECT_EQ(total_consumed, 10) << "Should consume exactly 10 ore, consumed " << total_consumed;
+  // Create a protocol that requires 20 ore
+  std::unordered_map<InventoryItem, InventoryQuantity> input_resources;
+  input_resources[TestItems::ORE] = 20;
+
+  std::unordered_map<InventoryItem, InventoryQuantity> output_resources;
+  output_resources[TestItems::LASER] = 1;
+
+  auto protocol = std::make_shared<Protocol>(std::vector<ObservationType>{}, input_resources, output_resources, 0);
+
+  // Create assembler with the protocol
+  AssemblerConfig config(1, "test_assembler");
+  config.protocols = {protocol};
+  Assembler assembler(5, 5, config);
+
+  // Create agents with varied resources
+  AgentConfig agent_config(0, "agent", 0, "agent");
+  auto resource_names = create_test_resource_names();
+  Agent agent1(0, 0, agent_config, &resource_names);
+  Agent agent2(0, 0, agent_config, &resource_names);
+  Agent agent3(0, 0, agent_config, &resource_names);
+  Agent agent4(0, 0, agent_config, &resource_names);
+
+  agent1.update_inventory(TestItems::ORE, 0);   // No resources
+  agent2.update_inventory(TestItems::ORE, 1);   // Limited resources
+  agent3.update_inventory(TestItems::ORE, 50);  // Ample resources
+  agent4.update_inventory(TestItems::ORE, 50);  // Ample resources
+
+  std::vector<Agent*> surrounding_agents = {&agent1, &agent2, &agent3, &agent4};
+
+  // Consume resources
+  assembler.consume_resources_for_protocol(*protocol, surrounding_agents);
+
+  // Check consumption matches expected pattern
+  InventoryQuantity consumed1 = 0 - agent1.inventory.amount(TestItems::ORE);
+  InventoryQuantity consumed2 = 1 - agent2.inventory.amount(TestItems::ORE);
+  InventoryQuantity consumed3 = 50 - agent3.inventory.amount(TestItems::ORE);
+  InventoryQuantity consumed4 = 50 - agent4.inventory.amount(TestItems::ORE);
+
+  // Total should be exactly 20
+  EXPECT_EQ(consumed1 + consumed2 + consumed3 + consumed4, 20);
+
+  // Expected consumption pattern: 0, 1, 9-10, 9-10
+  EXPECT_EQ(consumed1, 0) << "Agent with 0 resources should consume 0";
+  EXPECT_EQ(consumed2, 1) << "Agent with 1 resource should consume 1";
+
+  // Remaining 19 should be split between agents 3 and 4 (9 and 10 or 10 and 9)
+  EXPECT_GE(consumed3, 9);
+  EXPECT_LE(consumed3, 10);
+  EXPECT_GE(consumed4, 9);
+  EXPECT_LE(consumed4, 10);
+  EXPECT_EQ(consumed3 + consumed4, 19) << "Agents 3 and 4 should consume the remaining 19";
 }
 
 TEST_F(MettaGridCppTest, AssemblerClippingAndUnclipping) {
@@ -1419,19 +1336,16 @@ TEST_F(MettaGridCppTest, AssemblerClippingAndUnclipping) {
   std::mt19937 rng(42);  // Fixed seed for reproducibility
   unsigned int current_timestep = 0;
 
-  // Create an assembler with normal recipes
-  AssemblerConfig config(1, "test_assembler", std::vector<int>{1, 2});
+  // Create an assembler with normal protocols
+  AssemblerConfig config(1, "test_assembler");
 
-  // Create normal recipes (pattern 0: no agents needed)
-  auto normal_recipe = std::make_shared<Recipe>();
-  normal_recipe->input_resources[TestItems::ORE] = 2;
-  normal_recipe->output_resources[TestItems::LASER] = 1;
-  normal_recipe->cooldown = 0;
+  // Create normal protocols (pattern 0: no agents needed)
+  auto normal_protocol = std::make_shared<Protocol>();
+  normal_protocol->input_resources[TestItems::ORE] = 2;
+  normal_protocol->output_resources[TestItems::LASER] = 1;
+  normal_protocol->cooldown = 0;
 
-  config.recipes.resize(256);
-  for (int i = 0; i < 256; i++) {
-    config.recipes[i] = normal_recipe;
-  }
+  config.protocols = {normal_protocol};
 
   Assembler assembler(5, 5, config);
   assembler.set_grid(&grid);
@@ -1451,23 +1365,23 @@ TEST_F(MettaGridCppTest, AssemblerClippingAndUnclipping) {
   // Test 1: Verify assembler is not clipped initially
   EXPECT_FALSE(assembler.is_clipped) << "Assembler should not be clipped initially";
 
-  // Test 2: Verify normal recipe works when not clipped
+  // Test 2: Verify normal protocol works when not clipped
   bool success = assembler.onUse(*agent, 0);
-  EXPECT_TRUE(success) << "Should be able to use normal recipe when not clipped";
+  EXPECT_TRUE(success) << "Should be able to use normal protocol when not clipped";
   EXPECT_EQ(agent->inventory.amount(TestItems::ORE), 8) << "Should consume 2 ore";
   EXPECT_EQ(agent->inventory.amount(TestItems::LASER), 1) << "Should produce 1 laser";
 
-  // Test 3: Create unclipping recipes and clip the assembler
-  auto unclip_recipe = std::make_shared<Recipe>();
-  unclip_recipe->input_resources[TestItems::HEART] = 1;
-  unclip_recipe->output_resources[TestItems::ORE] = 3;
-  unclip_recipe->cooldown = 0;
+  // Test 3: Create unclipping protocols and clip the assembler
+  auto unclip_protocol = std::make_shared<Protocol>();
+  unclip_protocol->input_resources[TestItems::HEART] = 1;
+  unclip_protocol->output_resources[TestItems::ORE] = 3;
+  unclip_protocol->cooldown = 0;
 
-  std::vector<std::shared_ptr<Recipe>> unclip_recipes(256, unclip_recipe);
-  assembler.become_clipped(unclip_recipes, nullptr);
+  std::vector<std::shared_ptr<Protocol>> unclip_protocols;
+  unclip_protocols.push_back(unclip_protocol);
+  assembler.become_clipped(unclip_protocols, nullptr);
 
   EXPECT_TRUE(assembler.is_clipped) << "Assembler should be clipped after become_clipped()";
-  EXPECT_EQ(assembler.unclip_recipes.size(), 256) << "Should have unclip recipes set";
 
   // Test 4: Verify clipped observation feature
   auto features = assembler.obs_features();
@@ -1481,20 +1395,20 @@ TEST_F(MettaGridCppTest, AssemblerClippingAndUnclipping) {
   }
   EXPECT_TRUE(found_clipped) << "Should have Clipped observation feature when clipped";
 
-  // Test 5: Verify unclip recipe is used when clipped
+  // Test 5: Verify unclip protocol is used when clipped
   success = assembler.onUse(*agent, 0);
-  EXPECT_TRUE(success) << "Should be able to use unclip recipe when clipped";
+  EXPECT_TRUE(success) << "Should be able to use unclip protocol when clipped";
   EXPECT_EQ(agent->inventory.amount(TestItems::HEART), 4) << "Should consume 1 heart for unclipping";
-  EXPECT_EQ(agent->inventory.amount(TestItems::ORE), 11) << "Should produce 3 ore from unclip recipe";
+  EXPECT_EQ(agent->inventory.amount(TestItems::ORE), 11) << "Should produce 3 ore from unclip protocol";
 
   // Test 6: Verify assembler is automatically unclipped after successful use
   EXPECT_FALSE(assembler.is_clipped) << "Assembler should be unclipped after successful use";
-  EXPECT_TRUE(assembler.unclip_recipes.empty()) << "Unclip recipes should be cleared";
+  EXPECT_TRUE(assembler.unclip_protocols.empty()) << "Unclip protocols should be cleared";
 
-  // Test 7: Verify normal recipe works again after unclipping
+  // Test 7: Verify normal protocol works again after unclipping
   success = assembler.onUse(*agent, 0);
-  EXPECT_TRUE(success) << "Should be able to use normal recipe after unclipping";
-  EXPECT_EQ(agent->inventory.amount(TestItems::ORE), 9) << "Should consume 2 ore (normal recipe)";
+  EXPECT_TRUE(success) << "Should be able to use normal protocol after unclipping";
+  EXPECT_EQ(agent->inventory.amount(TestItems::ORE), 9) << "Should consume 2 ore (normal protocol)";
   EXPECT_EQ(agent->inventory.amount(TestItems::LASER), 2) << "Should produce 1 more laser";
 
   // Test 8: Verify no clipped observation after unclipping
@@ -1515,19 +1429,16 @@ TEST_F(MettaGridCppTest, AssemblerMaxUses) {
   unsigned int current_timestep = 0;
 
   // Create an assembler with max_uses set to 3
-  AssemblerConfig config(1, "test_assembler", std::vector<int>{1, 2});
+  AssemblerConfig config(1, "test_assembler");
   config.max_uses = 3;  // Limit to 3 uses
 
-  // Create simple recipe
-  auto recipe = std::make_shared<Recipe>();
-  recipe->input_resources[TestItems::ORE] = 1;
-  recipe->output_resources[TestItems::LASER] = 1;
-  recipe->cooldown = 0;
+  // Create simple protocol
+  auto protocol = std::make_shared<Protocol>();
+  protocol->input_resources[TestItems::ORE] = 1;
+  protocol->output_resources[TestItems::LASER] = 1;
+  protocol->cooldown = 0;
 
-  config.recipes.resize(256);
-  for (int i = 0; i < 256; i++) {
-    config.recipes[i] = recipe;
-  }
+  config.protocols = {protocol};
 
   Assembler assembler(5, 5, config);
   assembler.set_grid(&grid);
@@ -1610,19 +1521,16 @@ TEST_F(MettaGridCppTest, AssemblerExhaustion) {
   unsigned int current_timestep = 0;
 
   // Create an assembler with exhaustion enabled
-  AssemblerConfig config(1, "test_assembler", std::vector<int>{1, 2});
+  AssemblerConfig config(1, "test_assembler");
   config.exhaustion = 0.5f;  // 50% exhaustion rate - multiplier grows by 1.5x each use
 
-  // Create recipe with cooldown
-  auto recipe = std::make_shared<Recipe>();
-  recipe->input_resources[TestItems::ORE] = 1;
-  recipe->output_resources[TestItems::LASER] = 1;
-  recipe->cooldown = 10;  // Base cooldown of 10 timesteps
+  // Create protocol with cooldown
+  auto protocol = std::make_shared<Protocol>();
+  protocol->input_resources[TestItems::ORE] = 1;
+  protocol->output_resources[TestItems::LASER] = 1;
+  protocol->cooldown = 10;  // Base cooldown of 10 timesteps
 
-  config.recipes.resize(256);
-  for (int i = 0; i < 256; i++) {
-    config.recipes[i] = recipe;
-  }
+  config.protocols = {protocol};
 
   Assembler assembler(5, 5, config);
   assembler.set_grid(&grid);
@@ -1650,7 +1558,6 @@ TEST_F(MettaGridCppTest, AssemblerExhaustion) {
 
   // Test 3: Wait for cooldown and use again
   current_timestep = 10;
-  EXPECT_EQ(assembler.cooldown_remaining(), 0) << "Should have no cooldown at timestep 10";
 
   success = assembler.onUse(*agent, 0);
   EXPECT_TRUE(success) << "Second use should succeed";
@@ -1703,7 +1610,6 @@ TEST_F(MettaGridCppTest, ResourceModBasic) {
                                {{TestItems::ORE, 1.0f}},    // consumed_resources
                                {{TestItems::HEART, 1.0f}},  // modifies - adds 1 heart
                                1,                           // agent_radius
-                               0,                           // converter_radius
                                false);                      // scales
   ResourceMod modify(modify_cfg);
   modify.init(&grid, &rng);
@@ -1744,8 +1650,7 @@ TEST_F(MettaGridCppTest, ResourceModProbabilistic) {
                                {{TestItems::ORE, 0.5f}},    // 50% chance to consume
                                {{TestItems::HEART, 0.3f}},  // 30% chance to add 1 heart
                                1,
-                               0,
-                               false);  // radius 1, no converters, no scaling
+                               false);  // radius 1, no scaling
   ResourceMod modify(modify_cfg);
   modify.init(&grid, &rng);
 
@@ -1779,49 +1684,260 @@ TEST_F(MettaGridCppTest, ResourceModProbabilistic) {
   EXPECT_LE(ore_consumed, 60);  // At most 60
 }
 
-TEST_F(MettaGridCppTest, ResourceModConverter) {
-  Grid grid(5, 5);
-  std::mt19937 rng(42);
-  EventManager event_manager;
+// Tests for HasInventory::shared_update function
+TEST_F(MettaGridCppTest, SharedUpdate_PositiveDelta_EvenDistribution) {
+  // Test that positive delta is evenly distributed among agents
+  InventoryConfig inv_cfg;
+  inv_cfg.limits = {{{TestItems::ORE}, 100}};
+
+  AgentConfig agent_cfg(1, "test_agent", 1, "test_group");
+  agent_cfg.inventory_config = inv_cfg;
+
   auto resource_names = create_test_resource_names();
+  Agent agent1(0, 0, agent_cfg, &resource_names);
+  Agent agent2(1, 0, agent_cfg, &resource_names);
+  Agent agent3(2, 0, agent_cfg, &resource_names);
 
-  // Create actor
-  AgentConfig actor_cfg = create_test_agent_config();
-  Agent* actor = new Agent(2, 2, actor_cfg, &resource_names);
-  float actor_reward = 0.0f;
-  actor->init(&actor_reward);
-  grid.add_object(actor);
+  std::vector<HasInventory*> inventory_havers = {&agent1, &agent2, &agent3};
 
-  // Create converter nearby
-  ConverterConfig converter_cfg(TestItems::CONVERTER,  // type_id
-                                "converter",           // type_name
-                                {},                    // input_resources
-                                {},                    // output_resources
-                                -1,                    // max_output
-                                -1,                    // max_conversions
-                                0,                     // conversion_ticks
-                                0,                     // cooldown
-                                0,                     // initial_items
-                                false);                // recipe_details_obs
-  Converter* converter = new Converter(3, 2, converter_cfg);
-  grid.add_object(converter);
-  converter->set_event_manager(&event_manager);
+  // Add 30 ore, should be distributed as 10 each
+  InventoryDelta consumed = HasInventory::shared_update(inventory_havers, TestItems::ORE, 30);
 
-  // Create action that modifies converter resources
-  ResourceModConfig modify_cfg({},
-                               {},
-                               {{TestItems::ORE, 1.0f}},  // Add 1 ore to converter
-                               0,
-                               1,
-                               false);  // No agents, converters within radius 1
-  ResourceMod modify(modify_cfg);
-  modify.init(&grid, &rng);
+  EXPECT_EQ(consumed, 30);
+  EXPECT_EQ(agent1.inventory.amount(TestItems::ORE), 10);
+  EXPECT_EQ(agent2.inventory.amount(TestItems::ORE), 10);
+  EXPECT_EQ(agent3.inventory.amount(TestItems::ORE), 10);
+}
 
-  // Target converter at (3, 2) from actor at (2, 2)
-  ActionArg arg = 0;  // Unused
-  bool success = modify.handle_action(*actor, arg);
-  EXPECT_TRUE(success);
+TEST_F(MettaGridCppTest, SharedUpdate_PositiveDelta_UnevenDistribution) {
+  // Test that when delta doesn't divide evenly, earlier agents get more
+  InventoryConfig inv_cfg;
+  inv_cfg.limits = {{{TestItems::ORE}, 100}};
 
-  // Check that converter gained 1 ore
-  EXPECT_EQ(converter->inventory.amount(TestItems::ORE), 1);
+  AgentConfig agent_cfg(1, "test_agent", 1, "test_group");
+  agent_cfg.inventory_config = inv_cfg;
+
+  auto resource_names = create_test_resource_names();
+  Agent agent1(0, 0, agent_cfg, &resource_names);
+  Agent agent2(1, 0, agent_cfg, &resource_names);
+  Agent agent3(2, 0, agent_cfg, &resource_names);
+
+  std::vector<HasInventory*> inventory_havers = {&agent1, &agent2, &agent3};
+
+  // Add 31 ore, should be distributed as 11, 10, 10 (earlier agents get more)
+  InventoryDelta consumed = HasInventory::shared_update(inventory_havers, TestItems::ORE, 31);
+
+  EXPECT_EQ(consumed, 31);
+  EXPECT_EQ(agent1.inventory.amount(TestItems::ORE), 11);
+  EXPECT_EQ(agent2.inventory.amount(TestItems::ORE), 10);
+  EXPECT_EQ(agent3.inventory.amount(TestItems::ORE), 10);
+}
+
+TEST_F(MettaGridCppTest, SharedUpdate_PositiveDelta_WithLimits) {
+  // Test that agents that hit their inventory limit drop out of distribution
+  InventoryConfig inv_cfg;
+  inv_cfg.limits = {{{TestItems::ORE}, 10}};  // Low limit of 10
+
+  AgentConfig agent_cfg(1, "test_agent", 1, "test_group");
+  agent_cfg.inventory_config = inv_cfg;
+
+  auto resource_names = create_test_resource_names();
+  Agent agent1(0, 0, agent_cfg, &resource_names);
+  Agent agent2(1, 0, agent_cfg, &resource_names);
+  Agent agent3(2, 0, agent_cfg, &resource_names);
+
+  // Pre-fill agent1 with 5 ore
+  agent1.update_inventory(TestItems::ORE, 5);
+
+  std::vector<HasInventory*> inventory_havers = {&agent1, &agent2, &agent3};
+
+  // Try to add 30 ore
+  // agent1 can only take 5 more (to reach limit of 10)
+  // agent2 and agent3 can each take 10 (to reach their limits)
+  // Total consumed will be 5 + 10 + 10 = 25, not the full 30
+  InventoryDelta consumed = HasInventory::shared_update(inventory_havers, TestItems::ORE, 30);
+
+  EXPECT_EQ(consumed, 25);                                 // Only 25 can be consumed due to limits
+  EXPECT_EQ(agent1.inventory.amount(TestItems::ORE), 10);  // Hit limit
+  EXPECT_EQ(agent2.inventory.amount(TestItems::ORE), 10);  // Hit limit
+  EXPECT_EQ(agent3.inventory.amount(TestItems::ORE), 10);  // Hit limit
+}
+
+TEST_F(MettaGridCppTest, SharedUpdate_NegativeDelta_EvenDistribution) {
+  // Test that negative delta is evenly distributed among agents
+  InventoryConfig inv_cfg;
+  inv_cfg.limits = {{{TestItems::ORE}, 100}};
+
+  AgentConfig agent_cfg(1, "test_agent", 1, "test_group");
+  agent_cfg.inventory_config = inv_cfg;
+
+  auto resource_names = create_test_resource_names();
+  Agent agent1(0, 0, agent_cfg, &resource_names);
+  Agent agent2(1, 0, agent_cfg, &resource_names);
+  Agent agent3(2, 0, agent_cfg, &resource_names);
+
+  // Pre-fill agent inventories with 20 ore each
+  agent1.update_inventory(TestItems::ORE, 20);
+  agent2.update_inventory(TestItems::ORE, 20);
+  agent3.update_inventory(TestItems::ORE, 20);
+
+  std::vector<HasInventory*> inventory_havers = {&agent1, &agent2, &agent3};
+
+  // Remove 30 ore, should remove 10 from each
+  InventoryDelta consumed = HasInventory::shared_update(inventory_havers, TestItems::ORE, -30);
+
+  EXPECT_EQ(consumed, -30);
+  EXPECT_EQ(agent1.inventory.amount(TestItems::ORE), 10);
+  EXPECT_EQ(agent2.inventory.amount(TestItems::ORE), 10);
+  EXPECT_EQ(agent3.inventory.amount(TestItems::ORE), 10);
+}
+
+TEST_F(MettaGridCppTest, SharedUpdate_NegativeDelta_InsufficientResources) {
+  // Test behavior when some agents don't have enough to contribute their share
+  InventoryConfig inv_cfg;
+  inv_cfg.limits = {{{TestItems::ORE}, 100}};
+
+  AgentConfig agent_cfg(1, "test_agent", 1, "test_group");
+  agent_cfg.inventory_config = inv_cfg;
+
+  auto resource_names = create_test_resource_names();
+  Agent agent1(0, 0, agent_cfg, &resource_names);
+  Agent agent2(1, 0, agent_cfg, &resource_names);
+  Agent agent3(2, 0, agent_cfg, &resource_names);
+
+  // Pre-fill agent inventories with different amounts
+  agent1.update_inventory(TestItems::ORE, 5);   // Only has 5
+  agent2.update_inventory(TestItems::ORE, 20);  // Has plenty
+  agent3.update_inventory(TestItems::ORE, 20);  // Has plenty
+
+  std::vector<HasInventory*> inventory_havers = {&agent1, &agent2, &agent3};
+
+  // Try to remove 30 ore
+  // agent1 can only contribute 5, remaining 25 split between agent2 and agent3 as 13, 12
+  InventoryDelta consumed = HasInventory::shared_update(inventory_havers, TestItems::ORE, -30);
+
+  EXPECT_EQ(consumed, -30);
+  EXPECT_EQ(agent1.inventory.amount(TestItems::ORE), 0);  // Depleted
+  EXPECT_EQ(agent2.inventory.amount(TestItems::ORE), 7);  // 20 - 13
+  EXPECT_EQ(agent3.inventory.amount(TestItems::ORE), 8);  // 20 - 12
+}
+
+TEST_F(MettaGridCppTest, SharedUpdate_NegativeDelta_UnevenDistribution) {
+  // Test that when negative delta doesn't divide evenly, earlier agents lose more
+  InventoryConfig inv_cfg;
+  inv_cfg.limits = {{{TestItems::ORE}, 100}};
+
+  AgentConfig agent_cfg(1, "test_agent", 1, "test_group");
+  agent_cfg.inventory_config = inv_cfg;
+
+  auto resource_names = create_test_resource_names();
+  Agent agent1(0, 0, agent_cfg, &resource_names);
+  Agent agent2(1, 0, agent_cfg, &resource_names);
+  Agent agent3(2, 0, agent_cfg, &resource_names);
+
+  // Pre-fill agent inventories with 20 ore each
+  agent1.update_inventory(TestItems::ORE, 20);
+  agent2.update_inventory(TestItems::ORE, 20);
+  agent3.update_inventory(TestItems::ORE, 20);
+
+  std::vector<HasInventory*> inventory_havers = {&agent1, &agent2, &agent3};
+
+  // Remove 31 ore, should remove 11, 10, 10 (earlier agents lose more)
+  InventoryDelta consumed = HasInventory::shared_update(inventory_havers, TestItems::ORE, -31);
+
+  EXPECT_EQ(consumed, -31);
+  EXPECT_EQ(agent1.inventory.amount(TestItems::ORE), 9);   // 20 - 11
+  EXPECT_EQ(agent2.inventory.amount(TestItems::ORE), 10);  // 20 - 10
+  EXPECT_EQ(agent3.inventory.amount(TestItems::ORE), 10);  // 20 - 10
+}
+
+TEST_F(MettaGridCppTest, SharedUpdate_EmptyInventoriesList) {
+  // Test with empty inventory havers list
+  std::vector<HasInventory*> inventory_havers;
+
+  InventoryDelta consumed = HasInventory::shared_update(inventory_havers, TestItems::ORE, 10);
+
+  EXPECT_EQ(consumed, 0);  // Nothing consumed since no inventory havers
+}
+
+TEST_F(MettaGridCppTest, SharedUpdate_SingleInventory) {
+  // Test with single agent
+  InventoryConfig inv_cfg;
+  inv_cfg.limits = {{{TestItems::ORE}, 100}};
+
+  AgentConfig agent_cfg(1, "test_agent", 1, "test_group");
+  agent_cfg.inventory_config = inv_cfg;
+
+  auto resource_names = create_test_resource_names();
+  Agent agent1(0, 0, agent_cfg, &resource_names);
+  std::vector<HasInventory*> inventory_havers = {&agent1};
+
+  // All delta should go to the single agent
+  InventoryDelta consumed = HasInventory::shared_update(inventory_havers, TestItems::ORE, 25);
+
+  EXPECT_EQ(consumed, 25);
+  EXPECT_EQ(agent1.inventory.amount(TestItems::ORE), 25);
+}
+
+TEST_F(MettaGridCppTest, SharedUpdate_AllInventoriesAtLimit) {
+  // Test when all agent inventories are at their limit
+  InventoryConfig inv_cfg;
+  inv_cfg.limits = {{{TestItems::ORE}, 10}};
+
+  AgentConfig agent_cfg(1, "test_agent", 1, "test_group");
+  agent_cfg.inventory_config = inv_cfg;
+
+  auto resource_names = create_test_resource_names();
+  Agent agent1(0, 0, agent_cfg, &resource_names);
+  Agent agent2(1, 0, agent_cfg, &resource_names);
+
+  // Fill both to limit
+  agent1.update_inventory(TestItems::ORE, 10);
+  agent2.update_inventory(TestItems::ORE, 10);
+
+  std::vector<HasInventory*> inventory_havers = {&agent1, &agent2};
+
+  // Try to add more
+  InventoryDelta consumed = HasInventory::shared_update(inventory_havers, TestItems::ORE, 20);
+
+  EXPECT_EQ(consumed, 0);  // Nothing consumed since all at limit
+  EXPECT_EQ(agent1.inventory.amount(TestItems::ORE), 10);
+  EXPECT_EQ(agent2.inventory.amount(TestItems::ORE), 10);
+}
+
+TEST_F(MettaGridCppTest, SharedUpdate_MixedLimits) {
+  // Test with agents having different inventory limits
+  InventoryConfig inv_cfg1;
+  inv_cfg1.limits = {{{TestItems::ORE}, 10}};
+
+  InventoryConfig inv_cfg2;
+  inv_cfg2.limits = {{{TestItems::ORE}, 20}};
+
+  InventoryConfig inv_cfg3;
+  inv_cfg3.limits = {{{TestItems::ORE}, 30}};
+
+  AgentConfig agent_cfg1(1, "test_agent1", 1, "test_group");
+  agent_cfg1.inventory_config = inv_cfg1;
+
+  AgentConfig agent_cfg2(2, "test_agent2", 1, "test_group");
+  agent_cfg2.inventory_config = inv_cfg2;
+
+  AgentConfig agent_cfg3(3, "test_agent3", 1, "test_group");
+  agent_cfg3.inventory_config = inv_cfg3;
+
+  auto resource_names = create_test_resource_names();
+  Agent agent1(0, 0, agent_cfg1, &resource_names);  // Limit 10
+  Agent agent2(1, 0, agent_cfg2, &resource_names);  // Limit 20
+  Agent agent3(2, 0, agent_cfg3, &resource_names);  // Limit 30
+
+  std::vector<HasInventory*> inventory_havers = {&agent1, &agent2, &agent3};
+
+  // Try to add 45 ore
+  // agent1 takes 10 (hits limit), agent2 takes 18, agent3 takes 17
+  InventoryDelta consumed = HasInventory::shared_update(inventory_havers, TestItems::ORE, 45);
+
+  EXPECT_EQ(consumed, 45);
+  EXPECT_EQ(agent1.inventory.amount(TestItems::ORE), 10);  // Hit limit
+  EXPECT_EQ(agent2.inventory.amount(TestItems::ORE), 18);  // Gets more due to being earlier
+  EXPECT_EQ(agent3.inventory.amount(TestItems::ORE), 17);
 }

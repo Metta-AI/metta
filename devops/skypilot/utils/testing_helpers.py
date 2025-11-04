@@ -12,6 +12,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Optional
 
+import sky
+
 from devops.skypilot.utils.job_helpers import (
     check_git_state,
     check_job_statuses,
@@ -963,29 +965,26 @@ Examples:
             sys.exit(1)
 
     def _kill_job_with_retry(self, job_id: str, max_attempts: int = 3) -> tuple[bool, str]:
-        """Kill a single job with retry logic. Returns (success, status_message)."""
+        """Kill a single job with retry logic using SDK. Returns (success, status_message)."""
 
         def execute_kill():
-            cmd = ["sky", "jobs", "cancel", "-y", job_id]
-            result = subprocess.run(cmd, capture_output=True, text=True)
-
-            # Check stderr first, regardless of return code
-            stdout_lower = result.stdout.lower()
-
-            # Check if already terminated
-            if "already in terminal state" in stdout_lower:
-                return True, "Already completed"
-
-            # Check if not found
-            if "not found" in stdout_lower:
-                return True, "Not found"
-
-            # If return code is 0, it was actually killed
-            if result.returncode == 0:
+            try:
+                # Use SDK to cancel the job
+                sky.jobs.cancel(job_ids=[int(job_id)])
                 return True, "Killed"
+            except Exception as e:
+                error_msg = str(e).lower()
 
-            # Otherwise it's an error
-            raise Exception(result.stdout.strip() or "Failed")
+                # Check if already terminated
+                if "already in terminal state" in error_msg or "terminal state" in error_msg:
+                    return True, "Already completed"
+
+                # Check if not found
+                if "not found" in error_msg:
+                    return True, "Not found"
+
+                # Otherwise it's a real error
+                raise
 
         try:
             success, status = retry_function(

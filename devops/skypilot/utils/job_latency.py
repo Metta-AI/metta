@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # /// script
-# requires-python = ">=3.11"
+# requires-python = ">=3.12"
 # ///
 """
 Calculate SkyPilot queue latency from SKYPILOT_TASK_ID env var.
@@ -78,7 +78,7 @@ if __name__ == "__main__":
         )
 
     except Exception as e:
-        logger.error(f"SkyPilot queue latency: N/A (task_id: {task_id}, error: {e})")
+        logger.error(f"SkyPilot queue latency: N/A (task_id: {task_id}, error: {e})", exc_info=True)
         metrics.update(
             {
                 "skypilot/latency_calculated": False,

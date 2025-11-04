@@ -1,6 +1,6 @@
 import
   boxy, chroma, fidget2/hybridrender, vmath, fidget2,
-  common, panels, worldmap
+  common, worldmap
 
 proc drawMinimap*(panel: Panel) =
   ## Draw the minimap with automatic fitting to panel size.
@@ -11,7 +11,7 @@ proc drawMinimap*(panel: Panel) =
     color = color(0, 0, 0, 1.0)
   )
 
-  if replay.isNil:
+  if replay.isNil or replay.mapSize == (0, 0):
     return
 
   bxy.saveTransform()

@@ -169,7 +169,7 @@ flag.
 
 **PettingZoo test closes env**: Don't try to reuse the same env instance after `parallel_api_test`; create a new one.
 
-**Action data types**: Make sure actions are `int32` for MultiDiscrete spaces (Puffer/PettingZoo).
+**Action data types**: Make sure actions are `int32` scalars for the discrete action space.
 
 **SB3 shape complaints**: Verify you're using the single-agent wrapper and that obs/action spaces match SB3
 expectations.

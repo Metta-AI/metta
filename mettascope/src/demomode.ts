@@ -99,9 +99,8 @@ export function doDemoMode() {
           const actionSuccess = agent.actionSuccess.get(state.step + j)
           if (
             actionName !== 'noop' &&
-            actionName !== 'rotate' &&
-            actionName !== 'move' &&
-            actionName !== 'change_color' &&
+            !actionName.startsWith('rotate') &&
+            !actionName.startsWith('move') &&
             actionName !== 'change_shape' &&
             actionSuccess
           ) {

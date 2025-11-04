@@ -5,8 +5,8 @@
 #include <pybind11/stl.h>
 
 #include <algorithm>
-#include <map>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 #include "actions/action_handler.hpp"
@@ -20,11 +20,11 @@
 // Target agents are those found in a 3x3 grid in front of the agent, indexed in scan order.
 // If the argument (agent index to attack) > num_agents, the last agent is attacked.
 struct AttackActionConfig : public ActionConfig {
-  std::map<InventoryItem, InventoryQuantity> defense_resources;
+  std::unordered_map<InventoryItem, InventoryQuantity> defense_resources;
 
-  AttackActionConfig(const std::map<InventoryItem, InventoryQuantity>& required_resources,
-                     const std::map<InventoryItem, InventoryProbability>& consumed_resources,
-                     const std::map<InventoryItem, InventoryQuantity>& defense_resources)
+  AttackActionConfig(const std::unordered_map<InventoryItem, InventoryQuantity>& required_resources,
+                     const std::unordered_map<InventoryItem, InventoryProbability>& consumed_resources,
+                     const std::unordered_map<InventoryItem, InventoryQuantity>& defense_resources)
       : ActionConfig(required_resources, consumed_resources), defense_resources(defense_resources) {}
 };
 
@@ -42,7 +42,7 @@ public:
   }
 
 protected:
-  std::map<InventoryItem, InventoryQuantity> _defense_resources;
+  std::unordered_map<InventoryItem, InventoryQuantity> _defense_resources;
   const GameConfig* _game_config;
 
   bool _handle_action(Agent& actor, ActionArg arg) override {
@@ -229,12 +229,12 @@ namespace py = pybind11;
 
 inline void bind_attack_action_config(py::module& m) {
   py::class_<AttackActionConfig, ActionConfig, std::shared_ptr<AttackActionConfig>>(m, "AttackActionConfig")
-      .def(py::init<const std::map<InventoryItem, InventoryQuantity>&,
-                    const std::map<InventoryItem, InventoryProbability>&,
-                    const std::map<InventoryItem, InventoryQuantity>&>(),
-           py::arg("required_resources") = std::map<InventoryItem, InventoryQuantity>(),
-           py::arg("consumed_resources") = std::map<InventoryItem, InventoryProbability>(),
-           py::arg("defense_resources") = std::map<InventoryItem, InventoryQuantity>())
+      .def(py::init<const std::unordered_map<InventoryItem, InventoryQuantity>&,
+                    const std::unordered_map<InventoryItem, InventoryProbability>&,
+                    const std::unordered_map<InventoryItem, InventoryQuantity>&>(),
+           py::arg("required_resources") = std::unordered_map<InventoryItem, InventoryQuantity>(),
+           py::arg("consumed_resources") = std::unordered_map<InventoryItem, InventoryProbability>(),
+           py::arg("defense_resources") = std::unordered_map<InventoryItem, InventoryQuantity>())
       .def_readwrite("defense_resources", &AttackActionConfig::defense_resources);
 }
 

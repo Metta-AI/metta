@@ -13,10 +13,10 @@ The code is plain TypeScript with no framework.
 
 ## Recipe System Commands
 
-| Task        | Command                                                               |
-| ----------- | --------------------------------------------------------------------- |
-| Interactive | `uv run ./tools/run.py experiments.recipes.arena.play policy_uri=*`   |
-| Replays     | `uv run ./tools/run.py experiments.recipes.arena.replay policy_uri=*` |
+| Task        | Command                                           |
+| ----------- | ------------------------------------------------- |
+| Interactive | `uv run ./tools/run.py arena.play policy_uri=*`   |
+| Replays     | `uv run ./tools/run.py arena.replay policy_uri=*` |
 
 ## Development Commands
 

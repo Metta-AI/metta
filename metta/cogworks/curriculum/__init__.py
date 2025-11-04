@@ -32,7 +32,6 @@ __all__ = [
     "BucketedTaskGenerator",
     "Span",
     "bucketed",
-    "multi_task",
     "single_task",
     "merge",
     "env_curriculum",
@@ -48,16 +47,6 @@ def single_task(mg_config: MettaGridConfig) -> SingleTaskGenerator.Config:
 def bucketed(mg_config: MettaGridConfig) -> BucketedTaskGenerator.Config:
     """Create a `BucketedTaskGenerator.Config` from a `MettaGridConfig`."""
     return BucketedTaskGenerator.Config.from_mg(mg_config.model_copy(deep=True))
-
-
-def multi_task(mg_config: MettaGridConfig) -> TaskGeneratorSet.Config:
-    """Create a `TaskGeneratorSet.Config` from a `MettaGridConfig`."""
-    return TaskGeneratorSet.Config(
-        task_generators=[
-            single_task(mg_config),
-        ],
-        weights=[1.0],
-    )
 
 
 def merge(task_generator_configs: list[AnyTaskGeneratorConfig]) -> TaskGeneratorSet.Config:

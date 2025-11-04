@@ -19,7 +19,7 @@ RUN curl -L https://github.com/bazelbuild/bazelisk/releases/latest/download/baze
 RUN mkdir -p /workspace/metta
 WORKDIR /workspace/metta
 
-COPY --from=ghcr.io/astral-sh/uv:0.8.13 /uv /uvx /bin/
+COPY --from=ghcr.io/astral-sh/uv:0.9.5 /uv /uvx /bin/
 
 COPY .python-version pyproject.toml uv.lock ./
 RUN uv python install
@@ -42,10 +42,9 @@ COPY . .
 ENV PATH="/workspace/metta/.venv/bin:$PATH"
 ENV VIRTUAL_ENV="/workspace/metta/.venv"
 
-# When building in CI, actions/checkout stores an auth token in .git/config that we need to remove
-# Make sure the remote is configured for anonymous access
-RUN git config --remove-section http."https://github.com/" || true
-RUN git remote remove origin && git remote add origin https://github.com/Metta-AI/metta.git
+RUN git config --global checkout.defaultRemote origin \
+    && git config --global branch.autoSetupMerge simple
+
 # Doesn't do anything but guarantees that the remote is configured for anonymous access
 RUN git fetch
 

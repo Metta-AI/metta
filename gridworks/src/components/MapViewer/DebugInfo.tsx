@@ -10,7 +10,7 @@ export const DebugInfo: FC<{
   const round = (x: number) => Math.round(x * 100) / 100;
 
   return (
-    <div className="absolute right-0 bottom-0 z-10 text-xs">
+    <div className="absolute bottom-0 left-0 z-10 bg-white/80 p-1 text-xs">
       <div>
         Canvas size: {canvas.width}x{canvas.height}
       </div>

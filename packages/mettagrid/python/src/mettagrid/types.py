@@ -27,12 +27,12 @@ def validate_observation_space(space: spaces.Space) -> None:
 
 
 def validate_action_space(space: spaces.Space) -> None:
-    _require_space(space, spaces.MultiDiscrete, "action")
+    _require_space(space, spaces.Discrete, "action")
 
 
 def get_observation_shape(space: spaces.Box) -> tuple[int, ...]:
     return tuple(space.shape)
 
 
-def get_action_nvec(space: spaces.MultiDiscrete) -> np.ndarray:
-    return space.nvec
+def get_action_count(space: spaces.Discrete) -> int:
+    return int(space.n)

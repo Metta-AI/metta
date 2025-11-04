@@ -1,5 +1,11 @@
 name: "Test and Benchmark"
 
+# This workflow uses metta ci as the single source of truth for CI checks.
+# Each job calls metta ci with a specific stage:
+#   --stage lint, --stage python-tests-and-benchmarks,
+#   --stage cpp-tests, --stage cpp-benchmarks
+# Local development can run all stages with: metta ci
+
 on:
   pull_request:
     types: [opened, synchronize, ready_for_review]
@@ -174,22 +180,10 @@ jobs:
       - name: Setup Environment
         uses: ./.github/actions/setup-environment
         with:
-          install-mode: "linting"
+          install-mode: "metta-cli"
 
-      - name: Run Ruff linter
-        run: |
-          uv run ruff format --check .
-
-      - name: Run Ruff formatting
-        run: |
-          uv run ruff check --exit-non-zero-on-fix .
-
-      - name: Install C++ linter
-        run: |
-          sudo apt-get install -y clang-format
-
-      - name: Run cpplint
-        run: ./packages/mettagrid/tests/cpplint.sh
+      - name: Run linting and formatting
+        run: uv run python .github/scripts/run_ci_stage.py lint
 
   observatory-typescript-check:
     name: "Observatory TypeScript Check"
@@ -224,14 +218,14 @@ jobs:
           cd observatory
           pnpm run lint
 
-  unit-tests:
-    name: "Unit Tests - Python"
+  python-tests:
+    name: "Tests - Python"
     needs: [graphite-ci-optimizer, setup-checks]
     if: |
       (needs.graphite-ci-optimizer.outputs.should_skip == 'false') &&
       (needs.setup-checks.outputs.run_test == 'true')
     runs-on: ubuntu-8core
-    timeout-minutes: 15
+    timeout-minutes: 30
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -253,14 +247,18 @@ jobs:
           echo "PUFFERLIB_CACHE_DIR=$HOME/pufferlib-cache" >> $GITHUB_ENV
           mkdir -p $HOME/pufferlib-cache
 
-      - name: Run all package tests
+      - name: Run Python tests and benchmarks
         shell: bash
-        env:
-          RUN_APP_BACKEND_TESTS: ${{ needs.setup-checks.outputs.app_backend_has_changes == 'true' && 'true' || 'false' }}
-        run: .github/scripts/run_package_tests.sh
+        run: |
+          set -eo pipefail
+          ARGS=()
+          if [[ "${{ needs.setup-checks.outputs.app_backend_has_changes }}" != "true" ]]; then
+            ARGS+=(--skip-package app_backend)
+          fi
+          uv run python .github/scripts/run_ci_stage.py python-tests-and-benchmarks -- "${ARGS[@]}"
 
-  mettagrid-cpp-build:
-    name: "MettaGrid C++ Build & Test"
+  cpp-tests:
+    name: "Tests - C++"
     needs: [graphite-ci-optimizer, setup-checks]
     if: |
       (needs.graphite-ci-optimizer.outputs.should_skip == 'false') &&
@@ -309,29 +307,34 @@ jobs:
           restore-keys: |
             bazel-${{ runner.os }}-
 
-      - name: Build MettaGrid C++ (with coverage)
-        id: mettagrid_build_check
-        run: |
-          cd packages/mettagrid
-          make coverage VERBOSE=1
+      - name: Run C++ tests
+        id: mettagrid-cpp-tests
+        run: uv run python .github/scripts/run_ci_stage.py cpp-tests
 
-  unit-tests-summary:
+      - name: Run C++ benchmarks
+        id: mettagrid-cpp-benchmarks
+        run: uv run python .github/scripts/run_ci_stage.py cpp-benchmarks
+
+  tests-summary:
     name: "Tests"
-    needs: [unit-tests, mettagrid-cpp-build]
+    needs: [python-tests, cpp-tests]
     if: always()
     runs-on: ubuntu-latest
     steps:
-      - name: Check test results
-        run: |
-          echo "Test job results: ${{ toJSON(needs) }}"
-          if [ "${{ contains(join(needs.*.result, ','), 'failure') }}" == "true" ]; then
-            echo "One or more test jobs failed"
-            exit 1
-          elif [ "${{ contains(join(needs.*.result, ','), 'cancelled') }}" == "true" ]; then
-            echo "One or more test jobs were cancelled"
-            # Indicates Github's "neutral" result
-            # https://github.com/actions/runner/issues/662
-            exit 78
-          else
-            echo "All test jobs completed successfully"
-          fi
+      - name: Check unit tests did not fail
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const needs = ${{ toJSON(needs) }};
+            const results = Object.values(needs).map(j => j.result || '').join(',');
+            core.info(`Test job results: ${results}`);
+
+            if (results.includes('failure')) {
+              core.setFailed('One or more test jobs failed');     // red
+              return;
+            }
+            if (results.includes('cancelled')) {
+              core.notice('One or more test jobs were cancelled');
+            } else {
+              core.info('All test jobs completed successfully');
+            }

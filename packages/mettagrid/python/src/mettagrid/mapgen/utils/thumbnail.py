@@ -13,6 +13,8 @@ import tempfile
 import numpy as np
 import pixie
 
+from mettagrid.map_builder.ascii import AsciiMapBuilder
+
 # Faithful extraction from gen_thumb.py
 obs_radius = 5
 
@@ -87,13 +89,15 @@ def read_replay_map(input, step):
     else:  # version == 2
         object_types = input["type_names"]
         objects_list = input["objects"]
-        type_key = "type_id"
+        type_key = "type_name"
 
     # Setup phase: map object types to drawing functions.
     agent_type_id = -1
     shape = []
     fills = []
+    type_name_to_id = {}
     for type_id, object_type in enumerate(object_types):
+        type_name_to_id[object_type] = type_id
         if object_type == "agent":
             agent_type_id = type_id
         if object_type in colors:
@@ -113,51 +117,54 @@ def read_replay_map(input, step):
         if version == 1:
             x = get_position_component(object, step, "c")
             y = get_position_component(object, step, "r")
+            type_id = object[type_key]
         else:  # version == 2
             x = get_position_component_v2(object, step, "c")
             y = get_position_component_v2(object, step, "r")
 
-        nodes[i] = y | (x << 16) | (object[type_key] << 32) | (object.get("agent_id", 0) << 48)
+            raw_type = object.get(type_key)
+            if isinstance(raw_type, str):
+                if raw_type not in type_name_to_id:
+                    raise ValueError(f"Unknown type name '{raw_type}' found in replay")
+                type_id = type_name_to_id[raw_type]
+            else:
+                legacy_type_id = object.get("type_id")
+                if legacy_type_id is None:
+                    legacy_type_id = object.get("type")
+                if not isinstance(legacy_type_id, int):
+                    raise ValueError("Replay object is missing both type_name and type_id")
+                type_id = legacy_type_id
+
+        nodes[i] = y | (x << 16) | (type_id << 32) | (object.get("agent_id", 0) << 48)
 
     size = input["map_size"]
     return [size[0], size[1], nodes, shape, fills, agent_type_id]
 
 
 def read_ascii_map(input):
-    """
-    Faithfully extracted from gen_thumb.py.
-    TODO: Simplify ASCII map parsing - many character mappings appear unused
-    """
-    width = input.find(b"\n")
-    if width <= 1:
-        raise ValueError("Failed to detect the ascii map width.")
+    """Parse YAML/legacy ASCII maps for thumbnail generation."""
 
-    input_len = len(input)
-    newline_width = 2 if chr(input[width - 1]) == "\r" else 1
-    trailing_newline = 0 if chr(input[input_len - 1]) == "\n" else newline_width
+    text = input.decode("utf-8") if isinstance(input, (bytes, bytearray)) else str(input)
+    config = AsciiMapBuilder.Config.from_str(text)
 
-    width1 = width + newline_width
-    height_f = (input_len + trailing_newline) / width1
-    height = int(height_f)
-    if height != height_f:  # All rows are complete when height_f is *.0
-        raise ValueError("Failed to detect the ascii map height.")
+    height = len(config.map_data)
+    width = len(config.map_data[0]) if height else 0
 
     nodes = [0] * (width * height)
     num_nodes = 0
     num_agents = 0
-    for y in range(height):
-        offset = y * width1
-        for x in range(width):
+    for y, row in enumerate(config.map_data):
+        for x, char in enumerate(row):
             type_id = 0
             agent_id = 0
-            match chr(input[offset + x]):
+            match char:
                 case "@" | "A" | "1" | "2" | "3" | "4" | "p" | "P":
                     type_id = 0
                     agent_id = num_agents
                     num_agents += 1
-                case "#" | "W" | "s":  # TODO unsure about s
+                case "#" | "W" | "s":
                     type_id = 1
-                case "m" | "R" | "G" | "B":  # TODO split colors?
+                case "m" | "R" | "G" | "B":
                     type_id = 2
                 case "_" | "a":
                     type_id = 2
@@ -175,8 +182,8 @@ def read_ascii_map(input):
                     type_id = 2
                 case "." | " ":
                     continue
-                case c:
-                    print("Unknown tile code:", c)
+                case other:
+                    print("Unknown tile code:", other)
                     continue
             nodes[num_nodes] = y | (x << 16) | (type_id << 32) | (agent_id << 48)
             num_nodes += 1

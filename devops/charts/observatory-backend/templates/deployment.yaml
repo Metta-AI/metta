@@ -11,6 +11,7 @@ spec:
       labels:
         app: {{ .Release.Name }}
     spec:
+      serviceAccountName: {{ .Release.Name }}
       containers:
         - name: server
           image: "{{ .Values.image.registry }}/{{ .Values.image.name }}:{{ required "tag is required" .Values.image.tag }}"

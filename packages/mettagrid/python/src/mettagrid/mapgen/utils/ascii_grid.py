@@ -1,10 +1,32 @@
+from __future__ import annotations
+
+from collections.abc import Mapping
+
 from mettagrid.map_builder.utils import create_grid
 from mettagrid.mapgen.types import MapGrid
 
-DEFAULT_CHAR_TO_NAME: dict[str, str] = {
+GLOBAL_DEFAULT_MAPPINGS: dict[str, str] = {
     "#": "wall",
     ".": "empty",
     "@": "agent.agent",
+}
+
+
+def merge_with_global_defaults(char_to_name: Mapping[str, str]) -> dict[str, str]:
+    """Merge a legend with the immutable global defaults."""
+    merged: dict[str, str] = {**GLOBAL_DEFAULT_MAPPINGS}
+    for char, name in char_to_name.items():
+        default_name = GLOBAL_DEFAULT_MAPPINGS.get(char)
+        if default_name is not None and default_name != name:
+            raise ValueError(
+                f"Cannot override global default mapping for '{char}': expected '{default_name}', received '{name}'."
+            )
+        merged[char] = name
+    return merged
+
+
+DEFAULT_CHAR_TO_NAME: dict[str, str] = {
+    **GLOBAL_DEFAULT_MAPPINGS,
     "p": "agent.prey",
     "P": "agent.predator",
     "_": "altar",
@@ -63,16 +85,6 @@ def print_grid(grid: MapGrid, name_to_char: dict[str, str], border: bool = True)
         print(line)
 
 
-def lines_to_grid(lines: list[str], char_to_name: dict[str, str]) -> MapGrid:
-    """Convert lines of text to a grid using the provided char-to-name mapping."""
-
-    grid = create_grid(len(lines), len(lines[0]))
-    for r, line in enumerate(lines):
-        for c, char in enumerate(line):
-            grid[r, c] = char_to_name.get(char, char)
-    return grid
-
-
 def char_grid_to_lines(text: str) -> tuple[list[str], int, int]:
     lines = []
     for line in text.strip().split("\n"):
@@ -85,3 +97,13 @@ def char_grid_to_lines(text: str) -> tuple[list[str], int, int]:
         raise ValueError("All lines must be the same width")
 
     return (lines, width, height)
+
+
+def lines_to_grid(lines: list[str], char_to_name: dict[str, str]) -> MapGrid:
+    """Convert lines of text to a grid using the provided char-to-name mapping."""
+
+    grid = create_grid(len(lines), len(lines[0]))
+    for r, line in enumerate(lines):
+        for c, char in enumerate(line):
+            grid[r, c] = char_to_name.get(char, char)
+    return grid

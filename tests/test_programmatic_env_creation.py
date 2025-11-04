@@ -15,6 +15,7 @@ from mettagrid.config.mettagrid_config import (
     AgentRewards,
     GameConfig,
     MettaGridConfig,
+    WallConfig,
 )
 from mettagrid.map_builder.random import RandomMapBuilder
 
@@ -34,7 +35,6 @@ class TestProgrammaticEnvironments:
                 },
                 actions=ActionsConfig(
                     move=ActionConfig(),
-                    rotate=ActionConfig(),
                     noop=ActionConfig(),
                 ),
                 agent=AgentConfig(
@@ -86,7 +86,6 @@ class TestProgrammaticEnvironments:
         assert "wall" in nav_env.game.objects
         assert nav_env.game.actions.move is not None
         assert nav_env.game.actions.rotate is not None
-        assert nav_env.game.actions.get_items is not None
 
     def test_environment_with_custom_rewards(self):
         """Test creating an environment with custom reward configuration."""
@@ -96,11 +95,11 @@ class TestProgrammaticEnvironments:
                 num_agents=2,
                 objects={
                     "wall": building.wall,
-                    "altar": building.altar,
+                    "altar": building.assembler_altar,
                 },
                 actions=ActionsConfig(
                     move=ActionConfig(),
-                    get_items=ActionConfig(),
+                    noop=ActionConfig(),
                 ),
                 agent=AgentConfig(
                     rewards=AgentRewards(
@@ -237,3 +236,38 @@ class TestProgrammaticEnvironments:
 
         finally:
             env.close()
+
+
+class TestTypeIdAllocation:
+    """Unit tests for automatic type_id resolution."""
+
+    def test_auto_assign_type_ids_with_mixed_explicit_and_implicit_values(self):
+        objects = {
+            "apple": WallConfig(type_id=2),
+            "banana": WallConfig(),
+            "carrot": WallConfig(type_id=4),
+            "date": WallConfig(),
+            "elderberry": WallConfig(),
+        }
+
+        config = GameConfig(objects=objects)
+
+        assert config.objects["apple"].type_id == 2
+        assert config.objects["banana"].type_id == 1
+        assert config.objects["carrot"].type_id == 4
+        assert config.objects["date"].type_id == 3
+        assert config.objects["elderberry"].type_id == 5
+
+        assert config.resolved_type_ids["apple"] == 2
+        assert config.resolved_type_ids["banana"] == 1
+        assert config.resolved_type_ids["carrot"] == 4
+        assert config.resolved_type_ids["date"] == 3
+        assert config.resolved_type_ids["elderberry"] == 5
+
+    def test_auto_assign_type_ids_raises_when_pool_exhausted(self):
+        objects = {f"object_{index:03d}": WallConfig() for index in range(256)}
+
+        with pytest.raises(ValueError) as err:
+            GameConfig(objects=objects)
+
+        assert "auto-generated type_id exceeds uint8 range" in str(err.value)

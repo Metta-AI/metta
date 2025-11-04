@@ -1,13 +1,12 @@
 import
   genny, fidget2, openGL, jsony, vmath,
   ../src/mettascope, ../src/mettascope/[replays, common, worldmap, timeline,
-  envconfig]
+  envconfig, vibes]
 
 type
   ActionRequest* = object
     agentId*: int
     actionId*: int
-    argument*: int
 
   RenderResponse* = ref object
     shouldClose*: bool
@@ -20,7 +19,6 @@ proc ctrlCHandler() {.noconv.} =
     window.close()
   quit(0)
 
-
 proc init(dataDir: string, replay: string): RenderResponse =
   try:
     setControlCHook(ctrlCHandler)
@@ -28,7 +26,7 @@ proc init(dataDir: string, replay: string): RenderResponse =
     #echo "Replay from python: ", replay
     echo "Data dir: ", dataDir
     playMode = Realtime
-    initFidget(
+    startFidget(
       figmaUrl = "https://www.figma.com/design/hHmLTy7slXTOej6opPqWpz/MetaScope-V2-Rig",
       windowTitle = "MetaScope V2",
       entryFrame = "UI/Main",
@@ -37,6 +35,7 @@ proc init(dataDir: string, replay: string): RenderResponse =
     )
     common.replay = loadReplayString(replay, "MettaScope")
     updateEnvConfig()
+    updateVibePanel()
     return
   except Exception:
     echo "############ Error initializing Mettascope #################"
@@ -61,14 +60,13 @@ proc render(currentStep: int, replayStep: string): RenderResponse =
         window.close()
         result.shouldClose = true
         return
-      mainLoop()
+      tickFidget()
       if requestPython:
         onRequestPython()
         for action in requestActions:
           result.actions.add(ActionRequest(
             agentId: action.agentId,
-            actionId: action.actionId,
-            argument: action.argument
+            actionId: action.actionId
           ))
         requestActions.setLen(0)
         return

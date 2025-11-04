@@ -21,13 +21,6 @@ from mettagrid.config.mettagrid_config import MettaGridConfig
 logger = logging.getLogger(__name__)
 
 
-def get_algorithm_hypers_discriminator(v):
-    """Discriminator function for algorithm hypers types."""
-    if isinstance(v, dict) and "type" in v:
-        return v["type"]
-    return None
-
-
 class CurriculumTask:
     """A task instance with a task_id and env_cfg."""
 
@@ -187,13 +180,6 @@ class CurriculumAlgorithm(StatsLogger, ABC):
         """Return statistics for logging purposes. Add `prefix` to all keys."""
         # Use the StatsLogger implementation
         return super().stats(prefix)
-
-    def get_task_from_pool(self, task_generator, rng) -> "CurriculumTask":
-        """Get a task from the pool. Default implementation creates a simple task."""
-
-        task_id = rng.randint(0, 1000000)
-        env_cfg = task_generator.get_task(task_id)
-        return CurriculumTask(task_id, env_cfg)
 
 
 class DiscreteRandomConfig(CurriculumAlgorithmConfig):

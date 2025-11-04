@@ -13,10 +13,10 @@
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
 
-#include <map>
 #include <memory>
 #include <random>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 #include "config/mettagrid_config.hpp"
@@ -37,7 +37,6 @@ class ObservationEncoder;
 class GridObject;
 
 struct GridObjectConfig;
-struct ConverterConfig;
 struct AssemblerConfig;
 struct ChestConfig;
 struct WallConfig;
@@ -45,7 +44,7 @@ struct AgentConfig;
 struct GameConfig;
 struct ActionConfig;
 struct AttackActionConfig;
-struct ChangeGlyphActionConfig;
+struct ChangeVibeActionConfig;
 
 namespace py = pybind11;
 
@@ -85,13 +84,14 @@ public:
   py::dict feature_normalizations();
   py::dict feature_spec();
   size_t num_agents() const;
-  py::none set_inventory(GridObjectId agent_id, const std::map<InventoryItem, InventoryQuantity>& inventory);
+  py::none set_inventory(GridObjectId agent_id, const std::unordered_map<InventoryItem, InventoryQuantity>& inventory);
   py::array_t<float> get_episode_rewards();
   py::dict get_episode_stats();
   py::object action_space();
   py::object observation_space();
   py::list action_success_py();
   py::list max_action_args();
+  py::list action_catalog();
   py::list object_type_names_py();
   py::list resource_names_py();
 
@@ -124,8 +124,8 @@ private:
   GameConfig _game_config;
 
   std::vector<ObservationType> _resource_rewards;  // Packed inventory rewards for each agent
-  std::map<unsigned int, float> _group_reward_pct;
-  std::map<unsigned int, unsigned int> _group_sizes;
+  std::unordered_map<unsigned int, float> _group_reward_pct;
+  std::unordered_map<unsigned int, unsigned int> _group_sizes;
   std::vector<RewardType> _group_rewards;
 
   std::unique_ptr<Grid> _grid;
@@ -155,12 +155,16 @@ private:
   py::array_t<float> _rewards;
   py::array_t<float> _episode_rewards;
 
-  std::map<uint8_t, float> _feature_normalizations;
+  std::unordered_map<uint8_t, float> _feature_normalizations;
 
   ActionSuccess _action_success;
 
   std::mt19937 _rng;
   unsigned int _seed;
+
+  std::vector<std::pair<ActionType, ActionArg>> _flat_action_map;
+  std::vector<std::string> _flat_action_names;
+  std::vector<std::vector<int>> _action_arg_to_flat;
 
   // Movement tracking
   bool _track_movement_metrics;
@@ -186,8 +190,9 @@ private:
 
   void _handle_invalid_action(size_t agent_idx, const std::string& stat, ActionType type, ActionArg arg);
   AgentConfig _create_agent_config(const py::dict& agent_group_cfg_py);
-  ConverterConfig _create_converter_config(const py::dict& converter_cfg_py);
   WallConfig _create_wall_config(const py::dict& wall_cfg_py);
+  void build_flat_action_catalog();
+  int flat_action_index(ActionType action, ActionArg arg) const;
 };
 
 #endif  // PACKAGES_METTAGRID_CPP_BINDINGS_METTAGRID_C_HPP_

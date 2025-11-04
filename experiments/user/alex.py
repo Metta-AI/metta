@@ -18,12 +18,11 @@ from metta.rl.loss.ppo import PPOConfig
 from metta.rl.trainer_config import TrainerConfig
 from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
 from metta.sim.simulation_config import SimulationConfig
+from metta.tools.eval import EvaluateTool
 from metta.tools.play import PlayTool
 from metta.tools.replay import ReplayTool
-from metta.tools.sim import SimTool
 from metta.tools.train import TrainTool
 from mettagrid import MettaGridConfig
-from mettagrid.config import ConverterConfig
 
 
 def make_mettagrid(num_agents: int = 24) -> MettaGridConfig:
@@ -46,11 +45,6 @@ def make_mettagrid(num_agents: int = 24) -> MettaGridConfig:
         "blueprint": 1,
     }
 
-    # Easy converter: 1 battery_red to 1 heart (instead of 3 to 1)
-    altar = arena_env.game.objects.get("altar")
-    if isinstance(altar, ConverterConfig) and hasattr(altar, "input_resources"):
-        altar.input_resources["battery_red"] = 1
-
     return arena_env
 
 
@@ -72,10 +66,6 @@ def make_curriculum(
     # enable or disable attacks. we use cost instead of 'enabled'
     # to maintain action space consistency.
     arena_tasks.add_bucket("game.actions.attack.consumed_resources.laser", [1, 100])
-
-    # sometimes add initial_items to the buildings
-    for obj in ["mine_red", "generator_red", "altar", "lasery", "armory"]:
-        arena_tasks.add_bucket(f"game.objects.{obj}.initial_resource_count", [0, 1])
 
     if algorithm_config is None:
         algorithm_config = LearningProgressConfig(
@@ -147,8 +137,8 @@ def replay() -> ReplayTool:
     return cfg
 
 
-def evaluate(run: str = "local.alex.1") -> SimTool:
-    cfg = arena.evaluate(policy_uri=f"wandb://run/{run}")
+def evaluate(run: str = "local.alex.1") -> EvaluateTool:
+    cfg = arena.evaluate(policy_uris=[f"wandb://run/{run}"])
 
     # If your run doesn't exist, try this:
     # cfg = arena.evaluate(policy_uri="wandb://run/daveey.combat.lpsm.8x4")

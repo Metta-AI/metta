@@ -41,6 +41,7 @@ build-coverage/
 **/bazel-*
 **/.bazel_output/
 **/bazel-mettagrid/*
+**/.bazel_output/*
 
 # Node.js / Frontend
 node_modules/
@@ -65,6 +66,8 @@ replays/
 train_dir/
 personal/
 /mettagrid/multirun/
+agent/src/metta/ops/
+tmp/
 
 # Test and benchmark
 test_data/
@@ -96,8 +99,8 @@ experiments/notebooks/.ipynb_checkpoints
 experiments/notebooks/utils/scorecard_widget/scorecard_widget/static/index.js
 experiments/recipes/scratchpad/*.py
 !experiments/recipes/scratchpad/README.md
-!experiments/recipes/scratchpad/example.py
-!experiments/recipes/scratchpad/ci.py
+!experiments/recipes/scratchpad/template.py
+!experiments/recipes/scratchpad/__init__.py
 packages/cogames/experiments
 
 resources
@@ -112,6 +115,12 @@ identified-figures/
 # TODO - remove after troubleshooting stability and re-add to keys in .github/workflows/checks.yml
 mettagrid/MODULE.bazel.lock
 
+# Stable Release System
+devops/stable/state/
+devops/stable/logs/
+devops/stable/release-notes/
+mcp_servers/pr_similarity/cache/
+
 # skypilot testing
 recipe_test_jobs.json
 cluster_test_jobs.json
@@ -121,11 +130,13 @@ packages/mettagrid/nim/mettascope/dist/
 packages/mettagrid/nim/mettascope/bindings/generated/
 mettascope.out
 !packages/mettagrid/nim/mettascope/data/resources/
-tmp/
+packages/mettagrid/nim/mettascope/src/tmp
 packages/mettagrid/python/src/mettagrid/nim/mettascope/
+agent/src/metta/ops/agalite_kernels/_build/
 
 # Nim runtime
 .nim_runtime
 
 .terraform*
 terraform.tfstate
+.cache/torch_ext/

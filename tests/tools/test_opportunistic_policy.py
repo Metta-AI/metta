@@ -14,9 +14,9 @@ from metta.cogworks.curriculum.curriculum import CurriculumConfig
 from metta.cogworks.curriculum.task_generator import SingleTaskGenerator
 from metta.sim.simulation import Simulation
 from metta.sim.simulation_config import SimulationConfig
+from metta.tools.eval import EvaluateTool
 from metta.tools.play import PlayTool
 from metta.tools.replay import ReplayTool
-from metta.tools.sim import SimTool
 from mettagrid import MettaGridEnv, dtype_observations
 
 
@@ -146,16 +146,16 @@ class TestBasicPolicyEnvironment:
         finally:
             simulation._vecenv.close()  # type: ignore[attr-defined]
 
-    def test_sim_tool_config_with_policy_uri(self):
-        """Test that SimTool accepts policy URIs."""
+    def test_eval_tool_config_with_policy_uri(self):
+        """Test that EvaluateTool accepts policy URIs."""
 
         env_config = eb.make_arena(num_agents=4)
         sim_config = SimulationConfig(suite="test", name="test_arena", env=env_config)
 
-        sim_tool = SimTool(simulations=[sim_config], policy_uris=["mock://test_policy"], stats_db_uri=None)
+        eval_tool = EvaluateTool(simulations=[sim_config], policy_uris=["mock://test_policy"], stats_db_uri=None)
 
-        assert sim_tool.simulations[0].name == "test_arena"
-        assert sim_tool.policy_uris == ["mock://test_policy"]
+        assert eval_tool.simulations[0].name == "test_arena"
+        assert eval_tool.policy_uris == ["mock://test_policy"]
 
     def test_play_and_replay_tools_share_run_configuration(self):
         """Ensure basic tool wiring stays aligned with SimulationConfig usage."""
@@ -163,10 +163,9 @@ class TestBasicPolicyEnvironment:
         env_config = eb.make_navigation(num_agents=2)
         sim_config = SimulationConfig(suite="test", name="tool_config", env=env_config)
 
-        play_tool = PlayTool(sim=sim_config, policy_uri=None, open_browser_on_start=False)
+        play_tool = PlayTool(sim=sim_config, policy_uri=None)
         replay_tool = ReplayTool(sim=sim_config, policy_uri=None, open_browser_on_start=False)
 
         assert play_tool.sim.name == "tool_config"
         assert replay_tool.sim.name == "tool_config"
-        assert play_tool.open_browser_on_start is False
         assert replay_tool.open_browser_on_start is False

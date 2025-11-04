@@ -31,7 +31,9 @@ resource "aws_iam_role" "github_actions" {
             "token.actions.githubusercontent.com:aud" = local.audience
           }
           StringLike = {
-            "token.actions.githubusercontent.com:sub" = "repo:${local.repo}:*"
+            "token.actions.githubusercontent.com:sub" = concat([
+              "repo:${local.repo}:*"
+            ], [for repo in var.extra_oidc_repos : "repo:${repo}:*"])
           }
         }
       }

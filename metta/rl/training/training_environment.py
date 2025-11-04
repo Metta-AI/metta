@@ -3,8 +3,10 @@
 import logging
 import os
 import platform
+import uuid
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any, List, Literal, Tuple
 
 import numpy as np
@@ -56,14 +58,22 @@ class TrainingEnvironmentConfig(Config):
     seed: int = Field(default=0)
     """Random seed for environment"""
 
+    write_replays: bool = Field(
+        default=False,
+        description="Enable writing training episode replays to disk.",
+    )
+    replay_dir: Path = Field(
+        default_factory=lambda: Path("./train_dir/replays/training"),
+        description="Base directory where training replays will be stored when writing is enabled.",
+    )
+
 
 @dataclass
-class EnvironmentMetaData:
+class GameRules:
     obs_width: int
     obs_height: int
     obs_features: dict[str, ObsFeature]
     action_names: List[str]
-    max_action_args: List[int]
     num_agents: int
     observation_space: Any
     action_space: Any
@@ -109,8 +119,8 @@ class TrainingEnvironment(ABC):
 
     @property
     @abstractmethod
-    def meta_data(self) -> EnvironmentMetaData:
-        """Get the environment metadata."""
+    def game_rules(self) -> GameRules:
+        """Get the environment game rules."""
 
 
 class VectorizedTrainingEnvironment(TrainingEnvironment):
@@ -119,6 +129,7 @@ class VectorizedTrainingEnvironment(TrainingEnvironment):
     def __init__(self, cfg: TrainingEnvironmentConfig):
         """Initialize training environment."""
         super().__init__()
+        self._id = uuid.uuid4().hex[:12]
         self._num_agents = 0
         self._batch_size = 0
         self._num_envs = 0
@@ -130,6 +141,13 @@ class VectorizedTrainingEnvironment(TrainingEnvironment):
         self._curriculum = Curriculum(cfg.curriculum)
         env_cfg = self._curriculum.get_task().get_env_cfg()
         self._num_agents = env_cfg.game.num_agents
+
+        self._replay_directory: Path | None = None
+        if cfg.write_replays:
+            base_dir = Path(cfg.replay_dir).expanduser()
+            target_dir = (base_dir / self._id).resolve()
+            target_dir.mkdir(parents=True, exist_ok=True)
+            self._replay_directory = target_dir
 
         num_workers = cfg.num_workers
         async_factor = cfg.async_factor
@@ -162,6 +180,7 @@ class VectorizedTrainingEnvironment(TrainingEnvironment):
             num_workers=num_workers,
             zero_copy=cfg.zero_copy,
             is_training=True,
+            replay_directory=str(self._replay_directory) if self._replay_directory else None,
         )
 
         # NOTE: Downstream rollout code currently assumes that PufferLib returns
@@ -172,15 +191,14 @@ class VectorizedTrainingEnvironment(TrainingEnvironment):
         # Initialize environment with seed
         self._vecenv.async_reset(cfg.seed)
 
-        self._meta_data = EnvironmentMetaData(
+        self._game_rules = GameRules(
             obs_width=self._vecenv.driver_env.obs_width,
             obs_height=self._vecenv.driver_env.obs_height,
             obs_features=self._vecenv.driver_env.observation_features,
             action_names=self._vecenv.driver_env.action_names,
-            max_action_args=self._vecenv.driver_env.max_action_args,
             num_agents=self._num_agents,
             observation_space=self._vecenv.driver_env.observation_space,
-            action_space=self._vecenv.driver_env.action_space,
+            action_space=self._vecenv.driver_env.single_action_space,
             feature_normalizations=self._vecenv.driver_env.feature_normalizations,
         )
 
@@ -199,8 +217,8 @@ class VectorizedTrainingEnvironment(TrainingEnvironment):
         self._vecenv.close()
 
     @property
-    def meta_data(self) -> EnvironmentMetaData:
-        return self._meta_data
+    def game_rules(self) -> GameRules:
+        return self._game_rules
 
     @property
     def batch_info(self) -> BatchInfo:
@@ -218,7 +236,8 @@ class VectorizedTrainingEnvironment(TrainingEnvironment):
 
     @property
     def single_action_space(self) -> Any:
-        return self._vecenv.single_action_space
+        # Use the underlying driver environment's action space, which remains single-agent Discrete
+        return self._vecenv.driver_env.single_action_space
 
     @property
     def single_observation_space(self) -> Any:

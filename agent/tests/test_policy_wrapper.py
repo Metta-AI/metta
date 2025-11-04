@@ -6,7 +6,8 @@ import torch
 from torch import nn
 
 from metta.agent.policy import ExternalPolicyWrapper
-from metta.rl.training import EnvironmentMetaData
+from metta.rl.training import GameRules
+from mettagrid import dtype_actions
 
 
 class _DummyPolicy(nn.Module):
@@ -18,22 +19,21 @@ class _DummyPolicy(nn.Module):
         return self.linear(obs)
 
 
-def _make_env_metadata() -> EnvironmentMetaData:
-    return EnvironmentMetaData(
+def _make_game_rules() -> GameRules:
+    return GameRules(
         obs_width=4,
         obs_height=4,
         obs_features={},
         action_names=["noop"],
-        max_action_args=[0],
         num_agents=1,
         observation_space=SimpleNamespace(),
-        action_space=SimpleNamespace(),
+        action_space=SimpleNamespace(n=1, dtype=dtype_actions),
         feature_normalizations={0: 1.0},
     )
 
 
 def test_external_policy_wrapper_is_module() -> None:
-    wrapper = ExternalPolicyWrapper(_DummyPolicy(), _make_env_metadata())
+    wrapper = ExternalPolicyWrapper(_DummyPolicy(), _make_game_rules())
 
     # These nn.Module helpers should work without raising AttributeError
     wrapper.train()

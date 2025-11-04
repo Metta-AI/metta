@@ -5,28 +5,26 @@ import torch
 from tensordict import TensorDict
 
 from metta.agent.policies.fast import FastConfig, FastPolicy
-from metta.rl.training import EnvironmentMetaData
+from metta.rl.training import GameRules
 from metta.rl.utils import ensure_sequence_metadata
 
 
-def _build_env_metadata():
-    action_names = ["move", "attack"]
-    max_action_args = [0, 2]  # move has no parameter, attack supports 3 arguments
+def _build_game_rules():
+    action_names = ["move_north", "attack_0", "attack_1", "attack_2"]
     feature_normalizations = {0: 1.0}
 
     obs_features = {
         "token_value": SimpleNamespace(id=0, normalization=1.0),
     }
 
-    return EnvironmentMetaData(
+    return GameRules(
         obs_width=11,
         obs_height=11,
         obs_features=obs_features,
         action_names=action_names,
-        max_action_args=max_action_args,
         num_agents=1,
         observation_space=None,
-        action_space=gym.spaces.MultiDiscrete([len(action_names), max(max_action_args) + 1]),
+        action_space=gym.spaces.Discrete(len(action_names)),
         feature_normalizations=feature_normalizations,
     )
 
@@ -41,28 +39,26 @@ def _build_token_observations(batch_size: int, num_tokens: int) -> TensorDict:
 
 
 def test_fast_config_creates_policy():
-    env_metadata = _build_env_metadata()
-    policy = FastConfig().make_policy(env_metadata)
+    game_rules = _build_game_rules()
+    policy = FastConfig().make_policy(game_rules)
     assert isinstance(policy, FastPolicy)
 
 
 def test_fast_policy_initialize_sets_action_metadata():
-    env_metadata = _build_env_metadata()
-    policy = FastPolicy(env_metadata)
+    game_rules = _build_game_rules()
+    policy = FastPolicy(game_rules)
 
-    logs = policy.initialize_to_environment(env_metadata, torch.device("cpu"))
+    logs = policy.initialize_to_environment(game_rules, torch.device("cpu"))
 
     # Initialization returns a list containing the observation shim log (may be None)
     assert isinstance(logs, list)
-    assert policy.action_probs.action_index_tensor is not None
-    assert policy.action_probs.cum_action_max_params is not None
-    assert policy.action_probs.action_index_tensor.shape[1] == 2  # (action_type, action_param)
+    assert policy.action_probs.num_actions == len(game_rules.action_names)
 
 
 def test_fast_policy_forward_produces_actions_and_values():
-    env_metadata = _build_env_metadata()
-    policy = FastPolicy(env_metadata)
-    policy.initialize_to_environment(env_metadata, torch.device("cpu"))
+    game_rules = _build_game_rules()
+    policy = FastPolicy(game_rules)
+    policy.initialize_to_environment(game_rules, torch.device("cpu"))
     policy.eval()
 
     td = _build_token_observations(batch_size=1, num_tokens=4)
@@ -71,6 +67,6 @@ def test_fast_policy_forward_produces_actions_and_values():
 
     assert "actions" in output_td
     assert "values" in output_td
-    assert output_td["actions"].shape == (1, 2)
+    assert output_td["actions"].shape == (1,)
     assert output_td["values"].shape == (1,)
     assert output_td["full_log_probs"].shape[0] == 1

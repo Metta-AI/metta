@@ -88,6 +88,14 @@ protected:
     return _grid->move_object(actor, target_location);
   }
 
+  std::string variant_name(ActionArg arg) const override {
+    Orientation move_direction = static_cast<Orientation>(arg);
+    if (!isValidOrientation(move_direction, _game_config->allow_diagonals)) {
+      return ActionHandler::variant_name(arg);
+    }
+    return std::string(action_name()) + "_" + OrientationFullNames[static_cast<size_t>(move_direction)];
+  }
+
 private:
   const GameConfig* _game_config;
 };

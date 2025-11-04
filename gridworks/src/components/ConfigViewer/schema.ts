@@ -34,6 +34,13 @@ function parseKind(kind: string): JsonSchema {
   if (listMatch) {
     return { type: "array", items: parseKind(listMatch[1]) };
   }
+  const dictMatch = kind.match(/^Dict\[str, (\w+)\]$/);
+  if (dictMatch) {
+    return {
+      type: "object",
+      additionalProperties: parseKind(dictMatch[1]),
+    };
+  }
   return { $ref: "#/$defs/" + kind };
 }
 

@@ -28,9 +28,7 @@ def assert_raw_grid(grid: MapGrid, ascii_grid: str, name_to_char: dict[str, str]
         pytest.fail(f"Grid does not match expected:\nEXPECTED:\n{expected_grid}\n\nACTUAL:\n{actual_grid}")
 
 
-def assert_grid(scene: Scene, ascii_grid: str, char_to_name: dict[str, str] | None = None):
-    # Convert char_to_name to name_to_char for grid_to_lines
-    # Prioritize visible chars over whitespace for better test output
+def assert_grid_map(scene: Scene, ascii_grid: str, char_to_name: dict[str, str] | None = None):
     if char_to_name:
         name_to_char: dict[str, str] = {}
         # First pass: add all mappings

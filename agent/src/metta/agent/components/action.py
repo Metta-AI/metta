@@ -4,7 +4,7 @@ from einops import repeat
 from tensordict import TensorDict
 
 from metta.agent.components.component_config import ComponentConfig
-from metta.rl.training import EnvironmentMetaData
+from metta.rl.training import GameRules
 
 
 class ActionEmbeddingConfig(ComponentConfig):
@@ -52,17 +52,10 @@ class ActionEmbedding(nn.Module):
 
     def initialize_to_environment(
         self,
-        env: EnvironmentMetaData,
+        env: GameRules,
         device: torch.device,
     ) -> None:
-        base_action_names = list(env.action_names)
-        action_max_params = list(env.max_action_args)
-
-        action_names = [
-            f"{name}_{i}"
-            for name, max_param in zip(base_action_names, action_max_params, strict=False)
-            for i in range(max_param + 1)
-        ]
+        action_names = list(env.action_names)
 
         for action_name in action_names:
             if action_name not in self._reserved_action_embeds:

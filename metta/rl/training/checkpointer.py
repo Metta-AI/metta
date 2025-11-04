@@ -3,11 +3,12 @@
 import logging
 from typing import Optional
 
+import torch
 from pydantic import Field
 
 from metta.agent.policy import Policy, PolicyArchitecture
 from metta.rl.checkpoint_manager import CheckpointManager
-from metta.rl.training import DistributedHelper, EnvironmentMetaData, TrainerComponent
+from metta.rl.training import DistributedHelper, GameRules, TrainerComponent
 from mettagrid.base_config import Config
 
 logger = logging.getLogger(__name__)
@@ -28,12 +29,14 @@ class Checkpointer(TrainerComponent):
         config: CheckpointerConfig,
         checkpoint_manager: CheckpointManager,
         distributed_helper: DistributedHelper,
+        policy_architecture: PolicyArchitecture,
     ) -> None:
         super().__init__(epoch_interval=max(1, config.epoch_interval))
         self._master_only = True
         self._config = config
         self._checkpoint_manager = checkpoint_manager
         self._distributed = distributed_helper
+        self._policy_architecture: PolicyArchitecture = policy_architecture
         self._latest_policy_uri: Optional[str] = None
 
     # ------------------------------------------------------------------
@@ -49,8 +52,7 @@ class Checkpointer(TrainerComponent):
     # ------------------------------------------------------------------
     def load_or_create_policy(
         self,
-        env_metadata: EnvironmentMetaData,
-        policy_architecture: PolicyArchitecture,
+        game_rules: GameRules,
         *,
         policy_uri: Optional[str] = None,
     ) -> Policy:
@@ -65,7 +67,8 @@ class Checkpointer(TrainerComponent):
         if self._distributed.is_master() and candidate_uri:
             normalized_uri = CheckpointManager.normalize_uri(candidate_uri)
             try:
-                policy = self._checkpoint_manager.load_from_uri(normalized_uri)
+                load_device = torch.device(self._distributed.config.device)
+                policy = self._checkpoint_manager.load_from_uri(normalized_uri, game_rules, load_device)
                 self._latest_policy_uri = normalized_uri
                 logger.info("Loaded policy from %s", normalized_uri)
             except FileNotFoundError:
@@ -78,7 +81,7 @@ class Checkpointer(TrainerComponent):
             return policy
 
         logger.info("Creating new policy for training run")
-        return policy_architecture.make_policy(env_metadata)
+        return self._policy_architecture.make_policy(game_rules)
 
     def get_latest_policy_uri(self) -> Optional[str]:
         """Return the most recent checkpoint URI tracked by this component."""
@@ -113,10 +116,14 @@ class Checkpointer(TrainerComponent):
             return policy.module  # type: ignore[return-value]
         return policy
 
-    def _save_policy(self, epoch: int) -> None:
+    def _save_policy(self, epoch: int, *, force: bool = False) -> None:
         policy = self._policy_to_save()
 
-        uri = self._checkpoint_manager.save_agent(policy, epoch)
+        uri = self._checkpoint_manager.save_agent(
+            policy,
+            epoch,
+            policy_architecture=self._policy_architecture,
+        )
         self._latest_policy_uri = uri
         self.context.latest_policy_uri_value = uri
         try:

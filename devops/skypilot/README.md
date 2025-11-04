@@ -6,6 +6,7 @@ This script provides a convenient way to launch training jobs on AWS using SkyPi
 
 - AWS credentials configured with `softmax` profile
 - SkyPilot CLI installed and configured. This results in a ~/.sky/config.yaml
+- Bazel 7.0.0 or newer
 
 If you have successfully run `./devops/skypilot/install.sh` or `metta install`, these should be handled.
 
@@ -13,7 +14,7 @@ You can run this command to confirm your connectivity to the Softmax skypilot se
 authenticated.
 
 ```bash
-sky api info
+uv run sky api info
 ```
 
 ## Usage
@@ -149,29 +150,29 @@ It will output the complete YAML configuration that would be used for the deploy
 
 ```bash
 # List all jobs with status
-sky jobs queue
+uv run sky jobs queue
 
 # View job logs
-sky jobs logs <JOB_ID>
+uv run sky jobs logs <JOB_ID>
 
 # View controller logs (for debugging)
-sky jobs logs <JOB_ID> --controller
+uv run sky jobs logs <JOB_ID> --controller
 
 # Stream logs in real-time
-sky jobs logs <JOB_ID> --follow
+uv run sky jobs logs <JOB_ID> --follow
 ```
 
 ### Canceling Jobs
 
 ```bash
 # Cancel a specific job
-sky jobs cancel <JOB_ID>
+uv run sky jobs cancel <JOB_ID>
 
 # Cancel all jobs
-sky jobs cancel --all
+uv run sky jobs cancel --all
 
 # Cancel jobs by name pattern
-sky jobs cancel -n "experiment_*"
+uv run sky jobs cancel -n "experiment_*"
 ```
 
 ### Job Status
@@ -296,9 +297,9 @@ Summary:
 📦 Manage sandboxes:
   Launch new:     ./devops/skypilot/sandbox.py --new
   Connect:        ssh alice-sandbox-1
-  Restart:        sky start alice-sandbox-2
-  Stop:           sky stop alice-sandbox-1
-  Delete:         sky down alice-sandbox-1
+  Restart:        uv run sky start alice-sandbox-2
+  Stop:           uv run sky stop alice-sandbox-1
+  Delete:         uv run sky down alice-sandbox-1
 ```
 
 ### Managing Sandboxes
@@ -308,19 +309,19 @@ Summary:
 ssh <sandbox-name>
 
 # Stop sandbox (preserves data, saves costs)
-sky stop <sandbox-name>
+uv run sky stop <sandbox-name>
 
 # Restart a stopped sandbox
-sky start <sandbox-name>
+uv run sky start <sandbox-name>
 
 # Delete sandbox completely
-sky down <sandbox-name>
+uv run sky down <sandbox-name>
 
 # Check logs if sandbox is stuck in INIT
-sky logs <sandbox-name>
+uv run sky logs <sandbox-name>
 
 # Retry launch for stuck clusters
-sky launch -c <sandbox-name> --no-setup
+uv run sky launch -c <sandbox-name> --no-setup
 ```
 
 ### Cost Management
@@ -335,7 +336,7 @@ sky launch -c <sandbox-name> --no-setup
 To disable auto-stop:
 
 ```bash
-sky autostop --cancel <sandbox-name>
+uv run sky autostop --cancel <sandbox-name>
 ```
 
 ## Configuration
@@ -358,16 +359,16 @@ The following environment variables are automatically set:
 
 ```bash
 # Check cluster status
-sky status
+uv run sky status
 
 # View detailed resource availability
-sky show-gpus
+uv run sky show-gpus
 
 # Check SkyPilot configuration
-sky check
+uv run sky check
 
 # View job details
-sky jobs queue -a
+uv run sky jobs queue -a
 ```
 
 ## Best Practices

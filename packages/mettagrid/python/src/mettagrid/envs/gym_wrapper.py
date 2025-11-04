@@ -2,7 +2,8 @@ from typing import Any
 
 import gymnasium as gym
 import numpy as np
-from gymnasium.spaces import Discrete
+
+from mettagrid.mettagrid_c import dtype_actions
 
 
 class SingleAgentWrapper(gym.Wrapper):
@@ -10,9 +11,14 @@ class SingleAgentWrapper(gym.Wrapper):
         super(SingleAgentWrapper, self).__init__(env)
 
     def step(self, action):
-        action = np.asarray(action, dtype=np.uint32)
-        action = action[None, ...]
-        observations, rewards, terminals, truncations, infos = self.env.step(action)
+        action_array = np.asarray(action, dtype=dtype_actions)
+        if action_array.ndim == 0:
+            action_array = action_array.reshape(1)
+        elif action_array.ndim == 1 and action_array.shape[0] == 1:
+            pass
+        else:
+            raise ValueError(f"SingleAgentWrapper expects scalar action, got shape {action_array.shape}")
+        observations, rewards, terminals, truncations, infos = self.env.step(action_array)
 
         observations = observations.squeeze(0)
         rewards = rewards.squeeze(0)
@@ -33,31 +39,3 @@ class SingleAgentWrapper(gym.Wrapper):
     @property
     def observation_space(self):
         return self.env.single_observation_space
-
-
-class MultiToDiscreteWrapper(gym.ActionWrapper):
-    def __init__(self, env):
-        super(MultiToDiscreteWrapper, self).__init__(env)
-        max_action_args = env.unwrapped.max_action_args
-        arg_counts = [a + 1 for a in max_action_args]
-
-        self.n_actions = np.sum(arg_counts)
-        self.action_map = np.zeros((self.n_actions, 2), dtype=np.int32)
-
-        i = 0
-        for action, max_arg in enumerate(arg_counts):
-            for arg in range(max_arg):
-                self.action_map[i] = (action, arg)
-                i += 1
-
-    @property
-    def action_space(self):
-        return Discrete(self.n_actions)
-
-    @property
-    def single_action_space(self):
-        return Discrete(self.n_actions)
-
-    def step(self, action):
-        mapped_action = self.action_map[action]
-        return self.env.step(mapped_action)

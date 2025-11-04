@@ -80,6 +80,7 @@ def evaluate_actions(action_logits: Tensor, actions: Tensor) -> Tuple[Tensor, Te
 
 def get_from_master(x: Any) -> Any:
     """Broadcast value from rank 0 to all ranks in distributed training. Works for everything that can be pickled."""
+
     if not dist.is_available() or not dist.is_initialized() or dist.get_world_size() == 1:
         return x
 

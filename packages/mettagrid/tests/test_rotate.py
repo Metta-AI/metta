@@ -31,7 +31,7 @@ def base_config() -> GameConfig:
             rotate=ActionConfig(enabled=True),
         ),
         objects={
-            "wall": WallConfig(type_id=1),
+            "wall": WallConfig(),
         },
         allow_diagonals=True,
     )
@@ -241,4 +241,4 @@ def test_rotation_without_rotate_action(configured_env, simple_game_map, base_co
     result = rotate(env, Orientation.EAST)
 
     assert result["success"] is False
-    assert result["error"] == "Rotate action not available"
+    assert result["error"] == "rotate_east action not available"

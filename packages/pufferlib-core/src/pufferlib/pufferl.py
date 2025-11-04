@@ -1,15 +1,29 @@
 # TODO: Add information
 # - Help menu
 # - Docs link
-# python -m torch.distributed.run --standalone --nnodes=1 --nproc-per-node=1 clean_pufferl.py --env puffer_nmmo3 --mode train
+# python -m torch.distributed.run --standalone --nnodes=1 --nproc-per-node=1 clean_pufferl.py --env puffer_nmmo3 --mode train  # noqa: E501
 # torchrun --standalone --nnodes=1 --nproc-per-node=6 -m pufferlib.pufferl train puffer_nmmo3
 import warnings
-
-from torch.distributed.elastic.multiprocessing.errors import record
 
 warnings.filterwarnings("error", category=RuntimeWarning)
 
 
+def record(fn):
+    """Lazy import wrapper for torch.distributed.elastic.multiprocessing.errors.record.
+
+    This is defined before other imports to avoid triggering torch.distributed import on macOS,
+    which causes a warning about unsupported redirects.
+    """
+    try:
+        from torch.distributed.elastic.multiprocessing.errors import record as _record
+
+        return _record(fn)
+    except ImportError:
+        return fn
+
+
+# ruff: noqa: E402
+# Imports below are intentionally after the record function definition to avoid torch.distributed warnings
 import argparse
 import ast
 import configparser
@@ -59,8 +73,10 @@ ADVANTAGE_CUDA = shutil.which("nvcc") is not None
 
 class PuffeRL:
     def __init__(self, config, vecenv, policy, logger=None):
-        # Backend perf optimization
-        torch.set_float32_matmul_precision("high")
+        # Backend perf optimization (using new API)
+        if torch.cuda.is_available():
+            torch.backends.cuda.matmul.fp32_precision = "tf32"  # type: ignore[attr-defined]
+            torch.backends.cudnn.conv.fp32_precision = "tf32"  # type: ignore[attr-defined]
         torch.backends.cudnn.deterministic = config["torch_deterministic"]
         torch.backends.cudnn.benchmark = True
 
@@ -469,7 +485,10 @@ class PuffeRL:
         y_pred = self.values.flatten()
         y_true = advantages.flatten() + self.values.flatten()
         var_y = y_true.var()
-        explained_var = torch.nan if var_y == 0 else 1 - (y_true - y_pred).var() / var_y
+        if var_y == 0:
+            explained_var = torch.tensor(float("nan"), device=y_true.device, dtype=var_y.dtype)
+        else:
+            explained_var = 1 - (y_true - y_pred).var() / var_y
         losses["explained_variance"] = explained_var.item()
 
         profile.end()
@@ -654,7 +673,10 @@ class PuffeRL:
         if self.stats:
             self.last_stats = self.stats
 
-        for metric, value in (self.stats or self.last_stats).items():
+        # do some reordering of self.stats so that important stats are always shown
+        prioritized_stats = self._reorder_stats_for_dashboard()
+
+        for metric, value in prioritized_stats:
             try:  # Discard non-numeric values
                 int(value)
             except:
@@ -673,6 +695,29 @@ class PuffeRL:
             console.print(dashboard)
 
         print("\033[0;0H" + capture.get())
+
+    def _reorder_stats_for_dashboard(self) -> list[tuple[str, float]]:
+        priority_metrics = [
+            "agent/heart.gained",
+            "agent/inventory.diversity",
+            "agent/avg_reward_per_agent",
+            "agent/energy.amount",
+            "agent/status.max_steps_without_motion",
+            "game/chest.heart.amount",
+        ]
+        new_stats = []
+
+        stats = self.stats if len(self.stats) > 0 else self.last_stats
+
+        for name in priority_metrics:
+            if name in stats:
+                new_stats.append((name, stats[name]))
+
+        for name in stats.keys():
+            if name not in priority_metrics:
+                new_stats.append((name, stats[name]))
+
+        return new_stats
 
 
 def compute_puff_advantage(

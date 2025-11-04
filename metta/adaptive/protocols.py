@@ -68,6 +68,8 @@ class Store(Protocol):
 
     def update_run_summary(self, run_id, summary_update: dict) -> bool: ...
 
+    # Optional: stores may expose configuration methods; not required here
+
 
 @runtime_checkable
 class Dispatcher(Protocol):

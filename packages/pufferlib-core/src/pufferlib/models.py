@@ -23,11 +23,10 @@ class Default(nn.Module):
     def __init__(self, env, hidden_size=128):
         super().__init__()
         self.hidden_size = hidden_size
-        self.is_multidiscrete = isinstance(env.single_action_space, pufferlib.spaces.MultiDiscrete)
         self.is_continuous = isinstance(env.single_action_space, pufferlib.spaces.Box)
         try:
             self.is_dict_obs = isinstance(env.env.observation_space, pufferlib.spaces.Dict)
-        except:
+        except Exception:
             self.is_dict_obs = isinstance(env.observation_space, pufferlib.spaces.Dict)
 
         if self.is_dict_obs:
@@ -41,11 +40,7 @@ class Default(nn.Module):
                 nn.GELU(),
             )
 
-        if self.is_multidiscrete:
-            self.action_nvec = tuple(env.single_action_space.nvec)
-            num_atns = sum(self.action_nvec)
-            self.decoder = pufferlib.pytorch.layer_init(nn.Linear(hidden_size, num_atns), std=0.01)
-        elif not self.is_continuous:
+        if not self.is_continuous:
             num_atns = env.single_action_space.n
             self.decoder = pufferlib.pytorch.layer_init(nn.Linear(hidden_size, num_atns), std=0.01)
         else:
@@ -78,9 +73,7 @@ class Default(nn.Module):
     def decode_actions(self, hidden):
         """Decodes a batch of hidden states into (multi)discrete actions.
         Assumes no time dimension (handled by LSTM wrappers)."""
-        if self.is_multidiscrete:
-            logits = self.decoder(hidden).split(self.action_nvec, dim=1)
-        elif self.is_continuous:
+        if self.is_continuous:
             mean = self.decoder_mean(hidden)
             logstd = self.decoder_logstd.expand_as(mean)
             std = torch.exp(logstd)

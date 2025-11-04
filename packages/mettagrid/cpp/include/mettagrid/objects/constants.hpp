@@ -1,8 +1,8 @@
 #ifndef PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_OBJECTS_CONSTANTS_HPP_
 #define PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_OBJECTS_CONSTANTS_HPP_
 
-#include <map>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 #include "core/types.hpp"
@@ -46,7 +46,7 @@ constexpr ObservationType EpisodeCompletionPct = 7;
 constexpr ObservationType LastAction = 8;
 constexpr ObservationType LastActionArg = 9;
 constexpr ObservationType LastReward = 10;
-constexpr ObservationType Glyph = 11;
+constexpr ObservationType Vibe = 11;
 constexpr ObservationType VisitationCounts = 12;
 constexpr ObservationType Tag = 13;
 constexpr ObservationType CooldownRemaining = 14;
@@ -58,8 +58,8 @@ constexpr ObservationType ObservationFeatureCount = 17;
 const ObservationType InventoryFeatureOffset = ObservationFeature::ObservationFeatureCount;
 
 // Use function-local statics to avoid global constructors and initialization order issues
-inline const std::map<ObservationType, std::string>& GetFeatureNames() {
-  static const std::map<ObservationType, std::string> feature_names = {
+inline const std::unordered_map<ObservationType, std::string>& GetFeatureNames() {
+  static const std::unordered_map<ObservationType, std::string> feature_names = {
       {ObservationFeature::TypeId, "type_id"},
       {ObservationFeature::Group, "agent:group"},
       {ObservationFeature::Frozen, "agent:frozen"},
@@ -71,7 +71,7 @@ inline const std::map<ObservationType, std::string>& GetFeatureNames() {
       {ObservationFeature::LastAction, "last_action"},
       {ObservationFeature::LastActionArg, "last_action_arg"},
       {ObservationFeature::LastReward, "last_reward"},
-      {ObservationFeature::Glyph, "agent:glyph"},
+      {ObservationFeature::Vibe, "vibe"},
       {ObservationFeature::VisitationCounts, "agent:visitation_counts"},
       {ObservationFeature::Tag, "tag"},
       {ObservationFeature::CooldownRemaining, "cooldown_remaining"},
@@ -83,8 +83,8 @@ inline const std::map<ObservationType, std::string>& GetFeatureNames() {
 // ##ObservationNormalization
 // These are approximate maximum values for each feature. Ideally they would be defined closer to their source,
 // but here we are. If you add / remove a feature, you should add / remove the corresponding normalization.
-inline const std::map<ObservationType, float>& GetFeatureNormalizations() {
-  static const std::map<ObservationType, float> feature_normalizations = {
+inline const std::unordered_map<ObservationType, float>& GetFeatureNormalizations() {
+  static const std::unordered_map<ObservationType, float> feature_normalizations = {
       {ObservationFeature::LastAction, 10.0},
       {ObservationFeature::LastActionArg, 10.0},
       {ObservationFeature::EpisodeCompletionPct, 255.0},
@@ -96,7 +96,7 @@ inline const std::map<ObservationType, float>& GetFeatureNormalizations() {
       {ObservationFeature::ReservedForFutureUse, 255.0},
       {ObservationFeature::ConvertingOrCoolingDown, 1.0},
       {ObservationFeature::Swappable, 1.0},
-      {ObservationFeature::Glyph, 255.0},
+      {ObservationFeature::Vibe, 255.0},
       {ObservationFeature::VisitationCounts, 1000.0},
       {ObservationFeature::Tag, 10.0},
       {ObservationFeature::CooldownRemaining, 255.0},

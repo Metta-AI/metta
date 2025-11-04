@@ -45,13 +45,11 @@ def base_config():
             noop=ActionConfig(),
             move=ActionConfig(),
             rotate=ActionConfig(),
-            get_items=ActionConfig(),
             attack=AttackActionConfig(enabled=True, consumed_resources={"laser": 1}, defense_resources={"armor": 1}),
-            put_items=ActionConfig(),
             swap=ActionConfig(),
         ),
         objects={
-            "wall": WallConfig(type_id=1, swappable=False),
+            "wall": WallConfig(swappable=False),
         },
         agent=AgentConfig(rewards=AgentRewards()),
         allow_diagonals=True,
@@ -323,7 +321,7 @@ def test_diagonal_movement_integration(configured_env):
 
     env: MettaGrid = configured_env(open_map)
 
-    print(env.action_names(), env.max_action_args())
+    print(env.action_names())
 
     # Test diagonal movement pattern
     diagonal_moves = [

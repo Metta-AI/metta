@@ -6,13 +6,13 @@ from mettagrid.config.mettagrid_config import (
     ActionConfig,
     ActionsConfig,
     AgentConfig,
-    ConverterConfig,
     GameConfig,
     MettaGridConfig,
     WallConfig,
 )
 from mettagrid.core import MettaGridCore
 from mettagrid.map_builder.ascii import AsciiMapBuilder
+from mettagrid.mapgen.utils.ascii_grid import DEFAULT_CHAR_TO_NAME
 from mettagrid.test_support import TokenTypes
 
 NUM_OBS_TOKENS = 200
@@ -45,6 +45,7 @@ def env_with_tags() -> MettaGridCore:
                     ["#", "@", ".", ".", ".", ".", "#"],
                     ["#", "#", "#", "#", "#", "#", "#"],
                 ],
+                char_to_name_map=DEFAULT_CHAR_TO_NAME,
             ),
         )
     )
@@ -81,6 +82,7 @@ def env_with_duplicate_tags() -> MettaGridCore:
                     ["#", ".", ".", ".", "#"],
                     ["#", "#", "#", "#", "#"],
                 ],
+                char_to_name_map=DEFAULT_CHAR_TO_NAME,
             ),
         )
     )
@@ -182,6 +184,7 @@ class TestTags:
                         ["#", "@", "#"],
                         ["#", "#", "#"],
                     ],
+                    char_to_name_map=DEFAULT_CHAR_TO_NAME,
                 ),
             )
         )
@@ -272,6 +275,7 @@ class TestTags:
                         ["#", "@", "#"],
                         ["#", "#", "#"],
                     ],
+                    char_to_name_map=DEFAULT_CHAR_TO_NAME,
                 ),
             )
         )
@@ -326,6 +330,7 @@ class TestTags:
                         [".", "@", "."],
                         [".", ".", "#"],  # Wall in bottom-right
                     ],
+                    char_to_name_map=DEFAULT_CHAR_TO_NAME,
                 ),
             )
         )
@@ -351,6 +356,7 @@ class TestTags:
                         [".", "@", "."],
                         [".", ".", "#"],  # Wall in bottom-right
                     ],
+                    char_to_name_map=DEFAULT_CHAR_TO_NAME,
                 ),
             )
         )
@@ -394,71 +400,6 @@ class TestTags:
         # "alpha" < "beta" alphabetically, so alpha=0, beta=1
         assert tags1 == {0, 1}, f"Expected tag IDs {{0, 1}}, got {tags1}"
 
-    def test_converter_with_tags(self):
-        """Test that converter objects can have tags."""
-        # Since converters can't be placed via ASCII maps easily,
-        # we'll test that the ConverterConfig accepts tags without errors
-        cfg = MettaGridConfig(
-            game=GameConfig(
-                num_agents=1,
-                max_steps=100,
-                obs_width=3,
-                obs_height=3,
-                num_observation_tokens=200,
-                actions=ActionsConfig(noop=ActionConfig()),
-                objects={
-                    "converter": ConverterConfig(
-                        type_id=2,
-                        input_resources={"wood": 1},
-                        output_resources={"coal": 1},
-                        max_output=10,
-                        max_conversions=5,
-                        conversion_ticks=10,
-                        cooldown=5,
-                        tags=["machine", "converter", "industrial"],
-                    ),
-                    "wall": WallConfig(type_id=TokenTypes.WALL_TYPE_ID, tags=["solid"]),
-                },
-                resource_names=["wood", "coal"],
-                map_builder=AsciiMapBuilder.Config(
-                    map_data=[
-                        ["#", "#", "#"],
-                        ["#", "@", "#"],
-                        ["#", "#", "#"],
-                    ],
-                ),
-            )
-        )
-
-        # The test verifies that converter config accepts tags without errors
-        env = MettaGridCore(cfg)
-        obs, _ = env.reset()
-
-        # Get tag feature ID from environment
-        tag_feature_id = env.c_env.feature_spec()["tag"]["id"]
-
-        assert obs is not None
-
-        # We can verify walls have their tags to ensure the system works
-        agent_obs = obs[0]
-
-        # Find wall locations
-        wall_locations = set()
-        for token in agent_obs:
-            if token[1] == 0 and token[2] == TokenTypes.WALL_TYPE_ID:
-                wall_locations.add(token[0])
-
-        # Find tag IDs at wall locations
-        wall_tag_ids = set()
-        for token in agent_obs:
-            if token[0] in wall_locations and token[1] == tag_feature_id:
-                wall_tag_ids.add(token[2])  # token[2] contains the tag ID
-
-        # Walls should have the "solid" tag (plus converter and machine tags in the system)
-        # All unique tags: ["converter", "industrial", "machine", "solid", "wood", "coal"] (resources might add tags)
-        # We should find at least the solid tag
-        assert len(wall_tag_ids) >= 1, f"Walls should have at least 1 tag, found {wall_tag_ids}"
-
     def test_agent_with_tags(self):
         """Test that agents can have tags."""
         cfg = MettaGridConfig(
@@ -480,6 +421,7 @@ class TestTags:
                         [".", ".", "."],
                         [".", "@", "."],
                     ],
+                    char_to_name_map=DEFAULT_CHAR_TO_NAME,
                 ),
             )
         )
@@ -648,6 +590,7 @@ def test_default_agent_tags_preserved():
                     [".", ".", "."],
                     [".", "@", "."],
                 ],
+                char_to_name_map=DEFAULT_CHAR_TO_NAME,
             ),
         )
     )
@@ -717,16 +660,6 @@ def test_tag_mapping_in_feature_spec():
             actions=ActionsConfig(noop=ActionConfig()),
             objects={
                 "wall": WallConfig(type_id=TokenTypes.WALL_TYPE_ID, tags=["solid", "blocking"]),
-                "converter": ConverterConfig(
-                    type_id=2,
-                    input_resources={"wood": 1},
-                    output_resources={"coal": 1},
-                    max_output=10,
-                    max_conversions=5,
-                    conversion_ticks=10,
-                    cooldown=5,
-                    tags=["machine", "industrial"],
-                ),
             },
             agents=[
                 AgentConfig(tags=["player", "mobile"]),
@@ -738,6 +671,7 @@ def test_tag_mapping_in_feature_spec():
                     ["#", "@", "#"],
                     ["#", "#", "#"],
                 ],
+                char_to_name_map=DEFAULT_CHAR_TO_NAME,
             ),
         )
     )
@@ -759,9 +693,9 @@ def test_tag_mapping_in_feature_spec():
     tag_values = tag_spec["values"]
     assert isinstance(tag_values, dict), "tag values should be a dict mapping tag_id -> tag_name"
 
-    # All unique tags sorted: ["blocking", "industrial", "machine", "mobile", "player", "solid"]
-    # IDs should be 0-5
-    expected_tags = ["blocking", "industrial", "machine", "mobile", "player", "solid"]
+    # All unique tags sorted: ["blocking", "mobile", "player", "solid"]
+    # IDs should be 0-3
+    expected_tags = ["blocking", "mobile", "player", "solid"]
     assert len(tag_values) == len(expected_tags), f"Should have {len(expected_tags)} tags, got {len(tag_values)}"
 
     # Verify tags are sorted alphabetically with correct IDs
@@ -793,6 +727,7 @@ def test_tag_mapping_empty_tags():
                     ["#", "@", "#"],
                     ["#", "#", "#"],
                 ],
+                char_to_name_map=DEFAULT_CHAR_TO_NAME,
             ),
         )
     )

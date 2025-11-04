@@ -52,7 +52,7 @@ class LeaderboardUpdater:
             try:
                 await self._run_once()
             except Exception as e:
-                logger.error(f"Error updating leaderboards: {e}")
+                logger.error(f"Error updating leaderboards: {e}", exc_info=True)
 
             # Non-blocking sleep using asyncio
             await asyncio.sleep(10)
@@ -206,5 +206,5 @@ class LeaderboardUpdater:
             try:
                 await self._update_leaderboard(leaderboard)
             except Exception as e:
-                logger.error(f"Error updating leaderboard {leaderboard.id}: {e}")
+                logger.error(f"Error updating leaderboard {leaderboard.id}: {e}", exc_info=True)
                 # Continue with other leaderboards instead of failing completely

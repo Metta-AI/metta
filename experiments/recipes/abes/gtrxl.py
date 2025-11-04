@@ -1,17 +1,18 @@
-from experiments.recipes import arena_basic_easy_shaped as base
+from experiments.recipes.arena_basic_easy_shaped import (
+    evaluate,
+    evaluate_in_sweep,
+    make_curriculum,
+    mettagrid,
+    play,
+    replay,
+    simulations,
+    sweep,
+    train as base_train,
+)
 from metta.agent.policies.gtrxl import GTrXLConfig
 from metta.agent.policies.transformer import TransformerPolicyConfig
 from metta.agent.policy import PolicyArchitecture
 from metta.rl.trainer_config import OptimizerConfig
-
-make_mettagrid = base.make_mettagrid
-make_curriculum = base.make_curriculum
-make_evals = base.make_evals
-play = base.play
-replay = base.replay
-evaluate = base.evaluate
-evaluate_in_sweep = base.evaluate_in_sweep
-sweep_async_progressive = base.sweep_async_progressive
 
 DEFAULT_LR = OptimizerConfig.model_fields["learning_rate"].default
 
@@ -25,7 +26,7 @@ def train(
     if policy_architecture is None:
         policy_architecture = TransformerPolicyConfig(transformer=GTrXLConfig())
 
-    tool = base.train(
+    tool = base_train(
         curriculum=curriculum,
         enable_detailed_slice_logging=enable_detailed_slice_logging,
         policy_architecture=policy_architecture,
@@ -41,13 +42,13 @@ def train(
 
 
 __all__ = [
-    "make_mettagrid",
+    "mettagrid",
     "make_curriculum",
-    "make_evals",
+    "simulations",
     "play",
     "replay",
     "evaluate",
     "evaluate_in_sweep",
-    "sweep_async_progressive",
+    "sweep",
     "train",
 ]

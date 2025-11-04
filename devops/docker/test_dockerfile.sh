@@ -5,7 +5,7 @@ CONTAINER="${1}"
 
 timeout 600 docker run --rm --gpus all "$CONTAINER" "
 cd /workspace/metta && \
-./tools/run.py experiments.recipes.arena.train \
+./tools/run.py arena.train \
   run=test_minimal \
                 trainer.total_timesteps=10000 \
                 trainer.checkpoint.checkpoint_interval=0 \

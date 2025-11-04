@@ -20,3 +20,9 @@ variable "github_repo" {
   type    = string
   default = "metta"
 }
+
+variable "extra_oidc_repos" {
+  # Allow github actions to access AWS from these repos.
+  type    = list(string)
+  default = ["alignsoftmax/softmaxdotcom"]
+}

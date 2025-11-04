@@ -21,6 +21,7 @@ type
     AgentTraces
     EnvironmentInfo
     ObjectInfo
+    VibePanel
 
   Panel* = ref object
     panelType*: PanelType
@@ -34,8 +35,8 @@ type
     vel*: Vec2
     zoom*: float32 = 10
     zoomVel*: float32
-    minZoom*: float32 = 2
-    maxZoom*: float32 = 1000
+    minZoom*: float32 = 0.5
+    maxZoom*: float32 = 50
     scrollArea*: Rect
     hasMouse*: bool = false
 
@@ -76,6 +77,7 @@ var
   agentTracesPanel*: Panel
   objectInfoPanel*: Panel
   environmentInfoPanel*: Panel
+  vibePanel*: Panel
 
   settings* = Settings()
   selection*: Entity
@@ -99,39 +101,42 @@ type
   ActionRequest* = object
     agentId*: int
     actionId*: int
-    argument*: int
 
-  DestinationType* = enum
+  ObjectiveKind* = enum
     Move # Move to a specific position.
     Bump # Bump an object at a specific position to interact with it.
+    Vibe # Execute a specific vibe action.
 
-  Destination* = object
-    pos*: IVec2
-    destinationType*: DestinationType
-    approachDir*: IVec2 ## Direction to approach from for Bump actions (e.g., ivec2(-1, 0) means approach from the left).
-    repeat*: bool ## If true, this destination will be re-queued at the end when completed.
-
-  PathActionType* = enum
-    PathMove # Move to a position.
-    PathBump # Bump at current position.
+  Objective* = object
+    case kind*: ObjectiveKind
+    of Move, Bump:
+      pos*: IVec2
+      approachDir*: IVec2 ## Direction to approach from for Bump actions (e.g., ivec2(-1, 0) means approach from the left).
+    of Vibe:
+      vibeActionId*: int
+    repeat*: bool ## If true, this objective will be re-queued at the end when completed.
 
   PathAction* = object
-    actionType*: PathActionType
-    pos*: IVec2 ## Target position for PathMove, or bump target for PathBump.
-    bumpDir*: IVec2 ## Direction to bump for PathBump actions.
+    case kind*: ObjectiveKind
+    of Move:
+      pos*: IVec2 ## Target position for move.
+    of Bump:
+      bumpPos*: IVec2 ## Bump target position.
+      bumpDir*: IVec2 ## Direction to bump for bump actions.
+    of Vibe:
+      vibeActionId*: int
 
 var
   requestActions*: seq[ActionRequest]
 
-  followSelection*: bool = false
   mouseCaptured*: bool = false
   mouseCapturedPanel*: Panel = nil
 
 var
   ## Path queue for each agent. Maps agentId to a sequence of path actions.
   agentPaths* = initTable[int, seq[PathAction]]()
-  ## Destination queue for each agent. Maps agentId to a sequence of destinations.
-  agentDestinations* = initTable[int, seq[Destination]]()
+  ## Objective queue for each agent. Maps agentId to a sequence of objectives.
+  agentObjectives* = initTable[int, seq[Objective]]()
   ## Track mouse down position to distinguish clicks from drags.
   mouseDownPos*: Vec2
 

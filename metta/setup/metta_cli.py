@@ -17,24 +17,16 @@ from metta.setup.components.base import SetupModuleStatus
 from metta.setup.local_commands import app as local_app
 from metta.setup.symlink_setup import app as symlink_app
 from metta.setup.tools.book import app as book_app
+from metta.setup.tools.ci_runner import cmd_ci
+from metta.setup.tools.code_formatters import get_formatters, parse_format_types, partition_files_by_type, run_formatter
+from metta.setup.tools.test_runner.test_cpp import app as cpp_test_runner_app
+from metta.setup.tools.test_runner.test_python import app as python_test_runner_app
 from metta.setup.utils import debug, error, info, success, warning
 from metta.utils.live_run_monitor import app as run_monitor_app
 from softmax.dashboard.report import app as softmax_system_health_app
 
 if TYPE_CHECKING:
     from metta.setup.registry import SetupModule
-
-PYTHON_TEST_FOLDERS = [
-    "tests",
-    "mettascope/tests",
-    "agent/tests",
-    "app_backend/tests",
-    "common/tests",
-    "packages/codebot/tests",
-    "packages/cogames/tests",
-    "packages/gitta/tests",
-    "packages/mettagrid/tests",
-]
 
 VERSION_PATTERN = re.compile(r"^(\d+\.\d+\.\d+(?:\.\d+)?)$")
 DEFAULT_INITIAL_VERSION = "0.0.0.1"
@@ -147,43 +139,6 @@ app = typer.Typer(
     context_settings={"help_option_names": ["-h", "--help"]},
     callback=cli._init_all,
 )
-
-
-def _partition_supported_lint_files(paths: list[str]) -> tuple[list[str], list[str]]:
-    python_files: list[str] = []
-    cpp_files: list[str] = []
-    seen: set[str] = set()
-
-    for raw_path in paths:
-        if not (raw_path and (path := raw_path.strip()) and path not in seen):
-            continue
-        seen.add(path)
-
-        suffix = Path(path).suffix.lower()
-        if path.endswith(".py"):
-            python_files.append(path)
-        elif suffix in {".cpp", ".hpp", ".h"}:
-            cpp_files.append(path)
-
-    return python_files, cpp_files
-
-
-def _run_ruff(python_targets: list[str] | None, *, fix: bool) -> None:
-    check_cmd = ["uv", "run", "--active", "ruff", "check"]
-    format_cmd = ["uv", "run", "--active", "ruff", "format"]
-
-    if fix:
-        check_cmd.append("--fix")
-    else:
-        format_cmd.append("--check")
-
-    for cmd in [format_cmd, check_cmd]:
-        cmd.extend(python_targets or [])
-        info(f"Running: {' '.join(cmd)}")
-        try:
-            subprocess.run(cmd, cwd=cli.repo_root, check=True)
-        except subprocess.CalledProcessError as e:
-            raise typer.Exit(e.returncode) from e
 
 
 def _bump_version(version: str) -> str:
@@ -591,9 +546,17 @@ def cmd_publish(
         warning("Force mode enabled: branch and clean checks were bypassed.")
     info("")
 
+    publish_mettagrid_after = False
+
     if dry_run:
         success("Dry run: no tag created. Run without --dry-run to proceed.")
         return
+
+    if package == "cogames":
+        publish_mettagrid_after = typer.confirm(
+            "Cogames depends on mettagrid. Publish mettagrid after this tag?",
+            default=True,
+        )
 
     if not typer.confirm("Create and push this tag?", default=True):
         info("Publishing aborted.")
@@ -620,142 +583,163 @@ def cmd_publish(
         )
         raise typer.Exit(exc.returncode) from exc
 
+    if publish_mettagrid_after:
+        info("")
+        info("Starting mettagrid publish flow...")
+        cmd_publish(
+            package="mettagrid",
+            version_override=None,
+            dry_run=False,
+            no_repo=no_repo,
+            remote=remote,
+            force=force,
+        )
+
 
 @app.command(name="lint", help="Run linting and formatting")
 def cmd_lint(
     files: Annotated[Optional[list[str]], typer.Argument()] = None,
     fix: Annotated[bool, typer.Option("--fix", help="Apply fixes automatically")] = False,
     staged: Annotated[bool, typer.Option("--staged", help="Only lint staged files")] = False,
+    check: Annotated[bool, typer.Option("--check", help="Check formatting without modifying files")] = False,
+    type: Annotated[
+        Optional[str],
+        typer.Option(
+            "--type",
+            "-t",
+            help="Comma-separated file types (e.g., 'json,yaml'). Default: all detected types.",
+        ),
+    ] = None,
 ):
-    python_targets: list[str] | None
-    cpp_targets: list[str] | None
+    """Run linting and formatting on code files.
 
+    By default, formats and lints all detected file types. Use --type to restrict to specific types.
+
+    Examples:
+        metta lint                    # Format and lint all detected files
+        metta lint --fix              # Format and lint with auto-fix
+        metta lint --type json,yaml   # Only format JSON and YAML files
+        metta lint --check            # Check formatting without modifying
+        metta lint --staged --fix     # Format and lint only staged files
+    """
+    # Get available formatters
+    formatters = get_formatters(cli.repo_root)
+
+    # Determine which files to process
     if files is not None:
-        python_targets, cpp_targets = _partition_supported_lint_files(files)
+        target_files = files
     elif staged:
         staged_output = git.run_git("diff", "--cached", "--name-only", "--diff-filter=ACM")
-        staged_files = [f for f in staged_output.strip().split("\n") if f]
-        python_targets, cpp_targets = _partition_supported_lint_files(staged_files)
+        target_files = [f for f in staged_output.strip().split("\n") if f]
     else:
-        python_targets = None
-        cpp_targets = None
+        target_files = None
 
-    # Run ruff if the user specified targets that include python files or they did not specify any targets
-    if python_targets is not None and not python_targets:
-        info("No Python files to lint")
+    # Partition files by type
+    if target_files is not None:
+        files_by_type = partition_files_by_type(target_files)
     else:
-        _run_ruff(python_targets, fix=fix)
+        # No specific files provided - will format all files of each type
+        files_by_type = {}
 
-    # Run cpplint if the user specified targets that include c++ files or they did not specify any targets
-    if cpp_targets is not None and not cpp_targets:
-        info("No C++ files to lint")
+    # Determine which types to format
+    if type:
+        try:
+            types_to_format = parse_format_types(type, formatters)
+        except ValueError as e:
+            error(str(e))
+            raise typer.Exit(1) from e
     else:
-        script_path = cli.repo_root / "packages" / "mettagrid" / "tests" / "cpplint.sh"
-        res = subprocess.run(["bash", str(script_path)], cwd=cli.repo_root, check=False, capture_output=True)
-        if res.returncode != 0:
-            error("C++ linting failed")
-            info(res.stderr.decode("utf-8"))
-            raise typer.Exit(res.returncode)
+        # Default: format all detected types (or all types if no files specified)
+        if files_by_type:
+            types_to_format = list(files_by_type.keys())
+        elif target_files is not None:
+            # Files were specified but none have supported extensions
+            info("No files with supported extensions found")
+            return
         else:
-            success("C++ linting passed!")
+            # No specific files - format all supported types
+            types_to_format = ["python", "json", "markdown", "shell", "toml", "yaml"]
+            if "cpp" in formatters:
+                types_to_format.append("cpp")
 
+    failed_formatters = []
+    failed_linters = []
 
-@app.command(name="ci", help="Run all Python unit tests and all Mettagrid C++ tests")
-def cmd_ci():
-    info("Running Python tests...")
-    python_test_cmd = [
-        "uv",
-        "run",
-        "pytest",
-        *PYTHON_TEST_FOLDERS,
-        "--benchmark-disable",
-        "-n",
-        "auto",
-    ]
+    # Run formatters for each type
+    for file_type in types_to_format:
+        if file_type not in formatters:
+            continue
 
-    try:
-        subprocess.run(python_test_cmd, cwd=cli.repo_root, check=True)
-        success("Python tests passed!")
-    except subprocess.CalledProcessError as e:
-        error("Python tests failed!")
-        raise typer.Exit(e.returncode) from e
+        formatter = formatters[file_type]
+        type_files = files_by_type.get(file_type) if files_by_type else None
 
-    info("\nBuilding and running C++ tests...")
-    mettagrid_dir = cli.repo_root / "packages" / "mettagrid"
+        # Skip if we have a file list and no files of this type
+        if files_by_type and not type_files:
+            continue
 
-    try:
-        subprocess.run(["make", "test"], cwd=mettagrid_dir, check=True)
-        success("C++ tests passed!")
-        # Note: Benchmarks are not run in CI as they're for performance testing, not correctness
-        # To run benchmarks manually, use: cd packages/mettagrid && make benchmark
-    except subprocess.CalledProcessError as e:
-        error("C++ tests failed!")
-        raise typer.Exit(e.returncode) from e
+        # Run formatter
+        check_mode = check or not fix
+        success_fmt = run_formatter(
+            file_type,
+            formatter,
+            cli.repo_root,
+            check_only=check_mode,
+            files=type_files,
+        )
 
-    success("\nAll CI tests passed!")
+        # Only treat as failure if formatter ran and failed
+        # If check_mode is True and formatter doesn't support check, it returns False but that's not a failure
+        if not success_fmt:
+            # If we're in check mode and the formatter doesn't have a check_cmd, ignore the failure
+            if check_mode and formatter.check_cmd is None:
+                # This is expected - formatter doesn't support check mode, was skipped
+                pass
+            else:
+                # This is an actual failure
+                failed_formatters.append(formatter.name)
 
+    # Run Python linting (ruff check) if Python files are involved
+    if "python" in types_to_format:
+        python_files = files_by_type.get("python") if files_by_type else None
 
-@app.command(name="benchmark", help="Run C++ and Python benchmarks for mettagrid")
-def cmd_benchmark():
-    """Run performance benchmarks for the mettagrid package."""
-    mettagrid_dir = cli.repo_root / "packages" / "mettagrid"
+        if python_files is not None and not python_files:
+            info("No Python files to lint")
+        else:
+            check_cmd = ["uv", "run", "--active", "ruff", "check"]
+            if fix:
+                check_cmd.append("--fix")
+            if python_files:
+                check_cmd.extend(python_files)
 
-    info("Running mettagrid benchmarks...")
-    info("Note: This may fail if Python environment is not properly configured.")
-    info("If it fails, try running directly: cd packages/mettagrid && make benchmark")
+            info(f"Running: {' '.join(check_cmd)}")
+            try:
+                subprocess.run(check_cmd, cwd=cli.repo_root, check=True)
+            except subprocess.CalledProcessError:
+                failed_linters.append("Python (ruff check)")
 
-    try:
-        subprocess.run(["make", "benchmark"], cwd=mettagrid_dir, check=True)
-        success("Benchmarks completed!")
-    except subprocess.CalledProcessError as e:
-        error("Benchmark execution failed!")
-        info("\nTroubleshooting:")
-        info("1. Try building first: cd packages/mettagrid && make build-prod")
-        info("2. Run benchmark binary directly: ./build-release/test_mettagrid_env_benchmark")
-        info("3. Run Python benchmarks: uv run pytest benchmarks/test_mettagrid_env_benchmark.py -v --benchmark-only")
-        raise typer.Exit(e.returncode) from e
+    # Run C++ linting if C++ files are involved
+    if "cpp" in types_to_format and "cpp" in formatters:
+        cpp_files = files_by_type.get("cpp") if files_by_type else None
 
+        if cpp_files is not None and not cpp_files:
+            info("No C++ files to lint")
+        else:
+            script_path = cli.repo_root / "packages" / "mettagrid" / "tests" / "cpplint.sh"
+            res = subprocess.run(["bash", str(script_path)], cwd=cli.repo_root, check=False, capture_output=True)
+            if res.returncode != 0:
+                failed_linters.append("C++")
+                error("C++ linting failed")
+                info(res.stderr.decode("utf-8"))
 
-@app.command(name="test", help="Run all Python unit tests", context_settings={"allow_extra_args": True})
-def cmd_test(ctx: typer.Context):
-    cmd = [
-        "uv",
-        "run",
-        "pytest",
-        *PYTHON_TEST_FOLDERS,
-        "--benchmark-disable",
-        "-n",
-        "auto",
-    ]
-    if ctx.args:
-        cmd.extend(ctx.args)
-    try:
-        info(f"Running: {' '.join(cmd)}")
-        subprocess.run(cmd, cwd=cli.repo_root, check=True)
-    except subprocess.CalledProcessError as e:
-        raise typer.Exit(e.returncode) from e
-
-
-@app.command(
-    name="pytest",
-    help="Run pytest with passed arguments",
-    context_settings={"allow_extra_args": True, "allow_interspersed_args": False},
-)
-def cmd_pytest(ctx: typer.Context):
-    cmd = [
-        "uv",
-        "run",
-        "pytest",
-        "--benchmark-disable",
-        "-n",
-        "auto",
-    ]
-    if ctx.args:
-        cmd.extend(ctx.args)
-    try:
-        subprocess.run(cmd, cwd=cli.repo_root, check=True)
-    except subprocess.CalledProcessError as e:
-        raise typer.Exit(e.returncode) from e
+    # Print summary
+    if failed_formatters or failed_linters:
+        if failed_formatters:
+            error(f"Formatting failed for: {', '.join(failed_formatters)}")
+        if failed_linters:
+            error(f"Linting failed for: {', '.join(failed_linters)}")
+        raise typer.Exit(1)
+    else:
+        success("All linting and formatting complete")
 
 
 @app.command(name="tool", help="Run a tool from the tools/ directory", context_settings={"allow_extra_args": True})
@@ -856,6 +840,13 @@ app.add_typer(local_app, name="local")
 app.add_typer(book_app, name="book")
 app.add_typer(symlink_app, name="symlink-setup")
 app.add_typer(softmax_system_health_app, name="softmax-system-health")
+app.add_typer(python_test_runner_app, name="pytest")
+app.add_typer(cpp_test_runner_app, name="cpptest")
+app.command(
+    name="ci",
+    help="Run CI checks locally",
+    context_settings={"allow_extra_args": True, "ignore_unknown_options": True, "allow_interspersed_args": False},
+)(cmd_ci)
 
 
 def main() -> None:

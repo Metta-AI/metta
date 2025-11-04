@@ -9,7 +9,7 @@ from mettagrid.config.mettagrid_config import (
     AgentConfig,
     AgentRewards,
     AttackActionConfig,
-    ChangeGlyphActionConfig,
+    ChangeVibeActionConfig,
     GameConfig,
     WallConfig,
 )
@@ -40,12 +40,10 @@ def test_exception_when_laser_not_in_inventory():
                 consumed_resources={"laser": 1},  # This should trigger an exception!
                 defense_resources={"armor": 1},
             ),
-            put_items=ActionConfig(enabled=True),
-            get_items=ActionConfig(enabled=True),
             swap=ActionConfig(enabled=True),
-            change_glyph=ChangeGlyphActionConfig(enabled=False, number_of_glyphs=4),
+            change_vibe=ChangeVibeActionConfig(enabled=False, number_of_vibes=4),
         ),
-        objects={"wall": WallConfig(type_id=1)},
+        objects={"wall": WallConfig()},
         agent=AgentConfig(default_resource_limit=10, freeze_duration=5, rewards=AgentRewards()),
         agents=[
             AgentConfig(team_id=0, default_resource_limit=10, freeze_duration=5),  # red
@@ -89,12 +87,8 @@ def test_no_exception_when_resources_in_inventory():
                 consumed_resources={"laser": 1},
                 defense_resources={"armor": 1},
             ),
-            put_items=ActionConfig(enabled=True),
-            get_items=ActionConfig(enabled=True),
-            swap=ActionConfig(enabled=True),
-            change_glyph=ChangeGlyphActionConfig(enabled=False, number_of_glyphs=4),
         ),
-        objects={"wall": WallConfig(type_id=1)},
+        objects={"wall": WallConfig()},
         agent=AgentConfig(default_resource_limit=10, freeze_duration=5, rewards=AgentRewards()),
         agents=[
             AgentConfig(team_id=0, default_resource_limit=10, freeze_duration=5),  # red
