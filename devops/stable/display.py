@@ -31,13 +31,13 @@ def format_artifact(value: str) -> str:
     return result
 
 
-def format_task_result(
+def format_job_result(
     job_state: JobState,
     job_config: JobConfig,
     acceptance_passed: bool,
     acceptance_error: str | None,
 ) -> str:
-    """Format detailed task result for display.
+    """Format detailed job result for display.
 
     Args:
         job_state: Job state from JobManager
@@ -46,7 +46,7 @@ def format_task_result(
         acceptance_error: Error message if acceptance failed
 
     Returns:
-        Formatted multi-line string with task result details
+        Formatted multi-line string with job result details
     """
     lines = []
 
@@ -107,11 +107,11 @@ def format_task_result(
     return "\n".join(lines)
 
 
-def format_training_job_section(task_name: str, job_state: JobState) -> str:
+def format_training_job_section(job_name: str, job_state: JobState) -> str:
     """Format training job information for release notes or summary.
 
     Args:
-        task_name: Name of training task
+        job_name: Name of training job
         job_state: Job state from JobManager
 
     Returns:
@@ -119,7 +119,7 @@ def format_training_job_section(task_name: str, job_state: JobState) -> str:
     """
     lines = []
 
-    lines.append(f"**{task_name}**")
+    lines.append(f"**{job_name}**")
 
     if job_state.wandb_url:
         lines.append(f"- WandB: {job_state.wandb_url}")
@@ -139,35 +139,7 @@ def format_training_job_section(task_name: str, job_state: JobState) -> str:
     return "\n".join(lines)
 
 
-def check_task_passed(job_state: JobState) -> bool:
-    """Check if task passed (exit_code 0 + acceptance criteria).
-
-    Args:
-        job_state: Job state from JobManager
-
-    Returns:
-        True if task passed (exit code 0 and acceptance criteria met)
-    """
-    # Log the check for debugging
-    passed = job_state.exit_code == 0 and job_state.acceptance_passed is not False
-
-    logger.info(
-        f"Task pass check for {job_state.name}: "
-        f"exit_code={job_state.exit_code}, "
-        f"acceptance_passed={job_state.acceptance_passed}, "
-        f"result={'PASS' if passed else 'FAIL'}"
-    )
-
-    if job_state.exit_code != 0:
-        logger.warning(
-            f"Task {job_state.name} failed due to non-zero exit code: {job_state.exit_code} "
-            f"(acceptance_passed={job_state.acceptance_passed})"
-        )
-        return False
-    return job_state.acceptance_passed is not False
-
-
-def format_task_with_acceptance(job_state: JobState) -> str:
+def format_job_with_acceptance(job_state: JobState) -> str:
     """Format job status integrated with acceptance criteria.
 
     Composes job_monitor primitives with job-level acceptance logic.

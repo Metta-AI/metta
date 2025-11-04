@@ -17,9 +17,8 @@ def eval(
         SimulationConfig.model_validate(sim) for sim in json.loads(simulations_json)
     ]
 
-
-return EvaluateRemoteJobTool(
-    simulations=simulations,
-    policy_uri=policy_uri,
-    job_result_file_path=job_result_file_path,
-)
+    return EvaluateRemoteJobTool(
+        simulations=simulations,
+        policy_uri=policy_uri,
+        job_result_file_path=job_result_file_path,
+    )
