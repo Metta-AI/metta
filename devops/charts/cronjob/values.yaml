@@ -5,7 +5,7 @@ schedule: "*/15 * * * *"  # Default: run every 15 minutes
 
 image:
   registry: 751442549699.dkr.ecr.us-east-1.amazonaws.com
-  name: ""  # Must be set by specific cronjob values
+  name: "metta-cronjobs"  # Shared ECR repo for all cronjobs (tags differentiate)
   pullPolicy: Always
   tag: "latest"
 
