@@ -1,13 +1,21 @@
 #!/usr/bin/env -S uv run
+# ruff: noqa: E402
+# ^ Imports must come after warnings.filterwarnings() to suppress Pydantic warnings from SkyPilot
+
 import argparse
 import copy
 import json
 import logging
 import os
 import re
+import subprocess
 import sys
 import uuid
+import warnings
 from typing import Any
+
+# Suppress Pydantic warnings from SkyPilot dependencies before importing sky
+warnings.filterwarnings("ignore", category=UserWarning, module="pydantic._internal._generate_schema")
 
 import sky
 import yaml
@@ -20,7 +28,7 @@ from devops.skypilot.utils.job_helpers import (
     open_job_log_from_request_id,
     set_task_secrets,
 )
-from metta.common.tool.tool_path import validate_module_path
+from metta.common.tool.tool_path import parse_two_token_syntax, validate_module_path
 from metta.common.util.cli import get_user_confirmation
 from metta.common.util.constants import METTA_WANDB_ENTITY, METTA_WANDB_PROJECT
 from metta.common.util.fs import cd_repo_root
@@ -85,14 +93,47 @@ def _validate_sky_cluster_name(run_name: str) -> bool:
     valid = bool(re.match(pattern, run_name))
 
     if not valid:
-        print(red(f"[VALIDATION] ❌ Invalid run name: '{run_name}'"))
-        print("Sky cluster names must:")
-        print("  - Start with a letter (not a number)")
-        print("  - Contain only letters, numbers, dashes, underscores, or dots")
-        print("  - End with a letter or number")
-        print()
+        print(red(f"[VALIDATION] ❌ Invalid run name: '{run_name}'"), flush=True)
+        print("Sky cluster names must:", flush=True)
+        print("  - Start with a letter (not a number)", flush=True)
+        print("  - Contain only letters, numbers, dashes, underscores, or dots", flush=True)
+        print("  - End with a letter or number", flush=True)
+        print(flush=True)
 
     return valid
+
+
+def _validate_run_tool(module_path: str, run_id: str, tool_args: list) -> bool:
+    """Validate that run.py can successfully create a tool config with the given arguments.
+
+    Returns:
+        True if validation succeeds, False otherwise
+    """
+    # Build the run.py command
+    run_cmd = ["uv", "run", "--active", "tools/run.py", module_path, "--dry-run"]
+
+    # Add args if provided
+    if tool_args:
+        run_cmd.extend(tool_args)
+
+    # Always include run= for validation
+    if not any(arg.startswith("run=") for arg in tool_args):
+        run_cmd.append(f"run={run_id}")
+
+    try:
+        subprocess.run(run_cmd, capture_output=True, text=True, check=True)
+        print("[VALIDATION] ✅ Configuration validation successful")
+        return True
+    except subprocess.CalledProcessError as e:
+        print(red("[VALIDATION] ❌ Configuration validation failed"), flush=True)
+        if e.stdout:
+            print(e.stdout, flush=True)
+        if e.stderr:
+            print(red(e.stderr), flush=True)
+        return False
+    except FileNotFoundError:
+        print(red("[VALIDATION] ❌ Could not find run.py or uv command"), flush=True)
+        return False
 
 
 def patch_task(
@@ -133,13 +174,21 @@ def patch_task(
     return task
 
 
-def main():
+def main() -> int:
+    """Main entry point for launch.py.
+
+    Returns:
+        Exit code (0 for success, 1 for error)
+    """
     parser = argparse.ArgumentParser(
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
   # Using --tool flag (recommended for tools/run.py):
   %(prog)s --tool arena.train run=test_123 trainer.total_timesteps=100000 --gpus 2
+
+  # Two-token syntax with --tool:
+  %(prog)s --tool train arena run=test_123 trainer.total_timesteps=100000 --gpus 2
 
   # Arbitrary command:
   %(prog)s "pytest tests/rl/" --gpus 1
@@ -162,6 +211,7 @@ Examples:
         "--tool",
         type=str,
         help="Run a tool from tools/run.py. This auto-prefixes 'uv run ./tools/run.py' and validates the module. "
+        "Supports both single-token (arena.train) and two-token (train arena) syntax. "
         "Example: --tool arena.train run=foo trainer.steps=1000",
     )
 
@@ -219,17 +269,26 @@ Examples:
 
     # Build command string
     if args.tool:
-        # Using --tool: validate module and build command
-        if not _validate_tool_module(args.tool):
+        # Using --tool: handle two-token syntax if applicable
+        module_path = args.tool
+        second_token = remaining_args[0] if remaining_args else None
+        resolved_path, args_consumed = parse_two_token_syntax(module_path, second_token)
+        module_path = resolved_path
+        tool_args = remaining_args[args_consumed:]  # Skip consumed args
+
+        # Validate module
+        if not _validate_tool_module(module_path):
             sys.exit(1)
 
         # Combine tool module with remaining args
-        cmd_parts = [args.tool] + remaining_args
+        cmd_parts = [module_path] + tool_args
         command = f"uv run ./tools/run.py {' '.join(cmd_parts)}"
         use_torchrun = True
     else:
         # Using direct command
         command = args.command
+        tool_args = []
+        module_path = None
         # Auto-detect if command uses tools/run.py
         use_torchrun = "tools/run.py" in command
 
@@ -258,8 +317,8 @@ Examples:
     if args.git_ref:
         commit_hash = git.resolve_git_ref(args.git_ref)
         if not commit_hash:
-            print(red(f"❌ Invalid git reference: '{args.git_ref}'"))
-            sys.exit(1)
+            print(red(f"❌ Invalid git reference: '{args.git_ref}'"), flush=True)
+            return 1
     else:
         commit_hash = git.get_current_commit()
 
@@ -267,15 +326,20 @@ Examples:
         if not args.skip_git_check:
             error_message = check_git_state(commit_hash)
             if error_message:
-                print(error_message)
-                print("  - Skip check: add --skip-git-check flag")
-                sys.exit(1)
+                print(error_message, flush=True)
+                print("  - Skip check: add --skip-git-check flag", flush=True)
+                return 1
 
     assert commit_hash
 
+    # Validate the run.py tool configuration early if using --tool
+    if args.tool and module_path:
+        if not _validate_run_tool(module_path, run_id, tool_args):
+            return 1
+
     # Validate the provided run name
     if not _validate_sky_cluster_name(run_id):
-        sys.exit(1)
+        return 1
 
     # Load the job configuration
     task = sky.Task.from_yaml("./devops/skypilot/recipes/job.yaml")
@@ -306,7 +370,6 @@ Examples:
         nodes=args.nodes,
         no_spot=args.no_spot,
     )
-    set_task_secrets(task)
 
     # Handle --dump-config option
     if args.dump_config:
@@ -329,6 +392,7 @@ Examples:
         elif args.dump_config == "pretty":
             # Pretty print the YAML
             print(yaml.dump(config_dict, default_flow_style=False, sort_keys=False))
+        return 0
 
     extra_details = {}
     if args.copies > 1:
@@ -348,11 +412,14 @@ Examples:
     # For --dry-run, just exit after showing summary
     if args.dry_run:
         print(red("Dry run: exiting"))
-        sys.exit(0)
+        return 0
 
     # For --confirm, ask for confirmation
     if args.confirm and not get_user_confirmation("Should we launch this task?"):
-        sys.exit(0)
+        return 0
+
+    # Set secrets only when actually launching (not for dry-run or dump-config)
+    set_task_secrets(task)
 
     # Launch the task(s)
     def prepare_task(base_task: sky.Task, env_updates: dict[str, Any], run_id: str, copies: int) -> sky.Task:
@@ -375,6 +442,11 @@ Examples:
     if args.job_log:
         open_job_log_from_request_id(request_ids[0])
 
+    return 0
+
 
 if __name__ == "__main__":
-    main()
+    exit_code = main()
+    sys.stdout.flush()
+    sys.stderr.flush()
+    sys.exit(exit_code)
