@@ -17,17 +17,23 @@ class StatsTracker(SimulatorEventHandler):
         self._episode_end_ts = None
         self._label_completions = {"completed_tasks": [], "completion_rates": {}}
         self._per_label_rewards = {}
+        self._stats_update_counter = 0
+        self._stats_update_frequency = 50
 
     def on_episode_start(self) -> None:
         super().on_episode_start()
         assert self._sim is not None
         self._sim._context["infos"] = {}
         self._episode_start_ts = datetime.datetime.now()
-        self._refresh_episode_stats()
+        self._stats_update_counter = 0
+        self._refresh_episode_stats(force=True)
 
     def on_step(self) -> None:
         super().on_step()
-        self._refresh_episode_stats()
+        self._stats_update_counter += 1
+        if self._stats_update_counter >= self._stats_update_frequency:
+            self._refresh_episode_stats()
+            self._stats_update_counter = 0
 
     def on_episode_end(self) -> None:
         super().on_episode_end()
@@ -42,7 +48,7 @@ class StatsTracker(SimulatorEventHandler):
         infos = self._sim._context["infos"]
 
         # Ensure episode summaries reflect final totals
-        self._refresh_episode_stats()
+        self._refresh_episode_stats(force=True)
 
         # If reward estimates are set, plot them compared to the mean reward
         if config.game.reward_estimates:
@@ -163,7 +169,7 @@ class StatsTracker(SimulatorEventHandler):
             for t in self._label_completions["completion_rates"]
         }
 
-    def _refresh_episode_stats(self) -> None:
+    def _refresh_episode_stats(self, *, force: bool = False) -> None:
         assert self._sim is not None
         stats = self._sim.episode_stats
         infos = self._sim._context.setdefault("infos", {})
@@ -173,6 +179,9 @@ class StatsTracker(SimulatorEventHandler):
         for agent_stats in stats["agent"]:
             for name, value in agent_stats.items():
                 aggregated[name] = aggregated.get(name, 0.0) + float(value)
+
+        if not aggregated and not force:
+            return
 
         num_agents = self._sim.config.game.num_agents
         infos["agent"] = {name: total / num_agents for name, total in aggregated.items()}
