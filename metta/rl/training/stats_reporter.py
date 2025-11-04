@@ -132,6 +132,7 @@ class StatsReporterState(Config):
     stats_run_id: Optional[UUID] = None
     area_under_reward: float = 0.0
     """Cumulative area under the reward curve"""
+    last_environment_stats: dict[str, float] = Field(default_factory=dict)
 
 
 class NoOpStatsReporter(TrainerComponent):
@@ -416,6 +417,15 @@ class StatsReporter(TrainerComponent):
             experience=experience,
             trainer_config=trainer_cfg,
         )
+
+        environment_stats = processed.setdefault("environment_stats", {})
+        if environment_stats:
+            self._state.last_environment_stats = dict(environment_stats)
+        elif self._state.last_environment_stats:
+            environment_stats.update(self._state.last_environment_stats)
+
+        environment_stats.setdefault("env_agent/heart.gained", 0.0)
+        environment_stats.setdefault("env_agent/heart.gained.rate", 0.0)
 
         timing_info = compute_timing_stats(timer=timer, agent_step=agent_step)
         self._normalize_steps_per_second(timing_info, agent_step)
