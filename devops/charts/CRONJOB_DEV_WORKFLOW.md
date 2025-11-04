@@ -5,6 +5,7 @@ Quick guide for deploying and cleaning up dev cronjob instances.
 ## Deploy Dev Cronjob
 
 1. **Uncomment the dev release** in `helmfile.yaml`:
+
    ```yaml
    - name: pr-similarity-cache-cronjob-dev
      <<: *cronjob_template
@@ -16,6 +17,7 @@ Quick guide for deploying and cleaning up dev cronjob instances.
    ```
 
 2. **Commit and push** to your feature branch:
+
    ```bash
    git add devops/charts/helmfile.yaml
    git commit -m "chore: enable dev cronjob for testing"
@@ -23,6 +25,7 @@ Quick guide for deploying and cleaning up dev cronjob instances.
    ```
 
 3. **Trigger workflow** from your branch with dev flag:
+
    ```bash
    gh workflow run deploy-pr-similarity-cache-cronjob.yml \
      -f dev=true \
@@ -32,6 +35,7 @@ Quick guide for deploying and cleaning up dev cronjob instances.
    > **Note**: The `branch` parameter ensures the workflow uses your helmfile with the dev release uncommented.
 
 4. **Monitor deployment**:
+
    ```bash
    kubectl get cronjobs -n monitoring | grep dev
    kubectl get jobs -n monitoring | grep dev
@@ -47,6 +51,7 @@ Quick guide for deploying and cleaning up dev cronjob instances.
 ## Remove Dev Cronjob
 
 1. **Re-comment the dev release** in `helmfile.yaml`:
+
    ```yaml
    # - name: pr-similarity-cache-cronjob-dev
    #   <<: *cronjob_template
@@ -54,6 +59,7 @@ Quick guide for deploying and cleaning up dev cronjob instances.
    ```
 
 2. **Commit and push** to your branch (or merge to main):
+
    ```bash
    git add devops/charts/helmfile.yaml
    git commit -m "chore: remove dev cronjob"
@@ -65,7 +71,8 @@ Quick guide for deploying and cleaning up dev cronjob instances.
    helm uninstall -n monitoring pr-similarity-cache-cronjob-dev
    ```
 
-> **Note**: Pushing changes to `helmfile.yaml` on main triggers prod deployments, but dev releases must be manually deleted via `helm uninstall` - they won't auto-remove when you re-comment them.
+> **Note**: Pushing changes to `helmfile.yaml` on main triggers prod deployments, but dev releases must be manually
+> deleted via `helm uninstall` - they won't auto-remove when you re-comment them.
 
 ## Why This Pattern?
 
