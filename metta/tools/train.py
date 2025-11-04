@@ -2,10 +2,11 @@ import contextlib
 import os
 import platform
 from datetime import timedelta
-from typing import Any, Callable, Optional
+from typing import Any, Callable, Optional, Sequence, Tuple
 
 import torch
 from pydantic import Field, PrivateAttr, model_validator
+from torch.utils.hooks import RemovableHandle
 
 from metta.agent.policies.vit import ViTDefaultConfig
 from metta.agent.policy import Policy, PolicyArchitecture
@@ -53,6 +54,9 @@ from metta.tools.utils.auto_config import (
 logger = getRankAwareLogger(__name__)
 
 
+HookSpec = Tuple[str, Callable[[Policy, str, Any], RemovableHandle], str]
+
+
 class TrainTool(Tool):
     run: Optional[str] = None
 
@@ -77,7 +81,7 @@ class TrainTool(Tool):
     map_preview_uri: str | None = None
     disable_macbook_optimize: bool = False
 
-    _training_hooks: list[Callable[[Policy, Trainer], None]] = PrivateAttr(default_factory=list)
+    _training_hooks: list[Callable[[Policy, Trainer], Sequence[HookSpec] | None]] = PrivateAttr(default_factory=list)
 
     @model_validator(mode="after")
     def validate_fields(self) -> "TrainTool":
@@ -211,15 +215,26 @@ class TrainTool(Tool):
 
         return trainer
 
-    def add_training_hook(self, hook: Callable[[Policy, Trainer], None]) -> None:
-        """Register a hook that receives (policy, trainer) after initialization."""
+    def add_training_hook(self, hook: Callable[[Policy, Trainer], Sequence[HookSpec] | None]) -> None:
+        """Register a hook producing component-hook specifications after initialization."""
         self._training_hooks.append(hook)
 
     def _run_training_hooks(self, *, policy: Policy, trainer: Trainer) -> None:
         if not self._training_hooks:
             return
+        register_hook = getattr(policy, "register_component_hook_rule", None)
+        if not callable(register_hook):
+            return
         for hook in self._training_hooks:
-            hook(policy, trainer)
+            specs = hook(policy, trainer)
+            if not specs:
+                continue
+            for component_name, hook_factory, hook_type in specs:
+                register_hook(
+                    component_name=component_name,
+                    hook_factory=hook_factory,
+                    hook_type=hook_type,
+                )
 
     def _register_components(
         self,

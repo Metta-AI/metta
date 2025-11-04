@@ -6,6 +6,7 @@ import pytest
 from torch.utils.hooks import RemovableHandle
 
 from metta.agent.policies.vit import ViTDefaultConfig
+from metta.rl.model_analysis import attach_relu_activation_hooks, get_relu_activation_metrics
 from metta.rl.training import GameRules
 
 
@@ -109,3 +110,23 @@ def test_register_hook_missing_component_raises() -> None:
             hook_factory=_forward_hook_factory([]),
             hook_type="forward",
         )
+
+
+def test_attach_relu_activation_hooks_registers_forward_hook() -> None:
+    policy = ViTDefaultConfig().make_policy(_game_rules())
+
+    specs = attach_relu_activation_hooks(policy)
+    assert specs
+
+    for component_name, hook_factory, hook_type in specs:
+        policy.register_component_hook_rule(
+            component_name=component_name,
+            hook_factory=hook_factory,
+            hook_type=hook_type,
+        )
+
+    handles = policy._hooks.forward_handles.get("actor_mlp")  # type: ignore[attr-defined]
+    assert handles is not None
+    assert all(isinstance(handle, RemovableHandle) for handle in handles)
+
+    assert get_relu_activation_metrics(policy) == {}

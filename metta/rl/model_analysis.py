@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
-from typing import Callable, Dict, Iterable, List
+from typing import Any, Callable, Dict, Mapping, Optional
 
 import torch
 import torch.nn as nn
+from tensordict import TensorDictBase
+from torch.utils.hooks import RemovableHandle
 
 from metta.agent.policy_auto_builder import PolicyAutoBuilder
 
@@ -63,52 +65,145 @@ def compute_dormant_neuron_stats(policy: nn.Module, *, threshold: float = 1e-6) 
     return stats
 
 
+class _ReLUActivationTracker:
+    """Collects activation statistics for registered components."""
+
+    def __init__(self) -> None:
+        self._active: Dict[str, list[int]] = {}
+        self._totals: Dict[str, list[int]] = {}
+
+    def is_tracking(self, component: str) -> bool:
+        return component in self._active
+
+    def update(self, component: str, tensor: torch.Tensor) -> None:
+        if tensor.ndim == 0:
+            return
+        if tensor.ndim == 1:
+            flat = tensor.unsqueeze(0)
+        else:
+            flat = tensor.reshape(-1, tensor.shape[-1])
+
+        active_counts = (flat > 0).sum(dim=0).tolist()
+        total = int(flat.shape[0])
+
+        active = self._active.setdefault(component, [0] * len(active_counts))
+        totals = self._totals.setdefault(component, [0] * len(active_counts))
+
+        if len(active) < len(active_counts):
+            active.extend([0] * (len(active_counts) - len(active)))
+            totals.extend([0] * (len(active_counts) - len(totals)))
+
+        for idx, value in enumerate(active_counts):
+            active[idx] += int(value)
+            totals[idx] += total
+
+    def mark_component(self, component: str) -> None:
+        self._active.setdefault(component, [])
+        self._totals.setdefault(component, [])
+
+    def metrics(self, *, reset: bool = False) -> Dict[str, float]:
+        metrics: Dict[str, float] = {}
+        for component, active in self._active.items():
+            totals = self._totals[component]
+            for idx, (act, tot) in enumerate(zip(active, totals, strict=False)):
+                if tot == 0:
+                    continue
+                metrics[f"activations/relu/{component}/{idx}"] = act / tot
+        if reset:
+            self._active.clear()
+            self._totals.clear()
+        return metrics
+
+
+_DEFAULT_RELU_COMPONENTS: Dict[str, Any] = {"actor_mlp": "actor_hidden"}
+
+
 def attach_relu_activation_hooks(
     policy: PolicyAutoBuilder,
     *,
-    components: Iterable[str] = ("actor_mlp",),
-) -> None:
+    components: Optional[Mapping[str, Any]] = None,
+) -> list[tuple[str, Callable[[PolicyAutoBuilder, str, nn.Module], RemovableHandle], str]]:
     """
-    Attach forward hooks that track ReLU activation rates for the specified components.
+    Build hook specifications for tracking ReLU activations on the supplied policy.
 
-    The hooks collect per-neuron activation counts under ``policy._hooks``; callers can
-    read the accumulated data via ``policy._hooks.forward_handles`` or expose a custom accessor.
+    Returns a list of ``(component_name, hook_factory, hook_type)`` tuples that can be passed to
+    ``PolicyAutoBuilder.register_component_hook_rule``.
     """
 
-    tracker: dict[str, List[int]] = {}
-    totals: dict[str, List[int]] = {}
+    if not isinstance(policy, PolicyAutoBuilder):
+        return []
 
-    def hook_factory(policy_obj: PolicyAutoBuilder, name: str, module: nn.Module) -> torch.utils.hooks.RemovableHandle:
-        if not isinstance(module, nn.Sequential):  # for MLP, module is TensorDictSequential
-            pass
+    tracker: _ReLUActivationTracker | None = getattr(policy, "_relu_activation_tracker", None)
+    if tracker is None:
+        tracker = _ReLUActivationTracker()
+        policy._relu_activation_tracker = tracker  # type: ignore[attr-defined]
 
-        def forward_hook(_, __, output: torch.Tensor) -> None:
-            tensor = output.detach()
-            if tensor.ndim == 0:
-                return
-            if tensor.ndim == 1:
-                flat = tensor.unsqueeze(0)
-            else:
-                flat = tensor.reshape(-1, tensor.shape[-1])
+    component_map = components if components is not None else _DEFAULT_RELU_COMPONENTS
 
-            active_counts = (flat > 0).sum(dim=0)
-            total = flat.shape[0]
+    specs: list[tuple[str, Callable[[PolicyAutoBuilder, str, nn.Module], RemovableHandle], str]] = []
 
-            act = tracker.setdefault(name, [0] * active_counts.numel())
-            tot = totals.setdefault(name, [0] * active_counts.numel())
+    for component_name, spec in component_map.items():
+        if tracker.is_tracking(component_name):
+            continue
+        component = policy.components.get(component_name)
+        if component is None:
+            continue
 
-            for idx, value in enumerate(active_counts.tolist()):
-                act[idx] += value
-                tot[idx] += total
+        extractor = _build_extractor(spec)
+        if extractor is None:
+            continue
 
-        return module.register_forward_hook(forward_hook)
+        def hook_factory(
+            _policy: PolicyAutoBuilder,
+            name: str,
+            module: nn.Module,
+            *,
+            extractor_fn: Callable[[Any], Optional[torch.Tensor]] = extractor,
+        ) -> torch.utils.hooks.RemovableHandle:
+            def hook(_: nn.Module, __: tuple[Any, ...], output: Any) -> None:
+                tensor = extractor_fn(output)
+                if tensor is None:
+                    return
+                tracker.update(name, tensor.detach())
 
-    for component_name in components:
-        policy.register_component_hook_rule(
-            component_name=component_name,
-            hook_factory=hook_factory,
-            hook_type="forward",
-        )
+            return module.register_forward_hook(hook)
+
+        tracker.mark_component(component_name)
+        specs.append((component_name, hook_factory, "forward"))
+
+    return specs
+
+def get_relu_activation_metrics(policy: Any, *, reset: bool = False) -> Dict[str, float]:
+    tracker: _ReLUActivationTracker | None = getattr(policy, "_relu_activation_tracker", None)
+    if tracker is None:
+        return {}
+    return tracker.metrics(reset=reset)
+
+
+def _build_extractor(spec: Any) -> Optional[Callable[[Any], Optional[torch.Tensor]]]:
+    if callable(spec):
+        return spec
+
+    if isinstance(spec, str):
+        key = spec
+
+        def extractor(output: Any) -> Optional[torch.Tensor]:
+            if isinstance(output, torch.Tensor):
+                return output
+            if isinstance(output, TensorDictBase):
+                try:
+                    tensor = output.get(key)
+                except KeyError:
+                    return None
+                return tensor if isinstance(tensor, torch.Tensor) else None
+            if isinstance(output, dict):
+                tensor = output.get(key)
+                return tensor if isinstance(tensor, torch.Tensor) else None
+            return None
+
+        return extractor
+
+    return None
 
 
 def compute_saturated_activation_stats(

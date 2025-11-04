@@ -14,7 +14,7 @@ from pydantic import Field
 from metta.app_backend.clients.stats_client import StatsClient
 from metta.common.wandb.context import WandbRun
 from metta.eval.eval_request_config import EvalRewardSummary
-from metta.rl.model_analysis import compute_dormant_neuron_stats
+from metta.rl.model_analysis import compute_dormant_neuron_stats, get_relu_activation_metrics
 from metta.rl.stats import accumulate_rollout_stats, compute_timing_stats, process_training_stats
 from metta.rl.training.component import TrainerComponent
 from metta.rl.utils import should_run
@@ -428,6 +428,9 @@ class StatsReporter(TrainerComponent):
         dormant_stats = self._compute_dormant_neuron_stats(policy=policy)
         if dormant_stats:
             weight_stats.update(dormant_stats)
+        activation_stats = get_relu_activation_metrics(policy, reset=True)
+        if activation_stats:
+            weight_stats.update(activation_stats)
         system_stats = self._collect_system_stats()
         memory_stats = self._collect_memory_stats()
         parameters = self._collect_parameters(
