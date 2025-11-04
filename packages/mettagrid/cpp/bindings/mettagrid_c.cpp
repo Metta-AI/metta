@@ -9,21 +9,21 @@
 #include <numeric>
 #include <random>
 #include <unordered_set>
+#include <vector>
 
 #include "actions/action_handler.hpp"
 #include "actions/attack.hpp"
 #include "actions/change_vibe.hpp"
 #include "actions/move.hpp"
+#include "actions/move_config.hpp"
 #include "actions/noop.hpp"
 #include "actions/resource_mod.hpp"
-#include "actions/rotate.hpp"
-#include "actions/swap.hpp"
+#include "config/observation_features.hpp"
 #include "core/event.hpp"
 #include "core/grid.hpp"
 #include "core/hash.hpp"
 #include "core/types.hpp"
 #include "objects/agent.hpp"
-#include "objects/agent_config.hpp"
 #include "objects/assembler.hpp"
 #include "objects/assembler_config.hpp"
 #include "objects/chest.hpp"
@@ -71,7 +71,16 @@ MettaGrid::MettaGrid(const GameConfig& game_config, const py::list map, unsigned
   GridCoord width = static_cast<GridCoord>(py::len(map[0]));
 
   _grid = std::make_unique<Grid>(height, width);
-  _obs_encoder = std::make_unique<ObservationEncoder>(resource_names, game_config.protocol_details_obs);
+  _obs_encoder = std::make_unique<ObservationEncoder>(
+      resource_names.size(), game_config.protocol_details_obs, &resource_names, &game_config.feature_ids);
+
+  // Initialize ObservationFeature namespace with feature IDs
+  ObservationFeature::Initialize(game_config.feature_ids);
+
+  // Initialize feature_id_to_name map from GameConfig
+  for (const auto& [name, id] : game_config.feature_ids) {
+    feature_id_to_name[id] = name;
+  }
 
   _event_manager = std::make_unique<EventManager>();
   _stats = std::make_unique<StatsTracker>(&resource_names);
@@ -80,29 +89,33 @@ MettaGrid::MettaGrid(const GameConfig& game_config, const py::list map, unsigned
 
   _action_success.resize(num_agents);
 
-  for (const auto& [action_name, action_config] : game_config.actions) {
-    if (action_name == "noop") {
-      _action_handlers.push_back(std::make_unique<Noop>(*action_config));
-    } else if (action_name == "move") {
-      _action_handlers.push_back(std::make_unique<Move>(*action_config, &_game_config));
-    } else if (action_name == "rotate") {
-      _action_handlers.push_back(std::make_unique<Rotate>(*action_config, &_game_config));
-    } else if (action_name == "attack") {
-      auto attack_config = std::static_pointer_cast<const AttackActionConfig>(action_config);
-      _action_handlers.push_back(std::make_unique<Attack>(*attack_config, &_game_config));
-    } else if (action_name == "change_vibe") {
-      auto change_vibe_config = std::static_pointer_cast<const ChangeVibeActionConfig>(action_config);
-      _action_handlers.push_back(std::make_unique<ChangeVibe>(*change_vibe_config));
-    } else if (action_name == "swap") {
-      _action_handlers.push_back(std::make_unique<Swap>(*action_config));
-    } else if (action_name == "resource_mod") {
-      auto modify_config = std::static_pointer_cast<const ResourceModConfig>(action_config);
-      _action_handlers.push_back(std::make_unique<ResourceMod>(*modify_config, action_name));
-    } else {
-      throw std::runtime_error("Unknown action: " + action_name);
+  init_action_handlers(game_config);
+
+  _init_grid(game_config, map);
+
+  // Initialize buffers and compute initial observations
+  _init_buffers(num_agents);
+
+  // Initialize global systems
+  if (_game_config.clipper) {
+    auto& clipper_cfg = *_game_config.clipper;
+    if (clipper_cfg.unclipping_protocols.empty()) {
+      throw std::runtime_error("Clipper config provided but unclipping_protocols is empty");
     }
+    _clipper = std::make_unique<Clipper>(*_grid,
+                                         clipper_cfg.unclipping_protocols,
+                                         clipper_cfg.length_scale,
+                                         clipper_cfg.cutoff_distance,
+                                         clipper_cfg.clip_rate,
+                                         _rng);
   }
-  init_action_handlers();
+}
+
+MettaGrid::~MettaGrid() = default;
+
+void MettaGrid::_init_grid(const GameConfig& game_config, const py::list& map) {
+  GridCoord height = static_cast<GridCoord>(py::len(map));
+  GridCoord width = static_cast<GridCoord>(py::len(map[0]));
 
   object_type_names.resize(game_config.objects.size());
 
@@ -163,7 +176,7 @@ MettaGrid::MettaGrid(const GameConfig& game_config, const py::list map, unsigned
 
       const AgentConfig* agent_config = dynamic_cast<const AgentConfig*>(object_cfg);
       if (agent_config) {
-        Agent* agent = new Agent(r, c, *agent_config, &resource_names);
+        Agent* agent = new Agent(r, c, *agent_config, &resource_names, &game_config.feature_ids);
         _grid->add_object(agent);
         if (_agents.size() > std::numeric_limits<decltype(agent->agent_id)>::max()) {
           throw std::runtime_error("Too many agents for agent_id type");
@@ -173,7 +186,6 @@ MettaGrid::MettaGrid(const GameConfig& game_config, const py::list map, unsigned
         if (_global_obs_config.visitation_counts) {
           agent->init_visitation_grid(height, width);
         }
-
         add_agent(agent);
         _group_sizes[agent->group] += 1;
         continue;
@@ -181,13 +193,7 @@ MettaGrid::MettaGrid(const GameConfig& game_config, const py::list map, unsigned
 
       const AssemblerConfig* assembler_config = dynamic_cast<const AssemblerConfig*>(object_cfg);
       if (assembler_config) {
-        // Create a new AssemblerConfig with the protocol offsets from the observation encoder
-        AssemblerConfig config_with_offsets(*assembler_config);
-        config_with_offsets.input_protocol_offset = _obs_encoder->get_input_protocol_offset();
-        config_with_offsets.output_protocol_offset = _obs_encoder->get_output_protocol_offset();
-        config_with_offsets.protocol_details_obs = _obs_encoder->protocol_details_obs;
-
-        Assembler* assembler = new Assembler(r, c, config_with_offsets);
+        Assembler* assembler = new Assembler(r, c, *assembler_config);
         _grid->add_object(assembler);
         _stats->incr("objects." + cell);
         assembler->set_grid(_grid.get());
@@ -213,9 +219,10 @@ MettaGrid::MettaGrid(const GameConfig& game_config, const py::list map, unsigned
 
   // Use wyhash for deterministic, high-performance grid fingerprinting across platforms
   initial_grid_hash = wyhash::hash_string(grid_hash_data);
+}
 
-  // Initialize buffers. The buffers are likely to be re-set by the user anyways,
-  // so nothing above should depend on them before this point.
+void MettaGrid::_init_buffers(unsigned int num_agents) {
+  // Create and set buffers
   std::vector<ssize_t> shape;
   shape = {static_cast<ssize_t>(num_agents), static_cast<ssize_t>(_num_observation_tokens), static_cast<ssize_t>(3)};
   auto observations = py::array_t<ObservationType, py::array::c_style>(shape);
@@ -224,107 +231,98 @@ MettaGrid::MettaGrid(const GameConfig& game_config, const py::list map, unsigned
   auto truncations =
       py::array_t<TruncationType, py::array::c_style>({static_cast<ssize_t>(num_agents)}, {sizeof(TruncationType)});
   auto rewards = py::array_t<RewardType, py::array::c_style>({static_cast<ssize_t>(num_agents)}, {sizeof(RewardType)});
+  auto actions = py::array_t<ActionType, py::array::c_style>(std::vector<ssize_t>{static_cast<ssize_t>(num_agents)});
+  this->_episode_rewards = py::array_t<float, py::array::c_style>({static_cast<ssize_t>(num_agents)}, {sizeof(RewardType)});
 
-  set_buffers(observations, terminals, truncations, rewards);
+  set_buffers(observations, terminals, truncations, rewards, actions);
 
-  // Initialize global systems
-  if (_game_config.clipper) {
-    auto& clipper_cfg = *_game_config.clipper;
-    if (clipper_cfg.unclipping_protocols.empty()) {
-      throw std::runtime_error("Clipper config provided but unclipping_protocols is empty");
+  // Reset visitation counts for all agents (only if enabled)
+  if (_global_obs_config.visitation_counts) {
+    for (auto& agent : _agents) {
+      agent->reset_visitation_counts();
     }
-    _clipper = std::make_unique<Clipper>(*_grid,
-                                         clipper_cfg.unclipping_protocols,
-                                         clipper_cfg.length_scale,
-                                         clipper_cfg.cutoff_distance,
-                                         clipper_cfg.clip_rate,
-                                         _rng);
   }
+
+  // Clear all buffers
+  std::fill(static_cast<bool*>(_terminals.request().ptr),
+            static_cast<bool*>(_terminals.request().ptr) + _terminals.size(),
+            0);
+  std::fill(static_cast<bool*>(_truncations.request().ptr),
+            static_cast<bool*>(_truncations.request().ptr) + _truncations.size(),
+            0);
+  std::fill(static_cast<float*>(_episode_rewards.request().ptr),
+            static_cast<float*>(_episode_rewards.request().ptr) + _episode_rewards.size(),
+            0.0f);
+  std::fill(
+      static_cast<float*>(_rewards.request().ptr), static_cast<float*>(_rewards.request().ptr) + _rewards.size(), 0.0f);
+
+  // Clear observations
+  auto obs_ptr = static_cast<uint8_t*>(_observations.request().ptr);
+  auto obs_size = _observations.size();
+  std::fill(obs_ptr, obs_ptr + obs_size, EmptyTokenByte);
+
+  // Compute initial observations
+  auto zero_actions =
+      py::array_t<ActionType, py::array::c_style>(std::vector<ssize_t>{static_cast<ssize_t>(_agents.size())});
+  std::fill(static_cast<ActionType*>(zero_actions.request().ptr),
+            static_cast<ActionType*>(zero_actions.request().ptr) + zero_actions.size(),
+            static_cast<ActionType>(0));
+
+  _compute_observations(zero_actions);
 }
 
-MettaGrid::~MettaGrid() = default;
-
-void MettaGrid::init_action_handlers() {
-  _num_action_handlers = _action_handlers.size();
+void MettaGrid::init_action_handlers(const GameConfig& game_config) {
   _max_action_priority = 0;
-  _max_action_arg = 0;
-  _max_action_args.resize(_action_handlers.size());
 
-  for (size_t i = 0; i < _action_handlers.size(); i++) {
-    auto& handler = _action_handlers[i];
-    handler->init(_grid.get(), &_rng);
-    if (handler->priority > _max_action_priority) {
-      _max_action_priority = handler->priority;
-    }
-    _max_action_args[i] = handler->max_arg();
-    if (_max_action_args[i] > _max_action_arg) {
-      _max_action_arg = _max_action_args[i];
-    }
+  // Noop
+  auto noop = std::make_unique<Noop>(*game_config.actions.at("noop"));
+  noop->init(_grid.get(), &_rng);
+  if (noop->priority > _max_action_priority) _max_action_priority = noop->priority;
+  for (const auto& action : noop->actions()) {
+    _action_handlers.push_back(action);
   }
+  _action_handler_impl.push_back(std::move(noop));
 
-  build_flat_action_catalog();
-}
-
-void MettaGrid::build_flat_action_catalog() {
-  _flat_action_map.clear();
-  _flat_action_names.clear();
-  _action_arg_to_flat.clear();
-
-  size_t total_variants = 0;
-  for (unsigned char max_arg : _max_action_args) {
-    total_variants += static_cast<size_t>(max_arg) + 1;
+  // Move
+  auto move_config = std::static_pointer_cast<const MoveActionConfig>(game_config.actions.at("move"));
+  auto move = std::make_unique<Move>(*move_config, &game_config);
+  move->init(_grid.get(), &_rng);
+  if (move->priority > _max_action_priority) _max_action_priority = move->priority;
+  for (const auto& action : move->actions()) {
+    _action_handlers.push_back(action);
   }
+  _action_handler_impl.push_back(std::move(move));
 
-  _flat_action_map.reserve(total_variants);
-  _flat_action_names.reserve(total_variants);
-  _action_arg_to_flat.resize(_action_handlers.size());
-
-  std::unordered_set<std::string> seen_names;
-  seen_names.reserve(total_variants);
-
-  for (size_t handler_index = 0; handler_index < _action_handlers.size(); ++handler_index) {
-    auto& handler = _action_handlers[handler_index];
-    unsigned char max_arg = _max_action_args[handler_index];
-    auto& arg_map = _action_arg_to_flat[handler_index];
-    arg_map.assign(static_cast<size_t>(max_arg) + 1, -1);
-
-    const unsigned int max_arg_uint = static_cast<unsigned int>(max_arg);
-    for (unsigned int raw_arg = 0; raw_arg <= max_arg_uint; ++raw_arg) {
-      const ActionArg arg = static_cast<ActionArg>(raw_arg);
-
-      std::string base_name = handler->variant_name(arg);
-      if (base_name.empty()) {
-        base_name = handler->action_name();
-      }
-
-      std::string variant = base_name;
-      int suffix = 1;
-      while (!seen_names.insert(variant).second) {
-        variant = base_name + "_" + std::to_string(suffix++);
-      }
-
-      const auto flat_index = static_cast<int>(_flat_action_map.size());
-      _flat_action_map.emplace_back(static_cast<ActionType>(handler_index), arg);
-      _flat_action_names.emplace_back(std::move(variant));
-      arg_map[static_cast<size_t>(arg)] = flat_index;
-    }
+  // Attack
+  auto attack_config = std::static_pointer_cast<const AttackActionConfig>(game_config.actions.at("attack"));
+  auto attack = std::make_unique<Attack>(*attack_config, &game_config);
+  attack->init(_grid.get(), &_rng);
+  if (attack->priority > _max_action_priority) _max_action_priority = attack->priority;
+  for (const auto& action : attack->actions()) {
+    _action_handlers.push_back(action);
   }
-}
+  _action_handler_impl.push_back(std::move(attack));
 
-int MettaGrid::flat_action_index(ActionType action, ActionArg arg) const {
-  if (action < 0) {
-    return -1;
+  // ChangeVibe
+  auto change_vibe_config =
+      std::static_pointer_cast<const ChangeVibeActionConfig>(game_config.actions.at("change_vibe"));
+  auto change_vibe = std::make_unique<ChangeVibe>(*change_vibe_config, &game_config);
+  change_vibe->init(_grid.get(), &_rng);
+  if (change_vibe->priority > _max_action_priority) _max_action_priority = change_vibe->priority;
+  for (const auto& action : change_vibe->actions()) {
+    _action_handlers.push_back(action);
   }
-  size_t action_idx = static_cast<size_t>(action);
-  if (action_idx >= _action_arg_to_flat.size()) {
-    return -1;
+  _action_handler_impl.push_back(std::move(change_vibe));
+
+  // ResourceMod
+  auto resource_mod_config = std::static_pointer_cast<const ResourceModConfig>(game_config.actions.at("resource_mod"));
+  auto resource_mod = std::make_unique<ResourceMod>(*resource_mod_config);
+  resource_mod->init(_grid.get(), &_rng);
+  if (resource_mod->priority > _max_action_priority) _max_action_priority = resource_mod->priority;
+  for (const auto& action : resource_mod->actions()) {
+    _action_handlers.push_back(action);
   }
-  size_t arg_idx = static_cast<size_t>(arg);
-  const auto& mapping = _action_arg_to_flat[action_idx];
-  if (arg_idx >= mapping.size()) {
-    return -1;
-  }
-  return mapping[arg_idx];
+  _action_handler_impl.push_back(std::move(resource_mod));
 }
 
 void MettaGrid::add_agent(Agent* agent) {
@@ -337,8 +335,7 @@ void MettaGrid::_compute_observation(GridCoord observer_row,
                                      ObservationCoord observable_width,
                                      ObservationCoord observable_height,
                                      size_t agent_idx,
-                                     ActionType action,
-                                     ActionArg action_arg) {
+                                     ActionType action) {
   // Calculate observation boundaries
   ObservationCoord obs_width_radius = observable_width >> 1;
   ObservationCoord obs_height_radius = observable_height >> 1;
@@ -365,7 +362,6 @@ void MettaGrid::_compute_observation(GridCoord observer_row,
 
   // Build global tokens based on configuration
   std::vector<PartialObservationToken> global_tokens;
-  int flat_action = flat_action_index(action, action_arg);
 
   if (_global_obs_config.episode_completion_pct) {
     ObservationType episode_completion_pct = 0;
@@ -378,9 +374,7 @@ void MettaGrid::_compute_observation(GridCoord observer_row,
   }
 
   if (_global_obs_config.last_action) {
-    ObservationType action_value = static_cast<ObservationType>(std::max(0, flat_action));
-    global_tokens.push_back({ObservationFeature::LastAction, action_value});
-    global_tokens.push_back({ObservationFeature::LastActionArg, static_cast<ObservationType>(action_arg)});
+    global_tokens.push_back({ObservationFeature::LastAction, static_cast<ObservationType>(action)});
   }
 
   if (_global_obs_config.last_reward) {
@@ -447,28 +441,31 @@ void MettaGrid::_compute_observation(GridCoord observer_row,
 }
 
 void MettaGrid::_compute_observations(const py::array_t<ActionType, py::array::c_style> actions) {
-  auto actions_view = actions.unchecked<2>();
-  // auto observation_view = _observations.mutable_unchecked<3>();
+  auto info = actions.request();
 
+  // Actions must be 1D now
+  if (info.ndim != 1) {
+    throw std::runtime_error("actions must be 1D array");
+  }
+
+  auto actions_view = actions.unchecked<1>();
   for (size_t idx = 0; idx < _agents.size(); idx++) {
     auto& agent = _agents[idx];
-    _compute_observation(
-        agent->location.r, agent->location.c, obs_width, obs_height, idx, actions_view(idx, 0), actions_view(idx, 1));
+    ActionType action_idx = actions_view(idx);
+    _compute_observation(agent->location.r, agent->location.c, obs_width, obs_height, idx, action_idx);
   }
 }
 
-void MettaGrid::_handle_invalid_action(size_t agent_idx, const std::string& stat, ActionType type, ActionArg arg) {
+void MettaGrid::_handle_invalid_action(size_t agent_idx, const std::string& stat, ActionType type) {
   auto& agent = _agents[agent_idx];
   agent->stats.incr(stat);
-  agent->stats.incr(stat + "." + std::to_string(type) + "." + std::to_string(arg));
+  agent->stats.incr(stat + "." + std::to_string(type));
   _action_success[agent_idx] = false;
   *agent->reward -= agent->action_failure_penalty;
 }
 
-void MettaGrid::_step(Actions actions) {
-  _actions = actions;
-
-  auto actions_view = actions.unchecked<2>();
+void MettaGrid::_step() {
+  auto actions_view = _actions.unchecked<1>();
 
   // Reset rewards and observations
   auto rewards_view = _rewards.mutable_unchecked<1>();
@@ -496,31 +493,20 @@ void MettaGrid::_step(Actions actions) {
     unsigned char current_priority = _max_action_priority - offset;
 
     for (const auto& agent_idx : agent_indices) {
-      ActionType action = actions_view(agent_idx, 0);
-      ActionArg arg = actions_view(agent_idx, 1);
+      ActionType action_idx = actions_view(agent_idx);
 
-      if (action < 0 || static_cast<size_t>(action) >= _num_action_handlers) {
-        _handle_invalid_action(agent_idx, "action.invalid_type", action, arg);
-        continue;
-      }
-      size_t action_idx = static_cast<size_t>(action);
-
-      auto& handler = _action_handlers[action_idx];
-      if (handler->priority != current_priority) {
+      if (action_idx < 0 || static_cast<size_t>(action_idx) >= _action_handlers.size()) {
+        _handle_invalid_action(agent_idx, "action.invalid_index", action_idx);
         continue;
       }
 
-      // Tolerate invalid action arguments
-      if (arg < 0 || arg > _max_action_args[action_idx]) {
-        _handle_invalid_action(agent_idx, "action.invalid_arg", action, arg);
+      Action& action = _action_handlers[static_cast<size_t>(action_idx)];
+      if (action.handler()->priority != current_priority) {
         continue;
       }
 
       auto* agent = _agents[agent_idx];
-
-      // handle_action expects a GridObjectId, rather than an agent_id, because of where it does its lookup
-      // note that handle_action will assign a penalty for attempting invalid actions as a side effect
-      _action_success[agent_idx] = handler->handle_action(*agent, arg);
+      _action_success[agent_idx] = action.handle(*agent);
     }
   }
 
@@ -564,7 +550,7 @@ void MettaGrid::_step(Actions actions) {
   }
 
   // Compute observations for next step
-  _compute_observations(actions);
+  _compute_observations(_actions);
 
   // Compute stat-based rewards for all agents
   for (auto& agent : _agents) {
@@ -589,51 +575,6 @@ void MettaGrid::_step(Actions actions) {
                 1);
     }
   }
-}
-
-py::tuple MettaGrid::reset() {
-  if (current_step > 0) {
-    throw std::runtime_error("Cannot reset after stepping");
-  }
-
-  // Reset visitation counts for all agents (only if enabled)
-  if (_global_obs_config.visitation_counts) {
-    for (auto& agent : _agents) {
-      agent->reset_visitation_counts();
-    }
-  }
-
-  // Reset all buffers
-  // Views are created only for validating types; actual clearing is done via
-  // direct memory operations for speed.
-
-  std::fill(static_cast<bool*>(_terminals.request().ptr),
-            static_cast<bool*>(_terminals.request().ptr) + _terminals.size(),
-            0);
-  std::fill(static_cast<bool*>(_truncations.request().ptr),
-            static_cast<bool*>(_truncations.request().ptr) + _truncations.size(),
-            0);
-  std::fill(static_cast<float*>(_episode_rewards.request().ptr),
-            static_cast<float*>(_episode_rewards.request().ptr) + _episode_rewards.size(),
-            0.0f);
-  std::fill(
-      static_cast<float*>(_rewards.request().ptr), static_cast<float*>(_rewards.request().ptr) + _rewards.size(), 0.0f);
-
-  // Clear observations
-  auto obs_ptr = static_cast<uint8_t*>(_observations.request().ptr);
-  auto obs_size = _observations.size();
-  std::fill(obs_ptr, obs_ptr + obs_size, EmptyTokenByte);
-
-  // Compute initial observations
-  std::vector<ssize_t> shape = {static_cast<ssize_t>(_agents.size()), static_cast<ssize_t>(2)};
-  auto zero_actions = py::array_t<ActionType, py::array::c_style>(shape);
-  std::fill(static_cast<ActionType*>(zero_actions.request().ptr),
-            static_cast<ActionType*>(zero_actions.request().ptr) + zero_actions.size(),
-            static_cast<ActionType>(0));
-
-  _compute_observations(zero_actions);
-
-  return py::make_tuple(_observations, py::dict());
 }
 
 void MettaGrid::validate_buffers() {
@@ -680,13 +621,14 @@ void MettaGrid::validate_buffers() {
 void MettaGrid::set_buffers(const py::array_t<uint8_t, py::array::c_style>& observations,
                             const py::array_t<bool, py::array::c_style>& terminals,
                             const py::array_t<bool, py::array::c_style>& truncations,
-                            const py::array_t<float, py::array::c_style>& rewards) {
+                            const py::array_t<float, py::array::c_style>& rewards,
+                            const py::array_t<ActionType, py::array::c_style>& actions) {
   // These are initialized in reset()
   _observations = observations;
   _terminals = terminals;
   _truncations = truncations;
   _rewards = rewards;
-  _episode_rewards = py::array_t<float, py::array::c_style>({static_cast<ssize_t>(_rewards.shape(0))}, {sizeof(float)});
+  _actions = actions;
   for (size_t i = 0; i < _agents.size(); i++) {
     _agents[i]->init(&_rewards.mutable_unchecked<1>()(i));
   }
@@ -694,57 +636,18 @@ void MettaGrid::set_buffers(const py::array_t<uint8_t, py::array::c_style>& obse
   validate_buffers();
 }
 
-py::tuple MettaGrid::step(const py::array_t<ActionType, py::array::c_style> actions) {
-  auto info = actions.request();
-  py::array_t<ActionType, py::array::c_style> converted;
+py::tuple MettaGrid::step() {
+  auto info = _actions.request();
 
-  auto assign_flat = [&](auto& view, size_t agent_idx, ActionType flat_index) {
-    if (flat_index < 0 || static_cast<size_t>(flat_index) >= _flat_action_map.size()) {
-      view(agent_idx, 0) = -1;
-      view(agent_idx, 1) = 0;
-      return;
-    }
-    const auto& mapping = _flat_action_map[static_cast<size_t>(flat_index)];
-    view(agent_idx, 0) = mapping.first;
-    view(agent_idx, 1) = mapping.second;
-  };
-
-  if (info.ndim == 1) {
-    if (info.shape[0] != static_cast<ssize_t>(_agents.size())) {
-      throw std::runtime_error("actions has the wrong shape");
-    }
-    auto view = actions.unchecked<1>();
-    converted = py::array_t<ActionType, py::array::c_style>(
-        py::array::ShapeContainer{static_cast<ssize_t>(_agents.size()), static_cast<ssize_t>(2)});
-    auto converted_view = converted.mutable_unchecked<2>();
-    for (size_t agent_idx = 0; agent_idx < _agents.size(); ++agent_idx) {
-      auto flat_index = view(agent_idx);
-      assign_flat(converted_view, agent_idx, flat_index);
-    }
-    _step(converted);
-  } else if (info.ndim == 2) {
-    if (info.shape[0] != static_cast<ssize_t>(_agents.size())) {
-      throw std::runtime_error("actions has the wrong shape");
-    }
-
-    if (info.shape[1] == 1) {
-      auto view = actions.unchecked<2>();
-      converted = py::array_t<ActionType, py::array::c_style>(
-          py::array::ShapeContainer{static_cast<ssize_t>(_agents.size()), static_cast<ssize_t>(2)});
-      auto converted_view = converted.mutable_unchecked<2>();
-      for (size_t agent_idx = 0; agent_idx < _agents.size(); ++agent_idx) {
-        auto flat_index = view(agent_idx, 0);
-        assign_flat(converted_view, agent_idx, flat_index);
-      }
-      _step(converted);
-    } else if (info.shape[1] == 2) {
-      _step(actions);
-    } else {
-      throw std::runtime_error("actions has the wrong shape");
-    }
-  } else {
+  // Validate that actions array has correct shape
+  if (info.ndim != 1) {
+    throw std::runtime_error("actions must be 1D array");
+  }
+  if (info.shape[0] != static_cast<ssize_t>(_agents.size())) {
     throw std::runtime_error("actions has the wrong shape");
   }
+
+  _step();
 
   auto rewards_view = _rewards.mutable_unchecked<1>();
 
@@ -833,7 +736,10 @@ py::dict MettaGrid::grid_objects(int min_row, int max_row, int min_col, int max_
     // Inject observation features
     auto features = obj->obs_features();
     for (const auto& feature : features) {
-      obj_dict[py::str(_obs_encoder->feature_names().at(feature.feature_id))] = feature.value;
+      auto feature_name_it = feature_id_to_name.find(feature.feature_id);
+      if (feature_name_it != feature_id_to_name.end()) {
+        obj_dict[py::str(feature_name_it->second)] = feature.value;
+      }
     }
 
     if (auto* has_inventory = dynamic_cast<HasInventory*>(obj)) {
@@ -846,12 +752,12 @@ py::dict MettaGrid::grid_objects(int min_row, int max_row, int min_col, int max_
 
     // Inject agent-specific info
     if (auto* agent = dynamic_cast<Agent*>(obj)) {
-      obj_dict["orientation"] = static_cast<int>(agent->orientation);
       obj_dict["group_id"] = agent->group;
       obj_dict["group_name"] = agent->group_name;
       obj_dict["is_frozen"] = !!agent->frozen;
       obj_dict["freeze_remaining"] = agent->frozen;
       obj_dict["freeze_duration"] = agent->freeze_duration;
+      obj_dict["vibe"] = agent->vibe;
       obj_dict["agent_id"] = agent->agent_id;
       obj_dict["action_failure_penalty"] = agent->action_failure_penalty;
       obj_dict["current_stat_reward"] = agent->current_stat_reward;
@@ -944,14 +850,6 @@ py::dict MettaGrid::grid_objects(int min_row, int max_row, int min_col, int max_
   return objects;
 }
 
-py::list MettaGrid::action_names() {
-  py::list names;
-  for (const auto& name : _flat_action_names) {
-    names.append(py::str(name));
-  }
-  return names;
-}
-
 GridCoord MettaGrid::map_width() {
   return _grid->width;
 }
@@ -960,38 +858,12 @@ GridCoord MettaGrid::map_height() {
   return _grid->height;
 }
 
-// These should correspond to the features we emit in the observations -- either
-// the channel or the feature_id.
-py::dict MettaGrid::feature_spec() {
-  py::dict feature_spec;
-  const auto& names = _obs_encoder->feature_names();
-  const auto& normalizations = _obs_encoder->feature_normalizations();
-
-  for (const auto& [feature_id, feature_name] : names) {
-    py::dict spec;
-    spec["normalization"] = py::float_(normalizations.at(feature_id));
-    spec["id"] = py::int_(feature_id);
-
-    // Add tag mapping for the tag feature
-    if (feature_name == "tag") {
-      py::dict tag_map;
-      for (const auto& [tag_id, tag_name] : _game_config.tag_id_map) {
-        tag_map[py::int_(tag_id)] = py::str(tag_name);
-      }
-      spec["values"] = tag_map;
-    }
-
-    feature_spec[py::str(feature_name)] = spec;
-  }
-  return feature_spec;
-}
-
-size_t MettaGrid::num_agents() const {
-  return _agents.size();
-}
-
 py::array_t<float> MettaGrid::get_episode_rewards() {
   return _episode_rewards;
+}
+
+py::array_t<ActionType> MettaGrid::actions() {
+  return _actions;
 }
 
 py::dict MettaGrid::get_episode_stats() {
@@ -1013,70 +885,46 @@ py::dict MettaGrid::get_episode_stats() {
   return stats;
 }
 
-py::object MettaGrid::action_space() {
-  auto gym = py::module_::import("gymnasium");
-  auto spaces = gym.attr("spaces");
-
-  return spaces.attr("Discrete")(py::int_(_flat_action_map.size()));
-}
-
-py::object MettaGrid::observation_space() {
-  auto gym = py::module_::import("gymnasium");
-  auto spaces = gym.attr("spaces");
-
-  auto observation_info = _observations.request();
-  auto shape = observation_info.shape;
-  auto space_shape = py::tuple(observation_info.ndim - 1);
-
-  for (ssize_t i = 0; i < observation_info.ndim - 1; i++) {
-    space_shape[static_cast<size_t>(i)] = shape[static_cast<size_t>(i + 1)];
-  }
-
-  ObservationType min_value = std::numeric_limits<ObservationType>::min();  // 0
-  ObservationType max_value = std::numeric_limits<ObservationType>::max();  // 255
-
-  // TODO: consider spaces other than "Box". They're more correctly descriptive, but I don't know if
-  // that matters to us.
-  return spaces.attr("Box")(min_value, max_value, space_shape, py::arg("dtype") = dtype_observations());
-}
-
 py::list MettaGrid::action_success_py() {
   return py::cast(_action_success);
 }
 
-py::list MettaGrid::max_action_args() {
-  return py::cast(_max_action_args);
-}
-
-py::list MettaGrid::action_catalog() {
-  py::list catalog;
-  for (size_t idx = 0; idx < _flat_action_map.size(); ++idx) {
-    const auto& mapping = _flat_action_map[idx];
-    py::dict entry;
-    entry["flat_index"] = py::int_(idx);
-    entry["action_id"] = py::int_(mapping.first);
-    entry["param"] = py::int_(mapping.second);
-    entry["base_name"] = py::str(_action_handlers[static_cast<size_t>(mapping.first)]->action_name());
-    entry["variant_name"] = py::str(_flat_action_names[idx]);
-    catalog.append(std::move(entry));
-  }
-  return catalog;
-}
-
-py::list MettaGrid::object_type_names_py() {
-  return py::cast(object_type_names);
-}
-
-py::list MettaGrid::resource_names_py() {
-  return py::cast(resource_names);
-}
-
 py::none MettaGrid::set_inventory(GridObjectId agent_id,
                                   const std::unordered_map<InventoryItem, InventoryQuantity>& inventory) {
-  if (agent_id < num_agents()) {
+  if (agent_id < _agents.size()) {
     this->_agents[agent_id]->set_inventory(inventory);
   }
   return py::none();
+}
+
+py::array_t<ObservationType> MettaGrid::observations() {
+  return _observations;
+}
+
+py::array_t<TerminalType> MettaGrid::terminals() {
+  return _terminals;
+}
+
+py::array_t<TruncationType> MettaGrid::truncations() {
+  return _truncations;
+}
+
+py::array_t<RewardType> MettaGrid::rewards() {
+  return _rewards;
+}
+
+py::array_t<MaskType> MettaGrid::masks() {
+  // Return action masks - currently not computed, return empty array
+  // TODO: Implement proper action masking if needed
+  auto result = py::array_t<MaskType>(
+      {static_cast<py::ssize_t>(_agents.size()), static_cast<py::ssize_t>(_action_handlers.size())});
+  auto r = result.template mutable_unchecked<2>();
+  for (py::ssize_t i = 0; i < r.shape(0); i++) {
+    for (py::ssize_t j = 0; j < r.shape(1); j++) {
+      r(i, j) = 1;  // All actions available by default
+    }
+  }
+  return result;
 }
 
 // Pybind11 module definition
@@ -1091,14 +939,14 @@ PYBIND11_MODULE(mettagrid_c, m) {
   // MettaGrid class bindings
   py::class_<MettaGrid>(m, "MettaGrid")
       .def(py::init<const GameConfig&, const py::list&, unsigned int>())
-      .def("reset", &MettaGrid::reset)
-      .def("step", &MettaGrid::step, py::arg("actions").noconvert())
+      .def("step", &MettaGrid::step)
       .def("set_buffers",
            &MettaGrid::set_buffers,
            py::arg("observations").noconvert(),
            py::arg("terminals").noconvert(),
            py::arg("truncations").noconvert(),
-           py::arg("rewards").noconvert())
+           py::arg("rewards").noconvert(),
+           py::arg("actions").noconvert())
       .def("grid_objects",
            &MettaGrid::grid_objects,
            py::arg("min_row") = -1,
@@ -1106,24 +954,23 @@ PYBIND11_MODULE(mettagrid_c, m) {
            py::arg("min_col") = -1,
            py::arg("max_col") = -1,
            py::arg("ignore_types") = py::list())
-      .def("action_names", &MettaGrid::action_names)
+      .def("observations", &MettaGrid::observations)
+      .def("terminals", &MettaGrid::terminals)
+      .def("truncations", &MettaGrid::truncations)
+      .def("rewards", &MettaGrid::rewards)
+      .def("masks", &MettaGrid::masks)
+      .def("actions", &MettaGrid::actions)
       .def_property_readonly("map_width", &MettaGrid::map_width)
       .def_property_readonly("map_height", &MettaGrid::map_height)
-      .def_property_readonly("num_agents", &MettaGrid::num_agents)
       .def("get_episode_rewards", &MettaGrid::get_episode_rewards)
       .def("get_episode_stats", &MettaGrid::get_episode_stats)
-      .def_property_readonly("action_space", &MettaGrid::action_space)
-      .def_property_readonly("observation_space", &MettaGrid::observation_space)
       .def("action_success", &MettaGrid::action_success_py)
-      .def("max_action_args", &MettaGrid::max_action_args)
-      .def("action_catalog", &MettaGrid::action_catalog)
-      .def("object_type_names", &MettaGrid::object_type_names_py)
-      .def("feature_spec", &MettaGrid::feature_spec)
       .def_readonly("obs_width", &MettaGrid::obs_width)
       .def_readonly("obs_height", &MettaGrid::obs_height)
       .def_readonly("max_steps", &MettaGrid::max_steps)
       .def_readonly("current_step", &MettaGrid::current_step)
-      .def("resource_names", &MettaGrid::resource_names_py)
+      .def_readonly("object_type_names", &MettaGrid::object_type_names)
+      .def_readonly("resource_names", &MettaGrid::resource_names)
       .def_readonly("initial_grid_hash", &MettaGrid::initial_grid_hash)
       .def("set_inventory", &MettaGrid::set_inventory, py::arg("agent_id"), py::arg("inventory"));
 
@@ -1148,6 +995,7 @@ PYBIND11_MODULE(mettagrid_c, m) {
   bind_action_config(m);
   bind_attack_action_config(m);
   bind_change_vibe_action_config(m);
+  bind_move_action_config(m);
   bind_resource_mod_config(m);
   bind_global_obs_config(m);
   bind_clipper_config(m);

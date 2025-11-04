@@ -7,6 +7,7 @@ from copy import deepcopy
 import numpy as np
 import torch
 from pyro.contrib import gp as gp
+from torch.distributions import Normal
 
 from mettagrid.util.dict_utils import unroll_nested_dict
 
@@ -511,8 +512,6 @@ class Protein:
             best_std = (best_obs - y_mean) / y_std
             impr = (mu - best_std) if direction == 1 else (best_std - mu)
             z = impr / sd
-            from torch.distributions import Normal
-
             N01 = Normal(0.0, 1.0)
             z_t = torch.from_numpy(z)
             cdf = N01.cdf(z_t).numpy()
