@@ -49,7 +49,7 @@ def _validate_sky_cluster_name(run_name: str) -> bool:
     return valid
 
 
-def _validate_run_tool(module_path: str, run_id: str, filtered_args: list) -> None:
+def _validate_run_tool(module_path: str, run_id: str, filtered_args: list) -> int:
     """Validate that run.py can successfully create a tool config with the given arguments."""
     # Build the run.py command
     run_cmd = ["uv", "run", "--active", "tools/run.py", module_path, "--dry-run"]
@@ -58,18 +58,19 @@ def _validate_run_tool(module_path: str, run_id: str, filtered_args: list) -> No
     if filtered_args:
         run_cmd.extend(filtered_args)
     try:
-        subprocess.run(run_cmd, capture_output=True, text=True, check=True)
+        res = subprocess.run(run_cmd, capture_output=True, text=True, check=True)
         print("[VALIDATION] ✅ Configuration validation successful")
+        return res.returncode
     except subprocess.CalledProcessError as e:
         print(red("[VALIDATION] ❌ Configuration validation failed"))
         if e.stdout:
             print(e.stdout)
         if e.stderr:
             print(red(e.stderr))
-        sys.exit(1)
+        return 1
     except FileNotFoundError:
         print(red("[VALIDATION] ❌ Could not find run.py or uv command"))
-        sys.exit(1)
+        return 1
 
 
 def patch_task(
@@ -111,6 +112,9 @@ def patch_task(
 
 
 def main():
+    import os
+
+    os.environ["PYTHONUNBUFFERED"] = "1"
     parser = argparse.ArgumentParser(
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
@@ -204,7 +208,7 @@ Examples:
         commit_hash = git.resolve_git_ref(args.git_ref)
         if not commit_hash:
             print(red(f"❌ Invalid git reference: '{args.git_ref}'"))
-            sys.exit(1)
+            return 1
     else:
         commit_hash = git.get_current_commit()
 
@@ -214,20 +218,21 @@ Examples:
             if error_message:
                 print(error_message)
                 print("  - Skip check: add --skip-git-check flag")
-                sys.exit(1)
+                return 1
 
     # Validate module path (supports shorthand like 'arena.train')
     if not validate_module_path(args.module_path):
-        sys.exit(1)
+        return 1
 
     assert commit_hash
 
     # Validate the run.py tool configuration early to catch errors before setting up the task
-    _validate_run_tool(args.module_path, run_id, filtered_args)
+    if validate_result := _validate_run_tool(args.module_path, run_id, filtered_args):
+        return validate_result
 
     # Validate the provided run name
     if not _validate_sky_cluster_name(run_id):
-        sys.exit(1)
+        return 1
 
     task = sky.Task.from_yaml("./devops/skypilot/config/skypilot_run.yaml")
 
@@ -299,11 +304,11 @@ Examples:
     # For --dry-run, just exit after showing summary
     if args.dry_run:
         print(red("Dry run: exiting"))
-        sys.exit(0)
+        return 0
 
     # For --confirm, ask for confirmation
     if args.confirm and not get_user_confirmation("Should we launch this task?"):
-        sys.exit(0)
+        return 0
 
     # Launch the task(s)
     if args.copies == 1:
@@ -315,7 +320,11 @@ Examples:
             copy_task.name = run_id
             copy_task.validate_name()
             launch_task(copy_task)
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    ret = main()
+    sys.stdout.flush()
+    sys.stderr.flush()
+    sys.exit(ret)
