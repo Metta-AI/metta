@@ -18,7 +18,6 @@ Collects GitHub repository metrics using the modular collector architecture:
 ### Production Deployment
 
 Automatically deployed by GitHub Actions when you merge to `main`. Or deploy manually:
-
 ```bash
 cd devops/charts
 helmfile apply -l name=dashboard-cronjob
@@ -29,6 +28,7 @@ helmfile apply -l name=dashboard-cronjob
 For testing new collectors or configurations, deploy a `-dev` copy alongside production.
 
 1. **Uncomment the dev section** in `devops/charts/helmfile.yaml`:
+
    ```yaml
    - name: dashboard-cronjob-dev
      <<: *cronjob_template
@@ -59,6 +59,7 @@ To add another collector (e.g., AWS infrastructure metrics):
    - Create `devops/datadog/collectors/aws/collector.py` extending `BaseCollector`
    - Implement `collect_metrics()` method
 2. **Create Dockerfile** defining the command to run:
+
    ```dockerfile
    FROM python:3.11-slim
    # ... dependencies setup ...
