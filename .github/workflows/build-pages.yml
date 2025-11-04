@@ -4,7 +4,6 @@ on:
     paths: &site_paths
       - "mettascope/**"
       - "packages/mettagrid/nim/mettascope/**"
-      - "observatory/**"
       - ".github/workflows/**"
   pull_request:
     paths: *site_paths
@@ -60,12 +59,6 @@ jobs:
           nim c -d:emscripten packages/mettagrid/nim/mettascope/src/mettascope.nim
           ls -la packages/mettagrid/nim/mettascope/dist
 
-      - name: Build Observatory
-        run: |
-          cd observatory
-          pnpm install
-          pnpm run build
-
       - name: Debug Output
         if: github.event_name == 'workflow_dispatch'
         run: |
@@ -87,10 +80,8 @@ jobs:
 
       - name: Create deployment directory
         run: |
-          mkdir -p deploy/observatory
           mkdir -p deploy/mettascope2
           cp -r mettascope/* deploy/
-          cp -r observatory/dist/* deploy/observatory/
           cp -r packages/mettagrid/nim/mettascope/dist/* deploy/mettascope2/
 
       - name: Upload artifact
