@@ -17,7 +17,7 @@ def test_job_manager_basic():
         config = JobConfig(
             name="test_job",
             module="echo",
-            args={"message": "hello"},
+            args=["message=hello"],
             timeout_s=60,
             # remote=None (default) means local execution
         )
@@ -46,7 +46,7 @@ def test_job_manager_group_operations():
             config = JobConfig(
                 name=f"job_{i}",
                 module="echo",
-                args={"i": i},
+                args=[f"i={i}"],
                 timeout_s=60,
                 group="group_1",
                 # remote=None (default) means local execution

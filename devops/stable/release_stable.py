@@ -41,8 +41,9 @@ from devops.stable.state import (
 from devops.stable.tasks import get_all_tasks
 from metta.common.util.fs import get_repo_root
 from metta.common.util.text_styles import bold, cyan, green, red, yellow
+from metta.jobs.job_config import JobConfig
+from metta.jobs.job_display import JobDisplay, format_progress_bar
 from metta.jobs.job_manager import EXIT_CODE_SKIPPED, JobManager
-from metta.jobs.job_monitor import JobMonitor, format_progress_bar
 
 # ============================================================================
 # Constants
@@ -127,15 +128,17 @@ def setup_logging(log_file: Path) -> None:
     metta_logger.setLevel(logging.DEBUG)
 
 
+def state_dir() -> Path:
+    return get_repo_root() / "devops/stable/state"
+
+
+def log_file() -> Path:
+    return state_dir() / "job_manager.log"
+
+
 def get_job_manager() -> JobManager:
     """Get JobManager instance for release validation (uses JobManager defaults)."""
-    base_dir = get_repo_root() / "devops/stable/state"
-    log_file = base_dir / "job_manager.log"
-
-    # Set up file logging
-    setup_logging(log_file)
-
-    return JobManager(base_dir=base_dir)
+    return JobManager(base_dir=state_dir())
 
 
 def load_state_or_exit(version: str, step_name: str) -> ReleaseState:
@@ -212,7 +215,7 @@ def verify_on_rc_commit(version: str, step_name: str) -> str:
 #   - release: Creates final v{version} tag pointing to same commit
 #
 # UX flow:
-#   - JobMonitor displays live status during task execution
+#   - JobDisplay displays live status during task execution
 #   - Monitor updates in-place (preserves step headers)
 #   - Final summary shows all artifacts (WandB, checkpoints)
 #   - Script only prints simple verdict after monitor summary
@@ -220,7 +223,7 @@ def verify_on_rc_commit(version: str, step_name: str) -> str:
 
 
 def _submit_jobs_to_manager(
-    job_configs: list,
+    job_configs: list[JobConfig],
     state_version: str,
     job_manager: JobManager,
     retry: bool,
@@ -278,8 +281,8 @@ def _monitor_jobs_until_complete(
     state_version: str,
     job_manager: JobManager,
 ) -> None:
-    """Monitor jobs via JobMonitor until all complete."""
-    monitor = JobMonitor(job_manager, group=state_version)
+    """Monitor jobs via JobDisplay until all complete."""
+    monitor = JobDisplay(job_manager, group=state_version)
     monitor_line_count = 0
     last_display_update = 0.0
     display_interval = 3.0
@@ -469,35 +472,38 @@ def step_task_validation(
     print(f"Release Validation Complete: {state_version}")
     print("=" * 80)
 
-    summary = job_manager.get_status_summary(group=state_version)
+    # Get jobs directly
+    jobs_dict = job_manager.get_group_jobs(state_version)
+    jobs = list(jobs_dict.values())
+
+    # Compute counts
+    total = len(jobs)
+    completed = sum(1 for j in jobs if j.status == "completed")
+    succeeded = sum(1 for j in jobs if j.status == "completed" and j.exit_code == 0)
+    failed = sum(1 for j in jobs if j.status == "completed" and j.exit_code != 0)
 
     # Show progress bar
-    progress = format_progress_bar(summary["completed"], summary["total"])
-    pct = (summary["completed"] / summary["total"] * 100) if summary["total"] > 0 else 0
-    print(f"\nProgress: {summary['completed']}/{summary['total']} ({pct:.0f}%)")
+    progress = format_progress_bar(completed, total)
+    pct = (completed / total * 100) if total > 0 else 0
+    print(f"\nProgress: {completed}/{total} ({pct:.0f}%)")
     print(f"{progress}")
-    print(f"Succeeded: {green(str(summary['succeeded']))}  Failed: {red(str(summary['failed']))}")
+    print(f"Succeeded: {green(str(succeeded))}  Failed: {red(str(failed))}")
     print()
 
     # Show each job with integrated status + acceptance
     job_config_by_name = {config.name: config for config in job_configs}
 
-    for job_dict in summary["jobs"]:
+    for job_state in jobs:
         # Extract task name from job name (format: {version}_{task_name})
-        job_name = job_dict["name"]
+        job_name = job_state.name
         task_name = job_name.split("_", 1)[1] if "_" in job_name else job_name
         job_config = job_config_by_name.get(task_name)
 
         if not job_config:
             continue
 
-        # Get full job state for metrics
-        job_state = job_manager.get_job_state(job_name)
-        if not job_state:
-            continue
-
         # Use composable display
-        display = format_task_with_acceptance(job_dict, job_state)
+        display = format_task_with_acceptance(job_state)
         print(display)
         print()
 
@@ -786,8 +792,6 @@ def step_release(version: str, **_kwargs) -> None:
     print(f"\nRelease notes: {release_notes_path}")
     print(f"Git tag: {tag_name}")
     print(f"Stable branch: origin/stable -> {tag_name}")
-    print("\nNext steps:")
-    print("  1. Run announce to notify team")
 
 
 # ============================================================================
@@ -912,6 +916,7 @@ def cmd_release():
 
 
 if __name__ == "__main__":
+    setup_logging(log_file())
     # Default to 'validate' if no subcommand was provided
     has_command = any(arg in ["validate", "hotfix", "release"] for arg in sys.argv[1:])
     if not has_command:

@@ -7,7 +7,6 @@ from orchestration logic.
 from __future__ import annotations
 
 import logging
-from pathlib import Path
 
 from metta.common.util.text_styles import blue, cyan, green, magenta, red
 from metta.jobs.job_config import JobConfig
@@ -108,44 +107,6 @@ def format_task_result(
     return "\n".join(lines)
 
 
-def format_failure_details(task_name: str, error: str | None, logs_path: str | None) -> str:
-    """Format failure details for a task, including log tail.
-
-    Args:
-        task_name: Name of failed task
-        error: Acceptance error message (if any)
-        logs_path: Path to log file
-
-    Returns:
-        Formatted failure summary with log tail
-    """
-    lines = []
-
-    # Task name and error
-    if error:
-        lines.append(f"  {red('✗')} {task_name}: {error}")
-    else:
-        lines.append(f"  {red('✗')} {task_name}: Job failed (see logs)")
-
-    # Show last 5 lines of logs for quick debugging
-    if logs_path:
-        try:
-            log_file = Path(logs_path)
-            if log_file.exists():
-                log_lines = log_file.read_text(errors="ignore").splitlines()
-                if log_lines:
-                    # Get last 5 non-empty lines
-                    relevant_lines = [line for line in log_lines if line.strip()][-5:]
-                    if relevant_lines:
-                        lines.append(f"      Last {len(relevant_lines)} lines:")
-                        for line in relevant_lines:
-                            lines.append(f"      │ {line[:100]}")  # Truncate long lines
-        except Exception:
-            pass  # Don't crash if we can't read logs
-
-    return "\n".join(lines)
-
-
 def format_training_job_section(task_name: str, job_state: JobState) -> str:
     """Format training job information for release notes or summary.
 
@@ -206,14 +167,13 @@ def check_task_passed(job_state: JobState) -> bool:
     return job_state.acceptance_passed is not False
 
 
-def format_task_with_acceptance(job_dict: dict, job_state: JobState) -> str:
+def format_task_with_acceptance(job_state: JobState) -> str:
     """Format job status integrated with acceptance criteria.
 
     Composes job_monitor primitives with job-level acceptance logic.
 
     Args:
-        job_dict: Job dict from get_status_summary()
-        job_state: Full job state for metrics and acceptance
+        job_state: Job state with status, metrics and acceptance
 
     Returns:
         Multi-line formatted string with job status + acceptance + artifacts
@@ -221,18 +181,18 @@ def format_task_with_acceptance(job_dict: dict, job_state: JobState) -> str:
     lines = []
 
     # Job status line using primitive
-    status_line = format_job_status_line(job_dict, show_duration=True)
+    status_line = format_job_status_line(job_state, show_duration=True)
     lines.append(status_line)
 
     # Check for launch/execution failures first (exit_code != 0 with no metrics)
-    if job_dict["status"] == "completed" and job_dict["exit_code"] not in (0, None):
+    if job_state.status == "completed" and job_state.exit_code not in (0, None):
         has_metrics = job_state.metrics and any(k for k in job_state.metrics.keys() if not k.startswith("_"))
 
         if not has_metrics:
             # Job failed before producing metrics - likely a launch failure
             lines.append(red("  ✗ JOB FAILED TO LAUNCH"))
-            lines.append(f"    Exit code: {job_dict['exit_code']}")
-            lines.append(f"    Check logs for details: {job_dict.get('logs_path', 'N/A')}")
+            lines.append(f"    Exit code: {job_state.exit_code}")
+            lines.append(f"    Check logs for details: {job_state.logs_path or 'N/A'}")
         elif job_state.config.acceptance_criteria:
             # Job ran but failed (has metrics) - show acceptance results
             if job_state.acceptance_passed:
@@ -255,7 +215,7 @@ def format_task_with_acceptance(job_dict: dict, job_state: JobState) -> str:
                         lines.append(red(f"    ✗ {criterion.metric}: {actual:.1f} (target: {target_str})"))
     # Acceptance criteria for successful jobs
     elif job_state.config.acceptance_criteria:
-        if job_dict["status"] == "completed":
+        if job_state.status == "completed":
             # For completed jobs: show pass/fail with indicators
             if job_state.acceptance_passed:
                 lines.append(green("  ✓ Acceptance criteria passed"))
@@ -276,7 +236,7 @@ def format_task_with_acceptance(job_dict: dict, job_state: JobState) -> str:
                         lines.append(green(f"    ✓ {criterion.metric}: {actual:.1f} (target: {target_str})"))
                     else:
                         lines.append(red(f"    ✗ {criterion.metric}: {actual:.1f} (target: {target_str})"))
-        elif job_dict["status"] == "running":
+        elif job_state.status == "running":
             # For running jobs: show criteria without pass/fail (not decided yet)
             lines.append("  🎯 Acceptance criteria:")
             for criterion in job_state.config.acceptance_criteria:
@@ -289,12 +249,12 @@ def format_task_with_acceptance(job_dict: dict, job_state: JobState) -> str:
                     lines.append(f"    • {criterion.metric}: (target: {criterion.operator} {criterion.threshold})")
 
     # Artifacts (using primitives)
-    if job_dict.get("wandb_url"):
-        artifact_str = format_artifact(job_dict["wandb_url"])
+    if job_state.wandb_url:
+        artifact_str = format_artifact(job_state.wandb_url)
         lines.append(f"  {artifact_str}")
 
-    if job_dict.get("checkpoint_uri"):
-        artifact_str = format_artifact(job_dict["checkpoint_uri"])
+    if job_state.checkpoint_uri:
+        artifact_str = format_artifact(job_state.checkpoint_uri)
         lines.append(f"  {artifact_str}")
 
     return "\n".join(lines)

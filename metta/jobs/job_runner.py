@@ -15,7 +15,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Optional
+from typing import Callable, Optional
 
 import sky
 import sky.exceptions
@@ -177,10 +177,7 @@ class LocalJob(Job):
             self.cmd = cmd
         else:
             self.cmd = ["uv", "run", "./tools/run.py", config.module]
-            for k, v in config.args.items():
-                self.cmd.append(f"{k}={v}")
-            for k, v in config.overrides.items():
-                self.cmd.append(f"{k}={v}")
+            self.cmd.extend(config.args)
 
         self._proc: Optional[subprocess.Popen] = None
         self._exit_code: Optional[int] = None
@@ -333,11 +330,7 @@ class RemoteJob(Job):
         if not config.remote and not job_id:
             raise ValueError("RemoteJob requires config.remote to be set (or job_id for resuming)")
 
-        arg_list = []
-        for k, v in config.args.items():
-            arg_list.append(f"{k}={v}")
-        for k, v in config.overrides.items():
-            arg_list.append(f"{k}={v}")
+        arg_list = config.args
 
         if config.remote:
             base_args = [f"--gpus={config.remote.gpus}", f"--nodes={config.remote.nodes}"]
@@ -470,7 +463,7 @@ class RemoteJob(Job):
         self,
         stream_output: bool = False,
         poll_interval_s: float = 5.0,
-        on_job_id_ready: Optional[callable] = None,
+        on_job_id_ready: Optional[Callable] = None,
     ) -> JobResult:
         """Override wait() to call callback when job_id becomes available.
 

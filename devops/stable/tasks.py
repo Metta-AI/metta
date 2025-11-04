@@ -7,20 +7,6 @@ from datetime import datetime
 from metta.jobs.job_config import AcceptanceCriterion, JobConfig, RemoteConfig
 
 
-def _parse_args_list(args: list[str]) -> tuple[dict[str, str], dict[str, str]]:
-    """Parse args like ["run=test", "trainer.total_timesteps=100"] into args and overrides."""
-    args_dict = {}
-    overrides_dict = {}
-    for arg in args:
-        if "=" in arg:
-            key, value = arg.split("=", 1)
-            if "." in key:
-                overrides_dict[key] = value
-            else:
-                args_dict[key] = value
-    return args_dict, overrides_dict
-
-
 def ci_task(name: str, cmd: list[str], timeout_s: int = 1800) -> JobConfig:
     """Create a CI task that runs a shell command."""
     return JobConfig(name=name, module="__unused__", timeout_s=timeout_s, metadata={"cmd": cmd})
@@ -40,13 +26,12 @@ def tool_task(
     Args:
         name: Task name
         module: Python module to run (e.g., "arena.train")
-        args: Arguments as list of "key=value" strings
+        args: Arguments as list of "key=value" strings (e.g., ["run=test", "trainer.total_timesteps=100"])
         timeout_s: Timeout in seconds
         remote: Remote execution config (None = local)
         acceptance_criteria: Acceptance criteria for validation
         dependency_names: Names of tasks this depends on
     """
-    args_dict, overrides_dict = _parse_args_list(args or [])
     # Automatically detect training jobs by module path (e.g., "arena.train", "navigation.train")
     is_training = module.endswith(".train")
 
@@ -60,8 +45,7 @@ def tool_task(
     return JobConfig(
         name=name,
         module=module,
-        args=args_dict,
-        overrides=overrides_dict,
+        args=args or [],
         timeout_s=timeout_s,
         remote=remote,
         is_training_job=is_training,

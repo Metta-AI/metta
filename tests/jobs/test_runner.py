@@ -186,8 +186,7 @@ def test_remotejob_initialization(tmp_path):
     config = JobConfig(
         name="remote_test",
         module="experiments.recipes.arena.train",
-        args={"run": "test"},
-        overrides={"trainer.total_timesteps": "100000"},
+        args=["run=test", "trainer.total_timesteps=100000"],
         remote=RemoteConfig(gpus=1, nodes=1, spot=True),
     )
     job = RemoteJob(config, log_dir=str(tmp_path))

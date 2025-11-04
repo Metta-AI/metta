@@ -1,12 +1,16 @@
 """Job state models for tracking job execution status."""
 
 import json
+import logging
+from datetime import datetime
 from typing import Any, Literal, Optional
 
 from sqlalchemy import Text
 from sqlmodel import Column, Field, SQLModel
 
 from metta.jobs.job_config import JobConfig
+
+logger = logging.getLogger(__name__)
 
 JobStatus = Literal["pending", "running", "completed"]
 
@@ -38,7 +42,7 @@ class JobState(SQLModel, table=True):
         self.config_json = json.dumps(value.model_dump())
 
     # Runtime state
-    status: str = Field(default="pending")
+    status: str = Field(default="pending")  # One of: "pending", "running", "completed" (see JobStatus)
     request_id: Optional[str] = None  # SkyPilot request ID (remote jobs only)
     job_id: Optional[str] = None  # SkyPilot job ID or local PID
     skypilot_status: Optional[str] = None  # SkyPilot job status (PENDING, RUNNING, SUCCEEDED, etc.)
@@ -65,3 +69,71 @@ class JobState(SQLModel, table=True):
     @metrics.setter
     def metrics(self, value: dict[str, float]) -> None:
         self.metrics_json = json.dumps(value)
+
+    def evaluate_acceptance(self) -> bool:
+        """Evaluate acceptance criteria against job metrics.
+
+        Returns True if all criteria pass, False if any fail.
+        Returns True if no criteria defined (vacuous truth).
+        Returns False if criteria defined but metrics missing.
+        """
+        if not self.config.acceptance_criteria:
+            return True  # No criteria = pass
+
+        if not self.metrics:
+            logger.warning(f"Cannot evaluate acceptance for {self.name}: criteria defined but no metrics available")
+            return False
+
+        failures = []
+        for criterion in self.config.acceptance_criteria:
+            metric_value = self.metrics.get(criterion.metric)
+            if metric_value is None:
+                failures.append(f"{criterion.metric}: metric missing")
+                continue
+
+            # Use criterion's evaluate method
+            if not criterion.evaluate(metric_value):
+                failures.append(
+                    f"{criterion.metric}: expected {criterion.operator} {criterion.threshold}, got {metric_value:.4f}"
+                )
+
+        if failures:
+            logger.info(f"Acceptance criteria failed for {self.name}: {'; '.join(failures)}")
+            return False
+
+        logger.info(f"Acceptance criteria passed for {self.name}")
+        return True
+
+    @property
+    def duration_s(self) -> float | None:
+        """Compute duration from started_at and completed_at timestamps."""
+        if not self.started_at or not self.completed_at:
+            return None
+
+        start = datetime.fromisoformat(self.started_at)
+        end = datetime.fromisoformat(self.completed_at)
+        return (end - start).total_seconds()
+
+    @property
+    def is_successful(self) -> bool:
+        """Job succeeded if exit_code=0 and acceptance criteria passed (or not evaluated)."""
+        return self.exit_code == 0 and self.acceptance_passed is not False
+
+    @property
+    def is_failed(self) -> bool:
+        """Job failed if exit_code!=0 or acceptance criteria failed."""
+        return self.exit_code != 0 or self.acceptance_passed is False
+
+    @property
+    def progress_pct(self) -> float | None:
+        """Compute progress percentage if _progress metadata exists in metrics."""
+        if "_progress" not in self.metrics:
+            return None
+
+        progress = self.metrics["_progress"]
+        if isinstance(progress, dict) and "current_step" in progress and "total_steps" in progress:
+            total = progress["total_steps"]
+            if total > 0:
+                return (progress["current_step"] / total) * 100.0
+
+        return None

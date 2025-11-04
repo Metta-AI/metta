@@ -4,6 +4,7 @@ from typing import Any, Literal
 
 from pydantic import Field
 
+from metta.common.util.constants import METTA_WANDB_ENTITY, METTA_WANDB_PROJECT
 from mettagrid.base_config import Config
 
 
@@ -52,13 +53,14 @@ class JobConfig(Config):
 
     name: str
     module: str
-    args: dict[str, Any] = Field(default_factory=dict)
-    overrides: dict[str, Any] = Field(default_factory=dict)
+    args: list[str] = Field(default_factory=list)
     timeout_s: int = 7200
     remote: RemoteConfig | None = None
     group: str | None = None
     metadata: dict[str, Any] = Field(default_factory=dict)
     is_training_job: bool = False  # Explicit flag for WandB tracking
     metrics_to_track: list[str] = Field(default_factory=list)  # Metrics to fetch from WandB (training only)
+    wandb_entity: str = METTA_WANDB_ENTITY  # WandB entity for metrics (defaults to metta project)
+    wandb_project: str = METTA_WANDB_PROJECT  # WandB project for metrics (defaults to metta project)
     acceptance_criteria: list[AcceptanceCriterion] = Field(default_factory=list)  # Thresholds for job success
     dependency_names: list[str] = Field(default_factory=list)  # Job names this job depends on

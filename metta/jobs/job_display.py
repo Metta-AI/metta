@@ -1,22 +1,22 @@
-"""Job monitoring utilities for displaying status and progress.
+"""Job display utilities for showing status and progress.
 
-Query-based monitor that observes JobManager state without managing jobs directly.
-JobManager owns job execution and state, JobMonitor only queries and displays.
+Query-based display that observes JobManager state without managing jobs directly.
+JobManager owns job execution and state, JobDisplay only queries and displays.
 """
 
 from __future__ import annotations
 
 import time
-from datetime import datetime, timedelta
+from datetime import timedelta
 from pathlib import Path
-from typing import Any
 
 from sky.server.common import get_server_url
 
 from metta.jobs.job_manager import JobManager
+from metta.jobs.state import JobState
 
 
-class JobMonitor:
+class JobDisplay:
     def __init__(self, job_manager: JobManager, group: str | None = None):
         self.job_manager = job_manager
         self.group = group
@@ -93,28 +93,6 @@ class JobMonitor:
             pass  # Silently fail if we can't read logs
         return False
 
-    def get_status(self) -> dict[str, Any]:
-        """Get current status snapshot (non-blocking).
-
-        Returns:
-            Dict with keys:
-            - total: Total number of jobs
-            - completed: Number of completed jobs
-            - running: Number of running jobs
-            - pending: Number of pending jobs
-            - succeeded: Number of successful jobs
-            - failed: Number of failed jobs
-            - elapsed_s: Elapsed time in seconds
-            - jobs: List of job status dicts (includes metrics, artifacts, etc.)
-        """
-        # Get status summary from JobManager
-        summary = self.job_manager.get_status_summary(group=self.group)
-
-        # Add monitor-specific elapsed time
-        summary["elapsed_s"] = time.time() - self._start_time
-
-        return summary
-
     def display_status(
         self,
         clear_screen: bool = True,
@@ -138,7 +116,21 @@ class JobMonitor:
             # Clear screen: move cursor to home, clear from cursor to end of screen
             print("\033[H\033[J", end="", flush=True)
 
-        status = self.get_status()
+        # Query jobs from JobManager
+        if self.group:
+            jobs_dict = self.job_manager.get_group_jobs(self.group)
+        else:
+            jobs_dict = self.job_manager.get_all_jobs()
+
+        jobs = list(jobs_dict.values())
+
+        # Compute counts
+        total = len(jobs)
+        running = sum(1 for j in jobs if j.status == "running")
+        pending = sum(1 for j in jobs if j.status == "pending")
+        succeeded = sum(1 for j in jobs if j.status == "completed" and j.exit_code == 0)
+        failed = sum(1 for j in jobs if j.status == "completed" and j.exit_code != 0)
+        elapsed_s = time.time() - self._start_time
 
         # Print title if provided
         if title:
@@ -147,29 +139,29 @@ class JobMonitor:
 
         # Print summary
         print("\n┌─ Summary " + "─" * 50)
-        print(f"│  Total: {status['total']}")
-        print(f"│  Running: {status['running']}  •  Pending: {status['pending']}")
+        print(f"│  Total: {total}")
+        print(f"│  Running: {running}  •  Pending: {pending}")
 
         # Color-code success/failure counts on same line
-        success_str = f"\033[92m{status['succeeded']}\033[0m" if status["succeeded"] > 0 else f"{status['succeeded']}"
-        fail_str = f"\033[91m{status['failed']}\033[0m" if status["failed"] > 0 else f"{status['failed']}"
+        success_str = f"\033[92m{succeeded}\033[0m" if succeeded > 0 else f"{succeeded}"
+        fail_str = f"\033[91m{failed}\033[0m" if failed > 0 else f"{failed}"
         print(f"│  Succeeded: {success_str}  •  Failed: {fail_str}")
 
-        print(f"│  Elapsed: {format_duration(status['elapsed_s'])}")
+        print(f"│  Elapsed: {format_duration(elapsed_s)}")
         print("└" + "─" * 60)
         print()
 
         # Separate jobs into three categories
-        active_jobs = [j for j in status["jobs"] if j["status"] in ("running", "pending")]
-        completed_jobs = [j for j in status["jobs"] if j["status"] == "completed" and j.get("success")]
-        failed_jobs = [j for j in status["jobs"] if j["status"] == "completed" and not j.get("success")]
+        active_jobs = [j for j in jobs if j.status in ("running", "pending")]
+        completed_jobs = [j for j in jobs if j.status == "completed" and j.exit_code == 0]
+        failed_jobs = [j for j in jobs if j.status == "completed" and j.exit_code != 0]
 
         # Print failed jobs FIRST (at the top for maximum visibility)
         if failed_jobs:
             print("┌─ Failed Jobs " + "─" * 46)
             print("│")
-            for job_status in failed_jobs:
-                self._display_failed_job(job_status)
+            for job_state in failed_jobs:
+                self._display_failed_job(job_state)
 
             # Close the failed jobs section
             print("└" + "─" * 60)
@@ -179,8 +171,8 @@ class JobMonitor:
         if active_jobs:
             print("┌─ Active Jobs " + "─" * 46)
             print("│")
-            for job_status in active_jobs:
-                self._display_active_job(job_status, show_running_logs, log_tail_lines)
+            for job_state in active_jobs:
+                self._display_active_job(job_state, show_running_logs, log_tail_lines)
 
             # Close the active jobs section
             print("└" + "─" * 60)
@@ -190,27 +182,27 @@ class JobMonitor:
         if completed_jobs:
             print("┌─ Completed Jobs " + "─" * 43)
             print("│")
-            for job_status in completed_jobs:
-                self._display_completed_job(job_status, show_artifacts)
+            for job_state in completed_jobs:
+                self._display_completed_job(job_state, show_artifacts)
 
             # Close the completed jobs section
             print("└" + "─" * 60)
 
     def _display_active_job(
         self,
-        job_status: dict,
+        job_state: JobState,
         show_running_logs: bool = True,
         log_tail_lines: int = 10,
     ) -> None:
         """Display details for an active (running/pending) job."""
-        name = job_status["name"]
+        name = job_state.name
         # Strip version prefix for cleaner display (e.g., "v2025.10.27-1726_cpp_ci" → "cpp_ci")
         if "_" in name:
             display_name = name.split("_", 1)[1]
         else:
             display_name = name
-        status_str = job_status["status"]
-        job_id = job_status.get("job_id")
+        status_str = job_state.status
+        job_id = job_state.job_id
 
         # Format status with symbol and color
         symbol = get_status_symbol(status_str)
@@ -225,7 +217,7 @@ class JobMonitor:
         line = f"│  {display_name:30s} {status_display:20s}"
 
         # Show request_id → job_id progression for remote jobs
-        request_id = job_status.get("request_id")
+        request_id = job_state.request_id
         if request_id and not job_id:
             # Remote job launching: have request_id but not job_id yet
             line += f" (Request: {request_id[:8]}... → waiting for job ID)"
@@ -241,7 +233,7 @@ class JobMonitor:
         print(line)
 
         # Show progress bar for training jobs
-        metrics = job_status.get("metrics", {})
+        metrics = job_state.metrics or {}
         if metrics and self._should_show_training_artifacts(name):
             # Check for progress info
             progress_info = metrics.get("_progress")
@@ -278,9 +270,9 @@ class JobMonitor:
                     print(f"│      • {metric_key}: {value_str}")
 
         # Show live logs for running jobs
-        if show_running_logs and "logs_path" in job_status:
+        if show_running_logs and job_state.logs_path:
             if status_str == "running":
-                skypilot_status = job_status.get("skypilot_status")
+                skypilot_status = job_state.skypilot_status
                 # Check if job is actually running on SkyPilot or just pending
                 if request_id and skypilot_status == "PENDING":
                     print("│    🕐 Job queued on cluster, waiting to start...")
@@ -290,11 +282,11 @@ class JobMonitor:
                         dashboard_url = f"{get_server_url()}/dashboard/jobs/{job_id}"
                         print(f"│    🚀 SkyPilot: {dashboard_url}")
                     # Show WandB URL if this is a training job
-                    if "wandb_url" in job_status and self._should_show_training_artifacts(name):
-                        print(f"│    📊 WandB: {job_status['wandb_url']}")
-                    print(f"│    📝 {job_status['logs_path']}")
+                    if job_state.wandb_url and self._should_show_training_artifacts(name):
+                        print(f"│    📊 WandB: {job_state.wandb_url}")
+                    print(f"│    📝 {job_state.logs_path}")
                     print("│    📜 Live output:")
-                    has_logs = self._display_log_tail(job_status["logs_path"], log_tail_lines)
+                    has_logs = self._display_log_tail(job_state.logs_path, log_tail_lines)
                     if not has_logs and request_id:
                         # Remote job running but no logs yet - just started
                         print("│      │ 🕐 Starting...")
@@ -304,11 +296,11 @@ class JobMonitor:
 
     def _display_completed_job(
         self,
-        job_status: dict,
+        job_state: JobState,
         show_artifacts: bool = True,
     ) -> None:
         """Display condensed summary for a succeeded job."""
-        name = job_status["name"]
+        name = job_state.name
         # Strip version prefix for cleaner display
         if "_" in name:
             display_name = name.split("_", 1)[1]
@@ -322,16 +314,16 @@ class JobMonitor:
         line = f"│  {status_display} {display_name:28s}"
 
         # Add duration
-        if "duration_s" in job_status:
-            duration = format_duration(job_status["duration_s"])
+        if job_state.duration_s is not None:
+            duration = format_duration(job_state.duration_s)
             line += f" [{duration}]"
 
         # Show artifacts for succeeded jobs (WandB, checkpoint)
         artifacts = []
         if show_artifacts:
-            if "wandb_url" in job_status and self._should_show_training_artifacts(name):
+            if job_state.wandb_url and self._should_show_training_artifacts(name):
                 artifacts.append("📊")
-            if "checkpoint_uri" in job_status:
+            if job_state.checkpoint_uri:
                 artifacts.append("💾")
         if artifacts:
             line += f"  {' '.join(artifacts)}"
@@ -340,10 +332,10 @@ class JobMonitor:
 
     def _display_failed_job(
         self,
-        job_status: dict,
+        job_state: JobState,
     ) -> None:
         """Display condensed summary for a failed job with error context."""
-        name = job_status["name"]
+        name = job_state.name
         # Strip version prefix for cleaner display
         if "_" in name:
             display_name = name.split("_", 1)[1]
@@ -357,21 +349,21 @@ class JobMonitor:
         line = f"│  {status_display} {display_name:28s}"
 
         # Add duration
-        if "duration_s" in job_status:
-            duration = format_duration(job_status["duration_s"])
+        if job_state.duration_s is not None:
+            duration = format_duration(job_state.duration_s)
             line += f" [{duration}]"
 
         # Show exit code inline
-        exit_code = job_status.get("exit_code", "?")
+        exit_code = job_state.exit_code if job_state.exit_code is not None else "?"
         line += f"  (exit: {exit_code})"
 
         print(line)
 
         # Show log path and failure context
-        if "logs_path" in job_status:
-            print(f"│    📝 {job_status['logs_path']}")
+        if job_state.logs_path:
+            print(f"│    📝 {job_state.logs_path}")
             # Try to extract failure summary (but don't show full tail)
-            summary = self._extract_failure_summary(job_status["logs_path"])
+            summary = self._extract_failure_summary(job_state.logs_path)
             if summary:
                 # Show first 5 lines of failure summary for better context
                 print("│    💥 Error context:")
@@ -468,14 +460,14 @@ def format_artifact_link(uri: str) -> str:
     return uri
 
 
-def format_job_status_line(job_dict: dict, show_duration: bool = True) -> str:
-    name = job_dict["name"]
-    status = job_dict["status"]
+def format_job_status_line(job_state: JobState, show_duration: bool = True) -> str:
+    name = job_state.name
+    status = job_state.status
 
     # Get status symbol and text
     symbol = get_status_symbol(status)
     if status == "completed":
-        success = job_dict.get("exit_code") == 0
+        success = job_state.exit_code == 0
         status_text = "succeeded" if success else "failed"
         symbol = "✓" if success else "✗"
     else:
@@ -484,16 +476,7 @@ def format_job_status_line(job_dict: dict, show_duration: bool = True) -> str:
     line = f"{symbol} {name} {status_text}"
 
     # Add duration for completed jobs
-    if show_duration and status == "completed":
-        started = job_dict.get("started_at")
-        completed = job_dict.get("completed_at")
-        if started and completed:
-            try:
-                start_dt = datetime.fromisoformat(started)
-                end_dt = datetime.fromisoformat(completed)
-                duration = (end_dt - start_dt).total_seconds()
-                line += f" [{format_duration(duration)}]"
-            except Exception:
-                pass
+    if show_duration and status == "completed" and job_state.duration_s is not None:
+        line += f" [{format_duration(job_state.duration_s)}]"
 
     return line
