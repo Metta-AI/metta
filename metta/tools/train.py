@@ -58,6 +58,10 @@ logger = getRankAwareLogger(__name__)
 HookBuilder = Callable[[str, Trainer], Optional[Callable[[Any, tuple[Any, ...], Any], None]]]
 HookSpec = Tuple[str, HookBuilder]
 
+# Backward hook: called during backward pass with (module, grad_input, grad_output) -> None
+BackwardHookBuilder = Callable[[str, Trainer], Optional[Callable[[Any, tuple[Any, ...], tuple[Any, ...]], None]]]
+BackwardHookSpec = Tuple[str, BackwardHookBuilder]
+
 
 class TrainTool(Tool):
     run: Optional[str] = None
@@ -84,7 +88,9 @@ class TrainTool(Tool):
     disable_macbook_optimize: bool = False
 
     _training_hooks: list[HookSpec] = PrivateAttr(default_factory=list)
+    _training_backward_hooks: list[BackwardHookSpec] = PrivateAttr(default_factory=list)
     _active_policy_hooks: list[RemovableHandle] = PrivateAttr(default_factory=list)
+    _active_policy_backward_hooks: list[RemovableHandle] = PrivateAttr(default_factory=list)
 
     @model_validator(mode="after")
     def validate_fields(self) -> "TrainTool":
@@ -227,13 +233,20 @@ class TrainTool(Tool):
         """Register a hook-producing builder for a specific component after initialization."""
         self._training_hooks.append((component_name, hook_builder))
 
+    def add_training_backward_hook(
+        self,
+        component_name: str,
+        hook_builder: BackwardHookBuilder,
+    ) -> None:
+        """Register a backward hook-producing builder for a specific component after initialization."""
+        self._training_backward_hooks.append((component_name, hook_builder))
+
     def _register_policy_hooks(self, *, policy: Policy, trainer: Trainer) -> None:
-        if not self._training_hooks:
-            return
         self._clear_policy_hooks()
         if not isinstance(policy, PolicyAutoBuilder):
             return
 
+        # Register forward hooks
         for component_name, hook_builder in self._training_hooks:
             module = policy.components.get(component_name)
             if module is None:
@@ -247,15 +260,35 @@ class TrainTool(Tool):
             )
             self._active_policy_hooks.append(handle)
 
-    def _clear_policy_hooks(self) -> None:
-        if not self._active_policy_hooks:
-            return
-        for handle in self._active_policy_hooks:
-            try:
-                handle.remove()
-            except Exception:
+        # Register backward hooks
+        for component_name, hook_builder in self._training_backward_hooks:
+            module = policy.components.get(component_name)
+            if module is None:
                 continue
-        self._active_policy_hooks.clear()
+            hook = hook_builder(component_name, trainer)
+            if hook is None:
+                continue
+            handle = policy.register_component_backward_hook_rule(
+                component_name=component_name,
+                hook=hook,
+            )
+            self._active_policy_backward_hooks.append(handle)
+
+    def _clear_policy_hooks(self) -> None:
+        if self._active_policy_hooks:
+            for handle in self._active_policy_hooks:
+                try:
+                    handle.remove()
+                except Exception:
+                    continue
+            self._active_policy_hooks.clear()
+        if self._active_policy_backward_hooks:
+            for handle in self._active_policy_backward_hooks:
+                try:
+                    handle.remove()
+                except Exception:
+                    continue
+            self._active_policy_backward_hooks.clear()
 
     def _register_components(
         self,

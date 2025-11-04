@@ -9,7 +9,7 @@ import torch.nn as nn
 from tensordict import TensorDictBase
 
 if TYPE_CHECKING:
-    from metta.tools.train import HookBuilder
+    from metta.tools.train import BackwardHookBuilder, HookBuilder
 
 
 def compute_dormant_neuron_stats(policy: nn.Module, *, threshold: float = 1e-6) -> Dict[str, float]:
@@ -122,6 +122,56 @@ class ReLUActivationState:
             self.totals[component] = [0] * len(values)
 
 
+class FisherInformationState:
+    """State container tracking Fisher Information Matrix (squared gradients) per component."""
+
+    def __init__(self) -> None:
+        self.accumulated_fim: dict[str, dict[str, torch.Tensor]] = {}
+        self.update_count: dict[str, int] = {}
+
+    def has_component(self, component_name: str) -> bool:
+        return component_name in self.accumulated_fim
+
+    def register_component(self, component_name: str) -> None:
+        self.accumulated_fim.setdefault(component_name, {})
+        self.update_count.setdefault(component_name, 0)
+
+    def update(self, component_name: str, param_name: str, grad: torch.Tensor) -> None:
+        """Accumulate squared gradients for Fisher Information Matrix."""
+        if grad is None:
+            return
+        grad = grad.detach()
+        squared_grad = grad * grad
+
+        component_fim = self.accumulated_fim.setdefault(component_name, {})
+        if param_name not in component_fim:
+            component_fim[param_name] = torch.zeros_like(squared_grad)
+        component_fim[param_name] += squared_grad
+        self.update_count[component_name] = self.update_count.get(component_name, 0) + 1
+
+    def to_metrics(self) -> Dict[str, float]:
+        """Convert accumulated Fisher Information to metrics."""
+        metrics: Dict[str, float] = {}
+        for component, param_fim in self.accumulated_fim.items():
+            count = self.update_count.get(component, 1)
+            if count == 0:
+                continue
+            for param_name, fim_values in param_fim.items():
+                # Average FIM over updates
+                avg_fim = fim_values / count
+                # Compute statistics: mean, trace (sum), max
+                metrics[f"fisher_info/{component}/{param_name}/mean"] = float(avg_fim.mean().item())
+                metrics[f"fisher_info/{component}/{param_name}/trace"] = float(avg_fim.sum().item())
+                metrics[f"fisher_info/{component}/{param_name}/max"] = float(avg_fim.max().item())
+        return metrics
+
+    def reset(self) -> None:
+        """Reset accumulated Fisher Information."""
+        for component in self.accumulated_fim:
+            self.accumulated_fim[component] = {}
+            self.update_count[component] = 0
+
+
 def attach_relu_activation_hooks(
     *,
     extractor: Any = "actor_hidden",
@@ -160,6 +210,46 @@ def attach_relu_activation_hooks(
 
 def get_relu_activation_metrics(state: Any, *, reset: bool = False) -> Dict[str, float]:
     if not isinstance(state, ReLUActivationState):
+        return {}
+    metrics = state.to_metrics()
+    if reset:
+        state.reset()
+    return metrics
+
+
+def attach_fisher_information_hooks() -> "BackwardHookBuilder":
+    """Create a builder that prepares Fisher Information tracking for a given component."""
+
+    def builder(component_name: str, trainer: Any) -> Optional[Callable[..., None]]:
+        state = getattr(trainer, "_fisher_information_state", None)
+        if not isinstance(state, FisherInformationState):
+            state = FisherInformationState()
+            trainer._fisher_information_state = state  # type: ignore[attr-defined]
+            context = getattr(trainer, "context", None)
+            if context is not None:
+                context.fisher_information_state = state  # type: ignore[attr-defined]
+
+        if state.has_component(component_name):
+            return None
+
+        tracker = state
+        tracker.register_component(component_name)
+
+        def hook(module: nn.Module, _grad_input: tuple[Any, ...], _grad_output: tuple[Any, ...]) -> None:
+            # Accumulate squared gradients for all parameters in the module
+            for param_name, param in module.named_parameters(recurse=False):
+                if param.grad is not None:
+                    full_param_name = f"{component_name}.{param_name}"
+                    tracker.update(component_name, full_param_name, param.grad)
+
+        return hook
+
+    return builder
+
+
+def get_fisher_information_metrics(state: Any, *, reset: bool = False) -> Dict[str, float]:
+    """Get Fisher Information metrics from trainer state."""
+    if not isinstance(state, FisherInformationState):
         return {}
     metrics = state.to_metrics()
     if reset:

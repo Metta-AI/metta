@@ -183,3 +183,14 @@ class PolicyAutoBuilder(Policy):
         if module is None:
             raise KeyError(f"Component '{component_name}' not found in policy.")
         return module.register_forward_hook(hook)  # type: ignore[arg-type]
+
+    def register_component_backward_hook_rule(
+        self,
+        *,
+        component_name: str,
+        hook: Callable[..., None],
+    ) -> RemovableHandle:
+        module = self.components.get(component_name)
+        if module is None:
+            raise KeyError(f"Component '{component_name}' not found in policy.")
+        return module.register_full_backward_hook(hook)  # type: ignore[arg-type]

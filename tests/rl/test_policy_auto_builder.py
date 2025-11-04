@@ -9,7 +9,12 @@ import torch.nn as nn
 from torch.utils.hooks import RemovableHandle
 
 from metta.agent.policies.vit import ViTDefaultConfig
-from metta.rl.model_analysis import attach_relu_activation_hooks, get_relu_activation_metrics
+from metta.rl.model_analysis import (
+    FisherInformationState,
+    attach_fisher_information_hooks,
+    attach_relu_activation_hooks,
+    get_relu_activation_metrics,
+)
 from metta.rl.training import GameRules
 
 
@@ -90,5 +95,29 @@ def test_attach_relu_activation_hooks_registers_forward_hook() -> None:
     assert isinstance(handle, RemovableHandle)
 
     assert get_relu_activation_metrics(policy) == {}
+
+    handle.remove()
+
+
+def test_attach_fisher_information_hooks_registers_backward_hook() -> None:
+    policy = ViTDefaultConfig().make_policy(_game_rules())
+
+    builder = attach_fisher_information_hooks()
+    trainer = type("DummyTrainer", (), {})()
+    hook = builder("actor_mlp", trainer)
+    assert hook is not None
+    handle = policy.register_component_backward_hook_rule(
+        component_name="actor_mlp",
+        hook=hook,
+    )
+    assert isinstance(handle, RemovableHandle)
+
+    # Access the state through the trainer
+    state = getattr(trainer, "_fisher_information_state", None)
+    assert isinstance(state, FisherInformationState)
+
+    # Note: We can't easily test the backward hook without a full training setup,
+    # but we've verified the hook is registered correctly.
+    # The actual gradient accumulation will happen during training when backward() is called.
 
     handle.remove()
