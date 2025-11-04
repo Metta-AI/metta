@@ -27,13 +27,7 @@ def sim_with_assembler():
             num_agents=2,
             obs=ObsConfig(width=5, height=5, num_tokens=100),
             max_steps=100,
-<<<<<<< HEAD
-=======
-            obs_width=5,
-            obs_height=5,
-            num_observation_tokens=100,
             vibe_names=["neutral", "deposit", "withdraw"],
->>>>>>> bc641de28f (tests pass)
             resource_names=["iron", "steel"],
             actions=ActionsConfig(noop=NoopActionConfig(), move=MoveActionConfig()),
             objects={

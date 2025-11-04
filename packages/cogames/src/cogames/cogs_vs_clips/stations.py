@@ -172,6 +172,14 @@ class CvCChestConfig(CvCStationConfig):
             name=self.type,
             map_char="C",
             render_symbol=vibes.VIBE_BY_NAME["chest"].symbol,
+            vibe_deltas={
+                "default": {"heart": 255, "carbon": 255, "oxygen": 255, "germanium": 255, "silicon": 255},
+                "heart": {"heart": -1},
+                "carbon": {"carbon": -10},
+                "oxygen": {"oxygen": -10},
+                "germanium": {"germanium": -1},
+                "silicon": {"silicon": -25},
+            },
             initial_inventory=self.initial_inventory,
         )
 
