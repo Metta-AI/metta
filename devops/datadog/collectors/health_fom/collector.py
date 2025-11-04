@@ -1,7 +1,7 @@
 """Health Figure of Merit (FoM) collector for Datadog monitoring.
 
 This collector reads raw metrics from Datadog, applies normalization formulas,
-and emits health.*.fom metrics (0.0-1.0 scale) for the System Health Dashboard.
+and emits health.*.fom metrics (0.0-1.0 scale) for monitoring.
 
 Phase 1: CI/CD metrics (7 FoMs)
 Future phases: Training metrics (WandB), Eval metrics

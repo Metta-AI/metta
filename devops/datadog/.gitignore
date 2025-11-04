@@ -1,31 +1,3 @@
-# ============================================================================
-# Dashboard Templates (.json files are build artifacts)
-# ============================================================================
-
-# Temporary export files (full list exports from Datadog)
-dashboards.json
-dashboards_detailed.json
-
-# Generated JSON files - these are BUILD ARTIFACTS, not source files
-# DO NOT commit JSON files to git - commit the source files instead:
-#
-# Source Type 1: Jsonnet sources (preferred workflow)
-#   - Source: dashboards/sources/*.jsonnet + dashboards/components/*.libsonnet + dashboards/lib/*.libsonnet
-#   - Build: jsonnet dashboards/sources/my_dashboard.jsonnet > dashboards/templates/my_dashboard.json
-#   - Examples: asana.json, demo.json, ec2.json, github_cicd.json, skypilot_jobs.json
-#
-# Source Type 2: Python-generated (for complex visualizations)
-#   - Source: scripts/generate_*.py
-#   - Build: uv run python scripts/generate_health_grid.py
-#   - Examples: system_health_rollup.json, system_health_rollup_wildcard.json
-#
-dashboards/templates/*.json
-
-# EXCEPTIONS - Legacy hand-crafted JSON (TODO: migrate to jsonnet)
-# These files don't have .jsonnet sources yet and are currently tracked in git.
-# They should be converted to jsonnet and removed from tracking.
-!dashboards/templates/policy_evaluator.json
-
 # Environment variable files
 .env
 .env.local
