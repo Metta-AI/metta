@@ -8,7 +8,7 @@ try:
 except Exception as e:
     print(f"Error importing: {e}")
     print("Run `metta install sandbox --force` to fix this.")
-    raise e
+    raise
 
 # This file is for local experimentation only. It is not checked in, and therefore won't be usable on skypilot
 
