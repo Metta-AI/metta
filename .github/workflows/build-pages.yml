@@ -54,19 +54,11 @@ jobs:
           nim c -d:emscripten packages/mettagrid/nim/mettascope/src/mettascope.nim
           ls -la packages/mettagrid/nim/mettascope/dist
 
-      - name: Build Observatory
-        run: |
-          cd observatory
-          pnpm install
-          pnpm run build
-
       - name: Setup Pages
         uses: actions/configure-pages@v4
 
       - name: Create deployment directory
         run: |
-          mkdir -p deploy/observatory
-          cp -r observatory/dist/* deploy/observatory/
           cp -r packages/mettagrid/nim/mettascope/dist/* deploy/mettascope/
 
       - name: Upload artifact
