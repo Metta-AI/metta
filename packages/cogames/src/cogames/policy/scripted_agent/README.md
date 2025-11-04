@@ -189,15 +189,65 @@ class ExtractorInfo:
 ## Testing
 
 ### Quick Tests
-```bash
-# Simple baseline (no clipping, 1 agent)
-uv run cogames play --mission evals.oxygen_bottleneck -p simple_baseline --cogs 1 --steps 1000
 
-# Unclipping (with clipped oxygen)
+#### SimpleBaselineAgent (Non-Clipping)
+```bash
+# Default difficulty
+uv run cogames play --mission evals.extractor_hub_30 -p simple_baseline --cogs 1 --steps 1000
+
+# Story mode (easy)
+uv run cogames play --mission evals.extractor_hub_30 -p simple_baseline --variant story_mode --cogs 1 --steps 1000
+
+# Standard difficulty
+uv run cogames play --mission evals.extractor_hub_30 -p simple_baseline --variant standard --cogs 1 --steps 1500
+
+# Hard difficulty
+uv run cogames play --mission evals.extractor_hub_30 -p simple_baseline --variant hard --cogs 1 --steps 2000
+
+# Brutal difficulty
+uv run cogames play --mission evals.extractor_hub_30 -p simple_baseline --variant brutal --cogs 1 --steps 3000
+
+# Different mission
+uv run cogames play --mission evals.oxygen_bottleneck -p simple_baseline --cogs 1 --steps 1000
+```
+
+#### UnclippingAgent (Clipping Variants)
+```bash
+# Clipped oxygen
 uv run cogames play --mission evals.extractor_hub_30 -p unclipping --variant clipped_oxygen --cogs 1 --steps 2000
 
-# Coordinating (multiple agents)
+# Clipped carbon
+uv run cogames play --mission evals.extractor_hub_30 -p unclipping --variant clipped_carbon --cogs 1 --steps 2000
+
+# Clipped germanium
+uv run cogames play --mission evals.extractor_hub_30 -p unclipping --variant clipped_germanium --cogs 1 --steps 2000
+
+# Clipped silicon
+uv run cogames play --mission evals.extractor_hub_30 -p unclipping --variant clipped_silicon --cogs 1 --steps 2000
+
+# Hard + clipped oxygen (combined difficulty)
+uv run cogames play --mission evals.extractor_hub_30 -p unclipping --variant hard_clipped_oxygen --cogs 1 --steps 3000
+
+# Clipping chaos (random clipping)
+uv run cogames play --mission evals.extractor_hub_30 -p unclipping --variant clipping_chaos --cogs 1 --steps 2000
+```
+
+#### CoordinatingAgent (Multi-Agent)
+```bash
+# 2 agents
+uv run cogames play --mission evals.extractor_hub_30 -p coordinating --cogs 2 --steps 1500
+
+# 4 agents
 uv run cogames play --mission evals.extractor_hub_30 -p coordinating --cogs 4 --steps 2000
+
+# 8 agents
+uv run cogames play --mission evals.extractor_hub_30 -p coordinating --cogs 8 --steps 2500
+
+# With difficulty variant
+uv run cogames play --mission evals.extractor_hub_30 -p coordinating --variant hard --cogs 4 --steps 2500
+
+# With clipping variant (tests coordination + unclipping)
+uv run cogames play --mission evals.extractor_hub_30 -p coordinating --variant clipped_oxygen --cogs 2 --steps 2000
 ```
 
 ### Comprehensive Evaluation
