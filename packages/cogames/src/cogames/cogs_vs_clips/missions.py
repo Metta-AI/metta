@@ -4,6 +4,7 @@ from typing import Any, cast
 from pydantic import Field
 
 from cogames.cogs_vs_clips.evals import eval_missions
+from cogames.cogs_vs_clips.evals.difficulty_variants import DIFFICULTY_VARIANTS
 from cogames.cogs_vs_clips.mission import Mission, MissionVariant
 from cogames.cogs_vs_clips.mission_utils import get_map
 from cogames.cogs_vs_clips.procedural import MachinaArenaConfig, make_hub_only_map_builder
@@ -277,6 +278,7 @@ VARIANTS = [
     PackRatVariant,
     EnergizedVariant,
     NeutralFacedVariant,
+    *DIFFICULTY_VARIANTS,
 ]
 
 

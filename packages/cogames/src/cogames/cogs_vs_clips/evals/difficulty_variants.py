@@ -13,9 +13,14 @@ The goal is to force agents to:
 3. Adapt strategies based on resource availability
 """
 
-from typing import Literal
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Literal
 
 from pydantic import BaseModel, Field
+
+if TYPE_CHECKING:
+    from cogames.cogs_vs_clips.mission import Mission, MissionVariant
 
 # -----------------------------------------------------------------------------
 # Module constants
@@ -70,6 +75,13 @@ class DifficultyLevel(BaseModel):
     energy_capacity_override: int | None = Field(default=None)
     cargo_capacity_override: int | None = Field(default=None)
     max_steps_override: int | None = Field(default=None)
+
+    # Clipping configuration
+    clip_rate: float = Field(default=0.0, description="Probability per step that extractors get clipped")
+    clip_target: str | None = Field(
+        default=None, description="Specific extractor to clip (carbon/oxygen/germanium/silicon/charger)"
+    )
+    clip_immune_extractor: str | None = Field(default=None, description="Extractor that stays immune to clipping")
 
 
 # =============================================================================
@@ -171,6 +183,69 @@ ENERGY_CRISIS = DifficultyLevel(
     allow_agent_scaling=False,
 )
 
+# =============================================================================
+# Clipping Difficulty Variants
+# =============================================================================
+
+CLIPPED_OXYGEN = DifficultyLevel(
+    name="clipped_oxygen",
+    description="Oxygen extractor starts clipped - craft decoder from carbon to unclip",
+    clip_rate=0.0,
+    clip_target="oxygen",
+    clip_immune_extractor="carbon_extractor",
+)
+
+CLIPPED_CARBON = DifficultyLevel(
+    name="clipped_carbon",
+    description="Carbon extractor starts clipped - craft modulator from oxygen to unclip",
+    clip_rate=0.0,
+    clip_target="carbon",
+    clip_immune_extractor="oxygen_extractor",
+)
+
+CLIPPED_GERMANIUM = DifficultyLevel(
+    name="clipped_germanium",
+    description="Germanium extractor starts clipped - craft resonator from silicon to unclip",
+    clip_rate=0.0,
+    clip_target="germanium",
+    clip_immune_extractor="silicon_extractor",
+)
+
+CLIPPED_SILICON = DifficultyLevel(
+    name="clipped_silicon",
+    description="Silicon extractor starts clipped - craft scrambler from germanium to unclip",
+    clip_rate=0.0,
+    clip_target="silicon",
+    clip_immune_extractor="germanium_extractor",
+)
+
+CLIPPING_CHAOS = DifficultyLevel(
+    name="clipping_chaos",
+    description="Random extractors clip over time - must craft unclip items reactively",
+    clip_rate=0.15,
+    clip_target=None,
+)
+
+HARD_CLIPPED_OXYGEN = DifficultyLevel(
+    name="hard_clipped_oxygen",
+    description="Hard mode + oxygen starts clipped",
+    carbon_max_uses_override=4,
+    oxygen_max_uses_override=4,
+    germanium_max_uses_override=6,
+    silicon_max_uses_override=3,
+    carbon_eff_override=80,
+    oxygen_eff_override=65,
+    germanium_eff_override=75,
+    silicon_eff_override=70,
+    charger_eff_override=80,
+    energy_regen_override=0,
+    move_energy_cost_override=3,
+    clip_rate=0.0,
+    clip_target="oxygen",
+    clip_immune_extractor="carbon_extractor",
+    allow_agent_scaling=False,
+)
+
 
 # =============================================================================
 # Difficulty Registry
@@ -184,6 +259,12 @@ CANONICAL_DIFFICULTY_ORDER = [
     "single_use",
     "speed_run",
     "energy_crisis",
+    "clipped_oxygen",
+    "clipped_carbon",
+    "clipped_germanium",
+    "clipped_silicon",
+    "clipping_chaos",
+    "hard_clipped_oxygen",
 ]
 
 DIFFICULTY_LEVELS: dict[str, DifficultyLevel] = {
@@ -194,6 +275,12 @@ DIFFICULTY_LEVELS: dict[str, DifficultyLevel] = {
     "single_use": SINGLE_USE,
     "speed_run": SPEED_RUN,
     "energy_crisis": ENERGY_CRISIS,
+    "clipped_oxygen": CLIPPED_OXYGEN,
+    "clipped_carbon": CLIPPED_CARBON,
+    "clipped_germanium": CLIPPED_GERMANIUM,
+    "clipped_silicon": CLIPPED_SILICON,
+    "clipping_chaos": CLIPPING_CHAOS,
+    "hard_clipped_oxygen": HARD_CLIPPED_OXYGEN,
 }
 
 # Legacy aliases for backwards compatibility
@@ -212,6 +299,12 @@ DifficultyName = Literal[
     "single_use",
     "speed_run",
     "energy_crisis",
+    "clipped_oxygen",
+    "clipped_carbon",
+    "clipped_germanium",
+    "clipped_silicon",
+    "clipping_chaos",
+    "hard_clipped_oxygen",
     "easy",
     "medium",
     "extreme",
@@ -221,6 +314,152 @@ DifficultyName = Literal[
 def get_difficulty(name: DifficultyName) -> DifficultyLevel:
     """Get a difficulty level by name."""
     return DIFFICULTY_LEVELS[name]
+
+
+def _apply_clipping(mission, difficulty: DifficultyLevel) -> None:
+    """Apply clipping configuration from a difficulty level to a mission.
+
+    This sets clip_rate, marks target extractors as start_clipped, and adds
+    unclipping recipes and gear crafting recipes as needed.
+    """
+    import logging
+
+    logger = logging.getLogger(__name__)
+
+    # Set clip_rate on mission
+    if difficulty.clip_rate > 0.0:
+        mission.clip_rate = difficulty.clip_rate
+
+    # If no target specified, nothing to clip at start
+    if not difficulty.clip_target or difficulty.clip_target == "none":
+        return
+
+    target = difficulty.clip_target
+
+    # Set the specific station to start clipped
+    try:
+        if target == "carbon":
+            mission.carbon_extractor.start_clipped = True
+            logger.info("Set carbon_extractor.start_clipped = True")
+        elif target == "oxygen":
+            mission.oxygen_extractor.start_clipped = True
+            logger.info(
+                f"Set oxygen_extractor.start_clipped = True (current value: {mission.oxygen_extractor.start_clipped})"
+            )
+        elif target == "germanium":
+            mission.germanium_extractor.start_clipped = True
+            logger.info("Set germanium_extractor.start_clipped = True")
+        elif target == "silicon":
+            mission.silicon_extractor.start_clipped = True
+            logger.info("Set silicon_extractor.start_clipped = True")
+        elif target == "charger":
+            mission.charger.start_clipped = True
+            logger.info("Set charger.start_clipped = True")
+    except Exception as e:
+        # Some missions may not expose all station configs
+        logger.error(f"Failed to set start_clipped on {target}: {e}")
+        pass
+
+    # Determine gear and resource mapping for unclipping
+    gear_by_target: dict[str, tuple[str, str]] = {
+        "carbon": ("modulator", "oxygen"),
+        "oxygen": ("decoder", "carbon"),
+        "germanium": ("resonator", "silicon"),
+        "silicon": ("scrambler", "germanium"),
+    }
+
+    if target not in gear_by_target:
+        return
+
+    required_gear, resource_for_gear = gear_by_target[target]
+
+    # Determine which extractor should be immune
+    immune_extractor_name = difficulty.clip_immune_extractor or f"{resource_for_gear}_extractor"
+
+    try:
+        from cogames.cogs_vs_clips.mission_utils import _add_make_env_modifier
+        from mettagrid.config.mettagrid_config import MettaGridConfig, ProtocolConfig
+    except ImportError:
+        logger.warning("Cannot import mission utilities for clipping config")
+        return
+
+    def _filter_unclip(cfg: MettaGridConfig) -> None:
+        """Filter unclipping protocols to only the required gear."""
+        if cfg.game.clipper is None:
+            logger.warning("_filter_unclip: clipper is None")
+            return
+        try:
+            original_count = (
+                len(cfg.game.clipper.unclipping_protocols) if hasattr(cfg.game.clipper, "unclipping_protocols") else 0
+            )
+            cfg.game.clipper.unclipping_protocols = [
+                r for r in cfg.game.clipper.unclipping_protocols if r.input_resources == {required_gear: 1}
+            ]
+            new_count = len(cfg.game.clipper.unclipping_protocols)
+            logger.info(
+                f"_filter_unclip: filtered unclipping protocols from {original_count} to {new_count} "
+                f"(keeping {required_gear})"
+            )
+        except Exception as e:
+            logger.error(f"_filter_unclip failed: {e}")
+            pass
+
+    def _tweak_assembler(cfg: MettaGridConfig) -> None:
+        """Add gear crafting protocol to assembler."""
+        asm = cfg.game.objects.get("assembler")
+        if asm is None:
+            logger.warning("_tweak_assembler: assembler not found")
+            return
+        try:
+            protocol = ProtocolConfig(
+                vibes=["gear"], input_resources={resource_for_gear: 1}, output_resources={required_gear: 1}
+            )
+            # Check if this protocol already exists
+            if not any(p.vibes == ["gear"] and p.output_resources == {required_gear: 1} for p in asm.protocols):
+                asm.protocols = [protocol, *asm.protocols]
+                logger.info(f"_tweak_assembler: Added gear protocol {resource_for_gear} -> {required_gear}")
+            else:
+                logger.info(f"_tweak_assembler: gear protocol {resource_for_gear} -> {required_gear} already exists")
+        except Exception as e:
+            logger.error(f"_tweak_assembler failed: {e}")
+            pass
+
+    def _ensure_gear_resource_immune(cfg: MettaGridConfig) -> None:
+        """Make the extractor for the gear resource immune."""
+        obj = cfg.game.objects.get(immune_extractor_name)
+        if obj is None:
+            return
+        try:
+            if hasattr(obj, "clip_immune"):
+                obj.clip_immune = True
+            if hasattr(obj, "start_clipped"):
+                obj.start_clipped = False
+        except Exception:
+            pass
+
+    def _ensure_critical_stations_immune(cfg: MettaGridConfig) -> None:
+        """Make charger, assembler, and chest immune when clipping is active."""
+        for station_name in ["charger", "assembler", "chest"]:
+            obj = cfg.game.objects.get(station_name)
+            if obj is None:
+                continue
+            try:
+                if hasattr(obj, "clip_immune"):
+                    obj.clip_immune = True
+                if hasattr(obj, "start_clipped"):
+                    obj.start_clipped = False
+            except Exception:
+                pass
+
+    logger.info(f"Adding env modifiers for clipping (target={target})")
+    mission = _add_make_env_modifier(mission, _filter_unclip)
+    logger.info("Added _filter_unclip modifier")
+    mission = _add_make_env_modifier(mission, _tweak_assembler)
+    logger.info("Added _tweak_assembler modifier")
+    mission = _add_make_env_modifier(mission, _ensure_gear_resource_immune)
+    logger.info("Added _ensure_gear_resource_immune modifier")
+    mission = _add_make_env_modifier(mission, _ensure_critical_stations_immune)
+    logger.info("Added _ensure_critical_stations_immune modifier")
 
 
 def apply_difficulty(
@@ -294,6 +533,10 @@ def apply_difficulty(
             _add_make_env_modifier(mission, _override_max_steps)
         except Exception:
             pass
+
+    # Apply clipping configuration
+    if difficulty.clip_rate > 0.0 or difficulty.clip_target is not None:
+        _apply_clipping(mission, difficulty)
 
     if not difficulty.allow_agent_scaling:
         return
@@ -374,6 +617,59 @@ def list_difficulties() -> None:
             f"G={diff.germanium_eff_mult}, S={diff.silicon_eff_mult}"
         )
         print(f"  Energy regen mult: {diff.energy_regen_mult}")
+
+
+# =============================================================================
+# MissionVariant Wrappers (for --variant CLI flag)
+# =============================================================================
+
+
+def create_difficulty_variant(difficulty_level: DifficultyLevel) -> type[MissionVariant]:
+    """Create a MissionVariant class for a difficulty level."""
+    from cogames.cogs_vs_clips.mission import MissionVariant
+
+    class DifficultyMissionVariant(MissionVariant):
+        name: str = difficulty_level.name
+        description: str = difficulty_level.description
+
+        def apply(self, mission: Mission) -> Mission:  # type: ignore[override]
+            apply_difficulty(mission, difficulty_level)
+            return mission
+
+    return DifficultyMissionVariant
+
+
+# Create mission variant classes for each difficulty level
+StoryModeVariant = create_difficulty_variant(STORY_MODE)
+StandardVariant = create_difficulty_variant(STANDARD)
+HardVariant = create_difficulty_variant(HARD)
+BrutalVariant = create_difficulty_variant(BRUTAL)
+SingleUseVariant = create_difficulty_variant(SINGLE_USE)
+SpeedRunVariant = create_difficulty_variant(SPEED_RUN)
+EnergyCrisisVariant = create_difficulty_variant(ENERGY_CRISIS)
+ClippedOxygenVariant = create_difficulty_variant(CLIPPED_OXYGEN)
+ClippedCarbonVariant = create_difficulty_variant(CLIPPED_CARBON)
+ClippedGermaniumVariant = create_difficulty_variant(CLIPPED_GERMANIUM)
+ClippedSiliconVariant = create_difficulty_variant(CLIPPED_SILICON)
+ClippingChaosVariant = create_difficulty_variant(CLIPPING_CHAOS)
+HardClippedOxygenVariant = create_difficulty_variant(HARD_CLIPPED_OXYGEN)
+
+# Export variants for use with --variant CLI flag
+DIFFICULTY_VARIANTS = [
+    StoryModeVariant,
+    StandardVariant,
+    HardVariant,
+    BrutalVariant,
+    SingleUseVariant,
+    SpeedRunVariant,
+    EnergyCrisisVariant,
+    ClippedOxygenVariant,
+    ClippedCarbonVariant,
+    ClippedGermaniumVariant,
+    ClippedSiliconVariant,
+    ClippingChaosVariant,
+    HardClippedOxygenVariant,
+]
 
 
 if __name__ == "__main__":
