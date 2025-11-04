@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
-from typing import Any, Callable, Dict, Optional
+from typing import TYPE_CHECKING, Any, Callable, Dict, Optional
 
 import torch
 import torch.nn as nn
 from tensordict import TensorDictBase
+
+if TYPE_CHECKING:
+    from metta.tools.train import PostHookBuilder
 
 
 def compute_dormant_neuron_stats(policy: nn.Module, *, threshold: float = 1e-6) -> Dict[str, float]:
@@ -122,17 +125,17 @@ class ReLUActivationState:
 def attach_relu_activation_hooks(
     *,
     extractor: Any = "actor_hidden",
-) -> Callable[[Any, str], Optional[Callable[[nn.Module], Callable[..., None]]]]:
+) -> "PostHookBuilder":
     """Create a builder that prepares ReLU activation tracking for a given component."""
 
-    def builder(trainer: Any, component_name: str) -> Optional[Callable[[nn.Module], Callable[..., None]]]:
+    def builder(component_name: str, trainer: Any) -> Optional[Callable[..., None]]:
         state = getattr(trainer, "_relu_activation_state", None)
         if not isinstance(state, ReLUActivationState):
             state = ReLUActivationState()
             trainer._relu_activation_state = state  # type: ignore[attr-defined]
             context = getattr(trainer, "context", None)
             if context is not None:
-                setattr(context, "relu_activation_state", state)
+                context.relu_activation_state = state
 
         if state.has_component(component_name):
             return None
@@ -141,18 +144,16 @@ def attach_relu_activation_hooks(
         if extractor_fn is None:
             return None
 
-        def hook_factory(module: nn.Module, *, extractor_cb=extractor_fn, tracker=state) -> Callable[..., None]:
-            tracker.register_component(component_name)
+        tracker = state
+        tracker.register_component(component_name)
 
-            def hook(_: nn.Module, __: tuple[Any, ...], output: Any) -> None:
-                tensor = extractor_cb(output)
-                if tensor is None:
-                    return
-                tracker.update(component_name, tensor.detach())
+        def hook(_: nn.Module, __: tuple[Any, ...], output: Any) -> None:
+            tensor = extractor_fn(output)
+            if tensor is None:
+                return
+            tracker.update(component_name, tensor.detach())
 
-            return hook
-
-        return hook_factory
+        return hook
 
     return builder
 

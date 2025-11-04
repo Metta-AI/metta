@@ -5,7 +5,6 @@ from datetime import timedelta
 from typing import Any, Callable, Optional, Tuple
 
 import torch
-import torch.nn as nn
 from pydantic import Field, PrivateAttr, model_validator
 from torch.utils.hooks import RemovableHandle
 
@@ -55,8 +54,13 @@ from metta.tools.utils.auto_config import (
 
 logger = getRankAwareLogger(__name__)
 
+# Forward hook: called after forward pass with (module, input, output) -> None
+PostHookBuilder = Callable[[str, Trainer], Optional[Callable[[Any, tuple[Any, ...], Any], None]]]
 
-HookBuilder = Callable[[PolicyAutoBuilder, Trainer, str], Optional[Callable[[nn.Module], Callable[..., None]]]]
+# Forward pre hook: called before forward pass with (module, input) -> None
+PreHookBuilder = Callable[[str, Trainer], Optional[Callable[[Any, tuple[Any, ...]], None]]]
+
+HookBuilder = PreHookBuilder | PostHookBuilder
 HookSpec = Tuple[str, HookBuilder, str]
 
 
@@ -237,12 +241,15 @@ class TrainTool(Tool):
             return
 
         for component_name, hook_builder, hook_type in self._training_hooks:
-            factory = hook_builder(policy, trainer, component_name)
-            if factory is None:
+            module = policy.components.get(component_name)
+            if module is None:
+                continue
+            hook = hook_builder(component_name, trainer)
+            if hook is None:
                 continue
             handle = policy.register_component_hook_rule(
                 component_name=component_name,
-                hook_factory=factory,
+                hook=hook,
                 hook_type=hook_type,
             )
             self._active_policy_hooks.append(handle)

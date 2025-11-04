@@ -26,24 +26,18 @@ def _game_rules() -> GameRules:
     )
 
 
-def _forward_hook_factory(events: list[str]) -> Callable[[nn.Module], Callable[..., None]]:
-    def factory(module: nn.Module) -> Callable[..., None]:  # pragma: no cover - hook wiring
-        def hook(*_args: Any) -> None:
-            events.append(module.__class__.__name__)
+def _forward_hook(events: list[str]) -> Callable[..., None]:
+    def hook(module: nn.Module, *_args: Any) -> None:
+        events.append(module.__class__.__name__)
 
-        return hook
-
-    return factory
+    return hook
 
 
-def _forward_pre_hook_factory(events: list[str]) -> Callable[[nn.Module], Callable[..., None]]:
-    def factory(module: nn.Module) -> Callable[..., None]:  # pragma: no cover - hook wiring
-        def hook(*_args: Any) -> None:
-            events.append(module.__class__.__name__)
+def _forward_pre_hook(events: list[str]) -> Callable[..., None]:
+    def hook(module: nn.Module, *_args: Any) -> None:
+        events.append(module.__class__.__name__)
 
-        return hook
-
-    return factory
+    return hook
 
 
 def test_register_forward_hook_rule_records_rule_and_handle() -> None:
@@ -52,7 +46,7 @@ def test_register_forward_hook_rule_records_rule_and_handle() -> None:
 
     handle = policy.register_component_hook_rule(
         component_name="actor_mlp",
-        hook_factory=_forward_hook_factory(events),
+        hook=_forward_hook(events),
         hook_type="forward",
     )
 
@@ -66,7 +60,7 @@ def test_register_forward_pre_hook_rule_records_rule_and_handle() -> None:
 
     handle = policy.register_component_hook_rule(
         component_name="actor_mlp",
-        hook_factory=_forward_pre_hook_factory(events),
+        hook=_forward_pre_hook(events),
         hook_type="forward_pre",
     )
 
@@ -80,12 +74,12 @@ def test_multiple_forward_hooks_are_appended() -> None:
 
     handle1 = policy.register_component_hook_rule(
         component_name="actor_mlp",
-        hook_factory=_forward_hook_factory(events),
+        hook=_forward_hook(events),
         hook_type="forward",
     )
     handle2 = policy.register_component_hook_rule(
         component_name="actor_mlp",
-        hook_factory=_forward_hook_factory(events),
+        hook=_forward_hook(events),
         hook_type="forward",
     )
 
@@ -102,7 +96,7 @@ def test_register_hook_missing_component_raises() -> None:
     with pytest.raises(KeyError):
         policy.register_component_hook_rule(
             component_name="does_not_exist",
-            hook_factory=_forward_hook_factory([]),
+            hook=_forward_hook([]),
             hook_type="forward",
         )
 
@@ -112,11 +106,11 @@ def test_attach_relu_activation_hooks_registers_forward_hook() -> None:
 
     builder = attach_relu_activation_hooks()
     trainer = type("DummyTrainer", (), {})()
-    hook_factory = builder(policy, trainer, "actor_mlp")
-    assert hook_factory is not None
+    hook = builder("actor_mlp", trainer)
+    assert hook is not None
     handle = policy.register_component_hook_rule(
         component_name="actor_mlp",
-        hook_factory=hook_factory,
+        hook=hook,
         hook_type="forward",
     )
     assert isinstance(handle, RemovableHandle)

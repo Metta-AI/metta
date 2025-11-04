@@ -1,13 +1,12 @@
 from __future__ import annotations
 
 import types
-from typing import Any
+from types import SimpleNamespace
 
 from metta.agent.policies.vit import ViTDefaultConfig
 from metta.rl.trainer import Trainer
 from metta.rl.training import GameRules, TrainingEnvironmentConfig
 from metta.tools.train import TrainTool
-from types import SimpleNamespace
 
 
 def _game_rules() -> GameRules:
@@ -23,17 +22,14 @@ def _game_rules() -> GameRules:
     )
 
 
-def _builder(policy, trainer: Trainer, component_name: str):
+def _builder(component_name: str, trainer: Trainer):
     if component_name != "actor_mlp":
         return None
 
-    def factory(module: Any):
-        def hook(*_args) -> None:
-            return None
+    def hook(*_args) -> None:
+        return None
 
-        return hook
-
-    return factory
+    return hook
 
 
 def test_add_training_hook_invokes_registered_hook() -> None:
@@ -46,9 +42,9 @@ def test_add_training_hook_invokes_registered_hook() -> None:
     calls: list[tuple[str, str]] = []
     original_register = policy.register_component_hook_rule
 
-    def tracking_register(self, *, component_name: str, hook_factory, hook_type: str = "forward"):
+    def tracking_register(self, *, component_name: str, hook, hook_type: str = "forward"):
         calls.append((component_name, hook_type))
-        return original_register(component_name=component_name, hook_factory=hook_factory, hook_type=hook_type)
+        return original_register(component_name=component_name, hook=hook, hook_type=hook_type)
 
     policy.register_component_hook_rule = types.MethodType(tracking_register, policy)
 
