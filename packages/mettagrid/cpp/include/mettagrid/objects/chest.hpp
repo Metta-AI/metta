@@ -78,6 +78,13 @@ private:
       stats_tracker->add("chest." + stats_tracker->resource_name(resource_type) + ".deposited", transfer_amount);
       stats_tracker->set("chest." + stats_tracker->resource_name(resource_type) + ".amount",
                          inventory.amount(resource_type));
+      // If this is a heart chest, stamp ground-truth belief on the depositing agent
+      if (stats_tracker->resource_name(resource_type) == std::string("heart")) {
+        agent.belief_group_reward = static_cast<float>(inventory.amount(resource_type));
+        agent.last_ground_truth_timestamp = *grid->current_timestep_ptr;
+        agent.last_belief_update_timestamp = *grid->current_timestep_ptr;
+        agent.stats.set("belief.group_reward", agent.belief_group_reward);
+      }
 
       // If we couldn't transfer the full delta due to max_inventory, destroy the rest
       int destroyed = delta - transfer_amount;
@@ -101,6 +108,13 @@ private:
         stats_tracker->add("chest." + stats_tracker->resource_name(resource_type) + ".withdrawn", withdrawn);
         stats_tracker->set("chest." + stats_tracker->resource_name(resource_type) + ".amount",
                            inventory.amount(resource_type));
+        // If this is a heart chest, update ground-truth belief on the withdrawing agent
+        if (stats_tracker->resource_name(resource_type) == std::string("heart")) {
+          agent.belief_group_reward = static_cast<float>(inventory.amount(resource_type));
+          agent.last_ground_truth_timestamp = *grid->current_timestep_ptr;
+          agent.last_belief_update_timestamp = *grid->current_timestep_ptr;
+          agent.stats.set("belief.group_reward", agent.belief_group_reward);
+        }
         return true;
       }
       return false;

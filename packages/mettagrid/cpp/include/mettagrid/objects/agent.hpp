@@ -38,6 +38,12 @@ public:
   StatsTracker stats;
   RewardType current_stat_reward;
   RewardType* reward;
+  // Last change applied to this agent's reward due to stat-based rewards in the most recent compute
+  float last_stat_reward_delta;
+  // Belief propagation state for group reward
+  float belief_group_reward;
+  unsigned int last_ground_truth_timestamp;
+  unsigned int last_belief_update_timestamp;
   // Visitation count grid: tracks how many times the agent has visited each position
   std::vector<std::vector<unsigned int>> visitation_grid;
   bool visitation_counts_enabled = false;

@@ -190,6 +190,7 @@ class GameConfig:
         protocol_details_obs: bool = False,
         allow_diagonals: bool = False,
         reward_estimates: Optional[dict[str, float]] = None,
+        social_reward_share_fraction: float = 0.0,
         inventory_regen_amounts: dict[int, int] | None = None,
         inventory_regen_interval: int = 0,
         clipper: Optional[ClipperConfig] = None,
@@ -208,6 +209,7 @@ class GameConfig:
     protocol_details_obs: bool
     allow_diagonals: bool
     reward_estimates: Optional[dict[str, float]]
+    social_reward_share_fraction: float
     tag_id_map: dict[int, str]
     inventory_regen_amounts: dict[int, int]
     inventory_regen_interval: int

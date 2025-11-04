@@ -22,6 +22,10 @@ Agent::Agent(GridCoord r, GridCoord c, const AgentConfig& config, const std::vec
       stats(resource_names),
       current_stat_reward(0),
       reward(nullptr),
+      last_stat_reward_delta(0),
+      belief_group_reward(0.0f),
+      last_ground_truth_timestamp(0),
+      last_belief_update_timestamp(0),
       prev_location(r, c, GridLayer::AgentLayer),
       prev_action_name(""),
       steps_without_motion(0),
@@ -149,6 +153,7 @@ void Agent::compute_stat_rewards(StatsTracker* game_stats_tracker) {
 
   // Update the agent's reward with the difference
   float reward_delta = new_stat_reward - this->current_stat_reward;
+  this->last_stat_reward_delta = reward_delta;
   if (reward_delta != 0.0f) {
     *this->reward += reward_delta;
     this->current_stat_reward = new_stat_reward;

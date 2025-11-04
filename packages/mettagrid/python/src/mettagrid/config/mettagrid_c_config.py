@@ -431,6 +431,9 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
     # Add tag mappings for C++ debugging/display
     game_cpp_params["tag_id_map"] = tag_id_to_name
 
+    # Social reward propagation
+    game_cpp_params["social_reward_share_fraction"] = getattr(game_config, "social_reward_share_fraction", 0.0)
+
     return CppGameConfig(**game_cpp_params)
 
 

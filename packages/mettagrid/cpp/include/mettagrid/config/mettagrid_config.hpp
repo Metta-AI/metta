@@ -44,6 +44,8 @@ struct GameConfig {
   bool protocol_details_obs = false;
   bool allow_diagonals = false;
   std::unordered_map<std::string, float> reward_estimates = {};
+  // Fraction of an observed agent's positive stat-reward delta to add to observer
+  float social_reward_share_fraction = 0.0f;
 
   // Inventory regeneration interval (global check timing)
   unsigned int inventory_regen_interval = 0;  // Interval in timesteps (0 = disabled)
@@ -88,6 +90,7 @@ inline void bind_game_config(py::module& m) {
                     bool,
                     bool,
                     const std::unordered_map<std::string, float>&,
+                    float,
 
                     // Inventory regeneration
                     unsigned int,
@@ -112,6 +115,7 @@ inline void bind_game_config(py::module& m) {
            py::arg("protocol_details_obs") = false,
            py::arg("allow_diagonals") = false,
            py::arg("reward_estimates") = std::unordered_map<std::string, float>(),
+           py::arg("social_reward_share_fraction") = 0.0f,
 
            // Inventory regeneration
            py::arg("inventory_regen_interval") = 0,
@@ -141,6 +145,7 @@ inline void bind_game_config(py::module& m) {
       .def_readwrite("protocol_details_obs", &GameConfig::protocol_details_obs)
       .def_readwrite("allow_diagonals", &GameConfig::allow_diagonals)
       .def_readwrite("reward_estimates", &GameConfig::reward_estimates)
+      .def_readwrite("social_reward_share_fraction", &GameConfig::social_reward_share_fraction)
 
       // Inventory regeneration
       .def_readwrite("inventory_regen_interval", &GameConfig::inventory_regen_interval)

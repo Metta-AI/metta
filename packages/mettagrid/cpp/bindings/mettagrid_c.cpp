@@ -74,6 +74,14 @@ MettaGrid::MettaGrid(const GameConfig& game_config, const py::list map, unsigned
   _obs_encoder = std::make_unique<ObservationEncoder>(resource_names, game_config.protocol_details_obs);
 
   _event_manager = std::make_unique<EventManager>();
+  // Cache the index of the 'heart' resource if present for perception-based stats
+  _heart_item_index = -1;
+  for (size_t i = 0; i < resource_names.size(); ++i) {
+    if (resource_names[i] == std::string("heart")) {
+      _heart_item_index = static_cast<int>(i);
+      break;
+    }
+  }
   _stats = std::make_unique<StatsTracker>(&resource_names);
 
   _event_manager->init(_grid.get());
@@ -357,6 +365,8 @@ void MettaGrid::_compute_observation(GridCoord observer_row,
   size_t tokens_written = 0;
   auto observation_view = _observations.mutable_unchecked<3>();
   auto rewards_view = _rewards.unchecked<1>();
+  float perceived_heart_sum = 0.0f;
+  bool saw_heart_chest = false;
 
   // Global tokens
   ObservationToken* agent_obs_ptr = reinterpret_cast<ObservationToken*>(observation_view.mutable_data(agent_idx, 0, 0));
@@ -438,12 +448,32 @@ void MettaGrid::_compute_observation(GridCoord observer_row,
       uint8_t location = PackedCoordinate::pack(static_cast<uint8_t>(obs_r), static_cast<uint8_t>(obs_c));
       attempted_tokens_written += _obs_encoder->encode_tokens(obj, obs_tokens, location);
       tokens_written = std::min(attempted_tokens_written, static_cast<size_t>(observation_view.shape(1)));
+
+      // Perception: accumulate visible heart chest amounts as ground truth
+      if (_heart_item_index >= 0) {
+        if (auto* chest = dynamic_cast<Chest*>(obj)) {
+          if (static_cast<int>(chest->resource_type) == _heart_item_index) {
+            perceived_heart_sum += static_cast<float>(chest->inventory.amount(chest->resource_type));
+            saw_heart_chest = true;
+          }
+        }
+      }
     }
   }
 
   _stats->add("tokens_written", tokens_written);
   _stats->add("tokens_dropped", attempted_tokens_written - tokens_written);
   _stats->add("tokens_free_space", static_cast<size_t>(observation_view.shape(1)) - tokens_written);
+
+  // Update agent belief with ground truth if chest was seen
+  if (_heart_item_index >= 0 && agent_idx < _agents.size() && saw_heart_chest) {
+    auto* agent = _agents[agent_idx];
+    agent->belief_group_reward = perceived_heart_sum;
+    agent->last_ground_truth_timestamp = current_step;
+    agent->last_belief_update_timestamp = current_step;
+    // Immediately expose updated belief to stats so rewards can reflect ground-truth sightings this step
+    agent->stats.set("belief.group_reward", agent->belief_group_reward);
+  }
 }
 
 void MettaGrid::_compute_observations(const py::array_t<ActionType, py::array::c_style> actions) {
@@ -563,12 +593,20 @@ void MettaGrid::_step(Actions actions) {
     _clipper->maybe_clip_new_assembler();
   }
 
-  // Compute observations for next step
+  // Compute observations for next step (also captures ground-truth chest sightings into beliefs)
   _compute_observations(actions);
+
+  // Propagate beliefs from observed agents before computing stat rewards
+  _apply_belief_propagation();
 
   // Compute stat-based rewards for all agents
   for (auto& agent : _agents) {
     agent->compute_stat_rewards(_stats.get());
+  }
+
+  // Social reward propagation based on observed agents' recent reward gains
+  if (_game_config.social_reward_share_fraction > 0.0f) {
+    _apply_social_reward_sharing();
   }
 
   // Update episode rewards
@@ -588,6 +626,83 @@ void MettaGrid::_step(Actions actions) {
                 static_cast<bool*>(_terminals.request().ptr) + _terminals.size(),
                 1);
     }
+  }
+}
+
+void MettaGrid::_apply_social_reward_sharing() {
+  const float fraction = _game_config.social_reward_share_fraction;
+  if (fraction <= 0.0f || _agents.empty()) return;
+
+  const int radius_h = static_cast<int>(obs_height >> 1);
+  const int radius_w = static_cast<int>(obs_width >> 1);
+
+  // For each observer agent, sum positive reward deltas of visible agents
+  for (size_t i = 0; i < _agents.size(); ++i) {
+    Agent* observer = _agents[i];
+    float shared = 0.0f;
+    for (size_t j = 0; j < _agents.size(); ++j) {
+      if (i == j) continue;
+      Agent* target = _agents[j];
+      int dr = static_cast<int>(observer->location.r) - static_cast<int>(target->location.r);
+      int dc = static_cast<int>(observer->location.c) - static_cast<int>(target->location.c);
+      if (std::abs(dr) <= radius_h && std::abs(dc) <= radius_w) {
+        if (target->last_stat_reward_delta > 0.0f) {
+          shared += target->last_stat_reward_delta * fraction;
+        }
+      }
+    }
+    if (shared != 0.0f) {
+      *_agents[i]->reward += shared;
+    }
+  }
+}
+
+void MettaGrid::_apply_belief_propagation() {
+  if (_agents.empty()) return;
+
+  const int radius_h = static_cast<int>(obs_height >> 1);
+  const int radius_w = static_cast<int>(obs_width >> 1);
+
+  // Two-phase: compute updates then apply to avoid order dependence
+  std::vector<float> new_beliefs(_agents.size(), 0.0f);
+  std::vector<bool> should_update(_agents.size(), false);
+
+  for (size_t i = 0; i < _agents.size(); ++i) {
+    Agent* observer = _agents[i];
+    float candidate_max = -1.0f;
+    unsigned int candidate_gt_ts = 0;
+
+    for (size_t j = 0; j < _agents.size(); ++j) {
+      if (i == j) continue;
+      Agent* target = _agents[j];
+      // Only consider if target's last ground truth is more recent than observer's
+      if (target->last_ground_truth_timestamp <= observer->last_ground_truth_timestamp) continue;
+
+      int dr = static_cast<int>(observer->location.r) - static_cast<int>(target->location.r);
+      int dc = static_cast<int>(observer->location.c) - static_cast<int>(target->location.c);
+      if (std::abs(dr) <= radius_h && std::abs(dc) <= radius_w) {
+        if (target->belief_group_reward > candidate_max) {
+          candidate_max = target->belief_group_reward;
+          candidate_gt_ts = target->last_ground_truth_timestamp;
+        }
+      }
+    }
+
+    if (candidate_max > observer->belief_group_reward && candidate_max >= 0.0f) {
+      // Adopt slightly lower than best seen, e.g., 5 -> 4
+      float proposed = std::max(observer->belief_group_reward, candidate_max - 1.0f);
+      new_beliefs[i] = proposed;
+      should_update[i] = true;
+    }
+  }
+
+  for (size_t i = 0; i < _agents.size(); ++i) {
+    if (should_update[i]) {
+      _agents[i]->belief_group_reward = new_beliefs[i];
+      _agents[i]->last_belief_update_timestamp = current_step;
+    }
+    // Expose belief to stats for reward computation
+    _agents[i]->stats.set("belief.group_reward", _agents[i]->belief_group_reward);
   }
 }
 

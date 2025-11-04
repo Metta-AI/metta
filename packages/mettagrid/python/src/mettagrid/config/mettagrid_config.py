@@ -326,6 +326,9 @@ class GameConfig(Config):
 
     reward_estimates: Optional[dict[str, float]] = Field(default=None)
 
+    # Fraction of an observed agent's positive stat-reward delta to add to observer (0 disables)
+    social_reward_share_fraction: float = Field(default=0.0, ge=0.0)
+
     @model_validator(mode="after")
     def _assign_type_ids(self) -> "GameConfig":
         self._resolve_object_type_ids()

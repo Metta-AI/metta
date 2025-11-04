@@ -176,6 +176,11 @@ private:
   // Global systems
   std::unique_ptr<Clipper> _clipper;
 
+  // Cached indices/parameters for reward sharing features
+  int _heart_item_index = -1;
+  void _apply_social_reward_sharing();
+  void _apply_belief_propagation();
+
   void init_action_handlers();
   void add_agent(Agent* agent);
   void _compute_observation(GridCoord observer_r,
