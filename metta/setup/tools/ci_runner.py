@@ -5,8 +5,7 @@ Both local development (metta ci) and GitHub Actions call this same tool.
 
 GitHub Actions workflow calls individual stages:
   - uv run metta ci --stage lint
-  - uv run metta ci --stage python-tests
-  - uv run metta ci --stage python-benchmarks
+  - uv run metta ci --stage python-tests-and-benchmarks
   - uv run metta ci --stage cpp-tests
   - uv run metta ci --stage cpp-benchmarks
 
@@ -127,25 +126,14 @@ def _run_python_tests(
     verbose: bool = False,
     extra_args: Sequence[str] | None = None,
 ) -> CheckResult:
-    """Run Python tests (excludes benchmarks)."""
-    _print_header("Python Tests")
+    """Run Python tests and benchmarks together."""
+    _print_header("Python Tests and Benchmarks")
 
-    cmd = ["uv", "run", "metta", "pytest", "--ci"]
+    cmd = ["uv", "run", "metta", "pytest", "--ci", "--test", "--benchmark"]
     cmd.extend(_normalize_python_stage_args(extra_args))
-    passed = _run_command(cmd, "Python tests", verbose=verbose)
+    passed = _run_command(cmd, "Python tests and benchmarks", verbose=verbose)
 
     return CheckResult("Python Tests", passed)
-
-
-def _run_python_benchmarks(*, verbose: bool = False, extra_args: Sequence[str] | None = None) -> CheckResult:
-    """Run Python benchmarks."""
-    _ensure_no_extra_args("python-benchmarks", extra_args)
-    _print_header("Python Benchmarks")
-
-    cmd = ["uv", "run", "metta", "pytest", "--ci", "--", "--benchmark-only"]
-    passed = _run_command(cmd, "Python benchmarks", verbose=verbose)
-
-    return CheckResult("Python Benchmarks", passed)
 
 
 def _run_cpp_tests(*, verbose: bool = False, extra_args: Sequence[str] | None = None) -> CheckResult:
@@ -192,26 +180,25 @@ def _print_summary(results: list[CheckResult]) -> None:
 
 StageRunner = Callable[[bool, Sequence[str] | None], CheckResult]
 
+stages: dict[str, StageRunner] = {
+    "lint": lambda v, args: _run_lint(verbose=v, extra_args=args),
+    "python-tests-and-benchmarks": lambda v, args: _run_python_tests(verbose=v, extra_args=args),
+    "cpp-tests": lambda v, args: _run_cpp_tests(verbose=v, extra_args=args),
+    "cpp-benchmarks": lambda v, args: _run_cpp_benchmarks(verbose=v, extra_args=args),
+}
+
 
 def cmd_ci(
     ctx: typer.Context,
     stage: Annotated[
         str | None,
-        typer.Option(help="Run specific stage: lint, python-tests, python-benchmarks, cpp-tests, cpp-benchmarks"),
+        typer.Option(help=f"Run specific stage: {', '.join(stages.keys())}"),
     ] = None,
     continue_on_error: Annotated[bool, typer.Option("--continue-on-error", help="Don't stop on first failure")] = False,
     verbose: Annotated[bool, typer.Option("--verbose", "-v", help="Show detailed output")] = False,
 ):
     """Run CI checks locally to match remote CI behavior."""
     extra_args = list(getattr(ctx, "args", []))
-
-    stages: dict[str, StageRunner] = {
-        "lint": lambda v, args: _run_lint(verbose=v, extra_args=args),
-        "python-tests": lambda v, args: _run_python_tests(verbose=v, extra_args=args),
-        "python-benchmarks": lambda v, args: _run_python_benchmarks(verbose=v, extra_args=args),
-        "cpp-tests": lambda v, args: _run_cpp_tests(verbose=v, extra_args=args),
-        "cpp-benchmarks": lambda v, args: _run_cpp_benchmarks(verbose=v, extra_args=args),
-    }
 
     if extra_args and stage is None:
         error("Extra arguments require specifying a --stage.")

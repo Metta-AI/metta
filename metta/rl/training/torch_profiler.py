@@ -98,7 +98,7 @@ class TorchProfileSession:
     # Internal helpers -------------------------------------------------
     def _save_profile(self, prof: torch.profiler.profile) -> None:
         if self._profile_filename_base is None:
-            logger.error("Profiler filename unset; skipping save")
+            logger.error("Profiler filename unset; skipping save", exc_info=True)
             return
 
         output_filename_json = f"{self._profile_filename_base}.json"

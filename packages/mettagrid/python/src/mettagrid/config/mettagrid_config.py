@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from collections.abc import Iterable
 from typing import Annotated, Any, Literal, Optional, Union
 
 from pydantic import (
@@ -9,7 +8,6 @@ from pydantic import (
     Field,
     SerializeAsAny,
     Tag,
-    field_validator,
     model_validator,
 )
 
@@ -33,30 +31,6 @@ class AgentRewards(Config):
     inventory_max: dict[str, float] = Field(default_factory=dict)
     stats: dict[str, float] = Field(default_factory=dict)
     stats_max: dict[str, float] = Field(default_factory=dict)
-
-
-class SupervisorConfig(Config):
-    """Base supervisor configuration."""
-
-    type: str = Field(description="Type of supervisor")
-    can_override_action: bool = Field(default=False, description="Whether the supervisor can override agent actions")
-    name: str = Field(default="supervisor", description="Name for logging and statistics")
-
-
-class PatrolSupervisorConfig(SupervisorConfig):
-    """Configuration for patrol supervisor that moves agent left and right repeatedly."""
-
-    type: Literal["patrol"] = "patrol"
-    steps_per_direction: int = Field(
-        default=5, ge=1, description="Number of steps to move in each direction before turning"
-    )
-
-
-# Union type for all supervisor configs
-AnySupervisorConfig = Union[
-    PatrolSupervisorConfig,
-    # Future supervisor types can be added here
-]
 
 
 class AgentConfig(Config):
@@ -86,9 +60,7 @@ class AgentConfig(Config):
         default_factory=list,
         description="Resource names that contribute to inventory diversity metrics",
     )
-    supervisor: Optional[AnySupervisorConfig] = Field(
-        default=None, description="Optional supervisor configuration for this agent"
-    )
+    initial_vibe: int = Field(default=0, ge=0, description="Initial vibe value for this agent instance")
 
 
 class ActionConfig(Config):
@@ -106,10 +78,10 @@ class AttackActionConfig(ActionConfig):
     defense_resources: dict[str, int] = Field(default_factory=dict)
 
 
-class ChangeGlyphActionConfig(ActionConfig):
-    """Change glyph action configuration."""
+class ChangeVibeActionConfig(ActionConfig):
+    """Change vibe action configuration."""
 
-    number_of_glyphs: int = Field(default=0, ge=0, le=255)
+    number_of_vibes: int = Field(default=0, ge=0, le=255)
 
 
 class ResourceModActionConfig(ActionConfig):
@@ -117,7 +89,6 @@ class ResourceModActionConfig(ActionConfig):
 
     modifies: dict[str, float] = Field(default_factory=dict)
     agent_radius: int = Field(default=0, ge=0, le=255)
-    converter_radius: int = Field(default=0, ge=0, le=255)
     scales: bool = Field(default=False)
 
 
@@ -131,11 +102,9 @@ class ActionsConfig(Config):
     noop: ActionConfig = Field(default_factory=lambda: ActionConfig())
     move: ActionConfig = Field(default_factory=lambda: ActionConfig(enabled=False))  # Default movement action
     rotate: ActionConfig = Field(default_factory=lambda: ActionConfig(enabled=False))
-    put_items: ActionConfig = Field(default_factory=lambda: ActionConfig(enabled=False))
-    get_items: ActionConfig = Field(default_factory=lambda: ActionConfig(enabled=False))
     attack: AttackActionConfig = Field(default_factory=lambda: AttackActionConfig(enabled=False))
     swap: ActionConfig = Field(default_factory=lambda: ActionConfig(enabled=False))
-    change_glyph: ChangeGlyphActionConfig = Field(default_factory=lambda: ChangeGlyphActionConfig(enabled=False))
+    change_vibe: ChangeVibeActionConfig = Field(default_factory=lambda: ChangeVibeActionConfig(enabled=False))
     resource_mod: ResourceModActionConfig = Field(default_factory=lambda: ResourceModActionConfig(enabled=False))
 
 
@@ -175,6 +144,7 @@ class GridObjectConfig(Config):
     map_char: str = Field(default="?", description="Character used in ASCII maps")
     render_symbol: str = Field(default="❓", description="Symbol used for rendering (e.g., emoji)")
     tags: list[str] = Field(default_factory=list, description="Tags for this object instance")
+    vibe: Optional[int] = Field(default=0, ge=0, le=255, description="Vibe value for this object instance")
 
 
 class WallConfig(GridObjectConfig):
@@ -184,36 +154,8 @@ class WallConfig(GridObjectConfig):
     swappable: bool = Field(default=False)
 
 
-class ConverterConfig(GridObjectConfig):
-    """Python converter configuration."""
-
-    model_config = ConfigDict(extra="forbid", validate_assignment=True)
-
-    type: Literal["converter"] = Field(default="converter")
-    input_resources: dict[str, int] = Field(default_factory=dict)
-    output_resources: dict[str, int] = Field(default_factory=dict)
-    max_output: int = Field(ge=-1, default=5)
-    max_conversions: int = Field(default=-1)
-    conversion_ticks: int = Field(ge=0, default=1)
-    cooldown: list[int] = Field(default_factory=lambda: [0])
-    initial_resource_count: int = Field(ge=0, default=0)
-
-    @field_validator("cooldown", mode="before")
-    @classmethod
-    def normalize_cooldown(cls, value: Any) -> list[int]:
-        if value is None:
-            return [0]
-        if isinstance(value, int):
-            return [int(value)]
-        if isinstance(value, Iterable) and not isinstance(value, (str, bytes)):
-            values = [int(item) for item in value]
-            if not values:
-                return [0]
-            return values
-        raise TypeError("cooldown must be an int or iterable of ints")
-
-
 class ProtocolConfig(Config):
+    vibes: list[str] = Field(default_factory=list)
     input_resources: dict[str, int] = Field(default_factory=dict)
     output_resources: dict[str, int] = Field(default_factory=dict)
     cooldown: int = Field(ge=0, default=0)
@@ -223,15 +165,15 @@ class AssemblerConfig(GridObjectConfig):
     """Python assembler configuration."""
 
     type: Literal["assembler"] = Field(default="assembler")
-    recipes: list[tuple[list[str], ProtocolConfig]] = Field(
+    protocols: list[ProtocolConfig] = Field(
         default_factory=list,
-        description="Recipes in reverse order of priority.",
+        description="Protocols in reverse order of priority.",
     )
     allow_partial_usage: bool = Field(
         default=False,
         description=(
             "Allow assembler to be used during cooldown with scaled resource requirements/outputs. "
-            "This makes less sense if the assembler has multiple recipes."
+            "This makes less sense if the assembler has multiple protocols."
         ),
     )
     max_uses: int = Field(default=0, ge=0, description="Maximum number of uses (0 = unlimited)")
@@ -287,7 +229,8 @@ class ClipperConfig(Config):
     negligible. Set cutoff_distance > 0 to use a manual cutoff.
     """
 
-    unclipping_recipes: list[ProtocolConfig] = Field(default_factory=list)
+    # TODO: for now, the vibes in the ProtocolConfig are ignored.
+    unclipping_protocols: list[ProtocolConfig] = Field(default_factory=list)
     length_scale: float = Field(
         default=0.0,
         description="Controls spatial spread rate: weight = exp(-distance / length_scale). "
@@ -306,7 +249,6 @@ AnyGridObjectConfig = SerializeAsAny[
     Annotated[
         Union[
             Annotated[WallConfig, Tag("wall")],
-            Annotated[ConverterConfig, Tag("converter")],
             Annotated[AssemblerConfig, Tag("assembler")],
             Annotated[ChestConfig, Tag("chest")],
         ],
@@ -340,7 +282,7 @@ class GameConfig(Config):
             "blueprint",
         ]
     )
-    vibe_names: list[str] = Field(default_factory=list, description="List of vibe names for assembler recipes")
+    vibe_names: list[str] = Field(default_factory=list, description="List of vibe names for assembler protocols")
     num_agents: int = Field(ge=1, default=24)
     # max_steps = zero means "no limit"
     max_steps: int = Field(ge=0, default=1000)
@@ -377,8 +319,8 @@ class GameConfig(Config):
     track_movement_metrics: bool = Field(
         default=True, description="Enable movement metrics tracking (sequential rotations)"
     )
-    recipe_details_obs: bool = Field(
-        default=False, description="Converters show their recipe inputs and outputs when observed"
+    protocol_details_obs: bool = Field(
+        default=False, description="Objects show their protocol inputs and outputs when observed"
     )
     allow_diagonals: bool = Field(default=False, description="Enable actions to be aware of diagonal orientations")
 

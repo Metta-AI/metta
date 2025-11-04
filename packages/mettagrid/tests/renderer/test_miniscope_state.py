@@ -52,7 +52,7 @@ class TestMiniscopeState:
         assert state.object_type_names is None
         assert state.resource_names is None
         assert state.symbol_map is None
-        assert state.glyphs is None
+        assert state.vibes is None
 
     def test_is_running(self):
         """Test is_running method for different playback states."""
@@ -166,19 +166,19 @@ class TestMiniscopeState:
         assert state.mode == RenderMode.SELECT
 
         # Trying to set helper modes should be ignored
-        state.set_mode(RenderMode.GLYPH_PICKER)
+        state.set_mode(RenderMode.VIBE_PICKER)
         assert state.mode == RenderMode.SELECT
 
         state.set_mode(RenderMode.HELP)
         assert state.mode == RenderMode.SELECT
 
-    def test_enter_glyph_picker(self):
-        """Test enter_glyph_picker method."""
+    def test_enter_vibe_picker(self):
+        """Test enter_vibe_picker method."""
         state = MiniscopeState()
 
         state.mode = RenderMode.FOLLOW
-        state.enter_glyph_picker()
-        assert state.mode == RenderMode.GLYPH_PICKER
+        state.enter_vibe_picker()
+        assert state.mode == RenderMode.VIBE_PICKER
 
     def test_toggle_manual_control(self):
         """Test toggle_manual_control method."""

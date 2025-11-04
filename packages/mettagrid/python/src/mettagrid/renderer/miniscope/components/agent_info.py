@@ -44,9 +44,9 @@ class AgentInfoComponent(MiniscopeComponent):
         """Get symbol map from state."""
         return self.state.symbol_map if self.state else {}
 
-    def _get_glyphs(self) -> Optional[list[str]]:
-        """Get glyphs from state."""
-        return self.state.glyphs if self.state else None
+    def _get_vibes(self) -> Optional[list[str]]:
+        """Get vibes from state."""
+        return self.state.vibes if self.state else None
 
     def update(self) -> None:
         """Render the agent info panel using current environment and state."""
@@ -116,14 +116,14 @@ class AgentInfoComponent(MiniscopeComponent):
         if symbol_map and object_type_names:
             agent_symbol = get_symbol_for_object(agent_obj, object_type_names, symbol_map)
 
-        glyphs = self._get_glyphs()
-        glyph_id = agent_obj.get("glyph")
-        glyph_text = ""
-        if glyph_id is not None:
-            if isinstance(glyph_id, int) and glyphs and 0 <= glyph_id < len(glyphs):
-                glyph_text = f"{glyph_id} {glyphs[glyph_id]}"
-            elif isinstance(glyph_id, str):
-                glyph_text = glyph_id
+        vibes = self._get_vibes()
+        vibe_id = agent_obj.get("vibe")
+        vibe_text = ""
+        if vibe_id is not None:
+            if isinstance(vibe_id, int) and vibes and 0 <= vibe_id < len(vibes):
+                vibe_text = f"{vibe_id} {vibes[vibe_id]}"
+            elif isinstance(vibe_id, str):
+                vibe_text = vibe_id
 
         mode_text = "MANUAL" if selected_agent in manual_agents else "Policy"
 
@@ -132,8 +132,8 @@ class AgentInfoComponent(MiniscopeComponent):
         entries.append(("Agent", agent_value))
         entries.append(("Mode", mode_text))
         entries.append(("Reward", f"{reward:.2f}"))
-        if glyph_text:
-            entries.append(("Glyph", glyph_text))
+        if vibe_text:
+            entries.append(("Vibe", vibe_text))
 
         inventory = agent_obj.get("inventory", {}) if agent_obj else {}
         resource_names = self._get_resource_names()

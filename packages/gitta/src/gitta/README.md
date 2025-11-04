@@ -252,9 +252,11 @@ split_pr(
 
 ### AWS Secrets Manager
 
-Gitta can automatically retrieve secrets from AWS Secrets Manager when environment variables are not set. This is useful in AWS production environments.
+Gitta can automatically retrieve secrets from AWS Secrets Manager when environment variables are not set. This is useful
+in AWS production environments.
 
 **Secret Mapping:**
+
 - `GITHUB_TOKEN` → AWS secret: `github/token`
 - `ANTHROPIC_API_KEY` → AWS secret: `anthropic/api-key`
 
