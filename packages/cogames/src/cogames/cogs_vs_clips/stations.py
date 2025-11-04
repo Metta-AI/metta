@@ -165,26 +165,24 @@ class SiliconExtractorConfig(ExtractorConfig):
 
 class CvCChestConfig(CvCStationConfig):
     type: Literal["communal_chest"] = Field(default="communal_chest")
-    default_resource: str = Field(default="heart")
+    initial_inventory: dict[str, int] = Field(default={}, description="Initial inventory for each resource type")
 
     def station_cfg(self) -> ChestConfig:
         return ChestConfig(
             name=self.type,
             map_char="C",
             render_symbol=vibes.VIBE_BY_NAME["chest"].symbol,
-            resource_type=self.default_resource,
-            position_deltas=[("E", 1), ("W", 1), ("N", 1), ("S", 1)],  # Accept deposits from any direction
+            initial_inventory=self.initial_inventory,
         )
 
 
+# xcxc todo: these are all the same now. But maybe we want them to start with different amounts of resources?
 def _resource_chest(resource: str, type_id: int) -> ChestConfig:
     return ChestConfig(
         name=f"chest_{resource}",
         type_id=type_id,
         map_char="C",
         render_symbol=vibes.VIBE_BY_NAME[resource].symbol,
-        resource_type=resource,
-        position_deltas=[("E", 1), ("W", -1)],
     )
 
 
