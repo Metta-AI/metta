@@ -5,6 +5,7 @@
 
 #include <memory>
 #include <random>
+#include <unordered_map>
 #include <vector>
 
 #include "actions/attack.hpp"
@@ -49,15 +50,15 @@ GameConfig CreateBenchmarkConfig(size_t num_agents) {
                                                std::unordered_map<InventoryItem, InventoryProbability>(),
                                                4);
 
-  // GameConfig expects a vector of pairs for actions (ordered list)
-  std::vector<std::pair<std::string, std::shared_ptr<ActionConfig>>> actions_cfg;
+  // GameConfig expects an unordered_map for actions
+  std::unordered_map<std::string, std::shared_ptr<ActionConfig>> actions_cfg;
 
-  actions_cfg.push_back({"noop", action_cfg});
-  actions_cfg.push_back({"move", action_cfg});
-  actions_cfg.push_back({"rotate", action_cfg});
-  actions_cfg.push_back({"attack", attack_cfg});
-  actions_cfg.push_back({"swap", action_cfg});
-  actions_cfg.push_back({"change_vibe", change_vibe_cfg});
+  actions_cfg["noop"] = action_cfg;
+  actions_cfg["move"] = action_cfg;
+  actions_cfg["rotate"] = action_cfg;
+  actions_cfg["attack"] = attack_cfg;
+  actions_cfg["swap"] = action_cfg;
+  actions_cfg["change_vibe"] = change_vibe_cfg;
 
   std::unordered_map<std::string, std::shared_ptr<GridObjectConfig>> objects_cfg;
 
@@ -71,7 +72,30 @@ GameConfig CreateBenchmarkConfig(size_t num_agents) {
   global_obs_config.last_action = true;
   global_obs_config.last_reward = true;
 
-  return GameConfig(num_agents, 10000, false, 11, 11, resource_names, 100, global_obs_config, actions_cfg, objects_cfg);
+  // Empty vibe_names and feature_ids for benchmark
+  std::vector<std::string> vibe_names;
+  std::unordered_map<std::string, ObservationType> feature_ids;
+  std::unordered_map<int, std::string> tag_id_map;
+
+  return GameConfig(num_agents,
+                    10000,
+                    false,
+                    11,
+                    11,
+                    resource_names,
+                    vibe_names,
+                    100,
+                    global_obs_config,
+                    feature_ids,
+                    actions_cfg,
+                    objects_cfg,
+                    0.0f,
+                    tag_id_map,
+                    false,
+                    false,
+                    std::unordered_map<std::string, float>(),
+                    0,
+                    nullptr);
 }
 
 py::list CreateDefaultMap(size_t num_agents_per_team = 2) {
@@ -111,15 +135,10 @@ py::list CreateDefaultMap(size_t num_agents_per_team = 2) {
 }
 
 // Utility function to generate valid random actions
-py::array_t<int> GenerateValidRandomActions(MettaGrid* env, size_t num_agents, std::mt19937* gen) {
-  // MettaGrid supports both flat action indices and (action, arg) pairs.
-  // The Python benchmarks use the flat variant, so mirror that here to keep
-  // parity and avoid manual bounds calculations for each action handler.
-  py::list action_names = env->action_names();
-  const size_t num_flat_actions = py::len(action_names);
-  if (num_flat_actions == 0) {
-    throw std::runtime_error("MettaGrid returned no available actions");
-  }
+// Based on CreateBenchmarkConfig: noop=1, move=4, rotate=4, attack=1, swap=1, change_vibe=1
+// Total: 12 actions
+py::array_t<int> GenerateValidRandomActions(size_t num_agents, std::mt19937* gen) {
+  const size_t num_flat_actions = 12;  // Hardcoded based on benchmark config
 
   std::vector<py::ssize_t> shape = {static_cast<py::ssize_t>(num_agents)};
   py::array_t<int> actions(shape);
@@ -134,7 +153,7 @@ py::array_t<int> GenerateValidRandomActions(MettaGrid* env, size_t num_agents, s
 }
 
 // Pre-generate a sequence of actions for the benchmark
-std::vector<py::array_t<int>> PreGenerateActionSequence(MettaGrid* env, size_t num_agents, size_t sequence_length) {
+std::vector<py::array_t<int>> PreGenerateActionSequence(size_t num_agents, size_t sequence_length) {
   std::vector<py::array_t<int>> action_sequence;
   action_sequence.reserve(static_cast<size_t>(sequence_length));
 
@@ -142,7 +161,7 @@ std::vector<py::array_t<int>> PreGenerateActionSequence(MettaGrid* env, size_t n
   std::mt19937 gen(42);
 
   for (size_t i = 0; i < sequence_length; ++i) {
-    action_sequence.push_back(GenerateValidRandomActions(env, num_agents, &gen));
+    action_sequence.push_back(GenerateValidRandomActions(num_agents, &gen));
   }
 
   return action_sequence;
@@ -167,13 +186,24 @@ public:
     auto map = CreateDefaultMap(2);
 
     env = std::make_unique<MettaGrid>(cfg, map, 42);
-    env->reset();
 
-    // Verify agent count
-    if (env->num_agents() != num_agents) {
-      setup_error = "Agent count mismatch";
-      return;
-    }
+    // Initialize buffers for the environment
+    // Observations: [num_agents, num_tokens, 3]
+    const size_t num_tokens = cfg.num_observation_tokens;
+    std::vector<py::ssize_t> obs_shape = {
+        static_cast<py::ssize_t>(num_agents), static_cast<py::ssize_t>(num_tokens), 3};
+    auto observations = py::array_t<uint8_t, py::array::c_style>(obs_shape);
+    auto terminals = py::array_t<bool, py::array::c_style>(static_cast<py::ssize_t>(num_agents));
+    auto truncations = py::array_t<bool, py::array::c_style>(static_cast<py::ssize_t>(num_agents));
+    auto rewards = py::array_t<float, py::array::c_style>(static_cast<py::ssize_t>(num_agents));
+    actions_buffer = py::array_t<int, py::array::c_style>(static_cast<py::ssize_t>(num_agents));
+
+    // Initialize actions to zero
+    std::fill(static_cast<int*>(actions_buffer.request().ptr),
+              static_cast<int*>(actions_buffer.request().ptr) + actions_buffer.size(),
+              0);
+
+    env->set_buffers(observations, terminals, truncations, rewards, actions_buffer);
 
     // Pre-generate action sequence matching Python benchmark
     // Python uses: iterations = 1000, rounds = 20, total = 20000
@@ -181,7 +211,7 @@ public:
     const int rounds = 20;
     const int total_iterations = iterations * rounds;
 
-    action_sequence = PreGenerateActionSequence(env.get(), num_agents, total_iterations);
+    action_sequence = PreGenerateActionSequence(num_agents, total_iterations);
     iteration_counter = 0;
     setup_error.clear();
   }
@@ -198,6 +228,7 @@ public:
 protected:
   std::unique_ptr<MettaGrid> env;
   std::vector<py::array_t<int>> action_sequence;
+  py::array_t<int, py::array::c_style> actions_buffer;  // Store actions buffer for mutation
   size_t num_agents;
   size_t iteration_counter;
   std::string setup_error;
@@ -217,11 +248,23 @@ BENCHMARK_F(MettaGridBenchmark, Step)(benchmark::State& state) {
   // Benchmark loop
   for (auto _ : state) {
     // Get the next action from the pre-generated sequence
-    const auto& actions = action_sequence[iteration_counter % action_sequence.size()];
+    const auto& action_array = action_sequence[iteration_counter % action_sequence.size()];
     iteration_counter++;
 
-    // Perform the step
-    auto result = env->step(actions);
+    // Copy actions into the actions buffer
+    auto* actions_ptr = static_cast<int*>(actions_buffer.mutable_unchecked<1>().mutable_data(0));
+    auto* action_array_ptr = static_cast<int*>(action_array.request().ptr);
+    std::copy(action_array_ptr, action_array_ptr + num_agents, actions_ptr);
+
+    // Update buffers with new actions (set_buffers copies, so we need to call it)
+    auto observations = env->observations();
+    auto terminals = env->terminals();
+    auto truncations = env->truncations();
+    auto rewards = env->rewards();
+    env->set_buffers(observations, terminals, truncations, rewards, actions_buffer);
+
+    // Perform the step (no arguments - uses actions from buffer)
+    auto result = env->step();
     benchmark::DoNotOptimize(result);
 
     // Note: Intentionally ignoring termination states to measure pure step performance,

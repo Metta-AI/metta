@@ -26,6 +26,7 @@ from metta.agent.policies import sliding_transformer as backbone_sliding
 from metta.agent.policies import trxl as backbone_trxl
 from metta.agent.policies import trxl_nvidia as backbone_trxl_nvidia
 from metta.agent.policy import Policy, PolicyArchitecture
+from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 
 logger = logging.getLogger(__name__)
 
@@ -115,15 +116,15 @@ class TransformerPolicy(Policy):
 
     ConfigClass = TransformerPolicyConfig
 
-    def __init__(self, env, config: Optional[TransformerPolicyConfig] = None) -> None:
-        super().__init__()
+    def __init__(self, policy_env_info: "PolicyEnvInterface", config: Optional[TransformerPolicyConfig] = None) -> None:
+        super().__init__(policy_env_info)
         if config is None:
             config = self.ConfigClass()
         self.config = config
 
-        self.env = env
+        self.policy_env_info = policy_env_info
         self.is_continuous = False
-        self.action_space = env.action_space
+        self.action_space = policy_env_info.action_space
 
         transformer_config = self.config.transformer
         if transformer_config is None:
@@ -132,11 +133,11 @@ class TransformerPolicy(Policy):
         self.latent_size = transformer_config.latent_size
         self.hidden_size = transformer_config.hidden_size
         self._uses_sliding_backbone = isinstance(transformer_config, backbone_sliding.SlidingTransformerConfig)
-        self.strict_attr_indices = getattr(self.config, "strict_attr_indices", False)
-        self.use_aux_tokens = getattr(self.config, "use_aux_tokens", False)
-        self.num_layers = max(env.feature_normalizations.keys()) + 1
-        self._memory_len = int(getattr(transformer_config, "memory_len", 0) or 0)
-        self._transformer_layers = int(getattr(transformer_config, "num_layers", 0) or 0)
+        self.strict_attr_indices = self.config.strict_attr_indices
+        self.use_aux_tokens = self.config.use_aux_tokens
+        self._num_input_features = policy_env_info.observation_space.shape[0] + 1
+        self._memory_len = transformer_config.memory_len
+        self._transformer_layers = transformer_config.num_layers
         self._memory_len_initial = self._memory_len
 
         encoder_out = self.config.obs_encoder.latent_dim
@@ -148,7 +149,7 @@ class TransformerPolicy(Policy):
             )
             self.config.obs_encoder.latent_dim = self.latent_size
 
-        self.obs_shim = ObsShimTokens(env, config=self.config.obs_shim_config)
+        self.obs_shim = ObsShimTokens(policy_env_info, config=self.config.obs_shim_config)
         self.obs_tokenizer = ObsAttrEmbedFourier(config=self.config.obs_tokenizer)
         self.obs_encoder = ObsPerceiverLatent(config=self.config.obs_encoder)
 
@@ -588,8 +589,8 @@ class TransformerPolicy(Policy):
         batch_size: int,
         tt: int,
     ) -> torch.Tensor:
-        in_key = getattr(self.transformer_cfg, "in_key", "encoded_obs")
-        out_key = getattr(self.transformer_cfg, "out_key", "core")
+        in_key = self.transformer_cfg.in_key
+        out_key = self.transformer_cfg.out_key
 
         reshaped_latent = latent.view(batch_size * tt, -1)
         td.set(in_key, reshaped_latent)
@@ -666,12 +667,12 @@ class TransformerPolicy(Policy):
         coords_byte = obs[..., 0].to(torch.uint8)
         attr_indices = obs[..., 1].long()
         valid_tokens = coords_byte != 0xFF
-        invalid_mask = valid_tokens & (attr_indices >= self.num_layers)
+        invalid_mask = valid_tokens & (attr_indices >= self._num_input_features)
         if invalid_mask.any():
             invalid_indices = torch.unique(attr_indices[invalid_mask]).cpu().tolist()
             raise ValueError(
                 "Found observation attribute indices "
-                f"{sorted(int(idx) for idx in invalid_indices)} >= num_layers ({self.num_layers})."
+                f"{sorted(int(idx) for idx in invalid_indices)} >= num_layers ({self._num_input_features})."
             )
 
     def _compute_reset_mask(
@@ -751,12 +752,12 @@ class TransformerPolicy(Policy):
     # ------------------------------------------------------------------
     # Policy interface
     # ------------------------------------------------------------------
-    def initialize_to_environment(self, env, device):
+    def initialize_to_environment(self, policy_env_info: PolicyEnvInterface, device: torch.device):
         device = torch.device(device)
         self.to(device)
 
-        log = self.obs_shim.initialize_to_environment(env, device)
-        self.action_probs.initialize_to_environment(env, device)
+        log = self.obs_shim.initialize_to_environment(policy_env_info, device)
+        self.action_probs.initialize_to_environment(policy_env_info, device)
         self.clear_memory()
         return [log] if log is not None else []
 

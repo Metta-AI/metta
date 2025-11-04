@@ -28,7 +28,9 @@ from gymnasium import spaces
 from pettingzoo.test import parallel_api_test
 
 # PettingZoo adapter imports
-from mettagrid import MettaGridConfig, MettaGridPettingZooEnv
+from mettagrid.builder.envs import make_arena
+from mettagrid.envs.pettingzoo_env import MettaGridPettingZooEnv
+from mettagrid.simulator import Simulator
 
 
 def demo_pettingzoo_api():
@@ -36,10 +38,14 @@ def demo_pettingzoo_api():
     print("PETTINGZOO API DEMO")
     print("=" * 60)
 
-    # Create PettingZoo environment with default config
+    # Create simulator and config
+    simulator = Simulator()
+    config = make_arena(num_agents=24)
+
+    # Create PettingZoo environment
     env = MettaGridPettingZooEnv(
-        mg_config=MettaGridConfig(),
-        render_mode=None,
+        simulator=simulator,
+        cfg=config,
     )
 
     print("PettingZoo environment created")
@@ -59,11 +65,14 @@ def demo_random_rollout():
     print("\nRANDOM ROLLOUT DEMO")
     print("=" * 60)
 
-    # Create PettingZoo environment with default config
+    # Create simulator and config
+    simulator = Simulator()
+    config = make_arena(num_agents=24)
+
+    # Create PettingZoo environment
     env = MettaGridPettingZooEnv(
-        mg_config=MettaGridConfig(),
-        render_mode=None,
-        is_training=True,
+        simulator=simulator,
+        cfg=config,
     )
 
     print("Running random policy rollout...")
@@ -108,11 +117,14 @@ def demo_simple_marl_training():
     print("\nSIMPLE MULTI-AGENT TRAINING DEMO")
     print("=" * 60)
 
-    # Create PettingZoo environment with default config
+    # Create simulator and config
+    simulator = Simulator()
+    config = make_arena(num_agents=24)
+
+    # Create PettingZoo environment
     env = MettaGridPettingZooEnv(
-        mg_config=MettaGridConfig(),
-        render_mode=None,
-        is_training=True,
+        simulator=simulator,
+        cfg=config,
     )
 
     print("Running simple multi-agent training...")
