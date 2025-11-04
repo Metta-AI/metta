@@ -16,6 +16,8 @@ serviceAccount:
   create: true
   name: ""  # Will use release name if not specified
   annotations: {}
+  # Note: IAM role is hardcoded in templates/serviceaccount.yaml
+  # All cronjobs share: arn:aws:iam::751442549699:role/monitoring-cronjobs
 
 # Note: RBAC is always enabled for all cronjobs (see templates/rbac.yaml)
 # All cronjobs get broad read-only cluster permissions for simplicity.

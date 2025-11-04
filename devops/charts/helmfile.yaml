@@ -176,9 +176,6 @@ releases:
       - schedule: "0 0 * * *"  # Daily at midnight
       - image:
           name: pr-similarity-cache
-      - serviceAccount:
-          annotations:
-            eks.amazonaws.com/role-arn: arn:aws:iam::751442549699:role/pr-similarity-cache-cronjob
       - datadog:
           service: pr-similarity-cache-refresh
 
@@ -188,9 +185,6 @@ releases:
       - schedule: "0 */6 * * *"  # Every 6 hours
       - image:
           name: dashboard-collector
-      - serviceAccount:
-          annotations:
-            eks.amazonaws.com/role-arn: arn:aws:iam::751442549699:role/dashboard-cronjob
       - datadog:
           service: dashboard-collector
 
@@ -204,11 +198,6 @@ releases:
   #     - image:
   #         name: pr-similarity-cache
   #         tag: dev  # Use dev tag
-  #     - serviceAccount:
-  #         annotations:
-  #           eks.amazonaws.com/role-arn: arn:aws:iam::751442549699:role/pr-similarity-cache-cronjob
-  #     - rbac:
-  #         enabled: false  # No k8s API access needed
   #     - datadog:
   #         service: pr-similarity-cache-refresh-dev
   #         env: dev
@@ -220,9 +209,6 @@ releases:
   #     - image:
   #         name: dashboard-collector
   #         tag: dev  # Use dev tag
-  #     - serviceAccount:
-  #         annotations:
-  #           eks.amazonaws.com/role-arn: arn:aws:iam::751442549699:role/dashboard-cronjob
   #     - datadog:
   #         service: dashboard-collector-dev
   #         env: dev
