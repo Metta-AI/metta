@@ -1,82 +1,70 @@
+import random
 from typing import Any, Optional
 
 import numpy as np
 
-from mettagrid import (
-    MettaGridEnv,
-    dtype_actions,
-)
-from mettagrid.mettagrid_c import MettaGrid
+from mettagrid.config.mettagrid_config import Direction
+from mettagrid.mettagrid_c import MettaGrid, dtype_actions
+from mettagrid.simulator import Action, Simulation
 from mettagrid.test_support.orientation import Orientation
 
 
 def generate_valid_random_actions(
-    env: MettaGridEnv,
+    sim: Simulation,
     num_agents: int,
-    force_action_type: Optional[int] = None,
+    action_prefix: Optional[str] = None,
     seed: Optional[int] = None,
-) -> np.ndarray:
-    """
-    Generate valid actions for all agents, respecting maximum argument values.
-
-    Args:
-        env: MettaGridEnv instance
-        num_agents: Number of agents to generate actions for
-        force_action_type: If provided, use this action type for all agents
-        seed: Optional random seed for deterministic action generation
-
-    Returns:
-        NumPy array of valid actions with shape (num_agents,)
-    """
+) -> list[Action]:
     # Set the random seed if provided (for deterministic behavior)
-    if seed is not None:
-        np.random.seed(seed)
-
-    actions = np.zeros((num_agents,), dtype=dtype_actions)
-
-    for i in range(num_agents):
-        if force_action_type is None:
-            actions[i] = np.random.randint(0, env.single_action_space.n)
-        else:
-            actions[i] = np.clip(force_action_type, 0, env.single_action_space.n - 1)
-
-    return actions
+    random.seed(seed)
+    action_prefix = action_prefix or ""
+    action_names = [name for name in sim.action_names if name.startswith(action_prefix)]
+    return [Action(name=random.choice(action_names)) for _ in range(num_agents)]
 
 
-def move(env: MettaGrid, direction: Orientation, agent_idx: int = 0) -> dict[str, Any]:
+def move(sim: Simulation, direction: Orientation | Direction, agent_idx: int = 0) -> dict[str, Any]:
     """
-    Movement helper supporting all 8 orientation directions.
+    Movement helper supporting all 8 cardinal directions.
 
     Args:
-        env: MettaGrid environment
-        direction: Orientation direction
+        sim: Simulation
+        direction: Orientation enum or direction string
         agent_idx: Agent index (default 0)
 
     Returns:
         Dict with success status and error if any
     """
     result = {"success": False, "error": None}
-    action_names = env.action_names()
 
-    move_action_name = f"move_{direction.name.lower()}"
-    if move_action_name not in action_names:
-        result["error"] = f"{move_action_name} not available"
+    # Convert Orientation to direction string if needed
+    if isinstance(direction, Orientation):
+        direction_str = direction.name.lower()
+    else:
+        direction_str = direction
+
+    # Get position before move
+    position_before = get_agent_position(sim, agent_idx)
+
+    # Create and execute move action
+    action_name = f"move_{direction_str}"
+    if action_name not in sim.action_names:
+        result["error"] = f"Action {action_name} not available"
         return result
 
-    # Get initial position for verification
-    position_before = get_agent_position(env, agent_idx)
+    action = Action(name=action_name)
 
-    move_action = np.zeros((env.num_agents,), dtype=dtype_actions)
-    move_action[agent_idx] = action_names.index(move_action_name)
+    # Set action for all agents (only the specified agent will move, others get noop)
+    for i in range(sim.num_agents):
+        if i == agent_idx:
+            sim.agent(i).set_action(action)
+        else:
+            # Set noop for other agents
+            sim.agent(i).set_action(Action(name="noop"))
 
-    env.step(move_action)
-
-    if not env.action_success()[agent_idx]:
-        result["error"] = f"Failed to move {str(direction)}"
-        return result
+    sim.step()
 
     # Check if position changed
-    position_after = get_agent_position(env, agent_idx)
+    position_after = get_agent_position(sim, agent_idx)
     if position_after != position_before:
         result["success"] = True
     else:
@@ -85,118 +73,55 @@ def move(env: MettaGrid, direction: Orientation, agent_idx: int = 0) -> dict[str
     return result
 
 
-def rotate(env: MettaGrid, orientation: Orientation, agent_idx: int = 0) -> dict[str, Any]:
-    """
-    Rotate agent to face specified direction.
-
-    Args:
-        env: MettaGrid environment
-        orientation: Orientation enum (NORTH, SOUTH, WEST, EAST for cardinal directions)
-        agent_idx: Agent index (default 0)
-
-    Returns:
-        Dict with rotation results and validation
-    """
-
-    direction_name = str(orientation)
-
-    result = {
-        "success": False,
-        "action_success": False,
-        "orientation_before": None,
-        "orientation_after": None,
-        "rotated_correctly": False,
-        "error": None,
-        "direction": direction_name,
-        "target_orientation": orientation.value,
-    }
-
-    try:
-        action_names = env.action_names()
-
-        rotate_action_name = f"rotate_{orientation.name.lower()}"
-        if rotate_action_name not in action_names:
-            result["error"] = f"{rotate_action_name} action not available"
-            return result
-
-        rotate_action_idx = action_names.index(rotate_action_name)
-
-        # Get initial orientation
-        result["orientation_before"] = get_agent_orientation(env, agent_idx)
-
-        print(f"Rotating agent {agent_idx} to face {direction_name} (orientation {orientation.value})")
-        print(f"  Before: {result['orientation_before']}")
-
-        # Perform rotation
-        rotate_action = np.zeros((env.num_agents,), dtype=dtype_actions)
-        rotate_action[agent_idx] = rotate_action_idx
-
-        env.step(rotate_action)
-        action_success = env.action_success()
-        result["action_success"] = bool(action_success[agent_idx])
-
-        # Get final orientation
-        result["orientation_after"] = get_agent_orientation(env, agent_idx)
-
-        print(f"  After: {result['orientation_after']}")
-        print(f"  Action success: {result['action_success']}")
-
-        # Validate rotation
-        result["rotated_correctly"] = result["orientation_after"] == orientation.value
-
-        if result["rotated_correctly"]:
-            print(f"  ✅ Rotated correctly to face {direction_name}")
-        else:
-            print(f"  ❌ Rotation failed. Expected {orientation.value}, got {result['orientation_after']}")
-
-        # Overall success
-        result["success"] = result["action_success"] and result["rotated_correctly"]
-
-        if not result["success"] and not result["error"]:
-            if not result["action_success"]:
-                result["error"] = "Rotate action failed"
-            elif not result["rotated_correctly"]:
-                result["error"] = f"Failed to rotate to orientation {orientation.value}"
-
-    except Exception as e:
-        result["error"] = f"Exception during rotation: {str(e)}"
-
-    return result
-
-
-def noop(env: MettaGrid, agent_idx: int = 0) -> dict[str, Any]:
+def noop(env: Simulation | MettaGrid, agent_idx: int = 0) -> dict[str, Any]:
     """
     Perform a no-operation action.
 
     Args:
-        env: MettaGrid environment
+        env: Simulation or MettaGrid environment
         agent_idx: Agent index (default 0)
 
     Returns:
         Dict with success status
     """
     result = {"success": False, "error": None}
-    action_names = env.action_names()
+
+    # Handle both Simulation (property) and MettaGrid (method)
+    if isinstance(env, Simulation):
+        action_names = env.action_names
+    else:
+        action_names = env.action_names() if callable(env.action_names) else env.action_names
 
     if "noop" not in action_names:
         result["error"] = "Noop action not available"
         return result
 
-    noop_idx = action_names.index("noop")
+    # Handle Simulation vs MettaGrid
+    if isinstance(env, Simulation):
+        action = Action(name="noop")
+        for i in range(env.num_agents):
+            env.agent(i).set_action(action)
+        env.step()
+        action_success = env.action_success
+    else:
+        noop_idx = action_names.index("noop")
+        c_env = env._c_sim if hasattr(env, "_c_sim") else env
+        c_env.actions()[:, 0] = 0
+        c_env.actions()[agent_idx, 0] = noop_idx
+        if hasattr(env, "step") and hasattr(env, "_c_sim"):
+            env.step()
+        else:
+            c_env.step()
+        action_success = c_env.action_success if not callable(c_env.action_success) else c_env.action_success()
 
-    # Perform noop
-    noop_action = np.zeros((env.num_agents,), dtype=dtype_actions)
-    noop_action[agent_idx] = noop_idx
-    env.step(noop_action)
-
-    result["success"] = bool(env.action_success()[agent_idx])
+    result["success"] = bool(action_success[agent_idx])
     if not result["success"]:
         result["error"] = "Noop action failed"
 
     return result
 
 
-def attack(env: MettaGrid, target_arg: int = 0, agent_idx: int = 0) -> dict[str, Any]:
+def attack(env: Simulation | MettaGrid, target_arg: int = 0, agent_idx: int = 0) -> dict[str, Any]:
     """
     Perform an attack action.
 
@@ -210,7 +135,7 @@ def attack(env: MettaGrid, target_arg: int = 0, agent_idx: int = 0) -> dict[str,
     If target_arg > number of agents found, attacks the last agent found.
 
     Args:
-        env: MettaGrid environment
+        env: Simulation or MettaGrid environment
         target_arg: Which agent to target in the 3x3 grid (0-8, default 0)
         agent_idx: Attacking agent index (default 0)
 
@@ -228,7 +153,11 @@ def attack(env: MettaGrid, target_arg: int = 0, agent_idx: int = 0) -> dict[str,
         "defense_used": False,
     }
 
-    action_names = env.action_names()
+    # Handle both Simulation (property) and MettaGrid (method)
+    if isinstance(env, Simulation):
+        action_names = env.action_names
+    else:
+        action_names = env.action_names() if callable(env.action_names) else env.action_names
 
     attack_variants = sorted(
         (name for name in action_names if name.startswith("attack_") and name.removeprefix("attack_").isdigit()),
@@ -251,8 +180,6 @@ def attack(env: MettaGrid, target_arg: int = 0, agent_idx: int = 0) -> dict[str,
         result["error"] = "Attack action not available"
         return result
 
-    attack_idx = action_names.index(attack_name)
-
     # Get initial state for comparison
     objects_before = env.grid_objects()
 
@@ -263,12 +190,24 @@ def attack(env: MettaGrid, target_arg: int = 0, agent_idx: int = 0) -> dict[str,
             attacker_resources_before = obj_data.get("resources", {}).copy()
             break
 
-    # Perform attack
-    attack_action = np.zeros((env.num_agents,), dtype=dtype_actions)
-    attack_action[agent_idx] = attack_idx
-    env.step(attack_action)
+    # Perform attack - handle Simulation vs MettaGrid
+    if isinstance(env, Simulation):
+        action = Action(name=attack_name)
+        for i in range(env.num_agents):
+            if i == agent_idx:
+                env.agent(i).set_action(action)
+            else:
+                env.agent(i).set_action(Action(name="noop"))
+        env.step()
+        action_success = env.action_success
+    else:
+        attack_idx = action_names.index(attack_name)
+        attack_action = np.zeros((env.num_agents,), dtype=dtype_actions)
+        attack_action[agent_idx] = attack_idx
+        env.step(attack_action)
+        action_success = env.action_success if not callable(env.action_success) else env.action_success()
 
-    result["success"] = bool(env.action_success()[agent_idx])
+    result["success"] = bool(action_success[agent_idx])
 
     if selected_arg is not None:
         result["target_arg"] = selected_arg
@@ -329,58 +268,19 @@ def attack(env: MettaGrid, target_arg: int = 0, agent_idx: int = 0) -> dict[str,
     return result
 
 
-def swap(env: MettaGrid, agent_idx: int = 0) -> dict[str, Any]:
-    """
-    Perform a swap action with whatever is in front of the agent.
-
-    Args:
-        env: MettaGrid environment
-        agent_idx: Agent index (default 0)
-
-    Returns:
-        Dict with success status and swap details
-    """
-    result = {
-        "success": False,
-        "error": None,
-        "agent_idx": agent_idx,
-        "position_before": None,
-        "position_after": None,
-    }
-
-    action_names = env.action_names()
-
-    if "swap" not in action_names:
-        result["error"] = "Swap action not available"
-        return result
-
-    swap_idx = action_names.index("swap")
-
-    # Get initial position
-    result["position_before"] = get_agent_position(env, agent_idx)
-
-    # Perform swap
-    swap_action = np.zeros((env.num_agents,), dtype=dtype_actions)
-    swap_action[agent_idx] = swap_idx
-    env.step(swap_action)
-
-    result["success"] = bool(env.action_success()[agent_idx])
-
-    if result["success"]:
-        result["position_after"] = get_agent_position(env, agent_idx)
-        if result["position_after"] == result["position_before"]:
-            result["error"] = "Position unchanged after swap"
-            result["success"] = False
-    else:
-        result["error"] = "Swap action failed (target may not be swappable)"
-
-    return result
-
-
 def get_current_observation(env: MettaGrid, agent_idx: int):
     """Get current observation using noop action."""
     try:
-        action_names = env.action_names()
+        # Try to get action_names from Simulation if available
+        if hasattr(env, "_sim"):
+            action_names = env._sim.action_names
+        elif hasattr(env, "action_names"):
+            action_names = env.action_names
+            if callable(action_names):
+                action_names = action_names()
+        else:
+            raise AttributeError("Cannot determine action_names")
+
         if "noop" in action_names:
             noop_idx = action_names.index("noop")
             noop_action = np.zeros((env.num_agents,), dtype=dtype_actions)
@@ -396,15 +296,15 @@ def get_current_observation(env: MettaGrid, agent_idx: int):
         return obs.copy()
 
 
-def get_agent_position(env: MettaGrid, agent_idx: int = 0) -> tuple[int, int]:
-    grid_objects = env.grid_objects()
+def get_agent_position(env: Simulation | MettaGrid, agent_idx: int = 0) -> tuple[int, int]:
+    grid_objects = env.grid_objects() if isinstance(env, Simulation) else env.grid_objects()
     for _obj_id, obj_data in grid_objects.items():
         if "agent_id" in obj_data and obj_data.get("agent_id") == agent_idx:
             return (obj_data["r"], obj_data["c"])
     raise ValueError(f"Agent {agent_idx} not found in grid objects")
 
 
-def get_agent_orientation(env: MettaGrid, agent_idx: int = 0) -> int:
+def get_agent_orientation(env: Simulation | MettaGrid, agent_idx: int = 0) -> int:
     grid_objects = env.grid_objects()
     for _obj_id, obj_data in grid_objects.items():
         if "agent_id" in obj_data and obj_data.get("agent_id") == agent_idx:
@@ -415,11 +315,21 @@ def get_agent_orientation(env: MettaGrid, agent_idx: int = 0) -> int:
 def action_index(env, base: str, orientation: Orientation | None = None) -> int:
     """Return the flattened action index for a given action name."""
     target = base if orientation is None else f"{base}_{orientation.name.lower()}"
-    names_getter = getattr(env, "action_names", None)
-    if callable(names_getter):
-        names = names_getter()
+
+    # Try to get action_names from Simulation if available
+    if isinstance(env, Simulation):
+        names = env.action_names
+    elif hasattr(env, "_sim"):
+        names = env._sim.action_names
     else:
-        names = names_getter
+        names_getter = getattr(env, "action_names", None)
+        if callable(names_getter):
+            names = names_getter()
+        else:
+            names = names_getter
+
+    if names is None:
+        raise AttributeError("Cannot determine action_names for this environment")
     if target not in names:
         raise AssertionError(f"Action {target} not available; available actions: {names}")
     return names.index(target)

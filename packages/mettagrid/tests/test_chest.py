@@ -1,10 +1,5 @@
-import numpy as np
-
 from mettagrid.config.mettagrid_config import ChestConfig, MettaGridConfig
-from mettagrid.core import MettaGridCore
-from mettagrid.mettagrid_c import dtype_actions
-from mettagrid.test_support.actions import action_index
-from mettagrid.test_support.orientation import Orientation
+from mettagrid.simulator import Simulation
 
 
 class TestChest:
@@ -37,20 +32,19 @@ class TestChest:
         # Configure chest with specific positions only
         cfg.game.actions.move.enabled = True
 
-        env = MettaGridCore(cfg)
-        obs, info = env.reset()
+        sim = Simulation(cfg)
 
-        gold_idx = env.resource_names.index("gold")
+        gold_idx = sim.resource_names.index("gold")
 
         # Agent starts at (3,2), chest is at (2,2)
         # Agent is south of chest (withdrawal position)
 
         # Try to move south (to chest position) - should trigger deposit
-        actions = np.array([action_index(env, "move", Orientation.SOUTH)], dtype=dtype_actions)
-        obs, rewards, terminals, truncations, info = env.step(actions)
+        sim.agent(0).set_action("move_south")
+        sim.step()
 
         # Check deposit happened
-        grid_objects = env.grid_objects()
+        grid_objects = sim.grid_objects()
         agent = next(obj for _obj_id, obj in grid_objects.items() if "agent_id" in obj)
         chest = next(obj for _obj_id, obj in grid_objects.items() if obj["type_name"] == "chest")
 
@@ -62,25 +56,25 @@ class TestChest:
         )
 
         # Move around to south position to withdraw
-        actions = np.array([action_index(env, "move", Orientation.WEST)], dtype=dtype_actions)
-        obs, rewards, terminals, truncations, info = env.step(actions)
+        sim.agent(0).set_action("move_west")
+        sim.step()
 
         # Then south
-        actions = np.array([action_index(env, "move", Orientation.SOUTH)], dtype=dtype_actions)
-        obs, rewards, terminals, truncations, info = env.step(actions)
-        actions = np.array([action_index(env, "move", Orientation.SOUTH)], dtype=dtype_actions)
-        obs, rewards, terminals, truncations, info = env.step(actions)
+        sim.agent(0).set_action("move_south")
+        sim.step()
+        sim.agent(0).set_action("move_south")
+        sim.step()
 
         # Then east to be south of chest
-        actions = np.array([action_index(env, "move", Orientation.EAST)], dtype=dtype_actions)
-        obs, rewards, terminals, truncations, info = env.step(actions)
+        sim.agent(0).set_action("move_east")
+        sim.step()
 
         # Now move north to chest (from withdrawal position)
-        actions = np.array([action_index(env, "move", Orientation.NORTH)], dtype=dtype_actions)
-        obs, rewards, terminals, truncations, info = env.step(actions)
+        sim.agent(0).set_action("move_north")
+        sim.step()
 
         # Check withdrawal happened
-        grid_objects_after = env.grid_objects()
+        grid_objects_after = sim.grid_objects()
         agent_after = next(obj for _obj_id, obj in grid_objects_after.items() if "agent_id" in obj)
         chest_after = next(obj for _obj_id, obj in grid_objects_after.items() if obj["type_name"] == "chest")
 
@@ -119,20 +113,19 @@ class TestChest:
 
         cfg.game.actions.move.enabled = True
 
-        env = MettaGridCore(cfg)
-        obs, info = env.reset()
+        sim = Simulation(cfg)
 
-        gold_idx = env.resource_names.index("gold")
+        gold_idx = sim.resource_names.index("gold")
 
         # Agent starts at (1,2), chest is at (2,2)
         # Agent is north of chest (deposit position)
 
         # Try to deposit 5 gold, but agent only has 3
-        actions = np.array([action_index(env, "move", Orientation.SOUTH)], dtype=dtype_actions)
-        obs, rewards, terminals, truncations, info = env.step(actions)
+        sim.agent(0).set_action("move_south")
+        sim.step()
 
         # Check partial deposit happened
-        grid_objects = env.grid_objects()
+        grid_objects = sim.grid_objects()
         agent = next(obj for _obj_id, obj in grid_objects.items() if "agent_id" in obj)
         chest = next(obj for _obj_id, obj in grid_objects.items() if obj["type_name"] == "chest")
 
@@ -144,21 +137,21 @@ class TestChest:
         )
 
         # Move around to south position to withdraw
-        actions = np.array([action_index(env, "move", Orientation.WEST)], dtype=dtype_actions)
-        obs, rewards, terminals, truncations, info = env.step(actions)
-        actions = np.array([action_index(env, "move", Orientation.SOUTH)], dtype=dtype_actions)
-        obs, rewards, terminals, truncations, info = env.step(actions)
-        actions = np.array([action_index(env, "move", Orientation.SOUTH)], dtype=dtype_actions)
-        obs, rewards, terminals, truncations, info = env.step(actions)
-        actions = np.array([action_index(env, "move", Orientation.EAST)], dtype=dtype_actions)
-        obs, rewards, terminals, truncations, info = env.step(actions)
+        sim.agent(0).set_action("move_west")
+        sim.step()
+        sim.agent(0).set_action("move_south")
+        sim.step()
+        sim.agent(0).set_action("move_south")
+        sim.step()
+        sim.agent(0).set_action("move_east")
+        sim.step()
 
         # Try to withdraw 5 gold, chest has exactly 5
-        actions = np.array([action_index(env, "move", Orientation.NORTH)], dtype=dtype_actions)
-        obs, rewards, terminals, truncations, info = env.step(actions)
+        sim.agent(0).set_action("move_north")
+        sim.step()
 
         # Check full withdrawal happened
-        grid_objects_after = env.grid_objects()
+        grid_objects_after = sim.grid_objects()
         agent_after = next(obj for _obj_id, obj in grid_objects_after.items() if "agent_id" in obj)
         chest_after = next(obj for _obj_id, obj in grid_objects_after.items() if obj["type_name"] == "chest")
 
@@ -170,13 +163,13 @@ class TestChest:
         )
 
         # Try to withdraw again when chest is empty
-        actions = np.array([action_index(env, "move", Orientation.SOUTH)], dtype=dtype_actions)
-        obs, rewards, terminals, truncations, info = env.step(actions)
-        actions = np.array([action_index(env, "move", Orientation.NORTH)], dtype=dtype_actions)
-        obs, rewards, terminals, truncations, info = env.step(actions)
+        sim.agent(0).set_action("move_south")
+        sim.step()
+        sim.agent(0).set_action("move_north")
+        sim.step()
 
         # Check nothing changed (no resources to withdraw)
-        grid_objects_final = env.grid_objects()
+        grid_objects_final = sim.grid_objects()
         agent_final = next(obj for _obj_id, obj in grid_objects_final.items() if "agent_id" in obj)
         chest_final = next(obj for _obj_id, obj in grid_objects_final.items() if obj["type_name"] == "chest")
 

@@ -19,7 +19,7 @@ from metta.common.util.constants import METTA_WANDB_ENTITY, METTA_WANDB_PROJECT
 from metta.common.util.log_config import init_logging
 from metta.common.wandb.context import WandbConfig, WandbContext
 from metta.common.wandb.utils import log_to_wandb_summary
-from mettagrid.base_config import Config
+from mettagrid.config import Config
 
 _EPOCH: Final = datetime.timezone.utc
 _FMT: Final = "%Y-%m-%d-%H-%M-%S-%f"
@@ -78,7 +78,7 @@ if __name__ == "__main__":
         )
 
     except Exception as e:
-        logger.error(f"SkyPilot queue latency: N/A (task_id: {task_id}, error: {e})")
+        logger.error(f"SkyPilot queue latency: N/A (task_id: {task_id}, error: {e})", exc_info=True)
         metrics.update(
             {
                 "skypilot/latency_calculated": False,

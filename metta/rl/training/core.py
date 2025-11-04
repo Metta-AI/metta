@@ -8,7 +8,7 @@ from tensordict import TensorDict
 from metta.agent.policy import Policy
 from metta.rl.loss import Loss
 from metta.rl.training import ComponentContext, Experience, TrainingEnvironment
-from mettagrid.base_config import Config
+from mettagrid.config import Config
 
 logger = logging.getLogger(__name__)
 
@@ -151,7 +151,7 @@ class CoreTrainingLoop:
                     actions_column.shape,
                     tuple(td["actions"].shape),
                 )
-                logger.error(msg)
+                logger.error(msg, exc_info=True)
                 raise RuntimeError(msg)
 
             target_buffer.copy_(actions_column)

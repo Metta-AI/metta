@@ -39,14 +39,14 @@ cogames missions
 # Play an episode of the training_facility_1 mission
 cogames play -m training_facility_1 -p random
 
-# Train a policy in that environment using an out-of-the-box, simple network architecture
-cogames train -m training_facility_1 -p simple
+# Train a policy in that environment using an out-of-the-box, stateless network architecture
+cogames train -m training_facility_1 -p stateless
 
 # Watch or play along side your trained policy
-cogames play -m training_facility_1 -p simple:train_dir/policy.pt
+cogames play -m training_facility_1 -p stateless:train_dir/policy.pt
 
 # Evaluate how your policy performs on a different mission
-cogames eval -m machina_1 -p simple:./train_dir/policy.pt
+cogames eval -m machina_1 -p stateless:./train_dir/policy.pt
 ```
 
 ## Commands
@@ -60,7 +60,7 @@ To specify a `MISSION`, you can:
 
 To specify a `POLICY`, provide an argument with up to three parts `CLASS[:DATA][:PROPORTION]`:
 
-- `CLASS`: Policy shorthand (`noop`, `random`, `lstm`, `simple`) or fully qualified class path like
+- `CLASS`: Policy shorthand (`noop`, `random`, `lstm`, `stateless`) or fully qualified class path like
   `cogames.policy.random.RandomPolicy`.
 - `DATA`: Optional path to a weights file or directory. When omitted, defaults to the policy's built-in weights.
 - `PROPORTION`: Optional positive float specifying the relative share of agents that use this policy (default: 1.0).
@@ -93,7 +93,7 @@ and manually play alongside them.
 
 Train a policy on a mission.
 
-**Policy** By default, our `simple` policy architecture will be used. But as is explained above, you can select a
+**Policy** By default, our `stateless` policy architecture will be used. But as is explained above, you can select a
 different policy architecture we support out of the box (like `lstm`), or can define your own and supply a path to it.
 
 Any policy provided must implement the `TrainablePolicy` interface, which you can find in
@@ -109,7 +109,7 @@ cogames train -m [MISSION] -p path/to/policy.py:train_dir/my_checkpoint.pt
 those environments:
 
 ```
-cogames train -m training_facility_1 -m training_facility_2 -p simple
+cogames train -m training_facility_1 -m training_facility_2 -p stateless
 ```
 
 You can also specify multiple missions with `*` wildcards:
@@ -127,11 +127,11 @@ You can also specify multiple missions with `*` wildcards:
 
 ### Custom Policy Architectures
 
-To get started, `cogames` supports some torch-nn-based policy architectures out of the box (such as SimplePolicy). To
+To get started, `cogames` supports some torch-nn-based policy architectures out of the box (such as StatelessPolicy). To
 supply your own, you will want to extend `cogames.policy.Policy`.
 
 ```python
-from cogames.policy.interfaces import Policy
+from mettagrid.policy.policy import MultiAgentPolicy as Policy
 
 class MyPolicy(Policy):
     def __init__(self, observation_space, action_space):
@@ -162,13 +162,15 @@ The underlying environment follows the Gymnasium API:
 
 ```python
 from cogames.cli.mission import get_mission
-from mettagrid.envs import MettaGridEnv
+from mettagrid import PufferMettaGridEnv
+from mettagrid.simulator import Simulator
 
 # Load a mission configuration
 _, config = get_mission("assembler_2_complex")
 
 # Create environment
-env = MettaGridEnv(env_cfg=config)
+simulator = Simulator()
+env = PufferMettaGridEnv(simulator, config)
 
 # Reset environment
 obs, info = env.reset()
@@ -196,10 +198,10 @@ populations.
 
 ```bash
 # Evaluate a single trained policy checkpoint
-cogames eval -m machina_1 -p simple:train_dir/model.pt
+cogames eval -m machina_1 -p stateless:train_dir/model.pt
 
 # Mix two policies: 3 parts your policy, 5 parts random policy
-cogames eval -m machina_1 -p simple:train_dir/model.pt:3 -p random::5
+cogames eval -m machina_1 -p stateless:train_dir/model.pt:3 -p random::5
 ```
 
 **Options:**
