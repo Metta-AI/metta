@@ -59,20 +59,12 @@ class LonelyHeartVariant(MissionVariant):
             if not isinstance(assembler, AssemblerConfig):
                 raise TypeError("Expected 'assembler' to be AssemblerConfig")
 
-            heart_protocol = ProtocolConfig(
-                vibes=["default"],
-                input_resources=dict(simplified_inputs),
-                output_resources={"heart": 1},
-                cooldown=1,
-            )
-
-            remaining_protocols = []
-            for proto in assembler.protocols:
-                if proto.output_resources.get("heart", 0) > 0:
+            for idx, proto in enumerate(assembler.protocols):
+                if proto.output_resources.get("heart", 0) == 0:
                     continue
-                remaining_protocols.append(proto.model_copy(deep=True))
-
-            assembler.protocols = [heart_protocol, *remaining_protocols]
+                updated = proto.model_copy(deep=True)
+                updated.input_resources = dict(simplified_inputs)
+                assembler.protocols[idx] = updated
 
             germanium = cfg.game.objects["germanium_extractor"]
             if not isinstance(germanium, AssemblerConfig):
@@ -151,6 +143,16 @@ class NeutralFacedVariant(MissionVariant):
             change_vibe = cfg.game.actions.change_vibe
             change_vibe.enabled = False
             change_vibe.number_of_vibes = 1
+
+            neutral_vibe = ["default"]
+            for obj in cfg.game.objects.values():
+                if not isinstance(obj, AssemblerConfig):
+                    continue
+                if not obj.protocols:
+                    continue
+                primary_protocol = obj.protocols[0].model_copy(deep=True)
+                primary_protocol.vibes = list(neutral_vibe)
+                obj.protocols = [primary_protocol]
 
         mission.add_env_modifier(modifier)
         return mission
