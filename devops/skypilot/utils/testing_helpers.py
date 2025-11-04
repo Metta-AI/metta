@@ -120,7 +120,7 @@ class SkyPilotTestLauncher:
 
         # Try to get job ID with retries using retry_function
         def get_job_id_with_wait() -> str:
-            job_id = get_job_id_from_request_id(request_id, wait_seconds=2.0)
+            job_id = get_job_id_from_request_id(request_id)
             if not job_id:
                 raise Exception("Job ID not available yet")
             return job_id
