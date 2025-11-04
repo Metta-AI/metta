@@ -1,9 +1,14 @@
-from metta.tools.eval import EvaluateTool
-from metta.tools.play import PlayTool
-from metta.tools.replay import ReplayTool
-from metta.tools.train import TrainTool
+try:
+    from metta.tools.eval import EvaluateTool
+    from metta.tools.play import PlayTool
+    from metta.tools.replay import ReplayTool
+    from metta.tools.train import TrainTool
 
-from experiments.recipes import arena
+    from experiments.recipes import arena
+except Exception as e:
+    print(f"Error importing: {e}")
+    print("Run `metta install sandbox --force` to fix this.")
+    raise e
 
 # This file is for local experimentation only. It is not checked in, and therefore won't be usable on skypilot
 
