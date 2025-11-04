@@ -347,26 +347,6 @@ _POLICY_CLASS_SHORTHAND = {
 }
 ```
 
-## Implementation Notes
-
-### Why No Hyperparameters?
-
-These agents are designed for **ablation studies** - isolating individual capabilities. Hyperparameter tuning would:
-- Obscure which feature provides value
-- Make comparisons less fair
-- Complicate reproduction
-
-For tuned performance, see the legacy `agent.py` (ScriptedAgentPolicy).
-
-### Phase Priorities
-
-Phase transitions follow strict priorities:
-1. **Recharge** if energy < 30
-2. **Deliver** if have hearts
-3. **Assemble** if have all resources
-4. **Unclip** if blocked and have unclip item (UnclippingAgent)
-5. **Craft Unclip** if blocked (UnclippingAgent)
-6. **Gather** (default)
 
 ### Resource Management
 
