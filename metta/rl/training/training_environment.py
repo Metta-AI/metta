@@ -83,7 +83,7 @@ class TrainingEnvironment(ABC):
         """Close the environment."""
 
     @abstractmethod
-    def get_observations(self) -> Tuple[Tensor, Tensor, Tensor, Tensor, List[dict], slice, Tensor, int]:
+    def get_observations(self) -> Tuple[Tensor, Tensor, Tensor, Tensor, Tensor, List[dict], slice, Tensor, int]:
         """Get the observations."""
 
     @abstractmethod
@@ -231,8 +231,8 @@ class VectorizedTrainingEnvironment(TrainingEnvironment):
         """Expose the driver environment for components that need direct access."""
         return self._vecenv.driver_env
 
-    def get_observations(self) -> Tuple[Tensor, Tensor, Tensor, Tensor, List[dict], slice, Tensor, int]:
-        o, r, d, t, info, env_id, mask = self._vecenv.recv()
+    def get_observations(self) -> Tuple[Tensor, Tensor, Tensor, Tensor, Tensor, List[dict], slice, Tensor, int]:
+        o, r, d, t, ta, info, env_id, mask = self._vecenv.recv()
 
         training_env_id = slice(env_id[0], env_id[-1] + 1)
 
@@ -244,8 +244,8 @@ class VectorizedTrainingEnvironment(TrainingEnvironment):
         r = torch.as_tensor(r)
         d = torch.as_tensor(d)
         t = torch.as_tensor(t)
-
-        return o, r, d, t, info, training_env_id, mask, num_steps
+        ta = torch.as_tensor(ta)
+        return o, r, d, t, ta, info, training_env_id, mask, num_steps
 
     def send_actions(self, actions: np.ndarray) -> None:
         if actions.dtype != dtype_actions:

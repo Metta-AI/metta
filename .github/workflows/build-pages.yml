@@ -4,7 +4,6 @@ on:
     paths: &site_paths
       - "mettascope/**"
       - "packages/mettagrid/nim/mettascope/**"
-      - "observatory/**"
       - ".github/workflows/**"
   pull_request:
     paths: *site_paths
@@ -43,6 +42,16 @@ jobs:
         with:
           install-mode: "minimal"
 
+      # setup-environment has it's own cache for installing `nim` however it lacks dependencies for mettascope
+      # so we add our own cache step here to cache dependencies for mettascope for performance
+      - name: Cache Nim dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.nimble
+          key: nim-binary-${{ runner.os }}-${{ hashFiles('packages/mettagrid/nim/mettascope/mettascope.nimble') }}
+          restore-keys: |
+            nim-binary-${{ runner.os }}-
+
       - name: Install Mettascope
         run: |
           ./mettascope/install.sh
@@ -59,12 +68,6 @@ jobs:
           mkdir -p packages/mettagrid/nim/mettascope/dist
           nim c -d:emscripten packages/mettagrid/nim/mettascope/src/mettascope.nim
           ls -la packages/mettagrid/nim/mettascope/dist
-
-      - name: Build Observatory
-        run: |
-          cd observatory
-          pnpm install
-          pnpm run build
 
       - name: Debug Output
         if: github.event_name == 'workflow_dispatch'
@@ -87,10 +90,8 @@ jobs:
 
       - name: Create deployment directory
         run: |
-          mkdir -p deploy/observatory
           mkdir -p deploy/mettascope2
           cp -r mettascope/* deploy/
-          cp -r observatory/dist/* deploy/observatory/
           cp -r packages/mettagrid/nim/mettascope/dist/* deploy/mettascope2/
 
       - name: Upload artifact

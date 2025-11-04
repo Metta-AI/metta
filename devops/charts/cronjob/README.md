@@ -5,6 +5,7 @@ Runs the Datadog metrics collectors every 15 minutes and pushes metrics to Datad
 ## What it does
 
 Collects GitHub repository metrics using the modular collector architecture:
+
 - Pull request metrics (open, merged, closed, cycle time, stale PRs, review coverage)
 - Branch metrics (active branch count)
 - Commit & code metrics (commits, hotfixes, reverts, lines added/deleted, files changed)
@@ -20,6 +21,7 @@ Collects GitHub repository metrics using the modular collector architecture:
 Automatically deployed by GitHub Actions when you merge to `main`.
 
 Or deploy manually:
+
 ```bash
 cd devops/charts
 helmfile apply -l name=dashboard-cronjob
@@ -30,6 +32,7 @@ helmfile apply -l name=dashboard-cronjob
 For testing new collectors or configurations, deploy a `-dev` copy alongside production.
 
 1. **Uncomment the dev section** in `devops/charts/helmfile.yaml`:
+
    ```yaml
    - name: dashboard-cronjob-dev
      <<: *cronjob_template
@@ -49,7 +52,8 @@ For testing new collectors or configurations, deploy a `-dev` copy alongside pro
    helmfile apply -i -l name=dashboard-cronjob-dev
    ```
 
-This deploys to the same `monitoring` namespace with `-dev` suffix, reuses the prod service account, and tags metrics with `env:development` for easy filtering in Datadog.
+This deploys to the same `monitoring` namespace with `-dev` suffix, reuses the prod service account, and tags metrics
+with `env:development` for easy filtering in Datadog.
 
 **Note**: Services suffixed with `-dev` are safe to destroy and clean up.
 
@@ -63,6 +67,7 @@ To add another collector (e.g., AWS infrastructure metrics):
    - Implement `collect_metrics()` method
 
 2. **Create Dockerfile** defining the command to run:
+
    ```dockerfile
    FROM python:3.11-slim
    # ... dependencies setup ...
@@ -72,15 +77,15 @@ To add another collector (e.g., AWS infrastructure metrics):
 3. **Add to `helmfile.yaml`** (reuse the SAME chart):
    ```yaml
    - name: aws-collector
-     chart: ./cronjob  # Same chart, different collector
+     chart: ./cronjob # Same chart, different collector
      version: 0.1.0
      namespace: monitoring
      values:
-       - schedule: "*/15 * * * *"  # Every 15 minutes
+       - schedule: '*/15 * * * *' # Every 15 minutes
        - image:
-           name: "aws-collector"
+           name: 'aws-collector'
        - datadog:
-           service: "aws-collector"
+           service: 'aws-collector'
    ```
 
 That's it! One chart, multiple collectors with different schedules. Commands come from Dockerfiles.
@@ -88,21 +93,25 @@ That's it! One chart, multiple collectors with different schedules. Commands com
 ## Configuration
 
 Edit `values.yaml`:
+
 - `schedule`: Cron schedule (default: every 15 minutes)
 - `image.name`: Docker image name to run
 - `resources`: CPU/memory limits
 - `datadog.env`: Environment tag for metrics
 
-Note: Commands are defined in Dockerfile CMD, not in Helm values. All cronjobs share the same IAM role and RBAC permissions for simplicity.
+Note: Commands are defined in Dockerfile CMD, not in Helm values. All cronjobs share the same IAM role and RBAC
+permissions for simplicity.
 
 ## Troubleshooting
 
 Check logs:
+
 ```bash
 kubectl logs -n monitoring -l app.kubernetes.io/name=dashboard-cronjob --tail=100
 ```
 
 View job history:
+
 ```bash
 kubectl get jobs -n monitoring --sort-by=.metadata.creationTimestamp
 ```

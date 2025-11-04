@@ -79,7 +79,7 @@ class CarbonExtractorConfig(ExtractorConfig):
             protocols=[
                 ProtocolConfig(
                     output_resources={"carbon": 4 * self.efficiency // 100},
-                    cooldown=10,
+                    cooldown=0,
                 )
             ],
             # Clipping
