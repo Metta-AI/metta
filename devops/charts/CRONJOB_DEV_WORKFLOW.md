@@ -34,7 +34,14 @@ Quick guide for deploying and cleaning up dev cronjob instances.
 4. **Monitor deployment**:
    ```bash
    kubectl get cronjobs -n monitoring | grep dev
+   kubectl get jobs -n monitoring | grep dev
    kubectl logs -n monitoring job/<job-name>
+   ```
+
+5. **Manually trigger a run** (optional - don't wait for schedule):
+   ```bash
+   kubectl create job -n monitoring test-run --from=cronjob/pr-similarity-cache-cronjob-dev
+   kubectl logs -n monitoring job/test-run -f
    ```
 
 ## Remove Dev Cronjob
