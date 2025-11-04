@@ -23,6 +23,11 @@ class StatsTracker(SimulatorEventHandler):
         assert self._sim is not None
         self._sim._context["infos"] = {}
         self._episode_start_ts = datetime.datetime.now()
+        self._update_running_stats()
+
+    def on_step(self) -> None:
+        super().on_step()
+        self._update_running_stats()
 
     def on_episode_end(self) -> None:
         super().on_episode_end()
@@ -37,14 +42,8 @@ class StatsTracker(SimulatorEventHandler):
         num_agents = config.game.num_agents
         infos = self._sim._context["infos"]
 
-        # Process agent stats
-        infos["game"] = stats["game"]
-        infos["agent"] = {}
-        for agent_stats in stats["agent"]:
-            for n, v in agent_stats.items():
-                infos["agent"][n] = infos["agent"].get(n, 0) + v
-        for n, v in infos["agent"].items():
-            infos["agent"][n] = v / num_agents
+        # Ensure episode summaries reflect final totals
+        self._populate_episode_stats(infos, stats, num_agents)
 
         # If reward estimates are set, plot them compared to the mean reward
         if config.game.reward_estimates:
@@ -164,3 +163,25 @@ class StatsTracker(SimulatorEventHandler):
             t: self._label_completions["completion_rates"][t] / len(self._label_completions["completed_tasks"])
             for t in self._label_completions["completion_rates"]
         }
+
+    def _update_running_stats(self) -> None:
+        assert self._sim is not None
+        stats = self._sim.episode_stats
+        config = self._sim.config
+        num_agents = config.game.num_agents
+        infos = self._sim._context.setdefault("infos", {})
+        self._populate_episode_stats(infos, stats, num_agents)
+
+    @staticmethod
+    def _populate_episode_stats(infos: Dict[str, Any], stats: Dict[str, Any], num_agents: int) -> None:
+        infos["game"] = stats["game"]
+
+        aggregated: Dict[str, float] = {}
+        for agent_stats in stats["agent"]:
+            for name, value in agent_stats.items():
+                aggregated[name] = aggregated.get(name, 0.0) + float(value)
+
+        if aggregated:
+            infos["agent"] = {name: total / num_agents for name, total in aggregated.items()}
+        else:
+            infos["agent"] = {}
