@@ -60,27 +60,27 @@ def get_formatters(repo_root: Path) -> dict[str, FormatterConfig]:
         "json": FormatterConfig(
             name="JSON",
             format_cmd=["bash", "devops/tools/format_json.sh"],
-            check_cmd=None,
+            check_cmd=["bash", "devops/tools/format_json.sh", "--check"],
         ),
         "markdown": FormatterConfig(
             name="Markdown",
             format_cmd=["bash", "devops/tools/format_md.sh"],
-            check_cmd=None,
+            check_cmd=["bash", "devops/tools/format_md.sh", "--check"],
         ),
         "shell": FormatterConfig(
             name="Shell",
             format_cmd=["bash", "devops/tools/format_sh.sh"],
-            check_cmd=None,
+            check_cmd=["bash", "devops/tools/format_sh.sh", "--check"],
         ),
         "toml": FormatterConfig(
             name="TOML",
             format_cmd=["bash", "devops/tools/format_toml.sh"],
-            check_cmd=None,
+            check_cmd=["bash", "devops/tools/format_toml.sh", "--check"],
         ),
         "yaml": FormatterConfig(
             name="YAML",
             format_cmd=["bash", "devops/tools/format_yml.sh"],
-            check_cmd=None,
+            check_cmd=["bash", "devops/tools/format_yml.sh", "--check"],
         ),
     }
 

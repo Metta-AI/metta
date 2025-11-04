@@ -17,4 +17,8 @@ ensure_prettier_plugin "prettier-plugin-sh" "Prettier plugin for shell scripts"
 # Format shell script files
 format_files "sh"
 
-echo "All shell script files (except excluded ones) have been formatted with Prettier."
+if [ "${FORMAT_MODE:-write}" = "check" ]; then
+  echo "All shell script files (except excluded ones) pass Prettier formatting checks."
+else
+  echo "All shell script files (except excluded ones) have been formatted with Prettier."
+fi

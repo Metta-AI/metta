@@ -98,3 +98,23 @@ def test_lint_check_mode_with_supported_formatter() -> None:
 
     # Should return True since check command succeeded
     assert result is True
+
+
+def test_markdown_formatter_supports_check_mode() -> None:
+    """Ensure markdown formatter exposes a check command so metta lint --check validates .md files."""
+    from metta.setup.tools.code_formatters import get_formatters
+
+    formatters = get_formatters(Path.cwd())
+    markdown_formatter = formatters.get("markdown")
+    assert markdown_formatter is not None
+    assert markdown_formatter.check_cmd is not None
+
+
+def test_toml_formatter_supports_check_mode() -> None:
+    """Ensure TOML formatter exposes a check command so metta lint --check validates .toml files."""
+    from metta.setup.tools.code_formatters import get_formatters
+
+    formatters = get_formatters(Path.cwd())
+    toml_formatter = formatters.get("toml")
+    assert toml_formatter is not None
+    assert toml_formatter.check_cmd is not None

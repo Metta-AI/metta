@@ -31,8 +31,17 @@ format_files "json"
 
 # Also format .code-workspace files
 if [ -f "metta.code-workspace" ]; then
-  echo "Formatting metta.code-workspace..."
-  pnpm exec prettier --write metta.code-workspace
+  if [ "${FORMAT_MODE:-write}" = "check" ]; then
+    echo "Checking formatting for metta.code-workspace..."
+    pnpm exec prettier --check metta.code-workspace
+  else
+    echo "Formatting metta.code-workspace..."
+    pnpm exec prettier --write metta.code-workspace
+  fi
 fi
 
-echo "All JSON files (except excluded ones) have been formatted with Prettier."
+if [ "${FORMAT_MODE:-write}" = "check" ]; then
+  echo "All JSON files (except excluded ones) pass Prettier formatting checks."
+else
+  echo "All JSON files (except excluded ones) have been formatted with Prettier."
+fi
