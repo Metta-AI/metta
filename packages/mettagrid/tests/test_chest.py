@@ -12,15 +12,12 @@ class TestChest:
         cfg.game.resource_names = ["gold"]
         cfg.game.agent.initial_inventory = {"gold": 5}
 
-        # Define vibes for deposit and withdrawal
-        cfg.game.vibe_names = ["neutral", "deposit", "withdraw"]
-
         cfg.game.objects["chest"] = ChestConfig(
             map_char="C",
             name="chest",
             vibe_transfers={
-                "deposit": {"gold": 1},  # When showing deposit vibe, deposit 1 gold
-                "withdraw": {"gold": -1},  # When showing withdraw vibe, withdraw 1 gold
+                "down": {"gold": 1},  # When showing deposit vibe, deposit 1 gold
+                "up": {"gold": -1},  # When showing withdraw vibe, withdraw 1 gold
             },
             resource_limits={"gold": 100},  # Chest can hold up to 100 gold
         )
@@ -37,20 +34,18 @@ class TestChest:
 
         # Enable actions
         cfg.game.actions.change_vibe.enabled = True
-        cfg.game.actions.change_vibe.number_of_vibes = 3  # 0 (no vibe), 1 (deposit), 2 (withdraw)
+        cfg.game.actions.change_vibe.number_of_vibes = 100  # make sure it's high enough for up and down.
         cfg.game.actions.move.enabled = True
 
         sim = Simulation(cfg)
 
         gold_idx = sim.resource_names.index("gold")
 
-        # Agent starts at (row=3, col=2), chest is at (row=2, col=2)
-        # Change vibe to deposit first
-        sim.agent(0).set_action("change_vibe_deposit")
+        sim.agent(0).set_action("change_vibe_down")
         sim.step()
 
-        # Try to move south (to chest position) - should trigger deposit
-        sim.agent(0).set_action("move_south")
+        # Try to move north (to chest position) - should trigger deposit
+        sim.agent(0).set_action("move_north")
         sim.step()
 
         # Check deposit happened
@@ -66,11 +61,11 @@ class TestChest:
         )
 
         # Change vibe to withdraw
-        sim.agent(0).set_action("change_vibe_withdraw")
+        sim.agent(0).set_action("change_vibe_up")
         sim.step()
 
         # Try to move INTO the chest position again to trigger withdrawal
-        sim.agent(0).set_action("move_south")
+        sim.agent(0).set_action("move_north")
         sim.step()
 
         # Check withdrawal happened
