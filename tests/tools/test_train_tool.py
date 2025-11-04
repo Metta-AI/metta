@@ -1,57 +1,61 @@
 from __future__ import annotations
 
+import types
 from typing import Any
 
-import torch.nn as nn
-
-from metta.agent.policy import Policy
+from metta.agent.policies.vit import ViTDefaultConfig
 from metta.rl.trainer import Trainer
-from metta.rl.training import TrainingEnvironmentConfig
-from metta.tools.train import HookSpec, TrainTool
+from metta.rl.training import GameRules, TrainingEnvironmentConfig
+from metta.tools.train import TrainTool
+from types import SimpleNamespace
 
 
-class _CapturingPolicy(Policy):
-    def __init__(self) -> None:
-        super().__init__()
-        self.register_calls: list[tuple[str, str]] = []
-
-    def forward(self, td, action=None):  # pragma: no cover - not used
-        return td
-
-    @property
-    def device(self):  # pragma: no cover - not used
-        raise NotImplementedError
-
-    def reset_memory(self) -> None:  # pragma: no cover - not used
-        pass
-
-    def register_component_hook_rule(
-        self,
-        *,
-        component_name: str,
-        hook_factory,
-        hook_type: str = "forward",
-    ) -> None:
-        self.register_calls.append((component_name, hook_type))
-        module = nn.Linear(1, 1)
-        handle = hook_factory(self, component_name, module)
-        assert hasattr(handle, "remove")
+def _game_rules() -> GameRules:
+    return GameRules(
+        obs_width=1,
+        obs_height=1,
+        obs_features={},
+        action_names=["noop"],
+        num_agents=1,
+        observation_space=SimpleNamespace(shape=(1,)),
+        action_space=SimpleNamespace(n=1),
+        feature_normalizations={},
+    )
 
 
-def _spec(policy: Policy, trainer: Trainer) -> list[HookSpec]:
-    def factory(policy: Policy, name: str, module: Any):
-        return module.register_forward_hook(lambda *_: None)
+def _builder(policy, trainer: Trainer, component_name: str):
+    if component_name != "actor_mlp":
+        return None
 
-    return [("component", factory, "forward")]
+    def factory(module: Any):
+        def hook(*_args) -> None:
+            return None
+
+        return hook
+
+    return factory
 
 
 def test_add_training_hook_invokes_registered_hook() -> None:
     tool = TrainTool(training_env=TrainingEnvironmentConfig())
-    tool.add_training_hook(_spec)
+    tool.add_training_hook("actor_mlp", _builder)
 
-    policy = _CapturingPolicy()
-    trainer = object()
+    policy = ViTDefaultConfig().make_policy(_game_rules())
+    trainer = type("DummyTrainer", (), {})()
 
-    tool._run_training_hooks(policy=policy, trainer=trainer)  # type: ignore[arg-type]
+    calls: list[tuple[str, str]] = []
+    original_register = policy.register_component_hook_rule
 
-    assert policy.register_calls == [("component", "forward")]
+    def tracking_register(self, *, component_name: str, hook_factory, hook_type: str = "forward"):
+        calls.append((component_name, hook_type))
+        return original_register(component_name=component_name, hook_factory=hook_factory, hook_type=hook_type)
+
+    policy.register_component_hook_rule = types.MethodType(tracking_register, policy)
+
+    tool._register_policy_hooks(policy=policy, trainer=trainer)
+
+    assert calls == [("actor_mlp", "forward")]
+    assert len(tool._active_policy_hooks) == 1  # type: ignore[attr-defined]
+
+    tool._clear_policy_hooks()  # type: ignore[attr-defined]
+    assert not tool._active_policy_hooks  # type: ignore[attr-defined]

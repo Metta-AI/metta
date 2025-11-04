@@ -1,7 +1,6 @@
 import logging
 from collections import OrderedDict
 from contextlib import ExitStack
-from dataclasses import dataclass, field
 from typing import Any, Callable, Optional
 
 import torch
@@ -24,20 +23,6 @@ def log_on_master(*args, **argv):
         logger.info(*args, **argv)
 
 
-@dataclass(frozen=True)
-class _ComponentHookRule:
-    hook_factory: Callable[["PolicyAutoBuilder", str, nn.Module], RemovableHandle]
-    component_name: str
-
-
-@dataclass
-class _HookRegistry:
-    forward_rules: dict[str, list[_ComponentHookRule]] = field(default_factory=dict)
-    forward_handles: dict[str, list[RemovableHandle]] = field(default_factory=dict)
-    pre_rules: dict[str, list[_ComponentHookRule]] = field(default_factory=dict)
-    pre_handles: dict[str, list[RemovableHandle]] = field(default_factory=dict)
-
-
 class PolicyAutoBuilder(Policy):
     """Generic policy builder for use with configs."""
 
@@ -48,8 +33,6 @@ class PolicyAutoBuilder(Policy):
     ):
         super().__init__()
         self.config = config
-
-        self._hooks = _HookRegistry()
 
         self.components: OrderedDict[str, nn.Module] = OrderedDict()
         for component_config in self.config.components:
@@ -194,23 +177,15 @@ class PolicyAutoBuilder(Policy):
         self,
         *,
         component_name: str,
-        hook_factory: Callable[["PolicyAutoBuilder", str, nn.Module], RemovableHandle],
+        hook_factory: Callable[[nn.Module], Callable[..., None]],
         hook_type: str = "forward",
-    ) -> None:
-        component = self.components.get(component_name)
-        if component is None:
+    ) -> RemovableHandle:
+        module = self.components.get(component_name)
+        if module is None:
             raise KeyError(f"Component '{component_name}' not found in policy.")
-
-        rule = _ComponentHookRule(component_name=component_name, hook_factory=hook_factory)
-
-        def _attach(rules: dict[str, list[_ComponentHookRule]], handles: dict[str, list[RemovableHandle]]) -> None:
-            rules.setdefault(component_name, []).append(rule)
-            handle = rule.hook_factory(self, component_name, component)
-            handles.setdefault(component_name, []).append(handle)
-
+        hook = hook_factory(module)
         if hook_type == "forward":
-            _attach(self._hooks.forward_rules, self._hooks.forward_handles)
-        elif hook_type == "forward_pre":
-            _attach(self._hooks.pre_rules, self._hooks.pre_handles)
-        else:
-            raise ValueError(f"Unsupported hook_type '{hook_type}'. Expected 'forward' or 'forward_pre'.")
+            return module.register_forward_hook(hook)  # type: ignore[arg-type]
+        if hook_type == "forward_pre":
+            return module.register_forward_pre_hook(hook)  # type: ignore[arg-type]
+        raise ValueError(f"Unsupported hook_type '{hook_type}'. Expected 'forward' or 'forward_pre'.")

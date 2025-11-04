@@ -2,14 +2,16 @@ import contextlib
 import os
 import platform
 from datetime import timedelta
-from typing import Any, Callable, Optional, Sequence, Tuple
+from typing import Any, Callable, Optional, Tuple
 
 import torch
+import torch.nn as nn
 from pydantic import Field, PrivateAttr, model_validator
 from torch.utils.hooks import RemovableHandle
 
 from metta.agent.policies.vit import ViTDefaultConfig
 from metta.agent.policy import Policy, PolicyArchitecture
+from metta.agent.policy_auto_builder import PolicyAutoBuilder
 from metta.agent.util.torch_backends import build_sdpa_context
 from metta.app_backend.clients.stats_client import StatsClient
 from metta.common.tool import Tool
@@ -54,7 +56,8 @@ from metta.tools.utils.auto_config import (
 logger = getRankAwareLogger(__name__)
 
 
-HookSpec = Tuple[str, Callable[[Policy, str, Any], RemovableHandle], str]
+HookBuilder = Callable[[PolicyAutoBuilder, Trainer, str], Optional[Callable[[nn.Module], Callable[..., None]]]]
+HookSpec = Tuple[str, HookBuilder, str]
 
 
 class TrainTool(Tool):
@@ -81,7 +84,8 @@ class TrainTool(Tool):
     map_preview_uri: str | None = None
     disable_macbook_optimize: bool = False
 
-    _training_hooks: list[Callable[[Policy, Trainer], Sequence[HookSpec] | None]] = PrivateAttr(default_factory=list)
+    _training_hooks: list[HookSpec] = PrivateAttr(default_factory=list)
+    _active_policy_hooks: list[RemovableHandle] = PrivateAttr(default_factory=list)
 
     @model_validator(mode="after")
     def validate_fields(self) -> "TrainTool":
@@ -135,7 +139,7 @@ class TrainTool(Tool):
 
         policy_checkpointer, policy = self._load_or_create_policy(checkpoint_manager, distributed_helper, env)
         trainer = self._initialize_trainer(env, policy, distributed_helper)
-        self._run_training_hooks(policy=policy, trainer=trainer)
+        self._register_policy_hooks(policy=policy, trainer=trainer)
 
         self._log_run_configuration(distributed_helper, checkpoint_manager, env)
 
@@ -176,6 +180,7 @@ class TrainTool(Tool):
             if sdpa_stack is not None:
                 sdpa_stack.close()
                 self._sdpa_context_stack = None
+            self._clear_policy_hooks()
 
     def _load_or_create_policy(
         self,
@@ -215,26 +220,42 @@ class TrainTool(Tool):
 
         return trainer
 
-    def add_training_hook(self, hook: Callable[[Policy, Trainer], Sequence[HookSpec] | None]) -> None:
-        """Register a hook producing component-hook specifications after initialization."""
-        self._training_hooks.append(hook)
+    def add_training_hook(
+        self,
+        component_name: str,
+        hook_builder: HookBuilder,
+        hook_type: str = "forward",
+    ) -> None:
+        """Register a hook-producing builder for a specific component after initialization."""
+        self._training_hooks.append((component_name, hook_builder, hook_type))
 
-    def _run_training_hooks(self, *, policy: Policy, trainer: Trainer) -> None:
+    def _register_policy_hooks(self, *, policy: Policy, trainer: Trainer) -> None:
         if not self._training_hooks:
             return
-        register_hook = getattr(policy, "register_component_hook_rule", None)
-        if not callable(register_hook):
+        self._clear_policy_hooks()
+        if not isinstance(policy, PolicyAutoBuilder):
             return
-        for hook in self._training_hooks:
-            specs = hook(policy, trainer)
-            if not specs:
+
+        for component_name, hook_builder, hook_type in self._training_hooks:
+            factory = hook_builder(policy, trainer, component_name)
+            if factory is None:
                 continue
-            for component_name, hook_factory, hook_type in specs:
-                register_hook(
-                    component_name=component_name,
-                    hook_factory=hook_factory,
-                    hook_type=hook_type,
-                )
+            handle = policy.register_component_hook_rule(
+                component_name=component_name,
+                hook_factory=factory,
+                hook_type=hook_type,
+            )
+            self._active_policy_hooks.append(handle)
+
+    def _clear_policy_hooks(self) -> None:
+        if not self._active_policy_hooks:
+            return
+        for handle in self._active_policy_hooks:
+            try:
+                handle.remove()
+            except Exception:
+                continue
+        self._active_policy_hooks.clear()
 
     def _register_components(
         self,
