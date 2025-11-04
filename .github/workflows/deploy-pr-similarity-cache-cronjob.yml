@@ -38,7 +38,8 @@ jobs:
         id: build-image
         uses: ./.github/actions/docker-build
         with:
-          image_name: pr-similarity-cache
+          image_name: metta-cronjobs
+          suffix: -pr-similarity
           dockerfile: ./devops/charts/cronjob/Dockerfile.pr-similarity
           aws_role: ${{ vars.AWS_ROLE }}
 

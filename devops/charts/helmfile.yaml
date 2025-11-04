@@ -175,7 +175,7 @@ releases:
     values:
       - schedule: "0 0 * * *"  # Daily at midnight
       - image:
-          name: pr-similarity-cache
+          tag: latest-pr-similarity
       - datadog:
           service: pr-similarity-cache-refresh
 
@@ -184,20 +184,20 @@ releases:
     values:
       - schedule: "0 */6 * * *"  # Every 6 hours
       - image:
-          name: dashboard-collector
+          tag: latest-dashboard
       - datadog:
           service: dashboard-collector
 
   # Dev cronjob examples (commented out - use for testing in dev environments)
   # Uncomment and deploy with: helmfile apply -i -l name=pr-similarity-cache-cronjob-dev
+  # Build dev images with suffix=-pr-similarity-dev in workflow_dispatch
   #
   # - name: pr-similarity-cache-cronjob-dev
   #   <<: *cronjob_template
   #   values:
   #     - schedule: "*/5 * * * *"  # Every 5 minutes for testing
   #     - image:
-  #         name: pr-similarity-cache
-  #         tag: dev  # Use dev tag
+  #         tag: latest-pr-similarity-dev  # Workflow builds with -pr-similarity-dev suffix
   #     - datadog:
   #         service: pr-similarity-cache-refresh-dev
   #         env: dev
@@ -207,8 +207,7 @@ releases:
   #   values:
   #     - schedule: "*/5 * * * *"  # Every 5 minutes for testing
   #     - image:
-  #         name: dashboard-collector
-  #         tag: dev  # Use dev tag
+  #         tag: latest-dashboard-dev  # Workflow builds with -dashboard-dev suffix
   #     - datadog:
   #         service: dashboard-collector-dev
   #         env: dev
