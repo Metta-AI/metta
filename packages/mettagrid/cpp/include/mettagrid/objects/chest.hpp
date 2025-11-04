@@ -52,8 +52,8 @@ private:
   }
 
 public:
-  // Configuration
-  std::unordered_map<ObservationType, std::unordered_map<InventoryItem, int>> vibe_transfers;  // vibe -> resource -> delta
+  // vibe -> resource -> delta
+  std::unordered_map<ObservationType, std::unordered_map<InventoryItem, int>> vibe_transfers;
 
   // Grid access for finding agent positions
   class Grid* grid;
