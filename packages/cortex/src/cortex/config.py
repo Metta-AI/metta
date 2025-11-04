@@ -4,16 +4,15 @@ from __future__ import annotations
 
 from typing import Any, Mapping
 
-from pydantic import BaseModel, Field, SerializeAsAny, field_validator
+from pydantic import BaseModel, ConfigDict, Field, SerializeAsAny, field_validator
 
 
 class CellConfig(BaseModel):
     """Base configuration for memory cells with optional hidden size inference."""
 
-    hidden_size: int | None = Field(default=None)
+    model_config = ConfigDict(extra="allow")
 
-    class Config:
-        extra = "allow"  # Allow additional fields for extensibility
+    hidden_size: int | None = Field(default=None)
 
 
 class LSTMCellConfig(CellConfig):
@@ -127,12 +126,11 @@ class AxonConfig(CellConfig):
 class BlockConfig(BaseModel):
     """Base configuration for cortex blocks."""
 
+    model_config = ConfigDict(extra="allow")
+
     # May be overridden to None (e.g., Adapter) in subclasses
     # serialize_as_any=True preserves concrete subclass fields/tags during dumps
     cell: SerializeAsAny[CellConfig | None] = Field(default=None)
-
-    class Config:
-        extra = "allow"  # Allow additional fields for extensibility
 
     def get_cell_hidden_size(self, d_hidden: int) -> int:
         """Compute cell hidden size from stack's external dimension."""

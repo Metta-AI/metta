@@ -8,7 +8,6 @@ low-level C++ API to avoid duplication.
 
 from mettagrid.config.mettagrid_c_config import convert_to_cpp_game_config
 from mettagrid.config.mettagrid_config import (
-    ActionConfig,
     ActionsConfig,
     GameConfig,
     ResourceModActionConfig,
@@ -44,8 +43,10 @@ def test_resource_mod_default_values():
 
 def test_resource_mod_in_actions_config():
     """Test that resource_mod can be added to ActionsConfig."""
+    from mettagrid.config.mettagrid_config import MoveActionConfig
+
     actions = ActionsConfig(
-        move=ActionConfig(enabled=True),
+        move=MoveActionConfig(enabled=True),
         resource_mod=ResourceModActionConfig(enabled=True, modifies={"health": 10.0}, agent_radius=1),
     )
 
@@ -56,12 +57,14 @@ def test_resource_mod_in_actions_config():
 
 def test_resource_mod_conversion_to_cpp():
     """Test that ResourceModActionConfig converts properly to C++ config."""
+    from mettagrid.config.mettagrid_config import MoveActionConfig
+
     # Create a GameConfig with resource_mod action
     game_config = GameConfig(
         resource_names=["health", "mana", "gold"],
         num_agents=2,
         actions=ActionsConfig(
-            move=ActionConfig(enabled=True),
+            move=MoveActionConfig(enabled=True),
             resource_mod=ResourceModActionConfig(
                 enabled=True,
                 required_resources={"mana": 5},

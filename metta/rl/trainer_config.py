@@ -4,7 +4,7 @@ from pydantic import ConfigDict, Field, model_validator
 
 from metta.rl.loss import LossConfig
 from metta.rl.training import HeartbeatConfig, HyperparameterSchedulerConfig
-from mettagrid.base_config import Config
+from mettagrid.config import Config
 
 
 class OptimizerConfig(Config):

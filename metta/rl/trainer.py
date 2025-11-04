@@ -6,6 +6,7 @@ import torch
 from metta.agent.policy import Policy
 from metta.common.util.log_config import getRankAwareLogger
 from metta.rl.npc.factory import load_npc_policy
+from metta.rl.system_config import SystemConfig
 from metta.rl.trainer_config import TrainerConfig
 from metta.rl.training import (
     ComponentContext,
@@ -54,7 +55,7 @@ class Trainer:
         self._cfg = cfg
         self._device = device
         if distributed_helper is None:
-            distributed_helper = DistributedHelper(self._device)
+            distributed_helper = DistributedHelper(SystemConfig(device=self._device.type))
         self._distributed_helper = distributed_helper
         self._run_name = run_name
         self._components: list[TrainerComponent] = []
@@ -67,7 +68,7 @@ class Trainer:
         self._dual_policy_enabled: bool = False
 
         self._policy.to(self._device)
-        self._policy.initialize_to_environment(self._env.game_rules, self._device)
+        self._policy.initialize_to_environment(self._env.policy_env_info, self._device)
         self._policy.train()
 
         self._policy = self._distributed_helper.wrap_policy(self._policy, self._device)
@@ -79,7 +80,7 @@ class Trainer:
 
         parallel_agents = getattr(self._env, "total_parallel_agents", None)
         if parallel_agents is None:
-            parallel_agents = batch_info.num_envs * self._env.game_rules.num_agents
+            parallel_agents = batch_info.num_envs * self._env.policy_env_info.num_agents
 
         self._experience = Experience.from_losses(
             total_agents=parallel_agents,
@@ -157,7 +158,8 @@ class Trainer:
         if not dual_cfg or not dual_cfg.enabled:
             return
 
-        num_agents = self._env.game_rules.num_agents
+        policy_env_info = self._env.policy_env_info
+        num_agents = policy_env_info.num_agents
         if num_agents <= 1:
             logger.warning("Dual policy requested but environment has %d agent(s); disabling.", num_agents)
             return
@@ -181,7 +183,7 @@ class Trainer:
                 npc_policy_uri=getattr(dual_cfg, "npc_policy_uri", None),
                 npc_policy_class=getattr(dual_cfg, "npc_policy_class", None),
                 npc_policy_kwargs=getattr(dual_cfg, "npc_policy_kwargs", {}),
-                game_rules=self._env.game_rules,
+                policy_env_info=policy_env_info,
                 device=self._device,
                 vector_env=self._env.vecenv,
             )
@@ -197,7 +199,7 @@ class Trainer:
         npc_policy.eval()
         for param in npc_policy.parameters():
             param.requires_grad = False
-        npc_policy.initialize_to_environment(self._env.game_rules, self._device)
+        npc_policy.initialize_to_environment(policy_env_info, self._device)
 
         student_mask = torch.zeros(num_agents, dtype=torch.bool)
         student_mask[:student_agents] = True

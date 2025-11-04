@@ -1,8 +1,14 @@
+from __future__ import annotations
+
+from types import SimpleNamespace
+
+import gymnasium as gym
+import numpy as np
 import torch
 from tensordict import TensorDict
 
 from metta.rl.npc.factory import create_scripted_policy_adapter, load_npc_policy
-from metta.rl.training.training_environment import GameRules
+from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 
 
 class _StubUnderlyingEnv:
@@ -22,25 +28,31 @@ class _StubVectorEnv:
         self.driver_env = self.envs[0]._env
 
 
+def _make_policy_env_info(num_agents: int, action_names: list[str]) -> PolicyEnvInterface:
+    actions = SimpleNamespace(actions=lambda: [SimpleNamespace(name=name) for name in action_names])
+    env_info = PolicyEnvInterface(
+        obs_features=[],
+        actions=actions,  # type: ignore[arg-type]
+        num_agents=num_agents,
+        observation_space=gym.spaces.Box(low=0, high=255, shape=(1, 3), dtype=np.uint8),
+        action_space=gym.spaces.Discrete(len(action_names) or 1),
+        obs_width=1,
+        obs_height=1,
+    )
+    return env_info
+
+
 def test_scripted_policy_adapter_emits_actions() -> None:
     vector_env = _StubVectorEnv(num_envs=1, num_agents=2)
+    policy_env_info = _make_policy_env_info(num_agents=2, action_names=["noop", "east"])
     adapter = create_scripted_policy_adapter(
         class_path="tests.rl.fake_scripted_policy.FakeScriptedAgentPolicy",
         policy_kwargs={"multiplier": 10},
+        policy_env_info=policy_env_info,
         vector_env=vector_env,
     )
 
-    game_rules = GameRules(
-        obs_width=1,
-        obs_height=1,
-        obs_features={},
-        action_names=["noop", "east"],
-        num_agents=2,
-        observation_space=None,
-        action_space=None,
-        feature_normalizations={},
-    )
-    adapter.initialize_to_environment(game_rules, torch.device("cpu"))
+    adapter.initialize_to_environment(policy_env_info, torch.device("cpu"))
 
     td = TensorDict(
         {
@@ -53,7 +65,6 @@ def test_scripted_policy_adapter_emits_actions() -> None:
     out = adapter.forward(td.clone())
     assert out["actions"].tolist() == [10, 11]
 
-    # Trigger a reset for the second agent and ensure its sequence restarts
     td_reset = TensorDict(
         {
             "env_obs": torch.zeros(2, 1, 3, dtype=torch.uint8),
@@ -68,21 +79,12 @@ def test_scripted_policy_adapter_emits_actions() -> None:
 
 def test_load_npc_policy_with_mock_uri() -> None:
     vector_env = _StubVectorEnv(num_envs=1, num_agents=1)
-    game_rules = GameRules(
-        obs_width=1,
-        obs_height=1,
-        obs_features={},
-        action_names=["noop"],
-        num_agents=1,
-        observation_space=None,
-        action_space=None,
-        feature_normalizations={},
-    )
+    policy_env_info = _make_policy_env_info(num_agents=1, action_names=["noop"])
     policy, descriptor = load_npc_policy(
         npc_policy_uri="mock://test_agent",
         npc_policy_class=None,
         npc_policy_kwargs={},
-        game_rules=game_rules,
+        policy_env_info=policy_env_info,
         device=torch.device("cpu"),
         vector_env=vector_env,
     )

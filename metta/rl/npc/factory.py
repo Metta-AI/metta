@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from importlib import import_module
+from types import SimpleNamespace
 from typing import Any, Iterable, Optional
 
 import numpy as np
@@ -10,6 +11,7 @@ from tensordict import TensorDict
 
 from metta.agent.policy import Policy
 from metta.rl.checkpoint_manager import CheckpointManager
+from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 
 
 class NPCPolicyLoadError(RuntimeError):
@@ -42,22 +44,32 @@ class ScriptedPolicyAdapter(Policy):
         self,
         class_path: str,
         policy_kwargs: Optional[dict[str, Any]],
-        vector_env: Any,
+        policy_env_info: PolicyEnvInterface,
+        vector_env: Any | None,
     ) -> None:
-        super().__init__()
+        super().__init__(policy_env_info)
         self._policy_cls = _load_symbol(class_path)
         self._policy_kwargs = dict(policy_kwargs or {})
+        self._policy_env_info = policy_env_info
         self._vector_env = vector_env
         self._device = torch.device("cpu")
         self._controllers: list[_ScriptedEnvController] = []
         self._agents_per_env: Optional[int] = None
 
-    def initialize_to_environment(self, game_rules, device: torch.device):
+    def initialize_to_environment(self, policy_env_info: PolicyEnvInterface, device: torch.device):
         self._device = torch.device(device)
+        self._policy_env_info = policy_env_info
 
         self._controllers.clear()
         vecenv = self._vector_env
-        envs: Iterable[Any] = getattr(vecenv, "envs", [])
+        if vecenv is None:
+            # Create a minimal stub environment compatible with scripted policies.
+            num_agents = policy_env_info.num_agents
+            env_stub = SimpleNamespace(num_agents=num_agents)
+            envs: Iterable[Any] = [SimpleNamespace(_env=env_stub, num_agents=num_agents)]
+        else:
+            envs = getattr(vecenv, "envs", [])
+            driver_env = getattr(vecenv, "driver_env", None)
         for env in envs:
             underlying_env = getattr(env, "_env", env)
             scripted_policy = self._policy_cls(underlying_env, **self._policy_kwargs)
@@ -67,10 +79,13 @@ class ScriptedPolicyAdapter(Policy):
         if not self._controllers:
             raise RuntimeError("ScriptedPolicyAdapter requires at least one environment instance")
 
-        first_env = getattr(vecenv, "driver_env", None)
-        if first_env is None:
-            raise RuntimeError("Vector environment is missing driver_env attribute")
-        self._agents_per_env = first_env.num_agents
+        if vecenv is None:
+            self._agents_per_env = policy_env_info.num_agents
+        else:
+            first_env = getattr(vecenv, "driver_env", None)
+            if first_env is None:
+                raise RuntimeError("Vector environment is missing driver_env attribute")
+            self._agents_per_env = first_env.num_agents
 
     def forward(self, td: TensorDict, action: Optional[torch.Tensor] = None) -> TensorDict:
         if self._agents_per_env is None:
@@ -123,9 +138,15 @@ class ScriptedPolicyAdapter(Policy):
 def create_scripted_policy_adapter(
     class_path: str,
     policy_kwargs: dict[str, Any],
-    vector_env: Any,
+    policy_env_info: PolicyEnvInterface,
+    vector_env: Any | None,
 ) -> ScriptedPolicyAdapter:
-    return ScriptedPolicyAdapter(class_path=class_path, policy_kwargs=policy_kwargs, vector_env=vector_env)
+    return ScriptedPolicyAdapter(
+        class_path=class_path,
+        policy_kwargs=policy_kwargs,
+        policy_env_info=policy_env_info,
+        vector_env=vector_env,
+    )
 
 
 def load_npc_policy(
@@ -133,22 +154,24 @@ def load_npc_policy(
     npc_policy_uri: Optional[str],
     npc_policy_class: Optional[str],
     npc_policy_kwargs: dict[str, Any],
-    game_rules: Any,
+    policy_env_info: PolicyEnvInterface,
     device: torch.device,
-    vector_env: Any,
+    vector_env: Any | None,
 ) -> tuple[Policy, str]:
     """Instantiate an NPC policy from configuration."""
 
     if npc_policy_uri:
-        policy = CheckpointManager.load_from_uri(npc_policy_uri, game_rules, device)
+        policy: Policy = CheckpointManager.load_from_uri(npc_policy_uri, policy_env_info, device)
         return policy, npc_policy_uri
 
     if npc_policy_class:
         adapter = create_scripted_policy_adapter(
             class_path=npc_policy_class,
             policy_kwargs=npc_policy_kwargs,
+            policy_env_info=policy_env_info,
             vector_env=vector_env,
         )
-        return adapter, npc_policy_class
+        policy = adapter
+        return policy, npc_policy_class
 
     raise NPCPolicyLoadError("NPC policy configuration must specify either a URI or a class path")

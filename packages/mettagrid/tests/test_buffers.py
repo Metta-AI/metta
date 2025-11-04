@@ -1,24 +1,27 @@
 import numpy as np
 import pytest
 
-from mettagrid.config.mettagrid_c_config import from_mettagrid_config
 from mettagrid.config.mettagrid_config import (
-    ActionConfig,
     ActionsConfig,
     AgentConfig,
+    AttackActionConfig,
     ChangeVibeActionConfig,
     GameConfig,
+    MettaGridConfig,
+    MoveActionConfig,
+    NoopActionConfig,
     WallConfig,
 )
 from mettagrid.map_builder.utils import create_grid
 from mettagrid.mettagrid_c import (
-    MettaGrid,
     dtype_actions,
     dtype_observations,
     dtype_rewards,
     dtype_terminals,
     dtype_truncations,
 )
+from mettagrid.simulator import Simulation
+from mettagrid.test_support.map_builders import ObjectNameMapBuilder
 
 NUM_AGENTS = 2
 OBS_HEIGHT = 3
@@ -27,14 +30,17 @@ NUM_OBS_TOKENS = 30
 OBS_TOKEN_SIZE = 3
 
 
-def create_minimal_mettagrid_c_env(max_steps=10, width=5, height=5, config_overrides: dict | None = None):
-    """Helper function to create a MettaGrid environment with minimal config.
+def create_minimal_simulation(max_steps=10, width=5, height=5, config_overrides: dict | None = None):
+    """Helper function to create a Simulation with minimal config.
 
     Args:
         max_steps: Maximum steps before truncation
         width: Map width
         height: Map height
         config_overrides: Dictionary to override GameConfig fields
+
+    Returns:
+        Simulation instance (access underlying C++ env via sim._c_sim)
     """
     # Define a simple map: empty with walls around perimeter
     game_map = create_grid(height, width)
@@ -52,13 +58,11 @@ def create_minimal_mettagrid_c_env(max_steps=10, width=5, height=5, config_overr
     game_config = GameConfig(
         max_steps=max_steps,
         num_agents=NUM_AGENTS,
-        obs_width=OBS_WIDTH,
-        obs_height=OBS_HEIGHT,
-        num_observation_tokens=NUM_OBS_TOKENS,
         resource_names=["laser", "armor"],
         actions=ActionsConfig(
-            noop=ActionConfig(enabled=True),
-            move=ActionConfig(enabled=True),
+            noop=NoopActionConfig(enabled=True),
+            move=MoveActionConfig(enabled=True),
+            attack=AttackActionConfig(enabled=False),
             change_vibe=ChangeVibeActionConfig(enabled=True, number_of_vibes=4),
         ),
         objects={"wall": WallConfig()},
@@ -69,21 +73,37 @@ def create_minimal_mettagrid_c_env(max_steps=10, width=5, height=5, config_overr
     if config_overrides:
         game_config = game_config.model_copy(update=config_overrides)
 
-    return MettaGrid(from_mettagrid_config(game_config), game_map.tolist(), 42)
+    # Create MettaGridConfig wrapper
+    config = MettaGridConfig(game=game_config)
+
+    # Set up map builder
+    map_list = game_map.tolist()
+    config.game.map_builder = ObjectNameMapBuilder.Config(map_data=map_list)
+
+    return Simulation(config, seed=42)
 
 
+# These tests validate low-level C++ buffer management using MettaGrid directly.
+# While the Simulation wrapper manages buffers internally, these tests ensure
+# the underlying C++ implementation works correctly.
 class TestBuffers:
     """Comprehensive tests for MettaGrid buffer functionality."""
 
     def test_default_buffers_in_gym_mode(self):
         """Test that buffers work correctly in gym mode (without explicit set_buffers call)."""
-        c_env = create_minimal_mettagrid_c_env()
-        c_env.reset()
+        sim = create_minimal_simulation()
+        c_sim = sim._c_sim
 
-        noop_action_idx = c_env.action_names().index("noop")
-        actions = np.full(NUM_AGENTS, noop_action_idx, dtype=dtype_actions)
-        obs, rewards, terminals, truncations, info = c_env.step(actions)
-        episode_rewards = c_env.get_episode_rewards()
+        # Get action names from config since action_names() is now Python-only
+        action_names = [action.name for action in sim.config.game.actions.actions()]
+        noop_action_idx = action_names.index("noop")
+        c_sim.actions()[:] = noop_action_idx
+        c_sim.step()
+        obs = c_sim.observations()
+        rewards = c_sim.rewards()
+        terminals = c_sim.terminals()
+        truncations = c_sim.truncations()
+        episode_rewards = c_sim.get_episode_rewards()
 
         # Check strides. We've had issues where we've not correctly initialized the buffers, and have had
         # strides of zero.
@@ -119,72 +139,77 @@ class TestBuffers:
 
     def test_set_buffers_wrong_shape(self):
         """Test that set_buffers properly validates buffer shapes."""
-        c_env = create_minimal_mettagrid_c_env()
+        sim = create_minimal_simulation()
+        c_sim = sim._c_sim
         terminals = np.zeros(NUM_AGENTS, dtype=bool)
         truncations = np.zeros(NUM_AGENTS, dtype=bool)
         rewards = np.zeros(NUM_AGENTS, dtype=np.float32)
+        actions = np.zeros(NUM_AGENTS, dtype=dtype_actions)
 
         # Wrong number of agents
         observations = np.zeros((3, NUM_OBS_TOKENS, OBS_TOKEN_SIZE), dtype=np.uint8)
         with pytest.raises(RuntimeError, match="observations"):
-            c_env.set_buffers(observations, terminals, truncations, rewards)
+            c_sim.set_buffers(observations, terminals, truncations, rewards, actions)
 
         # Wrong token size
         observations = np.zeros((NUM_AGENTS, NUM_OBS_TOKENS, OBS_TOKEN_SIZE - 1), dtype=np.uint8)
         with pytest.raises(RuntimeError, match="observations"):
-            c_env.set_buffers(observations, terminals, truncations, rewards)
+            c_sim.set_buffers(observations, terminals, truncations, rewards, actions)
 
         # Wrong number of agents for other buffers
         observations = np.zeros((NUM_AGENTS, NUM_OBS_TOKENS, OBS_TOKEN_SIZE), dtype=np.uint8)
         wrong_terminals = np.zeros(NUM_AGENTS + 1, dtype=bool)
         with pytest.raises(RuntimeError):
-            c_env.set_buffers(observations, wrong_terminals, truncations, rewards)
+            c_sim.set_buffers(observations, wrong_terminals, truncations, rewards, actions)
 
         wrong_truncations = np.zeros(NUM_AGENTS - 1, dtype=bool)
         with pytest.raises(RuntimeError):
-            c_env.set_buffers(observations, terminals, wrong_truncations, rewards)
+            c_sim.set_buffers(observations, terminals, wrong_truncations, rewards, actions)
 
         wrong_rewards = np.zeros(NUM_AGENTS + 2, dtype=np.float32)
         with pytest.raises(RuntimeError):
-            c_env.set_buffers(observations, terminals, truncations, wrong_rewards)
+            c_sim.set_buffers(observations, terminals, truncations, wrong_rewards, actions)
 
     def test_set_buffers_wrong_dtype(self):
         """Test that set_buffers properly validates buffer dtypes."""
-        c_env = create_minimal_mettagrid_c_env()
+        sim = create_minimal_simulation()
+        c_sim = sim._c_sim
 
         # Correct buffers for comparison
         observations = np.zeros((NUM_AGENTS, NUM_OBS_TOKENS, OBS_TOKEN_SIZE), dtype=dtype_observations)
         terminals = np.zeros(NUM_AGENTS, dtype=dtype_terminals)
         truncations = np.zeros(NUM_AGENTS, dtype=dtype_truncations)
         rewards = np.zeros(NUM_AGENTS, dtype=dtype_rewards)
+        actions = np.zeros(NUM_AGENTS, dtype=dtype_actions)
 
         # Wrong observation dtype
         wrong_obs = np.zeros((NUM_AGENTS, NUM_OBS_TOKENS, OBS_TOKEN_SIZE), dtype=np.float32)
         assert wrong_obs.dtype != dtype_observations
         with pytest.raises(TypeError):
-            c_env.set_buffers(wrong_obs, terminals, truncations, rewards)
+            c_sim.set_buffers(wrong_obs, terminals, truncations, rewards, actions)
 
         # Wrong terminals dtype
         wrong_terminals = np.zeros(NUM_AGENTS, dtype=np.int32)
         assert wrong_terminals.dtype != dtype_terminals
         with pytest.raises(TypeError):
-            c_env.set_buffers(observations, wrong_terminals, truncations, rewards)
+            c_sim.set_buffers(observations, wrong_terminals, truncations, rewards, actions)
 
         # Wrong truncations dtype
         wrong_truncations = np.zeros(NUM_AGENTS, dtype=np.int32)
         assert wrong_truncations.dtype != dtype_truncations
         with pytest.raises(TypeError):
-            c_env.set_buffers(observations, terminals, wrong_truncations, rewards)
+            c_sim.set_buffers(observations, terminals, wrong_truncations, rewards, actions)
 
         # Wrong rewards dtype
         wrong_rewards = np.zeros(NUM_AGENTS, dtype=np.float64)
         assert wrong_rewards.dtype != dtype_rewards
         with pytest.raises(TypeError):
-            c_env.set_buffers(observations, terminals, truncations, wrong_rewards)
+            c_sim.set_buffers(observations, terminals, truncations, wrong_rewards, actions)
 
     def test_set_buffers_non_contiguous(self):
         """Test that set_buffers requires C-contiguous arrays."""
-        c_env = create_minimal_mettagrid_c_env()
+        sim = create_minimal_simulation()
+        c_sim = sim._c_sim
 
         # Create non-contiguous arrays
         observations = np.asfortranarray(np.zeros((NUM_AGENTS, NUM_OBS_TOKENS, OBS_TOKEN_SIZE), dtype=np.uint8))
@@ -193,31 +218,38 @@ class TestBuffers:
         rewards = np.zeros(NUM_AGENTS, dtype=np.float32)
 
         with pytest.raises(TypeError):
-            c_env.set_buffers(observations, terminals, truncations, rewards)
+            actions = np.zeros(NUM_AGENTS, dtype=dtype_actions)
+            c_sim.set_buffers(observations, terminals, truncations, rewards, actions)
 
         # Test with other non-contiguous buffers
         observations = np.zeros((NUM_AGENTS, NUM_OBS_TOKENS, OBS_TOKEN_SIZE), dtype=np.uint8)
 
-        temp = np.zeros((NUM_AGENTS * 2,), dtype=bool)
+        temp = np.zeros((NUM_AGENTS * 2), dtype=bool)
         non_contiguous_terminals = temp[::2][:NUM_AGENTS]
         with pytest.raises(TypeError):
-            c_env.set_buffers(observations, non_contiguous_terminals, truncations, rewards)
+            actions = np.zeros(NUM_AGENTS, dtype=dtype_actions)
+            c_sim.set_buffers(observations, non_contiguous_terminals, truncations, rewards, actions)
 
     def test_set_buffers_happy_path(self):
         """Test successful buffer setup and basic functionality."""
-        c_env = create_minimal_mettagrid_c_env()
+        sim = create_minimal_simulation()
+        c_sim = sim._c_sim
         observations = np.zeros((NUM_AGENTS, NUM_OBS_TOKENS, OBS_TOKEN_SIZE), dtype=np.uint8)
         terminals = np.zeros(NUM_AGENTS, dtype=bool)
         truncations = np.zeros(NUM_AGENTS, dtype=bool)
         rewards = np.zeros(NUM_AGENTS, dtype=np.float32)
 
-        c_env.set_buffers(observations, terminals, truncations, rewards)
-        observations_from_env, info = c_env.reset()
+        actions = np.zeros(NUM_AGENTS, dtype=dtype_actions)
+        c_sim.set_buffers(observations, terminals, truncations, rewards, actions)
+
+        # Verify buffers are set up correctly by accessing observations
+        observations_from_env = c_sim.observations()
         np.testing.assert_array_equal(observations_from_env, observations)
 
     def test_buffer_memory_sharing_and_overwriting(self):
         """Test that all buffers share memory with environment and are properly overwritten during steps."""
-        c_env = create_minimal_mettagrid_c_env()
+        sim = create_minimal_simulation()
+        c_sim = sim._c_sim
 
         # Create buffers
         observations = np.zeros((NUM_AGENTS, NUM_OBS_TOKENS, OBS_TOKEN_SIZE), dtype=np.uint8)
@@ -236,8 +268,8 @@ class TestBuffers:
         assert truncations.dtype == bool, "Truncations should be bool"
         assert rewards.dtype == np.float32, "Rewards should be float32"
 
-        c_env.set_buffers(observations, terminals, truncations, rewards)
-        c_env.reset()
+        actions = np.zeros(NUM_AGENTS, dtype=dtype_actions)
+        c_sim.set_buffers(observations, terminals, truncations, rewards, actions)
 
         # Manually set values in all buffers to test memory sharing
         observations[0, 0, 0] = 255
@@ -250,10 +282,16 @@ class TestBuffers:
         rewards[1] = -42.3
 
         # Take a step - this should overwrite our manual values
-        noop_action_idx = c_env.action_names().index("noop")
-        actions = np.full(NUM_AGENTS, noop_action_idx, dtype=dtype_actions)
+        # Get action names from config since action_names() is now Python-only
+        action_names = [action.name for action in sim.config.game.actions.actions()]
+        noop_action_idx = action_names.index("noop")
+        c_sim.actions()[:] = noop_action_idx
 
-        obs_returned, rewards_returned, terminals_returned, truncations_returned, info = c_env.step(actions)
+        c_sim.step()
+        obs_returned = c_sim.observations()
+        rewards_returned = c_sim.rewards()
+        terminals_returned = c_sim.terminals()
+        truncations_returned = c_sim.truncations()
 
         # Verify that step overwrote our manual values for actively managed buffers
         # (observations will be overwritten with actual game state)
@@ -277,7 +315,8 @@ class TestBuffers:
     def test_truncations_on_max_steps(self):
         """Test that truncations are set when max_steps is reached."""
         # Create environment with max_steps = 1
-        c_env = create_minimal_mettagrid_c_env(config_overrides={"max_steps": 1, "episode_truncates": True})
+        sim = create_minimal_simulation(config_overrides={"max_steps": 1, "episode_truncates": True})
+        c_sim = sim._c_sim
 
         # Set up buffers
         observations = np.zeros((NUM_AGENTS, NUM_OBS_TOKENS, OBS_TOKEN_SIZE), dtype=np.uint8)
@@ -285,13 +324,16 @@ class TestBuffers:
         truncations = np.zeros(NUM_AGENTS, dtype=bool)
         rewards = np.zeros(NUM_AGENTS, dtype=np.float32)
 
-        c_env.set_buffers(observations, terminals, truncations, rewards)
-        c_env.reset()  # current_step = 0
+        actions = np.zeros(NUM_AGENTS, dtype=dtype_actions)
+        c_sim.set_buffers(observations, terminals, truncations, rewards, actions)
+        # current_step = 0
 
         # Take one step to reach max_steps
-        noop_action_idx = c_env.action_names().index("noop")
-        actions = np.full(NUM_AGENTS, noop_action_idx, dtype=dtype_actions)
-        c_env.step(actions)  # current_step = 1, should trigger end of episode
+        # Get action names from config since action_names() is now Python-only
+        action_names = [action.name for action in sim.config.game.actions.actions()]
+        noop_action_idx = action_names.index("noop")
+        c_sim.actions()[:] = noop_action_idx
+        c_sim.step()  # current_step = 1, should trigger end of episode
 
         # Now truncations should all be True
         assert np.all(truncations), "All agents should be truncated when max_steps is reached"
@@ -300,7 +342,8 @@ class TestBuffers:
     def test_terminals_on_max_steps(self):
         """Test that truncations are set when max_steps is reached."""
         # Create environment with max_steps = 1
-        c_env = create_minimal_mettagrid_c_env(config_overrides={"max_steps": 1})
+        sim = create_minimal_simulation(config_overrides={"max_steps": 1})
+        c_sim = sim._c_sim
 
         # Set up buffers
         observations = np.zeros((NUM_AGENTS, NUM_OBS_TOKENS, OBS_TOKEN_SIZE), dtype=np.uint8)
@@ -308,13 +351,16 @@ class TestBuffers:
         truncations = np.zeros(NUM_AGENTS, dtype=bool)
         rewards = np.zeros(NUM_AGENTS, dtype=np.float32)
 
-        c_env.set_buffers(observations, terminals, truncations, rewards)
-        c_env.reset()  # current_step = 0
+        actions = np.zeros(NUM_AGENTS, dtype=dtype_actions)
+        c_sim.set_buffers(observations, terminals, truncations, rewards, actions)
+        # current_step = 0
 
         # Take one step to reach max_steps
-        noop_action_idx = c_env.action_names().index("noop")
-        actions = np.full(NUM_AGENTS, noop_action_idx, dtype=dtype_actions)
-        c_env.step(actions)  # current_step = 1, should trigger end of episode
+        # Get action names from config since action_names() is now Python-only
+        action_names = [action.name for action in sim.config.game.actions.actions()]
+        noop_action_idx = action_names.index("noop")
+        c_sim.actions()[:] = noop_action_idx
+        c_sim.step()  # current_step = 1, should trigger end of episode
 
         # Now terminals should all be True, truncations should all be False
         assert np.all(terminals), "All agents should be terminated when max_steps is reached"
@@ -322,20 +368,23 @@ class TestBuffers:
 
     def test_buffer_element_modification_independence(self):
         """Test that modifying individual buffer elements works correctly across all buffer types."""
-        c_env = create_minimal_mettagrid_c_env()
+        sim = create_minimal_simulation()
+        c_sim = sim._c_sim
 
         observations = np.zeros((NUM_AGENTS, NUM_OBS_TOKENS, OBS_TOKEN_SIZE), dtype=np.uint8)
         terminals = np.zeros(NUM_AGENTS, dtype=bool)
         truncations = np.zeros(NUM_AGENTS, dtype=bool)
         rewards = np.zeros(NUM_AGENTS, dtype=np.float32)
 
-        c_env.set_buffers(observations, terminals, truncations, rewards)
-        c_env.reset()
+        actions = np.zeros(NUM_AGENTS, dtype=dtype_actions)
+        c_sim.set_buffers(observations, terminals, truncations, rewards, actions)
 
         # Take a step to get valid baseline values
-        noop_action_idx = c_env.action_names().index("noop")
-        actions = np.full(NUM_AGENTS, noop_action_idx, dtype=dtype_actions)
-        c_env.step(actions)
+        # Get action names from config since action_names() is now Python-only
+        action_names = [action.name for action in sim.config.game.actions.actions()]
+        noop_action_idx = action_names.index("noop")
+        c_sim.actions()[:] = noop_action_idx
+        c_sim.step()
 
         # Store initial values
         initial_obs_sum = observations.sum()
@@ -368,15 +417,16 @@ class TestBuffers:
 
     def test_multi_agent_buffer_behavior(self):
         """Test buffer behavior with multiple agents to ensure proper indexing."""
-        c_env = create_minimal_mettagrid_c_env()
+        sim = create_minimal_simulation()
+        c_sim = sim._c_sim
 
         observations = np.zeros((NUM_AGENTS, NUM_OBS_TOKENS, OBS_TOKEN_SIZE), dtype=np.uint8)
         terminals = np.zeros(NUM_AGENTS, dtype=bool)
         truncations = np.zeros(NUM_AGENTS, dtype=bool)
         rewards = np.zeros(NUM_AGENTS, dtype=np.float32)
 
-        c_env.set_buffers(observations, terminals, truncations, rewards)
-        c_env.reset()
+        actions = np.zeros(NUM_AGENTS, dtype=dtype_actions)
+        c_sim.set_buffers(observations, terminals, truncations, rewards, actions)
 
         # Verify all agents have independent buffer space
         for agent_idx in range(NUM_AGENTS):
@@ -409,26 +459,32 @@ class TestBuffers:
 
     def test_episode_rewards_accumulation(self):
         """Test that episode rewards properly accumulate across steps with custom buffers."""
-        c_env = create_minimal_mettagrid_c_env()
+        sim = create_minimal_simulation()
+        c_sim = sim._c_sim
 
         observations = np.zeros((NUM_AGENTS, NUM_OBS_TOKENS, OBS_TOKEN_SIZE), dtype=np.uint8)
         terminals = np.zeros(NUM_AGENTS, dtype=bool)
         truncations = np.zeros(NUM_AGENTS, dtype=bool)
         rewards = np.zeros(NUM_AGENTS, dtype=np.float32)
 
-        c_env.set_buffers(observations, terminals, truncations, rewards)
-        c_env.reset()
+        actions = np.zeros(NUM_AGENTS, dtype=dtype_actions)
+        c_sim.set_buffers(observations, terminals, truncations, rewards, actions)
 
         # Get initial episode rewards - should be zero
-        episode_rewards = c_env.get_episode_rewards()
+        episode_rewards = c_sim.get_episode_rewards()
         assert np.all(episode_rewards == 0), f"Episode rewards should start at zero, got {episode_rewards}"
 
         # Take first step
-        noop_action_idx = c_env.action_names().index("noop")
-        actions = np.full(NUM_AGENTS, noop_action_idx, dtype=dtype_actions)
+        # Get action names from config since action_names() is now Python-only
+        action_names = [action.name for action in sim.config.game.actions.actions()]
+        noop_action_idx = action_names.index("noop")
+        c_sim.actions()[:] = noop_action_idx
 
-        obs, step_rewards_1, terminals_ret, truncations_ret, _info = c_env.step(actions)
-        episode_rewards_1 = c_env.get_episode_rewards()
+        c_sim.step()
+        step_rewards_1 = c_sim.rewards()
+        terminals_ret = c_sim.terminals()
+        truncations_ret = c_sim.truncations()
+        episode_rewards_1 = c_sim.get_episode_rewards()
 
         # Episode rewards should equal step rewards after first step
         np.testing.assert_array_equal(
@@ -441,8 +497,11 @@ class TestBuffers:
         np.testing.assert_array_equal(truncations_ret, truncations, "Truncations should match buffer")
 
         # Take second step
-        obs, step_rewards_2, terminals_ret, truncations_ret, _info = c_env.step(actions)
-        episode_rewards_2 = c_env.get_episode_rewards()
+        c_sim.step()
+        step_rewards_2 = c_sim.rewards()
+        terminals_ret = c_sim.terminals()
+        truncations_ret = c_sim.truncations()
+        episode_rewards_2 = c_sim.get_episode_rewards()
 
         # Episode rewards should be cumulative
         expected_cumulative = episode_rewards_1 + step_rewards_2

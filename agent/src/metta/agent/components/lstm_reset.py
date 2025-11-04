@@ -137,8 +137,9 @@ class LSTMReset(nn.Module):
         latent = td[self.config.in_key]  # → (batch * TT, hidden_size)
 
         B = td.batch_size.numel()
-        if td["bptt"][0] != 1:
-            TT = td["bptt"][0]
+        bptt = td.get("bptt", None)
+        if bptt is not None and bptt[0] != 1:
+            TT = bptt[0]
             self._in_training = True
         else:
             TT = 1

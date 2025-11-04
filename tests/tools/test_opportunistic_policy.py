@@ -17,7 +17,8 @@ from metta.sim.simulation_config import SimulationConfig
 from metta.tools.eval import EvaluateTool
 from metta.tools.play import PlayTool
 from metta.tools.replay import ReplayTool
-from mettagrid import MettaGridEnv, dtype_observations
+from mettagrid import PufferMettaGridEnv, dtype_observations
+from mettagrid.simulator import Simulator
 
 
 class TestBasicPolicyEnvironment:
@@ -30,8 +31,9 @@ class TestBasicPolicyEnvironment:
 
     @pytest.fixture
     def env_with_config(self, simple_env_config):
-        """Create MettaGridEnv from config."""
-        env = MettaGridEnv(simple_env_config)
+        """Create PufferMettaGridEnv from config."""
+        simulator = Simulator()
+        env = PufferMettaGridEnv(simulator, simple_env_config)
         try:
             yield env
         finally:
@@ -137,14 +139,9 @@ class TestBasicPolicyEnvironment:
         monkeypatch.setattr(CurriculumConfig, "from_mg", classmethod(_small_curriculum))
         simulation = Simulation.create(
             sim_config=sim_config,
-            device="cpu",
-            vectorization="serial",
             policy_uri=None,
         )
-        try:
-            assert simulation.full_name == "test/test_nav"
-        finally:
-            simulation._vecenv.close()  # type: ignore[attr-defined]
+        assert simulation.full_name == "test/test_nav"
 
     def test_eval_tool_config_with_policy_uri(self):
         """Test that EvaluateTool accepts policy URIs."""
