@@ -194,7 +194,7 @@ releases:
       - datadog:
           service: dashboard-collector
 
-  # Dev cronjob deployments (see devops/charts/cronjob/DEV_DEPLOYMENT.md for instructions)
+  # Dev cronjob deployments (see devops/charts/CRONJOB_DEV_WORKFLOW.md for instructions)
   # Uncomment the release you want to deploy for dev testing:
   #
   # - name: pr-similarity-cache-cronjob-dev
