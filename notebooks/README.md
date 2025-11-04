@@ -24,4 +24,4 @@ anything that is painful or that you need!
 
 ### Colab Notebooks
 
-- notebooks available at ./colab are for running in colab
+- notebooks available at ./colab are for running in google colab
