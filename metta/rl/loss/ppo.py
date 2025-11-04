@@ -64,8 +64,6 @@ class PPOConfig(Config):
         default_factory=PrioritizedExperienceReplayConfig
     )
 
-    # Hyperparameter scheduling now handled by trainer-level LossScheduler
-
     def create(
         self,
         policy: Policy,

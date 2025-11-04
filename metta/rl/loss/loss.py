@@ -15,21 +15,6 @@ from metta.rl.training import ComponentContext, Experience, TrainingEnvironment
 @dataclass(slots=True)
 class Loss:
     """Base class coordinating rollout and training behaviour for concrete losses.
-
-    Args:
-        policy (Policy): The policy being trained/evaluated by this loss.
-        trainer_cfg (Any): Trainer configuration object (total timesteps, batch sizes, etc.).
-        env (TrainingEnvironment): Vectorized training environment wrapper.
-        device (torch.device): Device to place tensors and compute on.
-        instance_name (str): Name used to identify this loss instance in logs/state.
-        loss_cfg (Any): Concrete loss configuration.
-
-    Optional attributes initialized at runtime:
-        policy_experience_spec (Composite | None): Spec for experience fields required by the policy.
-        replay (Experience | None): Attached replay buffer, when relevant.
-        loss_tracker (dict[str, list[float]] | None): Aggregated per-epoch metrics.
-        _zero_tensor (Tensor | None): Pre-allocated zero scalar on device for cheap returns.
-        _context (ComponentContext | None): Shared trainer context, attached externally.
     """
 
     policy: Policy
@@ -52,7 +37,6 @@ class Loss:
         self.loss_tracker = defaultdict(list)
         self._zero_tensor = torch.tensor(0.0, device=self.device, dtype=torch.float32)
         self.register_state_attr("loss_tracker")
-        self._configure_schedule()
 
     def attach_context(self, context: ComponentContext) -> None:
         """Register the shared trainer context for this loss instance."""
@@ -138,11 +122,6 @@ class Loss:
         return bool(entry.get(phase, True))
 
     # End scheduling helpers
-
-    def _configure_schedule(self) -> None:
-        """No-op: scheduling is now controlled by trainer-level scheduler."""
-        self._rollout_sched = None
-        self._train_sched = None
 
     # Utility helpers
 

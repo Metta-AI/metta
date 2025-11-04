@@ -9,6 +9,7 @@ from torch.nn import functional as F
 
 from metta.agent.policy import Policy
 from metta.rl.loss import Loss
+from metta.rl.training import ComponentContext, TrainingEnvironment
 from metta.rl.utils import ensure_sequence_metadata
 from mettagrid.base_config import Config
 
@@ -21,7 +22,7 @@ class EMAConfig(Config):
         self,
         policy: Policy,
         trainer_cfg: Any,
-        vec_env: Any,
+        env: TrainingEnvironment,
         device: torch.device,
         instance_name: str,
         loss_config: Any,
@@ -30,7 +31,7 @@ class EMAConfig(Config):
         return EMA(
             policy,
             trainer_cfg,
-            vec_env,
+            env,
             device,
             instance_name=instance_name,
             loss_config=loss_config,

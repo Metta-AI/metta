@@ -39,19 +39,41 @@ ANNEALERS: dict[AnnealStyle, Callable[[float, float, float], float]] = {
 }
 
 
-class HyperAnnealRule(Config):
-    """Top-down hyperparameter annealing rule targeting a specific loss config attribute."""
+class HyperUpdateRule(Config):
+    """Unified rule for updating loss hyperparameters.
 
-    loss: str
+    Supports two modes:
+    - progress: anneal between start/end values over epoch or agent_step ranges
+    - metric: derive value from a reported metric with optional transform/EMA/clamp
+    """
+
+    # Target selection
+    loss_instance_name: str
     attr_path: str
-    style: AnnealStyle
-    start_value: float
-    end_value: float
+
+    # Mode selection (None => inferred: metric if metric_key set else progress)
+    mode: Optional[Literal["progress", "metric"]] = None
+
+    # Progress/anneal fields
+    style: AnnealStyle = "linear"
+    start_value: Optional[float] = None
+    end_value: Optional[float] = None
     start_epoch: Optional[int] = Field(default=None)
     end_epoch: Optional[int] = Field(default=None)
     start_agent_step: Optional[int] = Field(default=None)
     end_agent_step: Optional[int] = Field(default=None)
 
+    # Metric-derived fields
+    metric_key: Optional[str] = None
+    transform: Optional[Callable[[float], float]] = None
+    ema_beta: Optional[float] = Field(default=None, ge=0.0, lt=1.0)
+    min_value: Optional[float] = None
+    max_value: Optional[float] = None
+
+    # runtime only
+    _ema_state: Optional[float] = None
+
+    # -------------- progress helpers --------------
     def _progress(self, *, epoch: int, agent_step: int) -> float:
         if self.start_agent_step is not None and self.end_agent_step is not None:
             span = max(1, int(self.end_agent_step - self.start_agent_step))
@@ -63,27 +85,17 @@ class HyperAnnealRule(Config):
 
         return 1.0
 
-    def apply(self, *, obj: object, epoch: int, agent_step: int) -> None:
+    def _apply_progress(self, *, obj: object, epoch: int, agent_step: int) -> None:
+        if self.start_value is None or self.end_value is None:
+            return
         fn = ANNEALERS[self.style]
-        value = fn(self._progress(epoch=epoch, agent_step=agent_step), self.start_value, self.end_value)
+        value = fn(self._progress(epoch=epoch, agent_step=agent_step), float(self.start_value), float(self.end_value))
         _set_attr_path(obj, self.attr_path, float(value))
 
-
-class MetricRule(Config):
-    """Metric-driven hyper update rule targeting a specific loss config attribute."""
-
-    loss: str
-    attr_path: str
-    metric_key: str
-    transform: Optional[Callable[[float], float]] = None
-    ema_beta: Optional[float] = Field(default=None, ge=0.0, lt=1.0)
-    min_value: Optional[float] = None
-    max_value: Optional[float] = None
-
-    # runtime only
-    _ema_state: Optional[float] = None
-
+    # -------------- metric helpers --------------
     def _read_metric(self, ctx) -> Optional[float]:
+        if not self.metric_key:
+            return None
         stats_reporter = getattr(ctx, "stats_reporter", None)
         if stats_reporter is None or getattr(stats_reporter, "state", None) is None:
             return None
@@ -109,7 +121,7 @@ class MetricRule(Config):
             value = min(float(self.max_value), float(value))
         return float(value)
 
-    def apply(self, *, obj: object, ctx) -> None:
+    def _apply_metric(self, *, obj: object, ctx) -> None:
         metric = self._read_metric(ctx)
         if metric is None:
             return
@@ -120,11 +132,21 @@ class MetricRule(Config):
                 return
         _set_attr_path(obj, self.attr_path, self._smooth_and_clamp(metric))
 
+    # -------------- main apply --------------
+    def apply(self, *, obj: object, ctx) -> None:
+        epoch = getattr(ctx, "epoch", 0)
+        agent_step = getattr(ctx, "agent_step", 0)
+        mode = self.mode or ("metric" if self.metric_key else "progress")
+        if mode == "metric":
+            self._apply_metric(obj=obj, ctx=ctx)
+        else:
+            self._apply_progress(obj=obj, epoch=int(epoch), agent_step=int(agent_step))
+
 
 class LossRunGate(Config):
     """Per-loss, per-phase run gating over epochs/steps/cycles."""
 
-    loss: str
+    loss_instance_name: str
     phase: Literal["rollout", "train"]
 
     begin_at_epoch: Optional[int] = None
@@ -152,33 +174,106 @@ class LossRunGate(Config):
 
 
 class SchedulerConfig(Config):
-    hyper_anneal: list[HyperAnnealRule] = Field(default_factory=list)
-    metric_rules: list[MetricRule] = Field(default_factory=list)
+    # Unified rules list only
+    rules: list[HyperUpdateRule] = Field(default_factory=list)
     run_gates: list[LossRunGate] = Field(default_factory=list)
 
 
 class LossScheduler(TrainerComponent):
-    """Trainer-level scheduler applying hyper updates and run gating per phase."""
+    """Trainer-level scheduler for both:
+    1) updates to any hyperparameters and
+    2) gating as to whether entire losses should run or not given the current epoch or agent step.
+
+    Usage (from an experiments recipe):
+
+        from metta.tools.train import TrainTool
+        from metta.rl.training import TrainingEnvironmentConfig, EvaluatorConfig
+        from metta.rl.training.scheduler import (
+            SchedulerConfig, HyperUpdateRule, LossRunGate
+        )
+
+        def train(...):
+            return TrainTool(
+                training_env=TrainingEnvironmentConfig(curriculum=...),
+                evaluator=EvaluatorConfig(simulations=...),
+
+                # Configure the scheduler with run gates and rules
+                scheduler=SchedulerConfig(
+                    # Gate when a loss is allowed to run per phase
+                    run_gates=[
+                        # Start PPO training after epoch 5
+                        LossRunGate(loss_instance_name="ppo", phase="train", begin_at_epoch=5),
+                        # Allow PPO rollout from the start (explicit for clarity)
+                        LossRunGate(loss_instance_name="ppo", phase="rollout", begin_at_epoch=0),
+                    ],
+
+                    # Hyperparameter updates (progress- or metric-driven)
+                    rules=[
+                        # Linearly anneal PPO entropy coefficient from 0.02 -> 0.0 over epochs 0..50
+                        HyperUpdateRule(
+                            loss_instance_name="ppo",
+                            attr_path="ent_coef",
+                            mode="progress",
+                            style="linear",
+                            start_value=0.02,
+                            end_value=0.0,
+                            start_epoch=0,
+                            end_epoch=50,
+                        ),
+
+                        # Cosine-anneal a nested attribute (V-trace rho_clip) 1.0 -> 2.0 over 0..100 epochs
+                        HyperUpdateRule(
+                            loss_instance_name="ppo",
+                            attr_path="vtrace.rho_clip",
+                            mode="progress",
+                            style="cosine",
+                            start_value=1.0,
+                            end_value=2.0,
+                            start_epoch=0,
+                            end_epoch=100,
+                        ),
+
+                        # Drive a hyperparameter from a rollout metric (with smoothing and clamping)
+                        HyperUpdateRule(
+                            loss_instance_name="ppo",
+                            attr_path="vf_coef",
+                            mode="metric",
+                            metric_key="your_metric_key",  # key found in StatsReporter.state.rollout_stats
+                            ema_beta=0.9,
+                            min_value=0.1,
+                            max_value=1.0,
+                        ),
+                    ],
+                ),
+            )
+
+    Notes:
+    - The "loss_instance_name" should match the registered loss instance name (e.g., "ppo")
+      or the lower-cased loss class name.
+    - "attr_path" is relative to the loss's config object (e.g., "ent_coef", "vf_coef",
+      or nested like "vtrace.rho_clip").
+    - For metric-driven rules, "metric_key" must exist in rollout stats accumulated by
+      the StatsReporter (flattened keys from env infos).
+    """
 
     def __init__(self, config: SchedulerConfig) -> None:
         super().__init__(epoch_interval=1, step_interval=0)
         self.config = config
 
     def apply(self, *, phase: Literal["rollout", "train"]) -> None:
-        ctx = self.context
-        epoch = int(getattr(ctx, "epoch", 0))
-        agent_step = int(getattr(ctx, "agent_step", 0))
+        epoch = self.context.epoch
+        agent_step = self.context.agent_step
 
         # 1) Apply run gates for the requested phase
-        gates = getattr(ctx, "loss_run_gates", None)
+        gates = getattr(self.context, "loss_run_gates", None)
         if gates is None:
             gates = {}
-            ctx.loss_run_gates = gates
+            self.context.loss_run_gates = gates
 
         for gate in self.config.run_gates:
             if gate.phase != phase:
                 continue
-            loss_name = gate.loss
+            loss_name = gate.loss_instance_name
             allowed = gate.is_active(epoch=epoch, agent_step=agent_step)
             entry = gates.get(loss_name)
             if entry is None:
@@ -186,18 +281,13 @@ class LossScheduler(TrainerComponent):
                 gates[loss_name] = entry
             entry[phase] = bool(allowed)
 
-        # 2) Apply hyper anneal rules and metric rules
-        for rule in self.config.hyper_anneal:
-            loss = ctx.losses.get(rule.loss)
+        # 2) Apply unified rules
+        for rule in self.config.rules:
+            loss = self.context.losses.get(rule.loss_instance_name)
             if loss is None:
+                # Skip silently to allow optional losses
                 continue
-            rule.apply(obj=loss.loss_cfg, epoch=epoch, agent_step=agent_step)
-
-        for rule in self.config.metric_rules:
-            loss = ctx.losses.get(rule.loss)
-            if loss is None:
-                continue
-            rule.apply(obj=loss.loss_cfg, ctx=ctx)
+            rule.apply(obj=loss.loss_cfg, ctx=self.context)
 
 
 def _set_attr_path(obj: object, path: str, value: Any) -> None:

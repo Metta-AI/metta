@@ -20,10 +20,6 @@ class SLKickstarterConfig(Config):
     value_loss_coef: float = Field(default=1.0, ge=0, le=1.0)
     anneal_ratio: float = Field(default=0.995, ge=0, le=1.0)
 
-    def update_hypers(self, context: ComponentContext) -> None:
-        for sched in self.schedule:
-            sched.apply(obj=self, epoch=context.epoch, agent_step=context.agent_step)
-
     def create(
         self,
         policy: Policy,
