@@ -20,22 +20,11 @@ ensure_prettier
 format_files "md"
 
 # Also format README files without extension (if any)
-MODE_MESSAGE="Checking for README files without extension..."
-README_CMD=(pnpm exec prettier --write --parser markdown)
-if [ "${FORMAT_MODE:-write}" = "check" ]; then
-  MODE_MESSAGE="Checking formatting for README files without extension..."
-  README_CMD=(pnpm exec prettier --check --parser markdown)
-fi
-
-echo "$MODE_MESSAGE"
+echo "Checking for README files without extension..."
 if [ -n "$EXCLUDE_PATTERN" ]; then
-  find . -name "README" -type f | grep -v "$EXCLUDE_PATTERN" | xargs -r "${README_CMD[@]}"
+  find . -name "README" -type f | grep -v "$EXCLUDE_PATTERN" | xargs -r pnpm exec prettier --write --parser markdown
 else
-  find . -name "README" -type f | xargs -r "${README_CMD[@]}"
+  find . -name "README" -type f | xargs -r pnpm exec prettier --write --parser markdown
 fi
 
-if [ "${FORMAT_MODE:-write}" = "check" ]; then
-  echo "All Markdown files (except excluded ones) pass Prettier formatting checks."
-else
-  echo "All Markdown files (except excluded ones) have been formatted with Prettier."
-fi
+echo "All Markdown files (except excluded ones) have been formatted with Prettier."

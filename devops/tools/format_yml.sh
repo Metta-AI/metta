@@ -37,8 +37,4 @@ format_files "yml"
 format_files "yaml"
 
 echo ""
-if [ "${FORMAT_MODE:-write}" = "check" ]; then
-  echo "All matching YAML files pass Prettier formatting checks."
-else
-  echo "All matching YAML files have been formatted with Prettier."
-fi
+echo "All matching YAML files have been formatted with Prettier."

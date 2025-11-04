@@ -1,9 +1,6 @@
 #!/bin/bash
 # Formatting-related helper functions
 
-# Default to formatting mode; can be switched to check mode via parse_format_args
-FORMAT_MODE="write"
-
 check_cmd() {
   command -v "$1" > /dev/null 2>&1
   return $?
@@ -61,33 +58,15 @@ ensure_prettier_plugin() {
 format_files() {
   local file_ext="$1"
   local exclude_pattern="${2:-$EXCLUDE_PATTERN}"
-  local mode="${FORMAT_MODE:-write}"
-  local action
-  local prettier_flag
 
-  if [ "$mode" = "check" ]; then
-    action="Checking formatting for"
-    prettier_flag="--check"
-  else
-    action="Formatting"
-    prettier_flag="--write"
-  fi
-
-  echo "$action *.$file_ext files..."
+  echo "Formatting *.$file_ext files..."
 
   if [ -n "$exclude_pattern" ]; then
     echo "  Excluding: $exclude_pattern"
-    if [ "$mode" = "check" ]; then
-      echo "  Running Prettier in check mode"
-    fi
-    find . -name "*.$file_ext" -type f | grep -v "$exclude_pattern" | xargs pnpm exec prettier "$prettier_flag"
+    find . -name "*.$file_ext" -type f | grep -v "$exclude_pattern" | xargs pnpm exec prettier --write
   else
-    if [ "$mode" = "check" ]; then
-      echo "  Checking all files (no exclusions)"
-    else
-      echo "  Formatting all files (no exclusions)"
-    fi
-    find . -name "*.$file_ext" -type f | xargs pnpm exec prettier "$prettier_flag"
+    echo "  Formatting all files (no exclusions)"
+    find . -name "*.$file_ext" -type f | xargs pnpm exec prettier --write
   fi
 }
 
@@ -95,14 +74,6 @@ format_files() {
 parse_format_args() {
   while [[ $# -gt 0 ]]; do
     case $1 in
-      --check)
-        FORMAT_MODE="check"
-        shift
-        ;;
-      --write)
-        FORMAT_MODE="write"
-        shift
-        ;;
       --exclude)
         if [[ "$2" == "none" ]]; then
           EXCLUDE_PATTERN=""
