@@ -14,9 +14,7 @@ assembler_altar = AssemblerConfig(
     name="altar",
     map_char="_",
     render_symbol="🎯",
-    protocols=[
-        ProtocolConfig(vibes=[], input_resources={"battery_red": 3}, output_resources={"heart": 1}, cooldown=10)
-    ],
+    protocols=[ProtocolConfig(input_resources={"battery_red": 3}, output_resources={"heart": 1}, cooldown=10)],
 )
 
 

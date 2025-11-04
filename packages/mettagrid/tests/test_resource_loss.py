@@ -1,8 +1,5 @@
-import numpy as np
-
 from mettagrid.config.mettagrid_config import MettaGridConfig
-from mettagrid.core import MettaGridCore
-from mettagrid.mettagrid_c import dtype_actions
+from mettagrid.simulator import Simulation
 
 
 class TestResourceLoss:
@@ -21,10 +18,7 @@ class TestResourceLoss:
         cfg.game.resource_loss_prob = 1.0
         cfg.game.agent.initial_inventory = {"heart": 5, "battery_blue": 3}
         cfg.game.actions.noop.enabled = True
-        env = MettaGridCore(cfg)
-
-        # Reset environment
-        obs, info = env.reset()
+        env = Simulation(cfg)
 
         # Get the agent's inventory through grid_objects
         grid_objects = env.grid_objects()
@@ -42,10 +36,10 @@ class TestResourceLoss:
         assert inventory[env.resource_names.index("battery_blue")] == 3, "Agent should have 3 battery_blue initially"
 
         # Take a step with noop action
-        noop_idx = env.action_names.index("noop")
-        actions = np.full(env.num_agents, noop_idx, dtype=dtype_actions)
+        for agent_id in range(env.num_agents):
+            env.agent(agent_id).set_action("noop")
 
-        obs, rewards, terminals, truncations, info = env.step(actions)
+        env.step()
 
         # After one step with resource_loss_prob=1.0, all items should be lost
         grid_objects_after = env.grid_objects()
@@ -76,10 +70,7 @@ class TestResourceLoss:
         cfg.game.resource_loss_prob = 0.0
         cfg.game.agent.initial_inventory = {"heart": 5, "battery_blue": 3}
         cfg.game.actions.noop.enabled = True
-        env = MettaGridCore(cfg)
-
-        # Reset environment
-        obs, info = env.reset()
+        env = Simulation(cfg)
 
         # Get the agent's inventory through grid_objects
         grid_objects = env.grid_objects()
@@ -97,12 +88,11 @@ class TestResourceLoss:
         assert inventory[env.resource_names.index("battery_blue")] == 3, "Agent should have 3 battery_blue initially"
 
         # Take multiple steps with noop action
-        noop_idx = env.action_names.index("noop")
-        actions = np.full(env.num_agents, noop_idx, dtype=dtype_actions)
-
         # Take 10 steps
         for _ in range(10):
-            obs, rewards, terminals, truncations, info = env.step(actions)
+            for agent_id in range(env.num_agents):
+                env.agent(agent_id).set_action("noop")
+            env.step()
 
         # After multiple steps with resource_loss_prob=0.0, items should remain
         grid_objects_after = env.grid_objects()
@@ -134,10 +124,7 @@ class TestResourceLoss:
         cfg.game.agent.initial_inventory = {"heart": 100}
 
         # Create environment with resource_loss_prob=0.5 and initial inventory
-        env = MettaGridCore(cfg)
-
-        # Reset environment
-        obs, info = env.reset()
+        env = Simulation(cfg)
 
         # Get the agent's inventory through grid_objects
         grid_objects = env.grid_objects()
@@ -154,14 +141,13 @@ class TestResourceLoss:
         assert inventory[env.resource_names.index("heart")] == 100, "Agent should have 100 hearts initially"
 
         # Take multiple steps with noop action
-        noop_idx = env.action_names.index("noop")
-        actions = np.full(env.num_agents, noop_idx, dtype=dtype_actions)
-
         initial_count = inventory[env.resource_names.index("heart")]
 
         # Take 5 steps
         for step in range(5):
-            obs, rewards, terminals, truncations, info = env.step(actions)
+            for agent_id in range(env.num_agents):
+                env.agent(agent_id).set_action("noop")
+            env.step()
 
             # Get current inventory
             grid_objects_current = env.grid_objects()

@@ -2,7 +2,7 @@ name: "Test and Benchmark"
 
 # This workflow uses metta ci as the single source of truth for CI checks.
 # Each job calls metta ci with a specific stage:
-#   --stage lint, --stage python-tests,
+#   --stage lint, --stage python-tests-and-benchmarks,
 #   --stage cpp-tests, --stage cpp-benchmarks
 # Local development can run all stages with: metta ci
 
@@ -255,7 +255,7 @@ jobs:
           if [[ "${{ needs.setup-checks.outputs.app_backend_has_changes }}" != "true" ]]; then
             ARGS+=(--skip-package app_backend)
           fi
-          uv run python .github/scripts/run_ci_stage.py python-tests -- "${ARGS[@]}"
+          uv run python .github/scripts/run_ci_stage.py python-tests-and-benchmarks -- "${ARGS[@]}"
 
   cpp-tests:
     name: "Tests - C++"
