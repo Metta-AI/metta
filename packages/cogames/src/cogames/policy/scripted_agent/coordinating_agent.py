@@ -1,36 +1,47 @@
 """
 CoordinatingAgent - Multi-agent coordination for assemblers and extractors.
 
-Extends SimpleBaselineAgent with:
+Extends UnclippingAgent with:
 - Smart mouth selection for assemblers and extractors (agents spread around stations)
 - Collision avoidance via random unsticking when blocked
 - Commitment to chosen mouths to prevent oscillation
+
+This agent has all capabilities:
+- Core: resource gathering, assembling, delivery (from SimpleBaselineAgent)
+- Unclipping: detect and restore clipped extractors (from UnclippingAgent)
+- Coordination: multi-agent collision avoidance (this class)
 """
 
 from __future__ import annotations
 
 from typing import TYPE_CHECKING, Dict
 
-from .simple_baseline_agent import CellType, SimpleAgentState, SimpleBaselineAgent
+from .simple_baseline_agent import CellType
+from .unclipping_agent import UnclippingAgent, UnclippingAgentState
 
 if TYPE_CHECKING:
     from cogames.cogs_vs_clips.env import MettaGridEnv
     from cogames.cogs_vs_clips.observation import MettaGridObservation
 
 
-class CoordinatingAgent(SimpleBaselineAgent):
+class CoordinatingAgent(UnclippingAgent):
     """
     Multi-agent coordination via smart mouth selection.
 
-    Same as SimpleBaselineAgent, but when within 2 cells of assembler or extractor,
-    picks an available adjacent cell (mouth) from observations to avoid collisions.
-    Agents commit to their chosen mouth to prevent oscillation.
+    Extends UnclippingAgent (which extends SimpleBaselineAgent), so has:
+    - Core gathering/assembly/delivery from SimpleBaselineAgent
+    - Unclipping capability from UnclippingAgent
+    - Coordination via smart mouth selection (this class)
+
+    When within 2 cells of assembler or extractor, picks an available adjacent
+    cell (mouth) from observations to avoid collisions. Agents commit to their
+    chosen mouth to prevent oscillation.
     """
 
     def __init__(self, env: MettaGridEnv):
         super().__init__(env)
 
-    def _random_move_if_stuck(self, s: SimpleAgentState, action: int) -> int:
+    def _random_move_if_stuck(self, s: UnclippingAgentState, action: int) -> int:
         """If action is NOOP (blocked), 30% chance to take a random move to unstick."""
         if action != self._NOOP:
             return action
@@ -55,7 +66,7 @@ class CoordinatingAgent(SimpleBaselineAgent):
 
         return self._NOOP
 
-    def _do_assemble(self, s: SimpleAgentState) -> int:
+    def _do_assemble(self, s: UnclippingAgentState) -> int:
         """Override to add smart mouth selection when approaching assembler."""
         # Change glyph to heart if needed
         if s.current_glyph != "heart":
@@ -106,9 +117,9 @@ class CoordinatingAgent(SimpleBaselineAgent):
                     s.committed_assembler_mouth = available_mouth
                     s.committed_assembler_target = assembler
                     committed_mouth = available_mouth
-                else:
-                    # No available mouth, use default pathfinding
-                    return self._move_towards(s, assembler, reach_adjacent=True)
+            else:
+                # No available mouth, use default pathfinding
+                return self._move_towards(s, assembler, reach_adjacent=True)
 
             # We have a committed mouth - move to it
             # Check if we're at the mouth
@@ -152,7 +163,7 @@ class CoordinatingAgent(SimpleBaselineAgent):
         action = self._move_towards(s, assembler, reach_adjacent=True)
         return self._random_move_if_stuck(s, action)
 
-    def _do_gather(self, s: SimpleAgentState) -> int:
+    def _do_gather(self, s: UnclippingAgentState) -> int:
         """Override to add smart mouth selection when approaching extractors."""
         # Use parent's logic for waiting, deficits check, and exploration
         if s.pending_use_resource is not None:
@@ -236,9 +247,9 @@ class CoordinatingAgent(SimpleBaselineAgent):
                     s.committed_mouth = available_mouth
                     s.committed_target = extractor.position
                     committed_mouth = available_mouth
-                else:
-                    # No available mouth, use default pathfinding
-                    return self._move_towards(s, extractor.position, reach_adjacent=True)
+            else:
+                # No available mouth, use default pathfinding
+                return self._move_towards(s, extractor.position, reach_adjacent=True)
 
             # We have a committed mouth - move to it
             # Check if we're at the mouth
@@ -282,7 +293,7 @@ class CoordinatingAgent(SimpleBaselineAgent):
         action = self._move_towards(s, extractor.position, reach_adjacent=True)
         return self._random_move_if_stuck(s, action)
 
-    def _find_available_mouth(self, s: SimpleAgentState, target_pos: tuple[int, int]) -> tuple[int, int] | None:
+    def _find_available_mouth(self, s: UnclippingAgentState, target_pos: tuple[int, int]) -> tuple[int, int] | None:
         """
         Find an available adjacent cell (mouth) around a target (extractor/assembler/etc).
 
@@ -390,7 +401,7 @@ class CoordinatingPolicy:
 
             # Initialize agent state if needed
             if agent_id not in self._impl._agent_states:
-                self._impl._agent_states[agent_id] = SimpleAgentState(
+                self._impl._agent_states[agent_id] = UnclippingAgentState(
                     agent_id=agent_id,
                     map_height=self._impl._map_h,
                     map_width=self._impl._map_w,
@@ -401,10 +412,10 @@ class CoordinatingPolicy:
 
         return self._agent_policies[agent_id]
 
-    def agent_state(self, agent_id: int = 0) -> SimpleAgentState:
+    def agent_state(self, agent_id: int = 0) -> UnclippingAgentState:
         """Get state for an agent (for debugging/inspection)."""
         if agent_id not in self._impl._agent_states:
-            self._impl._agent_states[agent_id] = SimpleAgentState(
+            self._impl._agent_states[agent_id] = UnclippingAgentState(
                 agent_id=agent_id,
                 map_height=self._impl._map_h,
                 map_width=self._impl._map_w,

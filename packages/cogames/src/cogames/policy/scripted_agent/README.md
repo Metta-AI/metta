@@ -7,8 +7,8 @@ Three baseline scripted agent implementations for CoGames evaluation and ablatio
 This package provides three progressively capable scripted agents:
 
 1. **SimpleBaselineAgent** - Core functionality: exploration, resource gathering, heart assembly
-2. **UnclippingAgent** - Extends baseline with extractor unclipping capability
-3. **CoordinatingAgent** - Adds multi-agent coordination for collision avoidance
+2. **UnclippingAgent** - Extends SimpleBaselineAgent with extractor unclipping capability
+3. **CoordinatingAgent** - Extends UnclippingAgent with multi-agent coordination (has all capabilities)
 
 ## Architecture
 
@@ -51,8 +51,8 @@ These agents are designed for **ablation studies** and **baseline evaluation**:
 
 **Limitations**:
 - ❌ No unclipping support (can't handle clipped extractors)
-- ❌ No coordination (will collide with other agents)
-- ❌ Single-agent only
+- ❌ No multi-agent coordination (will collide with other agents)
+- ⚠️ Single-agent only (for multi-agent, use CoordinatingAgent)
 
 **Usage**:
 ```python
@@ -117,9 +117,11 @@ uv run cogames play --mission evals.extractor_hub_30 -p unclipping --variant cli
 
 ### 3. CoordinatingAgent
 
-**Purpose**: Multi-agent coordination around stations
+**Purpose**: Multi-agent coordination with full capabilities
 
-**Extends SimpleBaselineAgent with**:
+**Extends UnclippingAgent with**:
+- ✅ Core gathering/assembly (from SimpleBaselineAgent)
+- ✅ Unclipping capability (from UnclippingAgent)
 - ✅ Smart mouth selection (agents spread around stations)
 - ✅ Free mouth detection (avoids occupied spots)
 - ✅ Commitment to selected mouths (prevents oscillation)
@@ -246,8 +248,11 @@ uv run cogames play --mission evals.extractor_hub_30 -p coordinating --cogs 8 --
 # With difficulty variant
 uv run cogames play --mission evals.extractor_hub_30 -p coordinating --variant hard --cogs 4 --steps 2500
 
-# With clipping variant (tests coordination + unclipping)
+# With clipping variant (CoordinatingAgent has unclipping capability!)
 uv run cogames play --mission evals.extractor_hub_30 -p coordinating --variant clipped_oxygen --cogs 2 --steps 2000
+
+# Hard + clipping + coordination
+uv run cogames play --mission evals.extractor_hub_30 -p coordinating --variant hard_clipped_oxygen --cogs 4 --steps 3000
 ```
 
 ### Comprehensive Evaluation
@@ -346,7 +351,6 @@ _POLICY_CLASS_SHORTHAND = {
     "my_agent": "cogames.policy.scripted_agent.my_agent.MyPolicy",
 }
 ```
-
 
 ### Resource Management
 
