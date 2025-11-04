@@ -142,7 +142,7 @@ dynamics (like kinship and mate selection) on learning and cooperative behaviors
 
 - `metta/`: Core Python implementation for agents, maps, RL algorithms, simulation
 - `packages/mettagrid/`: C++/Python grid environment implementation with Pybind11 bindings
-- `mettascope/`: Interactive visualization and replay tools (TypeScript/web-based)
+- `packages/mettagrid/nim/mettascope/`: Interactive visualization and replay tools (Nim)
 - `observatory/`: React-based dashboard for viewing training runs and evaluations
 - `gridworks/`: Next.js web interface
 - `app_backend/`: FastAPI backend server for stats and data services
@@ -209,7 +209,7 @@ uv run ./tools/run.py evaluate arena --dry-run
 **Note**: These commands start development servers that run indefinitely. In Claude Code, they may hang without clear
 feedback. Consider running them in separate terminals outside of Claude Code.
 
-- **MettaScope**: Run `cd mettascope && pnpm run dev` for interactive replay viewer
+- **MettaScope**: Built automatically as part of the mettagrid Python package, see `packages/mettagrid/nim/mettascope/README.md`
 - **Observatory**: Run `cd observatory && pnpm run dev` for training dashboard
 - **GridWorks**: Run `cd gridworks && pnpm run dev` for web interface
 
