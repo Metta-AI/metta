@@ -9,7 +9,7 @@ from metta.cogworks.curriculum.curriculum import (
     CurriculumConfig,
 )
 from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
-from metta.rl.loss import LossConfig
+from metta.rl.loss import ActionSupervisedConfig, LossConfig
 from metta.rl.trainer_config import TorchProfilerConfig, TrainerConfig
 from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
 from metta.sim.simulation_config import SimulationConfig
@@ -103,7 +103,8 @@ def train(
 
     eval_simulations = simulations()
     trainer_cfg = TrainerConfig(
-        losses=LossConfig(),
+        # losses=LossConfig(),
+        losses=LossConfig(loss_configs={"action_supervised": ActionSupervisedConfig()}),
     )
 
     if policy_architecture is None:
