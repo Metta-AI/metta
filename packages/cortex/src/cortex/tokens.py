@@ -1,5 +1,4 @@
-"""Built-in Column expert symbols and helpers.
-"""
+"""Built-in Column expert symbols and helpers."""
 
 from __future__ import annotations
 
@@ -12,6 +11,7 @@ from cortex.config import (
     LSTMCellConfig,
     PassThroughBlockConfig,
     PostUpBlockConfig,
+    PostUpGatedBlockConfig,
     PreUpBlockConfig,
     XLCellConfig,
     mLSTMCellConfig,
@@ -34,7 +34,7 @@ def _build_X(ax: bool) -> BlockConfig:
         dumped = cell.model_dump()
         dumped["use_axon_qkv"] = True
         cell = XLCellConfig(**dumped)
-    return PostUpBlockConfig(cell=cell)
+    return PostUpGatedBlockConfig(cell=cell)
 
 
 def _build_M(ax: bool) -> BlockConfig:

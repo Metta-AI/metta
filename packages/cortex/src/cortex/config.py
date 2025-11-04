@@ -183,6 +183,15 @@ class PostUpBlockConfig(BlockConfig):
     proj_factor: float = Field(default=1.5, gt=0.0)
 
 
+class PostUpGatedBlockConfig(BlockConfig):
+    """Configuration for GRU‑gated post blocks (GTrXL‑style gating)."""
+
+    block_type: str = "postup_gated"
+    proj_factor: float = Field(default=1.5, gt=0.0)
+    # Gate bias b_g; larger values bias towards identity mapping at init.
+    gru_bias: float = Field(default=2.0)
+
+
 class AdapterBlockConfig(BlockConfig):
     """Configuration for adapter blocks with identity-initialized residual paths."""
 
@@ -327,6 +336,7 @@ __all__ = [
     "PassThroughBlockConfig",
     "PreUpBlockConfig",
     "PostUpBlockConfig",
+    "PostUpGatedBlockConfig",
     "AdapterBlockConfig",
     "CortexStackConfig",
     "RouterConfig",
