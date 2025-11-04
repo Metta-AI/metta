@@ -16,6 +16,12 @@ def test_remote_job_marks_failed_when_launch_fails(temp_job_manager):
     # Mock _spawn_job to return a job with no job_id (launch failure)
     mock_job = MagicMock()
     mock_job.exit_code = 1
+    # Mock all properties that JobManager accesses
+    mock_job.job_id = None
+    mock_job.request_id = None
+    mock_job.run_name = None
+    mock_job.log_path = "/tmp/test.log"
+    mock_job.needs_async_job_id_update.return_value = False
 
     with patch.object(manager, "_spawn_job", return_value=mock_job):
         # Submit and immediately try to start (poll does this)

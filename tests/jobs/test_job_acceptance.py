@@ -55,11 +55,11 @@ def test_acceptance_evaluation_with_metrics(temp_job_manager):
         job_state = manager.get_job_state("test_job")
         job_state.metrics = {"overview/sps": 15000.0, "reward": 0.8}
 
-        result = manager._evaluate_acceptance(job_state)
+        result = job_state.evaluate_acceptance()
         assert result is True
 
         job_state.metrics = {"overview/sps": 15000.0, "reward": 0.3}
-        result = manager._evaluate_acceptance(job_state)
+        result = job_state.evaluate_acceptance()
         assert result is False
 
 
@@ -75,7 +75,7 @@ def test_acceptance_with_no_criteria(temp_job_manager):
         time.sleep(0.2)
 
         job_state = manager.get_job_state("test_job")
-        result = manager._evaluate_acceptance(job_state)
+        result = job_state.evaluate_acceptance()
         assert result is True
 
 
@@ -98,7 +98,7 @@ def test_acceptance_with_missing_metrics(temp_job_manager):
         job_state = manager.get_job_state("test_job")
         assert job_state.metrics == {}
 
-        result = manager._evaluate_acceptance(job_state)
+        result = job_state.evaluate_acceptance()
         assert result is False
 
 
@@ -123,10 +123,10 @@ def test_multiple_criteria_all_must_pass(temp_job_manager):
         job_state = manager.get_job_state("test_job")
 
         job_state.metrics = {"metric1": 15, "metric2": 25, "metric3": 35}
-        assert manager._evaluate_acceptance(job_state) is True
+        assert job_state.evaluate_acceptance() is True
 
         job_state.metrics = {"metric1": 15, "metric2": 15, "metric3": 35}
-        assert manager._evaluate_acceptance(job_state) is False
+        assert job_state.evaluate_acceptance() is False
 
         job_state.metrics = {"metric1": 5, "metric2": 15, "metric3": 25}
-        assert manager._evaluate_acceptance(job_state) is False
+        assert job_state.evaluate_acceptance() is False

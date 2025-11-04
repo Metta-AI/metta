@@ -157,6 +157,21 @@ class Job(ABC):
         """Public property to get the job ID (PID for local, SkyPilot ID for remote)."""
         return None
 
+    @property
+    def request_id(self) -> str | None:
+        """Get SkyPilot request ID (remote jobs only, returns None for local jobs)."""
+        return None
+
+    @property
+    def run_name(self) -> str | None:
+        """Get WandB run name (remote training jobs only, returns None for local jobs)."""
+        return None
+
+    @property
+    def exit_code(self) -> int | None:
+        """Get exit code if job has completed."""
+        return self._exit_code
+
 
 class LocalJob(Job):
     """Job that runs locally via subprocess."""

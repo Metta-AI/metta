@@ -13,7 +13,7 @@ from pathlib import Path
 from sky.server.common import get_server_url
 
 from metta.jobs.job_manager import JobManager
-from metta.jobs.state import JobState
+from metta.jobs.job_state import JobState
 
 
 class JobDisplay:
@@ -25,6 +25,25 @@ class JobDisplay:
     def _should_show_training_artifacts(self, job_name: str) -> bool:
         job_state = self.job_manager.get_job_state(job_name)
         return job_state.config.is_training_job if job_state else False
+
+    def _get_display_name(self, job_name: str) -> str:
+        """Strip version prefix for cleaner display.
+
+        Example: "v2025.10.27-1726_cpp_ci" → "cpp_ci"
+        """
+        if "_" in job_name:
+            return job_name.split("_", 1)[1]
+        return job_name
+
+    def _format_status_with_color(self, status: str) -> str:
+        """Format status string with color and symbol."""
+        symbol = get_status_symbol(status)
+        if status == "running":
+            return f"\033[93m{symbol} {status}\033[0m"  # Yellow
+        elif status == "pending":
+            return f"\033[90m{symbol} {status}\033[0m"  # Gray
+        else:
+            return f"{symbol} {status}"
 
     def _extract_failure_summary(self, logs_path: str) -> list[str]:
         """Extract failure context from logs.
@@ -196,22 +215,12 @@ class JobDisplay:
     ) -> None:
         """Display details for an active (running/pending) job."""
         name = job_state.name
-        # Strip version prefix for cleaner display (e.g., "v2025.10.27-1726_cpp_ci" → "cpp_ci")
-        if "_" in name:
-            display_name = name.split("_", 1)[1]
-        else:
-            display_name = name
+        display_name = self._get_display_name(name)
         status_str = job_state.status
         job_id = job_state.job_id
 
         # Format status with symbol and color
-        symbol = get_status_symbol(status_str)
-        if status_str == "running":
-            status_display = f"\033[93m{symbol} {status_str}\033[0m"  # Yellow
-        elif status_str == "pending":
-            status_display = f"\033[90m{symbol} {status_str}\033[0m"  # Gray
-        else:
-            status_display = f"{symbol} {status_str}"
+        status_display = self._format_status_with_color(status_str)
 
         # Build line with display name and indentation
         line = f"│  {display_name:30s} {status_display:20s}"
@@ -249,15 +258,9 @@ class JobDisplay:
             # Show other metrics
             if len(metrics) > 1 or "_progress" not in metrics:  # Has metrics other than progress
                 print("│    📊 Metrics:")
-                for metric_key, metric_data in metrics.items():
+                for metric_key, metric_value in metrics.items():
                     if metric_key == "_progress":
                         continue
-
-                    # Handle both old format (float) and new format (dict with value/count)
-                    if isinstance(metric_data, dict):
-                        metric_value = metric_data.get("value", 0)
-                    else:
-                        metric_value = metric_data
 
                     # Format value based on magnitude
                     if metric_value >= 1000:
@@ -301,11 +304,7 @@ class JobDisplay:
     ) -> None:
         """Display condensed summary for a succeeded job."""
         name = job_state.name
-        # Strip version prefix for cleaner display
-        if "_" in name:
-            display_name = name.split("_", 1)[1]
-        else:
-            display_name = name
+        display_name = self._get_display_name(name)
 
         symbol = "✓"
         status_display = f"\033[92m{symbol}\033[0m"  # Green checkmark
@@ -336,11 +335,7 @@ class JobDisplay:
     ) -> None:
         """Display condensed summary for a failed job with error context."""
         name = job_state.name
-        # Strip version prefix for cleaner display
-        if "_" in name:
-            display_name = name.split("_", 1)[1]
-        else:
-            display_name = name
+        display_name = self._get_display_name(name)
 
         symbol = "✗"
         status_display = f"\033[91m{symbol}\033[0m"  # Red X
@@ -449,11 +444,8 @@ def extract_log_tail(logs_path: str, num_lines: int = 5) -> list[str]:
 
 
 def format_artifact_link(uri: str) -> str:
-    if uri.startswith("wandb://"):
-        return f"📦 {uri}"
-    elif uri.startswith("s3://"):
-        return f"📦 {uri}"
-    elif uri.startswith("file://"):
+    """Format URI with appropriate emoji prefix."""
+    if uri.startswith(("wandb://", "s3://", "file://")):
         return f"📦 {uri}"
     elif uri.startswith("http"):
         return f"🔗 {uri}"

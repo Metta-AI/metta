@@ -25,6 +25,22 @@ def extract_skypilot_job_id(log_text: str) -> Optional[str]:
     return None
 
 
+def parse_total_timesteps(args: list[str]) -> int | None:
+    """Extract total_timesteps from job config args.
+
+    Parses args list looking for 'trainer.total_timesteps=X' format.
+    This is metta training-specific logic.
+    """
+    for arg in args:
+        if arg.startswith("trainer.total_timesteps="):
+            try:
+                value = arg.split("=", 1)[1]
+                return int(value)
+            except (ValueError, IndexError):
+                continue
+    return None
+
+
 def fetch_wandb_metrics(
     entity: str,
     project: str,
@@ -105,3 +121,52 @@ def fetch_wandb_metrics(
         logger.warning(f"Error fetching from WandB: {e}")
 
     return metrics, current_step
+
+
+def fetch_job_metrics(
+    entity: str,
+    project: str,
+    run_name: str,
+    metric_keys: list[str],
+    total_timesteps: int | None = None,
+) -> dict[str, float] | None:
+    """Fetch metrics from WandB and build final metrics dict with optional progress.
+
+    This is a higher-level convenience function that:
+    1. Fetches metrics from WandB
+    2. Extracts the 'value' from each metric
+    3. Adds '_progress' dict if training step info is available
+
+    Args:
+        entity: WandB entity
+        project: WandB project
+        run_name: WandB run name
+        metric_keys: List of metric names to fetch
+        total_timesteps: Optional total timesteps for progress calculation
+
+    Returns:
+        Dictionary mapping metric names to values, with optional '_progress' dict.
+        Returns None if no metrics were fetched.
+        Example: {"overview/sps": 42000.0, "_progress": {"current_step": 50000, "total_steps": 100000}}
+    """
+    metrics_data, current_step = fetch_wandb_metrics(
+        entity=entity,
+        project=project,
+        run_name=run_name,
+        metric_keys=metric_keys,
+    )
+
+    if not metrics_data:
+        return None
+
+    # Extract values from {metric: {"value": X, "count": Y}} format
+    metrics_values = {key: data["value"] for key, data in metrics_data.items()}
+
+    # Add progress if we have both current step and total steps
+    if current_step is not None and total_timesteps is not None:
+        metrics_values["_progress"] = {
+            "current_step": current_step,
+            "total_steps": total_timesteps,
+        }
+
+    return metrics_values

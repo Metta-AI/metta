@@ -3,16 +3,27 @@
 import json
 import logging
 from datetime import datetime
-from typing import Any, Literal, Optional
+from enum import StrEnum
+from typing import TYPE_CHECKING, Any, Optional
 
 from sqlalchemy import Text
 from sqlmodel import Column, Field, SQLModel
 
 from metta.jobs.job_config import JobConfig
+from metta.jobs.job_metrics import fetch_job_metrics, parse_total_timesteps
+
+if TYPE_CHECKING:
+    from metta.jobs.job_runner import Job
 
 logger = logging.getLogger(__name__)
 
-JobStatus = Literal["pending", "running", "completed"]
+
+class JobStatus(StrEnum):
+    """Job execution status values."""
+
+    PENDING = "pending"  # Queued, waiting to start
+    RUNNING = "running"  # Currently executing
+    COMPLETED = "completed"  # Finished (success or failure determined by exit_code)
 
 
 class JobState(SQLModel, table=True):
@@ -42,7 +53,7 @@ class JobState(SQLModel, table=True):
         self.config_json = json.dumps(value.model_dump())
 
     # Runtime state
-    status: str = Field(default="pending")  # One of: "pending", "running", "completed" (see JobStatus)
+    status: str = Field(default=JobStatus.PENDING)
     request_id: Optional[str] = None  # SkyPilot request ID (remote jobs only)
     job_id: Optional[str] = None  # SkyPilot job ID or local PID
     skypilot_status: Optional[str] = None  # SkyPilot job status (PENDING, RUNNING, SUCCEEDED, etc.)
@@ -69,6 +80,66 @@ class JobState(SQLModel, table=True):
     @metrics.setter
     def metrics(self, value: dict[str, float]) -> None:
         self.metrics_json = json.dumps(value)
+
+    def update_from_spawned_job(self, job: "Job") -> None:
+        """Update job state with metadata from a newly spawned job.
+
+        Extracts job_id, logs_path, and WandB info (for training jobs) from the job.
+        This method mutates the JobState instance.
+        Caller is responsible for persisting changes (session.add + commit).
+
+        Args:
+            job: Job instance (LocalJob or RemoteJob) that was just spawned
+        """
+        # Set job_id if available
+        if job.job_id:
+            self.job_id = job.job_id
+
+        # Set logs path so monitor can tail logs during execution
+        self.logs_path = job.log_path
+
+        # Capture job metadata (remote jobs return values, local jobs return None)
+        if job.request_id:
+            self.request_id = job.request_id
+
+        # Set WandB info for training jobs (remote training jobs generate run names)
+        if job.run_name and self.config.is_training_job:
+            self.wandb_run_id = job.run_name
+            self.wandb_url = (
+                f"https://wandb.ai/{self.config.wandb_entity}/{self.config.wandb_project}/runs/{job.run_name}"
+            )
+
+    def fetch_and_update_metrics(self) -> None:
+        """Fetch metrics from WandB and update self.metrics.
+
+        This method mutates the JobState instance by updating metrics.
+        Caller is responsible for persisting changes (session.add + commit).
+        """
+        if not self.config.metrics_to_track:
+            return
+
+        if not self.wandb_run_id:
+            logger.warning(f"Cannot fetch metrics for {self.name}: no wandb_run_id set")
+            return
+
+        total_timesteps = parse_total_timesteps(self.config.args)
+
+        try:
+            metrics = fetch_job_metrics(
+                entity=self.config.wandb_entity,
+                project=self.config.wandb_project,
+                run_name=self.wandb_run_id,
+                metric_keys=self.config.metrics_to_track,
+                total_timesteps=total_timesteps,
+            )
+
+            if metrics:
+                self.metrics = metrics
+                logger.info(f"Fetched metrics for {self.name}: {metrics}")
+            else:
+                logger.warning(f"No metrics returned for {self.name} (run may not have data yet)")
+        except Exception as e:
+            logger.warning(f"Failed to fetch metrics for {self.name}: {e}")
 
     def evaluate_acceptance(self) -> bool:
         """Evaluate acceptance criteria against job metrics.

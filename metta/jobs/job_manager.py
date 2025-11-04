@@ -3,6 +3,7 @@
 import logging
 import threading
 import time
+from collections import deque
 from datetime import datetime
 from pathlib import Path
 
@@ -11,7 +12,6 @@ from sqlmodel import Session, SQLModel, create_engine, select
 from devops.skypilot.utils.job_helpers import check_job_statuses
 from metta.common.util.constants import SOFTMAX_S3_POLICY_PREFIX
 from metta.jobs.job_config import JobConfig
-from metta.jobs.job_metrics import fetch_wandb_metrics
 from metta.jobs.job_runner import LocalJob, RemoteJob
 from metta.jobs.job_state import JobState
 
@@ -79,11 +79,18 @@ class JobManager:
         self.max_remote_jobs = max_remote_jobs
         self.remote_poll_interval_s = remote_poll_interval_s  # How often to poll SkyPilot for remote job status
         self.metrics_fetch_interval_s = metrics_fetch_interval_s  # How often to fetch WandB metrics
-        self._active_jobs: dict[str, LocalJob | RemoteJob] = {}
-        self._monitor_threads: dict[str, threading.Thread] = {}  # Per-job monitoring threads
-        self._jobs_lock = threading.Lock()  # Protects _active_jobs and _monitor_threads from concurrent access
-        self._shared_status_monitor: threading.Thread | None = None  # Shared thread for batch status checks
-        self._shared_status_monitor_stop = threading.Event()  # Signal to stop shared monitor
+
+        # Local job execution (subprocess-based)
+        self._active_local_jobs: dict[str, LocalJob] = {}
+        self._local_monitor_threads: dict[str, threading.Thread] = {}
+        self._local_jobs_lock = threading.Lock()
+
+        # Remote job execution (SkyPilot-based)
+        self._active_remote_jobs: dict[str, RemoteJob] = {}
+        self._remote_monitor_threads: dict[str, threading.Thread] = {}
+        self._remote_jobs_lock = threading.Lock()
+        self._remote_batch_monitor: threading.Thread | None = None  # Batch status checks for all remote jobs
+        self._remote_batch_monitor_stop = threading.Event()
         self._init_db()
         self._validate_job_states()
 
@@ -147,8 +154,8 @@ class JobManager:
                         # Still running or status unknown - reattach and monitor
                         try:
                             job = RemoteJob(job_state.config, str(self.log_dir), job_id=job_id)
-                            with self._jobs_lock:
-                                self._active_jobs[job_name] = job
+                            with self._remote_jobs_lock:
+                                self._active_remote_jobs[job_name] = job
                             # Fetch metrics immediately for reattached jobs
                             self._start_remote_monitor(job_name, job_id, fetch_immediately=True)
                             reattached_count += 1
@@ -182,6 +189,35 @@ class JobManager:
             return 130  # Standard exit code for SIGINT
         else:
             return 1  # Generic failure
+
+    def _get_all_active_jobs(self) -> dict[str, LocalJob | RemoteJob]:
+        """Get all active jobs (both local and remote) as a merged dictionary.
+
+        Returns:
+            Dictionary mapping job name to Job instance (LocalJob or RemoteJob)
+        """
+        with self._local_jobs_lock:
+            local = dict(self._active_local_jobs)
+        with self._remote_jobs_lock:
+            remote = dict(self._active_remote_jobs)
+        return {**local, **remote}
+
+    def _get_active_job(self, job_name: str) -> LocalJob | RemoteJob | None:
+        """Get an active job by name (checks both local and remote).
+
+        Args:
+            job_name: Name of the job to retrieve
+
+        Returns:
+            Job instance if found, None otherwise
+        """
+        with self._local_jobs_lock:
+            if job_name in self._active_local_jobs:
+                return self._active_local_jobs[job_name]
+        with self._remote_jobs_lock:
+            if job_name in self._active_remote_jobs:
+                return self._active_remote_jobs[job_name]
+        return None
 
     def _dependencies_satisfied(self, job_state: JobState, session: Session) -> bool:
         """Check if all dependencies are completed successfully.
@@ -224,80 +260,6 @@ class JobManager:
 
         return True
 
-    def _get_total_timesteps(self, job_config: JobConfig) -> int | None:
-        """Extract total_timesteps from job config args.
-
-        Parses args list looking for 'trainer.total_timesteps=X' format.
-        """
-        for arg in job_config.args:
-            if arg.startswith("trainer.total_timesteps="):
-                try:
-                    value = arg.split("=", 1)[1]
-                    return int(value)
-                except (ValueError, IndexError):
-                    continue
-        return None
-
-    def _fetch_and_update_metrics(self, job_state: JobState) -> None:
-        """Fetch metrics from WandB and update job_state.metrics (doesn't commit to DB).
-
-        This is a helper that doesn't require a session - caller is responsible for
-        adding job_state to session and committing.
-        """
-        if not job_state.config.metrics_to_track:
-            return
-
-        if not job_state.wandb_run_id:
-            logger.warning(f"Cannot fetch metrics for {job_state.name}: no wandb_run_id set")
-            return
-
-        total_timesteps = self._get_total_timesteps(job_state.config)
-
-        try:
-            metrics_data, current_step = fetch_wandb_metrics(
-                entity=job_state.config.wandb_entity,
-                project=job_state.config.wandb_project,
-                run_name=job_state.wandb_run_id,
-                metric_keys=job_state.config.metrics_to_track,
-            )
-
-            if metrics_data:
-                # Extract values and add progress
-                metrics_values = {key: data["value"] for key, data in metrics_data.items()}
-
-                if current_step is not None and total_timesteps is not None:
-                    metrics_values["_progress"] = {
-                        "current_step": current_step,
-                        "total_steps": total_timesteps,
-                    }
-
-                job_state.metrics = metrics_values
-
-                # Log with value, count, and progress
-                metrics_info = ", ".join(
-                    f"{key}={data['value']:.2f} (n={int(data['count'])})" for key, data in metrics_data.items()
-                )
-                progress_info = ""
-                if current_step is not None and total_timesteps is not None:
-                    progress_pct = (current_step / total_timesteps) * 100
-                    progress_info = f" | progress={current_step}/{total_timesteps} ({progress_pct:.1f}%)"
-
-                logger.info(f"Fetched metrics for {job_state.name}: {metrics_info}{progress_info}")
-            else:
-                logger.warning(f"No metrics returned for {job_state.name} (run may not have data yet)")
-        except Exception as e:
-            logger.warning(f"Failed to fetch metrics for {job_state.name}: {e}")
-
-    def _fetch_metrics(self, job_name: str, job_state: JobState, session: Session) -> None:
-        """Fetch and update metrics for a training job.
-
-        NOTE: This method updates job_state.metrics but does NOT commit the session.
-        The caller is responsible for committing the session.
-        """
-        self._fetch_and_update_metrics(job_state)
-        if job_state.metrics:
-            session.add(job_state)
-
     def _handle_local_job_completion(self, job_name: str, job: LocalJob) -> bool:
         """Handle completion of a local job.
 
@@ -328,7 +290,7 @@ class JobManager:
             # Fetch final metrics
             if job_state.config.metrics_to_track and job_state.wandb_run_id:
                 logger.debug(f"Fetching final metrics for {job_name}")
-                self._fetch_and_update_metrics(job_state)
+                job_state.fetch_and_update_metrics()
 
             # Evaluate acceptance criteria
             if job_state.config.acceptance_criteria:
@@ -340,9 +302,9 @@ class JobManager:
             session.commit()
 
         # Clean up active job
-        with self._jobs_lock:
-            if job_name in self._active_jobs:
-                del self._active_jobs[job_name]
+        with self._local_jobs_lock:
+            if job_name in self._active_local_jobs:
+                del self._active_local_jobs[job_name]
 
         return True
 
@@ -352,8 +314,8 @@ class JobManager:
         Returns True if job was marked complete, False otherwise.
         """
         # Fetch final logs
-        with self._jobs_lock:
-            job = self._active_jobs.get(job_name)
+        with self._remote_jobs_lock:
+            job = self._active_remote_jobs.get(job_name)
         if job:
             try:
                 job.get_logs()
@@ -379,7 +341,7 @@ class JobManager:
             # Fetch final metrics
             if job_state.config.metrics_to_track and job_state.wandb_run_id:
                 logger.debug(f"Fetching final metrics for {job_name}")
-                self._fetch_and_update_metrics(job_state)
+                job_state.fetch_and_update_metrics()
 
             # Evaluate acceptance criteria
             if job_state.config.acceptance_criteria:
@@ -390,15 +352,14 @@ class JobManager:
             session.add(job_state)
             session.commit()
             logger.info(
-                f"Committed completion for {job_name}: "
-                f"status={job_state.status}, exit_code={job_state.exit_code}, "
-                f"acceptance={job_state.acceptance_passed}"
+                f"Committed completion for {job_name}: status={job_state.status}, "
+                f"exit_code={job_state.exit_code}, acceptance={job_state.acceptance_passed}"
             )
 
         # Clean up active job
-        with self._jobs_lock:
-            if job_name in self._active_jobs:
-                del self._active_jobs[job_name]
+        with self._remote_jobs_lock:
+            if job_name in self._active_remote_jobs:
+                del self._active_remote_jobs[job_name]
 
         return True
 
@@ -419,9 +380,9 @@ class JobManager:
 
             try:
                 while True:
-                    # Get job from active_jobs (protected by lock)
-                    with self._jobs_lock:
-                        job = self._active_jobs.get(job_name)
+                    # Get job from active_local_jobs (protected by lock)
+                    with self._local_jobs_lock:
+                        job = self._active_local_jobs.get(job_name)
                     if not job:
                         break
 
@@ -436,8 +397,10 @@ class JobManager:
                         with Session(self._engine) as session:
                             job_state = session.get(JobState, job_name)
                             if job_state and job_state.status == JOB_STATUS_RUNNING:
-                                self._fetch_metrics(job_name, job_state, session)
-                                session.commit()
+                                job_state.fetch_and_update_metrics()
+                                if job_state.metrics:
+                                    session.add(job_state)
+                                    session.commit()
                         last_metrics_fetch = now
 
                     time.sleep(1.0)  # Check every second
@@ -446,24 +409,24 @@ class JobManager:
                 logger.warning(f"Local monitor thread for {job_name} failed: {e}")
             finally:
                 # Clean up monitor thread (protected by lock)
-                with self._jobs_lock:
-                    if job_name in self._monitor_threads:
-                        del self._monitor_threads[job_name]
+                with self._local_jobs_lock:
+                    if job_name in self._local_monitor_threads:
+                        del self._local_monitor_threads[job_name]
 
         thread = threading.Thread(target=monitor_loop, daemon=True, name=f"monitor-{job_name}")
         thread.start()
-        with self._jobs_lock:
-            self._monitor_threads[job_name] = thread
+        with self._local_jobs_lock:
+            self._local_monitor_threads[job_name] = thread
         logger.info(f"Started monitoring thread for local job: {job_name}")
 
-    def _ensure_shared_status_monitor_running(self) -> None:
+    def _ensure_remote_batch_monitor_running(self) -> None:
         """Start shared status monitor if not already running.
 
         The shared monitor batch-checks all remote job statuses in a single API call
         and updates the database. This is much more efficient than per-job status checks.
         """
-        with self._jobs_lock:
-            if self._shared_status_monitor is not None and self._shared_status_monitor.is_alive():
+        with self._remote_jobs_lock:
+            if self._remote_batch_monitor is not None and self._remote_batch_monitor.is_alive():
                 return  # Already running
 
         def monitor_loop():
@@ -474,17 +437,17 @@ class JobManager:
             retry_delay = 5.0
             max_retry_delay = 1800.0  # Max 30 minutes
 
-            while not self._shared_status_monitor_stop.is_set():
+            while not self._remote_batch_monitor_stop.is_set():
                 try:
                     # Get all active remote jobs
-                    with self._jobs_lock:
+                    with self._remote_jobs_lock:
                         remote_jobs = {}
-                        for name, job in self._active_jobs.items():
-                            if isinstance(job, RemoteJob) and job.job_id:
+                        for name, job in self._active_remote_jobs.items():
+                            if job.job_id:
                                 try:
                                     remote_jobs[int(job.job_id)] = name
                                 except (ValueError, TypeError):
-                                    continue
+                                    pass
 
                     if remote_jobs:
                         # Batch query all at once
@@ -517,21 +480,21 @@ class JobManager:
                             retry_delay = min(retry_delay * 2, max_retry_delay)
 
                     # Wait for next check or stop signal
-                    if self._shared_status_monitor_stop.wait(timeout=self.remote_poll_interval_s):
+                    if self._remote_batch_monitor_stop.wait(timeout=self.remote_poll_interval_s):
                         break  # Stop signal received
 
                 except Exception as e:
                     logger.error(f"Shared status monitor error: {e}")
-                    if self._shared_status_monitor_stop.wait(timeout=self.remote_poll_interval_s):
+                    if self._remote_batch_monitor_stop.wait(timeout=self.remote_poll_interval_s):
                         break
 
             logger.info("Shared remote status monitor stopped")
 
-        self._shared_status_monitor_stop.clear()
+        self._remote_batch_monitor_stop.clear()
         thread = threading.Thread(target=monitor_loop, daemon=True, name="shared-status-monitor")
         thread.start()
-        with self._jobs_lock:
-            self._shared_status_monitor = thread
+        with self._remote_jobs_lock:
+            self._remote_batch_monitor = thread
         logger.info("Shared status monitor started")
 
     def _start_remote_monitor(self, job_name: str, job_id: int, fetch_immediately: bool = False) -> None:
@@ -546,7 +509,7 @@ class JobManager:
             fetch_immediately: If True, fetch metrics on first check (for reattached jobs)
         """
         # Ensure shared status monitor is running (starts it if needed)
-        self._ensure_shared_status_monitor_running()
+        self._ensure_remote_batch_monitor_running()
 
         def monitor_loop():
             # For reattached jobs, fetch metrics immediately; for new jobs, wait full interval
@@ -575,13 +538,13 @@ class JobManager:
                     # While running: fetch logs and metrics periodically
                     if status == "RUNNING":
                         # Fetch logs
-                        if job_name in self._active_jobs:
-                            job = self._active_jobs[job_name]
-                            if isinstance(job, RemoteJob):
-                                try:
-                                    job.get_logs()
-                                except Exception:
-                                    pass
+                        with self._remote_jobs_lock:
+                            job = self._active_remote_jobs.get(job_name)
+                        if job:
+                            try:
+                                job.get_logs()
+                            except Exception:
+                                pass
 
                         # Fetch metrics periodically
                         now = time.time()
@@ -589,8 +552,10 @@ class JobManager:
                             with Session(self._engine) as session:
                                 job_state = session.get(JobState, job_name)
                                 if job_state:
-                                    self._fetch_metrics(job_name, job_state, session)
-                                    session.commit()
+                                    job_state.fetch_and_update_metrics()
+                                    if job_state.metrics:
+                                        session.add(job_state)
+                                        session.commit()
                             last_metrics_fetch = now
 
                     time.sleep(1.0)  # Check status frequently
@@ -601,14 +566,14 @@ class JobManager:
 
             finally:
                 # Clean up monitor thread (protected by lock)
-                with self._jobs_lock:
-                    if job_name in self._monitor_threads:
-                        del self._monitor_threads[job_name]
+                with self._remote_jobs_lock:
+                    if job_name in self._remote_monitor_threads:
+                        del self._remote_monitor_threads[job_name]
 
         thread = threading.Thread(target=monitor_loop, daemon=True, name=f"monitor-{job_name}")
         thread.start()
-        with self._jobs_lock:
-            self._monitor_threads[job_name] = thread
+        with self._remote_jobs_lock:
+            self._remote_monitor_threads[job_name] = thread
         logger.info(f"Started monitoring thread for remote job: {job_name} (job_id={job_id})")
 
     def submit(self, config: JobConfig) -> None:
@@ -655,16 +620,12 @@ class JobManager:
                 return False
 
             is_remote = job_state.config.remote is not None
-            if not self._has_available_slot(is_remote):
+            if not self._has_available_slot_for_type(is_remote):
                 return False
 
             # Spawn job and update state with job metadata
             job = self._spawn_job(job_state.config, existing_job_id=job_state.job_id)
-            self._update_job_state_from_spawned_job(job_state, job)
-
-            # Add to active jobs (protected by lock)
-            with self._jobs_lock:
-                self._active_jobs[name] = job
+            job_state.update_from_spawned_job(job)
 
             # Check if remote job failed to launch (job_id will be None)
             if is_remote and not job_state.job_id:
@@ -672,18 +633,20 @@ class JobManager:
                 job_state.status = JOB_STATUS_COMPLETED
                 job_state.started_at = datetime.now().isoformat(timespec="seconds")
                 job_state.completed_at = datetime.now().isoformat(timespec="seconds")
-                job_state.exit_code = getattr(job, "exit_code", 1)  # Default to 1 if not set
+                job_state.exit_code = job.exit_code if job.exit_code is not None else 1
                 session.add(job_state)
                 session.commit()
 
                 logger.error(f"Job {name} failed to launch (no job_id)")
-
-                # Clean up from active jobs
-                with self._jobs_lock:
-                    if name in self._active_jobs:
-                        del self._active_jobs[name]
-
                 return False
+
+            # Job launched successfully - add to active jobs (protected by appropriate lock)
+            if is_remote:
+                with self._remote_jobs_lock:
+                    self._active_remote_jobs[name] = job
+            else:
+                with self._local_jobs_lock:
+                    self._active_local_jobs[name] = job
 
             job_state.status = JOB_STATUS_RUNNING
             job_state.started_at = datetime.now().isoformat(timespec="seconds")
@@ -712,18 +675,18 @@ class JobManager:
 
         return True
 
-    def _has_available_slot(self, is_remote: bool) -> bool:
-        with self._jobs_lock:
-            active_count = sum(
-                1
-                for job in self._active_jobs.values()
-                if (not is_remote and isinstance(job, LocalJob)) or (is_remote and isinstance(job, RemoteJob))
-            )
-
-        if not is_remote:
-            return active_count < self.max_local_jobs
+    def _count_active_jobs_by_type(self, is_remote: bool) -> int:
+        if is_remote:
+            with self._remote_jobs_lock:
+                return len(self._active_remote_jobs)
         else:
-            return active_count < self.max_remote_jobs
+            with self._local_jobs_lock:
+                return len(self._active_local_jobs)
+
+    def _has_available_slot_for_type(self, is_remote: bool) -> bool:
+        active_count = self._count_active_jobs_by_type(is_remote)
+        max_jobs = self.max_remote_jobs if is_remote else self.max_local_jobs
+        return active_count < max_jobs
 
     def _spawn_job(self, config: JobConfig, existing_job_id: str | None = None) -> LocalJob | RemoteJob:
         """Create and submit a job (local or remote).
@@ -749,32 +712,6 @@ class JobManager:
             job.submit()
             return job
 
-    def _update_job_state_from_spawned_job(self, job_state: JobState, job: LocalJob | RemoteJob) -> None:
-        """Update job_state with metadata from a newly spawned job.
-
-        Extracts job_id, logs_path, and WandB info (for training jobs) from the job.
-        """
-        config = job_state.config
-
-        # Set job_id if available
-        if job.job_id:
-            job_state.job_id = job.job_id
-
-        # Set logs path so monitor can tail logs during execution
-        job_state.logs_path = job.log_path
-
-        # For remote jobs, capture additional metadata
-        if isinstance(job, RemoteJob):
-            if job.request_id:
-                job_state.request_id = job.request_id
-
-            # Only set WandB info for training jobs (they use run= param and log to WandB)
-            if job.run_name and config.is_training_job:
-                job_state.wandb_run_id = job.run_name
-                job_state.wandb_url = (
-                    f"https://wandb.ai/{config.wandb_entity}/{config.wandb_project}/runs/{job.run_name}"
-                )
-
     def poll(self) -> list[str]:
         """Start pending jobs and return recently completed job names.
 
@@ -785,38 +722,39 @@ class JobManager:
 
         # Update job_id for remote jobs once available, and start their monitoring threads
         with Session(self._engine) as session:
-            # Get snapshot of active jobs (protected by lock)
-            with self._jobs_lock:
-                active_jobs_snapshot = list(self._active_jobs.items())
+            # Get snapshot of active remote jobs (protected by lock)
+            with self._remote_jobs_lock:
+                active_remote_jobs_snapshot = list(self._active_remote_jobs.items())
 
-            for name, job in active_jobs_snapshot:
-                if isinstance(job, RemoteJob):
-                    job_state = session.get(JobState, name)
-                    if job_state and job.job_id and not job_state.job_id:
-                        job_state.job_id = job.job_id
-                        session.add(job_state)
-                        session.commit()
+            for name, job in active_remote_jobs_snapshot:
+                # For remote jobs, update job_id in DB once available (job_id comes asynchronously)
+                job_state = session.get(JobState, name)
+                if job_state and job.job_id and not job_state.job_id:
+                    job_state.job_id = job.job_id
+                    session.add(job_state)
+                    session.commit()
 
-                        logger.info(f"Remote job ID available: {name} (job_id={job.job_id})")
+                    logger.info(f"Remote job ID available: {name} (job_id={job.job_id})")
 
-                        # Start monitoring thread if not already running
-                        with self._jobs_lock:
-                            monitor_exists = name in self._monitor_threads
-                        if not monitor_exists:
-                            try:
-                                job_id_int = int(job.job_id)
-                                self._start_remote_monitor(name, job_id_int)
-                            except ValueError:
-                                logger.warning(f"Invalid job ID for {name}: {job.job_id}")
+                    # Start monitoring thread if not already running
+                    with self._remote_jobs_lock:
+                        monitor_exists = name in self._remote_monitor_threads
+                    if not monitor_exists:
+                        try:
+                            job_id_int = int(job.job_id)
+                            self._start_remote_monitor(name, job_id_int)
+                        except ValueError:
+                            logger.warning(f"Invalid job ID for {name}: {job.job_id}")
 
         # Check for jobs that monitoring threads marked as completed
+        all_active_jobs = self._get_all_active_jobs()
         with Session(self._engine) as session:
-            for name in list(self._active_jobs.keys()):
+            for name in list(all_active_jobs.keys()):
                 job_state = session.get(JobState, name)
                 if job_state and job_state.status == JOB_STATUS_COMPLETED:
                     # Monitoring thread finished this job
                     completed.append(name)
-                    # Note: _active_jobs cleanup happens in monitoring thread
+                    # Note: _active_local_jobs/_active_remote_jobs cleanup happens in monitoring thread
 
         # Try to start pending jobs, or skip if dependencies failed
         with Session(self._engine) as session:
@@ -918,12 +856,18 @@ class JobManager:
                     if local_only and is_remote:
                         continue
 
-                    # Cancel the job if it's active (protected by lock)
+                    # Cancel the job if it's active (protected by appropriate lock)
                     job_to_cancel = None
-                    with self._jobs_lock:
-                        if job_state.name in self._active_jobs:
-                            job_to_cancel = self._active_jobs[job_state.name]
-                            del self._active_jobs[job_state.name]
+                    if is_remote:
+                        with self._remote_jobs_lock:
+                            if job_state.name in self._active_remote_jobs:
+                                job_to_cancel = self._active_remote_jobs[job_state.name]
+                                del self._active_remote_jobs[job_state.name]
+                    else:
+                        with self._local_jobs_lock:
+                            if job_state.name in self._active_local_jobs:
+                                job_to_cancel = self._active_local_jobs[job_state.name]
+                                del self._active_local_jobs[job_state.name]
                     # Cancel outside lock to avoid blocking
                     if job_to_cancel:
                         job_to_cancel.cancel()
@@ -955,10 +899,10 @@ class JobManager:
 
         # BFS to find transitive dependents
         dependent_names = set()
-        to_check = [job_name]
+        to_check = deque([job_name])
 
         while to_check:
-            current = to_check.pop(0)
+            current = to_check.popleft()
             for job_state in all_jobs:
                 if current in job_state.config.dependency_names and job_state.name not in dependent_names:
                     dependent_names.add(job_state.name)

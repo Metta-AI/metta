@@ -10,7 +10,7 @@ import logging
 
 from metta.common.util.text_styles import blue, cyan, green, magenta, red
 from metta.jobs.job_config import JobConfig
-from metta.jobs.job_monitor import format_artifact_link, format_job_status_line
+from metta.jobs.job_display import format_artifact_link, format_job_status_line
 from metta.jobs.job_state import JobState
 
 logger = logging.getLogger("metta.jobs")
