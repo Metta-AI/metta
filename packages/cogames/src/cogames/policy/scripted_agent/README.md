@@ -31,7 +31,6 @@ Each agent file contains:
 
 These agents are designed for **ablation studies** and **baseline evaluation**:
 - Simple, readable implementations
-- No hyperparameter tuning
 - Clear separation of capabilities
 - Minimal dependencies
 
