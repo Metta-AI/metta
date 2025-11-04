@@ -25,9 +25,11 @@ Quick guide for deploying and cleaning up dev cronjob instances.
 3. **Trigger workflow** from your branch with dev flag:
    ```bash
    gh workflow run deploy-pr-similarity-cache-cronjob.yml \
-     --ref your-branch-name \
-     -f dev=true
+     -f dev=true \
+     -f branch=your-branch-name
    ```
+
+   > **Note**: The `branch` parameter ensures the workflow uses your helmfile with the dev release uncommented.
 
 4. **Monitor deployment**:
    ```bash

@@ -19,6 +19,11 @@ on:
         required: false
         type: boolean
         default: false
+      branch:
+        description: "Branch to build from (defaults to current branch)"
+        required: false
+        type: string
+        default: ""
 
 jobs:
   build-and-push-image:
@@ -32,6 +37,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
+          ref: ${{ inputs.branch || github.ref }}
           persist-credentials: false
 
       - name: Build Docker image
