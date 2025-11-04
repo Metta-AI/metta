@@ -16,7 +16,7 @@ class _EvalMissionBase(Mission):
     site: Site = EVALS
 
     # Tunables (defaults; override in subclasses)
-    map_name: str = "evals/eval_collect_resources_easy.map"
+    map_name: str = "evals/eval_collect_resources.map"
 
     # Clipping
     clip_rate: float = 0.0
@@ -212,22 +212,6 @@ class ExtractorHub100(_EvalMissionBase):
 # -----------------------------
 
 
-class CollectResourcesBase(_EvalMissionBase):
-    name: str = "collect_resources_base"
-    description: str = "Collect resources (near base), rally and chorus glyph; single carrier deposits."
-    map_name: str = "evals/eval_collect_resources_easy.map"
-    energy_regen: int = 3
-    charger_eff: int = 140
-    carbon_eff: int = 130
-    oxygen_eff: int = 125
-    germanium_eff: int = 95
-    silicon_eff: int = 130
-    max_uses_germanium: int = 0
-    max_uses_silicon: int = 0
-    max_uses_carbon: int = 0
-    max_uses_oxygen: int = 0
-
-
 class CollectResourcesClassic(_EvalMissionBase):
     name: str = "collect_resources_classic"
     description: str = "Collect resources on the classic layout; balanced routing near base."
@@ -347,7 +331,6 @@ EVAL_MISSIONS = [
     ExtractorHub70,
     ExtractorHub80,
     ExtractorHub100,
-    CollectResourcesBase,
     CollectResourcesClassic,
     CollectResourcesSpread,
     CollectFar,

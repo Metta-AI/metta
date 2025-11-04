@@ -433,9 +433,7 @@ VARIANTS = [
     PackRatVariant,
     EnergizedVariant,
     NeutralFacedVariant,
-<<<<<<< HEAD
     *DIFFICULTY_VARIANTS,
-=======
     SmallMapVariant,
     CogToolsOnlyVariant,
     SeedOneHeartInputsVariant,
@@ -445,7 +443,6 @@ VARIANTS = [
     CyclicalUnclipVariant,
     ClipRateOnVariant,
     # HeartChorusVariant,
->>>>>>> 9ebf37a382235c218f4b85a28e39256ad0963206
 ]
 
 

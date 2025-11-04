@@ -18,8 +18,8 @@ from .simple_baseline_agent import (
 )
 
 if TYPE_CHECKING:
-    from cogames.cogs_vs_clips.env import MettaGridEnv
-    from cogames.cogs_vs_clips.observation import MettaGridObservation
+    from cogames.policy import AgentPolicy
+    from mettagrid.simulator import Simulation
 
 
 @dataclass
@@ -48,8 +48,8 @@ class UnclippingAgent(SimpleBaselineAgent):
     - scrambler (from germanium) unclips silicon extractors
     """
 
-    def __init__(self, env: MettaGridEnv):
-        super().__init__(env)
+    def __init__(self, simulation: "Simulation"):
+        super().__init__(simulation)
         self._unclip_recipes = self._load_unclip_recipes()
 
     def _load_unclip_recipes(self) -> dict[str, str]:
@@ -336,69 +336,75 @@ class UnclippingAgent(SimpleBaselineAgent):
 # ============================================================================
 
 
-class UnclippingAgentPolicy:
-    """Per-agent policy wrapper."""
+class UnclippingPolicyImpl:
+    """Implementation that wraps UnclippingAgent."""
 
-    def __init__(self, impl: UnclippingAgent, agent_id: int):
-        self._impl = impl
-        self._agent_id = agent_id
+    def __init__(self, simulation: "Simulation"):
+        self._agent = UnclippingAgent(simulation)
+        self._sim = simulation
 
-    def step(self, obs: MettaGridObservation) -> int:
-        """Compute action for this agent."""
-        return self._impl.step(self._agent_id, obs)
+    def agent_state(self, agent_id: int = 0) -> UnclippingAgentState:
+        """Get initial state for an agent."""
+        # Make sure agent states are initialized
+        if agent_id not in self._agent._agent_states:
+            self._agent._agent_states[agent_id] = UnclippingAgentState(
+                agent_id=agent_id,
+                map_height=self._agent._map_h,
+                map_width=self._agent._map_w,
+                occupancy=[[CellType.FREE.value] * self._agent._map_w for _ in range(self._agent._map_h)],
+            )
+        return self._agent._agent_states[agent_id]
+
+    def step_with_state(self, obs, state: UnclippingAgentState):
+        """Compute action and return updated state."""
+        from mettagrid.simulator.interface import Action
+
+        # The state passed in tells us which agent this is
+        agent_id = state.agent_id
+        # Update the shared agent state
+        self._agent._agent_states[agent_id] = state
+        # Compute action (returns integer index)
+        action_idx = self._agent.step(agent_id, obs)
+        # Convert to Action object
+        action = Action(name=self._agent._action_names[action_idx])
+        # Return action and updated state
+        return action, self._agent._agent_states[agent_id]
 
 
 class UnclippingPolicy:
-    """Policy wrapper for UnclippingAgent with per-agent views."""
+    """Policy class for unclipping agent.
 
-    def __init__(self, env: MettaGridEnv | None = None, device=None):
-        self._env = env
-        self._device = device  # Not used for scripted agents but needed for interface
-        self._impl = UnclippingAgent(env) if env is not None else None
-        self._agent_policies: Dict[int, UnclippingAgentPolicy] = {}
+    This policy requires a Simulation object for accessing grid_objects()
+    to get absolute agent positions. Pass it via reset(simulation=sim).
+    """
 
-    def reset(self, obs, info):
-        """Reset policy state."""
-        # Get environment from info if not provided at init
-        if self._env is None:
-            self._env = info.get("env")
+    def __init__(self):
+        """Initialize policy (simulation will be provided via reset)."""
+        self._sim = None
+        self._impl = None
+        self._agent_policies: Dict[int, "AgentPolicy"] = {}
 
-        # Initialize implementation if needed
-        if self._impl is None:
-            if self._env is None:
-                raise RuntimeError("UnclippingPolicy needs env - provide during __init__ or via info['env']")
-            self._impl = UnclippingAgent(self._env)
+    def reset(self, simulation: "Simulation" = None) -> None:
+        """Reset all agent states.
 
-        # Reset agent states
-        self._impl._agent_states.clear()
+        Args:
+            simulation: The Simulation object (needed for grid_objects access)
+        """
+        if simulation is None:
+            raise RuntimeError("UnclippingPolicy requires simulation parameter in reset()")
+
+        self._sim = simulation
+        self._impl = UnclippingPolicyImpl(simulation)
         self._agent_policies.clear()
 
-    def agent_policy(self, agent_id: int) -> UnclippingAgentPolicy:
-        """Get policy for a specific agent."""
+    def agent_policy(self, agent_id: int):
+        """Get an AgentPolicy instance for a specific agent."""
+        if self._impl is None:
+            raise RuntimeError("Policy not initialized - call reset(simulation=sim) first")
+
+        # Create agent policies lazily
         if agent_id not in self._agent_policies:
-            if self._impl is None:
-                raise RuntimeError("Policy not initialized - call reset() first")
+            from cogames.policy import StatefulAgentPolicy
 
-            # Initialize agent state if needed
-            if agent_id not in self._impl._agent_states:
-                self._impl._agent_states[agent_id] = UnclippingAgentState(
-                    agent_id=agent_id,
-                    map_height=self._impl._map_h,
-                    map_width=self._impl._map_w,
-                    occupancy=[[CellType.FREE.value] * self._impl._map_w for _ in range(self._impl._map_h)],
-                )
-
-            self._agent_policies[agent_id] = UnclippingAgentPolicy(self._impl, agent_id)
-
+            self._agent_policies[agent_id] = StatefulAgentPolicy(self._impl, agent_id)
         return self._agent_policies[agent_id]
-
-    def agent_state(self, agent_id: int = 0) -> UnclippingAgentState:
-        """Get state for an agent (for debugging/inspection)."""
-        if agent_id not in self._impl._agent_states:
-            self._impl._agent_states[agent_id] = UnclippingAgentState(
-                agent_id=agent_id,
-                map_height=self._impl._map_h,
-                map_width=self._impl._map_w,
-                occupancy=[[CellType.FREE.value] * self._impl._map_w for _ in range(self._impl._map_h)],
-            )
-        return self._impl._agent_states[agent_id]

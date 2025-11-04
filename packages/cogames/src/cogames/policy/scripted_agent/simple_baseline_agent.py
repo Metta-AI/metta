@@ -20,11 +20,11 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import TYPE_CHECKING, Callable, Dict, Optional
 
-from cogames.policy.interfaces import AgentPolicy, Policy, StatefulPolicyImpl
+from cogames.policy import AgentPolicy, StatefulPolicyImpl
+from mettagrid.simulator.interface import Action, AgentObservation
 
 if TYPE_CHECKING:
-    from cogames.cogs_vs_clips.env import MettaGridEnv
-    from cogames.cogs_vs_clips.observation import MettaGridObservation
+    from mettagrid.simulator import Simulation
 
 logger = logging.getLogger(__name__)
 # Observation grid half-ranges (hardcoded for now)
@@ -167,6 +167,10 @@ class SimpleAgentState:
     # Track unreachable extractors (position -> consecutive failed pathfind attempts)
     unreachable_extractors: dict[tuple[int, int], int] = None
 
+    # Deadlock detection (track recent positions to detect if stuck)
+    position_history: deque = None  # Will be initialized as deque(maxlen=10) in __post_init__
+    stuck_counter: int = 0  # How many steps we've been stuck
+
 
 class SimpleBaselineAgent:
     """
@@ -179,17 +183,18 @@ class SimpleBaselineAgent:
     - No coordination, caching, or advanced features
     """
 
-    def __init__(self, env: MettaGridEnv):
+    def __init__(self, simulation: "Simulation"):
         """
         Args:
-            env: The MettaGrid environment
+            simulation: The Simulation object
         """
-        self._env = env
-        self._map_h = env.map_height
-        self._map_w = env.map_width
+        self._sim = simulation
+        self._map_h = simulation.map_height
+        self._map_w = simulation.map_width
 
         # Action lookup
-        self._action_lookup = {name: idx for idx, name in enumerate(env.action_names)}
+        self._action_lookup = {name: idx for idx, name in enumerate(simulation.action_names)}
+        self._action_names = simulation.action_names  # For converting indices back to names
         self._NOOP = self._action_lookup.get("noop", 0)
         self._MOVE_N = self._action_lookup.get("move_north", -1)
         self._MOVE_S = self._action_lookup.get("move_south", -1)
@@ -207,14 +212,15 @@ class SimpleBaselineAgent:
         from cogames.cogs_vs_clips.vibes import VIBES
 
         self._glyph_name_to_id = {v.name: i for i, v in enumerate(VIBES)}
+        # Vibe actions are named "change_vibe_{vibe_name}", not "change_vibe_{idx}"
         self._change_vibe_actions = {
-            name: self._action_lookup.get(f"change_vibe_{idx}", -1) for name, idx in self._glyph_name_to_id.items()
+            name: self._action_lookup.get(f"change_vibe_{name}", -1) for name in self._glyph_name_to_id.keys()
         }
 
         # Feature ID lookup for parsing observations
-        feats = env.observation_features
-        self._fid: dict[str, int] = {f.name: f.id for f in feats.values()}
+        self._fid: dict[str, int] = {f.name: f.id for f in simulation.features}
         self._to_int = int  # Helper for token parsing
+        self._object_type_names = simulation.object_type_names
 
         # Fast lookup tables for observation feature decoding
         self._spatial_feature_key_by_id: dict[int, str] = {}
@@ -234,9 +240,6 @@ class SimpleBaselineAgent:
             fid = self._fid.get(feature_name)
             if fid is not None:
                 self._agent_feature_key_by_id[fid] = key
-
-        # Object type names
-        self._object_type_names: list[str] = env.object_type_names
 
         # Shared knowledge across all agents
         self._extractors: dict[str, list[ExtractorInfo]] = {
@@ -262,73 +265,40 @@ class SimpleBaselineAgent:
         print(f"[SimpleBaseline] Initialized for map {self._map_h}x{self._map_w}")
 
     def parse_observation(
-        self, obs: MettaGridObservation, agent_row: int, agent_col: int, debug: bool = False
+        self, obs: AgentObservation, agent_row: int, agent_col: int, debug: bool = False
     ) -> ParsedObservation:
         """Parse token-based observation into structured format.
 
-        Token format: [packed_pos, feature_id, value]
-        - packed_pos = (obs_r << 4) | obs_c (egocentric, relative to agent)
-        - Special: packed_pos = 0x55 (85) is sentinel for agent-centric features (inventory, etc.)
-        - feature_id identifies what the value represents
-        - value is the actual data
+        New format: AgentObservation with tokens (ObservationToken list)
+        - Inventory is obtained via agent.inventory (not parsed here)
+        - Only spatial features are parsed from observations
 
         Converts egocentric spatial coordinates to world coordinates using agent position.
-        Agent position (agent_row, agent_col) comes from env.c_env.grid_objects().
+        Agent position (agent_row, agent_col) comes from simulation.grid_objects().
         """
-        ti = self._to_int
-
-        # Initialize parsed data - position comes from tracking, not observations
-        row = agent_row
-        col = agent_col
-        energy = 0
-        carbon = 0
-        oxygen = 0
-        germanium = 0
-        silicon = 0
-        hearts = 0
-        decoder = 0
-        modulator = 0
-        resonator = 0
-        scrambler = 0
+        # Initialize spatial data only - inventory comes from agent.inventory
         nearby_objects: dict[tuple[int, int], ObjectState] = {}
 
-        # Feature IDs - spatial object features
-        # First pass: collect all features by position
+        # First pass: collect all spatial features by position
         position_features: dict[tuple[int, int], dict[str, int]] = {}
 
-        # Parse tokens
-        for tok in obs:
-            packed = ti(tok[0])
-            feature_id = ti(tok[1])
-            value = ti(tok[2])
+        # Parse tokens - only spatial features
+        for tok in obs.tokens:
+            # Get location (row, col) - already unpacked
+            obs_r, obs_c = tok.location
+            feature_id = tok.feature.id
+            value = tok.value
 
-            # Agent-centric features (use sentinel packed pos)
-            if packed == AGENT_SENTINEL:
-                if feature_id == self._fid.get("inv:energy"):
-                    energy = value
-                elif feature_id == self._fid.get("inv:carbon"):
-                    carbon = value
-                elif feature_id == self._fid.get("inv:oxygen"):
-                    oxygen = value
-                elif feature_id == self._fid.get("inv:germanium"):
-                    germanium = value
-                elif feature_id == self._fid.get("inv:silicon"):
-                    silicon = value
-                elif feature_id == self._fid.get("inv:heart"):
-                    hearts = value
-                elif feature_id == self._fid.get("inv:decoder"):
-                    decoder = value
-                elif feature_id == self._fid.get("inv:modulator"):
-                    modulator = value
-                elif feature_id == self._fid.get("inv:resonator"):
-                    resonator = value
-                elif feature_id == self._fid.get("inv:scrambler"):
-                    scrambler = value
+            # Skip center location (5,5) - that's inventory/global obs, obtained via agent.inventory
+            if obs_r == OBS_HR and obs_c == OBS_WR:
+                continue
+
             # Spatial features (relative to agent)
-            elif agent_row >= 0 and agent_col >= 0:
+            if agent_row >= 0 and agent_col >= 0:
                 # Convert observation-relative coords to world coords
-                obs_r, obs_c = packed >> 4, packed & 0x0F
                 r, c = obs_r - OBS_HR + agent_row, obs_c - OBS_WR + agent_col
+                if debug:
+                    print(f"  SPATIAL: obs({obs_r},{obs_c}) -> world({r},{c}) {tok.feature.name}={value}")
                 if 0 <= r < self._map_h and 0 <= c < self._map_w:
                     pos = (r, c)
                     if pos not in position_features:
@@ -370,37 +340,42 @@ class SimpleBaselineAgent:
             )
 
         return ParsedObservation(
-            row=row,
-            col=col,
-            energy=energy,
-            carbon=carbon,
-            oxygen=oxygen,
-            germanium=germanium,
-            silicon=silicon,
-            hearts=hearts,
-            decoder=decoder,
-            modulator=modulator,
-            resonator=resonator,
-            scrambler=scrambler,
-            nearby_objects=nearby_objects,
+            row=agent_row,  # Position from tracking
+            col=agent_col,
+            energy=0,  # Inventory obtained via agent.inventory
+            carbon=0,
+            oxygen=0,
+            germanium=0,
+            silicon=0,
+            hearts=0,
+            decoder=0,
+            modulator=0,
+            resonator=0,
+            scrambler=0,
+            nearby_objects=nearby_objects,  # Spatial data from observations
         )
 
     def reset(self, num_agents: int) -> None:
         """Reset all agent states."""
         self._agent_states.clear()
         for agent_id in range(num_agents):
-            self._agent_states[agent_id] = SimpleAgentState(
+            state = SimpleAgentState(
                 agent_id=agent_id,
                 map_height=self._map_h,
                 map_width=self._map_w,
                 occupancy=[[CellType.FREE.value] * self._map_w for _ in range(self._map_h)],
             )
+            # Initialize mutable defaults that can't be in dataclass
+            state.unreachable_extractors = {}
+            state.position_history = deque(maxlen=10)  # Track last 10 positions
+            state.stuck_counter = 0
+            self._agent_states[agent_id] = state
         # Clear extractor memory
         for resource in self._extractors:
             self._extractors[resource].clear()
 
-    def step(self, agent_id: int, obs: MettaGridObservation) -> int:
-        """Compute action for one agent."""
+    def step(self, agent_id: int, obs: AgentObservation) -> int:
+        """Compute action for one agent (returns action index)."""
         s = self._agent_states[agent_id]
         s.step_count += 1
 
@@ -432,39 +407,39 @@ class SimpleBaselineAgent:
         return action
 
     def _update_agent_position(self, s: SimpleAgentState) -> None:
-        """Get agent position from environment grid_objects()."""
+        """Get agent position from simulation grid_objects()."""
         try:
-            for _id, obj in self._env.c_env.grid_objects().items():
+            for _id, obj in self._sim.grid_objects().items():
                 if obj.get("agent_id") == s.agent_id:
                     new_row, new_col = obj.get("r", -1), obj.get("c", -1)
-                    if s.row == -1:  # First time
-                        print(f"[Agent {s.agent_id}] Initial position: ({new_row}, {new_col})")
                     s.row, s.col = new_row, new_col
                     break
         except Exception as e:
             print(f"[Agent {s.agent_id}] Warning: could not get position from env: {e}")
 
-    def _update_state_from_obs(self, s: SimpleAgentState, obs: MettaGridObservation) -> None:
+    def _update_state_from_obs(self, s: SimpleAgentState, obs: AgentObservation) -> None:
         """Update agent state from observation."""
 
         # STEP 1: Get agent position directly from environment
         self._update_agent_position(s)
 
-        # STEP 2: Parse observation with known position
-        debug = s.step_count == 1
-        parsed = self.parse_observation(obs, s.row, s.col, debug=debug)
+        # STEP 2: Get inventory directly from agent (no parsing needed!)
+        agent = self._sim.agent(s.agent_id)
+        inv = agent.inventory
+        s.energy = inv.get("energy", 0)
+        s.carbon = inv.get("carbon", 0)
+        s.oxygen = inv.get("oxygen", 0)
+        s.germanium = inv.get("germanium", 0)
+        s.silicon = inv.get("silicon", 0)
+        s.hearts = inv.get("heart", 0)
+        s.decoder = inv.get("decoder", 0)
+        s.modulator = inv.get("modulator", 0)
+        s.resonator = inv.get("resonator", 0)
+        s.scrambler = inv.get("scrambler", 0)
 
-        # STEP 3: Update agent state from parsed obs
-        s.energy = parsed.energy
-        s.carbon = parsed.carbon
-        s.oxygen = parsed.oxygen
-        s.germanium = parsed.germanium
-        s.silicon = parsed.silicon
-        s.hearts = parsed.hearts
-        s.decoder = parsed.decoder
-        s.modulator = parsed.modulator
-        s.resonator = parsed.resonator
-        s.scrambler = parsed.scrambler
+        # STEP 3: Parse spatial observation with known position
+        debug = s.step_count <= 2
+        parsed = self.parse_observation(obs, s.row, s.col, debug=debug)
 
         # Check if we received the resource from an extractor activation
         if s.pending_use_resource is not None:
@@ -890,9 +865,9 @@ class SimpleBaselineAgent:
             return action
 
         # We're adjacent to the extractor!
-        # Verify position from environment
+        # Verify position from simulation
         env_pos = None
-        for _id, obj in self._env.c_env.grid_objects().items():
+        for _id, obj in self._sim.grid_objects().items():
             if obj.get("agent_id") == s.agent_id:
                 env_pos = (obj.get("r"), obj.get("c"))
                 break
@@ -1266,9 +1241,9 @@ class SimpleBaselineAgent:
 class SimpleBaselinePolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
     """Implementation that wraps SimpleBaselineAgent."""
 
-    def __init__(self, env: MettaGridEnv):
-        self._agent = SimpleBaselineAgent(env)
-        self._env = env
+    def __init__(self, simulation: "Simulation"):
+        self._agent = SimpleBaselineAgent(simulation)
+        self._sim = simulation
 
     def agent_state(self, agent_id: int = 0) -> SimpleAgentState:
         """Get initial state for an agent."""
@@ -1282,47 +1257,54 @@ class SimpleBaselinePolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
             )
         return self._agent._agent_states[agent_id]
 
-    def step_with_state(self, obs: MettaGridObservation, state: SimpleAgentState) -> tuple[int, SimpleAgentState]:
+    def step_with_state(self, obs: AgentObservation, state: SimpleAgentState) -> tuple[Action, SimpleAgentState]:
         """Compute action and return updated state."""
         # The state passed in tells us which agent this is
         agent_id = state.agent_id
         # Update the shared agent state
         self._agent._agent_states[agent_id] = state
-        # Compute action
-        action = self._agent.step(agent_id, obs)
+        # Compute action (returns integer index)
+        action_idx = self._agent.step(agent_id, obs)
+        # Convert to Action object
+        action = Action(name=self._agent._action_names[action_idx])
         # Return action and updated state
         return action, self._agent._agent_states[agent_id]
 
 
-class SimpleBaselinePolicy(Policy):
-    """Policy class for simple baseline agent (matches ScriptedAgentPolicy pattern)."""
+class SimpleBaselinePolicy:
+    """Policy class for simple baseline agent.
 
-    def __init__(self, env: MettaGridEnv | None = None, device=None):
-        self._env = env
-        self._impl = SimpleBaselinePolicyImpl(env) if env is not None else None
-        self._agent_policies: Dict[int, AgentPolicy] = {}  # Cache per-agent policies
+    This policy requires a Simulation object for accessing grid_objects()
+    to get absolute agent positions. Pass it via reset(simulation=sim).
+    """
 
-    def reset(self, obs, info):
-        if self._env is None and "env" in info:
-            self._env = info["env"]
-        if self._impl is None:
-            if self._env is None:
-                raise RuntimeError("SimpleBaselinePolicy needs env - provide during __init__ or via info['env']")
-            self._impl = SimpleBaselinePolicyImpl(self._env)
+    def __init__(self):
+        """Initialize policy (simulation will be provided via reset)."""
+        self._sim = None
+        self._impl = None
+        self._agent_policies: Dict[int, AgentPolicy] = {}
 
-        # Extract agent spawn positions from info if available (for tests)
-        if "agent_spawn_positions" in info and self._impl is not None:
-            self._impl._agent._agent_spawn_positions = info["agent_spawn_positions"]
+    def reset(self, simulation: "Simulation" = None) -> None:
+        """Reset all agent states.
 
-        # Clear cached agent policies on reset
+        Args:
+            simulation: The Simulation object (needed for grid_objects access)
+        """
+        if simulation is None:
+            raise RuntimeError("SimpleBaselinePolicy requires simulation parameter in reset()")
+
+        self._sim = simulation
+        self._impl = SimpleBaselinePolicyImpl(simulation)
         self._agent_policies.clear()
 
     def agent_policy(self, agent_id: int) -> AgentPolicy:
+        """Get an AgentPolicy instance for a specific agent."""
         if self._impl is None:
-            raise RuntimeError("Policy not initialized - call reset() first")
+            raise RuntimeError("Policy not initialized - call reset(simulation=sim) first")
+
         # Create agent policies lazily
         if agent_id not in self._agent_policies:
-            from cogames.policy.interfaces import StatefulAgentPolicy
+            from cogames.policy import StatefulAgentPolicy
 
             self._agent_policies[agent_id] = StatefulAgentPolicy(self._impl, agent_id)
         return self._agent_policies[agent_id]

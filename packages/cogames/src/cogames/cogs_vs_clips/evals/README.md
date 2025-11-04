@@ -15,22 +15,6 @@ All evaluation missions are defined in `eval_missions.py` and registered under t
 
 ### Resource Collection Missions
 
-#### CollectResourcesBase
-**Map:** `evals/eval_collect_resources_easy.map`
-**Challenge:** Basic resource collection near spawn with single carrier deposits
-
-**Configuration:**
-- Energy regen: 3/step (generous)
-- Charger efficiency: 140
-- Resource efficiency: Carbon 130, Oxygen 125, Germanium 95, Silicon 130
-- Max uses: Unlimited for all extractors
-- **Best for:** Testing basic gather-assemble-deliver loops
-- **Recommended agents:** 1-4
-
-**Skills tested:** Basic navigation, resource gathering, assembly, delivery
-
----
-
 #### CollectResourcesClassic
 **Map:** `evals/eval_collect_resources.map`
 **Challenge:** Classic balanced layout with extractors near base
@@ -449,7 +433,7 @@ Clipping variants introduce extractors that start "clipped" (disabled) and requi
 
 | Category | Missions | Key Challenge |
 |----------|----------|---------------|
-| **Basic Collection** | CollectResourcesBase, CollectResourcesClassic, CollectResourcesSpread | Gather-assemble-deliver loop |
+| **Basic Collection** | CollectResourcesClassic, CollectResourcesSpread | Gather-assemble-deliver loop |
 | **Distance/Scarcity** | CollectFar | Long distances, limited extractors |
 | **Coordination** | DivideAndConquer, GoTogether, SingleUseSwarm | Multi-agent cooperation |
 | **Bottlenecks** | OxygenBottleneck, EnergyStarved | Resource/energy constraints |
@@ -467,7 +451,6 @@ Clipping variants introduce extractors that start "clipped" (disabled) and requi
 
 | Mission | 1 Agent | 2 Agents | 4 Agents | 8 Agents |
 |---------|---------|----------|----------|----------|
-| CollectResourcesBase | ✅ Good | ✅ Good | ✅ Good | ⚠️ Overkill |
 | CollectResourcesClassic | ✅ Good | ✅ Good | ✅ Good | ⚠️ Overkill |
 | CollectResourcesSpread | ✅ Good | ✅ Good | ✅ Good | ⚠️ Possible |
 | CollectFar | ⚠️ Hard | ✅ Good | ✅ Good | ✅ Good |
@@ -523,7 +506,7 @@ uv run python packages/cogames/scripts/evaluate_scripted_agents.py \
 
 ```bash
 # Test single-agent unclipping
-uv run cogames play --mission evals.collect_resources_base -p unclipping --cogs 1 --difficulty clipped_oxygen
+uv run cogames play --mission evals.collect_resources_classic -p unclipping --cogs 1 --difficulty clipped_oxygen
 
 # Test multi-agent coordination without clipping
 uv run cogames play --mission evals.go_together -p coordinating --cogs 4 --difficulty standard
