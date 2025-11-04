@@ -42,6 +42,52 @@ Note that launching jobs requires a repo with pushed commits (unless using `--sk
 
 There's a [web dashboard](https://skypilot-api.softmax-research.net/) that displays the status of all clusters and jobs.
 
+## EC2 Usage Reporting
+
+To check your current EC2 usage and available capacity:
+
+```bash
+./devops/skypilot/scripts/ec2_usage_report.py
+```
+
+This script provides:
+- Instance counts by type and state
+- vCPU usage broken down by Standard (C/M/R/T) and GPU-accelerated (G) families
+- Service quota limits and available capacity
+- What instance sizes you can currently launch
+
+Example output:
+```
+📊 SERVICE QUOTAS
+Standard (C/M/R/T) vCPUs: 256
+GPU-accelerated (G) vCPUs: 4096
+
+⚙️  vCPU USAGE
+Running      Standard:  162 vCPUs  |  GPU: 2720 vCPUs
+
+💡 CAPACITY ANALYSIS
+Standard Instances (C/M/R/T):
+  Quota:      256 vCPUs
+  Running:    162 vCPUs
+  Available:   94 vCPUs
+
+  Can launch:
+    • 1x 64-core instances (e.g., c6i.16xlarge, 128GB RAM)
+    • 2x 32-core instances (e.g., c6i.8xlarge, 64GB RAM)
+```
+
+Options:
+```bash
+# Use different AWS profile
+./devops/skypilot/scripts/ec2_usage_report.py --profile my-profile
+
+# Check different region
+./devops/skypilot/scripts/ec2_usage_report.py --region us-west-2
+
+# Include stopped instances
+./devops/skypilot/scripts/ec2_usage_report.py --show-stopped
+```
+
 ## Examples
 
 ### Basic Usage
@@ -258,6 +304,7 @@ ssh <sandbox-name>
 
 ### Creating a Sandbox
 
+**GPU Sandboxes:**
 ```bash
 # Show existing sandboxes and management commands
 ./devops/skypilot/sandbox.py
@@ -274,6 +321,37 @@ ssh <sandbox-name>
 # Increase wait timeout for cluster initialization
 ./devops/skypilot/sandbox.py --new --wait-timeout 600
 ```
+
+**CPU-Only Sandboxes:**
+```bash
+# Launch compute-optimized CPU sandbox with 64 cores (default)
+./devops/skypilot/sandbox.py --new --cpu
+
+# Launch with specific core count (2, 4, 8, 16, 32, 48, 64, or 96)
+./devops/skypilot/sandbox.py --new --cpu --cores 32   # c6i.8xlarge, 32 cores, 64GB RAM
+./devops/skypilot/sandbox.py --new --cpu --cores 48   # c6i.12xlarge, 48 cores, 96GB RAM
+./devops/skypilot/sandbox.py --new --cpu --cores 96   # c6i.24xlarge, 96 cores, 192GB RAM
+
+# Launch sweep controller (cheaper, smaller instance)
+./devops/skypilot/sandbox.py --new --sweep-controller  # m6i.2xlarge, 8 cores, 32GB RAM
+```
+
+**CPU Instance Options (c6i compute-optimized family):**
+
+All c6i instances have **2GB RAM per vCPU** and cost **~$0.0425/core/hour**:
+
+| Cores | Instance | RAM | Cost/hour |
+|-------|----------|-----|-----------|
+| 2 | c6i.large | 4GB | ~$0.09 |
+| 4 | c6i.xlarge | 8GB | ~$0.17 |
+| 8 | c6i.2xlarge | 16GB | ~$0.34 |
+| 16 | c6i.4xlarge | 32GB | ~$0.68 |
+| 32 | c6i.8xlarge | 64GB | ~$1.36 |
+| 48 | c6i.12xlarge | 96GB | ~$2.04 |
+| 64 | c6i.16xlarge | 128GB | ~$2.72 |
+| 96 | c6i.24xlarge | 192GB | ~$4.08 |
+
+The script automatically rounds up to the nearest available instance size. For example, requesting 40 cores will provision c6i.12xlarge (48 cores).
 
 ### Checking Sandbox Status
 

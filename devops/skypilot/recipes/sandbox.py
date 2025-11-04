@@ -101,14 +101,71 @@ def format_cluster_info(cluster):
     }
     color_func, status_msg = status_map.get(status, (yellow, status.lower()))
 
-    # GPU info
-    gpu_info = ""
+    # Common instance type to RAM mapping (for when memory attr is None)
+    INSTANCE_RAM_MAP = {
+        # g6 GPU instances (L4)
+        "g6.xlarge": 16,
+        "g6.2xlarge": 32,
+        "g6.4xlarge": 64,
+        "g6.8xlarge": 128,
+        # c6i CPU instances
+        "c6i.large": 4,
+        "c6i.xlarge": 8,
+        "c6i.2xlarge": 16,
+        "c6i.4xlarge": 32,
+        "c6i.8xlarge": 64,
+        "c6i.12xlarge": 96,
+        "c6i.16xlarge": 128,
+        "c6i.24xlarge": 192,
+    }
+
+    # Resource info (GPU or CPU)
+    resource_info = ""
     if "handle" in cluster and cluster["handle"]:
         resources = cluster["handle"].launched_resources
-        if resources and resources.accelerators:
-            gpu_info = f" [{resources.accelerators}]"
+        if resources:
+            # Get common info
+            instance_type = resources.instance_type if resources.instance_type else "unknown"
+            cpus = resources.cpus if resources.cpus else "?"
 
-    return color_func, status_msg, gpu_info
+            # Try to get memory (may be a string like "32+" or a number)
+            memory = None
+            if hasattr(resources, "memory") and resources.memory:
+                mem = resources.memory
+                # Handle both string ("32+") and numeric formats
+                if isinstance(mem, str):
+                    memory = mem.rstrip("+")
+                else:
+                    memory = str(int(mem))
+            elif instance_type in INSTANCE_RAM_MAP:
+                # Fall back to instance type lookup if memory attr is None
+                memory = str(INSTANCE_RAM_MAP[instance_type])
+
+            if resources.accelerators:
+                # GPU instance - show instance type, GPU info, vCPUs, RAM
+                # Parse accelerators dict to get GPU type and count
+                if isinstance(resources.accelerators, dict):
+                    gpu_items = list(resources.accelerators.items())
+                    if gpu_items:
+                        gpu_type, gpu_count = gpu_items[0]
+                        gpu_str = f"{gpu_count}x {gpu_type}" if gpu_count > 1 else gpu_type
+                    else:
+                        gpu_str = "GPU"
+                else:
+                    gpu_str = str(resources.accelerators)
+
+                parts = [instance_type, gpu_str, f"{cpus} vCPUs"]
+                if memory:
+                    parts.append(f"{memory}GB")
+                resource_info = f" [{', '.join(parts)}]"
+            elif resources.instance_type:
+                # CPU instance - show instance type, vCPUs, RAM
+                parts = [instance_type, f"{cpus} vCPUs"]
+                if memory:
+                    parts.append(f"{memory}GB")
+                resource_info = f" [{', '.join(parts)}]"
+
+    return color_func, status_msg, resource_info
 
 
 def print_cluster_status(clusters, title=None):
@@ -117,8 +174,8 @@ def print_cluster_status(clusters, title=None):
         print(title)
 
     for cluster in clusters:
-        color_func, status_msg, gpu_info = format_cluster_info(cluster)
-        print(f"  {color_func(cluster['name'])} ({status_msg}){gpu_info}")
+        color_func, status_msg, resource_info = format_cluster_info(cluster)
+        print(f"  {color_func(cluster['name'])} ({status_msg}){resource_info}")
 
         # Additional guidance for INIT state clusters
         if cluster["status"].name == "INIT":
@@ -144,6 +201,65 @@ def print_management_commands(clusters):
         print(f"  Restart:        {green(f'uv run sky start {first_stopped_cluster}')}")
     print(f"  Stop:           {green(f'uv run sky stop {first_cluster_name}')}")
     print(f"  Delete:         {red(f'uv run sky down {first_cluster_name}')}")
+
+
+def get_cpu_instance_info(num_cores: int, region: str = "us-east-1", cloud: str = "aws"):
+    """
+    Determine the instance type and cost for CPU instances.
+
+    Args:
+        num_cores: Number of CPU cores requested
+        region: Cloud region
+        cloud: Cloud provider (default: aws)
+
+    Returns:
+        Tuple of (instance_type, region, hourly_cost, actual_cores, ram_gb)
+    """
+    if cloud.lower() != "aws":
+        print(f"Warning: Cost calculation only supported for AWS, not {cloud}")
+        return None, region, None, num_cores, None
+
+    # Map core count to c6i compute-optimized instances
+    # All c6i instances have 2GB RAM per vCPU
+    cpu_instance_map = {
+        2: ("c6i.large", 2, 4),
+        4: ("c6i.xlarge", 4, 8),
+        8: ("c6i.2xlarge", 8, 16),
+        16: ("c6i.4xlarge", 16, 32),
+        32: ("c6i.8xlarge", 32, 64),
+        48: ("c6i.12xlarge", 48, 96),
+        64: ("c6i.16xlarge", 64, 128),
+        96: ("c6i.24xlarge", 96, 192),
+    }
+
+    # Find the smallest instance that meets or exceeds the requested cores
+    available_sizes = sorted(cpu_instance_map.keys())
+    selected_size = None
+    for size in available_sizes:
+        if size >= num_cores:
+            selected_size = size
+            break
+
+    if selected_size is None:
+        # Request exceeds largest instance, use the largest
+        selected_size = available_sizes[-1]
+        print(f"{yellow('⚠️  Requested')} {num_cores} cores exceeds maximum {selected_size} cores. Using c6i.24xlarge.")
+
+    instance_type, actual_cores, ram_gb = cpu_instance_map[selected_size]
+
+    if actual_cores != num_cores:
+        print(f"Note: Rounding up from {num_cores} cores to {actual_cores} cores ({instance_type})")
+
+    # Try to calculate cost
+    hourly_cost = None
+    try:
+        with spinner(f"Calculating cost for {instance_type}", style=cyan):
+            hourly_cost = get_instance_cost(instance_type=instance_type, region=region, use_spot=False)
+    except Exception as e:
+        print(f"\n{yellow('⚠️  Unable to calculate cost:')} {str(e)}")
+        print("   Continuing without cost information...\n")
+
+    return instance_type, region, hourly_cost, actual_cores, ram_gb
 
 
 def get_gpu_instance_info(num_gpus: int, gpu_type: str = "L4", region: str = "us-east-1", cloud: str = "aws"):
@@ -288,12 +404,12 @@ def handle_check_mode(clusters):
     status_counts = {"UP": 0, "STOPPED": 0, "INIT": 0}
 
     for cluster in user_sandboxes:
-        color_func, status_msg, gpu_info = format_cluster_info(cluster)
+        color_func, status_msg, resource_info = format_cluster_info(cluster)
         status = cluster["status"].name
         if status in status_counts:
             status_counts[status] += 1
 
-        print(f"  • {color_func(cluster['name'])} ({status_msg}){gpu_info}")
+        print(f"  • {color_func(cluster['name'])} ({status_msg}){resource_info}")
 
     # Summary
     print(f"\n{bold('Summary:')}")
@@ -323,7 +439,10 @@ Examples:
   %(prog)s --check      # Check for active sandboxes and exit
   %(prog)s --new        # Launch a new sandbox with 1 GPU
   %(prog)s --new --gpus 4  # Launch a new sandbox with 4 GPUs
-  %(prog)s --new --sweep-controller  # Launch a CPU-only sandbox (uses config instance_type)
+  %(prog)s --new --sweep-controller  # Launch a CPU-only sandbox (m6i.2xlarge, 8 cores)
+  %(prog)s --new --cpu  # Launch a CPU-only sandbox (c6i.16xlarge, 64 cores by default)
+  %(prog)s --new --cpu --cores 32  # Launch a CPU-only sandbox with 32 cores (c6i.8xlarge)
+  %(prog)s --new --cpu --cores 48  # Launch a CPU-only sandbox with 48 cores (c6i.12xlarge)
   %(prog)s --new --git-ref feature-branch  # Launch with specific git branch
   %(prog)s --new --wait-timeout 600  # Wait up to 10 minutes for cluster to be ready
 
@@ -358,13 +477,34 @@ Common management commands:
         action="store_true",
         help="Launch a sweep-controller CPU-only sandbox (instance type from config)",
     )
+    parser.add_argument(
+        "--cpu",
+        action="store_true",
+        help="Launch a CPU-only sandbox with compute-optimized instances (c6i family)",
+    )
+    parser.add_argument(
+        "--cores",
+        type=int,
+        default=64,
+        help="Number of CPU cores for --cpu mode (default: 64). Valid: 2, 4, 8, 16, 32, 48, 64, 96",
+    )
 
     args = parser.parse_args()
 
     # Validate conflicting arguments
+    if args.sweep_controller and args.cpu:
+        print(f"{red('✗')} Error: Cannot use both --sweep-controller and --cpu flags.")
+        print("  Choose one: --sweep-controller (m6i.2xlarge) or --cpu --cores N (c6i family)")
+        return 1
+
     if args.sweep_controller and args.gpus > 1:
         print(f"{red('✗')} Error: --sweep-controller mode is CPU-only and cannot use GPUs.")
         print(f"  Either use --sweep-controller without --gpus, or use regular mode with --gpus {args.gpus}")
+        return 1
+
+    if args.cpu and args.gpus > 1:
+        print(f"{red('✗')} Error: --cpu mode is CPU-only and cannot use GPUs.")
+        print(f"  Either use --cpu without --gpus, or use regular mode with --gpus {args.gpus}")
         return 1
 
     # Get git ref - use current branch/commit if not specified
@@ -390,10 +530,13 @@ Common management commands:
     # Launch new sandbox
     cluster_name = get_next_sandbox_name(existing_clusters)
 
-    # Determine configuration based on --sweep-controller flag
+    # Determine configuration based on mode flags
     if args.sweep_controller:
-        print(f"\n🚀 Launching {blue(cluster_name)} in {bold('CPU-ONLY MODE')}")
+        print(f"\n🚀 Launching {blue(cluster_name)} in {bold('SWEEP CONTROLLER MODE')}")
         config_path = "./devops/skypilot/config/sandbox_cheap.yaml"
+    elif args.cpu:
+        print(f"\n🚀 Launching {blue(cluster_name)} in {bold('CPU-ONLY MODE')} with {bold(str(args.cores))} cores")
+        config_path = "./devops/skypilot/config/sandbox_cpu.yaml"
     else:
         print(f"\n🚀 Launching {blue(cluster_name)} with {bold(str(args.gpus))} L4 GPU(s)")
         config_path = "./devops/skypilot/config/sandbox.yaml"
@@ -409,7 +552,7 @@ Common management commands:
     region = resources.get("region", "us-east-1")
 
     if args.sweep_controller:
-        # For CPU-only mode, read the instance type from config
+        # For sweep controller mode, read the instance type from config
         instance_type = resources.get("instance_type", "m6i.2xlarge")
         print(f"Instance type: {bold(instance_type)} in {bold(region)}")
 
@@ -429,6 +572,23 @@ Common management commands:
                 print(f"Approximate cost: {green('~$0.384/hour')} (on-demand pricing, us-east-1)")
             else:
                 print("Approximate cost: (unavailable) – check AWS pricing for your region.")
+    elif args.cpu:
+        # For CPU mode, calculate instance type based on core count
+        instance_type, region, hourly_cost, actual_cores, ram_gb = get_cpu_instance_info(args.cores, region, cloud)
+
+        if instance_type:
+            print(f"Instance type: {bold(instance_type)} ({actual_cores} cores, {ram_gb}GB RAM) in {bold(region)}")
+
+        if hourly_cost is not None:
+            cost_per_core = hourly_cost / actual_cores
+            print(
+                f"Approximate cost: {green(f'~${hourly_cost:.2f}/hour')} "
+                f"(${cost_per_core:.4f}/core/hour, on-demand pricing)"
+            )
+        else:
+            # Fallback estimate based on c6i pricing (~$0.0425/core/hour)
+            estimated_cost = actual_cores * 0.0425
+            print(f"Approximate cost: {yellow(f'~${estimated_cost:.2f}/hour')} (estimated for {actual_cores} cores)")
     else:
         # Parse GPU type from the config (e.g., "L4:1" -> "L4")
         accelerators_str = resources.get("accelerators", "L4:1")
@@ -449,8 +609,13 @@ Common management commands:
         task = sky.Task.from_yaml(config_path)
         set_task_secrets(task)
 
-        if not args.sweep_controller:
-            # Only override GPU resources for non-cheap mode
+        if args.cpu:
+            # Override CPU resources for CPU mode
+            task.set_resources_override(
+                {"instance_type": instance_type, "cpus": f"{actual_cores}+", "memory": f"{ram_gb}+"}
+            )
+        elif not args.sweep_controller:
+            # Only override GPU resources for GPU mode (not sweep controller)
             task.set_resources_override({"accelerators": f"{gpu_type}:{args.gpus}"})
 
         task.update_envs({"METTA_GIT_REF": git_ref})
@@ -523,8 +688,8 @@ Common management commands:
             print(f"  • Update SSH config: {green(f'uv run sky status {cluster_name}')}")
             print(f"Error: {str(e)}")
 
-    # For CPU-only mode, SCP the additional files over
-    if args.sweep_controller:
+    # For CPU-only modes, SCP the additional files over
+    if args.sweep_controller or args.cpu:
         print("\n📤 Transferring additional files to sandbox...")
         scp_success = True
 
