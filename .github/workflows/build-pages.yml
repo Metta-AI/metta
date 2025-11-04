@@ -3,7 +3,6 @@ on:
   push:
     paths: &site_paths
       - "packages/mettagrid/nim/mettascope/**"
-      - "observatory/**"
       - ".github/workflows/**"
   pull_request:
     paths: *site_paths
@@ -67,7 +66,6 @@ jobs:
       - name: Create deployment directory
         run: |
           mkdir -p deploy/observatory
-          mkdir -p deploy/mettascope
           cp -r observatory/dist/* deploy/observatory/
           cp -r packages/mettagrid/nim/mettascope/dist/* deploy/mettascope/
 

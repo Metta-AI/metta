@@ -1,0 +1,33 @@
+name: "Configure EKS Access"
+description: "Configure kubectl to access an EKS cluster"
+
+inputs:
+  cluster_name:
+    description: "EKS cluster name"
+    required: false
+    default: "main"
+  region:
+    description: "AWS region"
+    required: false
+    default: "us-east-1"
+  aws_role:
+    description: "AWS role to assume (if not already configured)"
+    required: false
+    default: ""
+
+runs:
+  using: "composite"
+  steps:
+    - name: Configure AWS credentials
+      if: inputs.aws_role != ''
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        role-to-assume: ${{ inputs.aws_role }}
+        aws-region: ${{ inputs.region }}
+
+    - name: Update kubeconfig
+      shell: bash
+      run: |
+        aws eks update-kubeconfig \
+          --name ${{ inputs.cluster_name }} \
+          --region ${{ inputs.region }}

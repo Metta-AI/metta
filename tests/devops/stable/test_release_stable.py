@@ -1,6 +1,6 @@
 """Tests for release_stable orchestration."""
 
-from datetime import datetime
+from datetime import UTC, datetime
 
 from devops.job_runner import JobResult
 from devops.stable.runner import TaskRunner
@@ -32,13 +32,13 @@ def test_state_persistence(tmp_path, monkeypatch):
     # Create and save state
     state = ReleaseState(
         version="release_1.0.0",
-        created_at=datetime.utcnow().isoformat(),
+        created_at=datetime.now(UTC).isoformat(),
         commit_sha="abc123",
     )
     state.results["test_task"] = TaskResult(
         name="test_task",
-        started_at=datetime.utcnow().isoformat(),
-        ended_at=datetime.utcnow().isoformat(),
+        started_at=datetime.now(UTC).isoformat(),
+        ended_at=datetime.now(UTC).isoformat(),
         exit_code=0,
         outcome="passed",
     )
@@ -59,7 +59,7 @@ def test_state_handles_version_exact_match(tmp_path, monkeypatch):
 
     state = ReleaseState(
         version="release_2.0.0",
-        created_at=datetime.utcnow().isoformat(),
+        created_at=datetime.now(UTC).isoformat(),
     )
     save_state(state)
 

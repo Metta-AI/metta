@@ -55,16 +55,16 @@ def train(
     )
 
 
-def train_shaped(rewards: bool = True, converters: bool = True) -> TrainTool:
+def train_shaped(rewards: bool = True) -> TrainTool:
     """Train with ScheduleFree AdamW optimizer on shaped rewards task.
 
-    This provides easier training with reward shaping and converters enabled.
+    This provides easier training with reward shaping.
     """
     # Import and configure the shaped environment from base recipe
     from experiments.recipes.arena import train_shaped as base_train_shaped
 
     # Get the base shaped training tool
-    base_tool = base_train_shaped(rewards=rewards, converters=converters)
+    base_tool = base_train_shaped(rewards=rewards)
 
     # Configure ScheduleFree AdamW optimizer (using native implementation)
     optimizer_config = OptimizerConfig(

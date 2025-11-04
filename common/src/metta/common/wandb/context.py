@@ -3,7 +3,7 @@ import os
 import socket
 from typing import TYPE_CHECKING, Any
 
-from mettagrid.base_config import Config
+from mettagrid.config import Config
 
 if TYPE_CHECKING:
     from wandb.sdk.wandb_run import Run as WandbRun
@@ -117,7 +117,7 @@ class WandbContext:
                 elif isinstance(self.run_config, str):
                     config = self.run_config
                 else:
-                    logger.error(f"Invalid extra_cfg: {self.run_config}")
+                    logger.error(f"Invalid extra_cfg: {self.run_config}", exc_info=True)
                     config = None
 
             self.run = wandb.init(
@@ -176,7 +176,7 @@ class WandbContext:
             try:
                 wandb.finish()
             except Exception as e:
-                logger.error(f"Error during W&B cleanup: {str(e)}")
+                logger.error(f"Error during W&B cleanup: {str(e)}", exc_info=True)
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.cleanup_run(self.run)

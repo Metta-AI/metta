@@ -55,7 +55,7 @@ class NotificationBase(ABC):
         try:
             payload = self._make_payload(notification, job_config)
         except Exception as e:
-            logger.error(f"Failed to format {self.name} notification: {e}")
+            logger.error(f"Failed to format {self.name} notification: {e}", exc_info=True)
             return False
 
         # Log before sending
@@ -72,5 +72,5 @@ class NotificationBase(ABC):
             logger.info(f"✅ Successfully sent {self.name} notification")
             return True
         except Exception as e:
-            logger.error(f"{self.name} notification failed: {e}")
+            logger.error(f"{self.name} notification failed: {e}", exc_info=True)
             return False

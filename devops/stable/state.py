@@ -101,7 +101,7 @@ def load_or_create_state(version: str, commit_sha: str) -> ReleaseState:
     Returns:
         ReleaseState (either loaded or newly created)
     """
-    from datetime import datetime
+    from datetime import UTC, datetime
 
     state = load_state(version)
     if state:
@@ -110,7 +110,7 @@ def load_or_create_state(version: str, commit_sha: str) -> ReleaseState:
     # Create new state
     state = ReleaseState(
         version=version,
-        created_at=datetime.utcnow().isoformat(timespec="seconds"),
+        created_at=datetime.now(UTC).isoformat(timespec="seconds"),
         commit_sha=commit_sha,
     )
     save_state(state)

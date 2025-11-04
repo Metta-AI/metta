@@ -32,8 +32,6 @@ class ReplayTool(Tool):
         # Create simulation using CheckpointManager integration
         sim = Simulation.create(
             sim_config=self.sim,
-            device=self.system.device,
-            vectorization=self.system.vectorization,
             stats_dir=self.stats_dir,
             replay_dir=self.replay_dir,
             policy_uri=self.policy_uri,
@@ -43,7 +41,7 @@ class ReplayTool(Tool):
         # Get all replay URLs (no filtering needed since we just ran this simulation)
         replay_urls = result.stats_db.get_replay_urls()
         if not replay_urls:
-            logger.error("No replay URLs found in simulation results")
+            logger.error("No replay URLs found in simulation results", exc_info=True)
             return 1
         replay_url = replay_urls[0]
 
