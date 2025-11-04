@@ -21,6 +21,7 @@ _POLICY_CLASS_SHORTHAND: dict[str, str] = {
     "claude": "cogames.policy.claude.ClaudePolicy",
     # Scripted policy for training/testing
     "scripted": "cogames.policy.scripted_agent.ScriptedAgentPolicy",
+    "simple_baseline": "cogames.policy.simple_baseline_policy.SimpleBaselinePolicy",
 }
 
 

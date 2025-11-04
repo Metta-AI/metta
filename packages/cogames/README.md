@@ -49,6 +49,56 @@ cogames play -m training_facility_1 -p stateless:train_dir/policy.pt
 cogames eval -m machina_1 -p stateless:./train_dir/policy.pt
 ```
 
+## Evaluation Reference
+
+### Scripted Agent Hyperparameter Presets
+
+Scripted evaluation policies use the streamlined `Hyperparameters` dataclass from `cogames.policy.scripted_agent.hyperparameters`. Presets are defined in `hyperparameter_presets.py` and exposed via `HYPERPARAMETER_PRESETS`.
+
+- `story_mode` (`sequential_baseline` alias)
+  - Strategy tuned for showcase runs; disables probes, extends exploration to 120 steps, and raises recharge thresholds (`start_small=60`, `start_large=45`).
+  - Keeps patience high (`wait_if_cooldown_leq=5`, `max_patience_steps=20`) and enforces expansive resource caps (`resource_focus_limits={'carbon':4,'oxygen':4,'germanium':2,'silicon':2}`).
+  - Maintains conservative energy policy: always charge to full and requires only 60 energy before routing for silicon.
+- `courier` (`balanced` alias)
+  - Fast routing baseline with shorter exploration (60 steps) and tighter patience controls (`wait_if_cooldown_leq=3`, `max_patience_steps=10`).
+  - Prefers partial recharges (`recharge_until_full=False`) and drops small recharge thresholds to 40/30.
+  - Limits simultaneous extractor focus to 3/3/2/2 resources.
+- `scout` (`explorer_long` alias)
+  - Probe-heavy preset (`use_probes=True`) with expanded probe radius (18 tiles), 12 concurrent targets, and long revisit cooldowns.
+  - Longest exploration phase (160 steps) paired with aggressive movement (`wait_if_cooldown_leq=1`) and lower recharge targets (30/20 start, 80/85 stop).
+  - Keeps focus balanced at 2 extractors per resource type.
+- `hoarder` (`greedy_conservative`, `efficiency_heavy` aliases)
+  - High patience, stockpiling behaviour (`wait_if_cooldown_leq=8`, `max_patience_steps=30`, `patience_multiplier=2.0`).
+  - Demands plenty of energy before risky actions (`min_energy_for_silicon=80`) and always recharges to full.
+  - Allows the widest resource focus limits (5/5/3/3) and maintains depletion threshold at 0.35.
+
+> All presets inherit defaults such as `strategy_type`, probe configuration, patience tuning, and energy management parameters. Legacy factory helpers (e.g. `create_aggressive_preset`) resolve to these same presets for backward compatibility.
+
+### Difficulty Variants
+
+Difficulty settings live in `cogames.cogs_vs_clips.evals.difficulty_variants`. Each `DifficultyLevel` tweaks extractor max uses, efficiency, passive energy, and optionally mission-wide limits. Aliases (`easy`, `medium`, `extreme`) map to `story_mode`, `standard`, and `brutal` respectively.
+
+- `story_mode`
+  - 12 guaranteed uses per extractor, generous efficiency (140), charger efficiency 150, passive energy regen 2.
+  - Disables agent-count scaling to keep showcase behaviour deterministic.
+- `standard`
+  - Baseline figures inherited from the mission; serves as the default evaluation (`medium` alias).
+- `hard`
+  - Caps extractors at 4/4/6/3 uses, trims efficiency (80/65/75/70), zeroes passive regen, and increases move cost to 3.
+  - Disables agent-count scaling helpers to preserve challenge.
+- `brutal` (`extreme` alias)
+  - Severe scarcity: 2/2/3/2 uses, low efficiency (55/45/50/50), charger efficiency 60, no regen.
+  - Reduces agent inventory caps (energy 70, cargo 80) and raises move cost to 3.
+- `single_use`
+  - Every extractor is single-shot; chargers remain strong (efficiency 120) with minimal passive regen (1).
+- `speed_run`
+  - Emphasises tempo: 6 uses per extractor, high efficiency (160 across resources and chargers), move cost 1, and shortens missions to 600 steps.
+  - Keeps agent-scaling enabled so larger teams get proportional resources.
+- `energy_crisis`
+  - No passive regen and weak chargers (efficiency 50); mission otherwise inherits baseline limits.
+
+All scaling-enabled difficulties ensure extractor counts and efficiency rise with agent count, clamp charger efficiency to at least 50, and keep any non-zero passive regen at or above 1 to retain solvability.
+
 ## Commands
 
 Most commands are of the form `cogames <command> -p [MISSION] -p [POLICY] [OPTIONS]`

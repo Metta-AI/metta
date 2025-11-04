@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from typing import Optional
 
+from cogames.policy.scripted_agent.state import AgentState
+
 from .controller import Context, GamePhase, Guard
 
 
@@ -169,11 +171,45 @@ def no_extractors_available(phase: GamePhase) -> Guard:
     return _guard
 
 
+def assemble_slot_available(state: AgentState, ctx: Context) -> bool:
+    policy_impl = getattr(ctx, "policy_impl", None)
+    if policy_impl is None or not hasattr(policy_impl, "can_agent_reserve_assembler"):
+        return True
+    try:
+        return bool(policy_impl.can_agent_reserve_assembler(state))
+    except Exception:
+        return True
+
+
 def have_charger_discovered(state, ctx: Context) -> bool:  # noqa: ARG001
     policy_impl = getattr(ctx, "policy_impl", None)
     if policy_impl is None or not getattr(policy_impl, "extractor_memory", None):
         return False
     return bool(policy_impl.extractor_memory.get_by_type("charger"))
+
+
+def should_recharge(ctx: Context, s: AgentState) -> bool:
+    policy = ctx.policy_impl
+    width = ctx.env.game.map_builder.width if hasattr(ctx.env.game.map_builder, "width") else 50
+    threshold = policy.hyperparams.recharge_start_small if width < 50 else policy.hyperparams.recharge_start_large
+    return s.energy <= threshold
+
+
+def should_keep_recharging(ctx: Context, s: AgentState) -> bool:
+    policy = ctx.policy_impl
+    width = ctx.env.game.map_builder.width if hasattr(ctx.env.game.map_builder, "width") else 50
+    stop_threshold = policy.hyperparams.recharge_stop_small if width < 50 else policy.hyperparams.recharge_stop_large
+    if policy.hyperparams.recharge_until_full:
+        return s.energy < stop_threshold
+    return s.energy < stop_threshold and not s.last_attempt_was_use
+
+
+def energy_low(ctx: Context, s: AgentState) -> bool:
+    return should_recharge(ctx, s)
+
+
+def recharge_complete(ctx: Context, s: AgentState) -> bool:
+    return not should_keep_recharging(ctx, s)
 
 
 __all__ = [

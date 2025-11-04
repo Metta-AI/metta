@@ -13,17 +13,39 @@ class Hyperparameters:
     exploration_phase_steps: int = 100
     min_energy_for_silicon: int = 70
 
-    # === Energy Management (IMPACTFUL) ===
-    recharge_start_small: int = 40  # When to start recharging on small maps
-    recharge_start_large: int = 25  # When to start recharging on large maps
-    recharge_stop_small: int = 100  # When to stop recharging on small maps (full charge)
-    recharge_stop_large: int = 100  # When to stop recharging on large maps (full charge)
+    # === Exploration & Probes ===
+    use_probes: bool = False
+    enable_visit_scoring: bool = True
+    enable_probe_module: bool = True
+    probe_frontier_radius: int = 12
+    probe_max_targets: int = 6
+    probe_revisit_cooldown: int = 200
+    max_recent_positions: int = 10
 
-    # === Cooldown/Waiting Behavior (IMPACTFUL) ===
-    wait_if_cooldown_leq: int = 2  # Try using when cooldown <= this value
+    # === Energy Management ===
+    recharge_start_small: int = 40
+    recharge_start_large: int = 25
+    recharge_stop_small: int = 100
+    recharge_stop_large: int = 100
+    recharge_until_full: bool = True
 
-    # === Extractor Scoring (used in fallback logic) ===
-    depletion_threshold: float = 0.25  # When to consider an extractor "low"
+    # === Cooldown/Waiting Behavior ===
+    wait_if_cooldown_leq: int = 2
+    max_patience_steps: int = 12
+    patience_multiplier: float = 1.0
+
+    # === Extractor Scoring ===
+    depletion_threshold: float = 0.25
+
+    # === Coordination & Targeting ===
+    assembly_signal_timeout: int = 30
+    resource_focus_limits: dict[str, int] | None = None
+    enable_target_reservation: bool = True
+    enable_resource_focus_limits: bool = True
+    enable_assembly_coordination: bool = True
+
+    # === Navigation ===
+    enable_navigation_cache: bool = True
 
     # === Reproducibility ===
     seed: Optional[int] = None
@@ -32,125 +54,195 @@ class Hyperparameters:
 # === Behavior Presets ===
 
 
-def create_aggressive_preset() -> Hyperparameters:
-    """Aggressive energy management - recharges early and often."""
+def story_mode_params() -> Hyperparameters:
+    limits = {"carbon": 4, "oxygen": 4, "germanium": 2, "silicon": 2}
     return Hyperparameters(
-        strategy_type="aggressive",
-        recharge_start_small=50,
-        recharge_start_large=35,
+        strategy_type="story_mode",
+        use_probes=False,
+        enable_probe_module=False,
+        exploration_phase_steps=120,
+        min_energy_for_silicon=60,
+        recharge_start_small=60,
+        recharge_start_large=45,
         recharge_stop_small=100,
         recharge_stop_large=100,
-        wait_if_cooldown_leq=1,  # Very impatient
+        recharge_until_full=True,
+        wait_if_cooldown_leq=5,
+        max_patience_steps=20,
+        patience_multiplier=1.2,
+        max_recent_positions=20,
+        depletion_threshold=0.30,
+        assembly_signal_timeout=120,
+        resource_focus_limits=limits,
+        enable_visit_scoring=True,
+        enable_target_reservation=True,
+        enable_resource_focus_limits=True,
+        enable_assembly_coordination=True,
+        enable_navigation_cache=True,
     )
+
+
+def courier_params() -> Hyperparameters:
+    limits = {"carbon": 3, "oxygen": 3, "germanium": 2, "silicon": 2}
+    return Hyperparameters(
+        strategy_type="courier",
+        use_probes=False,
+        enable_probe_module=False,
+        exploration_phase_steps=60,
+        min_energy_for_silicon=65,
+        recharge_start_small=40,
+        recharge_start_large=30,
+        recharge_stop_small=85,
+        recharge_stop_large=90,
+        recharge_until_full=False,
+        wait_if_cooldown_leq=3,
+        max_patience_steps=10,
+        patience_multiplier=1.0,
+        max_recent_positions=6,
+        depletion_threshold=0.25,
+        assembly_signal_timeout=45,
+        resource_focus_limits=limits,
+        enable_visit_scoring=True,
+        enable_target_reservation=True,
+        enable_resource_focus_limits=True,
+        enable_assembly_coordination=True,
+        enable_navigation_cache=True,
+    )
+
+
+def scout_params() -> Hyperparameters:
+    limits = {"carbon": 2, "oxygen": 2, "germanium": 2, "silicon": 2}
+    return Hyperparameters(
+        strategy_type="scout",
+        use_probes=True,
+        enable_probe_module=True,
+        probe_frontier_radius=18,
+        probe_max_targets=12,
+        probe_revisit_cooldown=250,
+        exploration_phase_steps=160,
+        min_energy_for_silicon=55,
+        recharge_start_small=30,
+        recharge_start_large=20,
+        recharge_stop_small=80,
+        recharge_stop_large=85,
+        recharge_until_full=False,
+        wait_if_cooldown_leq=1,
+        max_patience_steps=6,
+        patience_multiplier=0.8,
+        max_recent_positions=12,
+        depletion_threshold=0.20,
+        assembly_signal_timeout=30,
+        resource_focus_limits=limits,
+        enable_visit_scoring=True,
+        enable_target_reservation=True,
+        enable_resource_focus_limits=True,
+        enable_assembly_coordination=True,
+        enable_navigation_cache=True,
+    )
+
+
+def hoarder_params() -> Hyperparameters:
+    limits = {"carbon": 5, "oxygen": 5, "germanium": 3, "silicon": 3}
+    return Hyperparameters(
+        strategy_type="hoarder",
+        use_probes=False,
+        enable_probe_module=False,
+        exploration_phase_steps=90,
+        min_energy_for_silicon=80,
+        recharge_start_small=55,
+        recharge_start_large=40,
+        recharge_stop_small=100,
+        recharge_stop_large=100,
+        recharge_until_full=True,
+        wait_if_cooldown_leq=8,
+        max_patience_steps=30,
+        patience_multiplier=2.0,
+        max_recent_positions=8,
+        depletion_threshold=0.35,
+        assembly_signal_timeout=50,
+        resource_focus_limits=limits,
+        enable_visit_scoring=True,
+        enable_target_reservation=True,
+        enable_resource_focus_limits=True,
+        enable_assembly_coordination=True,
+        enable_navigation_cache=True,
+    )
+
+
+def minimal_baseline_params() -> Hyperparameters:
+    """Minimal baseline with only essential features for systematic ablation studies."""
+    return Hyperparameters(
+        strategy_type="minimal_baseline",
+        use_probes=False,
+        enable_probe_module=False,
+        enable_visit_scoring=True,  # REQUIRED for exploration movement to work
+        exploration_phase_steps=80,
+        min_energy_for_silicon=60,
+        recharge_start_small=40,
+        recharge_start_large=30,
+        recharge_stop_small=90,
+        recharge_stop_large=85,
+        recharge_until_full=False,
+        wait_if_cooldown_leq=2,
+        max_patience_steps=8,
+        patience_multiplier=1.0,
+        max_recent_positions=5,
+        depletion_threshold=0.15,
+        assembly_signal_timeout=30,
+        resource_focus_limits=None,
+        enable_target_reservation=False,
+        enable_resource_focus_limits=False,
+        enable_assembly_coordination=False,
+        enable_navigation_cache=False,
+    )
+
+
+# Legacy factories kept for compatibility
+
+
+def create_aggressive_preset() -> Hyperparameters:
+    return courier_params()
 
 
 def create_conservative_preset() -> Hyperparameters:
-    """Conservative energy management - waits longer before recharging."""
-    return Hyperparameters(
-        strategy_type="conservative",
-        recharge_start_small=30,
-        recharge_start_large=15,
-        recharge_stop_small=100,
-        recharge_stop_large=100,
-        wait_if_cooldown_leq=3,  # More patient
-    )
+    return hoarder_params()
 
 
 def create_balanced_preset() -> Hyperparameters:
-    """Balanced approach - middle ground."""
-    return Hyperparameters(
-        strategy_type="balanced",
-        recharge_start_small=40,
-        recharge_start_large=25,
-        recharge_stop_small=100,
-        recharge_stop_large=100,
-        wait_if_cooldown_leq=2,
-    )
+    return scout_params()
 
 
 def create_impatient_preset() -> Hyperparameters:
-    """Impatient waiting - tries to use extractors even with high cooldown."""
-    return Hyperparameters(
-        strategy_type="impatient",
-        recharge_start_small=40,
-        recharge_start_large=25,
-        recharge_stop_small=100,
-        recharge_stop_large=100,
-        wait_if_cooldown_leq=0,  # Always try to use
-    )
+    params = scout_params()
+    params.wait_if_cooldown_leq = 0
+    params.max_patience_steps = 4
+    return params
 
 
 def create_patient_preset() -> Hyperparameters:
-    """Patient waiting - waits for low cooldown before using."""
-    return Hyperparameters(
-        strategy_type="patient",
-        recharge_start_small=40,
-        recharge_start_large=25,
-        recharge_stop_small=100,
-        recharge_stop_large=100,
-        wait_if_cooldown_leq=4,  # Very patient
-    )
+    params = hoarder_params()
+    params.wait_if_cooldown_leq = 10
+    params.max_patience_steps = 40
+    return params
 
 
 def create_mixture_presets() -> list[Hyperparameters]:
-    """Create a diverse mixture of hyperparameter presets."""
     return [
-        # Energy management variants
-        Hyperparameters(
-            strategy_type="energy_aggressive",
-            seed=1,
-            recharge_start_small=50,
-            recharge_start_large=35,
-            recharge_stop_small=100,
-            recharge_stop_large=100,
-            wait_if_cooldown_leq=2,
-        ),
-        Hyperparameters(
-            strategy_type="energy_conservative",
-            seed=2,
-            recharge_start_small=30,
-            recharge_start_large=15,
-            recharge_stop_small=100,
-            recharge_stop_large=100,
-            wait_if_cooldown_leq=2,
-        ),
-        # Waiting behavior variants
-        Hyperparameters(
-            strategy_type="waiting_impatient",
-            seed=3,
-            recharge_start_small=40,
-            recharge_start_large=25,
-            recharge_stop_small=100,
-            recharge_stop_large=100,
-            wait_if_cooldown_leq=0,
-        ),
-        Hyperparameters(
-            strategy_type="waiting_patient",
-            seed=4,
-            recharge_start_small=40,
-            recharge_start_large=25,
-            recharge_stop_small=100,
-            recharge_stop_large=100,
-            wait_if_cooldown_leq=4,
-        ),
-        # Balanced default
-        Hyperparameters(
-            strategy_type="balanced_default",
-            seed=5,
-            recharge_start_small=40,
-            recharge_start_large=25,
-            recharge_stop_small=100,
-            recharge_stop_large=100,
-            wait_if_cooldown_leq=2,
-        ),
+        story_mode_params(),
+        courier_params(),
+        scout_params(),
+        hoarder_params(),
     ]
 
 
 # === Legacy Support ===
 # Keep the old hyperparameters class for backward compatibility
+
+
 def create_legacy_hyperparameters() -> "LegacyHyperparameters":
-    """Create a legacy hyperparameters object for backward compatibility."""
-    return LegacyHyperparameters()
+    legacy = LegacyHyperparameters()
+    legacy.strategy_type = "legacy_balanced"
+    return legacy
 
 
 @dataclass

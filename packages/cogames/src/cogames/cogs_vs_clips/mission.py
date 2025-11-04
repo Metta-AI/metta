@@ -1,8 +1,9 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from types import MethodType
+from typing import TYPE_CHECKING, Any, Callable
 
-from pydantic import Field
+from pydantic import Field, PrivateAttr
 
 from cogames.cogs_vs_clips import vibes
 from cogames.cogs_vs_clips.procedural import apply_procedural_overrides_to_builder
@@ -24,7 +25,7 @@ from mettagrid.config.mettagrid_config import (
     ActionsConfig,
     AgentConfig,
     AgentRewards,
-    ChangeGlyphActionConfig,
+    ChangeVibeActionConfig,
     ClipperConfig,
     GameConfig,
     MettaGridConfig,
@@ -77,9 +78,11 @@ class Mission(Config):
     gear_capacity: int = Field(default=5)
     move_energy_cost: int = Field(default=2)
     heart_capacity: int = Field(default=1)
-    # Control glyph swapping in variants
-    enable_glyph_change: bool = Field(default=True)
-    glyph_count: int | None = Field(default=None)
+    # Control vibe swapping in variants
+    enable_vibe_change: bool = Field(default=True)
+    vibe_count: int | None = Field(default=None)
+    _env_modifiers: list[Callable[[MettaGridConfig], None]] = PrivateAttr(default_factory=list)
+    _env_modifier_hooked: bool = PrivateAttr(default=False)
 
     def configure(self):
         pass
@@ -104,6 +107,10 @@ class Mission(Config):
             New Mission instance with map and num_cogs set
         """
         mission = self.model_copy(deep=True)
+        if "make_env" in mission.__dict__:
+            delattr(mission, "make_env")
+        mission._env_modifiers = []
+        mission._env_modifier_hooked = False
         mission.configure()
         mission.map = map_builder
 
@@ -124,6 +131,27 @@ class Mission(Config):
 
         return mission
 
+    def add_env_modifier(self, modifier: Callable[[MettaGridConfig], None]) -> "Mission":
+        """Register a callable to mutate the environment config after creation."""
+        self._ensure_env_modifier_wrapper()
+        self._env_modifiers.append(modifier)
+        return self
+
+    def _ensure_env_modifier_wrapper(self) -> None:
+        if self._env_modifier_hooked:
+            return
+
+        original_make_env = self.make_env
+
+        def wrapped_make_env(_self: "Mission", *args: Any, **kwargs: Any) -> MettaGridConfig:
+            env_cfg = original_make_env(*args, **kwargs)
+            for modifier in _self._env_modifiers:
+                modifier(env_cfg)
+            return env_cfg
+
+        object.__setattr__(self, "make_env", MethodType(wrapped_make_env, self))
+        self._env_modifier_hooked = True
+
     def make_env(self) -> MettaGridConfig:
         """Create a MettaGridConfig from this mission.
 
@@ -140,12 +168,6 @@ class Mission(Config):
         if self.num_cogs is None:
             raise ValueError("Cannot make_env without num_cogs. Call instantiate() first.")
 
-        # supervisor_config = PatrolSupervisorConfig(
-        #     steps_per_direction=5,
-        #     can_override_action=True,
-        #     name="patrol_supervisor",
-        # )
-
         game = GameConfig(
             map_builder=self.map,
             num_agents=self.num_cogs,
@@ -154,13 +176,12 @@ class Mission(Config):
             actions=ActionsConfig(
                 move=ActionConfig(consumed_resources={"energy": self.move_energy_cost}),
                 noop=ActionConfig(),
-                change_glyph=ChangeGlyphActionConfig(
-                    consumed_resources={},  # Fix: Glyph changes should cost 0 energy
-                    number_of_glyphs=(
+                change_vibe=ChangeVibeActionConfig(
+                    number_of_vibes=(
                         0
-                        if not self.enable_glyph_change
-                        else (self.glyph_count if self.glyph_count is not None else len(vibes.VIBES))
-                    ),
+                        if not self.enable_vibe_change
+                        else (self.vibe_count if self.vibe_count is not None else len(vibes.VIBES))
+                    )
                 ),
             ),
             agent=AgentConfig(
@@ -179,11 +200,10 @@ class Mission(Config):
                 shareable_resources=["energy"],
                 inventory_regen_amounts={"energy": self.energy_regen_amount},
                 diversity_tracked_resources=["energy", "carbon", "oxygen", "germanium", "silicon"],
-                # supervisor=supervisor_config,
             ),
             inventory_regen_interval=self.inventory_regen_interval,
             clipper=ClipperConfig(
-                unclipping_recipes=[
+                unclipping_protocols=[
                     ProtocolConfig(
                         input_resources={"decoder": 1},
                         cooldown=1,

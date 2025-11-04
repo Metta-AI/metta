@@ -21,11 +21,11 @@ class _EvalMissionBase(Mission):
 
     # Clipping
     clip_rate: float = 0.0
-    charger_eff: int = 100
-    carbon_eff: int = 100
-    oxygen_eff: int = 100
-    germanium_eff: int = 1
-    silicon_eff: int = 100
+    charger_eff: int = 120
+    carbon_eff: int = 115
+    oxygen_eff: int = 110
+    germanium_eff: int = 80
+    silicon_eff: int = 120
     # Max uses (0 means unlimited for charger; other stations respect values)
     max_uses_charger: int | None = None
     max_uses_carbon: int | None = None
@@ -97,7 +97,7 @@ class _EvalMissionBase(Mission):
                             "carbon": 2,
                             "oxygen": 2,
                             "germanium": 1,
-                            "silicon": 5,
+                            "silicon": 3,
                             "energy": 2,
                         },
                         output_resources={"heart": 1},
@@ -190,13 +190,14 @@ class OxygenBottleneck(_EvalMissionBase):
     name: str = "oxygen_bottleneck"
     description: str = "Oxygen paces assembly; batch other resources."
     map_name: str = "evals/eval_oxygen_bottleneck.map"
-    oxygen_eff: int = 50
-    energy_regen: int = 1
+    charger_eff: int = 130
+    oxygen_eff: int = 60
+    energy_regen: int = 2
     max_uses_charger: int = 0
-    max_uses_carbon: int = 100
-    max_uses_oxygen: int = 20
-    max_uses_germanium: int = 10
-    max_uses_silicon: int = 100
+    max_uses_carbon: int = 120
+    max_uses_oxygen: int = 30
+    max_uses_germanium: int = 15
+    max_uses_silicon: int = 120
     site: Site = EVALS
 
 
@@ -204,7 +205,11 @@ class EnergyStarved(_EvalMissionBase):
     name: str = "energy_starved"
     description: str = "Low regen; requires careful charging and routing."
     map_name: str = "evals/eval_energy_starved.map"
-    charger_eff: int = 80
+    charger_eff: int = 90
+    carbon_eff: int = 125
+    oxygen_eff: int = 115
+    germanium_eff: int = 100
+    silicon_eff: int = 125
     energy_regen: int = 1
     inventory_regen_interval: int = 2
     max_uses_charger: int = 0
@@ -219,30 +224,50 @@ class ExtractorHub30(_EvalMissionBase):
     name: str = "extractor_hub_30"
     description: str = "Small 30x30 extractor hub."
     map_name: str = "evals/extractor_hub_30x30.map"
+    energy_regen: int = 2
+    charger_eff: int = 125
+    germanium_eff: int = 90
+    max_uses_germanium: int = 0
 
 
 class ExtractorHub50(_EvalMissionBase):
     name: str = "extractor_hub_50"
     description: str = "Medium 50x50 extractor hub."
     map_name: str = "evals/extractor_hub_50x50.map"
+    energy_regen: int = 2
+    charger_eff: int = 125
+    germanium_eff: int = 90
+    max_uses_germanium: int = 0
 
 
 class ExtractorHub70(_EvalMissionBase):
     name: str = "extractor_hub_70"
     description: str = "Large 70x70 extractor hub."
     map_name: str = "evals/extractor_hub_70x70.map"
+    energy_regen: int = 2
+    charger_eff: int = 130
+    germanium_eff: int = 95
+    max_uses_germanium: int = 0
 
 
 class ExtractorHub80(_EvalMissionBase):
     name: str = "extractor_hub_80"
     description: str = "Large 80x80 extractor hub."
     map_name: str = "evals/extractor_hub_80x80.map"
+    energy_regen: int = 2
+    charger_eff: int = 135
+    germanium_eff: int = 95
+    max_uses_germanium: int = 0
 
 
 class ExtractorHub100(_EvalMissionBase):
     name: str = "extractor_hub_100"
     description: str = "Extra large 100x100 extractor hub."
     map_name: str = "evals/extractor_hub_100x100.map"
+    energy_regen: int = 2
+    charger_eff: int = 140
+    germanium_eff: int = 100
+    max_uses_germanium: int = 0
 
 
 # -----------------------------m
@@ -254,36 +279,96 @@ class CollectResourcesBase(_EvalMissionBase):
     name: str = "collect_resources_base"
     description: str = "Collect resources (near base), rally and chorus glyph; single carrier deposits."
     map_name: str = "evals/eval_collect_resources_easy.map"
+    energy_regen: int = 3
+    charger_eff: int = 140
+    carbon_eff: int = 130
+    oxygen_eff: int = 125
+    germanium_eff: int = 95
+    silicon_eff: int = 130
+    max_uses_germanium: int = 0
+    max_uses_silicon: int = 0
+    max_uses_carbon: int = 0
+    max_uses_oxygen: int = 0
 
 
 class CollectResourcesClassic(_EvalMissionBase):
     name: str = "collect_resources_classic"
     description: str = "Collect resources on the classic layout; balanced routing near base."
     map_name: str = "evals/eval_collect_resources.map"
+    energy_regen: int = 2
+    charger_eff: int = 130
+    carbon_eff: int = 125
+    oxygen_eff: int = 115
+    germanium_eff: int = 90
+    silicon_eff: int = 125
+    max_uses_germanium: int = 0
+    max_uses_silicon: int = 0
+    max_uses_carbon: int = 0
+    max_uses_oxygen: int = 0
 
 
 class CollectResourcesSpread(_EvalMissionBase):
     name: str = "collect_resources_spread"
     description: str = "Collect resources (scattered nearby), rally and chorus glyph at assembler."
     map_name: str = "evals/eval_collect_resources_medium.map"
+    energy_regen: int = 2
+    charger_eff: int = 135
+    carbon_eff: int = 130
+    oxygen_eff: int = 120
+    germanium_eff: int = 95
+    silicon_eff: int = 130
+    max_uses_germanium: int = 0
+    max_uses_silicon: int = 0
+    max_uses_carbon: int = 0
+    max_uses_oxygen: int = 0
 
 
 class CollectFar(_EvalMissionBase):
     name: str = "collect_far"
     description: str = "Collect resources scattered far; coordinate routes, chorus glyph, single carrier deposits."
     map_name: str = "evals/eval_collect_resources_hard.map"
+    energy_regen: int = 2
+    charger_eff: int = 135
+    carbon_eff: int = 130
+    oxygen_eff: int = 120
+    germanium_eff: int = 100
+    silicon_eff: int = 135
+    max_uses_germanium: int = 20
+    max_uses_silicon: int = 25
+    max_uses_carbon: int = 40
+    max_uses_oxygen: int = 30
 
 
 class DivideAndConquer(_EvalMissionBase):
     name: str = "divide_and_conquer"
     description: str = "Resources split by regions; specialize per resource and reconvene at base."
     map_name: str = "evals/eval_divide_and_conquer.map"
+    energy_regen: int = 2
+    charger_eff: int = 130
+    carbon_eff: int = 125
+    oxygen_eff: int = 120
+    germanium_eff: int = 95
+    silicon_eff: int = 130
+    max_uses_germanium: int = 10
+    max_uses_silicon: int = 15
+    max_uses_carbon: int = 25
+    max_uses_oxygen: int = 20
 
 
 class GoTogether(_EvalMissionBase):
     name: str = "go_together"
     description: str = "Objects favor collective glyphing; travel and return as a pack."
     map_name: str = "evals/eval_balanced_spread.map"
+    energy_regen: int = 2
+    charger_eff: int = 140
+    carbon_eff: int = 130
+    oxygen_eff: int = 125
+    germanium_eff: int = 100
+    silicon_eff: int = 135
+    max_uses_germanium: int = 10
+    max_uses_silicon: int = 20
+    max_uses_carbon: int = 30
+    max_uses_oxygen: int = 25
 
     def instantiate(
         self, map_builder: MapBuilderConfig, num_cogs: int, variant: MissionVariant | None = None, **kwargs
@@ -297,6 +382,12 @@ class SingleUseSwarm(_EvalMissionBase):
     name: str = "single_use_swarm"
     description: str = "Multi-agent variant of SingleUseWorld; stations max_uses=1, team must fan out and reconverge."
     map_name: str = "evals/eval_single_use_world.map"
+    energy_regen: int = 2
+    charger_eff: int = 140
+    carbon_eff: int = 130
+    oxygen_eff: int = 125
+    germanium_eff: int = 105
+    silicon_eff: int = 135
     max_uses_charger: int = 0
     max_uses_carbon: int = 1
     max_uses_oxygen: int = 1
@@ -321,6 +412,12 @@ class ClipOxygen(_EvalMissionBase):
     description: str = "Oxygen extractor starts clipped; unclip via gear crafted from carbon/silicon/germanium."
     map_name: str = "evals/eval_clip_oxygen.map"
     clip_rate: float = 0.0
+    energy_regen: int = 2
+    charger_eff: int = 135
+    carbon_eff: int = 130
+    oxygen_eff: int = 110
+    germanium_eff: int = 100
+    silicon_eff: int = 130
 
     def instantiate(
         self, map_builder: MapBuilderConfig, num_cogs: int, variant: MissionVariant | None = None

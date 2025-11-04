@@ -4,7 +4,7 @@ import logging
 from collections import deque
 from dataclasses import dataclass
 from heapq import heappop, heappush
-from typing import Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 
 logger = logging.getLogger(__name__)
 
@@ -16,6 +16,7 @@ class NavigationResult:
     next_step: Optional[Tuple[int, int]]  # Next cell to move to (or None if stuck)
     is_adjacent: bool  # True if target is adjacent (ready to use)
     method: str  # "adjacent", "astar", "bfs", "greedy", "stuck"
+    path: Optional[Tuple[Tuple[int, int], ...]] = None  # Full path including start and destination
 
 
 class Navigator:
@@ -61,7 +62,12 @@ class Navigator:
         # Adjacent - ready to move into target (extractors/stations require moving INTO them)
         if dist == 1:
             logger.info(f"[Navigator] Distance=1: {start}→{target}, returning is_adjacent=True")
-            return NavigationResult(next_step=target, is_adjacent=True, method="adjacent")
+            return NavigationResult(
+                next_step=target,
+                is_adjacent=True,
+                method="adjacent",
+                path=(start, target),
+            )
 
         # If target is an obstacle (station/extractor/wall), pathfind to adjacent cells instead
         # This is crucial because BFS/A* can't pathfind TO an obstacle
@@ -89,15 +95,25 @@ class Navigator:
             for adj_target in adjacent_cells:
                 if use_astar and dist >= astar_threshold:
                     logger.debug(f"[Navigator] Using A* for {start}→{adj_target} (adjacent to {target})")
-                    next_step = self._astar(start, adj_target, occupancy_map, optimistic)
-                    if next_step:
-                        return NavigationResult(next_step=next_step, is_adjacent=False, method="astar")
+                    path = self._astar(start, adj_target, occupancy_map, optimistic)
+                    if path:
+                        return NavigationResult(
+                            next_step=path[1] if len(path) > 1 else None,
+                            is_adjacent=False,
+                            method="astar",
+                            path=tuple(path),
+                        )
                     logger.debug(f"[Navigator] A* failed for {start}→{adj_target}")
                 else:
                     logger.debug(f"[Navigator] Using BFS for {start}→{adj_target} (adjacent to {target})")
-                    next_step = self._bfs(start, adj_target, occupancy_map, optimistic)
-                    if next_step:
-                        return NavigationResult(next_step=next_step, is_adjacent=False, method="bfs")
+                    path = self._bfs(start, adj_target, occupancy_map, optimistic)
+                    if path:
+                        return NavigationResult(
+                            next_step=path[1] if len(path) > 1 else None,
+                            is_adjacent=False,
+                            method="bfs",
+                            path=tuple(path),
+                        )
                     logger.debug(f"[Navigator] BFS failed for {start}→{adj_target}")
 
             logger.warning(
@@ -107,26 +123,41 @@ class Navigator:
             # Target is walkable - path directly to it
             if use_astar and dist >= astar_threshold:
                 logger.debug(f"[Navigator] Using A* for {start}→{target} (dist={dist} >= {astar_threshold})")
-                next_step = self._astar(start, target, occupancy_map, optimistic)
-                if next_step:
-                    return NavigationResult(next_step=next_step, is_adjacent=False, method="astar")
+                path = self._astar(start, target, occupancy_map, optimistic)
+                if path:
+                    return NavigationResult(
+                        next_step=path[1] if len(path) > 1 else None,
+                        is_adjacent=False,
+                        method="astar",
+                        path=tuple(path),
+                    )
                 logger.debug("[Navigator] A* failed, trying greedy")
             else:
                 logger.debug(f"[Navigator] Using BFS for {start}→{target} (dist={dist} < {astar_threshold})")
-                next_step = self._bfs(start, target, occupancy_map, optimistic)
-                if next_step:
-                    return NavigationResult(next_step=next_step, is_adjacent=False, method="bfs")
+                path = self._bfs(start, target, occupancy_map, optimistic)
+                if path:
+                    return NavigationResult(
+                        next_step=path[1] if len(path) > 1 else None,
+                        is_adjacent=False,
+                        method="bfs",
+                        path=tuple(path),
+                    )
                 logger.debug("[Navigator] BFS failed, trying greedy")
 
         # Pathfinding failed - try greedy movement
         next_step = self._greedy_step(start, target, occupancy_map, optimistic)
         if next_step:
             logger.debug(f"[Navigator] Greedy succeeded: {start}→{next_step} toward {target}")
-            return NavigationResult(next_step=next_step, is_adjacent=False, method="greedy")
+            return NavigationResult(
+                next_step=next_step,
+                is_adjacent=False,
+                method="greedy",
+                path=(start, next_step),
+            )
 
         # Completely stuck
         logger.warning(f"[Navigator] STUCK at {start}, cannot reach {target} (dist={dist})")
-        return NavigationResult(next_step=None, is_adjacent=False, method="stuck")
+        return NavigationResult(next_step=None, is_adjacent=False, method="stuck", path=None)
 
     def _is_walkable(self, r: int, c: int, occupancy_map: list, optimistic: bool) -> bool:
         """Check if a cell is walkable (not OBSTACLE)."""
@@ -146,105 +177,90 @@ class Navigator:
 
     def _bfs(
         self, start: Tuple[int, int], goal: Tuple[int, int], occupancy_map: list, optimistic: bool
-    ) -> Optional[Tuple[int, int]]:
-        """BFS pathfinding - returns first step toward goal."""
+    ) -> Optional[List[Tuple[int, int]]]:
+        """BFS pathfinding - returns complete path from start to goal."""
         if start == goal:
-            return None
+            return [start]
 
-        visited = {start}
-        queue = deque([(start, [start])])  # (position, path)
+        parent: Dict[Tuple[int, int], Optional[Tuple[int, int]]] = {start: None}
+        queue = deque([start])
         max_iterations = self.height * self.width  # Safety limit
         iterations = 0
 
         while queue and iterations < max_iterations:
             iterations += 1
-            (r, c), path = queue.popleft()
+            r, c = queue.popleft()
 
-            # Check neighbors
             for nr, nc in self._neighbors4(r, c):
-                if (nr, nc) in visited:
+                if (nr, nc) in parent:
                     continue
                 if not self._is_walkable(nr, nc, occupancy_map, optimistic):
                     continue
 
-                visited.add((nr, nc))
-                new_path = path + [(nr, nc)]
+                parent[(nr, nc)] = (r, c)
 
-                # Found goal!
                 if (nr, nc) == goal:
-                    # Return first step (index 1, since path[0] is start)
-                    first_step = new_path[1] if len(new_path) > 1 else goal
-                    logger.debug(
-                        f"[BFS] Found path {start}→{goal}: "
-                        f"length={len(new_path)}, first_step={first_step}, visited={len(visited)} cells"
-                    )
-                    return first_step
+                    path = self._reconstruct_path(parent, goal)
+                    logger.debug(f"[BFS] Found path {start}→{goal}: length={len(path)}, visited={len(parent)} cells")
+                    return path
 
-                queue.append(((nr, nc), new_path))
+                queue.append((nr, nc))
 
         # No path found
         if iterations >= max_iterations:
             logger.warning(f"[BFS] Hit iteration limit searching {start}→{goal}")
         else:
             logger.debug(
-                f"[BFS] No path {start}→{goal}: visited={len(visited)} cells, "
+                f"[BFS] No path {start}→{goal}: visited={len(parent)} cells, "
                 f"opt={optimistic}, queue_empty={len(queue) == 0}"
             )
         return None
 
     def _astar(
         self, start: Tuple[int, int], goal: Tuple[int, int], occupancy_map: list, optimistic: bool
-    ) -> Optional[Tuple[int, int]]:
-        """A* pathfinding - returns first step toward goal."""
+    ) -> Optional[List[Tuple[int, int]]]:
+        """A* pathfinding - returns complete path from start to goal."""
         if start == goal:
-            return None
+            return [start]
 
         def heuristic(pos: Tuple[int, int]) -> int:
             return abs(pos[0] - goal[0]) + abs(pos[1] - goal[1])
 
-        # Priority queue: (f_score, g_score, position, path)
-        heap = [(heuristic(start), 0, start, [start])]
-        visited = {start: 0}  # position -> best g_score
+        heap = [(heuristic(start), 0, start)]  # (f_score, g_score, position)
+        parent: Dict[Tuple[int, int], Optional[Tuple[int, int]]] = {start: None}
+        g_score: Dict[Tuple[int, int], int] = {start: 0}
         max_iterations = self.height * self.width
         iterations = 0
 
         while heap and iterations < max_iterations:
             iterations += 1
-            f_score, g_score, (r, c), path = heappop(heap)
+            f_score, g, current = heappop(heap)
 
-            # Skip if we found a better path already
-            if (r, c) in visited and visited[(r, c)] < g_score:
+            if current == goal:
+                path = self._reconstruct_path(parent, goal)
+                logger.debug(f"[A*] Found path {start}→{goal}: length={len(path)}, visited={len(parent)} cells")
+                return path
+
+            if g > g_score.get(current, float("inf")):
                 continue
 
-            # Check neighbors
+            r, c = current
             for nr, nc in self._neighbors4(r, c):
                 if not self._is_walkable(nr, nc, occupancy_map, optimistic):
                     continue
 
-                new_g = g_score + 1
-                new_path = path + [(nr, nc)]
-
-                # Found goal!
-                if (nr, nc) == goal:
-                    first_step = new_path[1] if len(new_path) > 1 else goal
-                    logger.debug(
-                        f"[A*] Found path {start}→{goal}: "
-                        f"length={len(new_path)}, first_step={first_step}, visited={len(visited)} cells"
-                    )
-                    return first_step
-
-                # Only add if better than previous path
-                if (nr, nc) not in visited or new_g < visited[(nr, nc)]:
-                    visited[(nr, nc)] = new_g
-                    new_f = new_g + heuristic((nr, nc))
-                    heappush(heap, (new_f, new_g, (nr, nc), new_path))
+                tentative_g = g + 1
+                if tentative_g < g_score.get((nr, nc), float("inf")):
+                    parent[(nr, nc)] = current
+                    g_score[(nr, nc)] = tentative_g
+                    heappush(heap, (tentative_g + heuristic((nr, nc)), tentative_g, (nr, nc)))
 
         # No path found
         if iterations >= max_iterations:
             logger.warning(f"[A*] Hit iteration limit searching {start}→{goal}")
         else:
             logger.debug(
-                f"[A*] No path {start}→{goal}: visited={len(visited)} cells, "
+                f"[A*] No path {start}→{goal}: visited={len(parent)} cells, "
                 f"opt={optimistic}, heap_empty={len(heap) == 0}"
             )
         return None
@@ -309,3 +325,17 @@ class Navigator:
             )
 
         return best_step
+
+    def _reconstruct_path(
+        self, parent: Dict[Tuple[int, int], Optional[Tuple[int, int]]], goal: Tuple[int, int]
+    ) -> List[Tuple[int, int]]:
+        path = [goal]
+        node = goal
+        while True:
+            prev = parent.get(node)
+            if prev is None:
+                break
+            path.append(prev)
+            node = prev
+        path.reverse()
+        return path

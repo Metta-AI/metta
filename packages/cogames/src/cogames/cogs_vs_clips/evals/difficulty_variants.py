@@ -26,30 +26,32 @@ RESOURCE_KEYS = ("carbon", "oxygen", "germanium", "silicon")
 # Solvability floors (non-breaking; keep extreme playable)
 EFFICIENCY_FLOOR = 10
 CHARGER_EFFICIENCY_FLOOR = 50
-ENERGY_REGEN_FLOOR = 1  # applied only when nonzero
+# Allow zero to persist for difficulties that force no passive regen
+ENERGY_REGEN_FLOOR = 0
 
 
 class DifficultyLevel(BaseModel):
     """Configuration for a difficulty level."""
 
-    name: str = Field(description="Difficulty name (easy, medium, hard, extreme)")
+    name: str = Field(description="Difficulty name (easy, medium, hard, brutal, etc.)")
     description: str = Field(description="What makes this difficulty challenging")
+    allow_agent_scaling: bool = Field(default=True, description="Whether agent-count scaling helpers should run")
 
     # Extractor max_uses multipliers (relative to mission baseline)
-    carbon_max_uses_mult: float = Field(default=1.0, description="Carbon max_uses multiplier")
-    oxygen_max_uses_mult: float = Field(default=1.0, description="Oxygen max_uses multiplier")
-    germanium_max_uses_mult: float = Field(default=1.0, description="Germanium max_uses multiplier")
-    silicon_max_uses_mult: float = Field(default=1.0, description="Silicon max_uses multiplier")
+    carbon_max_uses_mult: float = Field(default=1.0)
+    oxygen_max_uses_mult: float = Field(default=1.0)
+    germanium_max_uses_mult: float = Field(default=1.0)
+    silicon_max_uses_mult: float = Field(default=1.0)
 
     # Extractor efficiency multipliers (relative to mission baseline)
-    carbon_eff_mult: float = Field(default=1.0, description="Carbon efficiency multiplier")
-    oxygen_eff_mult: float = Field(default=1.0, description="Oxygen efficiency multiplier")
-    germanium_eff_mult: float = Field(default=1.0, description="Germanium efficiency multiplier")
-    silicon_eff_mult: float = Field(default=1.0, description="Silicon efficiency multiplier")
-    charger_eff_mult: float = Field(default=1.0, description="Charger efficiency multiplier")
+    carbon_eff_mult: float = Field(default=1.0)
+    oxygen_eff_mult: float = Field(default=1.0)
+    germanium_eff_mult: float = Field(default=1.0)
+    silicon_eff_mult: float = Field(default=1.0)
+    charger_eff_mult: float = Field(default=1.0)
 
     # Energy regen multiplier (relative to mission baseline)
-    energy_regen_mult: float = Field(default=1.0, description="Energy regen multiplier")
+    energy_regen_mult: float = Field(default=1.0)
 
     # Absolute overrides (if set, ignore multipliers)
     carbon_max_uses_override: int | None = Field(default=None)
@@ -64,138 +66,109 @@ class DifficultyLevel(BaseModel):
     charger_eff_override: int | None = Field(default=None)
 
     energy_regen_override: int | None = Field(default=None)
+    move_energy_cost_override: int | None = Field(default=None)
+    energy_capacity_override: int | None = Field(default=None)
+    cargo_capacity_override: int | None = Field(default=None)
+    max_steps_override: int | None = Field(default=None)
 
 
 # =============================================================================
 # Standard Difficulty Levels
 # =============================================================================
 
-EASY = DifficultyLevel(
-    name="easy",
-    description="Abundant resources, high efficiency, good energy regen - learn the basics",
-    # High max_uses - can reuse extractors many times
-    carbon_max_uses_mult=2.0,
-    oxygen_max_uses_mult=2.0,
-    germanium_max_uses_mult=2.0,
-    silicon_max_uses_mult=2.0,
-    # High efficiency - gather resources quickly
-    carbon_eff_mult=1.5,
-    oxygen_eff_mult=1.5,
-    germanium_eff_mult=1.5,
-    silicon_eff_mult=1.5,
-    charger_eff_mult=1.5,
-    # Good energy regen
-    energy_regen_mult=1.5,
+STORY_MODE = DifficultyLevel(
+    name="story_mode",
+    description="Abundant energy/resource output so scripted agents can clear missions reliably",
+    carbon_max_uses_override=12,
+    oxygen_max_uses_override=12,
+    germanium_max_uses_override=12,
+    silicon_max_uses_override=12,
+    carbon_eff_override=140,
+    oxygen_eff_override=140,
+    germanium_eff_override=140,
+    silicon_eff_override=140,
+    charger_eff_override=150,
+    energy_regen_override=2,
+    allow_agent_scaling=False,
 )
 
-MEDIUM = DifficultyLevel(
-    name="medium",
-    description="Standard difficulty - balanced resources and efficiency",
-    # Standard multipliers (1.0 = use mission baseline)
-    carbon_max_uses_mult=1.0,
-    oxygen_max_uses_mult=1.0,
-    germanium_max_uses_mult=1.0,
-    silicon_max_uses_mult=1.0,
-    carbon_eff_mult=1.0,
-    oxygen_eff_mult=1.0,
-    germanium_eff_mult=1.0,
-    silicon_eff_mult=1.0,
-    charger_eff_mult=1.0,
-    energy_regen_mult=1.0,
+STANDARD = DifficultyLevel(
+    name="standard",
+    description="Baseline mission parameters (legacy medium)",
 )
 
 HARD = DifficultyLevel(
     name="hard",
-    description="Scarce resources, lower efficiency - must explore and adapt",
-    # Moderate max_uses - extractors WILL deplete, agent MUST find multiple sources
-    carbon_max_uses_mult=0.65,  # Forces finding 2+ extractors
-    oxygen_max_uses_mult=0.65,
-    germanium_max_uses_mult=0.75,  # Germanium slightly more generous (always scarce)
-    silicon_max_uses_mult=0.65,
-    # Lower efficiency - gathering is slower, rewards efficient extractors
-    carbon_eff_mult=0.80,
-    oxygen_eff_mult=0.80,
-    germanium_eff_mult=0.80,
-    silicon_eff_mult=0.80,
-    charger_eff_mult=0.80,
-    # Lower energy regen - energy management matters
-    energy_regen_mult=0.80,
+    description="Tight extractor budgets and no passive regen",
+    carbon_max_uses_override=4,
+    oxygen_max_uses_override=4,
+    germanium_max_uses_override=6,
+    silicon_max_uses_override=3,
+    carbon_eff_override=80,
+    oxygen_eff_override=65,
+    germanium_eff_override=75,
+    silicon_eff_override=70,
+    charger_eff_override=80,
+    energy_regen_override=0,
+    move_energy_cost_override=3,
+    allow_agent_scaling=False,
 )
 
-EXTREME = DifficultyLevel(
-    name="extreme",
-    description="Brutal scarcity, minimal efficiency - perfect play required",
-    # Low max_uses - agent MUST find ALL extractors and use them optimally
-    carbon_max_uses_mult=0.45,  # Very tight budget
-    oxygen_max_uses_mult=0.45,
-    germanium_max_uses_mult=0.55,  # Germanium slightly more generous
-    silicon_max_uses_mult=0.45,
-    # Low efficiency - every extraction counts, efficiency tracking critical
-    carbon_eff_mult=0.65,
-    oxygen_eff_mult=0.65,
-    germanium_eff_mult=0.65,
-    silicon_eff_mult=0.65,
-    charger_eff_mult=0.70,
-    # Low energy regen - strategic energy management required
-    energy_regen_mult=0.65,
+BRUTAL = DifficultyLevel(
+    name="brutal",
+    description="Extreme scarcity, reduced inventories, perfection required",
+    carbon_max_uses_override=2,
+    oxygen_max_uses_override=2,
+    germanium_max_uses_override=3,
+    silicon_max_uses_override=2,
+    carbon_eff_override=55,
+    oxygen_eff_override=45,
+    germanium_eff_override=50,
+    silicon_eff_override=50,
+    charger_eff_override=60,
+    energy_regen_override=0,
+    move_energy_cost_override=3,
+    energy_capacity_override=70,
+    cargo_capacity_override=80,
+    allow_agent_scaling=False,
 )
 
-# Special difficulty: Forces single-use behavior
 SINGLE_USE = DifficultyLevel(
     name="single_use",
     description="Every extractor can be used exactly once - no second chances",
-    # Override all max_uses to 1
     carbon_max_uses_override=1,
     oxygen_max_uses_override=1,
     germanium_max_uses_override=1,
     silicon_max_uses_override=1,
-    # Standard efficiency
-    carbon_eff_mult=1.0,
-    oxygen_eff_mult=1.0,
-    germanium_eff_mult=1.0,
-    silicon_eff_mult=1.0,
-    charger_eff_mult=1.0,
-    # Standard energy regen
-    energy_regen_mult=1.0,
+    charger_eff_override=120,
+    energy_regen_override=1,
+    allow_agent_scaling=False,
 )
 
-# Special difficulty: High efficiency but very limited uses
 SPEED_RUN = DifficultyLevel(
     name="speed_run",
-    description="High efficiency but very limited uses - optimize routing",
-    # Very low max_uses
-    carbon_max_uses_mult=0.2,
-    oxygen_max_uses_mult=0.2,
-    germanium_max_uses_mult=0.3,
-    silicon_max_uses_mult=0.2,
-    # High efficiency - gather quickly
-    carbon_eff_mult=2.0,
-    oxygen_eff_mult=2.0,
-    germanium_eff_mult=2.0,
-    silicon_eff_mult=2.0,
-    charger_eff_mult=2.0,
-    # High energy regen - focus on routing, not energy
-    energy_regen_mult=2.0,
+    description="Short clock, cheap movement, efficient extraction",
+    carbon_max_uses_override=6,
+    oxygen_max_uses_override=6,
+    germanium_max_uses_override=6,
+    silicon_max_uses_override=6,
+    carbon_eff_override=160,
+    oxygen_eff_override=160,
+    germanium_eff_override=160,
+    silicon_eff_override=160,
+    charger_eff_override=160,
+    energy_regen_override=2,
+    move_energy_cost_override=1,
+    max_steps_override=600,
+    allow_agent_scaling=True,
 )
 
-# Special difficulty: Energy crisis
 ENERGY_CRISIS = DifficultyLevel(
     name="energy_crisis",
-    description="Zero energy regen, limited charger efficiency - plan every move",
-    # Standard max_uses
-    carbon_max_uses_mult=1.0,
-    oxygen_max_uses_mult=1.0,
-    germanium_max_uses_mult=1.0,
-    silicon_max_uses_mult=1.0,
-    # Standard resource efficiency
-    carbon_eff_mult=1.0,
-    oxygen_eff_mult=1.0,
-    germanium_eff_mult=1.0,
-    silicon_eff_mult=1.0,
-    # Low charger efficiency
-    charger_eff_mult=0.6,
-    # ZERO energy regen!
+    description="Zero passive regen and weak chargers - plan every move",
+    charger_eff_override=50,
     energy_regen_override=0,
+    allow_agent_scaling=False,
 )
 
 
@@ -203,17 +176,46 @@ ENERGY_CRISIS = DifficultyLevel(
 # Difficulty Registry
 # =============================================================================
 
+CANONICAL_DIFFICULTY_ORDER = [
+    "story_mode",
+    "standard",
+    "hard",
+    "brutal",
+    "single_use",
+    "speed_run",
+    "energy_crisis",
+]
+
 DIFFICULTY_LEVELS: dict[str, DifficultyLevel] = {
-    "easy": EASY,
-    "medium": MEDIUM,
+    "story_mode": STORY_MODE,
+    "standard": STANDARD,
     "hard": HARD,
-    "extreme": EXTREME,
+    "brutal": BRUTAL,
     "single_use": SINGLE_USE,
     "speed_run": SPEED_RUN,
     "energy_crisis": ENERGY_CRISIS,
 }
 
-DifficultyName = Literal["easy", "medium", "hard", "extreme", "single_use", "speed_run", "energy_crisis"]
+# Legacy aliases for backwards compatibility
+_ALIAS_MAP = {
+    "easy": "story_mode",
+    "medium": "standard",
+    "extreme": "brutal",
+}
+DIFFICULTY_LEVELS.update({alias: DIFFICULTY_LEVELS[target] for alias, target in _ALIAS_MAP.items()})
+
+DifficultyName = Literal[
+    "story_mode",
+    "standard",
+    "hard",
+    "brutal",
+    "single_use",
+    "speed_run",
+    "energy_crisis",
+    "easy",
+    "medium",
+    "extreme",
+]
 
 
 def get_difficulty(name: DifficultyName) -> DifficultyLevel:
@@ -274,6 +276,27 @@ def apply_difficulty(
         mission.energy_regen_amount = difficulty.energy_regen_override
     else:
         mission.energy_regen_amount = max(0, int(mission.energy_regen_amount * difficulty.energy_regen_mult))
+
+    # Mission-level overrides
+    if difficulty.move_energy_cost_override is not None:
+        mission.move_energy_cost = difficulty.move_energy_cost_override
+    if difficulty.energy_capacity_override is not None:
+        mission.energy_capacity = difficulty.energy_capacity_override
+    if difficulty.cargo_capacity_override is not None:
+        mission.cargo_capacity = difficulty.cargo_capacity_override
+    if difficulty.max_steps_override is not None:
+        try:
+            from cogames.cogs_vs_clips.missions import _add_make_env_modifier
+
+            def _override_max_steps(cfg):
+                cfg.game.max_steps = difficulty.max_steps_override
+
+            _add_make_env_modifier(mission, _override_max_steps)
+        except Exception:
+            pass
+
+    if not difficulty.allow_agent_scaling:
+        return
 
     # Post-build agent-aware scaling and solvability floors
     # - Scale extractor max_uses roughly with num_agents
