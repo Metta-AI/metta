@@ -17,10 +17,8 @@ serviceAccount:
   name: ""  # Will use release name if not specified
   annotations: {}
 
-# RBAC configuration (disabled by default, enable for cronjobs that need K8s API access)
-rbac:
-  enabled: false
-  rules: []
+# Note: RBAC is always enabled for all cronjobs (see templates/rbac.yaml)
+# All cronjobs get broad read-only cluster permissions for simplicity.
 
 # Datadog metric tagging
 datadog:

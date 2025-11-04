@@ -158,6 +158,9 @@ releases:
 
   ########## Cronjobs ##########
   # Shared cronjob template for all periodic tasks
+  # All cronjobs get broad read-only cluster permissions (see cronjob/templates/rbac.yaml).
+  # We value simplicity over fine-grained security - some cronjobs get more access than needed.
+  #
   # To add a new cronjob:
   #   1. Create Dockerfile.{name} in devops/charts/cronjob/
   #   2. Add release entry below using <<: *cronjob_template
@@ -166,20 +169,6 @@ releases:
     chart: ./cronjob
     version: 0.1.0
     namespace: monitoring
-    values:
-      # Default RBAC permissions for all cronjobs (broad access for simplicity)
-      - rbac:
-          enabled: true
-          rules:
-            - apiGroups: [""]
-              resources: ["pods", "nodes", "services", "endpoints"]
-              verbs: ["get", "list", "watch"]
-            - apiGroups: ["batch"]
-              resources: ["jobs", "cronjobs"]
-              verbs: ["get", "list", "watch"]
-            - apiGroups: ["apps"]
-              resources: ["deployments", "statefulsets"]
-              verbs: ["get", "list", "watch"]
 
   - name: pr-similarity-cache-cronjob
     <<: *cronjob_template
@@ -190,8 +179,6 @@ releases:
       - serviceAccount:
           annotations:
             eks.amazonaws.com/role-arn: arn:aws:iam::751442549699:role/pr-similarity-cache-cronjob
-      - rbac:
-          enabled: false  # No k8s API access needed, only AWS S3 via IAM role
       - datadog:
           service: pr-similarity-cache-refresh
 
