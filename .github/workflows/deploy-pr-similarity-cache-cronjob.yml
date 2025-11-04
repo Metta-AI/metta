@@ -1,4 +1,4 @@
-name: "Build Dashboard CronJob Docker Image"
+name: "Deploy PR Similarity Cache CronJob"
 concurrency:
   group: ${{ github.workflow }}
   cancel-in-progress: true
@@ -8,10 +8,10 @@ on:
     branches:
       - main
     paths:
-      - "devops/datadog/**"
+      - "mcp_servers/pr_similarity/**"
       - "packages/gitta/**"
-      - "devops/charts/dashboard-cronjob/**"
-      - ".github/workflows/build-dashboard-image.yml"
+      - "devops/charts/cronjob/**"
+      - ".github/workflows/deploy-pr-similarity-cache-cronjob.yml"
   workflow_dispatch:
     inputs:
       branch:
@@ -38,8 +38,8 @@ jobs:
         id: build-image
         uses: ./.github/actions/docker-build
         with:
-          image_name: softmax-dashboard
-          dockerfile: ./devops/datadog/Dockerfile.collectors
+          image_name: pr-similarity-cache
+          dockerfile: ./devops/charts/cronjob/Dockerfile.pr-similarity
           aws_role: ${{ vars.AWS_ROLE }}
 
       - name: Configure EKS
@@ -51,6 +51,6 @@ jobs:
         uses: ./.github/actions/helm-deploy
         with:
           namespace: monitoring
-          release: dashboard-cronjob
-          chart: ./devops/charts/dashboard-cronjob
+          release: pr-similarity-cache-cronjob
+          chart: ./devops/charts/cronjob
           image_tag: ${{ steps.build-image.outputs.tag }}
