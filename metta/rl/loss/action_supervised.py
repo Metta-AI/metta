@@ -103,7 +103,6 @@ class ActionSupervised(Loss):
 
         if self.student_led:
             spec["values"] = scalar_f32
-            spec["act_log_prob"] = scalar_f32
 
         return spec
 
