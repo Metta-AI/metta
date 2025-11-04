@@ -91,9 +91,8 @@ class CoreTrainingLoop:
         while not self.experience.ready_for_training:
             # Get observation from environment
             with context.stopwatch("_rollout.env_wait"):
-                o, r, d, t, info, training_env_id, _, num_steps = env.get_observations()
+                o, r, d, t, ta, info, training_env_id, _, num_steps = env.get_observations()
             last_env_id = training_env_id
-
             # Prepare data for policy
             with context.stopwatch("_rollout.td_prep"):
                 td = buffer_step[training_env_id].clone()

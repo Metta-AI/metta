@@ -258,7 +258,7 @@ class PuffeRL:
         self.full_rows = 0
         while self.full_rows < self.segments:
             profile("env", epoch)
-            o, r, d, t, info, env_id, mask = self.vecenv.recv()
+            o, r, d, t, ta, info, env_id, mask = self.vecenv.recv()
 
             profile("eval_misc", epoch)
             # TODO: Port to vecenv
