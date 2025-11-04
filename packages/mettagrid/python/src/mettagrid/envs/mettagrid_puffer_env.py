@@ -60,6 +60,7 @@ class Buffers:
     rewards: np.ndarray
     masks: np.ndarray
     actions: np.ndarray
+    teacher_actions: np.ndarray
 
 
 class MettaGridPufferEnv(PufferEnv):
@@ -90,6 +91,7 @@ class MettaGridPufferEnv(PufferEnv):
             rewards=np.zeros(policy_env_info.num_agents, dtype=dtype_rewards),
             masks=np.ones(policy_env_info.num_agents, dtype=dtype_masks),
             actions=np.zeros(policy_env_info.num_agents, dtype=dtype_actions),
+            teacher_actions=np.zeros(policy_env_info.num_agents, dtype=dtype_actions),
         )
 
         # Set observation and action spaces BEFORE calling super().__init__()
@@ -140,6 +142,7 @@ class MettaGridPufferEnv(PufferEnv):
         self._buffers.rewards[:] = 0.0
         self._buffers.terminals[:] = False
         self._buffers.truncations[:] = False
+        self._buffers.teacher_actions[:] = 0
 
     @override
     def reset(self, seed: Optional[int] = None) -> Tuple[np.ndarray, Dict[str, Any]]:
@@ -156,6 +159,7 @@ class MettaGridPufferEnv(PufferEnv):
 
         self._buffers.actions[:] = actions
         self._sim._c_sim.actions()[:] = actions
+        self._buffers.teacher_actions[:] = actions
         self._sim.step()
 
         return (
@@ -213,6 +217,14 @@ class MettaGridPufferEnv(PufferEnv):
     @actions.setter
     def actions(self, actions: np.ndarray) -> None:
         self._buffers.actions = actions
+
+    @property
+    def teacher_actions(self) -> np.ndarray:
+        return self._buffers.teacher_actions
+
+    @teacher_actions.setter
+    def teacher_actions(self, teacher_actions: np.ndarray) -> None:
+        self._buffers.teacher_actions = teacher_actions
 
     def close(self) -> None:
         """Close the environment."""
