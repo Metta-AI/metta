@@ -504,12 +504,6 @@ class HarvestMission(Mission):
         env.game.agent.rewards.inventory_max = {}
         env.game.agent.rewards.stats_max = {}
 
-        # When running on legacy ASCII maps, remove unused resource chests to mirror the original layout.
-        # Procedural hub builders rely on these object definitions, so only strip them for non-procedural maps.
-        if not isinstance(self.map, MapGen.Config):
-            for chest_name in ("chest_carbon", "chest_oxygen", "chest_germanium", "chest_silicon"):
-                env.game.objects.pop(chest_name, None)
-
         # Ensure that the extractors are configured to have high max uses
         for name in ("germanium_extractor", "carbon_extractor", "oxygen_extractor", "silicon_extractor"):
             cfg = env.game.objects[name]

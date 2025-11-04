@@ -176,25 +176,6 @@ class CvCChestConfig(CvCStationConfig):
         )
 
 
-# xcxc todo: these are all the same now. But maybe we want them to start with different amounts of resources?
-def _resource_chest(resource: str, type_id: int) -> ChestConfig:
-    return ChestConfig(
-        name=f"chest_{resource}",
-        type_id=type_id,
-        map_char="C",
-        render_symbol=vibes.VIBE_BY_NAME[resource].symbol,
-    )
-
-
-RESOURCE_CHESTS: dict[str, ChestConfig] = {
-    "chest_carbon": _resource_chest("carbon", 118),
-    "chest_oxygen": _resource_chest("oxygen", 119),
-    "chest_germanium": _resource_chest("germanium", 120),
-    "chest_silicon": _resource_chest("silicon", 121),
-    "chest_heart": _resource_chest("heart", 122),
-}
-
-
 class CvCAssemblerConfig(CvCStationConfig):
     type: Literal["assembler"] = Field(default="assembler")
     heart_cost: int = Field(default=10)
