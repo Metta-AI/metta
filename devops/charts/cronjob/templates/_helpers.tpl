@@ -20,9 +20,5 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end }}
 
 {{- define "cronjob.serviceAccountName" -}}
-{{- if .Values.serviceAccount.create -}}
-{{- include "cronjob.fullname" . }}
-{{- else -}}
 {{- .Values.serviceAccount.name | default (include "cronjob.fullname" .) }}
-{{- end -}}
 {{- end }}

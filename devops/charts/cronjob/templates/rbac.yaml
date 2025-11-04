@@ -1,4 +1,3 @@
-{{- if .Values.serviceAccount.create -}}
 # All cronjobs get broad read-only cluster permissions for simplicity.
 # Some cronjobs may not need all these permissions, but we value simplicity
 # over fine-grained security controls. This avoids per-cronjob RBAC config.
@@ -37,4 +36,3 @@ subjects:
   - kind: ServiceAccount
     name: {{ include "cronjob.serviceAccountName" . }}
     namespace: {{ .Release.Namespace }}
-{{- end }}
