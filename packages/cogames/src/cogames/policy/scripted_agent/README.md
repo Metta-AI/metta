@@ -1,193 +1,340 @@
-# Scripted Agent Policy
+# Scripted Agent Policies
 
-A sophisticated scripted agent implementation for CoGames that uses visual discovery, phase-based control, and adaptive strategies.
+Three baseline scripted agent implementations for CoGames evaluation and ablation studies.
+
+## Overview
+
+This package provides three progressively capable scripted agents:
+
+1. **SimpleBaselineAgent** - Core functionality: exploration, resource gathering, heart assembly
+2. **UnclippingAgent** - Extends baseline with extractor unclipping capability
+3. **CoordinatingAgent** - Adds multi-agent coordination for collision avoidance
 
 ## Architecture
 
-### Core Components
+### File Structure
 
-- **`agent.py`**: Main policy implementation with state management and action selection
-- **`phase_controller.py`**: Finite state machine for managing agent phases and transitions
-- **`navigator.py`**: Pathfinding utilities (BFS, A*, greedy fallback)
-- **`hyperparameters.py`**: Hyperparameter dataclass definition
-- **`hyperparameter_presets.py`**: Curated presets for different strategies
-
-### Key Features
-
-1. **Visual Discovery**: Agent discovers stations and extractors through observations (no global knowledge)
-2. **Phase-Based Control**: FSM with phases like GATHER_GERMANIUM, ASSEMBLE_HEART, RECHARGE, etc.
-3. **Extractor Memory**: Tracks discovered extractors, cooldowns, depletion, and efficiency
-4. **Adaptive Exploration**: Exploration duration scales with map size
-5. **Energy Management**: Dynamic recharge thresholds based on map size
-6. **Clipping Support**: Handles clipped extractors by crafting unclip items
-
-## Usage
-
-```python
-from cogames.policy.scripted_agent import ScriptedAgentPolicy, HYPERPARAMETER_PRESETS
-from mettagrid import MettaGridEnv
-
-# Create environment
-env = MettaGridEnv(env_config)
-
-# Create policy with preset
-policy = ScriptedAgentPolicy(env, hyperparams=HYPERPARAMETER_PRESETS['balanced'])
-
-# Run episode
-obs, info = env.reset()
-policy.reset(obs, info)
-agent_policy = policy.agent_policy(0)
-
-for step in range(max_steps):
-    action = agent_policy.step(obs[0])
-    obs, rewards, dones, truncated, info = env.step([action])
-    if dones[0]:
-        break
+```
+scripted_agent/
+├── simple_baseline_agent.py    # Base agent + SimpleBaselinePolicy wrapper
+├── unclipping_agent.py          # Unclipping extension + UnclippingPolicy wrapper
+├── coordinating_agent.py        # Coordination extension + CoordinatingPolicy wrapper
+├── navigator.py                 # Pathfinding utilities (shared)
+└── README.md                    # This file
 ```
 
-## Hyperparameter Presets
+Each agent file contains:
+- Agent class with core logic and state management
+- Policy wrapper classes at the bottom for CLI integration
 
-The agent includes 10 curated presets optimized for different scenarios:
+### Design Philosophy
 
-| Preset | Strategy | Best For |
-|--------|----------|----------|
-| `explorer_short` | Early exploration (50 steps) | Small maps, quick missions |
-| `explorer_long` | Extended exploration (200 steps) | Large maps, complex layouts |
-| `greedy_conservative` | Minimal exploration, early recharge | Energy-constrained missions |
-| `greedy_aggressive` | Minimal exploration, late recharge | Resource-rich missions |
-| `balanced` | Moderate exploration & recharge | General purpose |
-| `efficiency_learner` | Tracks extractor efficiency | Multi-extractor missions |
-| `sequential_simple` | Fixed gathering order | Predictable missions |
-| `patient_waiter` | Waits for cooldowns | High-cooldown extractors |
-| `quick_rotator` | Rotates between extractors | Low-cooldown extractors |
-| `depletion_aware` | Avoids low-resource extractors | Limited-use missions |
+These agents are designed for **ablation studies** and **baseline evaluation**:
+- Simple, readable implementations
+- No hyperparameter tuning
+- Clear separation of capabilities
+- Minimal dependencies
 
-## Phase System
+## Agents
 
-The agent operates in distinct phases managed by a finite state machine:
+### 1. SimpleBaselineAgent
 
-### Resource Gathering Phases
-- `GATHER_GERMANIUM`: Collect germanium (5 required)
-- `GATHER_SILICON`: Collect silicon (50 required)
-- `GATHER_CARBON`: Collect carbon (20 required)
-- `GATHER_OXYGEN`: Collect oxygen (20 required)
+**Purpose**: Minimal working agent for single-agent missions
 
-### Production Phases
-- `ASSEMBLE_HEART`: Craft heart at assembler
-- `DEPOSIT_HEART`: Deposit heart at chest
+**Capabilities**:
+- ✅ Visual discovery (explores to find stations and extractors)
+- ✅ Resource gathering (navigates to extractors, handles cooldowns)
+- ✅ Heart assembly (deposits resources at assembler)
+- ✅ Heart delivery (brings hearts to chest)
+- ✅ Energy management (recharges when low)
+- ✅ Extractor tracking (remembers positions, cooldowns, remaining uses)
 
-### Support Phases
-- `RECHARGE`: Restore energy at charger
-- `EXPLORE`: Discover new areas and stations
+**Limitations**:
+- ❌ No unclipping support (can't handle clipped extractors)
+- ❌ No coordination (will collide with other agents)
+- ❌ Single-agent only
 
-### Clipping Phases
-- `CRAFT_DECODER`: Craft unclip item (decoder/modulator/resonator/scrambler)
-- `UNCLIP_STATION`: Use unclip item to access clipped extractor
+**Usage**:
+```python
+from cogames.policy.scripted_agent import SimpleBaselinePolicy
+from mettagrid import MettaGridEnv
 
-## Clipping Support
+env = MettaGridEnv(env_config)
+policy = SimpleBaselinePolicy(env)
 
-The agent handles clipped extractors through a multi-step process:
+obs, info = env.reset()
+policy.reset(obs, info)
 
-1. **Detection**: Observes `clipped` feature on extractors
-2. **Alternative Resource**: Gathers the correct resource for crafting
-3. **Craft Unclip Item**: Creates the appropriate unclip item
-4. **Unclip**: Uses item to make extractor available
-5. **Resume**: Continues gathering the originally clipped resource
+agent = policy.agent_policy(0)
+action = agent.step(obs[0])
+```
 
-### Unclip Item Mapping
+**CLI**:
+```bash
+uv run cogames play --mission evals.extractor_hub_30 -p simple_baseline --cogs 1
+```
 
-| Clipped Resource | Unclip Item | Crafted From |
-|-----------------|-------------|--------------|
-| Oxygen | decoder | carbon |
-| Carbon | modulator | oxygen |
-| Germanium | resonator | silicon |
-| Silicon | scrambler | germanium |
+### 2. UnclippingAgent
 
-## Extractor Memory
+**Purpose**: Handle missions with clipped extractors
 
-The agent maintains detailed information about discovered extractors:
+**Extends SimpleBaselineAgent with**:
+- ✅ Clipped extractor detection
+- ✅ Unclip item crafting
+- ✅ Extractor restoration
+- ✅ Resource deficit management (ensures enough resources for both unclipping and hearts)
+
+**Unclip Item Mapping**:
+| Clipped Resource | Unclip Item | Crafted From | Glyph |
+|-----------------|-------------|--------------|-------|
+| Oxygen | decoder | carbon | gear |
+| Carbon | modulator | oxygen | gear |
+| Germanium | resonator | silicon | gear |
+| Silicon | scrambler | germanium | gear |
+
+**Workflow**:
+1. Detects clipped extractor blocking progress
+2. Gathers craft resource (e.g., carbon for decoder)
+3. Changes glyph to "gear"
+4. Crafts unclip item at assembler
+5. Navigates to clipped extractor
+6. Uses item to unclip
+7. Resumes normal gathering
+
+**Usage**:
+```python
+from cogames.policy.scripted_agent import UnclippingPolicy
+
+policy = UnclippingPolicy(env)
+# ... same as SimpleBaselinePolicy
+```
+
+**CLI**:
+```bash
+# Test with clipped oxygen
+uv run cogames play --mission evals.extractor_hub_30 -p unclipping --variant clipped_oxygen --cogs 1
+```
+
+### 3. CoordinatingAgent
+
+**Purpose**: Multi-agent coordination around stations
+
+**Extends SimpleBaselineAgent with**:
+- ✅ Smart mouth selection (agents spread around stations)
+- ✅ Free mouth detection (avoids occupied spots)
+- ✅ Commitment to selected mouths (prevents oscillation)
+
+**Coordination Strategy**:
+- When within 2 cells of assembler or extractor, picks a specific "mouth" (adjacent cell)
+- Checks observations for other agents at potential mouths
+- Commits to chosen mouth to avoid flip-flopping
+- Agents naturally distribute around stations
+
+**Usage**:
+```python
+from cogames.policy.scripted_agent import CoordinatingPolicy
+
+policy = CoordinatingPolicy(env)
+# ... same as above
+```
+
+**CLI**:
+```bash
+# Test with multiple agents
+uv run cogames play --mission evals.extractor_hub_30 -p coordinating --cogs 4
+```
+
+## Shared Components
+
+### Phase System
+
+All agents use a phase-based state machine:
+
+```python
+class Phase(Enum):
+    GATHER = "gather"          # Collecting resources
+    ASSEMBLE = "assemble"      # Crafting heart at assembler
+    DELIVER = "deliver"        # Bringing heart to chest
+    RECHARGE = "recharge"      # Restoring energy
+    CRAFT_UNCLIP = "craft_unclip"  # UnclippingAgent only
+    UNCLIP = "unclip"          # UnclippingAgent only
+```
+
+### Navigation
+
+Shared `navigator.py` module provides:
+- **BFS pathfinding** with occupancy grid
+- **Greedy fallback** when path blocked
+- **Adjacent positioning** for station interactions
+
+### Observation Parsing
+
+Agents parse egocentric observations (11×11 grid) to detect:
+- Stations (assembler, chest, charger, extractors)
+- Other agents
+- Walls and obstacles
+- Agent state (resources, energy, inventory)
+
+### Extractor Tracking
 
 ```python
 @dataclass
 class ExtractorInfo:
-    position: Tuple[int, int]
-    resource_type: str
-    station_name: str
-    last_used_step: int
-    total_harvests: int
-    total_output: int
-    uses_remaining_fraction: float
-    observed_cooldown_remaining: int
-    observed_converting: bool
-    is_clipped: bool
-    permanently_depleted: bool
-    learned_cooldown: Optional[int]
-```
-
-## Navigation
-
-The navigator provides multiple pathfinding strategies:
-
-- **BFS**: Breadth-first search for guaranteed shortest path
-- **A***: Heuristic search for faster pathfinding on large maps
-- **Greedy Fallback**: Direct movement when path blocked
-- **Optimistic Mode**: Treats unknown cells as passable
-
-## Customization
-
-### Creating Custom Hyperparameters
-
-```python
-from cogames.policy.scripted_agent import Hyperparameters
-
-custom_params = Hyperparameters(
-    strategy_type="explorer_first",
-    exploration_phase_steps=150,
-    min_energy_for_silicon=60,
-    recharge_start_small=70,
-    recharge_stop_small=95,
-    wait_if_cooldown_leq=5,
-    depletion_threshold=0.3,
-)
-
-policy = ScriptedAgentPolicy(env, hyperparams=custom_params)
-```
-
-### Adding New Presets
-
-Edit `hyperparameter_presets.py`:
-
-```python
-MY_PRESET = Hyperparameters(
-    strategy_type="explorer_first",
-    # ... your parameters
-)
-
-HYPERPARAMETER_PRESETS["my_preset"] = MY_PRESET
+    position: tuple[int, int]
+    resource_type: str  # "carbon", "oxygen", "germanium", "silicon"
+    remaining_uses: int
+    clipped: bool       # For UnclippingAgent
 ```
 
 ## Testing
 
-Run tests for the scripted agent:
-
+### Quick Tests
 ```bash
-uv run pytest packages/cogames/tests/scripted_agent/
+# Simple baseline (no clipping, 1 agent)
+uv run cogames play --mission evals.oxygen_bottleneck -p simple_baseline --cogs 1 --steps 1000
+
+# Unclipping (with clipped oxygen)
+uv run cogames play --mission evals.extractor_hub_30 -p unclipping --variant clipped_oxygen --cogs 1 --steps 2000
+
+# Coordinating (multiple agents)
+uv run cogames play --mission evals.extractor_hub_30 -p coordinating --cogs 4 --steps 2000
 ```
 
-## Performance
+### Comprehensive Evaluation
+```bash
+# Run full evaluation suite
+uv run python -u packages/cogames/scripts/evaluate_scripted_agent.py full
 
-The scripted agent achieves:
-- **100% success** on basic training facility missions
-- **90%+ success** on medium difficulty missions
-- **Handles clipping** with 100% success on clipped missions
-- **Adaptive to map size** through dynamic exploration and recharge
+# Training facility only
+uv run python -u packages/cogames/scripts/evaluate_scripted_agent.py training-facility
+```
 
-## Future Improvements
+## Evaluation Results
 
-- [ ] Multi-agent coordination
-- [ ] Dynamic recipe detection from environment
-- [ ] Clip spreading support (clip_spread_rate > 0)
-- [] Charger clipping strategies
-- [ ] Learned extractor efficiency persistence
-- [ ] Frontier exploration optimization
+Performance benchmarks across difficulty variants:
 
+### SimpleBaselineAgent (Non-Clipping Missions)
+| Mission | Story Mode | Standard | Hard | Brutal |
+|---------|------------|----------|------|--------|
+| extractor_hub_30 | TBD | TBD | TBD | TBD |
+| oxygen_bottleneck | TBD | TBD | TBD | TBD |
+| silicon_limited | TBD | TBD | TBD | TBD |
+
+### UnclippingAgent (Clipping Missions)
+| Mission | Clipped Oxygen | Clipped Carbon | Clipped Germanium | Clipped Silicon |
+|---------|----------------|----------------|-------------------|-----------------|
+| extractor_hub_30 | 11-13 hearts | TBD | TBD | TBD |
+| oxygen_bottleneck | TBD | TBD | TBD | TBD |
+
+### CoordinatingAgent (Multi-Agent)
+| Mission | 1 COG | 2 COGs | 4 COGs | 8 COGs |
+|---------|-------|--------|--------|--------|
+| extractor_hub_30 | TBD | TBD | TBD | TBD |
+| oxygen_bottleneck | TBD | TBD | TBD | TBD |
+
+*TBD: To be determined through comprehensive evaluation*
+
+## Extending
+
+### Adding New Agent Capabilities
+
+To create a new agent variant:
+
+1. **Create new file** (e.g., `my_agent.py`)
+2. **Extend base class**:
+```python
+from .simple_baseline_agent import SimpleBaselineAgent, SimpleAgentState
+
+class MyAgent(SimpleBaselineAgent):
+    def _update_phase(self, s: SimpleAgentState) -> None:
+        # Add custom phase logic
+        super()._update_phase(s)
+
+    def _execute_phase(self, s: SimpleAgentState) -> int:
+        # Add custom phase execution
+        return super()._execute_phase(s)
+```
+
+3. **Add policy wrapper** at bottom of file:
+```python
+class MyAgentPolicy:
+    """Per-agent policy wrapper."""
+    def __init__(self, impl: MyAgent, agent_id: int):
+        self._impl = impl
+        self._agent_id = agent_id
+
+    def step(self, obs) -> int:
+        return self._impl.step(self._agent_id, obs)
+
+class MyPolicy:
+    """Policy wrapper for MyAgent."""
+    def __init__(self, env=None, device=None):
+        self._env = env
+        self._impl = MyAgent(env) if env is not None else None
+        self._agent_policies = {}
+
+    def reset(self, obs, info):
+        # Initialize impl from info if needed
+        pass
+
+    def agent_policy(self, agent_id: int):
+        # Return per-agent policy
+        pass
+```
+
+4. **Register in `__init__.py`**:
+```python
+from cogames.policy.scripted_agent.my_agent import MyPolicy
+
+__all__ = [..., "MyPolicy"]
+```
+
+5. **Add to CLI** in `cogames/policy/utils.py`:
+```python
+_POLICY_CLASS_SHORTHAND = {
+    ...
+    "my_agent": "cogames.policy.scripted_agent.my_agent.MyPolicy",
+}
+```
+
+## Implementation Notes
+
+### Why No Hyperparameters?
+
+These agents are designed for **ablation studies** - isolating individual capabilities. Hyperparameter tuning would:
+- Obscure which feature provides value
+- Make comparisons less fair
+- Complicate reproduction
+
+For tuned performance, see the legacy `agent.py` (ScriptedAgentPolicy).
+
+### Phase Priorities
+
+Phase transitions follow strict priorities:
+1. **Recharge** if energy < 30
+2. **Deliver** if have hearts
+3. **Assemble** if have all resources
+4. **Unclip** if blocked and have unclip item (UnclippingAgent)
+5. **Craft Unclip** if blocked (UnclippingAgent)
+6. **Gather** (default)
+
+### Resource Management
+
+Agents track deficits and gather in priority order:
+1. Germanium (5 needed, highest priority)
+2. Silicon (50 needed)
+3. Carbon (20 needed)
+4. Oxygen (20 needed)
+
+UnclippingAgent adds special logic:
+- Ensures enough craft resource for both unclipping AND hearts
+- Prevents resource deficits when crafting decoders
+
+## Future Work
+
+- [ ] Dynamic heart recipe detection
+- [ ] Charger clipping strategies
+- [ ] Clip spread handling
+- [ ] Learned extractor efficiency
+- [ ] Advanced coordination (task assignment)
+- [ ] Frontier-based exploration

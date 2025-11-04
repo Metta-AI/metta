@@ -19,12 +19,10 @@ _POLICY_CLASS_SHORTHAND: dict[str, str] = {
     "token": "cogames.policy.token.TokenPolicy",
     "lstm": "cogames.policy.lstm.LSTMPolicy",
     "claude": "cogames.policy.claude.ClaudePolicy",
-    # Scripted policy for training/testing
-    "scripted": "cogames.policy.scripted_agent.ScriptedAgentPolicy",
-    "simple_baseline": "cogames.policy.simple_baseline_policy.SimpleBaselinePolicy",
-    "unclipping": "cogames.policy.unclipping_policy.UnclippingPolicy",
-    "coordinating": "cogames.policy.coordinating_policy.CoordinatingPolicy",
-    "coordinating_v2": "cogames.policy.coordinating_policy_v2.CoordinatingPolicyV2",
+    # Baseline scripted policies
+    "simple_baseline": "cogames.policy.scripted_agent.SimpleBaselinePolicy",
+    "unclipping": "cogames.policy.scripted_agent.UnclippingPolicy",
+    "coordinating": "cogames.policy.scripted_agent.CoordinatingPolicy",
 }
 
 

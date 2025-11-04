@@ -1,329 +1,413 @@
 """
-CoordinatingAgent - Extends UnclippingAgent with multi-agent coordination.
+CoordinatingAgent - Multi-agent coordination for assemblers and extractors.
 
-This agent coordinates with other agents to avoid collisions and optimize assembly.
+Extends SimpleBaselineAgent with:
+- Smart mouth selection for assemblers and extractors (agents spread around stations)
+- Collision avoidance via random unsticking when blocked
+- Commitment to chosen mouths to prevent oscillation
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING, Dict
 
-from .simple_baseline_agent import Phase
-from .unclipping_agent import UnclippingAgent, UnclippingAgentState
+from .simple_baseline_agent import CellType, SimpleAgentState, SimpleBaselineAgent
 
 if TYPE_CHECKING:
     from cogames.cogs_vs_clips.env import MettaGridEnv
+    from cogames.cogs_vs_clips.observation import MettaGridObservation
 
 
-@dataclass
-class CoordinatingAgentState(UnclippingAgentState):
-    """Extended state for coordinating agent."""
-
-    # Track home base for yielding
-    home_base_row: int = -1
-    home_base_col: int = -1
-
-    # Track reserved adjacent cell for extractor
-    reserved_adjacent_cell: tuple[int, int] | None = None
-
-
-class CoordinatingAgent(UnclippingAgent):
+class CoordinatingAgent(SimpleBaselineAgent):
     """
-    Agent with multi-agent coordination capabilities.
+    Multi-agent coordination via smart mouth selection.
 
-    Features:
-    - Assembly coordination: Only one agent assembles at a time (single-use station)
-    - Extractor sharing: Multiple agents (up to 4) can use same extractor from different sides
-    - Yield behavior: Non-assembling agents continue gathering while one assembles
+    Same as SimpleBaselineAgent, but when within 2 cells of assembler or extractor,
+    picks an available adjacent cell (mouth) from observations to avoid collisions.
+    Agents commit to their chosen mouth to prevent oscillation.
     """
-
-    # Shared state across all agent instances (class-level)
-    _assembly_signal: dict = {"active": False, "requester": None, "position": None}
-    _assembly_signal_participants: set[int] = set()
-
-    # Target reservation: track which extractor AND which adjacent cell
-    _target_assignments: dict[int, tuple[int, int]] = {}  # agent_id -> extractor_position
-    _target_position_counts: dict[tuple[int, int], int] = {}  # extractor_position -> count
-    _reserved_adjacent_cells: dict[tuple[int, int], set[tuple[int, int]]] = {}  # extractor_pos -> set of reserved adjacent cells
 
     def __init__(self, env: MettaGridEnv):
         super().__init__(env)
-        print(
-            "[CoordinatingAgent] Initialized with assembly coordination "
-            "and extractor sharing (up to 4 agents/extractor)"
+
+    def _random_move_if_stuck(self, s: SimpleAgentState, action: int) -> int:
+        """If action is NOOP (blocked), 30% chance to take a random move to unstick."""
+        if action != self._NOOP:
+            return action
+
+        # 30% chance to take random move when stuck
+        import random
+
+        if random.random() < 0.3:
+            valid_moves = []
+            for move_action, (dr, dc) in [
+                (self._MOVE_N, (-1, 0)),
+                (self._MOVE_S, (1, 0)),
+                (self._MOVE_E, (0, 1)),
+                (self._MOVE_W, (0, -1)),
+            ]:
+                nr, nc = s.row + dr, s.col + dc
+                if self._is_within_bounds(s, nr, nc) and self._is_passable(s, nr, nc):
+                    valid_moves.append(move_action)
+
+            if valid_moves:
+                return random.choice(valid_moves)
+
+        return self._NOOP
+
+    def _do_assemble(self, s: SimpleAgentState) -> int:
+        """Override to add smart mouth selection when approaching assembler."""
+        # Change glyph to heart if needed
+        if s.current_glyph != "heart":
+            vibe_action = self._change_vibe_actions["heart"]
+            s.current_glyph = "heart"
+            return vibe_action
+
+        # Explore until we find assembler
+        explore_action = self._explore_until(
+            s, condition=lambda: self._stations["assembler"] is not None, reason="Need assembler"
         )
+        if explore_action is not None:
+            return explore_action
 
-    def _get_adjacent_cells(self, pos: tuple[int, int]) -> list[tuple[int, int]]:
-        """Get all 4 adjacent cells for a position."""
-        r, c = pos
-        return [(r - 1, c), (r + 1, c), (r, c - 1), (r, c + 1)]
+        # We know where assembler is
+        assembler = self._stations["assembler"]
+        ar, ac = assembler
 
-    def _find_unreserved_adjacent_cell(
-        self, s, extractor_pos: tuple[int, int]
-    ) -> tuple[int, int] | None:
-        """Find an unreserved adjacent cell around an extractor."""
-        reserved = self._reserved_adjacent_cells.get(extractor_pos, set())
-        adjacent_cells = self._get_adjacent_cells(extractor_pos)
+        # Check if we're adjacent
+        dr = abs(s.row - ar)
+        dc = abs(s.col - ac)
+        is_adjacent = (dr == 1 and dc == 0) or (dr == 0 and dc == 1)
 
-        # Filter out reserved cells and cells that are obstacles
-        available_cells = []
-        for cell in adjacent_cells:
-            if cell in reserved:
+        if is_adjacent:
+            return self._move_into_cell(s, assembler)
+
+        # Not adjacent yet - apply mouth coordination
+        distance = abs(s.row - ar) + abs(s.col - ac)
+
+        # Check if we have a committed mouth for this assembler
+        committed_mouth = getattr(s, "committed_assembler_mouth", None)
+        committed_target = getattr(s, "committed_assembler_target", None)
+
+        # Clear commitment if target changed (shouldn't happen for assembler but for safety)
+        if committed_target is not None and committed_target != assembler:
+            committed_mouth = None
+            committed_target = None
+            s.committed_assembler_mouth = None
+            s.committed_assembler_target = None
+
+        # Mouth coordination: activate when distance <= 2, persist until used
+        if distance <= 2:
+            # If no commitment yet, find and commit to a mouth
+            if committed_mouth is None:
+                available_mouth = self._find_available_mouth(s, assembler)
+                if available_mouth is not None:
+                    # Commit to this mouth
+                    s.committed_assembler_mouth = available_mouth
+                    s.committed_assembler_target = assembler
+                    committed_mouth = available_mouth
+                else:
+                    # No available mouth, use default pathfinding
+                    return self._move_towards(s, assembler, reach_adjacent=True)
+
+            # We have a committed mouth - move to it
+            # Check if we're at the mouth
+            if (s.row, s.col) == committed_mouth:
+                # At mouth! Clear commitment and use assembler
+                s.committed_assembler_mouth = None
+                s.committed_assembler_target = None
+                return self._move_into_cell(s, assembler)
+
+            # Not at mouth yet - move toward it
+            action = self._move_towards(s, committed_mouth, reach_adjacent=False)
+            # If pathfinding fails, clear commitment and use default
+            if action == self._NOOP:
+                s.committed_assembler_mouth = None
+                s.committed_assembler_target = None
+                action = self._move_towards(s, assembler, reach_adjacent=True)
+            # Add random motion to unstick from collisions
+            return self._random_move_if_stuck(s, action)
+
+        # If we have a commitment but moved too far, keep trying (allows paths that temporarily increase distance)
+        if committed_mouth is not None and distance <= 4:
+            # Check if at mouth
+            if (s.row, s.col) == committed_mouth:
+                s.committed_assembler_mouth = None
+                s.committed_assembler_target = None
+                return self._move_into_cell(s, assembler)
+
+            # Move toward committed mouth
+            action = self._move_towards(s, committed_mouth, reach_adjacent=False)
+            if action == self._NOOP:
+                # Can't reach mouth, clear and use default
+                s.committed_assembler_mouth = None
+                s.committed_assembler_target = None
+                action = self._move_towards(s, assembler, reach_adjacent=True)
+            # Add random motion to unstick from collisions
+            return self._random_move_if_stuck(s, action)
+
+        # Too far or no coordination - clear any commitment and use default
+        s.committed_assembler_mouth = None
+        s.committed_assembler_target = None
+        action = self._move_towards(s, assembler, reach_adjacent=True)
+        return self._random_move_if_stuck(s, action)
+
+    def _do_gather(self, s: SimpleAgentState) -> int:
+        """Override to add smart mouth selection when approaching extractors."""
+        # Use parent's logic for waiting, deficits check, and exploration
+        if s.pending_use_resource is not None:
+            return super()._do_gather(s)
+
+        deficits = self._calculate_deficits(s)
+        if all(d <= 0 for d in deficits.values()):
+            return super()._do_gather(s)
+
+        # Explore until we find an extractor (using parent's explore_until)
+        explore_action = self._explore_until(
+            s,
+            condition=lambda: self._find_any_needed_extractor(s) is not None,
+            reason=f"Need extractors for: {', '.join(k for k, v in deficits.items() if v > 0)}",
+        )
+        if explore_action is not None:
+            return explore_action
+
+        # Found an extractor
+        result = self._find_any_needed_extractor(s)
+        if result is None:
+            return self._explore(s)
+
+        extractor, resource_type = result
+        s.target_resource = resource_type
+        s.exploration_target = None  # Clear exploration target
+
+        # Get extractor position
+        er, ec = extractor.position
+
+        # Check if we're adjacent
+        dr = abs(s.row - er)
+        dc = abs(s.col - ec)
+        is_adjacent = (dr == 1 and dc == 0) or (dr == 0 and dc == 1)
+
+        if is_adjacent:
+            # Check if we still need this resource
+            current_deficits = self._calculate_deficits(s)
+            if current_deficits[resource_type] <= 0:
+                # Don't use it - we have enough. Move away and find next extractor.
+                return self._explore(s)
+
+            # Check if extractor is ready
+            if extractor.cooldown_remaining > 0 or extractor.converting:
+                s.waiting_at_extractor = extractor.position
+                s.wait_steps += 1
+                return self._NOOP
+
+            if extractor.remaining_uses == 0 or extractor.clipped:
+                s.waiting_at_extractor = None
+                s.wait_steps = 0
+                return self._NOOP
+
+            # Use the extractor
+            old_amount = getattr(s, resource_type, 0)
+            s.pending_use_resource = resource_type
+            s.pending_use_amount = old_amount
+            return self._move_into_cell(s, extractor.position)
+
+        # Not adjacent yet - apply mouth coordination if close enough
+        distance = abs(s.row - er) + abs(s.col - ec)
+
+        # Check if we have a committed mouth for this extractor
+        committed_mouth = getattr(s, "committed_mouth", None)
+        committed_target = getattr(s, "committed_target", None)
+
+        # Clear commitment if target changed
+        if committed_target is not None and committed_target != extractor.position:
+            committed_mouth = None
+            committed_target = None
+            s.committed_mouth = None
+            s.committed_target = None
+
+        # Mouth coordination: activate when distance <= 2, persist until used
+        if distance <= 2:
+            # If no commitment yet, find and commit to a mouth
+            if committed_mouth is None:
+                available_mouth = self._find_available_mouth(s, extractor.position)
+                if available_mouth is not None:
+                    # Commit to this mouth
+                    s.committed_mouth = available_mouth
+                    s.committed_target = extractor.position
+                    committed_mouth = available_mouth
+                else:
+                    # No available mouth, use default pathfinding
+                    return self._move_towards(s, extractor.position, reach_adjacent=True)
+
+            # We have a committed mouth - move to it
+            # Check if we're at the mouth
+            if (s.row, s.col) == committed_mouth:
+                # At mouth! Clear commitment and use extractor
+                s.committed_mouth = None
+                s.committed_target = None
+                return self._move_into_cell(s, extractor.position)
+
+            # Not at mouth yet - move toward it
+            action = self._move_towards(s, committed_mouth, reach_adjacent=False)
+            # If pathfinding fails, clear commitment and use default
+            if action == self._NOOP:
+                s.committed_mouth = None
+                s.committed_target = None
+                action = self._move_towards(s, extractor.position, reach_adjacent=True)
+            # Add random motion to unstick from collisions
+            return self._random_move_if_stuck(s, action)
+
+        # If we have a commitment but moved too far, keep trying (allows paths that temporarily increase distance)
+        if committed_mouth is not None and distance <= 4:
+            # Check if at mouth
+            if (s.row, s.col) == committed_mouth:
+                s.committed_mouth = None
+                s.committed_target = None
+                return self._move_into_cell(s, extractor.position)
+
+            # Move toward committed mouth
+            action = self._move_towards(s, committed_mouth, reach_adjacent=False)
+            if action == self._NOOP:
+                # Can't reach mouth, clear and use default
+                s.committed_mouth = None
+                s.committed_target = None
+                action = self._move_towards(s, extractor.position, reach_adjacent=True)
+            # Add random motion to unstick from collisions
+            return self._random_move_if_stuck(s, action)
+
+        # Too far or no coordination - clear any commitment and use default
+        s.committed_mouth = None
+        s.committed_target = None
+        action = self._move_towards(s, extractor.position, reach_adjacent=True)
+        return self._random_move_if_stuck(s, action)
+
+    def _find_available_mouth(self, s: SimpleAgentState, target_pos: tuple[int, int]) -> tuple[int, int] | None:
+        """
+        Find an available adjacent cell (mouth) around a target (extractor/assembler/etc).
+
+        Returns the position of a free adjacent cell, or None if can't determine.
+        """
+        tr, tc = target_pos
+
+        # Four possible mouths (N, S, E, W)
+        mouths = [
+            (tr - 1, tc),  # North
+            (tr + 1, tc),  # South
+            (tr, tc - 1),  # West
+            (tr, tc + 1),  # East
+        ]
+
+        # Check which mouths are free
+        free_mouths = []
+
+        for mouth_r, mouth_c in mouths:
+            # Check if this position is in bounds
+            if not (0 <= mouth_r < s.map_height and 0 <= mouth_c < s.map_width):
                 continue
-            r, c = cell
-            # Check if valid and passable
-            if 0 <= r < s.map_height and 0 <= c < s.map_width:
-                if self._is_passable(s, r, c):
-                    available_cells.append(cell)
 
-        if not available_cells:
+            # Check if it's passable (not a wall/obstacle)
+            if not self._is_passable(s, mouth_r, mouth_c):
+                continue
+
+            # Check if there's an agent at this position
+            occupied = False
+            try:
+                for _obj_id, obj in self._env.c_env.grid_objects().items():
+                    obj_r = obj.get("r")
+                    obj_c = obj.get("c")
+                    obj_agent_id = obj.get("agent_id")
+
+                    # Check if there's an agent at this mouth position (not us)
+                    if obj_r == mouth_r and obj_c == mouth_c and obj_agent_id is not None:
+                        if obj_agent_id != s.agent_id:
+                            occupied = True
+                            break
+            except Exception:
+                # If we can't check, assume it might be occupied
+                pass
+
+            if not occupied:
+                free_mouths.append((mouth_r, mouth_c))
+
+        if not free_mouths:
             return None
 
-        # Pick the cell closest to agent's current position
-        def distance(cell: tuple[int, int]) -> int:
-            return abs(cell[0] - s.row) + abs(cell[1] - s.col)
+        # Pick the closest free mouth to our current position
+        def distance(pos: tuple[int, int]) -> int:
+            return abs(pos[0] - s.row) + abs(pos[1] - s.col)
 
-        return min(available_cells, key=distance)
+        return min(free_mouths, key=distance)
 
-    def _set_agent_target(self, agent_id: int, target: tuple[int, int], s) -> tuple[int, int] | None:
-        """Reserve a target extractor and specific adjacent cell for an agent.
 
-        Returns the reserved adjacent cell, or None if no cell available.
-        """
-        # Clear previous target
-        prev = self._target_assignments.get(agent_id)
-        if prev is not None and prev != target:
-            count = self._target_position_counts.get(prev, 0)
-            if count > 1:
-                self._target_position_counts[prev] = count - 1
-            else:
-                self._target_position_counts.pop(prev, None)
+# ============================================================================
+# Policy Wrapper Classes
+# ============================================================================
 
-            # Clear reserved adjacent cell for this agent
-            if prev in self._reserved_adjacent_cells:
-                # Find and remove agent's reserved cell
-                for cell in list(self._reserved_adjacent_cells[prev]):
-                    # We don't track agent->cell mapping, so just assume this is theirs
-                    # In practice this is fine as agent targets change infrequently
-                    pass
 
-        # Find an unreserved adjacent cell
-        adjacent_cell = self._find_unreserved_adjacent_cell(s, target)
-        if adjacent_cell is None:
-            return None  # No available cells
+class CoordinatingAgentPolicy:
+    """Per-agent policy wrapper."""
 
-        # Reserve the extractor
-        self._target_assignments[agent_id] = target
-        self._target_position_counts[target] = self._target_position_counts.get(target, 0) + 1
+    def __init__(self, impl: CoordinatingAgent, agent_id: int):
+        self._impl = impl
+        self._agent_id = agent_id
 
-        # Reserve the adjacent cell
-        if target not in self._reserved_adjacent_cells:
-            self._reserved_adjacent_cells[target] = set()
-        self._reserved_adjacent_cells[target].add(adjacent_cell)
+    def step(self, obs: MettaGridObservation) -> int:
+        """Compute action for this agent."""
+        return self._impl.step(self._agent_id, obs)
 
-        return adjacent_cell
 
-    def _clear_agent_target(self, agent_id: int) -> None:
-        """Release a target reservation."""
-        prev = self._target_assignments.pop(agent_id, None)
-        if prev is not None:
-            count = self._target_position_counts.get(prev, 0)
-            if count > 1:
-                self._target_position_counts[prev] = count - 1
-            else:
-                self._target_position_counts.pop(prev, None)
+class CoordinatingPolicy:
+    """Policy wrapper for CoordinatingAgent with per-agent views."""
 
-    def _target_count(self, position: tuple[int, int]) -> int:
-        """Get number of agents currently targeting this position."""
-        return self._target_position_counts.get(position, 0)
+    def __init__(self, env: MettaGridEnv | None = None, device=None):
+        self._env = env
+        self._device = device  # Not used for scripted agents but needed for interface
+        self._impl = CoordinatingAgent(env) if env is not None else None
+        self._agent_policies: Dict[int, CoordinatingAgentPolicy] = {}
 
-    def _clear_assembly_signal(self) -> None:
-        """Clear the assembly coordination signal."""
-        self._assembly_signal = {"active": False, "requester": None, "position": None}
-        self._assembly_signal_participants.clear()
+    def reset(self, obs, info):
+        """Reset policy state."""
+        # Get environment from info if not provided at init
+        if self._env is None:
+            self._env = info.get("env")
 
-    def _update_phase(self, s: CoordinatingAgentState) -> None:
-        """Override to add assembly coordination logic."""
-        # Priority 1: Recharge if energy low
-        if s.energy < 30:
-            if s.phase != Phase.RECHARGE:
-                print(f"[Agent {s.agent_id}] Phase: {s.phase.name} -> RECHARGE (energy={s.energy})")
-                s.phase = Phase.RECHARGE
-            return
+        # Initialize implementation if needed
+        if self._impl is None:
+            if self._env is None:
+                raise RuntimeError("CoordinatingPolicy needs env - provide during __init__ or via info['env']")
+            self._impl = CoordinatingAgent(self._env)
 
-        # Stay in RECHARGE until energy is fully restored (>= 90)
-        if s.phase == Phase.RECHARGE:
-            if s.energy >= 90:
-                print(f"[Agent {s.agent_id}] Phase: RECHARGE -> GATHER (energy={s.energy})")
-                s.phase = Phase.GATHER
-                s.target_position = None
-            return
+        # Reset agent states
+        self._impl._agent_states.clear()
+        self._agent_policies.clear()
 
-        # Priority 2: Deliver hearts if we have any
-        if s.hearts > 0:
-            if s.phase != Phase.DELIVER:
-                print(f"[Agent {s.agent_id}] Phase: {s.phase.name} -> DELIVER ({s.hearts} hearts)")
-                s.phase = Phase.DELIVER
-            return
+    def agent_policy(self, agent_id: int) -> CoordinatingAgentPolicy:
+        """Get policy for a specific agent."""
+        if agent_id not in self._agent_policies:
+            if self._impl is None:
+                raise RuntimeError("Policy not initialized - call reset() first")
 
-        # Priority 3: Assemble if we have all resources (with coordination)
-        can_assemble = (
-            s.carbon >= self._heart_recipe["carbon"]
-            and s.oxygen >= self._heart_recipe["oxygen"]
-            and s.germanium >= self._heart_recipe["germanium"]
-            and s.silicon >= self._heart_recipe["silicon"]
-        )
-
-        if can_assemble:
-            # Assembly coordination: Only one agent at assembler at a time
-            # (Assembler can only be used by one agent, unlike extractors)
-            if self._assembly_signal["active"]:
-                requester = self._assembly_signal["requester"]
-                if requester != s.agent_id:
-                    # Another agent is assembling - continue gathering or wait
-                    if s.phase != Phase.GATHER:
-                        print(
-                            f"[Agent {s.agent_id}] Phase: {s.phase.name} -> GATHER "
-                            f"(yielding assembly to agent {requester})"
-                        )
-                        s.phase = Phase.GATHER
-                        # Clear target so agent finds something else to do
-                        self._clear_agent_target(s.agent_id)
-                    return
-                # This agent is the requester, proceed to assemble
-            else:
-                # No one assembling, claim the signal
-                self._assembly_signal = {
-                    "active": True,
-                    "requester": s.agent_id,
-                    "position": self._stations.get("assembler"),
-                }
-                print(f"[Agent {s.agent_id}] Claimed assembly (other agents can use extractors)")
-
-            if s.phase != Phase.ASSEMBLE:
-                print(f"[Agent {s.agent_id}] Phase: {s.phase.name} -> ASSEMBLE (all resources ready)")
-                s.phase = Phase.ASSEMBLE
-            return
-
-        # If we were assembling but don't have resources anymore, clear signal
-        if s.phase == Phase.ASSEMBLE and not can_assemble:
-            if self._assembly_signal.get("requester") == s.agent_id:
-                self._clear_assembly_signal()
-                print(f"[Agent {s.agent_id}] Released assembly signal (missing resources)")
-
-        # Priority 4: Unclip if blocked and have unclip item
-        if s.blocked_by_clipped_extractor is not None and self._has_unclip_item(s):
-            if s.phase != Phase.UNCLIP:
-                print(
-                    f"[Agent {s.agent_id}] Phase: {s.phase.name} -> UNCLIP "
-                    f"(have unclip item for {s.unclip_target_resource})"
-                )
-                s.phase = Phase.UNCLIP
-            return
-
-        # Priority 5: Craft unclip item if blocked but don't have item
-        if s.blocked_by_clipped_extractor is not None and not self._has_unclip_item(s):
-            if s.phase != Phase.CRAFT_UNCLIP:
-                print(
-                    f"[Agent {s.agent_id}] Phase: {s.phase.name} -> CRAFT_UNCLIP "
-                    f"(need to craft for {s.unclip_target_resource})"
-                )
-                s.phase = Phase.CRAFT_UNCLIP
-            return
-
-        # Priority 6: Default to GATHER
-        if s.phase != Phase.GATHER:
-            print(f"[Agent {s.agent_id}] Phase: {s.phase.name} -> GATHER (need resources)")
-            s.phase = Phase.GATHER
-            s.target_position = None
-
-    def _find_any_needed_extractor(self, s: CoordinatingAgentState) -> Optional[tuple[object, str]]:  # ExtractorInfo
-        """
-        Override to prefer extractors with fewer agents targeting them.
-
-        This helps distribute agents across multiple extractors.
-        """
-        deficits = self._calculate_deficits(s)
-
-        for resource_type in ["carbon", "oxygen", "germanium", "silicon"]:
-            if deficits.get(resource_type, 0) <= 0:
-                continue
-
-            extractors = self._extractors.get(resource_type, [])
-            if not extractors:
-                continue
-
-            # Filter available
-            if s.unreachable_extractors is None:
-                s.unreachable_extractors = {}
-
-            available = [
-                e
-                for e in extractors
-                if not e.clipped and e.remaining_uses > 0 and s.unreachable_extractors.get(e.position, 0) < 5
-            ]
-
-            if available:
-                # Sort by distance only - agents can share extractors
-                # Up to 4 agents can use an extractor from different adjacent positions
-                def distance(pos: tuple[int, int]) -> int:
-                    return abs(pos[0] - s.row) + abs(pos[1] - s.col)
-
-                # Only avoid extractors that are fully saturated (4+ agents)
-                def sort_key(e):
-                    target_count = self._target_count(e.position)
-                    dist = distance(e.position)
-                    # Heavy penalty only if extractor is fully saturated
-                    saturation_penalty = 1000 if target_count >= 4 else 0
-                    return (saturation_penalty, dist)
-
-                nearest = min(available, key=sort_key)
-
-                # Reserve this target and get reserved adjacent cell
-                adjacent_cell = self._set_agent_target(s.agent_id, nearest.position, s)
-                if adjacent_cell is None:
-                    # No adjacent cells available, extractor is fully surrounded
-                    continue
-
-                # Store reserved cell in state
-                s.reserved_adjacent_cell = adjacent_cell
-                print(
-                    f"[Agent {s.agent_id}] Reserved {nearest.resource_type} extractor at {nearest.position}, "
-                    f"adjacent cell {adjacent_cell}"
+            # Initialize agent state if needed
+            if agent_id not in self._impl._agent_states:
+                self._impl._agent_states[agent_id] = SimpleAgentState(
+                    agent_id=agent_id,
+                    map_height=self._impl._map_h,
+                    map_width=self._impl._map_w,
+                    occupancy=[[CellType.FREE.value] * self._impl._map_w for _ in range(self._impl._map_h)],
                 )
 
-                return (nearest, resource_type)
+            self._agent_policies[agent_id] = CoordinatingAgentPolicy(self._impl, agent_id)
 
-            # No available extractors - check if any are clipped or depleted
-            clipped = [e for e in extractors if e.clipped or e.remaining_uses == 0]
-            if clipped:
+        return self._agent_policies[agent_id]
 
-                def distance(pos: tuple[int, int]) -> int:
-                    return abs(pos[0] - s.row) + abs(pos[1] - s.col)
-
-                nearest_clipped = min(clipped, key=lambda e: distance(e.position))
-                s.blocked_by_clipped_extractor = nearest_clipped.position
-                s.unclip_target_resource = resource_type
-                print(
-                    f"[Agent {s.agent_id}] All {resource_type} extractors clipped! "
-                    f"Need to unclip at {nearest_clipped.position}"
-                )
-                return None
-
-        return None
-
-    def _update_state_from_obs(self, s: CoordinatingAgentState, obs) -> None:
-        """Override to track home base and clear assembly signal when heart received."""
-        # Call parent to update state
-        super()._update_state_from_obs(s, obs)
-
-        # Track home base (first position)
-        if s.home_base_row == -1 and s.row >= 0:
-            s.home_base_row = s.row
-            s.home_base_col = s.col
-
-        # Clear assembly signal when heart received
-        if s.hearts > 0 and self._assembly_signal.get("requester") == s.agent_id:
-            self._clear_assembly_signal()
-            print(f"[Agent {s.agent_id}] Released assembly signal (heart received)")
+    def agent_state(self, agent_id: int = 0) -> SimpleAgentState:
+        """Get state for an agent (for debugging/inspection)."""
+        if agent_id not in self._impl._agent_states:
+            self._impl._agent_states[agent_id] = SimpleAgentState(
+                agent_id=agent_id,
+                map_height=self._impl._map_h,
+                map_width=self._impl._map_w,
+                occupancy=[[CellType.FREE.value] * self._impl._map_w for _ in range(self._impl._map_h)],
+            )
+        return self._impl._agent_states[agent_id]
