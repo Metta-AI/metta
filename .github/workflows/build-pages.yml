@@ -28,14 +28,6 @@ jobs:
         with:
           fetch-depth: 0 # Get all history to ensure we don't hit caching issues
 
-      - uses: pnpm/action-setup@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 24
-          cache: pnpm
-
       - name: Setup Environment
         uses: ./.github/actions/setup-environment
         with:
