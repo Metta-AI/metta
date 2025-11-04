@@ -9,7 +9,7 @@ from torch.amp import custom_bwd, custom_fwd
 
 from cortex.kernels.triton.mlstm.torch.bw import mlstm_chunkwise_bw
 from cortex.kernels.triton.mlstm.torch.fw import mlstm_chunkwise_fw
-from cortex.kernels.triton.mlstm.utils import contiguous, int_or_none, tensor_or_none
+from cortex.kernels.triton.mlstm.utils import contiguous
 
 
 ## PyTorch Autograd Function - Boilerplate
@@ -87,6 +87,8 @@ def _mlstm_chunkwise_fwbw_generator(autocast_kernel_dtype=torch.bfloat16) -> Cal
             else:
                 matC_all, vecN_all, scaM_all = (None, None, None)
 
+            # Save tensor inputs for backward; keep scalars on ctx to avoid
+            # Tensor→Python conversions (which cause torch.compile graph breaks).
             ctx.save_for_backward(
                 matQ,
                 matK,
@@ -101,21 +103,22 @@ def _mlstm_chunkwise_fwbw_generator(autocast_kernel_dtype=torch.bfloat16) -> Cal
                 scaM_all,
                 vecN_out,
                 vecM_out,
-                torch.tensor(qk_scale),
-                torch.tensor(chunk_size),
-                tensor_or_none(chunk_size_inter),
-                tensor_or_none(chunk_size_intra),
-                tensor_or_none(siz_b_L_parallel),
-                tensor_or_none(siz_b_L_loop),
-                tensor_or_none(siz_b_DH_parallel),
-                tensor_or_none(siz_b_DH_loop),
-                tensor_or_none(num_warps_intra),
-                tensor_or_none(num_warps_inter),
-                tensor_or_none(num_stages_intra),
-                tensor_or_none(num_stages_inter),
-                torch.tensor(eps),
-                tensor_or_none(reset_mask),
             )
+            # Store scalar meta as Python values
+            ctx.qk_scale = float(qk_scale)
+            ctx.chunk_size = int(chunk_size)
+            ctx.chunk_size_inter = None if chunk_size_inter is None else int(chunk_size_inter)
+            ctx.chunk_size_intra = None if chunk_size_intra is None else int(chunk_size_intra)
+            ctx.siz_b_L_parallel = None if siz_b_L_parallel is None else int(siz_b_L_parallel)
+            ctx.siz_b_L_loop = None if siz_b_L_loop is None else int(siz_b_L_loop)
+            ctx.siz_b_DH_parallel = None if siz_b_DH_parallel is None else int(siz_b_DH_parallel)
+            ctx.siz_b_DH_loop = None if siz_b_DH_loop is None else int(siz_b_DH_loop)
+            ctx.num_warps_intra = None if num_warps_intra is None else int(num_warps_intra)
+            ctx.num_warps_inter = None if num_warps_inter is None else int(num_warps_inter)
+            ctx.num_stages_intra = None if num_stages_intra is None else int(num_stages_intra)
+            ctx.num_stages_inter = None if num_stages_inter is None else int(num_stages_inter)
+            ctx.eps = float(eps)
+            ctx.reset_mask = reset_mask if isinstance(reset_mask, torch.Tensor) else None
             return matH_out, matC_last, vecN_last, scaM_last
 
         @staticmethod
@@ -136,20 +139,6 @@ def _mlstm_chunkwise_fwbw_generator(autocast_kernel_dtype=torch.bfloat16) -> Cal
                 scaM_all,
                 vecN_out,
                 vecM_out,
-                qk_scale,
-                chunk_size,
-                chunk_size_inter,
-                chunk_size_intra,
-                siz_b_L_parallel,
-                siz_b_L_loop,
-                siz_b_DH_parallel,
-                siz_b_DH_loop,
-                num_warps_intra,
-                num_warps_inter,
-                num_stages_intra,
-                num_stages_inter,
-                eps,
-                reset_mask,
             ) = ctx.saved_tensors
 
             (
@@ -177,20 +166,20 @@ def _mlstm_chunkwise_fwbw_generator(autocast_kernel_dtype=torch.bfloat16) -> Cal
                 vecM_out=vecM_out,
                 matDeltaH_out=matDeltaH_out,
                 matDeltaC_last=matDeltaC_last,
-                qk_scale=float(qk_scale),
-                chunk_size=int(chunk_size),
-                chunk_size_inter=int_or_none(chunk_size_inter),
-                chunk_size_intra=int_or_none(chunk_size_intra),
-                siz_b_L_parallel=int_or_none(siz_b_L_parallel),
-                siz_b_L_loop=int_or_none(siz_b_L_loop),
-                siz_b_DH_parallel=int_or_none(siz_b_DH_parallel),
-                siz_b_DH_loop=int_or_none(siz_b_DH_loop),
-                num_warps_intra=int_or_none(num_warps_intra),
-                num_warps_inter=int_or_none(num_warps_inter),
-                num_stages_intra=int_or_none(num_stages_intra),
-                num_stages_inter=int_or_none(num_stages_inter),
-                eps=float(eps),
-                reset_mask=reset_mask if isinstance(reset_mask, torch.Tensor) else None,
+                qk_scale=ctx.qk_scale,
+                chunk_size=ctx.chunk_size,
+                chunk_size_inter=ctx.chunk_size_inter,
+                chunk_size_intra=ctx.chunk_size_intra,
+                siz_b_L_parallel=ctx.siz_b_L_parallel,
+                siz_b_L_loop=ctx.siz_b_L_loop,
+                siz_b_DH_parallel=ctx.siz_b_DH_parallel,
+                siz_b_DH_loop=ctx.siz_b_DH_loop,
+                num_warps_intra=ctx.num_warps_intra,
+                num_warps_inter=ctx.num_warps_inter,
+                num_stages_intra=ctx.num_stages_intra,
+                num_stages_inter=ctx.num_stages_inter,
+                eps=ctx.eps,
+                reset_mask=ctx.reset_mask,
             )
 
             return (

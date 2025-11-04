@@ -125,7 +125,8 @@ public:
         max_inventory(cfg.max_inventory),
         stats_tracker(stats_tracker),
         grid(nullptr) {
-    GridObject::init(cfg.type_id, cfg.type_name, GridLocation(r, c, GridLayer::ObjectLayer), cfg.tag_ids);
+    GridObject::init(
+        cfg.type_id, cfg.type_name, GridLocation(r, c, GridLayer::ObjectLayer), cfg.tag_ids, cfg.initial_vibe);
     // Set initial inventory
     if (cfg.initial_inventory > 0) {
       update_inventory(cfg.resource_type, cfg.initial_inventory);
@@ -162,9 +163,10 @@ public:
 
   virtual std::vector<PartialObservationToken> obs_features() const override {
     std::vector<PartialObservationToken> features;
-    features.reserve(2 + this->inventory.get().size() + this->tag_ids.size());
+    features.reserve(2 + this->inventory.get().size() + this->tag_ids.size() + (this->vibe != 0 ? 1 : 0));
 
     features.push_back({ObservationFeature::TypeId, static_cast<ObservationType>(this->type_id)});
+    if (this->vibe != 0) features.push_back({ObservationFeature::Vibe, static_cast<ObservationType>(this->vibe)});
 
     // Add current inventory (inv:resource)
     for (const auto& [item, amount] : this->inventory.get()) {

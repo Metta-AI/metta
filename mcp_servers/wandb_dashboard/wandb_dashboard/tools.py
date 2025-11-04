@@ -134,7 +134,7 @@ class WandBDashboardTools:
             return json.dumps(result, indent=2)
 
         except Exception as e:
-            logger.error(f"Failed to create dashboard: {e}")
+            logger.error(f"Failed to create dashboard: {e}", exc_info=True)
             error_result = {"status": "error", "message": f"Failed to create dashboard: {str(e)}"}
             return json.dumps(error_result, indent=2)
 
@@ -155,7 +155,7 @@ class WandBDashboardTools:
             return json.dumps(result, indent=2)
 
         except Exception as e:
-            logger.error(f"Failed to update dashboard: {e}")
+            logger.error(f"Failed to update dashboard: {e}", exc_info=True)
             error_result = {"status": "error", "message": f"Failed to update dashboard: {str(e)}"}
             return json.dumps(error_result, indent=2)
 
@@ -178,7 +178,7 @@ class WandBDashboardTools:
             return json.dumps(result, indent=2)
 
         except Exception as e:
-            logger.error(f"Failed to list dashboards: {e}")
+            logger.error(f"Failed to list dashboards: {e}", exc_info=True)
             error_result = {"status": "error", "message": f"Failed to list dashboards: {str(e)}"}
             return json.dumps(error_result, indent=2)
 
@@ -195,7 +195,7 @@ class WandBDashboardTools:
             return json.dumps(result, indent=2)
 
         except Exception as e:
-            logger.error(f"Failed to get dashboard config: {e}")
+            logger.error(f"Failed to get dashboard config: {e}", exc_info=True)
             error_result = {"status": "error", "message": f"Failed to get dashboard config: {str(e)}"}
             return json.dumps(error_result, indent=2)
 
@@ -220,7 +220,7 @@ class WandBDashboardTools:
             return json.dumps(result, indent=2)
 
         except Exception as e:
-            logger.error(f"Failed to add panel: {e}")
+            logger.error(f"Failed to add panel: {e}", exc_info=True)
             error_result = {"status": "error", "message": f"Failed to add panel: {str(e)}"}
             return json.dumps(error_result, indent=2)
 
@@ -242,7 +242,7 @@ class WandBDashboardTools:
             return json.dumps(result, indent=2)
 
         except Exception as e:
-            logger.error(f"Failed to list metrics: {e}")
+            logger.error(f"Failed to list metrics: {e}", exc_info=True)
             error_result = {"status": "error", "message": f"Failed to list metrics: {str(e)}"}
             return json.dumps(error_result, indent=2)
 
@@ -263,7 +263,7 @@ class WandBDashboardTools:
             return json.dumps(result, indent=2)
 
         except Exception as e:
-            logger.error(f"Failed to clone dashboard: {e}")
+            logger.error(f"Failed to clone dashboard: {e}", exc_info=True)
             error_result = {"status": "error", "message": f"Failed to clone dashboard: {str(e)}"}
             return json.dumps(error_result, indent=2)
 
@@ -284,7 +284,7 @@ class WandBDashboardTools:
             return json.dumps(result, indent=2)
 
         except Exception as e:
-            logger.error(f"Failed to update panel: {e}")
+            logger.error(f"Failed to update panel: {e}", exc_info=True)
             error_result = {"status": "error", "message": f"Failed to update panel: {str(e)}"}
             return json.dumps(error_result, indent=2)
 
@@ -305,7 +305,7 @@ class WandBDashboardTools:
             return json.dumps(result, indent=2)
 
         except Exception as e:
-            logger.error(f"Failed to remove panel: {e}")
+            logger.error(f"Failed to remove panel: {e}", exc_info=True)
             error_result = {"status": "error", "message": f"Failed to remove panel: {str(e)}"}
             return json.dumps(error_result, indent=2)
 
@@ -328,7 +328,7 @@ class WandBDashboardTools:
             return json.dumps(result, indent=2)
 
         except Exception as e:
-            logger.error(f"Failed to create custom chart: {e}")
+            logger.error(f"Failed to create custom chart: {e}", exc_info=True)
             error_result = {"status": "error", "message": f"Failed to create custom chart: {str(e)}"}
             return json.dumps(error_result, indent=2)
 
@@ -349,7 +349,7 @@ class WandBDashboardTools:
             return json.dumps(result, indent=2)
 
         except Exception as e:
-            logger.error(f"Failed to bulk delete dashboards: {e}")
+            logger.error(f"Failed to bulk delete dashboards: {e}", exc_info=True)
             error_result = {"status": "error", "message": f"Failed to bulk delete dashboards: {str(e)}"}
             return json.dumps(error_result, indent=2)
 
@@ -370,7 +370,7 @@ class WandBDashboardTools:
             return json.dumps(result, indent=2)
 
         except Exception as e:
-            logger.error(f"Failed to delete dashboard: {e}")
+            logger.error(f"Failed to delete dashboard: {e}", exc_info=True)
             error_result = {"status": "error", "message": f"Failed to delete dashboard: {str(e)}"}
             return json.dumps(error_result, indent=2)
 

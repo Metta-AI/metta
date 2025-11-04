@@ -14,7 +14,9 @@ assembler_altar = AssemblerConfig(
     name="altar",
     map_char="_",
     render_symbol="🎯",
-    recipes=[([], ProtocolConfig(input_resources={"battery_red": 3}, output_resources={"heart": 1}, cooldown=10))],
+    protocols=[
+        ProtocolConfig(vibes=[], input_resources={"battery_red": 3}, output_resources={"heart": 1}, cooldown=10)
+    ],
 )
 
 
@@ -25,7 +27,7 @@ def make_assembler_mine(color: str) -> AssemblerConfig:
         name=f"mine_{color}",
         map_char=char_map[color],
         render_symbol=symbol_map[color],
-        recipes=[([], ProtocolConfig(output_resources={f"ore_{color}": 1}, cooldown=50))],
+        protocols=[ProtocolConfig(output_resources={f"ore_{color}": 1}, cooldown=50)],
     )
 
 
@@ -41,13 +43,8 @@ def make_assembler_generator(color: str) -> AssemblerConfig:
         name=f"generator_{color}",
         map_char=char_map[color],
         render_symbol=symbol_map[color],
-        recipes=[
-            (
-                [],
-                ProtocolConfig(
-                    input_resources={f"ore_{color}": 1}, output_resources={f"battery_{color}": 1}, cooldown=25
-                ),
-            )
+        protocols=[
+            ProtocolConfig(input_resources={f"ore_{color}": 1}, output_resources={f"battery_{color}": 1}, cooldown=25)
         ],
     )
 
@@ -60,13 +57,8 @@ assembler_lasery = AssemblerConfig(
     name="lasery",
     map_char="S",
     render_symbol="🟥",
-    recipes=[
-        (
-            [],
-            ProtocolConfig(
-                input_resources={"battery_red": 1, "ore_red": 2}, output_resources={"laser": 1}, cooldown=10
-            ),
-        )
+    protocols=[
+        ProtocolConfig(input_resources={"battery_red": 1, "ore_red": 2}, output_resources={"laser": 1}, cooldown=10)
     ],
 )
 
@@ -74,20 +66,15 @@ assembler_armory = AssemblerConfig(
     name="armory",
     map_char="o",
     render_symbol="🔵",
-    recipes=[([], ProtocolConfig(input_resources={"ore_red": 3}, output_resources={"armor": 1}, cooldown=10))],
+    protocols=[ProtocolConfig(input_resources={"ore_red": 3}, output_resources={"armor": 1}, cooldown=10)],
 )
 
 assembler_lab = AssemblerConfig(
     name="lab",
     map_char="L",
     render_symbol="🔵",
-    recipes=[
-        (
-            [],
-            ProtocolConfig(
-                input_resources={"battery_red": 1, "ore_red": 2}, output_resources={"laser": 1}, cooldown=10
-            ),
-        )
+    protocols=[
+        ProtocolConfig(input_resources={"battery_red": 1, "ore_red": 2}, output_resources={"laser": 1}, cooldown=10)
     ],
 )
 
@@ -95,13 +82,8 @@ assembler_factory = AssemblerConfig(
     name="factory",
     map_char="F",
     render_symbol="🟪",
-    recipes=[
-        (
-            [],
-            ProtocolConfig(
-                input_resources={"battery_red": 1, "ore_red": 2}, output_resources={"laser": 1}, cooldown=10
-            ),
-        )
+    protocols=[
+        ProtocolConfig(input_resources={"battery_red": 1, "ore_red": 2}, output_resources={"laser": 1}, cooldown=10)
     ],
 )
 
@@ -109,14 +91,11 @@ assembler_temple = AssemblerConfig(
     name="temple",
     map_char="T",
     render_symbol="🟨",
-    recipes=[
-        (
-            [],
-            ProtocolConfig(
-                input_resources={"battery_red": 1, "ore_red": 2},
-                output_resources={"laser": 1},
-                cooldown=10,
-            ),
+    protocols=[
+        ProtocolConfig(
+            input_resources={"battery_red": 1, "ore_red": 2},
+            output_resources={"laser": 1},
+            cooldown=10,
         )
     ],
 )
@@ -167,5 +146,5 @@ nav_assembler = AssemblerConfig(
     name="nav_assembler",
     map_char="_",
     render_symbol="🛣️",
-    recipes=[([], ProtocolConfig(input_resources={}, output_resources={"heart": 1}, cooldown=255))],
+    protocols=[ProtocolConfig(input_resources={}, output_resources={"heart": 1}, cooldown=255)],
 )

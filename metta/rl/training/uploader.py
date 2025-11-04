@@ -134,5 +134,5 @@ class Uploader(TrainerComponent):
             with local_copy(normalized_uri) as tmp_path:
                 yield Path(tmp_path)
         except Exception as exc:  # pragma: no cover - best effort for remote policies
-            logger.error("Uploader: failed to materialize %s: %s", normalized_uri, exc)
+            logger.error("Uploader: failed to materialize %s: %s", normalized_uri, exc, exc_info=True)
             yield None

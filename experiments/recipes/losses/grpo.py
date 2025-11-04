@@ -6,15 +6,15 @@ from metta.rl.loss.grpo import GRPOConfig
 from metta.rl.trainer_config import OptimizerConfig, TrainerConfig
 from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
 from metta.tools.train import TrainTool
-from experiments.recipes.arena import train_shaped as base_train_shaped
-from experiments.recipes.arena_basic_easy_shaped import (
-    train as arena_basic_easy_shaped_train,
-)
 
 # Import everything from the base arena recipe
 from experiments.recipes.arena import (
     make_curriculum,
     simulations,
+)
+from experiments.recipes.arena import train_shaped as base_train_shaped
+from experiments.recipes.arena_basic_easy_shaped import (
+    train as arena_basic_easy_shaped_train,
 )
 
 
@@ -79,7 +79,7 @@ def train_shaped(rewards: bool = True, converters: bool = True) -> TrainTool:
     """
 
     # Get the base shaped training tool
-    base_tool = base_train_shaped(rewards=rewards, converters=converters)
+    base_tool = base_train_shaped(rewards=rewards)
 
     # Configure GRPO loss
     grpo_config = GRPOConfig(

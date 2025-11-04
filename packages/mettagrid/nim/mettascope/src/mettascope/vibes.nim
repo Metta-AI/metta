@@ -5,7 +5,7 @@
 import
   std/[os, tables],
   fidget2, windy,
-  common, panels, replays, actions
+  common, panels, replays, actions, pathfinding
 
 find "/UI/Main/**/VibePanel":
   find "**/Button":
@@ -17,7 +17,7 @@ find "/UI/Main/**/VibePanel":
         # TODO: Maybe gray out the vibe buttons?
         echo "no selection, can't send vibe action"
         return
-      let vibeActionId = replay.actionNames.find("change_glyph_" & $vibeId)
+      let vibeActionId = replay.actionNames.find("change_vibe_" & $vibeId)
       let shiftDown = window.buttonDown[KeyLeftShift] or window.buttonDown[KeyRightShift]
 
       if shiftDown:
@@ -42,7 +42,8 @@ find "/UI/Main/**/VibePanel":
             ]
       else:
         # Execute immediately.
-        sendAction(selection.agentId, vibeActionId, -1)
+        sendAction(selection.agentId, vibeActionId)
+        clearPath(selection.agentId)
 
 proc updateVibePanel*() =
   ## Updates the vibe panel to display the current vibe frequency for the agent.

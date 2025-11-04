@@ -64,7 +64,7 @@ def clear_memory(sim: Simulation, what: str, agent_id: int) -> None:
     policy_state = sim.get_policy_state()
 
     if policy_state is None or policy_state.lstm_c is None or policy_state.lstm_h is None:
-        logger.error("No policy state to clear")
+        logger.error("No policy state to clear", exc_info=True)
         return
 
     if what == "0":
@@ -82,7 +82,7 @@ def copy_memory(sim: Simulation, agent_id: int) -> tuple[list[float], list[float
     """Copy the memory of the policy."""
     policy_state = sim.get_policy_state()
     if policy_state is None or policy_state.lstm_c is None or policy_state.lstm_h is None:
-        logger.error("No policy state to copy")
+        logger.error("No policy state to copy", exc_info=True)
         return [], []
 
     # Copy the memory of the policy.
@@ -95,7 +95,7 @@ def paste_memory(sim: Simulation, agent_id: int, memory: tuple[list[float], list
     """Paste the memory of the policy."""
     policy_state = sim.get_policy_state()
     if policy_state is None or policy_state.lstm_c is None or policy_state.lstm_h is None:
-        logger.error("No policy state to paste")
+        logger.error("No policy state to paste", exc_info=True)
         return
 
     [lstm_c, lstm_h] = memory

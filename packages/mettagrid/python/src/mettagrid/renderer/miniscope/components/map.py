@@ -118,8 +118,8 @@ class MapComponent(MiniscopeComponent):
         else:
             self._map_buffer.set_cursor(None, None)
 
-        # Highlight selected agent if in glyph picker mode
-        if self.state.mode == RenderMode.GLYPH_PICKER:
+        # Highlight selected agent if in vibe picker mode
+        if self.state.mode == RenderMode.VIBE_PICKER:
             self._map_buffer.set_highlighted_agent(self.state.selected_agent)
         else:
             self._map_buffer.set_highlighted_agent(None)

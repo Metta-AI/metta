@@ -43,11 +43,11 @@ class Renderer(ABC):
         """
         pass
 
-    def get_user_actions(self) -> Dict[int, tuple[int, int]]:
+    def get_user_actions(self) -> Dict[int, int]:
         """Get the current user actions for all agents.
 
         Returns:
-            Dictionary mapping agent_id to (action_id, action_param)
+            Dictionary mapping agent_id to action_id
         """
         return {}
 
