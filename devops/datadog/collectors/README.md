@@ -16,15 +16,15 @@ All collectors share a common base class and follow consistent patterns.
 
 ## Available Collectors
 
-| Collector                   | Status         | Priority | Metrics | Description                                         |
-| --------------------------- | -------------- | -------- | ------- | --------------------------------------------------- |
-| [github](github/)           | ✅ Implemented | High     | 28      | PRs, commits, CI/CD, branches, developers           |
-| [skypilot](skypilot/)       | ✅ Implemented | High     | 30      | Jobs, clusters, runtime stats, resource utilization |
-| [asana](asana/)             | ✅ Implemented | Medium   | 14      | Project health, bugs tracking, team velocity        |
-| [ec2](ec2/)                 | ✅ Implemented | High     | 19      | Instances, costs, utilization, EBS volumes          |
-| [wandb](wandb/)             | ✅ Implemented | High     | 10      | Training runs, model performance, GPU hours         |
-| [kubernetes](kubernetes/)   | ✅ Implemented | High     | 15      | Resource efficiency, pod health, waste tracking     |
-| [health_fom](health_fom/)   | ✅ Implemented | High     | 7       | Normalized health scores (0.0-1.0) for CI/CD        |
+| Collector                 | Status         | Priority | Metrics | Description                                         |
+| ------------------------- | -------------- | -------- | ------- | --------------------------------------------------- |
+| [github](github/)         | ✅ Implemented | High     | 28      | PRs, commits, CI/CD, branches, developers           |
+| [skypilot](skypilot/)     | ✅ Implemented | High     | 30      | Jobs, clusters, runtime stats, resource utilization |
+| [asana](asana/)           | ✅ Implemented | Medium   | 14      | Project health, bugs tracking, team velocity        |
+| [ec2](ec2/)               | ✅ Implemented | High     | 19      | Instances, costs, utilization, EBS volumes          |
+| [wandb](wandb/)           | ✅ Implemented | High     | 10      | Training runs, model performance, GPU hours         |
+| [kubernetes](kubernetes/) | ✅ Implemented | High     | 15      | Resource efficiency, pod health, waste tracking     |
+| [health_fom](health_fom/) | ✅ Implemented | High     | 7       | Normalized health scores (0.0-1.0) for CI/CD        |
 
 **Total**: 123 metrics across 7 collectors
 
@@ -210,7 +210,8 @@ uv run python devops/datadog/scripts/run_collector.py asana --verbose
 uv run python devops/datadog/scripts/run_collector.py asana --push
 ```
 
-**Setup**: See [docs/SECRETS_SETUP.md](../docs/SECRETS_SETUP.md) for configuring Asana access token and workspace/project IDs.
+**Setup**: See [docs/SECRETS_SETUP.md](../docs/SECRETS_SETUP.md) for configuring Asana access token and
+workspace/project IDs.
 
 ### Health FoM Collector ✅
 

@@ -12,7 +12,7 @@ from typing import Any
 
 from devops.datadog.utils.base import BaseCollector
 from devops.datadog.utils.datadog_client import DatadogClient
-from devops.datadog.utils.secrets import get_secretsmanager_secret
+from metta.common.util.aws_secrets import get_secretsmanager_secret
 
 
 class HealthFomCollector(BaseCollector):

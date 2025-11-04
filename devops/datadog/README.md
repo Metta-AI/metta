@@ -24,7 +24,6 @@ Complete Datadog integration for Metta, including:
 
 - **[Deployment Guide](docs/DEPLOYMENT_GUIDE.md)** - Production and dev deployment
 
-
 ## System Overview
 
 ### Data Collectors
@@ -37,7 +36,8 @@ Automated metric collection from multiple services via Kubernetes CronJobs:
 - **Skypilot** ✅ **(Production)**: 30 metrics - Jobs, clusters, resource utilization
 - **Asana** ✅ **(Production)**: 14 metrics - Project health, bugs tracking, team velocity
 - **EC2** ✅ **(Production)**: 19 metrics - Instances, costs, utilization, EBS volumes
-- **WandB** ✅ **(Production)**: 11 per-run metrics - Training runs with per-run tags (duration, SPS, hearts, latency) for PTM/sweep/all runs
+- **WandB** ✅ **(Production)**: 11 per-run metrics - Training runs with per-run tags (duration, SPS, hearts, latency)
+  for PTM/sweep/all runs
 - **Kubernetes** ✅ **(Production)**: 15 metrics - Resource efficiency, pod health, waste tracking
 - **Health FoM** ✅ **(Production)**: 14 metrics - Normalized 0.0-1.0 health scores for CI/CD and training metrics
 
@@ -102,7 +102,8 @@ aws secretsmanager get-secret-value --secret-id github/dashboard-token --region 
 
 ### Datadog API Keys & Secrets
 
-All secrets are stored in AWS Secrets Manager. See [docs/SECRETS_SETUP.md](docs/SECRETS_SETUP.md) for complete setup guide.
+All secrets are stored in AWS Secrets Manager. See [docs/SECRETS_SETUP.md](docs/SECRETS_SETUP.md) for complete setup
+guide.
 
 **Both Production and Local Development** use AWS Secrets Manager:
 
@@ -114,8 +115,8 @@ aws configure
 uv run python scripts/validate_secrets.py
 ```
 
-**Production**: Uses IRSA (IAM Roles for Service Accounts) - automatic credential access
-**Local Development**: Uses your personal AWS CLI credentials
+**Production**: Uses IRSA (IAM Roles for Service Accounts) - automatic credential access **Local Development**: Uses
+your personal AWS CLI credentials
 
 ## Quick Start
 

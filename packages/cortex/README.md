@@ -43,14 +43,17 @@ from cortex import build_cortex, CortexStackConfig
 Cortex implements a modular stack-based memory architecture with four core abstractions:
 
 1. **Cells**: Stateless memory units (LSTM, GRU, etc.) that process sequences
+
    - Purpose: Encapsulate recurrent computation logic (gates, state updates, memory mechanisms)
    - Interface: Accepts input tensor and state, returns output and updated state
    - Examples: LSTM, mLSTM, sLSTM, AGaLiTe style memory, self-attention, or pretty much any other memory cell!
 
 2. **Blocks**: Wrappers around cells that handle projections and transformations
+
    - Purpose: Control information flow, stabilize gradients, and manage dimensionality
 
 3. **Column**: A router‑mixed set of expert blocks executed in parallel and combined
+
    - Purpose: Let multiple block "experts" compete/cooperate per token/over time.
    - How: A global prior gate (with optional per‑token refinement) mixes expert deltas; an E‑axis mixer and outer ReZero
      stabilize depth

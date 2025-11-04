@@ -91,9 +91,9 @@ def get_credential(env_var: str, secret_key: str, required: bool = True) -> str 
 
     # Try AWS Secrets Manager
     try:
-        from devops.datadog.utils.secrets import get_secretsmanager_secret
+        from metta.common.util.aws_secrets import get_secretsmanager_secret
 
-        return get_secretsmanager_secret(secret_key)
+        return get_secretsmanager_secret(secret_key, require_exists=required)
     except Exception as e:
         if required:
             raise RuntimeError(f"{env_var} not found in environment or AWS Secrets Manager. {e}") from e

@@ -80,9 +80,9 @@ def check_aws_secret(secret_name: str, verbose: bool = False) -> tuple[bool, str
         Tuple of (success, error_message)
     """
     try:
-        from devops.datadog.utils.secrets import get_secretsmanager_secret
+        from metta.common.util.aws_secrets import get_secretsmanager_secret
 
-        secret_value = get_secretsmanager_secret(secret_name)
+        secret_value = get_secretsmanager_secret(secret_name, require_exists=False)
         if secret_value:
             if verbose:
                 print_success(f"Secret '{secret_name}' found and accessible")
