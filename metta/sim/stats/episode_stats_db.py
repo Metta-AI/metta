@@ -74,7 +74,7 @@ class EpisodeStatsDB:
                 self.con.execute(stmt)
             except Exception as e:
                 logger = logging.getLogger(__name__)
-                logger.error(f"Error executing SQL for table {table_name}: {e}")
+                logger.error(f"Error executing SQL for table {table_name}: {e}", exc_info=True)
                 raise
         self.con.commit()
 

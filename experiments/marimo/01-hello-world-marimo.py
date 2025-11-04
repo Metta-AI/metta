@@ -93,7 +93,7 @@ def _():
     from metta.rl.training import (
         EvaluatorConfig,
         TrainingEnvironmentConfig,
-        GameRules,
+        PolicyEnvInterface,
     )
 
     from metta.cogworks.curriculum import (
@@ -108,7 +108,7 @@ def _():
     from mettagrid.config.mettagrid_config import (
         AgentRewards,
     )
-    from mettagrid.base_config import Config
+    from mettagrid.config import Config
     from mettagrid.test_support.actions import generate_valid_random_actions
     from metta.sim.simulation_config import SimulationConfig
     from metta.agent.utils import obs_to_td
@@ -488,10 +488,8 @@ def _(
     mg_config.game.actions.move.enabled = True
     mg_config.game.actions.rotate.enabled = True
     mg_config.game.actions.noop.enabled = True  # Training had noop enabled!
-    mg_config.game.actions.get_items.enabled = True
-    mg_config.game.actions.put_items.enabled = False  # Training had this disabled
     mg_config.game.actions.attack.enabled = True  # Training had attack enabled
-    mg_config.game.actions.change_glyph.enabled = False
+    mg_config.game.actions.change_vibe.enabled = False
     mg_config.game.actions.swap.enabled = False
 
     # IMPORTANT: Match the exact training reward structure from config.json
@@ -527,7 +525,7 @@ def _(
     # Global configuration flags from old mettagrid.yaml
     mg_config.desync_episodes = True  # Changes max_steps for first episode only
     mg_config.game.track_movement_metrics = True
-    mg_config.game.recipe_details_obs = False
+    mg_config.game.protocol_details_obs = False
 
     # Global observation tokens from old config
     mg_config.game.global_obs.episode_completion_pct = True
@@ -1005,27 +1003,19 @@ def _(
 
             print(f"Evaluating checkpoint: {latest_ckpt.name}")
 
-            # Create evaluation environment first to get metadata
+            # Create game rules from config
+            policy_env_interface = PolicyEnvInterface.from_mg_cfg(mg_config)
+
+            # Create evaluation environment for rendering
             with contextlib.redirect_stdout(io.StringIO()):
                 eval_env = MettaGridEnv(mg_config, render_mode="human")
-
-            game_rules = GameRules(
-                obs_width=eval_env.obs_width,
-                obs_height=eval_env.obs_height,
-                obs_features=eval_env.observation_features,
-                action_names=eval_env.action_names,
-                num_agents=eval_env.num_agents,
-                observation_space=eval_env.observation_space,
-                action_space=eval_env.single_action_space,
-                feature_normalizations=eval_env.feature_normalizations,
-            )
 
             trained_artifact = CheckpointManager.load_artifact_from_uri(
                 str(latest_ckpt)
             )
 
             trained_policy = trained_artifact.instantiate(
-                game_rules, torch.device("cpu")
+                policy_env_interface, torch.device("cpu")
             )
             if trained_policy is None:
                 raise RuntimeError(
@@ -1315,9 +1305,7 @@ def _(
     mg_config2.game.actions.rotate.enabled = True
     mg_config2.game.actions.noop.enabled = False  # Disable no-op to force action
     mg_config2.game.actions.attack.enabled = False
-    mg_config2.game.actions.get_items.enabled = True
-    mg_config2.game.actions.put_items.enabled = True
-    mg_config2.game.actions.change_glyph.enabled = False
+    mg_config2.game.actions.change_vibe.enabled = False
     mg_config2.game.actions.swap.enabled = False
 
     # CONVERSION INCENTIVE: Make conversion much more profitable than resource limit camping

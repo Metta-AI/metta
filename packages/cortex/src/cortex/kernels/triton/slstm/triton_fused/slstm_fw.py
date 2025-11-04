@@ -4,7 +4,6 @@ from typing import Optional
 import torch
 import triton
 import triton.language as tl
-from einops import rearrange
 from triton import OutOfResources
 
 from .triton_utils import is_power_of_2, next_multiple_of, torch2triton_dtype
@@ -596,11 +595,11 @@ def forward_sequence(
         gates_all = None
 
     # reshape the inputs for the kernel (they must be contiguous)
-    states_initial_kshaped = rearrange(states_initial, "ns b nh dh -> nh ns b dh").contiguous()
+    states_initial_kshaped = states_initial.permute(2, 0, 1, 3).contiguous()
 
-    Wx_kshaped = rearrange(Wx, "b t ngi nh dh -> nh t ngi b dh").contiguous()
-    R_kshaped = rearrange(R, "ngr nh dhout dhin -> nh ngr dhin dhout").contiguous()
-    b_kshaped = rearrange(b, "ngi nh dh -> nh ngi dh").contiguous()
+    Wx_kshaped = Wx.permute(3, 1, 2, 0, 4).contiguous()
+    R_kshaped = R.permute(1, 0, 3, 2).contiguous()
+    b_kshaped = b.permute(1, 0, 2).contiguous()
     # call the kernel
 
     def grid(args):
@@ -639,10 +638,10 @@ def forward_sequence(
         DTYPE=torch2triton_dtype(dtype),
     )
 
-    states_out = rearrange(states_all, "nh t ns b dh -> t ns b nh dh", ns=NS, dh=DH)
+    states_out = states_all.permute(1, 2, 3, 0, 4)
 
     if output_gates_and_states_initial:
-        gates_out = rearrange(gates_all, "nh t ngi b dh -> t ngi b nh dh", ngi=NGI, dh=DH)
+        gates_out = gates_all.permute(1, 2, 3, 0, 4)
         if T_dim_explicit:
             return (states_out, states_out[-1:]), gates_out
         return (states_out, states_out[-1]), gates_out

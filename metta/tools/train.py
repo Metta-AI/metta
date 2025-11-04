@@ -162,7 +162,7 @@ class TrainTool(Tool):
             return 130  # Standard exit code for Ctrl+C
 
         except Exception as e:
-            logger.error(f"Training failed with exception: {e}")
+            logger.error(f"Training failed with exception: {e}", exc_info=True)
             return 1
 
         finally:
@@ -212,7 +212,7 @@ class TrainTool(Tool):
             policy_architecture=self.policy_architecture,
         )
         policy = policy_checkpointer.load_or_create_policy(
-            env.game_rules,
+            env.policy_env_info,
             policy_uri=self.initial_policy_uri,
         )
         return policy_checkpointer, policy

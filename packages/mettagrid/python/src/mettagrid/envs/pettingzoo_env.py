@@ -1,7 +1,7 @@
 """
 MettaGridPettingZooEnv - PettingZoo adapter for MettaGrid.
 
-This class implements the PettingZoo ParallelEnv interface using the base MettaGridEnv.
+This class implements the PettingZoo ParallelEnv interface using the Simulator/Simulation API.
 """
 
 from __future__ import annotations
@@ -13,15 +13,12 @@ from gymnasium import spaces
 from pettingzoo import ParallelEnv
 from typing_extensions import override
 
-# Data types for PettingZoo - import from C++ module
 from mettagrid.config.mettagrid_config import MettaGridConfig
-from mettagrid.core import MettaGridCore
-from mettagrid.mettagrid_c import (
-    dtype_actions,
-)
+from mettagrid.mettagrid_c import dtype_actions
+from mettagrid.simulator import Simulator
 
 
-class MettaGridPettingZooEnv(MettaGridCore, ParallelEnv):
+class MettaGridPettingZooEnv(ParallelEnv):
     """
     PettingZoo ParallelEnv adapter for MettaGrid environments.
 
@@ -29,57 +26,43 @@ class MettaGridPettingZooEnv(MettaGridCore, ParallelEnv):
     using the parallel environment API for multi-agent scenarios.
     No training features are included - this is purely for PettingZoo compatibility.
 
-    Inherits from:
-    - MettaGridCore: Core C++ environment wrapper functionality
+    Implements:
     - pettingzoo.ParallelEnv: Parallel multi-agent environment interface
       https://github.com/Farama-Foundation/PettingZoo/blob/405e71c912dc3f787bb12c7f8463f18fcce31bb1/pettingzoo/utils/env.py#L281
     """
 
-    def __init__(
-        self,
-        mg_config: MettaGridConfig,
-        **kwargs: Any,
-    ):
+    def __init__(self, simulator: Simulator, cfg: MettaGridConfig, **kwargs: Any):
         """
         Initialize PettingZoo environment.
 
         Args:
-            mg_config: Environment configuration
+            simulator: Simulator instance
+            cfg: MettaGridConfig instance
             **kwargs: Additional arguments
         """
+        super().__init__()
 
-        # Initialize core environment (no training features)
-        MettaGridCore.__init__(
-            self,
-            mg_config,
-        )
+        self._simulator = simulator
+        self._cfg = cfg
+        self._seed = 0
 
-        # PettingZoo attributes
-        self.agents: List[str] = []
-        self.possible_agents: List[str] = []
+        # Initialize first simulation to get space information
+        self._sim = self._simulator.new_simulation(cfg, seed=self._seed)
 
-        # populate possible_agents immediately (PettingZoo spec)
-        num_agents = self.num_agents
-        self.possible_agents = [f"agent_{i}" for i in range(num_agents)]
+        # PettingZoo attributes - agent IDs are integers
+        self.possible_agents: List[int] = list(range(self._sim.num_agents))
+        self.agents: List[int] = self.possible_agents.copy()
 
         # Create space objects once to avoid memory leaks
         # PettingZoo requires same space object instances to be returned
-        self._observation_space_obj = self._observation_space
-        self._action_space_obj = self._action_space
+        obs_shape = self._sim.observation_shape
+        self._observation_space_obj = spaces.Box(low=0, high=255, shape=obs_shape, dtype=np.uint8)
+        self._action_space_obj = spaces.Discrete(len(self._sim.action_names))
 
-    def _setup_agents(self) -> None:
-        """Setup agent names after core environment is created."""
-        # Create agent names - c_env property handles the None check
-        num_agents = self.num_agents
-        self.possible_agents = [f"agent_{i}" for i in range(num_agents)]
-        self.agents = self.possible_agents.copy()
-
-    # Buffer management is handled by base MettaGridEnv class
-
-    @override  # pettingzoo.ParallelEnv.reset
+    @override
     def reset(
         self, seed: Optional[int] = None, options: Optional[Dict[str, Any]] = None
-    ) -> Tuple[Dict[str, np.ndarray], Dict[str, Dict[str, Any]]]:
+    ) -> Tuple[Dict[int, np.ndarray], Dict[int, Dict[str, Any]]]:
         """
         Reset the environment.
 
@@ -90,57 +73,76 @@ class MettaGridPettingZooEnv(MettaGridCore, ParallelEnv):
         Returns:
             Tuple of (observations_dict, infos_dict)
         """
-        del options  # Unused parameter
+        # Close current simulation if it exists
+        if hasattr(self, "_sim") and self._sim is not None:
+            self._sim.close()
 
-        # Call the base reset method
-        obs_array, info = super().reset(seed)
+        # Update seed if provided
+        if seed is not None:
+            self._seed = seed
 
-        # Setup agents if not already done
-        if not self.agents:
-            self._setup_agents()
+        # Create new simulation
+        self._sim = self._simulator.new_simulation(self._cfg, seed=self._seed)
 
-        # Convert to PettingZoo format
-        observations = {agent: obs_array[i] for i, agent in enumerate(self.agents)}
-        infos = {agent: info for agent in self.agents}
+        # Reset agents list to all possible agents
+        self.agents = self.possible_agents.copy()
+
+        # Get observations from C++ simulation
+        obs_array = self._sim._c_sim.observations()
+
+        # Convert to PettingZoo format (dict keyed by agent ID)
+        observations = {agent_id: obs_array[agent_id] for agent_id in self.agents}
+        infos = {agent_id: {} for agent_id in self.agents}
 
         return observations, infos
 
     @override  # pettingzoo.ParallelEnv.step
     def step(
-        self, actions: Dict[str, np.ndarray | int]
-    ) -> Tuple[Dict[str, np.ndarray], Dict[str, float], Dict[str, bool], Dict[str, bool], Dict[str, Dict[str, Any]]]:
+        self, actions: Dict[int, np.ndarray | int]
+    ) -> Tuple[
+        Dict[int, np.ndarray],
+        Dict[int, float],
+        Dict[int, bool],
+        Dict[int, bool],
+        Dict[int, Dict[str, Any]],
+    ]:
         """
         Execute one timestep of the environment dynamics.
 
         Args:
-            actions: Dictionary mapping agent names to actions
+            actions: Dictionary mapping agent IDs (int) to actions
 
         Returns:
             Tuple of (observations, rewards, terminations, truncations, infos)
         """
-        # Convert actions dict to array format
-        actions_array = np.zeros(len(self.agents), dtype=dtype_actions)
-        for i, agent in enumerate(self.agents):
-            if agent in actions:
-                actions_array[i] = np.asarray(actions[agent], dtype=dtype_actions).reshape(()).item()
+        # Set actions for all agents through C++ environment
+        action_array = self._sim._c_sim.actions()
+        for agent_id in self.agents:
+            if agent_id in actions:
+                action_idx = int(np.asarray(actions[agent_id], dtype=dtype_actions).reshape(()).item())
+                action_array[agent_id] = action_idx
 
-        # Call base step implementation
-        observations, rewards, terminals, truncations, infos = super().step(actions_array)
+        # Execute simulation step
+        self._sim.step()
 
-        # Step results are already provided by base class
+        # Get results from C++ environment
+        observations = self._sim._c_sim.observations()
+        rewards = self._sim._c_sim.rewards()
+        terminals = self._sim._c_sim.terminals()
+        truncations = self._sim._c_sim.truncations()
 
-        # Convert to PettingZoo format
-        obs_dict = {agent: observations[i] for i, agent in enumerate(self.agents)}
-        reward_dict = {agent: float(rewards[i]) for i, agent in enumerate(self.agents)}
-        terminal_dict = {agent: bool(terminals[i]) for i, agent in enumerate(self.agents)}
-        truncation_dict = {agent: bool(truncations[i]) for i, agent in enumerate(self.agents)}
-        info_dict = {agent: infos for agent in self.agents}
+        # Convert to PettingZoo format (dict keyed by agent ID)
+        obs_dict = {agent_id: observations[agent_id] for agent_id in self.agents}
+        reward_dict = {agent_id: float(rewards[agent_id]) for agent_id in self.agents}
+        terminal_dict = {agent_id: bool(terminals[agent_id]) for agent_id in self.agents}
+        truncation_dict = {agent_id: bool(truncations[agent_id]) for agent_id in self.agents}
+        info_dict = {agent_id: {} for agent_id in self.agents}
 
         # Remove agents that are done
         active_agents = []
-        for agent in self.agents:
-            if not (terminal_dict[agent] or truncation_dict[agent]):
-                active_agents.append(agent)
+        for agent_id in self.agents:
+            if not (terminal_dict[agent_id] or truncation_dict[agent_id]):
+                active_agents.append(agent_id)
 
         # Update agents list
         self.agents = active_agents
@@ -149,14 +151,14 @@ class MettaGridPettingZooEnv(MettaGridCore, ParallelEnv):
 
     # PettingZoo required methods
     @override  # pettingzoo.ParallelEnv.observation_space
-    def observation_space(self, agent: str) -> spaces.Box:
+    def observation_space(self, agent: int) -> spaces.Box:
         """Get observation space for a specific agent."""
         del agent  # Unused parameter - all agents have same space
         # Return the same space object instance (PettingZoo requirement)
         return self._observation_space_obj
 
     @override  # pettingzoo.ParallelEnv.action_space
-    def action_space(self, agent: str) -> spaces.Discrete:
+    def action_space(self, agent: int) -> spaces.Discrete:
         """Get action space for a specific agent."""
         del agent  # Unused parameter - all agents have same space
         # Return the same space object instance (PettingZoo requirement)
@@ -173,7 +175,7 @@ class MettaGridPettingZooEnv(MettaGridCore, ParallelEnv):
         # For state, we can return a flattened representation of all current observations
         # Since we don't store observations, we'll create a zero state of appropriate size
         obs_space = self._observation_space_obj
-        total_size = self.num_agents * int(np.prod(obs_space.shape))
+        total_size = len(self.possible_agents) * int(np.prod(obs_space.shape))
         return np.zeros(total_size, dtype=obs_space.dtype)
 
     @property
@@ -181,7 +183,7 @@ class MettaGridPettingZooEnv(MettaGridCore, ParallelEnv):
         """Get state space (optional for PettingZoo)."""
         # State space is flattened observation space
         obs_space = self._observation_space_obj
-        total_size = self.num_agents * int(np.prod(obs_space.shape))
+        total_size = len(self.possible_agents) * int(np.prod(obs_space.shape))
 
         return spaces.Box(
             low=obs_space.low.flatten()[0],
@@ -191,19 +193,24 @@ class MettaGridPettingZooEnv(MettaGridCore, ParallelEnv):
         )
 
     @override  # pettingzoo.ParallelEnv.render
-    def render(self, mode: str = "human") -> Optional[str]:
-        """Render the environment."""
-        del mode  # Unused parameter
-        return super().render()
+    def render(self) -> None:
+        """Render the environment (not implemented)."""
+        pass
 
     @override  # pettingzoo.ParallelEnv.close
     def close(self) -> None:
         """Close the environment."""
-        super().close()
+        if hasattr(self, "_sim") and self._sim is not None:
+            self._sim.close()
 
     @property
     def max_num_agents(self) -> int:
         """Get maximum number of agents."""
         return len(self.possible_agents)
+
+    @property
+    def max_steps(self) -> int:
+        """Get maximum number of steps before truncation."""
+        return self._cfg.game.max_steps
 
     # num_agents property is defined above

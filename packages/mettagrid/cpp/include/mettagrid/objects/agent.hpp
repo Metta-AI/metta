@@ -7,21 +7,17 @@
 #include <string>
 #include <vector>
 
-#include "actions/orientation.hpp"
 #include "core/types.hpp"
+#include "objects/agent_config.hpp"
 #include "objects/constants.hpp"
 #include "objects/has_inventory.hpp"
 #include "objects/usable.hpp"
-#include "supervisors/agent_supervisor.hpp"
 #include "systems/stats_tracker.hpp"
-
-class AgentConfig;
 class Agent : public GridObject, public HasInventory, public Usable {
 public:
   ObservationType group;
   short frozen;
   short freeze_duration;
-  Orientation orientation;
   // inventory is a map of item to amount.
   // keys should be deleted when the amount is 0, to keep iteration faster.
   // however, this should not be relied on for correctness.
@@ -33,7 +29,6 @@ public:
   std::vector<InventoryItem> soul_bound_resources;
   // Resources that this agent will try to share when it uses another agent.
   std::vector<InventoryItem> shareable_resources;
-  ObservationType glyph;
   // Despite being a GridObjectId, this is different from the `id` property.
   // This is the index into MettaGrid._agents (std::vector<Agent*>)
   GridObjectId agent_id;
@@ -48,10 +43,12 @@ public:
   unsigned int steps_without_motion;
   // Inventory regeneration amounts (per-agent)
   std::unordered_map<InventoryItem, InventoryQuantity> inventory_regen_amounts;
-  // Agent supervisor (optional)
-  std::unique_ptr<AgentSupervisor> supervisor;
 
-  Agent(GridCoord r, GridCoord c, const AgentConfig& config, const std::vector<std::string>* resource_names);
+  Agent(GridCoord r,
+        GridCoord c,
+        const AgentConfig& config,
+        const std::vector<std::string>* resource_names,
+        const std::unordered_map<std::string, ObservationType>* feature_ids = nullptr);
 
   void init(RewardType* reward_ptr);
 

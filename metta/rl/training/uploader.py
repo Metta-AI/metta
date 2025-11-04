@@ -12,7 +12,7 @@ from metta.common.wandb.context import WandbRun
 from metta.rl.checkpoint_manager import CheckpointManager
 from metta.rl.training import DistributedHelper, TrainerComponent
 from metta.utils.file import local_copy
-from mettagrid.base_config import Config
+from mettagrid.config import Config
 
 logger = logging.getLogger(__name__)
 
@@ -134,5 +134,5 @@ class Uploader(TrainerComponent):
             with local_copy(normalized_uri) as tmp_path:
                 yield Path(tmp_path)
         except Exception as exc:  # pragma: no cover - best effort for remote policies
-            logger.error("Uploader: failed to materialize %s: %s", normalized_uri, exc)
+            logger.error("Uploader: failed to materialize %s: %s", normalized_uri, exc, exc_info=True)
             yield None
