@@ -174,26 +174,6 @@ class LSTMAgentPolicy(StatefulAgentPolicy[LSTMState]):
         # Convert single observation to batch of 1 for network forward pass
         if isinstance(obs, torch.Tensor):
             obs_tensor = obs.to(self._device).unsqueeze(0) if obs.dim() < 2 else obs.to(self._device)
-        elif isinstance(obs, MettaGridObservation):
-            # Convert AgentObservation to token array format
-            tokens = []
-            for token in obs.tokens:
-                col, row = token.location
-                # Pack coordinates into a single byte: first 4 bits are col, last 4 bits are row
-                coords_byte = ((col & 0x0F) << 4) | (row & 0x0F)
-                feature_id = token.feature.id
-                value = token.value
-                tokens.append([coords_byte, feature_id, value])
-
-            # Pad to expected shape (num_tokens, token_dim)
-            # obs_shape is (num_tokens, token_dim) e.g. (200, 3)
-            num_tokens, token_dim = self._obs_shape
-            while len(tokens) < num_tokens:
-                tokens.append([0xFF, 0, 0])
-
-            # Convert to numpy array and flatten: [num_tokens, token_dim] -> [num_tokens * token_dim]
-            obs_array = np.array(tokens, dtype=np.uint8).flatten()
-            obs_tensor = torch.from_numpy(obs_array).unsqueeze(0).to(self._device).float()
         else:
             obs_tensor = torch.tensor(obs, device=self._device, dtype=torch.float32).unsqueeze(0)
 
@@ -242,10 +222,12 @@ class LSTMAgentPolicy(StatefulAgentPolicy[LSTMState]):
 class LSTMPolicy(TrainablePolicy):
     """LSTM-based policy that creates StatefulPolicy wrappers for each agent."""
 
-    def __init__(
-        self, actions_cfg: ActionsConfig, obs_shape: tuple, device: torch.device, policy_env_info: PolicyEnvInterface
-    ):
+    def __init__(self, policy_env_info: PolicyEnvInterface, device: torch.device | None = None):
         super().__init__(policy_env_info)
+        if device is None:
+            device = torch.device("cpu")
+        obs_shape = policy_env_info.observation_space.shape
+        actions_cfg = policy_env_info.actions
         self._net = LSTMPolicyNet(actions_cfg, obs_shape).to(device)
         self._device = device
         self._num_actions = len(actions_cfg.actions())

@@ -1,23 +1,21 @@
-"""
-UnclippingAgent - Extends SimpleBaselineAgent with unclipping capabilities.
-
-This agent can detect clipped extractors and craft unclip items to restore them.
-"""
+"""Policy wrapper for UnclippingAgentImpl."""
 
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Optional
+from typing import Optional
 
-from .simple_baseline_agent import (
+from cogames.policy.scripted_agent.simple_baseline_agent import (
+    CellType,
     ExtractorInfo,
     Phase,
     SimpleAgentState,
-    SimpleBaselineAgent,
+    SimpleBaselineAgentImpl,
 )
-
-if TYPE_CHECKING:
-    from cogames.cogs_vs_clips.env import MettaGridEnv
+from mettagrid.config.vibes import VIBE_BY_NAME
+from mettagrid.policy.policy import AgentPolicy, MultiAgentPolicy, StatefulAgentPolicy
+from mettagrid.policy.policy_env_interface import PolicyEnvInterface
+from mettagrid.simulator import Action, AgentObservation, Simulation
 
 
 @dataclass
@@ -35,52 +33,39 @@ class UnclippingAgentState(SimpleAgentState):
     unclip_target_resource: Optional[str] = None  # Which resource is clipped
 
 
-class UnclippingAgent(SimpleBaselineAgent):
-    """
-    Agent that can unclip extractors by crafting and using unclip items.
+class UnclippingAgentImpl(SimpleBaselineAgentImpl):
+    """Internal implementation for unclipping agent."""
 
-    Unclip item mapping:
-    - decoder (from carbon) unclips oxygen extractors
-    - modulator (from oxygen) unclips carbon extractors
-    - resonator (from silicon) unclips germanium extractors
-    - scrambler (from germanium) unclips silicon extractors
-    """
-
-    def __init__(self, env: MettaGridEnv):
-        super().__init__(env)
-
-        # Load unclip recipes from environment or use defaults
+    def __init__(
+        self,
+        policy_env_info: PolicyEnvInterface,
+        agent_id: int,
+        simulation: Optional[Simulation],
+    ):
+        """Initialize unclipping agent implementation."""
+        super().__init__(policy_env_info, agent_id, simulation)
+        # Load unclip recipes
         self._unclip_recipes = self._load_unclip_recipes()
         print(f"[UnclippingAgent] Initialized with recipes: {self._unclip_recipes}")
 
     def _load_unclip_recipes(self) -> dict[str, str]:
-        """
-        Load unclip recipes: clipped_resource -> craft_resource.
-
-        Returns mapping like {"oxygen": "carbon"} meaning to unclip oxygen,
-        craft decoder from carbon.
-        """
-        # Standard mapping
+        """Load unclip recipes: clipped_resource -> craft_resource."""
         item_to_clipped_resource = {
             "decoder": "oxygen",
             "modulator": "carbon",
             "resonator": "germanium",
             "scrambler": "silicon",
         }
-
         item_to_craft_resource = {
             "decoder": "carbon",
             "modulator": "oxygen",
             "resonator": "silicon",
             "scrambler": "germanium",
         }
-
-        # Build clipped_resource -> craft_resource mapping
         recipes = {}
         for item, clipped_res in item_to_clipped_resource.items():
             craft_res = item_to_craft_resource[item]
             recipes[clipped_res] = craft_res
-
         return recipes
 
     def _get_unclip_item_name(self, clipped_resource: str) -> Optional[str]:
@@ -97,15 +82,44 @@ class UnclippingAgent(SimpleBaselineAgent):
         """Check if agent has the unclip item for the blocked extractor."""
         if s.blocked_by_clipped_extractor is None:
             return False
-
         if s.unclip_target_resource is None:
             return False
-
         item_name = self._get_unclip_item_name(s.unclip_target_resource)
         if item_name is None:
             return False
-
         return getattr(s, item_name, 0) > 0
+
+    def agent_state(self, simulation: Simulation | None = None) -> UnclippingAgentState:
+        """Get initial state for unclipping agent."""
+        if simulation is None:
+            return UnclippingAgentState(
+                agent_id=self._agent_id,
+                id_map=None,
+                map_height=0,
+                map_width=0,
+                occupancy=None,
+                simulation=None,
+            )
+
+        map_height = simulation.map_height
+        map_width = simulation.map_width
+        occupancy = [[CellType.FREE.value] * map_width for _ in range(map_height)]
+        print(f"[UnclippingAgent] Initialized for map {map_height}x{map_width}")
+        return UnclippingAgentState(
+            agent_id=self._agent_id,
+            id_map=simulation.id_map,
+            simulation=simulation,
+            map_height=map_height,
+            map_width=map_width,
+            occupancy=occupancy,
+        )
+
+    def step_with_state(
+        self, obs: AgentObservation, state: UnclippingAgentState
+    ) -> tuple[Action, UnclippingAgentState]:
+        """Get action and update state."""
+        action = self._step_impl(state, obs)
+        return action, state
 
     def _update_phase(self, s: UnclippingAgentState) -> None:
         """Override to add unclipping phase priorities."""
@@ -122,7 +136,6 @@ class UnclippingAgent(SimpleBaselineAgent):
                 print(f"[Agent {s.agent_id}] Phase: RECHARGE -> GATHER (energy={s.energy})")
                 s.phase = Phase.GATHER
                 s.target_position = None
-            # Still recharging, stay in this phase
             return
 
         # Priority 2: Deliver hearts if we have any
@@ -173,19 +186,14 @@ class UnclippingAgent(SimpleBaselineAgent):
             s.target_position = None
 
     def _find_any_needed_extractor(self, s: UnclippingAgentState) -> Optional[tuple[ExtractorInfo, str]]:
-        """
-        Override to detect clipped extractors.
-
-        Returns (extractor, resource_type) or None if no extractors available.
-        Sets s.blocked_by_clipped_extractor if all extractors are clipped.
-        """
+        """Override to detect clipped extractors."""
         deficits = self._calculate_deficits(s)
 
         for resource_type in ["carbon", "oxygen", "germanium", "silicon"]:
             if deficits.get(resource_type, 0) <= 0:
                 continue
 
-            extractors = self._extractors.get(resource_type, [])
+            extractors = s.extractors.get(resource_type, [])
             if not extractors:
                 continue
 
@@ -202,7 +210,7 @@ class UnclippingAgent(SimpleBaselineAgent):
             ]
 
             if available:
-                # Found available extractor
+
                 def distance(pos: tuple[int, int]) -> int:
                     return abs(pos[0] - s.row) + abs(pos[1] - s.col)
 
@@ -212,7 +220,7 @@ class UnclippingAgent(SimpleBaselineAgent):
             # No available extractors - check if any are clipped or depleted
             clipped = [e for e in extractors if e.clipped or e.remaining_uses == 0]
             if clipped:
-                # Found clipped extractor that we need
+
                 def distance(pos: tuple[int, int]) -> int:
                     return abs(pos[0] - s.row) + abs(pos[1] - s.col)
 
@@ -227,60 +235,57 @@ class UnclippingAgent(SimpleBaselineAgent):
 
         return None
 
-    def _execute_phase(self, s: UnclippingAgentState) -> int:
+    def _execute_phase(self, state: UnclippingAgentState) -> Action:
         """Override to handle CRAFT_UNCLIP and UNCLIP phases."""
-        if s.phase == Phase.GATHER:
-            return self._do_gather(s)
-        elif s.phase == Phase.ASSEMBLE:
-            return self._do_assemble(s)
-        elif s.phase == Phase.DELIVER:
-            return self._do_deliver(s)
-        elif s.phase == Phase.RECHARGE:
-            return self._do_recharge(s)
-        elif s.phase == Phase.CRAFT_UNCLIP:
-            return self._do_craft_unclip(s)
-        elif s.phase == Phase.UNCLIP:
-            return self._do_unclip(s)
-        return self._NOOP
+        if state.phase == Phase.GATHER:
+            return self._do_gather(state)
+        elif state.phase == Phase.ASSEMBLE:
+            return self._do_assemble(state)
+        elif state.phase == Phase.DELIVER:
+            return self._do_deliver(state)
+        elif state.phase == Phase.RECHARGE:
+            return self._do_recharge(state)
+        elif state.phase == Phase.CRAFT_UNCLIP:
+            return self._do_craft_unclip(state)
+        elif state.phase == Phase.UNCLIP:
+            return self._do_unclip(state)
+        return Action(name=self._policy_env_info.actions.noop.Noop().name)
 
-    def _do_craft_unclip(self, s: UnclippingAgentState) -> int:
+    def _do_craft_unclip(self, s: UnclippingAgentState) -> Action:
         """Craft unclip item at assembler."""
         if s.unclip_target_resource is None:
             print(f"[Agent {s.agent_id}] CRAFT_UNCLIP: No target resource, returning to GATHER")
             s.phase = Phase.GATHER
-            return self._NOOP
+            return Action(name=self._policy_env_info.actions.noop.Noop().name)
 
-        # Get craft resource needed
         craft_resource = self._unclip_recipes.get(s.unclip_target_resource)
         if craft_resource is None:
             print(f"[Agent {s.agent_id}] CRAFT_UNCLIP: No recipe for {s.unclip_target_resource}")
             s.phase = Phase.GATHER
-            return self._NOOP
+            return Action(name=self._policy_env_info.actions.noop.Noop().name)
 
-        # Check if we have enough craft resource (need 1)
         current_amount = getattr(s, craft_resource, 0)
         if current_amount < 1:
-            # Need to gather craft resource first
             print(f"[Agent {s.agent_id}] CRAFT_UNCLIP: Need {craft_resource} to craft, have {current_amount}")
-            # Temporarily go back to GATHER to get craft resource
             return self._do_gather(s)
 
-        # Explore until we find assembler
         explore_action = self._explore_until(
-            s, condition=lambda: self._stations["assembler"] is not None, reason="Need assembler for crafting"
+            s, condition=lambda: s.stations["assembler"] is not None, reason="Need assembler for crafting"
         )
         if explore_action is not None:
             return explore_action
 
-        # Change glyph to "gear" for crafting unclip items
         if s.current_glyph != "gear":
-            vibe_action = self._change_vibe_actions["gear"]
-            print(f"[Agent {s.agent_id}] Changing glyph to 'gear' for crafting (action {vibe_action})")
+            # Get vibe action from policy_env_info
+            gear_vibe = VIBE_BY_NAME["gear"]
+            vibe_action_name = self._policy_env_info.actions.change_vibe.ChangeVibe(gear_vibe).name
+            print(f"[Agent {s.agent_id}] Changing glyph to 'gear' for crafting (action {vibe_action_name})")
             s.current_glyph = "gear"
-            return vibe_action
+            return Action(name=vibe_action_name)
 
-        # Move to assembler and use it
-        assembler = self._stations["assembler"]
+        assembler = s.stations["assembler"]
+        if assembler is None:
+            return Action(name=self._policy_env_info.actions.noop.Noop().name)
         ar, ac = assembler
         dr = abs(s.row - ar)
         dc = abs(s.col - ac)
@@ -292,15 +297,14 @@ class UnclippingAgent(SimpleBaselineAgent):
 
         return self._move_towards(s, assembler, reach_adjacent=True)
 
-    def _do_unclip(self, s: UnclippingAgentState) -> int:
+    def _do_unclip(self, s: UnclippingAgentState) -> Action:
         """Use unclip item on clipped extractor."""
         if s.blocked_by_clipped_extractor is None:
             print(f"[Agent {s.agent_id}] UNCLIP: No blocked extractor, returning to GATHER")
             s.phase = Phase.GATHER
             s.unclip_target_resource = None
-            return self._NOOP
+            return Action(name=self._policy_env_info.actions.noop.Noop().name)
 
-        # Navigate to clipped extractor
         target = s.blocked_by_clipped_extractor
         tr, tc = target
         dr = abs(s.row - tr)
@@ -308,12 +312,25 @@ class UnclippingAgent(SimpleBaselineAgent):
         is_adjacent = (dr == 1 and dc == 0) or (dr == 0 and dc == 1)
 
         if is_adjacent:
-            # Adjacent to clipped extractor - move into it to unclip
             print(f"[Agent {s.agent_id}] Unclipping extractor at {target}")
-            # Clear blocked state after unclipping
             s.blocked_by_clipped_extractor = None
             s.unclip_target_resource = None
             return self._move_into_cell(s, target)
 
-        # Not adjacent yet, move towards it
         return self._move_towards(s, target, reach_adjacent=True)
+
+
+class UnclippingPolicy(MultiAgentPolicy):
+    """Policy class for unclipping agent."""
+
+    def __init__(self, policy_env_info: PolicyEnvInterface):
+        super().__init__(policy_env_info)
+        self._policy_env_info = policy_env_info
+        self._agent_policies: list[AgentPolicy] = [
+            StatefulAgentPolicy(UnclippingAgentImpl(self._policy_env_info, agent_id, simulation=None), agent_id)
+            for agent_id in range(self._policy_env_info.num_agents)
+        ]
+
+    def agent_policy(self, agent_id: int) -> AgentPolicy:
+        """Get policy for a specific agent."""
+        return self._agent_policies[agent_id]

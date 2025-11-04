@@ -7,6 +7,7 @@ from rich.console import Console
 
 from mettagrid import MettaGridConfig
 from mettagrid.policy.policy import PolicySpec
+from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.policy.utils import initialize_or_load_policy
 from mettagrid.renderer.renderer import RenderMode
 from mettagrid.simulator.rollout import Rollout
@@ -40,9 +41,8 @@ def play(
 
     logger.debug("Starting play session", extra={"game_name": game_name})
 
-    policy = initialize_or_load_policy(
-        policy_spec.policy_class_path, policy_spec.policy_data_path, env_cfg.game.actions
-    )
+    policy_env_info = PolicyEnvInterface.from_mg_cfg(env_cfg)
+    policy = initialize_or_load_policy(policy_spec.policy_class_path, policy_spec.policy_data_path, policy_env_info)
     agent_policies = [policy.agent_policy(agent_id) for agent_id in range(env_cfg.game.num_agents)]
 
     # Create simulator and renderer

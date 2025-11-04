@@ -201,8 +201,7 @@ def _evaluate_single_mission(
         initialize_or_load_policy(
             spec.policy_class_path,
             spec.policy_data_path,
-            env_cfg.game.actions,
-            policy_env_info=policy_env_info,
+            policy_env_info,
         )
         for spec in policy_specs
     ]

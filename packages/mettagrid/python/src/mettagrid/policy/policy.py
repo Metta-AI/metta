@@ -9,7 +9,7 @@ from pydantic import BaseModel
 
 from mettagrid.config.mettagrid_config import ActionsConfig
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
-from mettagrid.simulator import Action, AgentObservation
+from mettagrid.simulator import Action, AgentObservation, Simulation
 
 # Type variable for agent state - can be any type
 StateType = TypeVar("StateType")
@@ -37,9 +37,8 @@ class AgentPolicy:
         """
         raise NotImplementedError("Subclasses must implement step()")
 
-    def reset(self) -> None:
+    def reset(self, simulation: Simulation | None = None) -> None:
         """Reset the policy state. Default implementation does nothing."""
-        pass
 
 
 class MultiAgentPolicy:
@@ -108,16 +107,15 @@ class StatefulAgentPolicy(AgentPolicy, Generic[StateType]):
         self._base_policy = base_policy
         self._agent_id = agent_id
         # Initialize state using the base policy's agent_state() method
-        self._state: Optional[StateType] = self._base_policy.agent_state(agent_id)
+        self._state: Optional[StateType] = self._base_policy.agent_state(simulation=None)
 
     def step(self, obs: AgentObservation) -> Action:
-        """Get action and update hidden state."""
         action, self._state = self._base_policy.step_with_state(obs, self._state)
         return action
 
-    def reset(self) -> None:
+    def reset(self, simulation: Simulation | None = None) -> None:
         """Reset the hidden state to initial state."""
-        self._state = self._base_policy.agent_state(self._agent_id)
+        self._state = self._base_policy.agent_state(simulation=simulation)
 
 
 class StatefulPolicyImpl(Generic[StateType]):
@@ -129,7 +127,7 @@ class StatefulPolicyImpl(Generic[StateType]):
     """
 
     @abstractmethod
-    def agent_state(self, agent_id: int = 0) -> Optional[StateType]:
+    def agent_state(self, agent_id: int = 0, simulation: Simulation | None = None) -> Optional[StateType]:
         """Get the initial state for a new agent.
 
         Args:

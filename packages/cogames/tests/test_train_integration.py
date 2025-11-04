@@ -88,11 +88,10 @@ def test_train_lstm_and_load_policy_data(test_env_config, temp_checkpoint_dir):
 
     simulator = Simulator()
     env = PufferMettaGridEnv(simulator, test_env_config)
-    obs_shape = env.single_observation_space.shape
     from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 
     policy_env_info = PolicyEnvInterface.from_mg_cfg(test_env_config)
-    policy = LSTMPolicy(test_env_config.game.actions, obs_shape, torch.device("cpu"), policy_env_info)
+    policy = LSTMPolicy(policy_env_info, torch.device("cpu"))
     policy.load_policy_data(str(checkpoints[0]))
 
     # Verify the policy can be used for inference with state

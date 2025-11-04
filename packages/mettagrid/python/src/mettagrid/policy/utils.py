@@ -5,7 +5,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Dict, Optional, Tuple, Union
+from typing import TYPE_CHECKING, Dict, Optional, Tuple, Union
 
 import torch
 
@@ -15,7 +15,7 @@ from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.util.module import load_symbol
 
 if TYPE_CHECKING:
-    from mettagrid.config.mettagrid_config import ActionsConfig
+    pass
 
 _POLICY_CLASS_SHORTHAND: dict[str, str] = {
     "random": "mettagrid.policy.random.RandomMultiAgentPolicy",
@@ -23,122 +23,31 @@ _POLICY_CLASS_SHORTHAND: dict[str, str] = {
     "stateless": "mettagrid.policy.stateless.StatelessPolicy",
     "token": "mettagrid.policy.token.TokenPolicy",
     "lstm": "mettagrid.policy.lstm.LSTMPolicy",
+    "scripted_simple": "cogames.policy.scripted_agent.simple_baseline_policy.SimpleBaselinePolicy",
 }
 
 
 def initialize_or_load_policy(
     policy_class_path: str,
     policy_data_path: Optional[str],
-    actions: "ActionsConfig",
+    policy_env_info: PolicyEnvInterface,
     device: "torch.device | None" = None,
-    env: Optional[Any] = None,
-    policy_env_info: Optional[PolicyEnvInterface] = None,
 ) -> Policy:
-    """Initialize a policy from its class path and optionally load weights.
+    """Initialize a policy from its class path and optsonally load weights.
 
     Args:
         policy_class_path: Full class path to the policy
         policy_data_path: Optional path to policy checkpoint
-        actions: Actions configuration from the environment
+        policy_env_info: PolicyEnvInterface with environment information
         device: Optional device to use for policy
-        env: Optional environment instance (required for some policies like LSTM)
-        policy_env_info: Optional PolicyEnvInterface (created from env if not provided)
 
     Returns:
         Initialized policy instance
     """
-    import inspect
 
     policy_class = load_symbol(policy_class_path)
 
-    # Create policy_env_info if not provided but env is provided
-    if policy_env_info is None and env is not None:
-        # Try to create policy_env_info from env
-        if hasattr(env, "env_cfg"):
-            from mettagrid.config.mettagrid_config import MettaGridConfig
-
-            if isinstance(env.env_cfg, MettaGridConfig):
-                policy_env_info = PolicyEnvInterface.from_mg_cfg(env.env_cfg)
-        elif hasattr(env, "driver_env") and hasattr(env.driver_env, "env_cfg"):
-            from mettagrid.config.mettagrid_config import MettaGridConfig
-
-            if isinstance(env.driver_env.env_cfg, MettaGridConfig):
-                policy_env_info = PolicyEnvInterface.from_mg_cfg(env.driver_env.env_cfg)
-
-    # Create policy_env_info from actions if still not provided (backward compatibility)
-    if policy_env_info is None and actions is not None:
-        # Try to create a minimal PolicyEnvInterface from actions
-        # This is a fallback for backward compatibility
-        from mettagrid.config.mettagrid_config import MettaGridConfig
-
-        mg_cfg = MettaGridConfig()
-        mg_cfg.game.actions = actions
-        policy_env_info = PolicyEnvInterface.from_mg_cfg(mg_cfg)
-
-    # Check if policy requires obs_shape parameter (like LSTMPolicy)
-    sig = inspect.signature(policy_class.__init__)
-    params = list(sig.parameters.keys())
-
-    # Check the first parameter to see if it's policy_env_info
-    first_param = params[0] if params else None
-    has_policy_env_info_param = "policy_env_info" in params
-    has_obs_shape_param = "obs_shape" in params
-    has_actions_param = "actions" in params or "actions_cfg" in params
-
-    if has_obs_shape_param:
-        # LSTMPolicy-style: requires (actions_cfg, obs_shape, device, policy_env_info)
-        if device is None:
-            device = torch.device("cpu")
-
-        # Extract obs_shape and actions_cfg from policy_env_info or env
-        if policy_env_info is not None:
-            obs_shape = policy_env_info.observation_space.shape
-            actions_cfg = policy_env_info.actions
-        elif env is not None:
-            obs_shape = env.single_observation_space.shape
-            actions_cfg = actions if actions is not None else MettaGridConfig().game.actions
-        else:
-            raise TypeError(f"{policy_class_path} requires either policy_env_info or env to determine obs_shape")
-
-        if policy_env_info is None:
-            raise TypeError(f"{policy_class_path} requires policy_env_info parameter")
-
-        policy = policy_class(actions_cfg, obs_shape, device, policy_env_info)  # type: ignore[misc]
-    elif first_param == "policy_env_info":
-        # Policy subclasses that take policy_env_info as first parameter
-        # (like FastPolicy, PufferPolicy, TransformerPolicy)
-        if policy_env_info is None:
-            raise TypeError(f"{policy_class_path} requires policy_env_info parameter")
-        # Check if there's a config parameter
-        if "config" in params:
-            policy = policy_class(policy_env_info)  # type: ignore[misc]
-        else:
-            policy = policy_class(policy_env_info)  # type: ignore[misc]
-    elif has_policy_env_info_param:
-        # Policy base class: requires (policy_env_info)
-        if policy_env_info is None:
-            raise TypeError(f"{policy_class_path} requires policy_env_info parameter")
-        policy = policy_class(policy_env_info)  # type: ignore[misc]
-    elif has_actions_param:
-        # Legacy policy: requires actions (but this shouldn't happen for TrainablePolicy)
-        if actions is None:
-            raise TypeError(f"{policy_class_path} requires actions parameter")
-        policy = policy_class(actions)  # type: ignore[misc]
-    else:
-        # Try policy_env_info first, then fall back to actions
-        if policy_env_info is not None:
-            try:
-                policy = policy_class(policy_env_info)  # type: ignore[misc]
-            except TypeError:
-                if actions is not None:
-                    policy = policy_class(actions)  # type: ignore[misc]
-                else:
-                    msg = f"{policy_class_path} requires either policy_env_info or actions parameter"
-                    raise TypeError(msg) from None
-        elif actions is not None:
-            policy = policy_class(actions)  # type: ignore[misc]
-        else:
-            raise TypeError(f"{policy_class_path} requires either policy_env_info or actions parameter")
+    policy = policy_class(policy_env_info)  # type: ignore[misc]
 
     if policy_data_path:
         if not isinstance(policy, TrainablePolicy):

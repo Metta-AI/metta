@@ -1,19 +1,15 @@
-"""
-CoordinatingAgent - Extends UnclippingAgent with multi-agent coordination.
-
-This agent coordinates with other agents to avoid collisions and optimize assembly.
-"""
+"""Policy wrapper for CoordinatingAgentImpl."""
 
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Optional
+from typing import Optional
 
-from .simple_baseline_agent import Phase
-from .unclipping_agent import UnclippingAgent, UnclippingAgentState
-
-if TYPE_CHECKING:
-    from cogames.cogs_vs_clips.env import MettaGridEnv
+from cogames.policy.scripted_agent.simple_baseline_agent import CellType, ExtractorInfo, Phase
+from cogames.policy.scripted_agent.unclipping_policy import UnclippingAgentImpl, UnclippingAgentState
+from mettagrid.policy.policy import AgentPolicy, MultiAgentPolicy, StatefulAgentPolicy
+from mettagrid.policy.policy_env_interface import PolicyEnvInterface
+from mettagrid.simulator import Action, AgentObservation, Simulation
 
 
 @dataclass
@@ -28,15 +24,8 @@ class CoordinatingAgentState(UnclippingAgentState):
     reserved_adjacent_cell: tuple[int, int] | None = None
 
 
-class CoordinatingAgent(UnclippingAgent):
-    """
-    Agent with multi-agent coordination capabilities.
-
-    Features:
-    - Assembly coordination: Only one agent assembles at a time (single-use station)
-    - Extractor sharing: Multiple agents (up to 4) can use same extractor from different sides
-    - Yield behavior: Non-assembling agents continue gathering while one assembles
-    """
+class CoordinatingAgentImpl(UnclippingAgentImpl):
+    """Internal implementation for coordinating agent with multi-agent coordination."""
 
     # Shared state across all agent instances (class-level)
     _assembly_signal: dict = {"active": False, "requester": None, "position": None}
@@ -49,19 +38,59 @@ class CoordinatingAgent(UnclippingAgent):
         tuple[int, int], set[tuple[int, int]]
     ] = {}  # extractor_pos -> set of reserved adjacent cells
 
-    def __init__(self, env: MettaGridEnv):
-        super().__init__(env)
+    def __init__(
+        self,
+        policy_env_info: PolicyEnvInterface,
+        agent_id: int,
+        simulation: Optional[Simulation],
+    ):
+        """Initialize coordinating agent implementation."""
+        super().__init__(policy_env_info, agent_id, simulation)
         print(
             "[CoordinatingAgent] Initialized with assembly coordination "
             "and extractor sharing (up to 4 agents/extractor)"
         )
+
+    def agent_state(self, simulation: Simulation | None = None) -> CoordinatingAgentState:
+        """Get initial state for coordinating agent."""
+        if simulation is None:
+            return CoordinatingAgentState(
+                agent_id=self._agent_id,
+                id_map=None,
+                map_height=0,
+                map_width=0,
+                occupancy=None,
+                simulation=None,
+            )
+
+        map_height = simulation.map_height
+        map_width = simulation.map_width
+        occupancy = [[CellType.FREE.value] * map_width for _ in range(map_height)]
+        print(f"[CoordinatingAgent] Initialized for map {map_height}x{map_width}")
+        return CoordinatingAgentState(
+            agent_id=self._agent_id,
+            id_map=simulation.id_map,
+            simulation=simulation,
+            map_height=map_height,
+            map_width=map_width,
+            occupancy=occupancy,
+        )
+
+    def step_with_state(
+        self, obs: AgentObservation, state: CoordinatingAgentState
+    ) -> tuple[Action, CoordinatingAgentState]:
+        """Get action and update state."""
+        action = self._step_impl(state, obs)
+        return action, state
 
     def _get_adjacent_cells(self, pos: tuple[int, int]) -> list[tuple[int, int]]:
         """Get all 4 adjacent cells for a position."""
         r, c = pos
         return [(r - 1, c), (r + 1, c), (r, c - 1), (r, c + 1)]
 
-    def _find_unreserved_adjacent_cell(self, s, extractor_pos: tuple[int, int]) -> tuple[int, int] | None:
+    def _find_unreserved_adjacent_cell(
+        self, s: CoordinatingAgentState, extractor_pos: tuple[int, int]
+    ) -> tuple[int, int] | None:
         """Find an unreserved adjacent cell around an extractor."""
         reserved = self._reserved_adjacent_cells.get(extractor_pos, set())
         adjacent_cells = self._get_adjacent_cells(extractor_pos)
@@ -86,7 +115,9 @@ class CoordinatingAgent(UnclippingAgent):
 
         return min(available_cells, key=distance)
 
-    def _set_agent_target(self, agent_id: int, target: tuple[int, int], s) -> tuple[int, int] | None:
+    def _set_agent_target(
+        self, agent_id: int, target: tuple[int, int], s: CoordinatingAgentState
+    ) -> tuple[int, int] | None:
         """Reserve a target extractor and specific adjacent cell for an agent.
 
         Returns the reserved adjacent cell, or None if no cell available.
@@ -196,7 +227,7 @@ class CoordinatingAgent(UnclippingAgent):
                 self._assembly_signal = {
                     "active": True,
                     "requester": s.agent_id,
-                    "position": self._stations.get("assembler"),
+                    "position": s.stations.get("assembler"),
                 }
                 print(f"[Agent {s.agent_id}] Claimed assembly (other agents can use extractors)")
 
@@ -237,7 +268,7 @@ class CoordinatingAgent(UnclippingAgent):
             s.phase = Phase.GATHER
             s.target_position = None
 
-    def _find_any_needed_extractor(self, s: CoordinatingAgentState) -> Optional[tuple[object, str]]:  # ExtractorInfo
+    def _find_any_needed_extractor(self, s: CoordinatingAgentState) -> Optional[tuple[ExtractorInfo, str]]:
         """
         Override to prefer extractors with fewer agents targeting them.
 
@@ -249,7 +280,7 @@ class CoordinatingAgent(UnclippingAgent):
             if deficits.get(resource_type, 0) <= 0:
                 continue
 
-            extractors = self._extractors.get(resource_type, [])
+            extractors = s.extractors.get(resource_type, [])
             if not extractors:
                 continue
 
@@ -316,9 +347,10 @@ class CoordinatingAgent(UnclippingAgent):
         self,
         s: CoordinatingAgentState,
         target: tuple[int, int],
+        *,
         reach_adjacent: bool = False,
         allow_goal_block: bool = False,
-    ) -> int:
+    ) -> Action:
         """Override to use reserved adjacent cell when moving to extractors."""
         # If we have a reserved adjacent cell and we're moving to an extractor with reach_adjacent=True,
         # instead move directly to the reserved cell
@@ -336,7 +368,7 @@ class CoordinatingAgent(UnclippingAgent):
         # Call parent implementation with keyword arguments
         return super()._move_towards(s, target, reach_adjacent=reach_adjacent, allow_goal_block=allow_goal_block)
 
-    def _update_state_from_obs(self, s: CoordinatingAgentState, obs) -> None:
+    def _update_state_from_obs(self, s: CoordinatingAgentState, obs: AgentObservation) -> None:
         """Override to track home base and clear assembly signal when heart received."""
         # Call parent to update state
         super()._update_state_from_obs(s, obs)
@@ -350,3 +382,19 @@ class CoordinatingAgent(UnclippingAgent):
         if s.hearts > 0 and self._assembly_signal.get("requester") == s.agent_id:
             self._clear_assembly_signal()
             print(f"[Agent {s.agent_id}] Released assembly signal (heart received)")
+
+
+class CoordinatingPolicy(MultiAgentPolicy):
+    """Policy class for coordinating agent."""
+
+    def __init__(self, policy_env_info: PolicyEnvInterface):
+        super().__init__(policy_env_info)
+        self._policy_env_info = policy_env_info
+        self._agent_policies: list[AgentPolicy] = [
+            StatefulAgentPolicy(CoordinatingAgentImpl(self._policy_env_info, agent_id, simulation=None), agent_id)
+            for agent_id in range(self._policy_env_info.num_agents)
+        ]
+
+    def agent_policy(self, agent_id: int) -> AgentPolicy:
+        """Get policy for a specific agent."""
+        return self._agent_policies[agent_id]
