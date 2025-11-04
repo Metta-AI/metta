@@ -1,6 +1,6 @@
 """Tests for release continuation and step-skipping logic."""
 
-from datetime import datetime
+from datetime import UTC, datetime
 from unittest.mock import patch
 
 from devops.stable.state import (
@@ -28,7 +28,7 @@ def test_resolve_version_continues_unreleased_state(monkeypatch, tmp_path):
     # Create an unreleased state
     state = ReleaseState(
         version="v2025.10.09-143000",
-        created_at=datetime.utcnow().isoformat(),
+        created_at=datetime.now(UTC).isoformat(),
         commit_sha="abc123",
         released=False,
     )
@@ -47,7 +47,7 @@ def test_resolve_version_starts_new_when_previous_released(monkeypatch, tmp_path
     # Create a released state
     state = ReleaseState(
         version="v2025.10.09-143000",
-        created_at=datetime.utcnow().isoformat(),
+        created_at=datetime.now(UTC).isoformat(),
         commit_sha="abc123",
         released=True,
     )
@@ -77,7 +77,7 @@ def test_resolve_version_respects_force_new(monkeypatch, tmp_path):
     # Create an unreleased state
     state = ReleaseState(
         version="v2025.10.09-143000",
-        created_at=datetime.utcnow().isoformat(),
+        created_at=datetime.now(UTC).isoformat(),
         commit_sha="abc123",
         released=False,
     )
@@ -99,14 +99,14 @@ def test_step_prepare_tag_skips_when_gate_passed(monkeypatch, tmp_path, capsys):
     # Create state with completed prepare_tag gate
     state = ReleaseState(
         version="v2025.10.09-143000",
-        created_at=datetime.utcnow().isoformat(),
+        created_at=datetime.now(UTC).isoformat(),
         commit_sha="abc123",
     )
     state.gates.append(
         Gate(
             step="prepare_tag",
             passed=True,
-            timestamp=datetime.utcnow().isoformat(),
+            timestamp=datetime.now(UTC).isoformat(),
         )
     )
 
@@ -129,14 +129,14 @@ def test_step_bug_check_skips_when_gate_passed(monkeypatch, tmp_path, capsys):
     # Create state with completed bug_check gate
     state = ReleaseState(
         version="v2025.10.09-143000",
-        created_at=datetime.utcnow().isoformat(),
+        created_at=datetime.now(UTC).isoformat(),
         commit_sha="abc123",
     )
     state.gates.append(
         Gate(
             step="bug_check",
             passed=True,
-            timestamp=datetime.utcnow().isoformat(),
+            timestamp=datetime.now(UTC).isoformat(),
         )
     )
 
@@ -158,7 +158,7 @@ def test_step_prepare_tag_marks_gate_when_complete(monkeypatch, tmp_path):
     # Create state without gates
     state = ReleaseState(
         version="v2025.10.09-143000",
-        created_at=datetime.utcnow().isoformat(),
+        created_at=datetime.now(UTC).isoformat(),
         commit_sha="abc123",
     )
 
@@ -184,7 +184,7 @@ def test_step_bug_check_marks_gate_when_complete(monkeypatch, tmp_path):
     # Create state without gates
     state = ReleaseState(
         version="v2025.10.09-143000",
-        created_at=datetime.utcnow().isoformat(),
+        created_at=datetime.now(UTC).isoformat(),
         commit_sha="abc123",
     )
 
@@ -272,12 +272,12 @@ def test_continuation_skips_completed_steps(monkeypatch, tmp_path, capsys):
     # Create a state with completed prepare_tag and bug_check gates
     state = ReleaseState(
         version="v2025.10.09-143000",
-        created_at=datetime.utcnow().isoformat(),
+        created_at=datetime.now(UTC).isoformat(),
         commit_sha="abc123",
         released=False,
     )
-    state.gates.append(Gate(step="prepare_tag", passed=True, timestamp=datetime.utcnow().isoformat()))
-    state.gates.append(Gate(step="bug_check", passed=True, timestamp=datetime.utcnow().isoformat()))
+    state.gates.append(Gate(step="prepare_tag", passed=True, timestamp=datetime.now(UTC).isoformat()))
+    state.gates.append(Gate(step="bug_check", passed=True, timestamp=datetime.now(UTC).isoformat()))
     save_state(state)
 
     from devops.stable.release_stable import step_bug_check, step_prepare_tag

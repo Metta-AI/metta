@@ -9,7 +9,7 @@ This module handles:
 from __future__ import annotations
 
 import re
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Optional
 
@@ -69,7 +69,7 @@ def load_or_create_state(version: str, commit_sha: str) -> ReleaseState:
     # Create new state
     state = ReleaseState(
         version=version,
-        created_at=datetime.utcnow().isoformat(timespec="seconds"),
+        created_at=datetime.now(UTC).isoformat(timespec="seconds"),
         commit_sha=commit_sha,
     )
     save_state(state)
