@@ -13,8 +13,8 @@ class Swap : public ActionHandler {
 public:
   explicit Swap(const ActionConfig& cfg) : ActionHandler(cfg, "swap") {}
 
-  unsigned char max_arg() const override {
-    return 0;
+  std::vector<Action> create_actions() override {
+    return {Action(this, "swap", 0)};
   }
 
 protected:

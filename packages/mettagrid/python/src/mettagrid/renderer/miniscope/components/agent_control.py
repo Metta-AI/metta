@@ -5,9 +5,9 @@ from typing import Dict
 from rich.table import Table
 from rich.text import Text
 
-from mettagrid import MettaGridEnv
 from mettagrid.renderer.miniscope.miniscope_panel import PanelLayout
 from mettagrid.renderer.miniscope.miniscope_state import MiniscopeState
+from mettagrid.simulator import Action, Simulation
 
 from .base import MiniscopeComponent
 
@@ -17,25 +17,30 @@ class AgentControlComponent(MiniscopeComponent):
 
     def __init__(
         self,
-        env: MettaGridEnv,
+        sim: Simulation,
         state: MiniscopeState,
         panels: PanelLayout,
     ):
         """Initialize the agent control component."""
-        super().__init__(env=env, state=state, panels=panels)
+        super().__init__(sim=sim, state=state, panels=panels)
         self._set_panel(panels.footer)
 
-        action_lookup: Dict[str, int] = {name: idx for idx, name in enumerate(self._env.action_names)}
-
-        # Assumes move_{cardinal_direction} named actions exist
-        # If not found, fall back to 0: north, 1: south, 2: west, 3: east, 4: rest/noop
-        self._move_action_lookup: Dict[str, int] = {
-            "W": action_lookup.get("move_north", 0),
-            "S": action_lookup.get("move_south", 1),
-            "A": action_lookup.get("move_west", 2),
-            "D": action_lookup.get("move_east", 3),
-            "R": action_lookup.get("noop", 4),
-        }
+        # Setup movement action mapping (maps keys to action names)
+        self._move_action_lookup: Dict[str, str] = {}
+        if hasattr(sim, "action_ids"):
+            action_ids = sim.action_ids
+            # Map WASD keys to directional movement actions
+            if "move_north" in action_ids:
+                self._move_action_lookup["W"] = "move_north"
+            if "move_west" in action_ids:
+                self._move_action_lookup["A"] = "move_west"
+            if "move_south" in action_ids:
+                self._move_action_lookup["S"] = "move_south"
+            if "move_east" in action_ids:
+                self._move_action_lookup["D"] = "move_east"
+            # Map R to rest/noop
+            if "noop" in action_ids:
+                self._move_action_lookup["R"] = "noop"
 
     def handle_input(self, ch: str) -> bool:
         """Handle agent control inputs.
@@ -49,17 +54,17 @@ class AgentControlComponent(MiniscopeComponent):
         ch = ch.upper()
         # Handle agent selection
         if ch == "[":
-            self._state.select_previous_agent(self._env.num_agents)
+            self._state.select_previous_agent(self._sim.num_agents)
             return True
         elif ch == "]":
-            self._state.select_next_agent(self._env.num_agents)
+            self._state.select_next_agent(self._sim.num_agents)
             return True
 
         # Handle manual mode toggle
         elif self._state.selected_agent is not None:
             # Handle movement actions
-            if (action_id := self._move_action_lookup.get(ch)) is not None:
-                self._state.user_action = action_id
+            if (action_name := self._move_action_lookup.get(ch)) is not None:
+                self._state.user_action = Action(name=action_name)
                 self._state.should_step = True
                 return True
             elif ch == "E":
@@ -95,4 +100,5 @@ class AgentControlComponent(MiniscopeComponent):
             content = table
 
         # Set panel content
-        self._panel.set_content(content)
+        if self._panel is not None:
+            self._panel.set_content(content)

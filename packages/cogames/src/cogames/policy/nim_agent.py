@@ -7,23 +7,21 @@ import os
 import platform
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, Optional, Sequence
+from typing import Any, Dict, Iterable, Optional, Sequence
 
-from cogames.policy.interfaces import AgentPolicy, Policy
-from mettagrid import MettaGridAction, MettaGridEnv, MettaGridObservation, dtype_actions
-from mettagrid.mettagrid_c import PackedCoordinate
+import numpy as np
+
+from mettagrid.config.mettagrid_config import ActionsConfig, MettaGridConfig
+from mettagrid.mettagrid_c import PackedCoordinate, dtype_actions
+from mettagrid.policy.policy import AgentPolicy, MultiAgentPolicy
+from mettagrid.policy.policy_env_interface import PolicyEnvInterface
+from mettagrid.simulator import Action as MettaGridAction
+from mettagrid.simulator import AgentObservation as MettaGridObservation
+from mettagrid.simulator.simulator import Simulation
 
 # Keep this in sync with scripted_agent.nim
 _RESOURCE_ORDER = ["carbon", "oxygen", "germanium", "silicon", "energy", "heart"]
 _RESOURCE_COUNT = len(_RESOURCE_ORDER)
-_FEATURE_TO_RESOURCE = {
-    17: "energy",
-    18: "carbon",
-    19: "oxygen",
-    20: "germanium",
-    21: "silicon",
-    22: "heart",
-}
 _RESOURCE_INDEX = {name: idx for idx, name in enumerate(_RESOURCE_ORDER)}
 _EXTRACTOR_TYPES = {
     "carbon_extractor",
@@ -79,26 +77,6 @@ class _AgentActionDto(ctypes.Structure):
     ]
 
 
-_MOVE_LOOKUP: Dict[int, str] = {
-    0: "move_north",
-    1: "move_south",
-    2: "move_west",
-    3: "move_east",
-    4: "move_north",  # diagonals approximated to cardinals for now
-    5: "move_north",
-    6: "move_south",
-    7: "move_south",
-}
-
-_VIBE_SIGNAL_TO_NAME: Dict[int, str] = {
-    1: "carbon",
-    2: "oxygen",
-    3: "germanium",
-    4: "silicon",
-    5: "charger",
-}
-
-
 @dataclass
 class _TileObservation:
     offset_x: int
@@ -117,6 +95,12 @@ class _ObservationSnapshot:
     last_action: Optional[int]
     last_action_arg: Optional[int]
     tiles: list[_TileObservation]
+
+
+@dataclass
+class _VibeMapping:
+    name_to_index: Dict[str, int]
+    signal_to_action: Dict[int, int]
 
 
 def _default_library_path() -> Path:
@@ -162,10 +146,65 @@ def _load_library(path: Optional[Path] = None) -> ctypes.CDLL:
     return lib
 
 
-@dataclass
-class _VibeMapping:
-    name_to_index: Dict[str, int]
-    signal_to_action: Dict[int, int]
+def _iter_tokens(
+    obs: MettaGridObservation,
+) -> Iterable[tuple[int, int, int, Optional[str], int]]:
+    if hasattr(obs, "tokens"):
+        for token in obs.tokens:  # type: ignore[attr-defined]
+            row = token.row()
+            col = token.col()
+            yield row, col, int(token.feature.id), token.feature.name, int(token.value)
+    else:
+        arr = np.asarray(obs)
+        if arr.ndim == 3:
+            arr = arr[0]
+        for packed, feature_id, value in arr:
+            coord = PackedCoordinate.unpack(int(packed))
+            if coord is None:
+                break
+            row, col = coord
+            yield row, col, int(feature_id), None, int(value)
+
+
+def _compute_object_types(cfg: MettaGridConfig | None, simulation: Simulation | None) -> list[str]:
+    if simulation is not None:
+        return list(simulation.object_type_names)
+
+    if cfg is None:
+        return []
+
+    if cfg.game.objects is None:
+        return []
+
+    object_entries: dict[int, str] = {}
+    for name, obj_cfg in cfg.game.objects.items():
+        type_id = getattr(obj_cfg, "type_id", None)
+        if type_id is None:
+            continue
+        object_entries[int(type_id)] = name
+
+    if not object_entries:
+        return []
+
+    max_id = max(object_entries.keys())
+    names = ["" for _ in range(max_id + 1)]
+    for idx, name in object_entries.items():
+        if idx < len(names):
+            names[idx] = name
+    return names
+
+
+def _extract_simulation(env: Any) -> Optional[Simulation]:
+    candidates = [env, getattr(env, "driver_env", None)]
+    for candidate in candidates:
+        if candidate is None:
+            continue
+        simulation = getattr(candidate, "current_simulation", None)
+        if simulation is None:
+            simulation = getattr(candidate, "simulation", None)
+        if isinstance(simulation, Simulation):
+            return simulation
+    return None
 
 
 class NimAgentController:
@@ -173,18 +212,26 @@ class NimAgentController:
 
     def __init__(
         self,
-        env: MettaGridEnv,
+        policy_env_info: PolicyEnvInterface,
+        *,
+        cfg: MettaGridConfig | None,
         seed: int | None = None,
         heart_cost_override: Optional[int] = None,
         library_path: Optional[Path] = None,
-    ):
+        simulation: Optional[Simulation] = None,
+    ) -> None:
+        self._policy_env_info = policy_env_info
+        self._cfg = cfg
+        self._actions_cfg = policy_env_info.actions
+        self._feature_by_id = {feature.id: feature.name for feature in policy_env_info.obs_features}
+
         self._lib = _load_library(library_path)
-        mg_config = env.mg_config
 
         heart_cost = heart_cost_override
-        assembler_cfg = mg_config.game.objects.get("assembler")
-        if heart_cost is None and assembler_cfg is not None:
-            heart_cost = getattr(assembler_cfg, "heart_cost", None)
+        if heart_cost is None and cfg is not None:
+            assembler_cfg = cfg.game.objects.get("assembler") if cfg.game.objects else None
+            if assembler_cfg is not None:
+                heart_cost = getattr(assembler_cfg, "heart_cost", None)
         if heart_cost is None:
             heart_cost = 10
 
@@ -193,15 +240,21 @@ class NimAgentController:
         )
         self._tick = 0
 
-        self._env = env
-        self._action_lookup = {name: idx for idx, name in enumerate(env.action_names)}
-        self._noop_index = self._action_lookup.get("noop", 0)
+        action_names = [action.name for action in self._actions_cfg.actions()]
+        self._action_lookup = {name: idx for idx, name in enumerate(action_names)}
         self._move_deltas = self._build_move_deltas()
 
-        vibe_names = list(mg_config.game.vibe_names or [])
+        self._simulation: Optional[Simulation] = None
+
+        vibe_names = list(cfg.game.vibe_names or []) if cfg is not None else []
+        if not vibe_names and self._actions_cfg.change_vibe.number_of_vibes:
+            from mettagrid.config.vibes import VIBES
+
+            num_vibes = self._actions_cfg.change_vibe.number_of_vibes
+            vibe_names = [vibe.name for vibe in VIBES[:num_vibes]]
         self._vibe_mapping = self._build_vibe_mapping(vibe_names)
 
-        num_agents = mg_config.game.num_agents
+        num_agents = policy_env_info.num_agents
         teammate_ids = list(range(num_agents))
         self._teammate_array = (ctypes.c_int32 * len(teammate_ids))(*teammate_ids)
         self._empty_shared_vibes = (ctypes.c_int32 * 0)()
@@ -212,15 +265,33 @@ class NimAgentController:
         self._last_sent_action: Dict[int, Optional[int]] = {agent_id: None for agent_id in teammate_ids}
 
         self._heart_cost = int(heart_cost)
-        self._target_hearts = getattr(mg_config.game.agent.rewards, "target_hearts", 1)
-        self._object_types = list(env.object_type_names)
-        obs_width = getattr(mg_config.game, "obs_width", 11) or 11
-        self._obs_center = obs_width // 2
+        if cfg is not None:
+            rewards = getattr(cfg.game.agent, "rewards", None)
+            self._target_hearts = getattr(rewards, "target_hearts", 1)
+        else:
+            self._target_hearts = 1
+
+        self._object_types = _compute_object_types(cfg, simulation)
+        self._obs_center = policy_env_info.obs_width // 2
+        self.attach_simulation(simulation)
+
+    @property
+    def actions_cfg(self) -> ActionsConfig:
+        return self._actions_cfg
+
+    @property
+    def simulation(self) -> Optional[Simulation]:
+        return self._simulation
+
+    def attach_simulation(self, simulation: Optional[Simulation]) -> None:
+        self._simulation = simulation
+        if simulation is not None:
+            self._object_types = _compute_object_types(self._cfg, simulation)
 
     def reset(self) -> None:
         self._lib.cogames_agent_reset()
         self._tick = 0
-        for agent_id in self._agent_positions:
+        for agent_id in list(self._agent_positions.keys()):
             self._agent_positions[agent_id] = (0, 0)
             self._last_energy[agent_id] = None
             self._last_sent_action[agent_id] = None
@@ -228,7 +299,7 @@ class NimAgentController:
 
     def step(self, agent_id: int, obs: MettaGridObservation) -> MettaGridAction:
         snapshot = self._parse_observation(obs)
-        self._apply_last_action_feedback(agent_id, snapshot)
+        self._apply_last_action_feedback(agent_id)
 
         agent_view = _AgentViewDto()
         agent_view.id = ctypes.c_int32(agent_id)
@@ -282,25 +353,32 @@ class NimAgentController:
             return self._vibe_mapping.signal_to_action[vibe_signal]
 
         move_dir = int(action.moveDir)
-        move_name = _MOVE_LOOKUP.get(move_dir)
-        if move_name:
-            idx = self._action_lookup.get(move_name)
+        if move_dir == 0:
+            name = "move_north"
+        elif move_dir == 1:
+            name = "move_south"
+        elif move_dir == 2:
+            name = "move_west"
+        elif move_dir == 3:
+            name = "move_east"
+        else:
+            name = None
+
+        if name is not None:
+            idx = self._action_lookup.get(name)
             if idx is not None:
                 return idx
 
-        return self._noop_index
+        return self._action_lookup.get("noop", 0)
 
     def _build_vibe_mapping(self, vibe_names: Sequence[str]) -> _VibeMapping:
         name_to_index = {name: idx for idx, name in enumerate(vibe_names)}
         signal_to_action: Dict[int, int] = {}
-        for signal, vibe_name in _VIBE_SIGNAL_TO_NAME.items():
-            vibe_idx = name_to_index.get(vibe_name)
-            if vibe_idx is None:
-                continue
-            action_name = f"change_vibe_{vibe_idx}"
+        for idx, _ in name_to_index.items():
+            action_name = f"change_vibe_{idx}"
             action_idx = self._action_lookup.get(action_name)
             if action_idx is not None:
-                signal_to_action[signal] = action_idx
+                signal_to_action[idx + 1] = action_idx
         return _VibeMapping(name_to_index=name_to_index, signal_to_action=signal_to_action)
 
     def _build_move_deltas(self) -> Dict[int, tuple[int, int]]:
@@ -317,7 +395,6 @@ class NimAgentController:
         return deltas
 
     def _parse_observation(self, obs: MettaGridObservation) -> _ObservationSnapshot:
-        tokens = obs[0]
         inventory: Dict[str, int] = {}
         energy = 0
         cooldown = 0
@@ -326,33 +403,30 @@ class NimAgentController:
         last_action_arg: Optional[int] = None
         tile_data: Dict[tuple[int, int], Dict[str, int]] = {}
 
-        for packed, feature_id, value in tokens:
-            coord = PackedCoordinate.unpack(int(packed))
-            if coord is None:
-                break
-            row, col = coord
-            fid = int(feature_id)
-            val = int(value)
+        for row, col, feature_id, feature_name, value in _iter_tokens(obs):
+            name = feature_name or self._feature_by_id.get(feature_id)
+            if name is None:
+                continue
 
-            if fid == 11:
-                vibe = val
-            elif fid == 8:
-                last_action = val
-            elif fid == 9:
-                last_action_arg = val
-            elif fid == 14:
+            if name == "vibe":
+                vibe = value
+            elif name == "last_action":
+                last_action = value
+            elif name == "last_action_arg":
+                last_action_arg = value
+            elif name == "cooldown_remaining":
                 if row == self._obs_center and col == self._obs_center:
-                    cooldown = val
+                    cooldown = value
                 tile = tile_data.setdefault((row, col), {})
-                tile["cooldown"] = val
-            elif fid == 0:
+                tile["cooldown"] = value
+            elif name == "type_id":
                 tile = tile_data.setdefault((row, col), {})
-                tile["type_id"] = val
-            elif fid in _FEATURE_TO_RESOURCE:
-                resource = _FEATURE_TO_RESOURCE[fid]
-                inventory[resource] = val
+                tile["type_id"] = value
+            elif name.startswith("inv:"):
+                resource = name[4:]
+                inventory[resource] = value
                 if resource == "energy":
-                    energy = val
+                    energy = value
 
         tiles: list[_TileObservation] = []
         for (row, col), data in tile_data.items():
@@ -385,7 +459,9 @@ class NimAgentController:
         )
 
     def _classify_tile(self, type_id: Optional[int]) -> tuple[int, int]:
-        if type_id is None or type_id < 0 or type_id >= len(self._object_types):
+        if type_id is None or type_id < 0:
+            return 0, 1
+        if type_id >= len(self._object_types):
             return 0, 1
         name = self._object_types[type_id] or ""
         if name == "wall":
@@ -400,21 +476,28 @@ class NimAgentController:
             return 5, 1
         return 0, 1
 
-    def _apply_last_action_feedback(self, agent_id: int, snapshot: _ObservationSnapshot) -> None:
+    def _apply_last_action_feedback(self, agent_id: int) -> None:
         last_sent = self._last_sent_action.get(agent_id)
         if last_sent is None:
             return
 
         delta = self._move_deltas.get(last_sent)
-        if delta is not None:
-            success_list = getattr(self._env, "action_success", None)
-            success = False
-            if isinstance(success_list, list) and agent_id < len(success_list):
-                success = bool(success_list[agent_id])
-            if success:
-                x, y = self._agent_positions.get(agent_id, (0, 0))
-                dx, dy = delta
-                self._agent_positions[agent_id] = (x + dx, y + dy)
+        if delta is None:
+            self._last_sent_action[agent_id] = None
+            return
+
+        success = True
+        if self._simulation is not None:
+            try:
+                success = bool(self._simulation.agent(agent_id).last_action_success)
+            except Exception:
+                success = True
+
+        if success:
+            x, y = self._agent_positions.get(agent_id, (0, 0))
+            dx, dy = delta
+            self._agent_positions[agent_id] = (x + dx, y + dy)
+
         self._last_sent_action[agent_id] = None
 
     def _to_observed_tiles(self, agent_id: int, tiles: Sequence[_TileObservation]) -> list[_ObservedTileDto]:
@@ -436,7 +519,8 @@ class NimAgentController:
 class NimAgentPolicyImpl(AgentPolicy):
     """Per-agent wrapper that routes observations through the Nim controller."""
 
-    def __init__(self, controller: NimAgentController, agent_id: int):
+    def __init__(self, controller: NimAgentController, agent_id: int, actions_cfg: ActionsConfig):
+        super().__init__(actions_cfg)
         self._controller = controller
         self._agent_id = agent_id
 
@@ -447,19 +531,48 @@ class NimAgentPolicyImpl(AgentPolicy):
         self._controller.reset()
 
 
-class NimScriptedPolicy(Policy):
+class NimScriptedPolicy(MultiAgentPolicy):
     """Policy that defers action selection to the scripted Nim agent."""
 
     def __init__(
         self,
-        env: MettaGridEnv,
+        policy_env_info: PolicyEnvInterface,
+        *,
         seed: int | None = None,
         heart_cost: int | None = None,
-        library_path: Optional[Path] = None,
-    ):
-        if not isinstance(env, MettaGridEnv):
-            raise TypeError("NimScriptedPolicy requires a MettaGridEnv instance")
-        self._controller = NimAgentController(env, seed=seed, heart_cost_override=heart_cost, library_path=library_path)
+        library_path: Optional[Path | str] = None,
+    ) -> None:
+        super().__init__(policy_env_info)
+        self._policy_env_info = policy_env_info
+        self._seed = seed
+        self._heart_cost = heart_cost
+        self._library_path = Path(library_path).expanduser() if library_path is not None else None
+        self._current_simulation: Optional[Simulation] = None
+        self._controller = self._build_controller(simulation=None)
+
+    def _build_controller(self, simulation: Optional[Simulation]) -> NimAgentController:
+        cfg = getattr(self._policy_env_info, "config", None)
+        return NimAgentController(
+            self._policy_env_info,
+            cfg=cfg,
+            seed=self._seed,
+            heart_cost_override=self._heart_cost,
+            library_path=self._library_path,
+            simulation=simulation,
+        )
+
+    def attach_environment(self, env: Any) -> None:
+        simulation = _extract_simulation(env)
+        if simulation is not None:
+            self.attach_simulation(simulation)
+
+    def attach_simulation(self, simulation: Simulation) -> None:
+        self._current_simulation = simulation
+        self._controller.attach_simulation(simulation)
 
     def agent_policy(self, agent_id: int) -> AgentPolicy:
-        return NimAgentPolicyImpl(self._controller, agent_id)
+        return NimAgentPolicyImpl(self._controller, agent_id, self._controller.actions_cfg)
+
+    def initialize_to_environment(self, policy_env_info: PolicyEnvInterface, device) -> None:  # noqa: D401
+        self._policy_env_info = policy_env_info
+        self._controller = self._build_controller(simulation=self._current_simulation)

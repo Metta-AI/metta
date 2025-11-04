@@ -97,7 +97,8 @@ def some_function():
 
 ## General Guidelines
 
-- **Error handling:** Only catch exceptions you can meaningfully handle. When you do so, include the stack trace: `logger.error(..., exc_info=True)`
+- **Error handling:** Only catch exceptions you can meaningfully handle. When you do so, include the stack trace:
+  `logger.error(..., exc_info=True)`
 - **Defensive programming:** Reserve for truly unpredictable external inputs
 - **Code length:** Shorter is better when it doesn't sacrifice clarity
 - **Comments:** Should add value, not repeat what the code already says
