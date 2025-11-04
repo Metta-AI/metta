@@ -145,6 +145,7 @@ class NeutralFacedVariant(MissionVariant):
             change_vibe.number_of_vibes = 1
 
             neutral_vibe = ["default"]
+            cfg.game.vibe_names = list(neutral_vibe)
             for obj in cfg.game.objects.values():
                 if not isinstance(obj, AssemblerConfig):
                     continue
