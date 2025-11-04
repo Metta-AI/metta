@@ -11,7 +11,7 @@ from tensordict import TensorDict
 from torch._dynamo import disable
 
 from cortex.blocks.base import BaseBlock
-from cortex.blocks.column.routers import GlobalContextDotRouter, TokenRefiner
+from cortex.blocks.column.routers import GlobalContextRouter, TokenRefiner
 from cortex.blocks.registry import build_block, register_block
 from cortex.cells import build_cell
 from cortex.cells.base import MemoryCell
@@ -34,7 +34,7 @@ class ColumnBlock(BaseBlock):
 
         # Initialize router/refiner/mixer only when there is actual expert mixing.
         if num_experts > 1:
-            self.router: GlobalContextDotRouter | None = GlobalContextDotRouter(d_hidden, num_experts, config.router)
+            self.router: GlobalContextRouter | None = GlobalContextRouter(d_hidden, num_experts, config.router)
             lam0 = float(getattr(config.router, "whisper_lambda", 0.0))
             self.refiner: TokenRefiner | None = (
                 TokenRefiner(d_hidden, num_experts, config.router) if lam0 > 0.0 else None
@@ -116,9 +116,17 @@ class ColumnBlock(BaseBlock):
         *,
         resets: Optional[ResetMask] = None,
     ) -> Tuple[Tensor, MaybeState]:
+        make_td = disable(
+            lambda state_map, batch_size, device: TensorDict(
+                state_map, batch_size=[batch_size], device=torch.device(device)
+            )
+        )
+        make_empty_td = disable(
+            lambda batch_size, device: TensorDict({}, batch_size=[batch_size], device=torch.device(device))
+        )
         is_step = x.dim() == 2
         B = x.shape[0]
-        td_empty = _empty_td(B, x.device)
+        td_empty = make_empty_td(B, x.device)
         # Boundary normalization
         u = self.boundary_norm(x)
         use_compiled = self._compiled_experts is not None and torch.is_grad_enabled()
@@ -154,7 +162,7 @@ class ColumnBlock(BaseBlock):
                         expert_state = td_empty
                     y_i, s_i = expert(u, expert_state, resets=resets)
                     expert_outs[i] = y_i
-                    expert_states[i] = s_i if isinstance(s_i, TensorDict) else _empty_td(B, x.device)
+                    expert_states[i] = s_i if isinstance(s_i, TensorDict) else make_empty_td(B, x.device)
 
             # Back on current stream, wait for all expert streams before consuming outputs.
             for s in self._cuda_streams:
@@ -167,13 +175,13 @@ class ColumnBlock(BaseBlock):
                     expert_state = td_empty
                 y_i, s_i = expert(u, expert_state, resets=resets)
                 expert_outs[i] = y_i
-                expert_states[i] = s_i if isinstance(s_i, TensorDict) else _empty_td(B, x.device)
+                expert_states[i] = s_i if isinstance(s_i, TensorDict) else make_empty_td(B, x.device)
 
         # Build the next state TensorDict on the current stream after synchronization.
         # Replace None placeholders and build state map
-        fixed_states = [(v if isinstance(v, TensorDict) else _empty_td(B, x.device)) for v in expert_states]
+        fixed_states = [v if isinstance(v, TensorDict) else make_empty_td(B, x.device) for v in expert_states]
         state_map = {k: v for k, v in zip(self._expert_keys, fixed_states, strict=False)}
-        next_state = _make_td(state_map, B, x.device)
+        next_state = make_td(state_map, B, x.device)
 
         # Ensure expert_outs are all set
         expert_outs_tensors: list[Tensor] = [
@@ -185,31 +193,18 @@ class ColumnBlock(BaseBlock):
         # with E=1 the mixture reduces to y_minus_x = (y - u) + (u - x) = (y - x).
         if len(expert_outs_tensors) == 1:
             y_single = expert_outs_tensors[0]
-            if is_step:
-                y_minus_x = y_single - x  # [B,H]
-                y_total = x + self.alpha_main.to(y_minus_x.dtype) * y_minus_x
-                h = self.head(y_minus_x)
-                out = y_total + self.alpha_col.to(h.dtype) * h
-                return out, next_state
-            else:
-                y_minus_x = y_single - x  # [B,T,H]
-                y_total = x + self.alpha_main.to(y_minus_x.dtype) * y_minus_x
-                h = self.head(y_minus_x)
-                out = y_total + self.alpha_col.to(h.dtype) * h
-                return out, next_state
+            y_minus_x = y_single - x  # [B,T,H]
+            y_total = x + self.alpha_main.to(y_minus_x.dtype) * y_minus_x
+            h = self.head(y_minus_x)
+            out = y_total + self.alpha_col.to(h.dtype) * h
+            return out, next_state
 
-        # Build deltas across experts
-        if is_step:
-            # expert_outs: list of [B,H] -> [B,1,H]
-            U = u.unsqueeze(1)  # [B,1,H]
-            D_list = [(y_i - u).unsqueeze(1) for y_i in expert_outs_tensors]  # list of [B,1,H]
-            D = torch.stack(D_list, dim=2)  # [B,1,E,H]
-            U_tokens = U
-        else:
-            # expert_outs: list of [B,T,H]
-            U_tokens = u  # [B,T,H]
-            D_list = [(y_i - u) for y_i in expert_outs_tensors]
-            D = torch.stack(D_list, dim=2)  # [B,T,E,H]
+        # Build deltas across experts while keeping a token dimension in both modes.
+        x_tokens = x.unsqueeze(1) if is_step else x  # [B,T,H]
+        U_tokens = u.unsqueeze(1) if is_step else u  # [B,T,H]
+        expert_tokens = [y_i.unsqueeze(1) if is_step else y_i for y_i in expert_outs_tensors]
+        D_list = [(y_tok - U_tokens) for y_tok in expert_tokens]
+        D = torch.stack(D_list, dim=2)  # [B,T,E,H]
 
         # E-axis mixing (cross-attention residual)
         D_mixed = self.e_mixer(U_tokens, D)  # [B,T,E,H]
@@ -230,9 +225,9 @@ class ColumnBlock(BaseBlock):
         # Reduce across experts to form the total mixture and then apply ReZero around it:
         # y_total = sum_k a_{t,k} y_k = x + [sum_k a_{t,k} (y_k - u) + (u - x)]
         y_delta = (a_t.unsqueeze(-1) * D_mixed).sum(dim=2)  # [B,T,H]
-        res_corr = U_tokens - (x if not is_step else x.unsqueeze(1))  # [B,T,H]
+        res_corr = U_tokens - x_tokens  # [B,T,H]
         y_minus_x = y_delta + res_corr  # equals y_total - x
-        y_total = (x if not is_step else x.unsqueeze(1)) + self.alpha_main.to(y_minus_x.dtype) * y_minus_x
+        y_total = x_tokens + self.alpha_main.to(y_minus_x.dtype) * y_minus_x
         h = self.head(y_minus_x)  # small corrective head on the residual
         out = y_total + self.alpha_col.to(h.dtype) * h
         return (out.squeeze(1) if is_step else out), next_state
@@ -244,16 +239,6 @@ class ColumnBlock(BaseBlock):
 
 
 __all__ = ["ColumnBlock"]
-
-
-@disable
-def _make_td(state_map: dict[str, TensorDict], batch_size: int, device: torch.device | str) -> TensorDict:
-    return TensorDict(state_map, batch_size=[batch_size], device=torch.device(device))
-
-
-@disable
-def _empty_td(batch_size: int, device: torch.device | str) -> TensorDict:
-    return TensorDict({}, batch_size=[batch_size], device=torch.device(device))
 
 
 class _EAxisCrossAttention(nn.Module):

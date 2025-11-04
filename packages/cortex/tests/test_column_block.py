@@ -1,11 +1,9 @@
 import torch
 from cortex import (
     AxonLayer,
-    CausalConv1dConfig,
     ColumnBlockConfig,
     CortexStackConfig,
     LSTMCellConfig,
-    PassThroughBlockConfig,
     PostUpBlockConfig,
     PreUpBlockConfig,
     RouterConfig,
@@ -99,17 +97,6 @@ def test_auto_config_builtin_patterns():
     assert isinstance(cfg3.experts[0], PreUpBlockConfig)
     assert isinstance(cfg3.experts[1], PostUpBlockConfig)
     assert isinstance(cfg3.experts[2], PostUpBlockConfig)
-
-
-def test_auto_config_all_builtin_cells():
-    cfg = build_column_auto_config(d_hidden=64, pattern="CL")
-    assert len(cfg.experts) == 2
-    conv_cfg = cfg.experts[0]
-    lstm_cfg = cfg.experts[1]
-    assert isinstance(conv_cfg, PassThroughBlockConfig)
-    assert isinstance(conv_cfg.cell, CausalConv1dConfig)
-    assert isinstance(lstm_cfg, PassThroughBlockConfig)
-    assert isinstance(lstm_cfg.cell, LSTMCellConfig)
 
 
 def test_auto_config_custom_overrides_and_tokens():

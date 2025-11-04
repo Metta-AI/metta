@@ -18,7 +18,7 @@ class BaseRouter(nn.Module):
         raise NotImplementedError
 
 
-class GlobalContextDotRouter(BaseRouter):
+class GlobalContextRouter(BaseRouter):
     """Global context · expert keys with softmax gating."""
 
     def __init__(self, d_hidden: int, num_experts: int, cfg: RouterConfig) -> None:
@@ -102,4 +102,4 @@ class TokenRefiner(nn.Module):
         return p
 
 
-__all__ = ["BaseRouter", "GlobalContextDotRouter", "TokenRefiner"]
+__all__ = ["BaseRouter", "GlobalContextRouter", "TokenRefiner"]
