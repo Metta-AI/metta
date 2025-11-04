@@ -97,7 +97,7 @@ InventoryDelta HasInventory::transfer_resources(HasInventory& source,
 
   // Remove resources from source
   [[maybe_unused]] InventoryDelta actually_removed = source.update_inventory(item, -source_loss);
-  assert(actually_removed == source_loss && "Expected source to lose the amount of resources it claimed to lose");
+  assert(actually_removed == -source_loss && "Expected source to lose the amount of resources it claimed to lose");
 
   // Add resources to target
   [[maybe_unused]] InventoryDelta actually_added = target.update_inventory(item, transfer_amount);
