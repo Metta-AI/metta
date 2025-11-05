@@ -3,7 +3,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Callable, Optional, Sequence
+from functools import wraps
+from inspect import signature
+from typing import Callable, Optional, Sequence, TypeVar
+from typing_extensions import ParamSpec
 
 from experiments.recipes.cogs_v_clips import (
     evaluate as base_evaluate,
@@ -28,6 +31,9 @@ from metta.tools.eval import EvaluateTool
 from metta.tools.play import PlayTool
 from metta.tools.train import TrainTool
 from mettagrid.config.mettagrid_config import MettaGridConfig
+
+P = ParamSpec("P")
+R = TypeVar("R")
 
 
 @dataclass(frozen=True)
@@ -92,13 +98,33 @@ class CvcPreset:
     play_training_env: Callable[[Optional[str], int, Optional[Sequence[str]]], PlayTool]
 
 
-def _resolve_variants(
-    default_variants: tuple[str, ...],
-    variants: Optional[Sequence[str]],
-) -> list[str]:
-    if variants is not None:
-        return list(variants)
-    return list(default_variants)
+def _wrap_with_default_variants(
+    fn: Callable[P, R],
+    *,
+    defaults: tuple[str, ...],
+) -> Callable[P, R]:
+    sig = signature(fn)
+    try:
+        variant_index = [
+            idx
+            for idx, parameter in enumerate(sig.parameters.values())
+            if parameter.name == "variants"
+        ][0]
+    except IndexError as exc:  # pragma: no cover - defensive guard
+        raise ValueError("Function is missing a 'variants' parameter") from exc
+
+    @wraps(fn)
+    def wrapper(*args: P.args, **kwargs: P.kwargs) -> R:
+        args_list = list(args)
+        if len(args_list) > variant_index:
+            if args_list[variant_index] is None:
+                args_list[variant_index] = list(defaults)
+        else:
+            if kwargs.get("variants") is None:
+                kwargs["variants"] = list(defaults)
+        return fn(*args_list, **kwargs)
+
+    return wrapper
 
 
 def build_cvc_preset(default_variants: Sequence[str]) -> CvcPreset:
@@ -106,185 +132,29 @@ def build_cvc_preset(default_variants: Sequence[str]) -> CvcPreset:
 
     defaults = tuple(default_variants)
 
-    def make_eval_suite(
-        num_cogs: int = 4,
-        difficulty: str | None = "standard",
-        subset: Optional[Sequence[str]] = None,
-        variants: Optional[Sequence[str]] = None,
-    ) -> list[SimulationConfig]:
-        return base_make_eval_suite(
-            num_cogs=num_cogs,
-            difficulty=difficulty,
-            subset=subset,
-            variants=_resolve_variants(defaults, variants),
-        )
+    base_functions: dict[str, Callable[..., object]] = {
+        "make_eval_suite": base_make_eval_suite,
+        "make_training_env": base_make_training_env,
+        "make_curriculum": base_make_curriculum,
+        "train": base_train,
+        "train_small_maps": base_train_small_maps,
+        "train_medium_maps": base_train_medium_maps,
+        "train_large_maps": base_train_large_maps,
+        "train_coordination": base_train_coordination,
+        "train_single_mission": base_train_single_mission,
+        "evaluate": base_evaluate,
+        "play": base_play,
+        "play_training_env": base_play_training_env,
+    }
 
-    def make_training_env(
-        num_cogs: int = 4,
-        mission_name: str = "extractor_hub_30",
-        variants: Optional[Sequence[str]] = None,
-    ) -> MettaGridConfig:
-        return base_make_training_env(
-            num_cogs=num_cogs,
-            mission_name=mission_name,
-            variants=_resolve_variants(defaults, variants),
-        )
-
-    def make_curriculum(
-        num_cogs: int = 4,
-        base_missions: Optional[list[str]] = None,
-        enable_detailed_slice_logging: bool = False,
-        algorithm_config: Optional[CurriculumAlgorithmConfig] = None,
-        variants: Optional[Sequence[str]] = None,
-    ) -> CurriculumConfig:
-        return base_make_curriculum(
-            num_cogs=num_cogs,
-            base_missions=base_missions,
-            enable_detailed_slice_logging=enable_detailed_slice_logging,
-            algorithm_config=algorithm_config,
-            variants=_resolve_variants(defaults, variants),
-        )
-
-    def train(
-        num_cogs: int = 4,
-        curriculum: Optional[CurriculumConfig] = None,
-        base_missions: Optional[list[str]] = None,
-        enable_detailed_slice_logging: bool = False,
-        variants: Optional[Sequence[str]] = None,
-        eval_variants: Optional[Sequence[str]] = None,
-        eval_difficulty: str | None = "standard",
-    ) -> TrainTool:
-        resolved_variants = _resolve_variants(defaults, variants)
-        return base_train(
-            num_cogs=num_cogs,
-            curriculum=curriculum,
-            base_missions=base_missions,
-            enable_detailed_slice_logging=enable_detailed_slice_logging,
-            variants=resolved_variants,
-            eval_variants=eval_variants,
-            eval_difficulty=eval_difficulty,
-        )
-
-    def train_small_maps(
-        num_cogs: int = 4,
-        variants: Optional[Sequence[str]] = None,
-        eval_variants: Optional[Sequence[str]] = None,
-        eval_difficulty: str | None = "standard",
-    ) -> TrainTool:
-        return base_train_small_maps(
-            num_cogs=num_cogs,
-            variants=_resolve_variants(defaults, variants),
-            eval_variants=eval_variants,
-            eval_difficulty=eval_difficulty,
-        )
-
-    def train_medium_maps(
-        num_cogs: int = 4,
-        variants: Optional[Sequence[str]] = None,
-        eval_variants: Optional[Sequence[str]] = None,
-        eval_difficulty: str | None = "standard",
-    ) -> TrainTool:
-        return base_train_medium_maps(
-            num_cogs=num_cogs,
-            variants=_resolve_variants(defaults, variants),
-            eval_variants=eval_variants,
-            eval_difficulty=eval_difficulty,
-        )
-
-    def train_large_maps(
-        num_cogs: int = 8,
-        variants: Optional[Sequence[str]] = None,
-        eval_variants: Optional[Sequence[str]] = None,
-        eval_difficulty: str | None = "standard",
-    ) -> TrainTool:
-        return base_train_large_maps(
-            num_cogs=num_cogs,
-            variants=_resolve_variants(defaults, variants),
-            eval_variants=eval_variants,
-            eval_difficulty=eval_difficulty,
-        )
-
-    def train_coordination(
-        num_cogs: int = 4,
-        variants: Optional[Sequence[str]] = None,
-        eval_variants: Optional[Sequence[str]] = None,
-        eval_difficulty: str | None = "standard",
-    ) -> TrainTool:
-        return base_train_coordination(
-            num_cogs=num_cogs,
-            variants=_resolve_variants(defaults, variants),
-            eval_variants=eval_variants,
-            eval_difficulty=eval_difficulty,
-        )
-
-    def train_single_mission(
-        mission_name: str = "extractor_hub_30",
-        num_cogs: int = 4,
-        variants: Optional[Sequence[str]] = None,
-        eval_variants: Optional[Sequence[str]] = None,
-        eval_difficulty: str | None = "standard",
-    ) -> TrainTool:
-        return base_train_single_mission(
-            mission_name=mission_name,
-            num_cogs=num_cogs,
-            variants=_resolve_variants(defaults, variants),
-            eval_variants=eval_variants,
-            eval_difficulty=eval_difficulty,
-        )
-
-    def evaluate(
-        policy_uris: str | Sequence[str] | None = None,
-        num_cogs: int = 4,
-        difficulty: str | None = "standard",
-        subset: Optional[Sequence[str]] = None,
-        variants: Optional[Sequence[str]] = None,
-    ) -> EvaluateTool:
-        return base_evaluate(
-            policy_uris=policy_uris,
-            num_cogs=num_cogs,
-            difficulty=difficulty,
-            subset=subset,
-            variants=_resolve_variants(defaults, variants),
-        )
-
-    def play(
-        policy_uri: Optional[str] = None,
-        mission_name: str = "extractor_hub_30",
-        num_cogs: int = 4,
-        variants: Optional[Sequence[str]] = None,
-    ) -> PlayTool:
-        return base_play(
-            policy_uri=policy_uri,
-            mission_name=mission_name,
-            num_cogs=num_cogs,
-            variants=_resolve_variants(defaults, variants),
-        )
-
-    def play_training_env(
-        policy_uri: Optional[str] = None,
-        num_cogs: int = 4,
-        variants: Optional[Sequence[str]] = None,
-    ) -> PlayTool:
-        return base_play_training_env(
-            policy_uri=policy_uri,
-            num_cogs=num_cogs,
-            variants=_resolve_variants(defaults, variants),
-        )
+    wrapped_functions = {
+        name: _wrap_with_default_variants(func, defaults=defaults)
+        for name, func in base_functions.items()
+    }
 
     return CvcPreset(
         default_variants=defaults,
-        make_eval_suite=make_eval_suite,
-        make_training_env=make_training_env,
-        make_curriculum=make_curriculum,
-        train=train,
-        train_small_maps=train_small_maps,
-        train_medium_maps=train_medium_maps,
-        train_large_maps=train_large_maps,
-        train_coordination=train_coordination,
-        train_single_mission=train_single_mission,
-        evaluate=evaluate,
-        play=play,
-        play_training_env=play_training_env,
+        **wrapped_functions,  # type: ignore[arg-type]
     )
 
 

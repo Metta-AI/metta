@@ -28,6 +28,43 @@ from metta.tools.play import PlayTool
 from metta.tools.train import TrainTool
 from mettagrid.config.mettagrid_config import MettaGridConfig
 
+DEFAULT_CURRICULUM_MISSIONS: tuple[str, ...] = (
+    "extractor_hub_30",
+    "extractor_hub_50",
+    "collect_resources_classic",
+    "collect_resources_spread",
+    "oxygen_bottleneck",
+    "energy_starved",
+)
+
+SMALL_MAP_MISSIONS: tuple[str, ...] = (
+    "extractor_hub_30",
+    "collect_resources_classic",
+    "oxygen_bottleneck",
+)
+
+MEDIUM_MAP_MISSIONS: tuple[str, ...] = (
+    "extractor_hub_50",
+    "collect_resources_spread",
+    "energy_starved",
+)
+
+LARGE_MAP_MISSIONS: tuple[str, ...] = (
+    "extractor_hub_70",
+    "collect_far",
+    "divide_and_conquer",
+)
+
+COORDINATION_MISSIONS: tuple[str, ...] = (
+    "go_together",
+    "divide_and_conquer",
+    "collect_resources_spread",
+)
+
+_MISSION_CLASS_BY_NAME: dict[str, type[Mission]] = {
+    mission_cls().name: mission_cls for mission_cls in EVAL_MISSIONS
+}
+
 
 def _normalize_variant_names(
     *,
@@ -146,13 +183,7 @@ def make_training_env(
     variants: Optional[Sequence[str]] = None,
 ) -> MettaGridConfig:
     """Create a single training environment from a mission."""
-    mission_cls = None
-    for candidate in EVAL_MISSIONS:
-        instance = candidate()
-        if instance.name == mission_name:
-            mission_cls = candidate
-            break
-
+    mission_cls = _MISSION_CLASS_BY_NAME.get(mission_name)
     if mission_cls is None:
         raise ValueError(f"Mission '{mission_name}' not found in EVAL_MISSIONS")
 
@@ -176,14 +207,7 @@ def make_curriculum(
 ) -> CurriculumConfig:
     """Create a curriculum for CoGs vs Clips training."""
     if base_missions is None:
-        base_missions = [
-            "extractor_hub_30",
-            "extractor_hub_50",
-            "collect_resources_classic",
-            "collect_resources_spread",
-            "oxygen_bottleneck",
-            "energy_starved",
-        ]
+        base_missions = list(DEFAULT_CURRICULUM_MISSIONS)
 
     all_mission_tasks = []
     for mission_name in base_missions:
@@ -357,11 +381,7 @@ def train_small_maps(
     """Train on small maps (30x30, classic layouts)."""
     return train(
         num_cogs=num_cogs,
-        base_missions=[
-            "extractor_hub_30",
-            "collect_resources_classic",
-            "oxygen_bottleneck",
-        ],
+        base_missions=list(SMALL_MAP_MISSIONS),
         variants=variants,
         eval_variants=eval_variants,
         eval_difficulty=eval_difficulty,
@@ -377,11 +397,7 @@ def train_medium_maps(
     """Train on medium maps (50x50, spread layouts)."""
     return train(
         num_cogs=num_cogs,
-        base_missions=[
-            "extractor_hub_50",
-            "collect_resources_spread",
-            "energy_starved",
-        ],
+        base_missions=list(MEDIUM_MAP_MISSIONS),
         variants=variants,
         eval_variants=eval_variants,
         eval_difficulty=eval_difficulty,
@@ -397,7 +413,7 @@ def train_large_maps(
     """Train on large maps with more agents."""
     return train(
         num_cogs=num_cogs,
-        base_missions=["extractor_hub_70", "collect_far", "divide_and_conquer"],
+        base_missions=list(LARGE_MAP_MISSIONS),
         variants=variants,
         eval_variants=eval_variants,
         eval_difficulty=eval_difficulty,
@@ -413,7 +429,7 @@ def train_coordination(
     """Train on missions emphasizing multi-agent coordination."""
     return train(
         num_cogs=num_cogs,
-        base_missions=["go_together", "divide_and_conquer", "collect_resources_spread"],
+        base_missions=list(COORDINATION_MISSIONS),
         variants=variants,
         eval_variants=eval_variants,
         eval_difficulty=eval_difficulty,
