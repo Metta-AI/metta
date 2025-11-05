@@ -11,7 +11,7 @@ from metta.common.util.log_config import getRankAwareLogger
 from metta.rl.system_config import SystemConfig
 from metta.rl.trainer_config import TrainerConfig
 from metta.rl.training import TrainingEnvironmentConfig
-from mettagrid.config import Config
+from mettagrid.base_config import Config
 
 logger = getRankAwareLogger(__name__)
 
