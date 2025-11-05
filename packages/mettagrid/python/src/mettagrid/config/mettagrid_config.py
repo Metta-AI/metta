@@ -25,9 +25,6 @@ from mettagrid.simulator import Action
 # Forward reference - actual import happens at runtime when needed
 # ===== Python Configuration Models =====
 
-# Left to right, top to bottom.
-FixedPosition = Literal["NW", "N", "NE", "W", "E", "SW", "S", "SE"]
-
 Direction = Literal["north", "south", "east", "west", "northeast", "northwest", "southeast", "southwest"]
 Directions = list(get_args(Direction))
 
