@@ -314,6 +314,31 @@ class AssemblyLinesTaskGenerator(TaskGenerator):
         env_cfg.label = f"{room_size}_{chain_length}chain_{num_sinks}sinks_{terrain}"
         return env_cfg
 
+    def build_config_from_params(
+        self,
+        chain_length: int,
+        num_sinks: int,
+        width: int,
+        height: int,
+        terrain: str,
+        room_size: str,
+        rng: random.Random,
+    ) -> MettaGridConfig:
+        """Build config from explicit parameters (for deserialization)."""
+        max_steps = self._calculate_max_steps(chain_length, num_sinks, width, height)
+
+        env_cfg = self._make_env_cfg(
+            chain_length=chain_length,
+            num_sinks=num_sinks,
+            width=width,
+            height=height,
+            max_steps=max_steps,
+            terrain=terrain,
+            rng=rng,
+        )
+        env_cfg.label = f"{room_size}_{chain_length}chain_{num_sinks}sinks_{terrain}"
+        return env_cfg
+
 
 def make_task_generator_cfg(
     chain_lengths,
