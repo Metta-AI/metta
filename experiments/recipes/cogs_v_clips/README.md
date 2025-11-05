@@ -1,0 +1,210 @@
+# CoGs vs Clips Training Recipes
+
+Training recipes for the Cogs vs Clips eval missions, supporting curriculum learning across multiple missions and difficulty variants.
+
+## Quick Start
+
+### Basic Training
+
+Train on small maps with 4 agents:
+
+```bash
+# Train with default curriculum (small/medium missions, 4 agents)
+uv run ./tools/run.py experiments.recipes.cogs_v_clips.train run=cvc_default
+
+# Train on single mission (fast, for debugging)
+uv run ./tools/run.py experiments.recipes.cogs_v_clips.train_single_mission run=cvc_single
+
+# Train on small maps only
+uv run ./tools/run.py experiments.recipes.cogs_v_clips.train_small_maps run=cvc_small
+
+# Train on coordination-heavy missions
+uv run ./tools/run.py experiments.recipes.cogs_v_clips.train_coordination run=cvc_coord
+```
+
+### Evaluation
+
+```bash
+# Evaluate a trained policy on all eval missions
+uv run ./tools/run.py experiments.recipes.cogs_v_clips.evaluate \\
+    policy_uris=file://./checkpoints/cvc_default/latest
+
+# Evaluate on specific missions
+uv run ./tools/run.py experiments.recipes.cogs_v_clips.evaluate \\
+    policy_uris=file://./checkpoints/cvc_default/latest \\
+    subset='["extractor_hub_30", "oxygen_bottleneck"]'
+
+# Evaluate on hard difficulty
+uv run ./tools/run.py experiments.recipes.cogs_v_clips.evaluate \\
+    policy_uris=file://./checkpoints/cvc_default/latest \\
+    difficulty=hard
+```
+
+### Interactive Play
+
+```bash
+# Play with a trained policy
+uv run ./tools/run.py experiments.recipes.cogs_v_clips.play \\
+    policy_uri=file://./checkpoints/cvc_default/latest \\
+    mission_name=extractor_hub_30 \\
+    num_cogs=4
+
+# Play without a policy (random actions)
+uv run ./tools/run.py experiments.recipes.cogs_v_clips.play_training_env
+```
+
+## Recipe Functions
+
+### Training Functions
+
+- **`train(num_cogs, curriculum, base_missions)`** - Main training with curriculum
+  - Creates curriculum across multiple missions and difficulty parameters
+  - Default: 4 agents, 6 diverse missions
+  - Evaluates on full eval suite
+
+- **`train_single_mission(mission_name, num_cogs)`** - Train on single mission
+  - No curriculum variation
+  - Fast for debugging
+  - Still evaluates on full suite
+
+- **`train_small_maps(num_cogs)`** - Train on 30x30 maps
+  - Missions: extractor_hub_30, collect_resources_classic, oxygen_bottleneck
+  - Good for quick iterations
+
+- **`train_medium_maps(num_cogs)`** - Train on 50x50 maps
+  - Missions: extractor_hub_50, collect_resources_spread, energy_starved
+  - Balanced training
+
+- **`train_large_maps(num_cogs)`** - Train on 70x70+ maps
+  - Missions: extractor_hub_70, collect_far, divide_and_conquer
+  - Requires more agents (default: 8)
+
+- **`train_coordination(num_cogs)`** - Multi-agent coordination focus
+  - Missions: go_together, divide_and_conquer, collect_resources_spread
+  - Emphasizes cooperation
+
+### Evaluation Functions
+
+- **`evaluate(policy_uris, num_cogs, difficulty, subset)`** - Evaluate on missions
+  - Tests policy on eval suite
+  - Can filter by difficulty or mission subset
+
+- **`make_eval_suite(num_cogs, difficulty, subset)`** - Create evaluation suite
+  - Returns list of SimulationConfig objects
+  - Used internally by evaluate()
+
+### Play Functions
+
+- **`play(policy_uri, mission_name, num_cogs)`** - Play a specific mission
+  - Interactive visualization
+  - Useful for debugging trained policies
+
+- **`play_training_env(policy_uri, num_cogs)`** - Play default training env
+  - Defaults to extractor_hub_30
+
+### Utility Functions
+
+- **`make_training_env(num_cogs, mission_name)`** - Create single env config
+  - Returns MettaGridConfig
+  - Useful for custom training setups
+
+- **`make_curriculum(num_cogs, base_missions, ...)`** - Create custom curriculum
+  - Varies mission types, efficiencies, energy regen, episode length
+  - Uses Learning Progress algorithm by default
+
+## Available Missions
+
+### Small Maps (30x30)
+- `extractor_hub_30` - Basic hub layout
+- `oxygen_bottleneck` - Oxygen paces assembly
+- `collect_resources_classic` - Classic balanced layout
+
+### Medium Maps (50x50)
+- `extractor_hub_50` - Medium hub layout
+- `collect_resources_spread` - Resources scattered nearby
+- `energy_starved` - Low energy regeneration
+
+### Large Maps (70x70+)
+- `extractor_hub_70` - Large hub
+- `extractor_hub_80` - Extra large hub
+- `extractor_hub_100` - Huge hub (use with 8+ agents)
+- `collect_far` - Resources far from base
+- `divide_and_conquer` - Regionalized resources
+
+### Coordination-Heavy
+- `go_together` - Favors collective glyphing (min 2 agents)
+- `single_use_swarm` - Single-use stations, team must coordinate (min 2 agents)
+
+## Curriculum Parameters
+
+The curriculum varies:
+
+1. **Station Efficiency** (80-150%)
+   - charger, carbon_extractor, oxygen_extractor, silicon_extractor, germanium_extractor
+
+2. **Energy Regeneration** (1-3 per step)
+   - Affects recharge frequency
+
+3. **Reward Weights** (0.1-1.0 per heart)
+   - Affects learning signal strength
+
+4. **Episode Length** (500-2000 steps)
+   - Longer episodes = more complex strategies
+
+5. **Mission Type**
+   - Different maps, layouts, and resource distributions
+
+## Comparison to Scripted Agents
+
+The scripted agents achieved:
+- **Baseline**: 41.5% success (151/364 tests), best with 4 agents (54.9%)
+- **UnclippingAgent**: 40.5% success (274/676 tests), best with 4 agents (45.0%)
+
+RL agents should aim to:
+1. Match or exceed 40% overall success rate
+2. Show similar or better multi-agent scaling (peak at 4 agents)
+3. Generalize across different missions and difficulties
+
+## Example Workflow
+
+```bash
+# 1. Train on small maps for quick iteration
+uv run ./tools/run.py experiments.recipes.cogs_v_clips.train_small_maps \\
+    run=cvc_small \\
+    trainer.total_timesteps=10_000_000
+
+# 2. Watch agent performance during training
+# (Check wandb or tensorboard for metrics)
+
+# 3. Evaluate on full suite
+uv run ./tools/run.py experiments.recipes.cogs_v_clips.evaluate \\
+    policy_uris=file://./checkpoints/cvc_small/latest
+
+# 4. Play to visualize behavior
+uv run ./tools/run.py experiments.recipes.cogs_v_clips.play \\
+    policy_uri=file://./checkpoints/cvc_small/latest \\
+    mission_name=extractor_hub_30 \\
+    num_cogs=4
+
+# 5. Scale up to full curriculum
+uv run ./tools/run.py experiments.recipes.cogs_v_clips.train \\
+    run=cvc_full \\
+    trainer.total_timesteps=50_000_000 \\
+    num_cogs=4
+```
+
+## Notes
+
+- The recipe evaluates on **standard difficulty** by default
+- Multi-agent missions (go_together, single_use_swarm) require ≥2 agents
+- Large maps (80x80, 100x100) work best with 8 agents
+- Curriculum uses **Learning Progress** algorithm for adaptive task selection
+- All eval missions use simplified heart recipes for faster assembly
+
+## Related Files
+
+- **Mission Definitions**: `packages/cogames/src/cogames/cogs_vs_clips/evals/eval_missions.py`
+- **Difficulty Variants**: `packages/cogames/src/cogames/cogs_vs_clips/evals/difficulty_variants.py`
+- **Scripted Agent Baselines**: `packages/cogames/src/cogames/policy/scripted_agent/`
+- **Evaluation Results**: `experiments/SCRIPTED_AGENT_EVALUATION.md`
+
