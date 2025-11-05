@@ -148,9 +148,7 @@ def extract_features_from_config(config: MettaGridConfig) -> Dict[str, Any]:
         _TERR = r"(no\-terrain|sparse|balanced|dense)"
         m = re.fullmatch(rf"{_ROOM}_(\d+)chain_(\d+)sinks_{_TERR}", label)
         if not m:
-            raise ValueError(
-                f"Missing structured fields {missing_structured} and label not parseable: {label!r}"
-            )
+            raise ValueError(f"Missing structured fields {missing_structured} and label not parseable: {label!r}")
         room_f, chain_f, sinks_f, terr_f = m.groups()
         room_size = room_size or room_f
         terrain = terrain or terr_f
@@ -165,11 +163,7 @@ def extract_features_from_config(config: MettaGridConfig) -> Dict[str, Any]:
     room_size_s: str = str(room_size)
     terrain_s: str = str(terrain)
 
-    objs = (
-        getattr(config, "game_objects", None)
-        or getattr(getattr(config, "game", None), "objects", None)
-        or {}
-    )
+    objs = getattr(config, "game_objects", None) or getattr(getattr(config, "game", None), "objects", None) or {}
     num_assemblers = sum(1 for o in objs.values() if getattr(o, "type", None) == "assembler")
 
     return {
@@ -219,15 +213,13 @@ def serialize_config(
 
     if include_assemblers:
         if resource_types:
-            out["assemblers"] = _summary_vector(
-                config, resource_types=resource_types, sentinels=sentinels
-            ).astype(np.float32)
+            out["assemblers"] = _summary_vector(config, resource_types=resource_types, sentinels=sentinels).astype(
+                np.float32
+            )
         else:
             # Minimal signal: normalized assembler count (chain+1+sinks capped at 12)
             num_assemblers = float(raw.get("num_assemblers", 0))
-            out["assemblers"] = np.asarray(
-                [min(12.0, max(0.0, num_assemblers)) / 12.0], dtype=np.float32
-            )
+            out["assemblers"] = np.asarray([min(12.0, max(0.0, num_assemblers)) / 12.0], dtype=np.float32)
 
     return out
 
