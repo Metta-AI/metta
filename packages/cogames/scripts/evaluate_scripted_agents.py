@@ -26,12 +26,10 @@ import logging
 from dataclasses import asdict, dataclass
 from typing import Any, Callable, Dict, List
 
-import numpy as np
-
 from cogames.cogs_vs_clips.evals import CANONICAL_DIFFICULTY_ORDER, DIFFICULTY_LEVELS, apply_difficulty
 from cogames.cogs_vs_clips.evals.eval_missions import EVAL_MISSIONS
 from cogames.policy.scripted_agent import CoordinatingPolicy, SimpleBaselinePolicy, UnclippingPolicy
-from mettagrid import MettaGridEnv, dtype_actions
+from mettagrid.simulator.rollout import Rollout
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 logger = logging.getLogger(__name__)
@@ -59,7 +57,7 @@ class AgentConfig:
 
     key: str
     label: str
-    policy_factory: Callable[[MettaGridEnv], Any]
+    policy_factory: Callable[[], Any]
     cogs_list: List[int]
     difficulties: List[str]
 
@@ -74,21 +72,21 @@ AGENT_CONFIGS: Dict[str, AgentConfig] = {
     "simple": AgentConfig(
         key="simple",
         label="SimpleBaseline",
-        policy_factory=lambda env: SimpleBaselinePolicy(env),
-        cogs_list=[1],
+        policy_factory=lambda: SimpleBaselinePolicy(),
+        cogs_list=[1, 2, 4, 8],
         difficulties=[d for d in CANONICAL_DIFFICULTY_ORDER if not is_clipping_difficulty(d)],
     ),
     "unclipping": AgentConfig(
         key="unclipping",
         label="UnclippingAgent",
-        policy_factory=lambda env: UnclippingPolicy(env),
-        cogs_list=[1],
+        policy_factory=lambda: UnclippingPolicy(),
+        cogs_list=[1, 2, 4, 8],
         difficulties=CANONICAL_DIFFICULTY_ORDER,  # With and without clipping
     ),
     "coordinating": AgentConfig(
         key="coordinating",
         label="CoordinatingAgent",
-        policy_factory=lambda env: CoordinatingPolicy(env),
+        policy_factory=lambda: CoordinatingPolicy(),
         cogs_list=[2, 4, 8],  # Multi-agent only
         difficulties=CANONICAL_DIFFICULTY_ORDER,  # With and without clipping
     ),
@@ -145,36 +143,29 @@ def run_evaluation(
                 clip_rate = getattr(difficulty, "extractor_clip_rate", 0.0)
 
                 try:
-                    # Instantiate mission and create environment
+                    # Instantiate mission and create environment config
                     map_builder = mission.site.map_builder if mission.site else None
                     mission_inst = mission.instantiate(map_builder, num_cogs=num_cogs)
                     env_config = mission_inst.make_env()
                     env_config.game.max_steps = max_steps
 
-                    env = MettaGridEnv(env_config)
+                    # Create policy (scripted agents will get simulation from Rollout)
+                    policy = agent_config.policy_factory()
+                    agent_policies = [policy] * num_cogs
 
-                    # Create policy
-                    policy = agent_config.policy_factory(env)
+                    # Create rollout and run episode
+                    rollout = Rollout(
+                        env_config,
+                        agent_policies,
+                        render_mode="none",
+                        seed=seed,
+                        pass_sim_to_policies=True,
+                    )
+                    rollout.run_until_done()
 
-                    # Run episode
-                    obs, info = env.reset(seed=seed)
-                    policy.reset(obs, info)
-                    agents = [policy.agent_policy(i) for i in range(num_cogs)]
-
-                    total_reward = 0.0
-                    final_step = 0
-                    for final_step in range(max_steps):  # noqa: B007
-                        actions = np.zeros(num_cogs, dtype=dtype_actions)
-                        for i in range(num_cogs):
-                            actions[i] = int(agents[i].step(obs[i]))
-
-                        obs, rewards, dones, truncs, info = env.step(actions)
-                        total_reward += float(rewards.sum())
-
-                        if all(dones) or all(truncs):
-                            break
-
-                    env.close()
+                    # Get results
+                    total_reward = float(sum(rollout._sim.episode_rewards))
+                    final_step = rollout._sim.current_step
 
                     # Record result
                     result = EvalResult(

@@ -41,314 +41,127 @@ class CoordinatingAgent(UnclippingAgent):
     def __init__(self, simulation: "Simulation"):
         super().__init__(simulation)
 
-    def _random_move_if_stuck(self, s: UnclippingAgentState, action: int) -> int:
-        """If action is NOOP (blocked), 30% chance to take a random move to unstick."""
-        if action != self._NOOP:
-            return action
+    def _explore_frontier(self, s: UnclippingAgentState) -> int:
+        """
+        Override exploration with outward bias to spread agents out.
 
-        # 30% chance to take random move when stuck
+        Multi-agent scenarios benefit from agents exploring different areas,
+        so we add a bonus for exploring away from the center (assembler/chest).
+        """
+        # Get the center point (assembler or chest if known)
+        center = None
+        if self._stations.get("assembler") is not None:
+            center = self._stations["assembler"]
+        elif self._stations.get("chest") is not None:
+            center = self._stations["chest"]
+
+        # If we don't know the center yet, use default exploration
+        if center is None:
+            return super()._explore_frontier(s)
+
+        # Use parent's exploration logic but modify the scoring
+        if s.row < 0:
+            return self._NOOP
+
+        # Initialize visited map if not exists
+        if s.visited_map is None:
+            s.visited_map = [[0 for _ in range(s.map_width)] for _ in range(s.map_height)]
+
+        # Mark current cell as visited
+        s.visited_map[s.row][s.col] = s.step_count
+
         import random
 
-        if random.random() < 0.3:
+        from .simple_baseline_agent import CellType
+
+        # 10% chance to take a random move to break patterns
+        if random.random() < 0.1:
             valid_moves = []
-            for move_action, (dr, dc) in [
+            for action, (dr, dc) in [
                 (self._MOVE_N, (-1, 0)),
                 (self._MOVE_S, (1, 0)),
                 (self._MOVE_E, (0, 1)),
                 (self._MOVE_W, (0, -1)),
             ]:
                 nr, nc = s.row + dr, s.col + dc
-                if self._is_within_bounds(s, nr, nc) and self._is_passable(s, nr, nc):
-                    valid_moves.append(move_action)
+                if self._is_within_bounds(s, nr, nc) and s.occupancy[nr][nc] == CellType.FREE.value:
+                    valid_moves.append(action)
 
             if valid_moves:
+                s.exploration_target = None
                 return random.choice(valid_moves)
+
+        # Check if we should keep current exploration target
+        if s.exploration_target is not None:
+            tr, tc = s.exploration_target
+            if s.step_count - s.exploration_target_step < 10 and (s.row, s.col) != s.exploration_target:
+                if self._is_within_bounds(s, tr, tc) and s.occupancy[tr][tc] == CellType.FREE.value:
+                    return self._move_towards(s, s.exploration_target)
+            s.exploration_target = None
+
+        # Find nearest least-recently-visited cell, WITH OUTWARD BIAS
+        best_target = None
+        best_score = -float("inf")
+        center_r, center_c = center
+
+        for radius in range(5, min(15, s.map_height // 2, s.map_width // 2)):
+            for dr in range(-radius, radius + 1):
+                for dc in range(-radius, radius + 1):
+                    if abs(dr) != radius and abs(dc) != radius:
+                        continue
+
+                    r, c = s.row + dr, s.col + dc
+                    if not self._is_within_bounds(s, r, c):
+                        continue
+
+                    if s.occupancy[r][c] != CellType.FREE.value:
+                        continue
+
+                    # Score based on visit time
+                    last_visited = s.visited_map[r][c]
+                    visit_score = s.step_count - last_visited
+                    distance_to_me = abs(dr) + abs(dc)
+
+                    # ADD OUTWARD BIAS: bonus for being far from center
+                    distance_from_center = abs(r - center_r) + abs(c - center_c)
+                    outward_bonus = distance_from_center * 5  # 5 points per cell away from center
+
+                    # Combined score: prefer unvisited cells, close to me, far from center
+                    score = visit_score * 10 - distance_to_me + outward_bonus
+
+                    if score > best_score:
+                        best_score = score
+                        best_target = (r, c)
+
+            if best_target and best_score > 100:
+                break
+
+        if best_target:
+            s.exploration_target = best_target
+            s.exploration_target_step = s.step_count
+            return self._move_towards(s, best_target)
+
+        # No good target found, pick a random direction
+        valid_moves = []
+        for action, (dr, dc) in [
+            (self._MOVE_N, (-1, 0)),
+            (self._MOVE_S, (1, 0)),
+            (self._MOVE_E, (0, 1)),
+            (self._MOVE_W, (0, -1)),
+        ]:
+            nr, nc = s.row + dr, s.col + dc
+            if self._is_within_bounds(s, nr, nc) and s.occupancy[nr][nc] == CellType.FREE.value:
+                valid_moves.append(action)
+
+        if valid_moves:
+            return random.choice(valid_moves)
 
         return self._NOOP
 
-    def _do_assemble(self, s: UnclippingAgentState) -> int:
-        """Override to add smart mouth selection when approaching assembler."""
-        # Change glyph to heart if needed
-        if s.current_glyph != "heart":
-            vibe_action = self._change_vibe_actions["heart"]
-            s.current_glyph = "heart"
-            return vibe_action
-
-        # Explore until we find assembler
-        explore_action = self._explore_until(
-            s, condition=lambda: self._stations["assembler"] is not None, reason="Need assembler"
-        )
-        if explore_action is not None:
-            return explore_action
-
-        # We know where assembler is
-        assembler = self._stations["assembler"]
-        ar, ac = assembler
-
-        # Check if we're adjacent
-        dr = abs(s.row - ar)
-        dc = abs(s.col - ac)
-        is_adjacent = (dr == 1 and dc == 0) or (dr == 0 and dc == 1)
-
-        if is_adjacent:
-            return self._move_into_cell(s, assembler)
-
-        # Not adjacent yet - apply mouth coordination
-        distance = abs(s.row - ar) + abs(s.col - ac)
-
-        # Check if we have a committed mouth for this assembler
-        committed_mouth = getattr(s, "committed_assembler_mouth", None)
-        committed_target = getattr(s, "committed_assembler_target", None)
-
-        # Clear commitment if target changed (shouldn't happen for assembler but for safety)
-        if committed_target is not None and committed_target != assembler:
-            committed_mouth = None
-            committed_target = None
-            s.committed_assembler_mouth = None
-            s.committed_assembler_target = None
-
-        # Mouth coordination: activate when distance <= 2, persist until used
-        if distance <= 2:
-            # If no commitment yet, find and commit to a mouth
-            if committed_mouth is None:
-                available_mouth = self._find_available_mouth(s, assembler)
-                if available_mouth is not None:
-                    # Commit to this mouth
-                    s.committed_assembler_mouth = available_mouth
-                    s.committed_assembler_target = assembler
-                    committed_mouth = available_mouth
-            else:
-                # No available mouth, use default pathfinding
-                return self._move_towards(s, assembler, reach_adjacent=True)
-
-            # We have a committed mouth - move to it
-            # Check if we're at the mouth
-            if (s.row, s.col) == committed_mouth:
-                # At mouth! Clear commitment and use assembler
-                s.committed_assembler_mouth = None
-                s.committed_assembler_target = None
-                return self._move_into_cell(s, assembler)
-
-            # Not at mouth yet - move toward it
-            action = self._move_towards(s, committed_mouth, reach_adjacent=False)
-            # If pathfinding fails, clear commitment and use default
-            if action == self._NOOP:
-                s.committed_assembler_mouth = None
-                s.committed_assembler_target = None
-                action = self._move_towards(s, assembler, reach_adjacent=True)
-            # Add random motion to unstick from collisions
-            return self._random_move_if_stuck(s, action)
-
-        # If we have a commitment but moved too far, keep trying (allows paths that temporarily increase distance)
-        if committed_mouth is not None and distance <= 4:
-            # Check if at mouth
-            if (s.row, s.col) == committed_mouth:
-                s.committed_assembler_mouth = None
-                s.committed_assembler_target = None
-                return self._move_into_cell(s, assembler)
-
-            # Move toward committed mouth
-            action = self._move_towards(s, committed_mouth, reach_adjacent=False)
-            if action == self._NOOP:
-                # Can't reach mouth, clear and use default
-                s.committed_assembler_mouth = None
-                s.committed_assembler_target = None
-                action = self._move_towards(s, assembler, reach_adjacent=True)
-            # Add random motion to unstick from collisions
-            return self._random_move_if_stuck(s, action)
-
-        # Too far or no coordination - clear any commitment and use default
-        s.committed_assembler_mouth = None
-        s.committed_assembler_target = None
-        action = self._move_towards(s, assembler, reach_adjacent=True)
-        return self._random_move_if_stuck(s, action)
-
-    def _do_gather(self, s: UnclippingAgentState) -> int:
-        """Override to add smart mouth selection when approaching extractors."""
-        # Use parent's logic for waiting, deficits check, and exploration
-        if s.pending_use_resource is not None:
-            return super()._do_gather(s)
-
-        deficits = self._calculate_deficits(s)
-        if all(d <= 0 for d in deficits.values()):
-            return super()._do_gather(s)
-
-        # Explore until we find an extractor (using parent's explore_until)
-        explore_action = self._explore_until(
-            s,
-            condition=lambda: self._find_any_needed_extractor(s) is not None,
-            reason=f"Need extractors for: {', '.join(k for k, v in deficits.items() if v > 0)}",
-        )
-        if explore_action is not None:
-            return explore_action
-
-        # Found an extractor
-        result = self._find_any_needed_extractor(s)
-        if result is None:
-            return self._explore(s)
-
-        extractor, resource_type = result
-        s.target_resource = resource_type
-        s.exploration_target = None  # Clear exploration target
-
-        # Get extractor position
-        er, ec = extractor.position
-
-        # Check if we're adjacent
-        dr = abs(s.row - er)
-        dc = abs(s.col - ec)
-        is_adjacent = (dr == 1 and dc == 0) or (dr == 0 and dc == 1)
-
-        if is_adjacent:
-            # Check if we still need this resource
-            current_deficits = self._calculate_deficits(s)
-            if current_deficits[resource_type] <= 0:
-                # Don't use it - we have enough. Move away and find next extractor.
-                return self._explore(s)
-
-            # Check if extractor is ready
-            if extractor.cooldown_remaining > 0 or extractor.converting:
-                s.waiting_at_extractor = extractor.position
-                s.wait_steps += 1
-                return self._NOOP
-
-            if extractor.remaining_uses == 0 or extractor.clipped:
-                s.waiting_at_extractor = None
-                s.wait_steps = 0
-                return self._NOOP
-
-            # Use the extractor
-            old_amount = getattr(s, resource_type, 0)
-            s.pending_use_resource = resource_type
-            s.pending_use_amount = old_amount
-            return self._move_into_cell(s, extractor.position)
-
-        # Not adjacent yet - apply mouth coordination if close enough
-        distance = abs(s.row - er) + abs(s.col - ec)
-
-        # Check if we have a committed mouth for this extractor
-        committed_mouth = getattr(s, "committed_mouth", None)
-        committed_target = getattr(s, "committed_target", None)
-
-        # Clear commitment if target changed
-        if committed_target is not None and committed_target != extractor.position:
-            committed_mouth = None
-            committed_target = None
-            s.committed_mouth = None
-            s.committed_target = None
-
-        # Mouth coordination: activate when distance <= 2, persist until used
-        if distance <= 2:
-            # If no commitment yet, find and commit to a mouth
-            if committed_mouth is None:
-                available_mouth = self._find_available_mouth(s, extractor.position)
-                if available_mouth is not None:
-                    # Commit to this mouth
-                    s.committed_mouth = available_mouth
-                    s.committed_target = extractor.position
-                    committed_mouth = available_mouth
-            else:
-                # No available mouth, use default pathfinding
-                return self._move_towards(s, extractor.position, reach_adjacent=True)
-
-            # We have a committed mouth - move to it
-            # Check if we're at the mouth
-            if (s.row, s.col) == committed_mouth:
-                # At mouth! Clear commitment and use extractor
-                s.committed_mouth = None
-                s.committed_target = None
-                return self._move_into_cell(s, extractor.position)
-
-            # Not at mouth yet - move toward it
-            action = self._move_towards(s, committed_mouth, reach_adjacent=False)
-            # If pathfinding fails, clear commitment and use default
-            if action == self._NOOP:
-                s.committed_mouth = None
-                s.committed_target = None
-                action = self._move_towards(s, extractor.position, reach_adjacent=True)
-            # Add random motion to unstick from collisions
-            return self._random_move_if_stuck(s, action)
-
-        # If we have a commitment but moved too far, keep trying (allows paths that temporarily increase distance)
-        if committed_mouth is not None and distance <= 4:
-            # Check if at mouth
-            if (s.row, s.col) == committed_mouth:
-                s.committed_mouth = None
-                s.committed_target = None
-                return self._move_into_cell(s, extractor.position)
-
-            # Move toward committed mouth
-            action = self._move_towards(s, committed_mouth, reach_adjacent=False)
-            if action == self._NOOP:
-                # Can't reach mouth, clear and use default
-                s.committed_mouth = None
-                s.committed_target = None
-                action = self._move_towards(s, extractor.position, reach_adjacent=True)
-            # Add random motion to unstick from collisions
-            return self._random_move_if_stuck(s, action)
-
-        # Too far or no coordination - clear any commitment and use default
-        s.committed_mouth = None
-        s.committed_target = None
-        action = self._move_towards(s, extractor.position, reach_adjacent=True)
-        return self._random_move_if_stuck(s, action)
-
-    def _find_available_mouth(self, s: UnclippingAgentState, target_pos: tuple[int, int]) -> tuple[int, int] | None:
-        """
-        Find an available adjacent cell (mouth) around a target (extractor/assembler/etc).
-
-        Returns the position of a free adjacent cell, or None if can't determine.
-        """
-        tr, tc = target_pos
-
-        # Four possible mouths (N, S, E, W)
-        mouths = [
-            (tr - 1, tc),  # North
-            (tr + 1, tc),  # South
-            (tr, tc - 1),  # West
-            (tr, tc + 1),  # East
-        ]
-
-        # Check which mouths are free
-        free_mouths = []
-
-        for mouth_r, mouth_c in mouths:
-            # Check if this position is in bounds
-            if not (0 <= mouth_r < s.map_height and 0 <= mouth_c < s.map_width):
-                continue
-
-            # Check if it's passable (not a wall/obstacle)
-            if not self._is_passable(s, mouth_r, mouth_c):
-                continue
-
-            # Check if there's an agent at this position
-            occupied = False
-            try:
-                for _obj_id, obj in self._env.c_env.grid_objects().items():
-                    obj_r = obj.get("r")
-                    obj_c = obj.get("c")
-                    obj_agent_id = obj.get("agent_id")
-
-                    # Check if there's an agent at this mouth position (not us)
-                    if obj_r == mouth_r and obj_c == mouth_c and obj_agent_id is not None:
-                        if obj_agent_id != s.agent_id:
-                            occupied = True
-                            break
-            except Exception:
-                # If we can't check, assume it might be occupied
-                pass
-
-            if not occupied:
-                free_mouths.append((mouth_r, mouth_c))
-
-        if not free_mouths:
-            return None
-
-        # Pick the closest free mouth to our current position
-        def distance(pos: tuple[int, int]) -> int:
-            return abs(pos[0] - s.row) + abs(pos[1] - s.col)
-
-        return min(free_mouths, key=distance)
+    # Note: Removed all mouth selection logic. CoordinatingAgent now simply:
+    # 1. Uses outward exploration bias (via _explore_frontier override)
+    # 2. Uses random unsticking every 10 steps (inherited from SimpleBaselineAgent)
+    # This combination performs better than complex mouth coordination.
 
 
 # ============================================================================
@@ -367,12 +180,16 @@ class CoordinatingPolicyImpl:
         """Get initial state for an agent."""
         # Make sure agent states are initialized
         if agent_id not in self._agent._agent_states:
-            self._agent._agent_states[agent_id] = UnclippingAgentState(
+            state = UnclippingAgentState(
                 agent_id=agent_id,
                 map_height=self._agent._map_h,
                 map_width=self._agent._map_w,
                 occupancy=[[CellType.FREE.value] * self._agent._map_w for _ in range(self._agent._map_h)],
             )
+            # Initialize mutable defaults
+            state.unreachable_extractors = {}
+            state.agent_occupancy = set()
+            self._agent._agent_states[agent_id] = state
         return self._agent._agent_states[agent_id]
 
     def step_with_state(self, obs, state: UnclippingAgentState):

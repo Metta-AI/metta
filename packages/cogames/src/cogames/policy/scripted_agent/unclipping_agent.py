@@ -347,12 +347,16 @@ class UnclippingPolicyImpl:
         """Get initial state for an agent."""
         # Make sure agent states are initialized
         if agent_id not in self._agent._agent_states:
-            self._agent._agent_states[agent_id] = UnclippingAgentState(
+            state = UnclippingAgentState(
                 agent_id=agent_id,
                 map_height=self._agent._map_h,
                 map_width=self._agent._map_w,
                 occupancy=[[CellType.FREE.value] * self._agent._map_w for _ in range(self._agent._map_h)],
             )
+            # Initialize mutable defaults
+            state.unreachable_extractors = {}
+            state.agent_occupancy = set()
+            self._agent._agent_states[agent_id] = state
         return self._agent._agent_states[agent_id]
 
     def step_with_state(self, obs, state: UnclippingAgentState):

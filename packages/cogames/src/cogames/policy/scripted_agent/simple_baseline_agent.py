@@ -16,7 +16,7 @@ from __future__ import annotations
 import logging
 import random
 from collections import deque
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import Enum
 from typing import TYPE_CHECKING, Callable, Dict, Optional
 
@@ -167,9 +167,15 @@ class SimpleAgentState:
     # Track unreachable extractors (position -> consecutive failed pathfind attempts)
     unreachable_extractors: dict[tuple[int, int], int] = None
 
-    # Deadlock detection (track recent positions to detect if stuck)
-    position_history: deque = None  # Will be initialized as deque(maxlen=10) in __post_init__
-    stuck_counter: int = 0  # How many steps we've been stuck
+    # Agent positions (cleared and refreshed every step)
+    agent_occupancy: set[tuple[int, int]] = field(default_factory=set)
+
+    # Stuck detection
+    last_position: Optional[tuple[int, int]] = None
+    stuck_counter: int = 0
+
+    # Agent position update frequency (to avoid constant re-planning)
+    agent_positions_last_updated: int = 0
 
 
 class SimpleBaselineAgent:
@@ -297,8 +303,6 @@ class SimpleBaselineAgent:
             if agent_row >= 0 and agent_col >= 0:
                 # Convert observation-relative coords to world coords
                 r, c = obs_r - OBS_HR + agent_row, obs_c - OBS_WR + agent_col
-                if debug:
-                    print(f"  SPATIAL: obs({obs_r},{obs_c}) -> world({r},{c}) {tok.feature.name}={value}")
                 if 0 <= r < self._map_h and 0 <= c < self._map_w:
                     pos = (r, c)
                     if pos not in position_features:
@@ -307,7 +311,12 @@ class SimpleBaselineAgent:
                     # Collect all features for this position
                     feature_key = self._spatial_feature_key_by_id.get(feature_id)
                     if feature_key is not None:
-                        position_features[pos][feature_key] = value
+                        # For type_id, only take the FIRST non-zero value (don't overwrite)
+                        if feature_key == "type_id":
+                            if "type_id" not in position_features[pos] and value != 0:
+                                position_features[pos][feature_key] = value
+                        else:
+                            position_features[pos][feature_key] = value
                         continue
 
                     agent_feature_key = self._agent_feature_key_by_id.get(feature_id)
@@ -367,8 +376,6 @@ class SimpleBaselineAgent:
             )
             # Initialize mutable defaults that can't be in dataclass
             state.unreachable_extractors = {}
-            state.position_history = deque(maxlen=10)  # Track last 10 positions
-            state.stuck_counter = 0
             self._agent_states[agent_id] = state
         # Clear extractor memory
         for resource in self._extractors:
@@ -379,8 +386,37 @@ class SimpleBaselineAgent:
         s = self._agent_states[agent_id]
         s.step_count += 1
 
+        # Only clear and refresh agent positions every 3 steps to avoid constant re-planning
+        # if s.step_count - s.agent_positions_last_updated >= 3:
+        s.agent_occupancy.clear()
+            # s.agent_positions_last_updated = s.step_count
+
         # Update state from observation
         self._update_state_from_obs(s, obs)
+
+        # DEBUG: Detailed logging every step
+        if s.step_count % 10 == 0 or s.step_count <= 20:
+            print(f"\n[STEP {s.step_count}] Agent {s.agent_id} @ ({s.row},{s.col})")
+            print(f"  Phase: {s.phase.name}")
+            print(
+                f"  Inventory: C={s.carbon} O={s.oxygen} G={s.germanium} S={s.silicon} "
+                f"Hearts={s.hearts} Energy={s.energy}"
+            )
+            print(
+                f"  Recipe needs: C={self._heart_recipe['carbon']} O={self._heart_recipe['oxygen']} "
+                f"G={self._heart_recipe['germanium']} S={self._heart_recipe['silicon']}"
+            )
+            can_assemble = (
+                s.carbon >= self._heart_recipe["carbon"]
+                and s.oxygen >= self._heart_recipe["oxygen"]
+                and s.germanium >= self._heart_recipe["germanium"]
+                and s.silicon >= self._heart_recipe["silicon"]
+            )
+            print(f"  Can assemble: {can_assemble}")
+            print(
+                f"  Stations: assembler={self._stations.get('assembler')}, "
+                f"chest={self._stations.get('chest')}, charger={self._stations.get('charger')}"
+            )
 
         # Trace logging
         if s.step_count % 20 == 0:
@@ -396,13 +432,17 @@ class SimpleBaselineAgent:
         s.last_action = action
 
         # Debug: Log action for first few steps and when position doesn't change
-        if s.step_count <= 10 or s.step_count % 20 == 0:
+        if s.step_count <= 20 or s.step_count % 10 == 0:
             action_name = "?"
             for name, idx in self._action_lookup.items():
                 if idx == action:
                     action_name = name
                     break
-            print(f"[Agent {s.agent_id} Step {s.step_count}] Returning action: {action} ({action_name})")
+            if s.target_resource:
+                print(f"  Target resource: {s.target_resource}")
+            if s.target_position:
+                print(f"  Target position: {s.target_position}")
+            print(f"  → Action: {action_name}")
 
         return action
 
@@ -423,9 +463,22 @@ class SimpleBaselineAgent:
         # STEP 1: Get agent position directly from environment
         self._update_agent_position(s)
 
-        # STEP 2: Get inventory directly from agent (no parsing needed!)
-        agent = self._sim.agent(s.agent_id)
-        inv = agent.inventory
+        # STEP 2: Get inventory from observation tokens AT THE CENTER (agent's own position)
+        # NOTE: Observations contain inventory for ALL visible agents. We must only read
+        # from the center of the egocentric view where the observing agent is located.
+        inv = {}
+        features_list = self._sim.features
+        center_r, center_c = OBS_HR, OBS_WR  # Center of egocentric observation
+
+        for tok in obs.tokens:
+            # Only read inventory from the center cell (where this agent is)
+            if tok.location == (center_r, center_c):
+                feature_spec = features_list[tok.feature.id]
+                feature_name = feature_spec.name
+                if feature_name.startswith("inv:"):
+                    resource_name = feature_name[4:]  # Remove "inv:" prefix
+                    inv[resource_name] = tok.value
+
         s.energy = inv.get("energy", 0)
         s.carbon = inv.get("carbon", 0)
         s.oxygen = inv.get("oxygen", 0)
@@ -468,7 +521,13 @@ class SimpleBaselineAgent:
         if s.row < 0:
             return
 
-        # Process objects and mark obstacles (everything is FREE by default)
+        # First pass: for everything we can see, reset to FREE (will be remarked below)
+        # This clears old agent positions
+        for pos in parsed.nearby_objects.keys():
+            r, c = pos
+            s.occupancy[r][c] = CellType.FREE.value
+
+        # Second pass: mark obstacles
         for pos, obj_state in parsed.nearby_objects.items():
             r, c = pos
             obj_name = obj_state.name.lower()
@@ -476,6 +535,11 @@ class SimpleBaselineAgent:
             # Walls are obstacles
             if self._is_wall(obj_name):
                 s.occupancy[r][c] = CellType.OBSTACLE.value
+                continue
+
+            # Other agents: track their positions but don't mark as obstacles
+            if obj_name == "agent" and obj_state.agent_id != s.agent_id:
+                s.agent_occupancy.add((r, c))
                 continue
 
             # Discover stations (mark as obstacles - can't walk through them)
@@ -562,6 +626,10 @@ class SimpleBaselineAgent:
             if s.phase != Phase.RECHARGE:
                 print(f"[Agent {s.agent_id}] Phase: {s.phase.name} -> RECHARGE (energy={s.energy})")
                 s.phase = Phase.RECHARGE
+                # Clear extractor waiting state when leaving GATHER
+                s.pending_use_resource = None
+                s.pending_use_amount = 0
+                s.waiting_at_extractor = None
             return
 
         # Stay in RECHARGE until energy is fully restored (>= 90)
@@ -578,6 +646,10 @@ class SimpleBaselineAgent:
             if s.phase != Phase.DELIVER:
                 print(f"[Agent {s.agent_id}] Phase: {s.phase.name} -> DELIVER ({s.hearts} hearts)")
                 s.phase = Phase.DELIVER
+                # Clear extractor waiting state when leaving GATHER
+                s.pending_use_resource = None
+                s.pending_use_amount = 0
+                s.waiting_at_extractor = None
             return
 
         # Priority 3: Assemble if we have all resources
@@ -606,6 +678,10 @@ class SimpleBaselineAgent:
                     f"(C={s.carbon} O={s.oxygen} G={s.germanium} S={s.silicon})"
                 )
                 s.phase = Phase.ASSEMBLE
+                # Clear extractor waiting state when leaving GATHER
+                s.pending_use_resource = None
+                s.pending_use_amount = 0
+                s.waiting_at_extractor = None
             return
 
         # Priority 5: Default to GATHER
@@ -614,6 +690,12 @@ class SimpleBaselineAgent:
             print(f"[Agent {s.agent_id}] Phase: {s.phase.name} -> GATHER (need resources)")
             s.phase = Phase.GATHER
             s.target_position = None
+            # Clear extractor waiting state when entering GATHER from another phase
+            if s.pending_use_resource is not None:
+                print(f"[Agent {s.agent_id}] Clearing pending_use_resource={s.pending_use_resource} (was waiting)")
+            s.pending_use_resource = None
+            s.pending_use_amount = 0
+            s.waiting_at_extractor = None
 
     def _calculate_deficits(self, s: SimpleAgentState) -> dict[str, int]:
         """Calculate how many more of each resource we need for a heart."""
@@ -772,11 +854,15 @@ class SimpleBaselineAgent:
     def _find_any_needed_extractor(self, s: SimpleAgentState) -> tuple[ExtractorInfo, str] | None:
         """
         Find ANY extractor that produces ANY resource we need.
+        Prioritizes resources by deficit size (biggest deficit first).
         Returns (extractor, resource_type) tuple, or None if nothing found.
         """
         deficits = self._calculate_deficits(s)
-        # Check all resources we need
-        for resource_type, deficit in deficits.items():
+        # Sort resources by deficit size (largest first)
+        sorted_resources = sorted(deficits.items(), key=lambda x: x[1], reverse=True)
+
+        # Check resources in order of deficit size
+        for resource_type, deficit in sorted_resources:
             if deficit > 0:
                 extractor = self._find_nearest_extractor(s, resource_type)
                 if extractor is not None:
@@ -791,14 +877,19 @@ class SimpleBaselineAgent:
         """
         # If we're waiting for an activated extractor to finish converting, just wait
         if s.pending_use_resource is not None:
-            current_amount = getattr(s, s.pending_use_resource, 0)
-            if s.step_count % 10 == 0:
+            # Safety check: if we've been waiting too long, clear and retry
+            s.wait_steps += 1
+            if s.wait_steps > 50:  # If stuck waiting for 50 steps
                 print(
-                    (
-                        f"[Agent {s.agent_id}] Waiting for {s.pending_use_resource} extractor to finish converting... "
-                        f"(was {s.pending_use_amount}, now {current_amount}, waiting for increase)"
-                    )
+                    f"[Agent {s.agent_id}] WARNING: Waited {s.wait_steps} steps for {s.pending_use_resource}, "
+                    f"clearing and retrying"
                 )
+                s.pending_use_resource = None
+                s.pending_use_amount = 0
+                s.waiting_at_extractor = None
+                s.wait_steps = 0
+                return self._NOOP
+
             return self._NOOP
 
         deficits = self._calculate_deficits(s)
@@ -866,20 +957,11 @@ class SimpleBaselineAgent:
 
         # We're adjacent to the extractor!
         # Verify position from simulation
-        env_pos = None
-        for _id, obj in self._sim.grid_objects().items():
-            if obj.get("agent_id") == s.agent_id:
-                env_pos = (obj.get("r"), obj.get("c"))
-                break
-
-        print(
-            (
-                f"[Agent {s.agent_id}] Adjacent to {resource_type} extractor at {extractor.position} "
-                f"(cooldown={extractor.cooldown_remaining}, converting={extractor.converting}, "
-                f"uses={extractor.remaining_uses})"
+        if s.step_count % 20 == 0:
+            print(
+                f"[Agent {s.agent_id}] At {resource_type} extractor at {extractor.position} "
+                f"(cooldown={extractor.cooldown_remaining}, uses={extractor.remaining_uses})"
             )
-        )
-        print(f"[Agent {s.agent_id}] DEBUG: Tracked pos=({s.row},{s.col}), Env pos={env_pos}, dr={dr}, dc={dc}")
 
         # If in cooldown or converting, wait for it
         if extractor.cooldown_remaining > 0 or extractor.converting:
@@ -912,17 +994,6 @@ class SimpleBaselineAgent:
         dc = tc - s.col
 
         action = self._move_into_cell(s, extractor.position)
-        action_names = ["NOOP", "MOVE_N", "MOVE_S", "MOVE_W", "MOVE_E", "USE"]
-        action_name = action_names[action] if action < 6 else f"action_{action}"
-
-        print(f"[Agent {s.agent_id}] ==========================================")
-        print(f"[Agent {s.agent_id}] ACTIVATING EXTRACTOR:")
-        print(f"[Agent {s.agent_id}]   Agent position: ({s.row}, {s.col})")
-        print(f"[Agent {s.agent_id}]   Extractor position: ({tr}, {tc})")
-        print(f"[Agent {s.agent_id}]   Direction offset: dr={dr}, dc={dc}")
-        print(f"[Agent {s.agent_id}]   Action: {action_name} (action {action})")
-        print(f"[Agent {s.agent_id}]   Resource: {resource_type}, current: {old_amount}")
-        print(f"[Agent {s.agent_id}] ==========================================")
 
         # Now set the waiting state AFTER we've logged everything
         s.pending_use_resource = resource_type
@@ -1188,8 +1259,11 @@ class SimpleBaselineAgent:
         return self._is_traversable(s, r, c)
 
     def _is_traversable(self, s: SimpleAgentState, r: int, c: int) -> bool:
-        """Check if a cell is traversable (explicitly known to be free)."""
+        """Check if a cell is traversable (explicitly known to be free and no agent there)."""
         if not self._is_within_bounds(s, r, c):
+            return False
+        # Don't walk through other agents
+        if (r, c) in s.agent_occupancy:
             return False
         cell = s.occupancy[r][c]
         # Only traverse cells we KNOW are free, not unknown cells
