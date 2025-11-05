@@ -126,9 +126,7 @@ implementation.
 
 ### Guiding Question
 
-"Would this prompt produce the best result for a non-expert user?" The goal: Design interactions, not just instructions.
-
----
+## "Would this prompt produce the best result for a non-expert user?" The goal: Design interactions, not just instructions.
 
 ## Project Overview
 

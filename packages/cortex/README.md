@@ -175,9 +175,11 @@ AxonLayer‑backed Q/K/V projections. | No | No | **Notes:**
 
 ### Blocks
 
-Wrappers around cells that handle projections, normalization, and information flow. | Block | Description | |
------------------- |
-------------------------------------------------------------------------------------------------------------------------------------------------
+| Wrappers around cells that handle projections, normalization, and information flow. | Block | Description |     |
+| ----------------------------------------------------------------------------------- | ----- | ----------- | --- |
+
+---
+
 | | `PassThroughBlock` | Applies the nested cell directly at `d_hidden` with residual; no projections. | | `PreUpBlock`
 | Pre-upsamples to `d_inner = int(proj_factor * d_hidden)`, runs the cell at `d_inner`, gates and projects back to
 `d_hidden`, then adds residual. | | `PostUpBlock` | Runs the cell at `d_hidden`, then applies a gated feed-forward
