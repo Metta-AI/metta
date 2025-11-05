@@ -31,6 +31,16 @@ PYTHON_PACKAGE_DIR = PROJECT_ROOT / "python" / "src" / "mettagrid"
 METTASCOPE_PACKAGE_DIR = PYTHON_PACKAGE_DIR / "nim" / "mettascope"
 
 
+def cmd(cmd: str) -> None:
+    """Run a command and raise an error if it fails."""
+    print(f"Running: {cmd}")
+    result = subprocess.run(cmd.split(), cwd=METTASCOPE_DIR, capture_output=True, text=True)
+    print(result.stderr, file=sys.stderr)
+    print(result.stdout, file=sys.stderr)
+    if result.returncode != 0:
+        raise RuntimeError(f"Mettascope build failed: {cmd}")
+
+
 def _run_bazel_build() -> None:
     """Run Bazel build to compile the C++ extension."""
     # Check if bazel is available
@@ -186,25 +196,14 @@ def _run_mettascope_build() -> None:
         _sync_mettascope_package_data()
         return
 
-    # Check if nim and nimble are available
-    if shutil.which("nim") is None or shutil.which("nimble") is None:
-        raise RuntimeError(
-            "Nim compiler or Nimble package manager not found! To build mettascope, install Nim: https://nim-lang.org/install.html"
-        )
+    for x in ["nim", "nimby"]:
+        if shutil.which(x) is None:
+            raise RuntimeError(f"{x} not found!")
 
     print(f"Building mettascope from {METTASCOPE_DIR}")
 
-    # Run nimble commands in sequence
-    for cmd in ["update", "bindings"]:
-        full_cmd = f"nimble {cmd} -y"
-        print(f"Running: {full_cmd}")
-        result = subprocess.run(full_cmd.split(), cwd=METTASCOPE_DIR, capture_output=True, text=True)
-        print(result.stderr, file=sys.stderr)
-        print(result.stdout, file=sys.stderr)
-        if result.returncode != 0:
-            print(f"Error: {full_cmd} failed. STDERR:", file=sys.stderr)
-            print(f"{full_cmd} STDOUT:", file=sys.stderr)
-            raise RuntimeError(f"Mettascope build failed: {full_cmd}")
+    cmd("nimby sync -g nimby.lock")
+    cmd("nim c bindings/bindings.nim")
 
     print("Successfully built mettascope")
     _sync_mettascope_package_data()
