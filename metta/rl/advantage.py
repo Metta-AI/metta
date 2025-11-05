@@ -32,7 +32,7 @@ def compute_advantage(
     # Move tensors to device and compute advantage
     # for mps (macbook pro)
     # for rocm (amd gpu) - pytorch has hip version
-    if str(device) == "mps" or hasattr(torch.version, "hip"):
+    if str(device) == "mps" or torch.version.hip is not None:
         return mps.advantage(
             values, rewards, dones, importance_sampling_ratio, vtrace_rho_clip, vtrace_c_clip, gamma, gae_lambda, device
         )
