@@ -166,6 +166,7 @@ class Simulation:
             self._doxascope_logger.configure(
                 policy_uri=self._policy_uri,
                 object_type_names=metta_grid_env.object_type_names,
+                resource_names=metta_grid_env.resource_names,
             )
 
     def _materialize_policy(

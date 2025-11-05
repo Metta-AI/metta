@@ -115,11 +115,13 @@ class DoxascopeLogger:
         self.agent_id_map: Optional[Dict[int, int]] = None
         self.agent_type_id: int = 0
         self.output_file: Optional[Path] = None
+        self.resource_names: Optional[List[str]] = None
 
     def configure(
         self,
         policy_uri: str,
         object_type_names: Optional[List[str]] = None,
+        resource_names: Optional[List[str]] = None,
     ):
         """Configure the logger with policy-specific information."""
         if not self.enabled:
@@ -147,6 +149,7 @@ class DoxascopeLogger:
         else:
             logger.warning(f"Could not find 'agent' in object_type_names {object_type_names}, defaulting to type ID 0.")
 
+        self.resource_names = resource_names
         logger.info("Doxascope logging enabled.")
 
     def _build_agent_id_map(self, env_grid_objects: Dict) -> Dict[int, int]:
@@ -364,12 +367,26 @@ class DoxascopeLogger:
             grid_obj_id = agent_map[agent_id]
             grid_obj = env_grid_objects[grid_obj_id]  # type: ignore[index]
             position = (grid_obj["r"], grid_obj["c"])
+
+            inventory_raw = grid_obj.get("inventory", {})
+            if inventory_raw and self.resource_names:
+                inventory = {
+                    self.resource_names[int(resource_id)]: int(quantity)
+                    for resource_id, quantity in inventory_raw.items()
+                    if 0 <= int(resource_id) < len(self.resource_names)
+                }
+            elif inventory_raw:
+                inventory = {str(k): int(v) for k, v in inventory_raw.items()}
+            else:
+                inventory = {}
+
             agent_id_record = {"agent_id": agent_id}
 
             record = {
                 **agent_id_record,
                 "memory_vector": mv_np.tolist(),
                 "position": position,
+                "inventory": inventory,
             }
             timestep_data["agents"].append(record)
 
