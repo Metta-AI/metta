@@ -14,6 +14,7 @@ This agent has all capabilities:
 
 from __future__ import annotations
 
+import random
 from typing import TYPE_CHECKING, Dict
 
 from .simple_baseline_agent import CellType
@@ -69,10 +70,6 @@ class CoordinatingAgent(UnclippingAgent):
 
         # Mark current cell as visited
         s.visited_map[s.row][s.col] = s.step_count
-
-        import random
-
-        from .simple_baseline_agent import CellType
 
         # 10% chance to take a random move to break patterns
         if random.random() < 0.1:
