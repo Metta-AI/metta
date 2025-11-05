@@ -7,18 +7,17 @@ For CLI usage, see README.md
 import subprocess
 import time
 
-from experiments.recipes.cvc import (
-    evaluate,
+from experiments.recipes.cvc.coordination import train as train_coordination
+from experiments.recipes.cvc.curriculum import (
     make_curriculum,
-    make_eval_suite,
     make_training_env,
-    play,
-    train,
-    train_coordination,
-    train_medium_maps,
-    train_single_mission,
-    train_small_maps,
+    train as train_curriculum,
 )
+from experiments.recipes.cvc.evaluation import evaluate, make_eval_suite
+from experiments.recipes.cvc.medium_maps import train as train_medium_maps
+from experiments.recipes.cvc.play import play
+from experiments.recipes.cvc.single_mission import train as train_single_mission
+from experiments.recipes.cvc.small_maps import train as train_small_maps
 
 # Define experiment configurations for skypilot jobs
 experiment_configs = {
@@ -104,7 +103,7 @@ def custom_curriculum():
         base_missions=["extractor_hub_30", "oxygen_bottleneck", "energy_starved"],
         enable_detailed_slice_logging=True,
     )
-    tool = train(num_cogs=4, curriculum=curriculum)
+    tool = train_curriculum(num_cogs=4, curriculum=curriculum)
     return tool
 
 
