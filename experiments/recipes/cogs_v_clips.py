@@ -1,0 +1,423 @@
+"""Core CoGs vs Clips training and evaluation recipe.
+
+This module defines the base tooling for CoGs vs Clips training. Variant-specific
+recipes should import from here and extend via custom defaults, similar to how
+`experiments.recipes.abes` wraps `experiments.recipes.arena`.
+"""
+
+from __future__ import annotations
+
+from typing import Optional, Sequence
+
+import metta.cogworks.curriculum as cc
+from cogames.cli.mission import parse_variants
+from cogames.cogs_vs_clips.evals.eval_missions import EVAL_MISSIONS
+from cogames.cogs_vs_clips.mission import Mission, MissionVariant
+from cogames.cogs_vs_clips.mission_utils import get_map
+from metta.cogworks.curriculum.curriculum import (
+    CurriculumAlgorithmConfig,
+    CurriculumConfig,
+)
+from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
+from metta.rl.loss import LossConfig
+from metta.rl.trainer_config import TrainerConfig
+from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
+from metta.sim.simulation_config import SimulationConfig
+from metta.tools.eval import EvaluateTool
+from metta.tools.play import PlayTool
+from metta.tools.train import TrainTool
+from mettagrid.config.mettagrid_config import MettaGridConfig
+
+
+def _normalize_variant_names(
+    *,
+    initial: Optional[Sequence[str]] = None,
+    variants: Optional[Sequence[str]] = None,
+) -> list[str]:
+    names: list[str] = []
+    for source in (initial, variants):
+        if not source:
+            continue
+        for name in source:
+            if name not in names:
+                names.append(name)
+    return names
+
+
+def _combine_variants(
+    variant_objects: Sequence[MissionVariant],
+) -> MissionVariant | None:
+    if not variant_objects:
+        return None
+    if len(variant_objects) == 1:
+        return variant_objects[0]
+
+    class _CombinedVariant(MissionVariant):
+        name: str = "combined"
+        description: str = "Composite of multiple mission variants"
+
+        def apply(self, mission: Mission) -> Mission:  # type: ignore[override]
+            for variant in variant_objects:
+                mission = variant.apply(mission)
+            return mission
+
+    return _CombinedVariant()
+
+
+def _build_variant(names: Sequence[str]) -> MissionVariant | None:
+    if not names:
+        return None
+    # Instantiate variants per call to avoid sharing mutable state across missions
+    variant_objects = parse_variants(list(names))
+    return _combine_variants(variant_objects)
+
+
+def make_eval_suite(
+    num_cogs: int = 4,
+    difficulty: str | None = "standard",
+    subset: Optional[Sequence[str]] = None,
+    variants: Optional[Sequence[str]] = None,
+) -> list[SimulationConfig]:
+    """Create a suite of evaluation simulations from CoGames missions.
+
+    Args:
+        num_cogs: Number of agents per mission (1, 2, 4, or 8)
+        difficulty: Difficulty variant to apply (e.g., "standard", "hard", "story_mode")
+        subset: Optional list of mission names to include (defaults to all)
+        variants: Additional mission variants to apply (lonely_heart, heart_chorus, ...)
+
+    Returns:
+        A list of SimulationConfig objects ready for evaluation.
+    """
+    if subset:
+        missions = [m for m in EVAL_MISSIONS if m().name in subset]
+    else:
+        missions = EVAL_MISSIONS
+
+    variant_names = _normalize_variant_names(
+        initial=[difficulty] if difficulty else None,
+        variants=variants,
+    )
+
+    simulations: list[SimulationConfig] = []
+    for mission_cls in missions:
+        mission_template = mission_cls()
+
+        if num_cogs == 1 and mission_template.name in {
+            "go_together",
+            "single_use_swarm",
+        }:
+            continue
+
+        map_builder = get_map(mission_template.map_name)
+        combined_variant = _build_variant(variant_names)
+
+        instantiated = mission_template.instantiate(
+            map_builder=map_builder,
+            num_cogs=num_cogs,
+            variant=combined_variant,
+        )
+
+        env_cfg = instantiated.make_env()
+        sim = SimulationConfig(
+            suite="cogs_vs_clips",
+            name=f"{mission_template.name}_{num_cogs}cogs",
+            env=env_cfg,
+        )
+        simulations.append(sim)
+
+    return simulations
+
+
+def make_training_env(
+    num_cogs: int = 4,
+    mission_name: str = "extractor_hub_30",
+    variants: Optional[Sequence[str]] = None,
+) -> MettaGridConfig:
+    """Create a single training environment from a mission."""
+    mission_cls = None
+    for candidate in EVAL_MISSIONS:
+        instance = candidate()
+        if instance.name == mission_name:
+            mission_cls = candidate
+            break
+
+    if mission_cls is None:
+        raise ValueError(f"Mission '{mission_name}' not found in EVAL_MISSIONS")
+
+    mission_template = mission_cls()
+    map_builder = get_map(mission_template.map_name)
+    combined_variant = _build_variant(_normalize_variant_names(variants=variants))
+    instantiated = mission_template.instantiate(
+        map_builder,
+        num_cogs,
+        variant=combined_variant,
+    )
+    return instantiated.make_env()
+
+
+def make_curriculum(
+    num_cogs: int = 4,
+    base_missions: Optional[list[str]] = None,
+    enable_detailed_slice_logging: bool = False,
+    algorithm_config: Optional[CurriculumAlgorithmConfig] = None,
+    variants: Optional[Sequence[str]] = None,
+) -> CurriculumConfig:
+    """Create a curriculum for CoGs vs Clips training."""
+    if base_missions is None:
+        base_missions = [
+            "extractor_hub_30",
+            "extractor_hub_50",
+            "collect_resources_classic",
+            "collect_resources_spread",
+            "oxygen_bottleneck",
+            "energy_starved",
+        ]
+
+    all_mission_tasks = []
+    for mission_name in base_missions:
+        mission_env = make_training_env(
+            num_cogs=num_cogs,
+            mission_name=mission_name,
+            variants=variants,
+        )
+        mission_tasks = cc.bucketed(mission_env)
+
+        mission_tasks.add_bucket("game.max_steps", [750, 1000, 1250, 1500])
+        mission_tasks.add_bucket(
+            "game.agent.rewards.inventory.heart", [0.1, 0.333, 0.5, 1.0]
+        )
+
+        all_mission_tasks.append(mission_tasks)
+
+    merged_tasks = cc.merge(all_mission_tasks)
+
+    if algorithm_config is None:
+        algorithm_config = LearningProgressConfig(
+            use_bidirectional=True,
+            ema_timescale=0.001,
+            exploration_bonus=0.1,
+            max_memory_tasks=2000,
+            max_slice_axes=4,
+            enable_detailed_slice_logging=enable_detailed_slice_logging,
+        )
+
+    return merged_tasks.to_curriculum(
+        num_active_tasks=1500,
+        algorithm_config=algorithm_config,
+    )
+
+
+def train(
+    num_cogs: int = 4,
+    curriculum: Optional[CurriculumConfig] = None,
+    base_missions: Optional[list[str]] = None,
+    enable_detailed_slice_logging: bool = False,
+    variants: Optional[Sequence[str]] = None,
+    eval_variants: Optional[Sequence[str]] = None,
+    eval_difficulty: str | None = "standard",
+) -> TrainTool:
+    """Create a training tool for CoGs vs Clips."""
+    resolved_curriculum = curriculum or make_curriculum(
+        num_cogs=num_cogs,
+        base_missions=base_missions,
+        enable_detailed_slice_logging=enable_detailed_slice_logging,
+        variants=variants,
+    )
+
+    trainer_cfg = TrainerConfig(
+        losses=LossConfig(),
+    )
+
+    eval_suite = make_eval_suite(
+        num_cogs=num_cogs,
+        difficulty=eval_difficulty,
+        variants=eval_variants if eval_variants is not None else variants,
+    )
+
+    evaluator_cfg = EvaluatorConfig(
+        simulations=eval_suite,
+    )
+
+    return TrainTool(
+        trainer=trainer_cfg,
+        training_env=TrainingEnvironmentConfig(curriculum=resolved_curriculum),
+        evaluator=evaluator_cfg,
+    )
+
+
+def train_single_mission(
+    mission_name: str = "extractor_hub_30",
+    num_cogs: int = 4,
+    variants: Optional[Sequence[str]] = None,
+    eval_variants: Optional[Sequence[str]] = None,
+    eval_difficulty: str | None = "standard",
+) -> TrainTool:
+    """Train on a single mission without curriculum."""
+    env = make_training_env(
+        num_cogs=num_cogs,
+        mission_name=mission_name,
+        variants=variants,
+    )
+
+    curriculum_cfg = cc.env_curriculum(env)
+
+    trainer_cfg = TrainerConfig(
+        losses=LossConfig(),
+    )
+
+    eval_suite = make_eval_suite(
+        num_cogs=num_cogs,
+        difficulty=eval_difficulty,
+        variants=eval_variants if eval_variants is not None else variants,
+    )
+
+    return TrainTool(
+        trainer=trainer_cfg,
+        training_env=TrainingEnvironmentConfig(curriculum=curriculum_cfg),
+        evaluator=EvaluatorConfig(simulations=eval_suite),
+    )
+
+
+def evaluate(
+    policy_uris: str | Sequence[str] | None = None,
+    num_cogs: int = 4,
+    difficulty: str | None = "standard",
+    subset: Optional[Sequence[str]] = None,
+    variants: Optional[Sequence[str]] = None,
+) -> EvaluateTool:
+    """Evaluate policies on CoGs vs Clips missions."""
+    return EvaluateTool(
+        simulations=make_eval_suite(
+            num_cogs=num_cogs,
+            difficulty=difficulty,
+            subset=subset,
+            variants=variants,
+        ),
+        policy_uris=policy_uris,
+    )
+
+
+def play(
+    policy_uri: Optional[str] = None,
+    mission_name: str = "extractor_hub_30",
+    num_cogs: int = 4,
+    variants: Optional[Sequence[str]] = None,
+) -> PlayTool:
+    """Play a single mission with a policy."""
+    env = make_training_env(
+        num_cogs=num_cogs,
+        mission_name=mission_name,
+        variants=variants,
+    )
+    sim = SimulationConfig(
+        suite="cogs_vs_clips",
+        name=f"{mission_name}_{num_cogs}cogs",
+        env=env,
+    )
+    return PlayTool(sim=sim, policy_uri=policy_uri)
+
+
+def play_training_env(
+    policy_uri: Optional[str] = None,
+    num_cogs: int = 4,
+    variants: Optional[Sequence[str]] = None,
+) -> PlayTool:
+    """Play the default training environment."""
+    return play(
+        policy_uri=policy_uri,
+        mission_name="extractor_hub_30",
+        num_cogs=num_cogs,
+        variants=variants,
+    )
+
+
+# Convenience entrypoints ----------------------------------------------------
+
+
+def train_small_maps(
+    num_cogs: int = 4,
+    variants: Optional[Sequence[str]] = None,
+    eval_variants: Optional[Sequence[str]] = None,
+    eval_difficulty: str | None = "standard",
+) -> TrainTool:
+    """Train on small maps (30x30, classic layouts)."""
+    return train(
+        num_cogs=num_cogs,
+        base_missions=[
+            "extractor_hub_30",
+            "collect_resources_classic",
+            "oxygen_bottleneck",
+        ],
+        variants=variants,
+        eval_variants=eval_variants,
+        eval_difficulty=eval_difficulty,
+    )
+
+
+def train_medium_maps(
+    num_cogs: int = 4,
+    variants: Optional[Sequence[str]] = None,
+    eval_variants: Optional[Sequence[str]] = None,
+    eval_difficulty: str | None = "standard",
+) -> TrainTool:
+    """Train on medium maps (50x50, spread layouts)."""
+    return train(
+        num_cogs=num_cogs,
+        base_missions=[
+            "extractor_hub_50",
+            "collect_resources_spread",
+            "energy_starved",
+        ],
+        variants=variants,
+        eval_variants=eval_variants,
+        eval_difficulty=eval_difficulty,
+    )
+
+
+def train_large_maps(
+    num_cogs: int = 8,
+    variants: Optional[Sequence[str]] = None,
+    eval_variants: Optional[Sequence[str]] = None,
+    eval_difficulty: str | None = "standard",
+) -> TrainTool:
+    """Train on large maps with more agents."""
+    return train(
+        num_cogs=num_cogs,
+        base_missions=["extractor_hub_70", "collect_far", "divide_and_conquer"],
+        variants=variants,
+        eval_variants=eval_variants,
+        eval_difficulty=eval_difficulty,
+    )
+
+
+def train_coordination(
+    num_cogs: int = 4,
+    variants: Optional[Sequence[str]] = None,
+    eval_variants: Optional[Sequence[str]] = None,
+    eval_difficulty: str | None = "standard",
+) -> TrainTool:
+    """Train on missions emphasizing multi-agent coordination."""
+    return train(
+        num_cogs=num_cogs,
+        base_missions=["go_together", "divide_and_conquer", "collect_resources_spread"],
+        variants=variants,
+        eval_variants=eval_variants,
+        eval_difficulty=eval_difficulty,
+    )
+
+
+__all__ = [
+    "make_eval_suite",
+    "make_training_env",
+    "make_curriculum",
+    "train",
+    "train_single_mission",
+    "evaluate",
+    "play",
+    "play_training_env",
+    "train_small_maps",
+    "train_medium_maps",
+    "train_large_maps",
+    "train_coordination",
+]
