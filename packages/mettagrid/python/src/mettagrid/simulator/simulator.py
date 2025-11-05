@@ -7,24 +7,18 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional, Sequence
 
 import numpy as np
 
-from mettagrid.config.mettagrid_c_config import from_mettagrid_config
-from mettagrid.config.mettagrid_config import MettaGridConfig
+# Don't use `from ... import ...` here because it will cause a circular import.
+import mettagrid.config.mettagrid_c_config as mettagrid_c_config
+import mettagrid.config.mettagrid_config as mettagrid_config
+from mettagrid.config.id_map import IdMap, ObservationFeatureSpec
 from mettagrid.map_builder.map_builder import GameMap
 from mettagrid.mettagrid_c import MettaGrid as MettaGridCpp
 from mettagrid.mettagrid_c import PackedCoordinate
+from mettagrid.profiling.stopwatch import Stopwatch, with_instance_timer
+from mettagrid.simulator.interface import Action, AgentObservation, ObservationToken, SimulatorEventHandler
 
 if TYPE_CHECKING:
-    from mettagrid.config.id_map import IdMap
     from mettagrid.mettagrid_c import EpisodeStats
-
-from mettagrid.config.id_map import ObservationFeatureSpec
-from mettagrid.profiling.stopwatch import Stopwatch, with_instance_timer
-from mettagrid.simulator.interface import (
-    Action,
-    AgentObservation,
-    ObservationToken,
-    SimulatorEventHandler,
-)
 
 logger = logging.getLogger(__name__)
 
@@ -40,7 +34,7 @@ class BoundingBox:
 class Simulation:
     def __init__(
         self,
-        config: MettaGridConfig,
+        config: mettagrid_config.MettaGridConfig,
         seed: int = 0,
         event_handlers: Optional[Sequence[SimulatorEventHandler]] | None = None,
         simulator: Optional[Simulator] | None = None,
@@ -63,7 +57,7 @@ class Simulation:
 
         # Create C++ config
         try:
-            c_cfg = from_mettagrid_config(game_config_dict)
+            c_cfg = mettagrid_c_config.convert_to_cpp_game_config(game_config_dict)
         except Exception as e:
             logger.error(f"Error creating C++ config: {e}")
             logger.error(f"Game config: {game_config_dict}")
@@ -148,7 +142,7 @@ class Simulation:
             self._simulator._on_simulation_closed(self)
 
     @property
-    def config(self) -> MettaGridConfig:
+    def config(self) -> mettagrid_config.MettaGridConfig:
         return self._config
 
     @property
@@ -278,7 +272,7 @@ class Simulator:
     def add_event_handler(self, handler: SimulatorEventHandler) -> None:
         self._event_handlers.append(handler)
 
-    def new_simulation(self, config: MettaGridConfig, seed: int = 0) -> Simulation:
+    def new_simulation(self, config: mettagrid_config.MettaGridConfig, seed: int = 0) -> Simulation:
         assert self._current_simulation is None, "A simulation is already running"
         if self._config_invariants is None:
             self._config_invariants = self._compute_config_invariants(config)
@@ -305,7 +299,7 @@ class Simulator:
         if self._current_simulation is not None:
             self._current_simulation.close()
 
-    def _compute_config_invariants(self, config: MettaGridConfig) -> dict[str, Any]:
+    def _compute_config_invariants(self, config: mettagrid_config.MettaGridConfig) -> dict[str, Any]:
         return {
             "num_agents": config.game.num_agents,
             "action_names": [action.name for action in config.game.actions.actions()],
