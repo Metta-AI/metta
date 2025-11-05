@@ -201,11 +201,6 @@ The scripted agents achieved:
 - **Baseline**: 41.5% success (151/364 tests), best with 4 agents (54.9%)
 - **UnclippingAgent**: 40.5% success (274/676 tests), best with 4 agents (45.0%)
 
-RL agents should aim to:
-1. Match or exceed 40% overall success rate
-2. Show similar or better multi-agent scaling (peak at 4 agents)
-3. Generalize across different missions and difficulties
-
 ## Example Workflow
 
 ```bash
