@@ -1,13 +1,5 @@
-"""Training entrypoint for large-map CoGs vs Clips missions."""
+"""Large-map CoGs vs Clips training entrypoint."""
 
-from metta.tools.train import TrainTool
-
-from experiments.recipes.cvc.core import train_large_maps as _train_large_maps
-
-
-def train(*, num_cogs: int = 8) -> TrainTool:
-    """Train on the large-map subset with more agents."""
-    return _train_large_maps(num_cogs=num_cogs)
-
+from experiments.recipes.cvc.core import train_large_maps as train
 
 __all__ = ["train"]

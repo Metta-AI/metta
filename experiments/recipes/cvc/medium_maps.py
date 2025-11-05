@@ -1,13 +1,5 @@
-"""Training entrypoint for medium-map CoGs vs Clips missions."""
+"""Medium-map CoGs vs Clips training entrypoint."""
 
-from metta.tools.train import TrainTool
-
-from experiments.recipes.cvc.core import train_medium_maps as _train_medium_maps
-
-
-def train(*, num_cogs: int = 4) -> TrainTool:
-    """Train on the medium-map subset (50x50 layouts)."""
-    return _train_medium_maps(num_cogs=num_cogs)
-
+from experiments.recipes.cvc.core import train_medium_maps as train
 
 __all__ = ["train"]
