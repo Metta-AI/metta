@@ -204,15 +204,12 @@ class AssemblyLinesTaskGenerator(TaskGenerator):
         assembler = self.assembler_types[assembler_name].copy()
         cfg.used_objects.append(assembler_name)
 
-        recipe = (
-            [],
-            ProtocolConfig(
-                input_resources=input_resources,
-                output_resources=output_resources,
-                cooldown=cooldown,
-            ),
+        protocol = ProtocolConfig(
+            input_resources=input_resources,
+            output_resources=output_resources,
+            cooldown=cooldown,
         )
-        assembler.recipes = [recipe]
+        assembler.protocols = [protocol]
         cfg.game_objects[assembler_name] = assembler
         cfg.map_builder_objects[assembler_name] = 1
 
@@ -462,68 +459,21 @@ def make_assembly_line_eval_suite() -> list[SimulationConfig]:
     ]
 
 
-def _validate_seed_synchronization(train_tool: TrainTool) -> None:
-    """Validate seed synchronization across environment, curriculum, and weight initialization.
-
-    This check ensures reproducibility before training begins by verifying:
-    1. System seed (weight initialization via seed_everything)
-    2. Training environment seed (environment episodes)
-    3. Curriculum seed (task sampling - passed to Curriculum.__init__ via training_env.seed)
-
-    All three must equal BENCHMARK_SEED for deterministic training.
-
-    Raises:
-        ValueError: If any seed doesn't match BENCHMARK_SEED or curriculum is missing
-    """
-    errors = []
-
-    # Check 1: System seed for weight initialization
-    if train_tool.system.seed != BENCHMARK_SEED:
-        errors.append(
-            f"System seed mismatch: expected {BENCHMARK_SEED}, got {train_tool.system.seed}"
-        )
-
-    # Check 2: Training environment seed (also used for curriculum)
-    if train_tool.training_env.seed != BENCHMARK_SEED:
-        errors.append(
-            f"Training env seed mismatch: expected {BENCHMARK_SEED}, got {train_tool.training_env.seed}"
-        )
-
-    # Check 3: Curriculum configuration exists
-    if train_tool.training_env.curriculum is None:
-        errors.append("Curriculum config is None - benchmark requires curriculum")
-
-    if errors:
-        error_msg = "❌ Seed synchronization check FAILED:\n" + "\n".join(
-            f"  - {e}" for e in errors
-        )
-        raise ValueError(error_msg)
-
-    # All checks passed
-    print("\n" + "=" * 70)
-    print("✓ SEED VALIDATION PASSED - Benchmark is ready for reproducible training")
-    print("=" * 70)
-    print(f"  System seed:        {train_tool.system.seed} → weight initialization")
-    print(
-        f"  Environment seed:   {train_tool.training_env.seed} → environment episodes"
-    )
-    print(f"  Curriculum seed:    {train_tool.training_env.seed} → task sampling")
-    print(f"  All synchronized to: BENCHMARK_SEED = {BENCHMARK_SEED}")
-    print("=" * 70 + "\n")
-
-
 def train(
     curriculum_style: str = "terrain_2",
     architecture: str = "vit_reset",
-    validate_seeds: bool = True,
+    seed: int | None = None,
 ) -> TrainTool:
     """Train an agent with the specified curriculum and architecture.
 
     Args:
-        curriculum_style: Curriculum difficulty level (default: terrain_3 - balanced complexity)
+        curriculum_style: Curriculum difficulty level (default: terrain_2 - balanced complexity)
         architecture: Policy architecture ('vit_reset' or 'trxl')
-        validate_seeds: If True, validates seed synchronization before training (default: True)
+        seed: Random seed for reproducibility. If None, uses BENCHMARK_SEED (default: None)
     """
+    # Use provided seed or fall back to BENCHMARK_SEED
+    effective_seed = seed if seed is not None else BENCHMARK_SEED
+
     task_generator_cfg = make_task_generator_cfg(**curriculum_args[curriculum_style])
     # Curriculum learning enabled - adaptive task sampling based on learning progress
     curriculum = CurriculumConfig(
@@ -535,10 +485,10 @@ def train(
     trainer_cfg = TrainerConfig(losses=LossConfig(), total_timesteps=2_000_000_000)
 
     train_tool = TrainTool(
-        system=SystemConfig(seed=BENCHMARK_SEED),
+        system=SystemConfig(seed=effective_seed),
         trainer=trainer_cfg,
         training_env=TrainingEnvironmentConfig(
-            curriculum=curriculum, seed=BENCHMARK_SEED
+            curriculum=curriculum, seed=effective_seed
         ),
         policy_architecture=policy_config,
         evaluator=EvaluatorConfig(
@@ -548,10 +498,6 @@ def train(
         ),
         stats_server_uri="https://api.observatory.softmax-research.net",
     )
-
-    # Validate seed synchronization before proceeding with training
-    if validate_seeds:
-        _validate_seed_synchronization(train_tool)
 
     return train_tool
 
