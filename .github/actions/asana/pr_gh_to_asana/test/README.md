@@ -7,9 +7,7 @@ workflow using real workflow run data and VCR cassettes.
 
 ### 1. `download_action_logs.py`
 
-Downloads logs and artifacts from GitHub Actions workflow runs for a given branch and workflow name.
-
-**Usage:**
+Downloads logs and artifacts from GitHub Actions workflow runs for a given branch and workflow name. **Usage:**
 
 ```sh
 python download_action_logs.py <branch_name> [--workflow "Asana Integration"]
@@ -21,9 +19,7 @@ python download_action_logs.py <branch_name> [--workflow "Asana Integration"]
 ### 2. `replay_and_test.py`
 
 Replays a previously recorded workflow run using VCR in strict replay mode, verifying that `pr_gh_to_asana.py` produces
-the same REST activity as in the original run.
-
-**Usage:**
+the same REST activity as in the original run. **Usage:**
 
 ```sh
 python replay_and_test.py <run_directory>
@@ -44,7 +40,6 @@ python replay_and_test.py <run_directory>
      python download_action_logs.py hollander/asana-integration-z
      ```
    - This will create one or more `run_<run_id>` directories.
-
 2. **Replay and verify:**
    - Run `replay_and_test.py` on a specific run directory.
    - Example:

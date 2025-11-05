@@ -4,9 +4,8 @@
 
 The Claude Review System is a suite of AI-powered code review workflows that automatically analyze pull requests for
 specific improvements. Built on Anthropic's Claude AI, these workflows provide targeted, actionable feedback without the
-noise of traditional linters.
-
-**Key Philosophy**: Only comment when there are genuine improvements to suggest. If everything looks good, stay silent.
+noise of traditional linters. **Key Philosophy**: Only comment when there are genuine improvements to suggest. If
+everything looks good, stay silent.
 
 ## Architecture
 
@@ -82,47 +81,31 @@ Single Python script that:
 
 ### 1. 📝 README Accuracy Review
 
-**Purpose**: Ensures documentation stays accurate when code changes.
-
-**Triggers**:
+**Purpose**: Ensures documentation stays accurate when code changes. **Triggers**:
 
 - Pull request opened or reopened
-- Manual workflow dispatch
-
-**What it checks**:
-
+- Manual workflow dispatch **What it checks**:
 - Commands or CLI usage that no longer work
 - Installation instructions that are now incorrect
 - Removed dependencies still documented
 - API endpoints or functions that were removed/renamed
 - File paths that no longer exist
-- Examples that would throw errors
-
-**What it ignores**:
-
+- Examples that would throw errors **What it ignores**:
 - Missing documentation (doesn't suggest additions)
 - Style or formatting issues
 - Opportunities for better documentation
 
 ### 2. 💬 Code Comments Review
 
-**Purpose**: Identifies and removes unnecessary comments that clutter code.
-
-**Triggers**:
+**Purpose**: Identifies and removes unnecessary comments that clutter code. **Triggers**:
 
 - Pull request opened or reopened
-- Manual workflow dispatch
-
-**Comments flagged for removal**:
-
+- Manual workflow dispatch **Comments flagged for removal**:
 - Restating obvious code (e.g., `# increment counter` before `counter += 1`)
 - Explaining self-evident operations
 - Outdated comments that don't match implementation
 - Duplicating information from variable/function names
-- Stating obvious commands
-
-**Comments preserved**:
-
+- Stating obvious commands **Comments preserved**:
 - Explaining WHY something is done
 - Important context or warnings
 - TODO/FIXME comments (unless obsolete)
@@ -131,14 +114,10 @@ Single Python script that:
 
 ### 3. 🔄 Einops Suggestions Review
 
-**Purpose**: Suggests using `einops.rearrange` for complex tensor operations.
-
-**Triggers**:
+**Purpose**: Suggests using `einops.rearrange` for complex tensor operations. **Triggers**:
 
 - Pull request opened or reopened (Python files only)
-- Manual workflow dispatch
-
-**Good candidates for einops**:
+- Manual workflow dispatch **Good candidates for einops**:
 
 ```python
 # Complex and unclear:
@@ -156,21 +135,13 @@ x = rearrange(x, 'b h w -> b (w h)')
 
 ### 4. 🏷️ Type Annotations Review
 
-**Purpose**: Identifies missing type annotations that would improve code quality.
-
-**Triggers**:
+**Purpose**: Identifies missing type annotations that would improve code quality. **Triggers**:
 
 - Pull request opened or reopened (Python files only)
-- Manual workflow dispatch
-
-**Priority levels**:
-
+- Manual workflow dispatch **Priority levels**:
 - **High**: Missing parameter types, public API return types, Optional returns
 - **Medium**: Complex functions, non-obvious returns, empty collections
-- **Ignored**: Private methods, obvious getters, simple functions, clear inference
-
-**Modern syntax preferred**:
-
+- **Ignored**: Private methods, obvious getters, simple functions, clear inference **Modern syntax preferred**:
 - `list[str]` over `List[str]`
 - `type | None` over `Optional[type]`
 - `dict[str, int]` over `Dict[str, int]`
@@ -276,7 +247,6 @@ pr_number: string # PR number to review
 ```bash
 # Using GitHub CLI
 gh workflow run "Claude Review: Orchestrator" -f pr_number=123
-
 # Using GitHub UI
 # Navigate to Actions → "Claude Review: Orchestrator" → Run workflow → Enter PR number
 ```
@@ -300,7 +270,6 @@ on:
       pr_number:
         required: true
         type: string
-
 jobs:
   review:
     uses: ./.github/workflows/claude-review-base.yml
@@ -312,20 +281,17 @@ jobs:
       pr_number: ${{ inputs.pr_number }}
       prompt: |
         Review code for security vulnerabilities.
-
         **CRITICAL INSTRUCTIONS**:
         1. If you find NO security issues:
            - Simply respond with "No issues found."
            - DO NOT create any review
         2. ONLY create a review if you find actual vulnerabilities
-
         **Security issues to flag**:
         - SQL injection vulnerabilities
         - XSS possibilities
         - Hardcoded credentials
         - Insecure random number generation
         - Path traversal risks
-
         **What to ignore**:
         - Best practices that aren't vulnerabilities
         - Performance issues
@@ -345,10 +311,7 @@ jobs:
 - Define specific criteria for flagging issues
 - Provide concrete examples of patterns to find
 - Focus on actionable improvements
-- Use severity levels appropriately
-
-**DON'T:**
-
+- Use severity levels appropriately **DON'T:**
 - Ask for general "improvements"
 - Flag style preferences
 - Suggest additions (only fixes)
@@ -372,10 +335,8 @@ file_pattern: "^src/.*\\.py$"    # Python files in src/ directory
 ```yaml
 # Basic code review
 tools: "Edit,Replace,Bash(git diff HEAD~1)"
-
 # With file discovery
 tools: "Edit,Replace,Bash(git diff HEAD~1),Bash(find . -name '*.py')"
-
 # With tool verification
 tools: "Edit,Replace,Bash(git diff HEAD~1),Bash(python -m mypy --version)"
 ```
@@ -396,13 +357,11 @@ tools: "Edit,Replace,Bash(git diff HEAD~1),Bash(python -m mypy --version)"
 
    - Ensure PR number is valid
    - Check orchestrator logs for validation errors
-
 2. **Verify issues were found**:
 
    - Check individual review job logs
    - Look for "No issues found" responses
    - Verify artifacts were created
-
 3. **Review consolidation script logs**:
    - Check for artifact download failures
    - Verify PR permissions
@@ -414,10 +373,7 @@ Common causes:
 
 - File not in PR diff
 - Incorrect line numbers
-- GitHub API validation failure
-
-Debug by checking:
-
+- GitHub API validation failure Debug by checking:
 - Skipped suggestions in review body
 - Script output for specific errors
 - PR file list vs suggestion files

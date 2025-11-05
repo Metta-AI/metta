@@ -1,15 +1,10 @@
 # WandB Metrics Documentation
-
 This directory contains comprehensive documentation for all metrics logged to Weights & Biases (WandB) during
 Metta training runs.
-
 ## Overview
-
 Our WandB logging captures detailed metrics across multiple categories to monitor training progress, agent
 behavior, environment dynamics, and system performance.
-
 ## Metric Categories
-
 | Section | Description | Metric Count |
 |---------|-------------|--------------|
 | [`env_agent/`](./env_agent/) | Detailed agent behavior metrics including actions taken, items collected, combat outcomes,... | 1164 |
@@ -37,21 +32,14 @@ behavior, environment dynamics, and system performance.
 | [`metric/`](./metric/) | Core tracking metrics that serve as x-axis values for other plots. These metrics track... | 4 |
 | [`replays/`](./replays/) | Metrics for replays | 1 |
 | [`torch_traces/`](./torch_traces/) | Metrics for torch traces | 1 |
-
 **Total Metrics:** 1732
-
 ## Metric Aggregation Strategy
-
 Metta uses a multi-stage aggregation pipeline to produce the final metrics logged to WandB:
-
 ### Aggregation Pipeline
-
 ```
 Per-Agent Values → Per-Episode Means → Cross-Episode Means → WandB Logs
 ```
-
 ### Detailed Aggregation Table
-
 | Metric Category | Stage 1: Environment<br>(per episode) | Stage 2: Rollout<br>(collection) | Stage 3: Trainer<br>(final processing) | Final Output |
 |----------------|------------------------|------------------|----------------------|--------------|
 | **Agent Rewards** | Sum across agents ÷ num_agents | Collect all episode means into list | Mean of all episodes | `env_map_reward/*` = mean<br>`env_map_reward/*.std_dev` = std |
@@ -62,74 +50,51 @@ Per-Agent Values → Per-Episode Means → Cross-Episode Means → WandB Logs
 | **Attributes**<br>(seed, map size, etc.) | Single value (no aggregation) | Last value overwrites | Pass through | `env_attributes/*` = value |
 | **Task Rewards** | Mean across agents | Collect all episode means | Mean of all episodes | `env_task_reward/*` = mean |
 | **Curriculum Stats** | Single value | Last value overwrites | Pass through | `env_curriculum/*` = value |
-
 ### Timing Metrics Explained
-
 Metta tracks two types of timing metrics:
-
 1. **Per-Epoch Timing** (`*_per_epoch`):
    - Shows the time taken for the most recent epoch/step only
    - Not averaged - each logged value represents that specific step's timing
    - Useful for: Identifying performance changes or spikes in specific steps
-
 2. **Cumulative Timing** (`*_cumulative`):
    - Shows the running average of all steps up to the current point
    - At step N, this is the average of steps 1 through N
    - Useful for: Understanding overall performance trends and smoothing out variance
-
 ### Example: Timing Metrics Over 3 Steps
-
 If rollout timing has values [100ms, 150ms, 120ms]:
-
 - **Per-Epoch**:
   - Step 1: `env_timing_per_epoch/rollout` = 100ms
   - Step 2: `env_timing_per_epoch/rollout` = 150ms
   - Step 3: `env_timing_per_epoch/rollout` = 120ms
-
 - **Cumulative**:
   - Step 1: `env_timing_cumulative/rollout` = 100ms (avg of: 100)
   - Step 2: `env_timing_cumulative/rollout` = 125ms (avg of: 100, 150)
   - Step 3: `env_timing_cumulative/rollout` = 123ms (avg of: 100, 150, 120)
-
 ### Key Points
-
 1. **Double Averaging**: Most metrics undergo two averaging operations:
    - First: Average across all agents in an episode
    - Second: Average across all episodes in the rollout
-
 2. **Standard Deviation**: The trainer adds `.std_dev` variants showing variance across episodes
-
 3. **Episode Granularity**: Aggregation preserves episode boundaries - partial episodes are not mixed with complete ones
-
 4. **Multi-GPU Training**: Each GPU computes its own statistics independently; WandB handles any cross-GPU aggregation
-
 ### Example: Tracing a Reward Metric
-
 Consider `env_map_reward/collectibles` with 4 agents and 3 completed episodes:
-
 1. **Episode 1**: Agents score [2, 3, 1, 4] → Mean: 2.5
 2. **Episode 2**: Agents score [3, 3, 2, 2] → Mean: 2.5
 3. **Episode 3**: Agents score [1, 2, 3, 2] → Mean: 2.0
-
 **Rollout Collection**: `[2.5, 2.5, 2.0]`
-
 **Final Processing**:
 - `env_map_reward/collectibles` = 2.33 (mean)
 - `env_map_reward/collectibles.std_dev` = 0.29 (standard deviation)
-
 ### Special Cases
-
 - **Diversity Bonus**: Applied to individual agent rewards before any aggregation
 - **Kickstarter Losses**: Not aggregated by episode, averaged across all training steps
 - **Gradient Stats**: Computed across all parameters, not per-episode
-
 ## Metric Naming Convention
-
 Metrics follow a hierarchical naming structure:
 ```
 section/subsection/metric_name[.statistic][.qualifier]
 ```
-
 ### Common Statistics Suffixes
 - `.avg` - Average value
 - `.std_dev` - Standard deviation
@@ -140,34 +105,25 @@ section/subsection/metric_name[.statistic][.qualifier]
 - `.rate` - Rate of occurrence
 - `.updates` - Number of updates
 - `.activity_rate` - Fraction of time the metric was active
-
 ### Common Qualifiers
 - `.agent` - Per-agent breakdown
 - `.success` / `.failed` - Outcome-specific metrics
 - `.gained` / `.lost` - Change tracking
-
 ## Usage
-
 Each subdirectory contains:
 - `README.md` - Detailed documentation for that metric category
 - Explanations of what each metric measures
 - Relationships between related metrics
 - Tips for interpretation and debugging
-
 ## Quick Start
-
 To explore specific metric categories:
 1. Navigate to the relevant subdirectory
 2. Read the README for detailed explanations
 3. Use the metric names when querying WandB or analyzing logs
-
 ## Related Tools
-
 - [`collect_metrics.py`](../../collect_metrics.py) - Script to fetch metrics from WandB runs
 - [`generate_docs.py`](../../generate_docs.py) - Script to generate this documentation
-
 ## Updating Documentation
-
 To update this documentation with metrics from a new run:
 ```bash
 cd common/src/metta/common/wandb

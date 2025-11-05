@@ -8,18 +8,13 @@ information about specific workflows, their configuration, and usage.
 ### 📊 [PR Summary Workflow](./pr-summary.md)
 
 Comprehensive documentation for the automated PR summary system that generates weekly summaries of merged pull requests
-and posts them to Discord.
-
-**Key Topics:**
+and posts them to Discord. **Key Topics:**
 
 - Two-phase AI summary generation using Google Gemini models
 - Intelligent caching strategy to minimize API calls
 - Custom GitHub Actions for PR fetching and Discord posting
 - Performance optimizations and error handling
-- Configuration options and usage examples
-
-**Components Covered:**
-
+- Configuration options and usage examples **Components Covered:**
 - Main workflow (`pr_summary.yml`)
 - PR Digest Action (`pr-digest/`)
 - Summary Generation Script (`generate_pr_summary.py`)
@@ -28,18 +23,13 @@ and posts them to Discord.
 ### 🔍 [Claude Review System](./claude-review-system.md)
 
 Comprehensive documentation for our AI-powered code review system that provides targeted, actionable feedback on pull
-requests.
-
-**Key Topics:**
+requests. **Key Topics:**
 
 - Four specialized review types (README, Comments, Einops, Type Annotations)
 - "Silent on no issues" philosophy
 - Two-stage review process with conditional output
 - Creating custom review types
-- Best practices and troubleshooting
-
-**Components Covered:**
-
+- Best practices and troubleshooting **Components Covered:**
 - Base workflow system (`claude-review-base.yml`)
 - Individual review workflows
 - JSON output format and GitHub review creation
@@ -48,18 +38,13 @@ requests.
 ### 🤖 [Claude Assistant](./claude-assistant.md)
 
 Documentation for the interactive Claude bot that responds to mentions in comments and can automatically create pull
-requests.
-
-**Key Topics:**
+requests. **Key Topics:**
 
 - Two modes: comment responses and PR creation
 - Natural language understanding for code changes
 - Smart branch targeting for iterative development
 - MCP tools for GitHub operations
-- Error handling and debugging
-
-**Components Covered:**
-
+- Error handling and debugging **Components Covered:**
 - Main workflow (`claude.yml`)
 - Comment detection and routing
 - Branch creation and management
@@ -103,7 +88,6 @@ When adding new workflow documentation:
    - Usage examples
    - Error handling
    - Performance considerations
-
 3. **Update this README**: Add your new documentation to the appropriate section
 
 ## Quick Links

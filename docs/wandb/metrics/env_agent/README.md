@@ -1,17 +1,11 @@
 # Env Agent Metrics
-
 ## Overview
-
 Detailed agent behavior metrics including actions taken, items collected, combat outcomes,
 and other agent-specific events. These metrics help understand what agents are actually doing
 in the environment.
-
 **Total metrics in this section:** 1164
-
 ## Metric Suffixes
-
 This section contains metrics with the following statistical suffixes:
-
 - **`.activity_rate`** - Frequency during active period only (updates per step between first and last occurrence)
   - Formula: `(update_count - 1) / (last_step - first_step)`
   - Note: Subtracts 1 because the first update just marks the start of activity
@@ -26,13 +20,9 @@ This section contains metrics with the following statistical suffixes:
 - **`.std_dev`** - Standard deviation across episodes (variance measure)
   - Formula: `sqrt(sum((x - mean)²) / n)`
 - **`.updates`** - Total number of times this metric was updated in an episode
-
 ## Subsections
-
 ### General Metrics
-
 **Count:** 1164 metrics
-
 **action.attack.agent:** (8 values / 8 std_devs)
 - `env_agent/action.attack.agent`
 - `env_agent/action.attack.agent.avg`
@@ -50,7 +40,6 @@ This section contains metrics with the following statistical suffixes:
 - `env_agent/action.attack.agent.updates`
 - `env_agent/action.attack.agent.updates.std_dev`
 - `env_agent/action.attack.agent.std_dev`
-
 **action.attack.agent.agent:** (8 values / 8 std_devs)
 - `env_agent/action.attack.agent.agent`
 - `env_agent/action.attack.agent.agent.avg`
@@ -68,7 +57,6 @@ This section contains metrics with the following statistical suffixes:
 - `env_agent/action.attack.agent.agent.updates`
 - `env_agent/action.attack.agent.agent.updates.std_dev`
 - `env_agent/action.attack.agent.agent.std_dev`
-
 **action.attack.agent.agent.agent:** (8 values / 8 std_devs)
 - `env_agent/action.attack.agent.agent.agent`
 - `env_agent/action.attack.agent.agent.agent.avg`
@@ -86,7 +74,6 @@ This section contains metrics with the following statistical suffixes:
 - `env_agent/action.attack.agent.agent.agent.updates`
 - `env_agent/action.attack.agent.agent.agent.updates.std_dev`
 - `env_agent/action.attack.agent.agent.agent.std_dev`
-
 **action.attack.failed:** (9 values / 9 std_devs)
 - `env_agent/action.attack.failed`
 - `env_agent/action.attack.failed.activity_rate`
@@ -106,7 +93,6 @@ This section contains metrics with the following statistical suffixes:
 - `env_agent/action.attack.failed.updates`
 - `env_agent/action.attack.failed.updates.std_dev`
 - `env_agent/action.attack.failed.std_dev`
-
 **action.attack.success:** (8 values / 8 std_devs)
 - `env_agent/action.attack.success`
 - `env_agent/action.attack.success.avg`
@@ -122,14 +108,11 @@ This section contains metrics with the following statistical suffixes:
 - `env_agent/action.attack.success.rate`
   - Success rate of attack actions when attempted.
   - **Interpretation:** Balance between too aggressive (low success) and too passive (few attempts).
-
 - `env_agent/action.attack.success.rate.std_dev`
   - Success rate of attack actions when attempted. (standard deviation)
-
 - `env_agent/action.attack.success.updates`
 - `env_agent/action.attack.success.updates.std_dev`
 - `env_agent/action.attack.success.std_dev`
-
 **action.attack_nearest.agent:** (9 values / 9 std_devs)
 - `env_agent/action.attack_nearest.agent`
 - `env_agent/action.attack_nearest.agent.activity_rate`
@@ -149,7 +132,6 @@ This section contains metrics with the following statistical suffixes:
 - `env_agent/action.attack_nearest.agent.updates`
 - `env_agent/action.attack_nearest.agent.updates.std_dev`
 - `env_agent/action.attack_nearest.agent.std_dev`
-
 **action.attack_nearest.agent.agent:** (9 values / 9 std_devs)
 - `env_agent/action.attack_nearest.agent.agent`
 - `env_agent/action.attack_nearest.agent.agent.activity_rate`
@@ -169,7 +151,6 @@ This section contains metrics with the following statistical suffixes:
 - `env_agent/action.attack_nearest.agent.agent.updates`
 - `env_agent/action.attack_nearest.agent.agent.updates.std_dev`
 - `env_agent/action.attack_nearest.agent.agent.std_dev`
-
 **action.attack_nearest.agent.agent.agent:** (9 values / 9 std_devs)
 - `env_agent/action.attack_nearest.agent.agent.agent`
 - `env_agent/action.attack_nearest.agent.agent.agent.activity_rate`
@@ -189,7 +170,6 @@ This section contains metrics with the following statistical suffixes:
 - `env_agent/action.attack_nearest.agent.agent.agent.updates`
 - `env_agent/action.attack_nearest.agent.agent.agent.updates.std_dev`
 - `env_agent/action.attack_nearest.agent.agent.agent.std_dev`
-
 **action.attack_nearest.failed:** (9 values / 9 std_devs)
 - `env_agent/action.attack_nearest.failed`
 - `env_agent/action.attack_nearest.failed.activity_rate`
@@ -209,7 +189,6 @@ This section contains metrics with the following statistical suffixes:
 - `env_agent/action.attack_nearest.failed.updates`
 - `env_agent/action.attack_nearest.failed.updates.std_dev`
 - `env_agent/action.attack_nearest.failed.std_dev`
-
 **action.attack_nearest.success:** (8 values / 8 std_devs)
 - `env_agent/action.attack_nearest.success`
 - `env_agent/action.attack_nearest.success.avg`
@@ -227,7 +206,6 @@ This section contains metrics with the following statistical suffixes:
 - `env_agent/action.attack_nearest.success.updates`
 - `env_agent/action.attack_nearest.success.updates.std_dev`
 - `env_agent/action.attack_nearest.success.std_dev`
-
 **action.change_color.success:** (9 values / 9 std_devs)
 - `env_agent/action.change_color.success`
 - `env_agent/action.change_color.success.activity_rate`
@@ -247,60 +225,42 @@ This section contains metrics with the following statistical suffixes:
 - `env_agent/action.change_color.success.updates`
 - `env_agent/action.change_color.success.updates.std_dev`
 - `env_agent/action.change_color.success.std_dev`
-
 **action.failure_penalty:** (9 values / 9 std_devs)
 - `env_agent/action.failure_penalty`
   - Penalty applied when agents attempt invalid actions.
   - **Interpretation:** High values indicate agents haven't learned action preconditions.
-
 - `env_agent/action.failure_penalty.activity_rate`
   - Penalty applied when agents attempt invalid actions. (fraction of steps where this was active)
-
 - `env_agent/action.failure_penalty.activity_rate.std_dev`
   - Penalty applied when agents attempt invalid actions. (fraction of steps where this was active) (standard deviation)
-
 - `env_agent/action.failure_penalty.avg`
   - Penalty applied when agents attempt invalid actions. (average value)
-
 - `env_agent/action.failure_penalty.avg.std_dev`
   - Penalty applied when agents attempt invalid actions. (average value) (standard deviation)
-
 - `env_agent/action.failure_penalty.first_step`
   - Penalty applied when agents attempt invalid actions. (first step where this occurred)
-
 - `env_agent/action.failure_penalty.first_step.std_dev`
   - Penalty applied when agents attempt invalid actions. (first step where this occurred) (standard deviation)
-
 - `env_agent/action.failure_penalty.last_step`
   - Penalty applied when agents attempt invalid actions. (last step where this occurred)
-
 - `env_agent/action.failure_penalty.last_step.std_dev`
   - Penalty applied when agents attempt invalid actions. (last step where this occurred) (standard deviation)
-
 - `env_agent/action.failure_penalty.max`
   - Penalty applied when agents attempt invalid actions. (maximum value)
-
 - `env_agent/action.failure_penalty.max.std_dev`
   - Penalty applied when agents attempt invalid actions. (maximum value) (standard deviation)
-
 - `env_agent/action.failure_penalty.min`
   - Penalty applied when agents attempt invalid actions. (minimum value)
-
 - `env_agent/action.failure_penalty.min.std_dev`
   - Penalty applied when agents attempt invalid actions. (minimum value) (standard deviation)
-
 - `env_agent/action.failure_penalty.rate`
   - Penalty applied when agents attempt invalid actions. (occurrences per step)
-
 - `env_agent/action.failure_penalty.rate.std_dev`
   - Penalty applied when agents attempt invalid actions. (occurrences per step) (standard deviation)
-
 - `env_agent/action.failure_penalty.updates`
 - `env_agent/action.failure_penalty.updates.std_dev`
 - `env_agent/action.failure_penalty.std_dev`
   - Penalty applied when agents attempt invalid actions. (standard deviation)
-
-
 **action.get_output.failed:** (9 values / 9 std_devs)
 - `env_agent/action.get_output.failed`
 - `env_agent/action.get_output.failed.activity_rate`
@@ -320,7 +280,6 @@ This section contains metrics with the following statistical suffixes:
 - `env_agent/action.get_output.failed.updates`
 - `env_agent/action.get_output.failed.updates.std_dev`
 - `env_agent/action.get_output.failed.std_dev`
-
 **action.get_output.success:** (9 values / 9 std_devs)
 - `env_agent/action.get_output.success`
 - `env_agent/action.get_output.success.activity_rate`
@@ -340,7 +299,6 @@ This section contains metrics with the following statistical suffixes:
 - `env_agent/action.get_output.success.updates`
 - `env_agent/action.get_output.success.updates.std_dev`
 - `env_agent/action.get_output.success.std_dev`
-
 **action.move.failed:** (9 values / 9 std_devs)
 - `env_agent/action.move.failed`
 - `env_agent/action.move.failed.activity_rate`
@@ -360,7 +318,6 @@ This section contains metrics with the following statistical suffixes:
 - `env_agent/action.move.failed.updates`
 - `env_agent/action.move.failed.updates.std_dev`
 - `env_agent/action.move.failed.std_dev`
-
 **action.move.success:** (9 values / 9 std_devs)
 - `env_agent/action.move.success`
 - `env_agent/action.move.success.activity_rate`
@@ -378,14 +335,11 @@ This section contains metrics with the following statistical suffixes:
 - `env_agent/action.move.success.rate`
   - Success rate of agent movement actions.
   - **Interpretation:** Low rates may indicate crowded environments or poor navigation policy.
-
 - `env_agent/action.move.success.rate.std_dev`
   - Success rate of agent movement actions. (standard deviation)
-
 - `env_agent/action.move.success.updates`
 - `env_agent/action.move.success.updates.std_dev`
 - `env_agent/action.move.success.std_dev`
-
 **action.noop.success:** (9 values / 9 std_devs)
 - `env_agent/action.noop.success`
 - `env_agent/action.noop.success.activity_rate`
@@ -405,7 +359,6 @@ This section contains metrics with the following statistical suffixes:
 - `env_agent/action.noop.success.updates`
 - `env_agent/action.noop.success.updates.std_dev`
 - `env_agent/action.noop.success.std_dev`
-
 **action.put_recipe_items.failed:** (9 values / 9 std_devs)
 - `env_agent/action.put_recipe_items.failed`
 - `env_agent/action.put_recipe_items.failed.activity_rate`
@@ -425,7 +378,6 @@ This section contains metrics with the following statistical suffixes:
 - `env_agent/action.put_recipe_items.failed.updates`
 - `env_agent/action.put_recipe_items.failed.updates.std_dev`
 - `env_agent/action.put_recipe_items.failed.std_dev`
-
 **action.put_recipe_items.success:** (9 values / 9 std_devs)
 - `env_agent/action.put_recipe_items.success`
 - `env_agent/action.put_recipe_items.success.activity_rate`
@@ -445,7 +397,6 @@ This section contains metrics with the following statistical suffixes:
 - `env_agent/action.put_recipe_items.success.updates`
 - `env_agent/action.put_recipe_items.success.updates.std_dev`
 - `env_agent/action.put_recipe_items.success.std_dev`
-
 **action.rotate.success:** (9 values / 9 std_devs)
 - `env_agent/action.rotate.success`
 - `env_agent/action.rotate.success.activity_rate`
@@ -465,7 +416,6 @@ This section contains metrics with the following statistical suffixes:
 - `env_agent/action.rotate.success.updates`
 - `env_agent/action.rotate.success.updates.std_dev`
 - `env_agent/action.rotate.success.std_dev`
-
 **action.swap.agent:** (8 values / 8 std_devs)
 - `env_agent/action.swap.agent`
 - `env_agent/action.swap.agent.avg`
@@ -483,7 +433,6 @@ This section contains metrics with the following statistical suffixes:
 - `env_agent/action.swap.agent.updates`
 - `env_agent/action.swap.agent.updates.std_dev`
 - `env_agent/action.swap.agent.std_dev`
-
 **action.swap.block:** (9 values / 9 std_devs)
 - `env_agent/action.swap.block`
 - `env_agent/action.swap.block.activity_rate`
@@ -503,7 +452,6 @@ This section contains metrics with the following statistical suffixes:
 - `env_agent/action.swap.block.updates`
 - `env_agent/action.swap.block.updates.std_dev`
 - `env_agent/action.swap.block.std_dev`
-
 **action.swap.failed:** (9 values / 9 std_devs)
 - `env_agent/action.swap.failed`
 - `env_agent/action.swap.failed.activity_rate`
@@ -523,7 +471,6 @@ This section contains metrics with the following statistical suffixes:
 - `env_agent/action.swap.failed.updates`
 - `env_agent/action.swap.failed.updates.std_dev`
 - `env_agent/action.swap.failed.std_dev`
-
 **action.swap.success:** (9 values / 9 std_devs)
 - `env_agent/action.swap.success`
 - `env_agent/action.swap.success.activity_rate`
@@ -543,7 +490,6 @@ This section contains metrics with the following statistical suffixes:
 - `env_agent/action.swap.success.updates`
 - `env_agent/action.swap.success.updates.std_dev`
 - `env_agent/action.swap.success.std_dev`
-
 **armor.gained:** (9 values / 9 std_devs)
 - `env_agent/armor.gained`
 - `env_agent/armor.gained.activity_rate`
@@ -563,7 +509,6 @@ This section contains metrics with the following statistical suffixes:
 - `env_agent/armor.gained.updates`
 - `env_agent/armor.gained.updates.std_dev`
 - `env_agent/armor.gained.std_dev`
-
 **armor.get:** (9 values / 9 std_devs)
 - `env_agent/armor.get`
 - `env_agent/armor.get.activity_rate`
@@ -583,7 +528,6 @@ This section contains metrics with the following statistical suffixes:
 - `env_agent/armor.get.updates`
 - `env_agent/armor.get.updates.std_dev`
 - `env_agent/armor.get.std_dev`
-
 **armor.lost:** (8 values / 8 std_devs)
 - `env_agent/armor.lost`
 - `env_agent/armor.lost.avg`
@@ -601,7 +545,6 @@ This section contains metrics with the following statistical suffixes:
 - `env_agent/armor.lost.updates`
 - `env_agent/armor.lost.updates.std_dev`
 - `env_agent/armor.lost.std_dev`
-
 **attack.blocked.agent:** (8 values / 8 std_devs)
 - `env_agent/attack.blocked.agent`
 - `env_agent/attack.blocked.agent.avg`
@@ -619,7 +562,6 @@ This section contains metrics with the following statistical suffixes:
 - `env_agent/attack.blocked.agent.updates`
 - `env_agent/attack.blocked.agent.updates.std_dev`
 - `env_agent/attack.blocked.agent.std_dev`
-
 **attack.blocked.agent.agent:** (8 values / 8 std_devs)
 - `env_agent/attack.blocked.agent.agent`
 - `env_agent/attack.blocked.agent.agent.avg`
@@ -637,7 +579,6 @@ This section contains metrics with the following statistical suffixes:
 - `env_agent/attack.blocked.agent.agent.updates`
 - `env_agent/attack.blocked.agent.agent.updates.std_dev`
 - `env_agent/attack.blocked.agent.agent.std_dev`
-
 **attack.loss.agent:** (9 values / 9 std_devs)
 - `env_agent/attack.loss.agent`
 - `env_agent/attack.loss.agent.activity_rate`
@@ -657,7 +598,6 @@ This section contains metrics with the following statistical suffixes:
 - `env_agent/attack.loss.agent.updates`
 - `env_agent/attack.loss.agent.updates.std_dev`
 - `env_agent/attack.loss.agent.std_dev`
-
 **attack.loss.agent.agent:** (9 values / 9 std_devs)
 - `env_agent/attack.loss.agent.agent`
 - `env_agent/attack.loss.agent.agent.activity_rate`
@@ -677,7 +617,6 @@ This section contains metrics with the following statistical suffixes:
 - `env_agent/attack.loss.agent.agent.updates`
 - `env_agent/attack.loss.agent.agent.updates.std_dev`
 - `env_agent/attack.loss.agent.agent.std_dev`
-
 **attack.loss.from_own_team.agent:** (9 values / 9 std_devs)
 - `env_agent/attack.loss.from_own_team.agent`
 - `env_agent/attack.loss.from_own_team.agent.activity_rate`
@@ -697,7 +636,6 @@ This section contains metrics with the following statistical suffixes:
 - `env_agent/attack.loss.from_own_team.agent.updates`
 - `env_agent/attack.loss.from_own_team.agent.updates.std_dev`
 - `env_agent/attack.loss.from_own_team.agent.std_dev`
-
 **attack.own_team.agent:** (9 values / 9 std_devs)
 - `env_agent/attack.own_team.agent`
 - `env_agent/attack.own_team.agent.activity_rate`
@@ -717,7 +655,6 @@ This section contains metrics with the following statistical suffixes:
 - `env_agent/attack.own_team.agent.updates`
 - `env_agent/attack.own_team.agent.updates.std_dev`
 - `env_agent/attack.own_team.agent.std_dev`
-
 **attack.win.agent:** (9 values / 9 std_devs)
 - `env_agent/attack.win.agent`
 - `env_agent/attack.win.agent.activity_rate`
@@ -737,7 +674,6 @@ This section contains metrics with the following statistical suffixes:
 - `env_agent/attack.win.agent.updates`
 - `env_agent/attack.win.agent.updates.std_dev`
 - `env_agent/attack.win.agent.std_dev`
-
 **attack.win.agent.agent:** (9 values / 9 std_devs)
 - `env_agent/attack.win.agent.agent`
 - `env_agent/attack.win.agent.agent.activity_rate`
@@ -757,7 +693,6 @@ This section contains metrics with the following statistical suffixes:
 - `env_agent/attack.win.agent.agent.updates`
 - `env_agent/attack.win.agent.agent.updates.std_dev`
 - `env_agent/attack.win.agent.agent.std_dev`
-
 **attack.win.own_team.agent:** (9 values / 9 std_devs)
 - `env_agent/attack.win.own_team.agent`
 - `env_agent/attack.win.own_team.agent.activity_rate`
@@ -777,7 +712,6 @@ This section contains metrics with the following statistical suffixes:
 - `env_agent/attack.win.own_team.agent.updates`
 - `env_agent/attack.win.own_team.agent.updates.std_dev`
 - `env_agent/attack.win.own_team.agent.std_dev`
-
 **battery.red.gained:** (9 values / 9 std_devs)
 - `env_agent/battery.red.gained`
 - `env_agent/battery.red.gained.activity_rate`
@@ -797,7 +731,6 @@ This section contains metrics with the following statistical suffixes:
 - `env_agent/battery.red.gained.updates`
 - `env_agent/battery.red.gained.updates.std_dev`
 - `env_agent/battery.red.gained.std_dev`
-
 **battery.red.get:** (9 values / 9 std_devs)
 - `env_agent/battery.red.get`
 - `env_agent/battery.red.get.activity_rate`
@@ -817,7 +750,6 @@ This section contains metrics with the following statistical suffixes:
 - `env_agent/battery.red.get.updates`
 - `env_agent/battery.red.get.updates.std_dev`
 - `env_agent/battery.red.get.std_dev`
-
 **battery.red.lost:** (9 values / 9 std_devs)
 - `env_agent/battery.red.lost`
 - `env_agent/battery.red.lost.activity_rate`
@@ -837,7 +769,6 @@ This section contains metrics with the following statistical suffixes:
 - `env_agent/battery.red.lost.updates`
 - `env_agent/battery.red.lost.updates.std_dev`
 - `env_agent/battery.red.lost.std_dev`
-
 **battery.red.put:** (9 values / 9 std_devs)
 - `env_agent/battery.red.put`
 - `env_agent/battery.red.put.activity_rate`
@@ -857,7 +788,6 @@ This section contains metrics with the following statistical suffixes:
 - `env_agent/battery.red.put.updates`
 - `env_agent/battery.red.put.updates.std_dev`
 - `env_agent/battery.red.put.std_dev`
-
 **battery.red.stolen.agent:** (8 values / 8 std_devs)
 - `env_agent/battery.red.stolen.agent`
 - `env_agent/battery.red.stolen.agent.avg`
@@ -875,7 +805,6 @@ This section contains metrics with the following statistical suffixes:
 - `env_agent/battery.red.stolen.agent.updates`
 - `env_agent/battery.red.stolen.agent.updates.std_dev`
 - `env_agent/battery.red.stolen.agent.std_dev`
-
 **battery.red.stolen_from.agent:** (8 values / 8 std_devs)
 - `env_agent/battery.red.stolen_from.agent`
 - `env_agent/battery.red.stolen_from.agent.avg`
@@ -893,7 +822,6 @@ This section contains metrics with the following statistical suffixes:
 - `env_agent/battery.red.stolen_from.agent.updates`
 - `env_agent/battery.red.stolen_from.agent.updates.std_dev`
 - `env_agent/battery.red.stolen_from.agent.std_dev`
-
 **blueprint.gained:** (9 values / 9 std_devs)
 - `env_agent/blueprint.gained`
 - `env_agent/blueprint.gained.activity_rate`
@@ -913,7 +841,6 @@ This section contains metrics with the following statistical suffixes:
 - `env_agent/blueprint.gained.updates`
 - `env_agent/blueprint.gained.updates.std_dev`
 - `env_agent/blueprint.gained.std_dev`
-
 **blueprint.get:** (9 values / 9 std_devs)
 - `env_agent/blueprint.get`
 - `env_agent/blueprint.get.activity_rate`
@@ -933,7 +860,6 @@ This section contains metrics with the following statistical suffixes:
 - `env_agent/blueprint.get.updates`
 - `env_agent/blueprint.get.updates.std_dev`
 - `env_agent/blueprint.get.std_dev`
-
 **blueprint.lost:** (8 values / 8 std_devs)
 - `env_agent/blueprint.lost`
 - `env_agent/blueprint.lost.avg`
@@ -951,7 +877,6 @@ This section contains metrics with the following statistical suffixes:
 - `env_agent/blueprint.lost.updates`
 - `env_agent/blueprint.lost.updates.std_dev`
 - `env_agent/blueprint.lost.std_dev`
-
 **blueprint.put:** (8 values / 8 std_devs)
 - `env_agent/blueprint.put`
 - `env_agent/blueprint.put.avg`
@@ -969,7 +894,6 @@ This section contains metrics with the following statistical suffixes:
 - `env_agent/blueprint.put.updates`
 - `env_agent/blueprint.put.updates.std_dev`
 - `env_agent/blueprint.put.std_dev`
-
 **blueprint.stolen.agent:** (8 values / 8 std_devs)
 - `env_agent/blueprint.stolen.agent`
 - `env_agent/blueprint.stolen.agent.avg`
@@ -987,7 +911,6 @@ This section contains metrics with the following statistical suffixes:
 - `env_agent/blueprint.stolen.agent.updates`
 - `env_agent/blueprint.stolen.agent.updates.std_dev`
 - `env_agent/blueprint.stolen.agent.std_dev`
-
 **blueprint.stolen_from.agent:** (8 values / 8 std_devs)
 - `env_agent/blueprint.stolen_from.agent`
 - `env_agent/blueprint.stolen_from.agent.avg`
@@ -1005,7 +928,6 @@ This section contains metrics with the following statistical suffixes:
 - `env_agent/blueprint.stolen_from.agent.updates`
 - `env_agent/blueprint.stolen_from.agent.updates.std_dev`
 - `env_agent/blueprint.stolen_from.agent.std_dev`
-
 **heart.gained:** (9 values / 9 std_devs)
 - `env_agent/heart.gained`
 - `env_agent/heart.gained.activity_rate`
@@ -1025,7 +947,6 @@ This section contains metrics with the following statistical suffixes:
 - `env_agent/heart.gained.updates`
 - `env_agent/heart.gained.updates.std_dev`
 - `env_agent/heart.gained.std_dev`
-
 **heart.get:** (9 values / 9 std_devs)
 - `env_agent/heart.get`
 - `env_agent/heart.get.activity_rate`
@@ -1045,7 +966,6 @@ This section contains metrics with the following statistical suffixes:
 - `env_agent/heart.get.updates`
 - `env_agent/heart.get.updates.std_dev`
 - `env_agent/heart.get.std_dev`
-
 **heart.lost:** (9 values / 9 std_devs)
 - `env_agent/heart.lost`
 - `env_agent/heart.lost.activity_rate`
@@ -1065,7 +985,6 @@ This section contains metrics with the following statistical suffixes:
 - `env_agent/heart.lost.updates`
 - `env_agent/heart.lost.updates.std_dev`
 - `env_agent/heart.lost.std_dev`
-
 **heart.put:** (9 values / 9 std_devs)
 - `env_agent/heart.put`
 - `env_agent/heart.put.activity_rate`
@@ -1085,7 +1004,6 @@ This section contains metrics with the following statistical suffixes:
 - `env_agent/heart.put.updates`
 - `env_agent/heart.put.updates.std_dev`
 - `env_agent/heart.put.std_dev`
-
 **heart.stolen.agent:** (8 values / 8 std_devs)
 - `env_agent/heart.stolen.agent`
 - `env_agent/heart.stolen.agent.avg`
@@ -1103,7 +1021,6 @@ This section contains metrics with the following statistical suffixes:
 - `env_agent/heart.stolen.agent.updates`
 - `env_agent/heart.stolen.agent.updates.std_dev`
 - `env_agent/heart.stolen.agent.std_dev`
-
 **heart.stolen_from.agent:** (8 values / 8 std_devs)
 - `env_agent/heart.stolen_from.agent`
 - `env_agent/heart.stolen_from.agent.avg`
@@ -1121,7 +1038,6 @@ This section contains metrics with the following statistical suffixes:
 - `env_agent/heart.stolen_from.agent.updates`
 - `env_agent/heart.stolen_from.agent.updates.std_dev`
 - `env_agent/heart.stolen_from.agent.std_dev`
-
 **laser.gained:** (9 values / 9 std_devs)
 - `env_agent/laser.gained`
 - `env_agent/laser.gained.activity_rate`
@@ -1141,7 +1057,6 @@ This section contains metrics with the following statistical suffixes:
 - `env_agent/laser.gained.updates`
 - `env_agent/laser.gained.updates.std_dev`
 - `env_agent/laser.gained.std_dev`
-
 **laser.get:** (9 values / 9 std_devs)
 - `env_agent/laser.get`
 - `env_agent/laser.get.activity_rate`
@@ -1161,7 +1076,6 @@ This section contains metrics with the following statistical suffixes:
 - `env_agent/laser.get.updates`
 - `env_agent/laser.get.updates.std_dev`
 - `env_agent/laser.get.std_dev`
-
 **laser.lost:** (9 values / 9 std_devs)
 - `env_agent/laser.lost`
 - `env_agent/laser.lost.activity_rate`
@@ -1181,7 +1095,6 @@ This section contains metrics with the following statistical suffixes:
 - `env_agent/laser.lost.updates`
 - `env_agent/laser.lost.updates.std_dev`
 - `env_agent/laser.lost.std_dev`
-
 **laser.stolen.agent:** (8 values / 8 std_devs)
 - `env_agent/laser.stolen.agent`
 - `env_agent/laser.stolen.agent.avg`
@@ -1199,7 +1112,6 @@ This section contains metrics with the following statistical suffixes:
 - `env_agent/laser.stolen.agent.updates`
 - `env_agent/laser.stolen.agent.updates.std_dev`
 - `env_agent/laser.stolen.agent.std_dev`
-
 **laser.stolen_from.agent:** (8 values / 8 std_devs)
 - `env_agent/laser.stolen_from.agent`
 - `env_agent/laser.stolen_from.agent.avg`
@@ -1217,7 +1129,6 @@ This section contains metrics with the following statistical suffixes:
 - `env_agent/laser.stolen_from.agent.updates`
 - `env_agent/laser.stolen_from.agent.updates.std_dev`
 - `env_agent/laser.stolen_from.agent.std_dev`
-
 **ore.red.gained:** (9 values / 9 std_devs)
 - `env_agent/ore.red.gained`
 - `env_agent/ore.red.gained.activity_rate`
@@ -1237,7 +1148,6 @@ This section contains metrics with the following statistical suffixes:
 - `env_agent/ore.red.gained.updates`
 - `env_agent/ore.red.gained.updates.std_dev`
 - `env_agent/ore.red.gained.std_dev`
-
 **ore.red.get:** (9 values / 9 std_devs)
 - `env_agent/ore.red.get`
 - `env_agent/ore.red.get.activity_rate`
@@ -1257,7 +1167,6 @@ This section contains metrics with the following statistical suffixes:
 - `env_agent/ore.red.get.updates`
 - `env_agent/ore.red.get.updates.std_dev`
 - `env_agent/ore.red.get.std_dev`
-
 **ore.red.lost:** (9 values / 9 std_devs)
 - `env_agent/ore.red.lost`
 - `env_agent/ore.red.lost.activity_rate`
@@ -1277,7 +1186,6 @@ This section contains metrics with the following statistical suffixes:
 - `env_agent/ore.red.lost.updates`
 - `env_agent/ore.red.lost.updates.std_dev`
 - `env_agent/ore.red.lost.std_dev`
-
 **ore.red.put:** (9 values / 9 std_devs)
 - `env_agent/ore.red.put`
 - `env_agent/ore.red.put.activity_rate`
@@ -1297,7 +1205,6 @@ This section contains metrics with the following statistical suffixes:
 - `env_agent/ore.red.put.updates`
 - `env_agent/ore.red.put.updates.std_dev`
 - `env_agent/ore.red.put.std_dev`
-
 **ore.red.stolen.agent:** (8 values / 8 std_devs)
 - `env_agent/ore.red.stolen.agent`
 - `env_agent/ore.red.stolen.agent.avg`
@@ -1315,7 +1222,6 @@ This section contains metrics with the following statistical suffixes:
 - `env_agent/ore.red.stolen.agent.updates`
 - `env_agent/ore.red.stolen.agent.updates.std_dev`
 - `env_agent/ore.red.stolen.agent.std_dev`
-
 **ore.red.stolen_from.agent:** (8 values / 8 std_devs)
 - `env_agent/ore.red.stolen_from.agent`
 - `env_agent/ore.red.stolen_from.agent.avg`
@@ -1333,7 +1239,6 @@ This section contains metrics with the following statistical suffixes:
 - `env_agent/ore.red.stolen_from.agent.updates`
 - `env_agent/ore.red.stolen_from.agent.updates.std_dev`
 - `env_agent/ore.red.stolen_from.agent.std_dev`
-
 **status.frozen.ticks:** (9 values / 9 std_devs)
 - `env_agent/status.frozen.ticks`
 - `env_agent/status.frozen.ticks.activity_rate`
@@ -1353,7 +1258,6 @@ This section contains metrics with the following statistical suffixes:
 - `env_agent/status.frozen.ticks.updates`
 - `env_agent/status.frozen.ticks.updates.std_dev`
 - `env_agent/status.frozen.ticks.std_dev`
-
 **status.frozen.ticks.agent:** (9 values / 9 std_devs)
 - `env_agent/status.frozen.ticks.agent`
 - `env_agent/status.frozen.ticks.agent.activity_rate`
@@ -1373,5 +1277,3 @@ This section contains metrics with the following statistical suffixes:
 - `env_agent/status.frozen.ticks.agent.updates`
 - `env_agent/status.frozen.ticks.agent.updates.std_dev`
 - `env_agent/status.frozen.ticks.agent.std_dev`
-
-

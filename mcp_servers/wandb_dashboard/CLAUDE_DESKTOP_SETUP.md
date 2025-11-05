@@ -17,10 +17,8 @@ export WANDB_ENTITY="your_wandb_entity"    # optional
 export WANDB_PROJECT="your_default_project" # optional
 ```
 
-3. **Add to Claude Desktop Config:**
-
-Edit your `claude_desktop_config.json` file (usually located at
-`~/Library/Application Support/Claude/claude_desktop_config.json` on macOS):
+3. **Add to Claude Desktop Config:** Edit your `claude_desktop_config.json` file (usually located at
+   `~/Library/Application Support/Claude/claude_desktop_config.json` on macOS):
 
 ```json
 {

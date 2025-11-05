@@ -46,13 +46,11 @@ echo "Testing equality"
 doAssert a == b, "a should be equal to b"
 ```
 
-If it gets too big, split it into multiple files all starting with test\_.
-
-After testing, benchmarking is just as important. Also write bench\_\*.nim files for benchmarks using benchy library.
+If it gets too big, split it into multiple files all starting with test\_. After testing, benchmarking is just as
+important. Also write bench\_\*.nim files for benchmarks using benchy library.
 
 ```nim
 import benchy, std/os, std/random
-
 timeIt "number counter":
   var s = 0
   for i in 0 .. 1_000_000:

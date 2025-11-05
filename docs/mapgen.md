@@ -10,17 +10,11 @@ To produce maps in bulk and store them in S3, use the following commands:
 ./packages/mettagrid/python/src/mettagrid/mapgen/tools/gen.py --output-uri=s3://BUCKET/DIR ./configs/env/mettagrid/map_builder/mapgen_auto.yaml
 ```
 
-`mapgen_auto` builder is an example. You can use any YAML config that can be parsed by OmegaConf.
-
-If `--output-uri` looks like a file (ends with `.yaml` or other extension), the map will be saved to that file.
-
-Otherwise, the map will be saved to a file with a random suffix in that directory.
-
-If `--output-uri` is not specified, the map won't be saved, only shown on screen.
-
-To create maps in bulk, use `--count=N` option.
-
-See `./packages/mettagrid/python/src/mettagrid/mapgen/tools/gen.py --help` for more options.
+`mapgen_auto` builder is an example. You can use any YAML config that can be parsed by OmegaConf. If `--output-uri`
+looks like a file (ends with `.yaml` or other extension), the map will be saved to that file. Otherwise, the map will be
+saved to a file with a random suffix in that directory. If `--output-uri` is not specified, the map won't be saved, only
+shown on screen. To create maps in bulk, use `--count=N` option. See
+`./packages/mettagrid/python/src/mettagrid/mapgen/tools/gen.py --help` for more options.
 
 ### Viewing maps
 

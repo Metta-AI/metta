@@ -23,9 +23,8 @@ docker run -p 8000:8000 \
 
 ### Postgres
 
-The app_backend service relies on postgres.
-
-If you are running a postgres instance locally, use `host.docker.internal` as host
+The app_backend service relies on postgres. If you are running a postgres instance locally, use `host.docker.internal`
+as host
 
 ## Environment Variables
 
@@ -64,10 +63,7 @@ Getting the service running
 
 - `metta local build-policy-evaluator-img` to build the `metta-policy-evaluator-local:latest` image. This will serve as
   the base for both the orchestrator and the workers
-- `WANDB_API_KEY=your-key-here docker compose -f app_backend/src/metta/app_backend/docker-compose.yml up`
-
-Viewing logs
-
+- `WANDB_API_KEY=your-key-here docker compose -f app_backend/src/metta/app_backend/docker-compose.yml up` Viewing logs
 - Orchestrator: `docker compose -f app_backend/src/metta/app_backend/docker-compose.yml logs`
 - Workers: `docker ps` to find the worker id, and `docker logs {id} --follow`
 

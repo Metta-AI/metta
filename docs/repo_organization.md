@@ -19,9 +19,7 @@ Our three-tier naming system:
 
 1. **Directory name**: Simple, no prefix (e.g., `cogworks/`)
 2. **Import name**: Enforced namespace (e.g., `from metta.cogworks import api`)
-3. **Package name**: Company-prefixed (e.g., `pip install softmax-cogworks`)
-
-This gives us the best of all worlds:
+3. **Package name**: Company-prefixed (e.g., `pip install softmax-cogworks`) This gives us the best of all worlds:
 
 - Clean, simple directory structure
 - Enforced consistent imports across the codebase (using familiar `metta.` namespace)
@@ -184,7 +182,6 @@ from metta.cogworks.agent import MettaAgent
 from metta.common.util import config
 from mettagrid import MettaGridPufferEnv
 from metta.backend_shared import sweep_names
-
 # ❌ INCORRECT (blocked by linting)
 from cogworks import api  # Will fail lint check
 import mettagrid  # Will fail lint check
@@ -203,7 +200,6 @@ A custom lint rule will enforce this convention across the entire codebase.
 name = "softmax-cogworks"
 version = "0.1.0"
 description = "Metta RL training framework"
-
 [tool.setuptools]
 packages = ["metta.cogworks"]
 package-dir = {"": "."}
@@ -232,7 +228,6 @@ name = "softmax-mettagrid"
 version = "0.1.0"
 description = "High-performance grid environments"
 dependencies = ["softmax-common>=0.1.0"]
-
 [tool.setuptools]
 packages = ["mettagrid"]
 package-dir = {"": "."}
@@ -253,7 +248,6 @@ from mettagrid.wrappers import AsyncWrapper
 name = "softmax-common"
 version = "0.1.0"
 description = "Shared utilities for Metta packages"
-
 [tool.setuptools]
 packages = ["metta.common"]
 package-dir = {"": "."}
@@ -280,7 +274,6 @@ dependencies = [
     "sqlalchemy>=2.0.0",
     "redis>=5.0.0",
 ]
-
 [tool.setuptools]
 packages = ["metta.backend_shared"]
 package-dir = {"": "."}
@@ -320,20 +313,16 @@ metta/tools/                           → tools/
 metta/recipes/                         → recipes/
 metta/docs/                            → docs/
 metta/devops/                          → devops/
-
 common/src/metta/common/               → common/metta/common/
 packages/mettagrid/python/src/mettagrid/ → packages/mettagrid/python/src/mettagrid/
-
 backend/src/metta/backend/sweep_names/ → backend-shared/metta/backend_shared/sweep_names.py
 backend/src/metta/backend/stat_buffer/ → backend-shared/metta/backend_shared/stat_buffer.py
 backend/src/metta/backend/observatory/ → observatory/api/endpoints.py
 backend/docker/observatory/            → observatory/Dockerfile
-
 apps/shared/                           → ui-shared/
 apps/observatory/                      → observatory/
 apps/mettascope/                       → mettascope/
 apps/studio/                           → gridworks/
-
 # PACKAGE NAMES
 metta                         → softmax-cogworks
 metta-common                  → softmax-common
@@ -347,16 +336,12 @@ metta-app-backend            → softmax-backend-shared (for shared services)
 ```bash
 # Just the environment
 pip install softmax-mettagrid
-
 # Training framework (includes dependencies)
 pip install softmax-cogworks
-
 # Backend services
 pip install softmax-backend-shared
-
 # Development setup
 uv sync  # Installs all workspace packages
-
 # What uv will show during build:
 # Built softmax-cogworks @ file:///workspace/cogworks
 # Built softmax-common @ file:///workspace/common
@@ -370,10 +355,7 @@ Each Python package follows a standard structure:
 
 - Top-level directory contains `pyproject.toml`, tests, and other package files
 - `metta/` subdirectory contains the namespace package
-- Actual code lives in `metta/<package_name>/`
-
-This approach:
-
+- Actual code lives in `metta/<package_name>/` This approach:
 - Uses standard Python namespace packages (no PEP 420 needed)
 - Each package is self-contained with its own `metta` namespace
 - No symlinks or complex build configurations required
@@ -384,16 +366,10 @@ This approach:
 We maintain a clear separation between:
 
 - **Package distribution names** (with `softmax-` prefix for branding)
-- **Import names** (enforced `metta.` namespace for consistency)
-
-This approach is used by many successful projects:
-
+- **Import names** (enforced `metta.` namespace for consistency) This approach is used by many successful projects:
 - `scikit-learn` → `import sklearn`
 - `beautifulsoup4` → `import bs4`
-- `pillow` → `import PIL`
-
-In our case:
-
+- `pillow` → `import PIL` In our case:
 - Install with: `pip install softmax-cogworks`
 - Import with: `from metta.cogworks import api`
 
@@ -440,7 +416,6 @@ As the web apps mature, they'll follow the same pattern:
 5. Move `recipes/` to root level
 6. Create `backend-shared/` with shared backend services
 7. Test with `uv sync` to verify package names
-8. Update CI/CD and documentation
-
-This structure provides a clean, professional organization with enforced consistency across the entire codebase while
-maintaining the Softmax brand identity in package distribution and keeping code imports stable.
+8. Update CI/CD and documentation This structure provides a clean, professional organization with enforced consistency
+   across the entire codebase while maintaining the Softmax brand identity in package distribution and keeping code
+   imports stable.

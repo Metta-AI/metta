@@ -3,13 +3,10 @@
 ```bash
 # Create bots with specific goals
 manybot create api-modernizer --goal "Modernize API to async/await" --success "All endpoints use async"
-
 # Assign responsibilities
 manybot assign test-guardian --owns "src/api/" "tests/api/" --level owner
-
 # Schedule coordination
 manybot meeting schedule "API redesign" --attendees api-bot,test-bot,docs-bot
-
 # Query status
 manybot status test-guardian
 ```
@@ -87,7 +84,6 @@ class CreateBot(BaseModel):
     name: str
     goal: str
     success_criteria: str
-
     async def execute(self) -> BotHandle:
         # Register bot in manybot's registry
         bot = Bot(
@@ -98,14 +94,10 @@ class CreateBot(BaseModel):
             ),
             status="active"
         )
-
         await BotRegistry.register(bot)
-
         # Bot will start working via goalbot
         await self.start_work_cycle(bot)
-
         return BotHandle(bot_id=bot.id)
-
 # Usage
 await manybot.create_bot(
     name="api-modernizer",
@@ -122,7 +114,6 @@ class AssignResponsibility(BaseModel):
     bot_id: str
     paths: List[str]  # Glob patterns
     level: Literal["owner", "maintainer", "contributor"]
-
     async def execute(self) -> None:
         # Update OWNERS file
         for path in self.paths:
@@ -132,7 +123,6 @@ class AssignResponsibility(BaseModel):
                 level=self.level
             )
             await self.update_owners_file(owners_file, ownership)
-
         # Notify bot of new responsibility
         bot = await BotRegistry.get(self.bot_id)
         await bot.add_responsibility(
@@ -142,7 +132,6 @@ class AssignResponsibility(BaseModel):
                 owner=f"manybot:{self.bot_id}"
             )
         )
-
 # Usage
 await manybot.assign_responsibility(
     bot_id="test-guardian",
@@ -163,21 +152,18 @@ class MeetingAgenda(BaseModel):
     context: Dict[str, Any]
     decisions_needed: List[str]
     time_limit_minutes: int = 30
-
 class MeetingOutcome(BaseModel):
     """Results from bot coordination meeting"""
     decisions: Dict[str, str]
     action_items: List[ActionItem]
     follow_up_meetings: List[MeetingAgenda]
     responsibility_changes: List[ResponsibilityChange]
-
 class ActionItem(BaseModel):
     """Task assigned during meeting"""
     assigned_to: str  # Bot ID
     task: str
     deadline: datetime
     priority: Literal["high", "medium", "low"]
-
 class ResponsibilityChange(BaseModel):
     """Change in code ownership"""
     path: str
@@ -192,10 +178,8 @@ class ResponsibilityChange(BaseModel):
 ```python
 class BotCoordinator:
     """Facilitates coordination between multiple bots"""
-
     async def hold_meeting(self, agenda: MeetingAgenda) -> MeetingOutcome:
         """Simulate a coordination meeting between bots using PydanticAI"""
-
         # Gather bot perspectives
         bot_inputs = []
         for bot_id in agenda.attendees:
@@ -207,7 +191,6 @@ class BotCoordinator:
                 "owned_paths": bot.get_owned_paths(),
                 "perspective": analysis
             })
-
         # Use PydanticAI agent to facilitate
         facilitator = Agent(
             result_type=MeetingOutcome,
@@ -215,28 +198,22 @@ class BotCoordinator:
             Help them coordinate efforts, resolve conflicts, and make decisions
             that advance their collective goals while respecting individual responsibilities."""
         )
-
         meeting_context = {
             "agenda": agenda.model_dump(),
             "bot_inputs": bot_inputs,
             "codebase_state": await self._get_codebase_state()
         }
-
         result = await facilitator.run(meeting_context)
         outcome = result.data
-
         # Apply decisions
         await self._apply_meeting_outcomes(outcome)
-
         return outcome
-
 class ScheduleMeeting(BaseModel):
     """Schedule coordination between bots"""
     topic: str
     attendees: List[str]  # Bot IDs
     decisions_needed: List[str]
     context: Dict[str, Any] = Field(default_factory=dict)
-
     async def execute(self) -> MeetingHandle:
         # Create structured agenda
         agenda = MeetingAgenda(
@@ -247,17 +224,14 @@ class ScheduleMeeting(BaseModel):
             context=self.context,
             decisions_needed=self.decisions_needed
         )
-
         # Schedule meeting
         coordinator = BotCoordinator()
         outcome = await coordinator.hold_meeting(agenda)
-
         # Create handle for tracking
         return MeetingHandle(
             meeting_id=agenda.meeting_id,
             outcome=outcome
         )
-
 # Usage
 meeting = await manybot.schedule_meeting(
     topic="Coordinate API redesign",
@@ -277,17 +251,13 @@ meeting = await manybot.schedule_meeting(
 class BotStatus(BaseModel):
     """Get current status of a bot"""
     bot_id: str
-
     async def execute(self) -> BotReport:
         bot = await BotRegistry.get(self.bot_id)
-
         # Get current work from goalbot
         current_goal = await bot.get_current_goal()
         progress = await current_goal.evaluate_progress()
-
         # Get owned files
         owned_paths = await self.get_owned_paths(bot.bot_id)
-
         return BotReport(
             bot_id=self.bot_id,
             status=bot.status,
@@ -296,7 +266,6 @@ class BotStatus(BaseModel):
             owned_paths=owned_paths,
             recent_changes=await bot.get_recent_changes()
         )
-
 # Usage
 status = await manybot.bot_status("test-guardian")
 print(f"Progress on goal: {status.progress}%")
@@ -311,7 +280,6 @@ webhook = GitHubPushEvent(
     branch="main",
     failed_tests=["test_api.py::test_auth"]
 )
-
 # 2. Manybot creates goal for responsible bot
 bot = await manybot.find_owner("tests/test_api.py")
 goal = Goal(
@@ -319,14 +287,12 @@ goal = Goal(
     success_criteria="test_api.py::test_auth passes",
     context_paths=["src/api/auth.py", "tests/test_api.py"]
 )
-
 # 3. Bot executes goal via goalbot (may use remotebot)
 session = await goalbot.execute(
     goal=goal,
     bot_id=bot.id,
     mode="sdk"  # Autonomous execution
 )
-
 # 4. Goalbot uses codebot for file operations
 async for task in session.tasks():
     if task.type == "fix_code":
@@ -338,7 +304,6 @@ async for task in session.tasks():
             ),
             mode="claudesdk"  # Autonomous execution
         )
-
         # Apply FileChanges
         for change in result.file_changes:
             change.apply()
@@ -349,17 +314,13 @@ async for task in session.tasks():
 ```python
 class GitHubCoordinator:
     """Maps GitHub events to bot coordination"""
-
     def __init__(self):
         self.ownership_map = self._build_ownership_map()
         self.event_handlers = self._setup_handlers()
-
     async def handle_push_event(self, event: PushEvent):
         """Coordinate response to code push"""
-
         # Find affected bots
         affected_bots = self._find_affected_bots(event.changed_files)
-
         # Notify owner bots
         for bot_id, files in affected_bots.items():
             await self._notify_bot(
@@ -371,7 +332,6 @@ class GitHubCoordinator:
                     priority="high" if bot_id in self._get_owners(files) else "medium"
                 )
             )
-
         # Schedule coordination if multiple bots affected
         if len(affected_bots) > 1:
             await self._schedule_coordination_meeting(
@@ -379,13 +339,10 @@ class GitHubCoordinator:
                 attendees=list(affected_bots.keys()),
                 context={"event": event}
             )
-
     async def handle_pr_event(self, event: PREvent):
         """Coordinate PR review"""
-
         # Find reviewers based on OWNERS
         reviewers = await self._find_reviewers(event.changed_files)
-
         # Create review tasks
         for reviewer in reviewers:
             await self._create_review_task(
@@ -405,7 +362,6 @@ primary: manybot:api-bot
 delegates:
   - manybot:test-bot
   - human:alice
-
 auto_approve:
   - '*.test.py'
   - 'test_*.py'
@@ -421,17 +377,14 @@ class BotState(BaseModel):
     status: Literal["active", "paused", "terminated"]
     created_at: datetime
     last_active: datetime
-
     # Work tracking
     goals_completed: int = 0
     current_goal: Optional[Goal] = None
     work_cycles: List[WorkCycleRecord] = Field(default_factory=list)
-
     # Relationships
     parent_bot: Optional[str] = None
     child_bots: List[str] = Field(default_factory=list)
     delegated_from: Dict[str, List[str]] = Field(default_factory=dict)  # bot_id -> paths
-
 class WorkCycleRecord(BaseModel):
     """Record of a single work cycle"""
     cycle_id: str
@@ -448,28 +401,23 @@ class WorkCycleRecord(BaseModel):
 ```python
 class BotEvolution:
     """Bots evolve their capabilities and organization"""
-
     async def spawn_specialist(self, parent_bot: Manybot, need: str) -> Manybot:
         """Parent bot creates specialist for identified need"""
-
         # Analyze need and define specialist goal
         specialist_goal = await self._define_specialist_goal(
             parent_goal=parent_bot.goal,
             specialty_need=need,
             available_paths=await self._find_unowned_paths()
         )
-
         # Create specialist
         specialist = await manybot.create_bot(
             name=f"{parent_bot.name}_{need}",
             goal=specialist_goal.description,
             success_criteria=specialist_goal.success_criteria
         )
-
         # Establish relationship
         parent_bot.state.child_bots.append(specialist.bot_id)
         specialist.state.parent_bot = parent_bot.bot_id
-
         # Delegate specific paths
         delegated_paths = await self._determine_delegation(parent_bot, need)
         for path in delegated_paths:
@@ -479,26 +427,21 @@ class BotEvolution:
                 paths=[path],
                 retain_oversight=True
             )
-
         return specialist
-
     async def merge_bots(self, bot_ids: List[str], new_name: str) -> Manybot:
         """Merge multiple bots into one with combined responsibilities"""
         bots = [await BotRegistry.get(bot_id) for bot_id in bot_ids]
-
         # Combine goals and responsibilities
         merged_goal = await self._synthesize_goal(bots)
         merged_paths = []
         for bot in bots:
             merged_paths.extend(bot.get_owned_paths())
-
         # Create merged bot
         merged = await manybot.create_bot(
             name=new_name,
             goal=merged_goal.description,
             success_criteria=merged_goal.success_criteria
         )
-
         # Transfer responsibilities
         for path in merged_paths:
             await manybot.transfer_ownership(
@@ -506,12 +449,10 @@ class BotEvolution:
                 to_bot=merged.bot_id,
                 path=path
             )
-
         # Archive original bots
         for bot in bots:
             bot.state.status = "terminated"
             bot.state.metadata["merged_into"] = merged.bot_id
-
         return merged
 ```
 
@@ -523,29 +464,23 @@ class SpawnSpecialist(BaseModel):
     parent_bot_id: str
     specialty: str
     delegated_paths: List[str]
-
     async def execute(self) -> BotHandle:
         parent = await BotRegistry.get(self.parent_bot_id)
-
         # Create specialist bot
         specialist = await manybot.create_bot(
             name=f"{parent.name}_{self.specialty}",
             goal=f"Handle {self.specialty} for {parent.name}",
             success_criteria=f"All {self.specialty} tasks completed"
         )
-
         # Delegate responsibility
         await manybot.assign_responsibility(
             bot_id=specialist.bot_id,
             paths=self.delegated_paths,
             level="maintainer"
         )
-
         # Update parent's delegation list
         await parent.add_delegate(specialist.bot_id)
-
         return BotHandle(bot_id=specialist.bot_id)
-
 # Usage
 specialist = await manybot.spawn_specialist(
     parent_bot_id="api-bot",
@@ -561,32 +496,25 @@ specialist = await manybot.spawn_specialist(
 manybot create test-guardian \
   --goal "Achieve 90% test coverage" \
   --success "coverage >= 90% AND all tests pass"
-
 manybot assign test-guardian \
   --owns "src/" "tests/" \
   --level owner
-
 manybot status test-guardian
 manybot list --active
-
 # Coordination
 manybot meeting schedule \
   --topic "API breaking changes" \
   --attendees api-bot,test-bot,docs-bot
-
 manybot meeting list --upcoming
 manybot meeting notes meeting-123
-
 # Responsibility queries
 manybot owns src/api/  # Shows which bot owns this path
 manybot owned-by api-bot  # Shows what api-bot owns
-
 # Delegation
 manybot spawn specialist \
   --parent api-bot \
   --specialty "graphql" \
   --paths "src/api/graphql/"
-
 # Bot communication
 manybot request \
   --from test-bot \
@@ -610,14 +538,12 @@ Manybots are self-directed - they can invoke manybot commands themselves to:
 - **Request help** from other bots
 - **Delegate responsibilities** when overwhelmed
 - **Update their own goals** as they learn and adapt
-- **Propose bot mergers** when goals overlap
-
-All structural changes (new bots, goal updates, responsibility changes) are submitted as PRs for human review.
+- **Propose bot mergers** when goals overlap All structural changes (new bots, goal updates, responsibility changes) are
+  submitted as PRs for human review.
 
 ```python
 class ManybotSelfDirection:
     """Manybot's ability to use manybot commands"""
-
     async def request_coordination(self, topic: str, with_bots: List[str]):
         """Bot schedules its own meeting when needed"""
         # Bot realizes it needs to coordinate
@@ -628,7 +554,6 @@ class ManybotSelfDirection:
             context={"requester": self.bot_id}
         )
         return meeting
-
     async def create_specialist(self, specialty: str, reason: str):
         """Bot requests a specialist when identifying a need"""
         # Creates PR for new bot creation with resource requirements
@@ -643,7 +568,6 @@ class ManybotSelfDirection:
                 "deployment": "local" if self._is_small_scope(specialty) else "remote"
             }
         }
-
         # PR will be reviewed for both code changes AND budget approval
         pr_url = await self._submit_bot_change_pr(
             title=f"Request {specialty} specialist bot",
@@ -651,7 +575,6 @@ class ManybotSelfDirection:
             requires_budget_approval=pr_data["resource_request"]["deployment"] == "remote"
         )
         return pr_url
-
     async def update_goal(self, new_goal: Goal, rationale: str):
         """Bot updates its own goal based on learning"""
         # Submit PR for goal change
@@ -662,13 +585,11 @@ class ManybotSelfDirection:
             "new_goal": new_goal.model_dump(),
             "rationale": rationale
         }
-
         pr_url = await self._submit_bot_change_pr(
             title=f"Update goal for {self.name}",
             changes=pr_data
         )
         return pr_url
-
     async def request_help(self, task: str, suggested_bot: Optional[str] = None):
         """Bot asks for help from another bot"""
         if suggested_bot:
@@ -692,7 +613,6 @@ class ManybotSelfDirection:
 ```python
 class Manybot:
     """Self-directed agent with goals and responsibilities"""
-
     def __init__(self, name: str, goal: Goal, responsibilities: List[Responsibility]):
         self.name = name
         self.goal = goal
@@ -704,29 +624,22 @@ class Manybot:
             created_at=datetime.now(),
             last_active=datetime.now()
         )
-
         # Import and use goalbot for goal execution
         from goalbot import GoalExecutor
         self.goal_executor = GoalExecutor(goal)
-
         # Enable self-direction
         self.self_direction = ManybotSelfDirection(self)
-
         # PydanticAI agent for high-level planning
         self.planner = Agent(
             result_type=WorkPlan,
             system_prompt=self._build_planner_prompt()
         )
-
     async def do_work(self) -> WorkCycleRecord:
         """Execute one autonomous work cycle"""
-
         # 1. Evaluate current state
         goal_progress = self.goal.evaluate()
-
         # 2. Check responsibilities
         responsibility_status = await self._check_responsibilities()
-
         # 3. Plan work based on goal and responsibilities
         plan_context = {
             "goal_progress": goal_progress,
@@ -734,10 +647,8 @@ class Manybot:
             "recent_events": await self._get_recent_events(),
             "blocked_tasks": self.state.blocked_tasks
         }
-
         plan_result = await self.planner.run(plan_context)
         work_plan = plan_result.data
-
         # 4. Check if coordination is needed
         if work_plan.coordination_needed:
             # Bot decides to schedule a meeting
@@ -745,7 +656,6 @@ class Manybot:
                 topic=work_plan.coordination_topic,
                 with_bots=work_plan.coordination_needed
             )
-
         # 5. Check if specialist is needed
         if work_plan.specialist_needed:
             # Bot spawns a specialist
@@ -755,7 +665,6 @@ class Manybot:
             )
             # Delegate some tasks to the new specialist
             work_plan.delegate_tasks_to(specialist.bot_id)
-
         # 6. Execute plan using goalbot
         if work_plan.goal_tasks:
             # Execute goal-oriented tasks via goalbot
@@ -763,10 +672,8 @@ class Manybot:
                 tasks=work_plan.goal_tasks,
                 max_iterations=work_plan.max_iterations
             )
-
             files_changed = goal_result.files_changed
             commands_executed = goal_result.commands_executed
-
         # 7. Handle responsibilities (code review, maintenance)
         if work_plan.responsibility_tasks:
             for task in work_plan.responsibility_tasks:
@@ -780,7 +687,6 @@ class Manybot:
                         task=task.description,
                         suggested_bot=task.suggested_helper
                     )
-
         # 6. Record work cycle
         cycle = WorkCycleRecord(
             cycle_id=str(uuid4()),
@@ -791,48 +697,37 @@ class Manybot:
             outcome="success" if goal_result.success else "partial",
             blockers=goal_result.blockers
         )
-
         self.state.work_cycles.append(cycle)
         self.state.last_active = datetime.now()
-
         return cycle
-
     async def _review_external_change(self, task: ResponsibilityTask):
         """Review changes made to owned files by others"""
         # Use codebot's review command
         from codebot import execute_command
-
         review_result = await execute_command(
             "review",
             paths=task.affected_files,
             context={"change_author": task.author}
         )
-
         # Create PR comment or issue if problems found
         if review_result.issues_found:
             await self._create_review_feedback(review_result)
-
     def _build_planner_prompt(self) -> str:
         return f"""You are {self.name}, an autonomous development agent.
-
         Your goal: {self.goal.objective}
         Key results: {[kr.description for kr in self.goal.key_results]}
-
         Your responsibilities:
         {chr(10).join(f'- {r.description}: {r.paths}' for r in self.responsibilities)}
-
         Plan work that:
         1. Makes progress toward your goal's key results
         2. Maintains quality in your areas of responsibility
         3. Responds to external changes affecting your code
         4. Coordinates with other bots when needed
         """
-
 class WorkPlan(BaseModel):
     """Plan for a work cycle"""
     goal_tasks: List[Task]  # Tasks toward goal completion
     responsibility_tasks: List[ResponsibilityTask]  # Maintenance tasks
-
     # Self-direction decisions
     coordination_needed: List[str]  # Bot IDs to coordinate with
     coordination_topic: Optional[str] = None
@@ -840,7 +735,6 @@ class WorkPlan(BaseModel):
     specialist_type: Optional[str] = None
     specialist_reason: Optional[str] = None
     help_requests: List[HelpRequest] = Field(default_factory=list)
-
     max_iterations: int = 10
     rationale: str
 ```

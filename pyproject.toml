@@ -3,7 +3,7 @@ requires = ["setuptools==80.9.0", "wheel==0.45.1"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools]
-packages = ["cogweb", "devops", "experiments", "metta", "mettascope"]
+packages = ["cogweb", "devops", "experiments", "metta"]
 py-modules = []
 
 [project]
@@ -75,6 +75,7 @@ dependencies = [
   "uvicorn[standard]>=0.34.2",
   "wandb>=0.19.11",
   "wandb-core>=0.17.0b11",
+  "sqlmodel>=0.0.27",
 ]
 name = "metta"
 version = "0.1"

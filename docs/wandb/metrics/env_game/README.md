@@ -1,15 +1,9 @@
 # Env Game Metrics
-
 ## Overview
-
 Game object counts and token tracking
-
 **Total metrics in this section:** 214
-
 ## Metric Suffixes
-
 This section contains metrics with the following statistical suffixes:
-
 - **`.activity_rate`** - Frequency during active period only (updates per step between first and last occurrence)
   - Formula: `(update_count - 1) / (last_step - first_step)`
   - Note: Subtracts 1 because the first update just marks the start of activity
@@ -24,13 +18,9 @@ This section contains metrics with the following statistical suffixes:
 - **`.std_dev`** - Standard deviation across episodes (variance measure)
   - Formula: `sqrt(sum((x - mean)²) / n)`
 - **`.updates`** - Total number of times this metric was updated in an episode
-
 ## Subsections
-
 ### General Metrics
-
 **Count:** 214 metrics
-
 **objects.altar:** (8 values / 8 std_devs)
 - `env_game/objects.altar`
 - `env_game/objects.altar.avg`
@@ -48,7 +38,6 @@ This section contains metrics with the following statistical suffixes:
 - `env_game/objects.altar.updates`
 - `env_game/objects.altar.updates.std_dev`
 - `env_game/objects.altar.std_dev`
-
 **objects.armory:** (8 values / 8 std_devs)
 - `env_game/objects.armory`
 - `env_game/objects.armory.avg`
@@ -66,7 +55,6 @@ This section contains metrics with the following statistical suffixes:
 - `env_game/objects.armory.updates`
 - `env_game/objects.armory.updates.std_dev`
 - `env_game/objects.armory.std_dev`
-
 **objects.block:** (8 values / 8 std_devs)
 - `env_game/objects.block`
 - `env_game/objects.block.avg`
@@ -84,7 +72,6 @@ This section contains metrics with the following statistical suffixes:
 - `env_game/objects.block.updates`
 - `env_game/objects.block.updates.std_dev`
 - `env_game/objects.block.std_dev`
-
 **objects.factory:** (8 values / 8 std_devs)
 - `env_game/objects.factory`
 - `env_game/objects.factory.avg`
@@ -102,7 +89,6 @@ This section contains metrics with the following statistical suffixes:
 - `env_game/objects.factory.updates`
 - `env_game/objects.factory.updates.std_dev`
 - `env_game/objects.factory.std_dev`
-
 **objects.generator_red:** (8 values / 8 std_devs)
 - `env_game/objects.generator_red`
 - `env_game/objects.generator_red.avg`
@@ -120,7 +106,6 @@ This section contains metrics with the following statistical suffixes:
 - `env_game/objects.generator_red.updates`
 - `env_game/objects.generator_red.updates.std_dev`
 - `env_game/objects.generator_red.std_dev`
-
 **objects.lab:** (8 values / 8 std_devs)
 - `env_game/objects.lab`
 - `env_game/objects.lab.avg`
@@ -138,7 +123,6 @@ This section contains metrics with the following statistical suffixes:
 - `env_game/objects.lab.updates`
 - `env_game/objects.lab.updates.std_dev`
 - `env_game/objects.lab.std_dev`
-
 **objects.lasery:** (8 values / 8 std_devs)
 - `env_game/objects.lasery`
 - `env_game/objects.lasery.avg`
@@ -156,7 +140,6 @@ This section contains metrics with the following statistical suffixes:
 - `env_game/objects.lasery.updates`
 - `env_game/objects.lasery.updates.std_dev`
 - `env_game/objects.lasery.std_dev`
-
 **objects.mine_red:** (8 values / 8 std_devs)
 - `env_game/objects.mine_red`
 - `env_game/objects.mine_red.avg`
@@ -174,7 +157,6 @@ This section contains metrics with the following statistical suffixes:
 - `env_game/objects.mine_red.updates`
 - `env_game/objects.mine_red.updates.std_dev`
 - `env_game/objects.mine_red.std_dev`
-
 **objects.temple:** (8 values / 8 std_devs)
 - `env_game/objects.temple`
 - `env_game/objects.temple.avg`
@@ -192,7 +174,6 @@ This section contains metrics with the following statistical suffixes:
 - `env_game/objects.temple.updates`
 - `env_game/objects.temple.updates.std_dev`
 - `env_game/objects.temple.std_dev`
-
 **objects.wall:** (8 values / 8 std_devs)
 - `env_game/objects.wall`
 - `env_game/objects.wall.avg`
@@ -210,7 +191,6 @@ This section contains metrics with the following statistical suffixes:
 - `env_game/objects.wall.updates`
 - `env_game/objects.wall.updates.std_dev`
 - `env_game/objects.wall.std_dev`
-
 **tokens_dropped:** (9 values / 9 std_devs)
 - `env_game/tokens_dropped`
 - `env_game/tokens_dropped.activity_rate`
@@ -230,7 +210,6 @@ This section contains metrics with the following statistical suffixes:
 - `env_game/tokens_dropped.updates`
 - `env_game/tokens_dropped.updates.std_dev`
 - `env_game/tokens_dropped.std_dev`
-
 **tokens_free_space:** (9 values / 9 std_devs)
 - `env_game/tokens_free_space`
 - `env_game/tokens_free_space.activity_rate`
@@ -250,7 +229,6 @@ This section contains metrics with the following statistical suffixes:
 - `env_game/tokens_free_space.updates`
 - `env_game/tokens_free_space.updates.std_dev`
 - `env_game/tokens_free_space.std_dev`
-
 **tokens_written:** (9 values / 9 std_devs)
 - `env_game/tokens_written`
 - `env_game/tokens_written.activity_rate`
@@ -270,5 +248,3 @@ This section contains metrics with the following statistical suffixes:
 - `env_game/tokens_written.updates`
 - `env_game/tokens_written.updates.std_dev`
 - `env_game/tokens_written.std_dev`
-
-

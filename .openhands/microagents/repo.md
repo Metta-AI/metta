@@ -4,11 +4,10 @@
 
 Metta AI is an open-source research project investigating the emergence of cooperation and alignment in multi-agent AI
 systems. The project creates a model organism for complex multi-agent gridworld environments to study the impact of
-social dynamics, such as kinship and mate selection, on learning and cooperative behaviors of AI agents.
-
-The core hypothesis is that social dynamics, akin to love in biological systems, play a crucial role in the development
-of cooperative AGI and AI alignment. The project introduces a novel reward-sharing mechanism mimicking familial bonds
-and mate selection, allowing researchers to observe the evolution of complex social behaviors and cooperation among AI
+social dynamics, such as kinship and mate selection, on learning and cooperative behaviors of AI agents. The core
+hypothesis is that social dynamics, akin to love in biological systems, play a crucial role in the development of
+cooperative AGI and AI alignment. The project introduces a novel reward-sharing mechanism mimicking familial bonds and
+mate selection, allowing researchers to observe the evolution of complex social behaviors and cooperation among AI
 agents.
 
 ## Repository Structure
@@ -66,9 +65,7 @@ To run the interactive simulation:
 ```
 
 This launches a human-controlled session using the same configuration flags as training. It's useful for quickly testing
-maps or policies on your local hardware.
-
-To run the terminal simulation:
+maps or policies on your local hardware. To run the terminal simulation:
 
 ```bash
 ./tools/run.py play arena run=demo_obstacles \
@@ -77,9 +74,8 @@ renderer_job.environment.instance.params.uri="configs/env/mettagrid/maps/debug/s
 
 ### Evaluating a Model
 
-When you run training with WandB enabled, you'll see results for the eval suites in your WandB run page.
-
-For post-training evaluation to compare different policies:
+When you run training with WandB enabled, you'll see results for the eval suites in your WandB run page. For
+post-training evaluation to compare different policies:
 
 1. Add your policy to the existing navigation evals DB:
 

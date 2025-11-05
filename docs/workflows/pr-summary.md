@@ -124,9 +124,8 @@ The workflow uses multiple caching strategies:
 
 1. **GitHub Actions Cache** - Preserves `pr-summaries/` directory between runs
 2. **PR Digest Cache** - Tracks which PRs have been fetched
-3. **Summary Cache** - Stores AI-generated summaries per PR
-
-Cache keys include run numbers to ensure proper invalidation while maintaining history.
+3. **Summary Cache** - Stores AI-generated summaries per PR Cache keys include run numbers to ensure proper invalidation
+   while maintaining history.
 
 ## Performance Notes
 
@@ -139,17 +138,12 @@ Cache keys include run numbers to ensure proper invalidation while maintaining h
 
 ### 1. Fetch Artifacts Action (`.github/actions/fetch-artifacts/`)
 
-**Purpose**: Downloads zipped artifacts from previous successful workflow runs.
-
-**Key Features**:
+**Purpose**: Downloads zipped artifacts from previous successful workflow runs. **Key Features**:
 
 - Searches through workflow history for matching artifacts
 - Downloads artifacts as ZIP files for local processing
 - Supports pattern matching for artifact names
-- Excludes current run to avoid self-reference
-
-**Inputs**:
-
+- Excludes current run to avoid self-reference **Inputs**:
 - `workflow-name`: Name of the workflow file (e.g., "generate-newsletter.yml")
 - `artifact-name-pattern`: Pattern to match (e.g., "newsletter-\*")
 - `num-artifacts`: Number of artifacts to collect (default: 5)
@@ -157,18 +151,13 @@ Cache keys include run numbers to ensure proper invalidation while maintaining h
 
 ### 2. Discord Webhook Action (`.github/actions/discord-webhook/`)
 
-**Purpose**: Posts content to Discord with automatic message splitting.
-
-**Key Features**:
+**Purpose**: Posts content to Discord with automatic message splitting. **Key Features**:
 
 - Automatic splitting at 2000 character Discord limit
 - Smart boundaries (paragraphs/lines) for readability
 - Rate limiting protection (0.5s delay between messages)
 - Sanitizes @everyone/@here mentions for security
-- Supports both direct content and file input
-
-**Inputs**:
-
+- Supports both direct content and file input **Inputs**:
 - `webhook-url`: Discord webhook URL (required)
 - `content`: Direct content to post
 - `content-file`: Path to file containing content

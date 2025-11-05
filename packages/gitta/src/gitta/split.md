@@ -5,11 +5,9 @@ This guide will help you get started with splitting large PRs using gitta.
 ## Prerequisites
 
 1. **Install gitta:**
-
    ```bash
    pip install gitta
    ```
-
 2. **Get an Anthropic API key:**
 
    - Sign up at https://console.anthropic.com/
@@ -18,7 +16,6 @@ This guide will help you get started with splitting large PRs using gitta.
      ```bash
      export ANTHROPIC_API_KEY="sk-ant-..."
      ```
-
 3. **Optional: Set up GitHub token for auto PR creation:**
    - Go to https://github.com/settings/tokens
    - Create a token with `repo` scope
@@ -47,10 +44,8 @@ The easiest way to split a PR is from the command line:
 ```bash
 # Navigate to your repository
 cd my-project
-
 # Make sure you're on the branch you want to split
 git checkout feature/big-refactor
-
 # Run the splitter
 python -m gitta.split
 # ...override the model or hooks inline
@@ -78,16 +73,13 @@ When you run the splitter, it will:
 📥 Getting diff...
 📊 Found 8 changed files
 🤖 Analyzing with AI to determine split strategy...
-
 📋 Split Decision:
 Group 1 (4 files): Refactor authentication system
   Files: auth.py, login.py, session.py, test_auth.py
   Description: Updates core authentication logic and session handling
-
 Group 2 (4 files): Add user profile features
   Files: profile.py, views.py, templates/profile.html, test_profile.py
   Description: Implements user profile viewing and editing
-
 ✂️  Creating patches...
 ✅ Verifying split integrity...
   Verification passed!

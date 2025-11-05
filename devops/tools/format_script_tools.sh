@@ -59,14 +59,22 @@ format_files() {
   local file_ext="$1"
   local exclude_pattern="${2:-$EXCLUDE_PATTERN}"
 
-  echo "Formatting *.$file_ext files..."
+  # Determine prettier mode
+  local prettier_mode="--write"
+  local action="Formatting"
+  if [ "${CHECK_MODE:-false}" = "true" ]; then
+    prettier_mode="--check"
+    action="Checking"
+  fi
+
+  echo "$action *.$file_ext files..."
 
   if [ -n "$exclude_pattern" ]; then
     echo "  Excluding: $exclude_pattern"
-    find . -name "*.$file_ext" -type f | grep -v "$exclude_pattern" | xargs pnpm exec prettier --write
+    find . -name "*.$file_ext" -type f | grep -v "$exclude_pattern" | xargs pnpm exec prettier $prettier_mode
   else
     echo "  Formatting all files (no exclusions)"
-    find . -name "*.$file_ext" -type f | xargs pnpm exec prettier --write
+    find . -name "*.$file_ext" -type f | xargs pnpm exec prettier $prettier_mode
   fi
 }
 
@@ -82,9 +90,13 @@ parse_format_args() {
         fi
         shift 2
         ;;
+      --check)
+        CHECK_MODE="true"
+        shift
+        ;;
       *)
         echo "Unknown option: $1"
-        echo "Usage: $0 [--exclude \"pattern\"]"
+        echo "Usage: $0 [--check] [--exclude \"pattern\"]"
         if [ -n "${EXCLUDE_HELP_TEXT:-}" ]; then
           echo "$EXCLUDE_HELP_TEXT"
         fi

@@ -9,7 +9,6 @@ First, make sure the MCP server is properly installed:
 ```bash
 cd /home/morganm/workspace/metta/mcp_servers/wandb_dashboard
 uv pip install -e .
-
 # Test the server
 wandb-mcp-server --help
 ```

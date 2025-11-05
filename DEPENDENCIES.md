@@ -16,30 +16,22 @@ This project uses **Renovate** for automated dependency management with uv works
 ```bash
 # Update all dependencies
 uv lock --upgrade
-
 # Update specific package
 uv add package_name@latest
-
 # Check for conflicts
 uv sync --frozen --check
-
 # Validate workspace consistency
 uv sync --all-packages
 ```
 
 ### Package Groups
 
-Renovate groups related packages to reduce PR noise:
-
-| Group          | Packages                                                   |
-| -------------- | ---------------------------------------------------------- |
-| **pytest**     | `pytest`, `pytest-cov`, `pytest-xdist`, `pytest-benchmark` |
-| **scientific** | `numpy`, `scipy`, `pandas`, `matplotlib`, `torch`          |
-| **rl**         | `gymnasium`, `pettingzoo`, `shimmy`, `pufferlib`           |
-| **web**        | `fastapi`, `uvicorn`, `starlette`, `pydantic`              |
-| **dev-tools**  | `ruff`, `pyright`, `black`, `isort`                        |
-| **cloud**      | `boto3`, `botocore`, `google-*`                            |
-| **jupyter**    | `jupyter*`, `notebook`, `ipywidgets`                       |
+Renovate groups related packages to reduce PR noise: | Group | Packages | | -------------- |
+---------------------------------------------------------- | | **pytest** | `pytest`, `pytest-cov`, `pytest-xdist`,
+`pytest-benchmark` | | **scientific** | `numpy`, `scipy`, `pandas`, `matplotlib`, `torch` | | **rl** | `gymnasium`,
+`pettingzoo`, `shimmy`, `pufferlib` | | **web** | `fastapi`, `uvicorn`, `starlette`, `pydantic` | | **dev-tools** |
+`ruff`, `pyright`, `black`, `isort` | | **cloud** | `boto3`, `botocore`, `google-*` | | **jupyter** | `jupyter*`,
+`notebook`, `ipywidgets` |
 
 ## Troubleshooting
 
@@ -68,6 +60,5 @@ Renovate groups related packages to reduce PR noise:
 - Dependabot configuration removed entirely
 - Renovate provides better uv workspace support
 - More flexible grouping and auto-merge rules
-- Enhanced CI validation pipeline
-
-For detailed information, see the [Dependency Management section in CLAUDE.md](./CLAUDE.md#dependency-management).
+- Enhanced CI validation pipeline For detailed information, see the
+  [Dependency Management section in CLAUDE.md](./CLAUDE.md#dependency-management).

@@ -15,7 +15,6 @@ Quick guide for deploying and cleaning up dev cronjob instances.
            service: pr-similarity-cache-refresh-dev
            env: dev
    ```
-
 2. **Commit and push** to your feature branch:
 
    ```bash
@@ -23,7 +22,6 @@ Quick guide for deploying and cleaning up dev cronjob instances.
    git commit -m "chore: enable dev cronjob for testing"
    git push
    ```
-
 3. **Trigger workflow** from your branch with dev flag:
 
    ```bash
@@ -31,9 +29,7 @@ Quick guide for deploying and cleaning up dev cronjob instances.
      -f dev=true \
      -f branch=your-branch-name
    ```
-
    > **Note**: The `branch` parameter ensures the workflow uses your helmfile with the dev release uncommented.
-
 4. **Monitor deployment**:
 
    ```bash
@@ -41,7 +37,6 @@ Quick guide for deploying and cleaning up dev cronjob instances.
    kubectl get jobs -n monitoring | grep dev
    kubectl logs -n monitoring job/<job-name>
    ```
-
 5. **Manually trigger a run** (optional - don't wait for schedule):
    ```bash
    kubectl create job -n monitoring test-run --from=cronjob/pr-similarity-cache-cronjob-dev
@@ -57,7 +52,6 @@ Quick guide for deploying and cleaning up dev cronjob instances.
    #   <<: *cronjob_template
    #   ...
    ```
-
 2. **Commit and push** to your branch (or merge to main):
 
    ```bash
@@ -65,14 +59,12 @@ Quick guide for deploying and cleaning up dev cronjob instances.
    git commit -m "chore: remove dev cronjob"
    git push
    ```
-
 3. **Manually delete** the Helm release:
    ```bash
    helm uninstall -n monitoring pr-similarity-cache-cronjob-dev
    ```
-
-> **Note**: Pushing changes to `helmfile.yaml` on main triggers prod deployments, but dev releases must be manually
-> deleted via `helm uninstall` - they won't auto-remove when you re-comment them.
+   > **Note**: Pushing changes to `helmfile.yaml` on main triggers prod deployments, but dev releases must be manually
+   > deleted via `helm uninstall` - they won't auto-remove when you re-comment them.
 
 ## Why This Pattern?
 

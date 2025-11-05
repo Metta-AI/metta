@@ -15,9 +15,8 @@ Metta uses a unified movement system with a single `move` action that can be con
 ## Key Concepts
 
 **Orientation**: The `move` action automatically updates agent orientation to match the movement direction. Orientation
-affects actions like `attack`.
-
-**Action Space**: The `move` action's parameter count depends on the `allow_diagonals` setting:
+affects actions like `attack`. **Action Space**: The `move` action's parameter count depends on the `allow_diagonals`
+setting:
 
 ```python
 # Cardinal (4-way): move action takes values 0-3
@@ -33,7 +32,6 @@ affects actions like `attack`.
 uv run ./tools/run.py train arena run=cardinal_test \
   ++trainer.env_overrides.game.actions.move.enabled=true \
   ++trainer.env_overrides.game.allow_diagonals=false
-
 # 8-Way Movement (with diagonals)
 uv run ./tools/run.py train arena run=8way_test \
   ++trainer.env_overrides.game.actions.move.enabled=true \
@@ -48,7 +46,6 @@ uv run ./tools/run.py evaluate arena \
   policy_uri=file://./train_dir/cardinal_test/checkpoints/cardinal_test:v12.pt \
   +replay_job.sim.env_overrides.game.actions.move.enabled=true \
   +replay_job.sim.env_overrides.game.allow_diagonals=false
-
 # 8-Way Movement
 uv run ./tools/run.py evaluate arena \
   policy_uri=file://./train_dir/8way_test/checkpoints/8way_test:v12.pt \

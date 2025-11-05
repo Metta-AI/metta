@@ -21,6 +21,7 @@ from metta.agent.components.obs_shim import (
     ObsShimTokens,
     ObsShimTokensConfig,
 )
+from metta.rl.utils import ensure_sequence_metadata
 from mettagrid.config.mettagrid_config import Config
 from mettagrid.policy.policy import AgentPolicy, TrainablePolicy
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
@@ -89,21 +90,11 @@ class Policy(TrainablePolicy, nn.Module):
         pass
 
     def network(self) -> nn.Module:
-        """Get the underlying neural network for training.
-
-        Since Policy is itself an nn.Module, return self.
-        """
+        """Return the nn.Module representing the policy."""
         return self
 
     def agent_policy(self, agent_id: int) -> AgentPolicy:
-        """Get an AgentPolicy instance for a specific agent.
-
-        Args:
-            agent_id: The ID of the agent
-
-        Returns:
-            An AgentPolicy instance for this agent
-        """
+        """Return an AgentPolicy adapter for the specified agent index."""
         return _SingleAgentAdapter(self, agent_id)
 
 
@@ -149,14 +140,19 @@ class _SingleAgentAdapter(AgentPolicy):
         obs_array = np.array(tokens, dtype=np.uint8)
         obs_tensor = torch.from_numpy(obs_array).unsqueeze(0).to(device)
 
-        return TensorDict(
+        td = TensorDict(
             {
                 "env_obs": obs_tensor,
                 "dones": torch.zeros(1, dtype=torch.float32, device=device),
                 "truncateds": torch.zeros(1, dtype=torch.float32, device=device),
+                "bptt": torch.ones(1, dtype=torch.long, device=device),
             },
             batch_size=[1],
         )
+
+        ensure_sequence_metadata(td, batch_size=1, time_steps=1)
+
+        return td
 
 
 class DistributedPolicy(DistributedDataParallel):

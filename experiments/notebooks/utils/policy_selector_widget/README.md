@@ -26,10 +26,8 @@ The widget is automatically built when you run `pnpm install` and `pnpm run buil
 ```python
 from policy_selector_widget import create_policy_selector_widget
 from metta.app_backend.clients.scorecard_client import ScorecardClient
-
 # Create the widget
 policy_widget = create_policy_selector_widget()
-
 # Load policies from backend
 client = ScorecardClient()
 policies_response = await client.get_policies()
@@ -44,10 +42,8 @@ policies = [
     }
     for p in policies_response.policies
 ]
-
 # Set policy data
 policy_widget.set_policy_data(policies)
-
 # Display the widget
 policy_widget
 ```
@@ -62,7 +58,6 @@ policy_widget.set_ui_config(
     show_created_at=True,
     max_displayed_policies=100,
 )
-
 # Set filters
 policy_widget.set_search_term("navigation")
 policy_widget.set_policy_type_filter(["training_run"])
@@ -74,13 +69,10 @@ policy_widget.set_tag_filter(["experimental"])
 ```python
 # Get selected policy IDs
 selected_ids = policy_widget.get_selected_policies()
-
 # Get full policy data for selected policies
 selected_data = policy_widget.get_selected_policy_data()
-
 # Programmatically select policies
 policy_widget.select_policies(["policy-id-1", "policy-id-2"])
-
 # Clear selection
 policy_widget.clear_selection()
 ```
@@ -90,10 +82,8 @@ policy_widget.clear_selection()
 ```python
 def on_selection_change(change_data):
     print(f"Selected {len(change_data['selected_policies'])} policies")
-
 def on_filter_change(filter_data):
     print(f"Filter changed: {filter_data}")
-
 policy_widget.on_selection_changed(on_selection_change)
 policy_widget.on_filter_changed(on_filter_change)
 ```
@@ -143,7 +133,6 @@ Each policy should be a dictionary with these fields:
 ```bash
 # Install dependencies
 pnpm install
-
 # Build the widget
 pnpm run build
 ```
