@@ -38,7 +38,6 @@ class Package(BaseModel):
 
 PACKAGES: tuple[Package, ...] = (
     Package(name="tests", target=Path("tests")),
-    Package(name="mettascope", target=Path("mettascope/tests")),
     Package(name="agent", target=Path("agent/tests")),
     Package(name="app_backend", target=Path("app_backend/tests")),
     Package(name="common", target=Path("common/tests")),
@@ -47,19 +46,6 @@ PACKAGES: tuple[Package, ...] = (
     Package(name="gitta", target=Path("packages/gitta/tests")),
     Package(name="mettagrid", target=Path("packages/mettagrid/tests")),
     Package(name="cortex", target=Path("packages/cortex/tests")),
-)
-
-
-DEFAULT_FLAGS: tuple[str, ...] = ("--benchmark-disable", "-n", "auto")
-CI_FLAGS: tuple[str, ...] = (
-    "-n",
-    "4",
-    "--timeout=100",
-    "--timeout-method=thread",
-    "--benchmark-skip",
-    "--disable-warnings",
-    "--color=yes",
-    "-v",
 )
 
 
@@ -166,6 +152,8 @@ def run(
     ctx: typer.Context,
     targets: Annotated[list[str] | None, typer.Argument(help="Explicit pytest targets.")] = None,
     ci: bool = typer.Option(False, "--ci", help="Use CI-style settings and parallel suite execution."),
+    test: bool = typer.Option(False, "--test", help="Run unit tests (default if no flags specified)."),
+    benchmark: bool = typer.Option(False, "--benchmark", help="Run benchmarks."),
     packages: Annotated[
         list[str] | None, typer.Option("--package", "-p", help="Limit to specific named package(s).")
     ] = None,
@@ -183,6 +171,14 @@ def run(
     package_args = packages or []
     skip_package_args = skip_packages or []
 
+    # Determine what to run based on flags
+    # Default (no flags): tests only
+    # --test only: tests only
+    # --benchmark only: benchmarks only
+    # --test --benchmark: both
+    run_tests = test or not benchmark  # Default to tests if no flags
+    run_benchmarks = benchmark
+
     cmd = ["uv", "run", "pytest"]
     if target_args:
         if package_args or skip_package_args or changed or ci:
@@ -199,7 +195,26 @@ def run(
         raise typer.Exit(1) from exc
 
     if ci:
-        base_cmd = [*cmd, *CI_FLAGS, *extra_args]
+        base_cmd = [
+            *cmd,
+            "-n",
+            "4",
+            "--timeout=100",
+            "--timeout-method=thread",
+            "--disable-warnings",
+            "--color=no",
+            "-v",
+        ]
+
+        # Apply benchmark filtering for CI mode
+        if run_benchmarks and not run_tests:
+            base_cmd.append("--benchmark-only")
+        elif run_tests and not run_benchmarks:
+            base_cmd.append("--benchmark-skip")
+        # else: both enabled, no filtering
+
+        base_cmd.extend(extra_args)
+
         with tempfile.TemporaryDirectory(prefix="pytest-json-") as temp_dir:
             report_dir = Path(temp_dir)
             results = _execute_ci_packages(selected, resolved_targets, base_cmd, report_dir)
@@ -211,7 +226,15 @@ def run(
             exit_code = max((result.returncode for result in results), default=0)
         raise typer.Exit(exit_code)
 
-    cmd.extend(DEFAULT_FLAGS)
+    cmd.extend(["-n", "auto"])
+
+    # Apply benchmark filtering for non-CI mode
+    if run_benchmarks and not run_tests:
+        cmd.append("--benchmark-only")
+    elif run_tests and not run_benchmarks:
+        cmd.append("--benchmark-disable")
+    # else: both enabled, no filtering
+
     if changed:
         cmd.append("--testmon")
     cmd.extend(extra_args)

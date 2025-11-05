@@ -5,6 +5,7 @@
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
 
+#include <memory>
 #include <string>
 #include <unordered_map>
 
@@ -27,8 +28,9 @@ struct AgentConfig : public GridObjectConfig {
               const std::vector<InventoryItem>& soul_bound_resources = {},
               const std::vector<InventoryItem>& shareable_resources = {},
               const std::unordered_map<InventoryItem, InventoryQuantity>& inventory_regen_amounts = {},
-              const std::vector<InventoryItem>& diversity_tracked_resources = {})
-      : GridObjectConfig(type_id, type_name),
+              const std::vector<InventoryItem>& diversity_tracked_resources = {},
+              ObservationType initial_vibe = 0)
+      : GridObjectConfig(type_id, type_name, initial_vibe),
         group_id(group_id),
         group_name(group_name),
         freeze_duration(freeze_duration),
@@ -76,7 +78,8 @@ inline void bind_agent_config(py::module& m) {
                     const std::vector<InventoryItem>&,
                     const std::vector<InventoryItem>&,
                     const std::unordered_map<InventoryItem, InventoryQuantity>&,
-                    const std::vector<InventoryItem>&>(),
+                    const std::vector<InventoryItem>&,
+                    ObservationType>(),
            py::arg("type_id"),
            py::arg("type_name") = "agent",
            py::arg("group_id"),
@@ -91,7 +94,8 @@ inline void bind_agent_config(py::module& m) {
            py::arg("soul_bound_resources") = std::vector<InventoryItem>(),
            py::arg("shareable_resources") = std::vector<InventoryItem>(),
            py::arg("inventory_regen_amounts") = std::unordered_map<InventoryItem, InventoryQuantity>(),
-           py::arg("diversity_tracked_resources") = std::vector<InventoryItem>())
+           py::arg("diversity_tracked_resources") = std::vector<InventoryItem>(),
+           py::arg("initial_vibe") = 0)
       .def_readwrite("type_id", &AgentConfig::type_id)
       .def_readwrite("type_name", &AgentConfig::type_name)
       .def_readwrite("tag_ids", &AgentConfig::tag_ids)
@@ -107,7 +111,8 @@ inline void bind_agent_config(py::module& m) {
       .def_readwrite("soul_bound_resources", &AgentConfig::soul_bound_resources)
       .def_readwrite("shareable_resources", &AgentConfig::shareable_resources)
       .def_readwrite("inventory_regen_amounts", &AgentConfig::inventory_regen_amounts)
-      .def_readwrite("diversity_tracked_resources", &AgentConfig::diversity_tracked_resources);
+      .def_readwrite("diversity_tracked_resources", &AgentConfig::diversity_tracked_resources)
+      .def_readwrite("initial_vibe", &AgentConfig::initial_vibe);
 }
 
 #endif  // PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_OBJECTS_AGENT_CONFIG_HPP_

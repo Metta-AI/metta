@@ -1,8 +1,10 @@
 #!/usr/bin/env -S uv run
+import concurrent.futures
 import re
 import shutil
 import subprocess
 import sys
+import webbrowser
 from pathlib import Path
 from typing import TYPE_CHECKING, Annotated, Optional
 
@@ -300,8 +302,6 @@ def cmd_status(
     ] = None,
     non_interactive: Annotated[bool, typer.Option("-n", "--non-interactive", help="Non-interactive mode")] = False,
 ):
-    import concurrent.futures
-
     modules = _get_selected_modules(components if components else None)
     if not modules:
         warning("No modules to check.")
@@ -770,8 +770,6 @@ def cmd_shell():
 
 @app.command(name="go", help="Navigate to a Softmax Home shortcut", context_settings={"allow_extra_args": True})
 def cmd_go(ctx: typer.Context):
-    import webbrowser
-
     if not ctx.args:
         error("Please specify a shortcut (e.g., 'metta go g' for GitHub)")
         info("\nCommon shortcuts:")
@@ -792,13 +790,11 @@ def cmd_go(ctx: typer.Context):
 @app.command(name="report-env-details", help="Report environment details including UV project directory")
 def cmd_report_env_details():
     """Report environment details."""
-    import gitta
-
     info(f"UV Project Directory: {cli.repo_root}")
     info(f"Metta CLI Working Directory: {Path.cwd()}")
-    if branch := gitta.get_current_branch():
+    if branch := git.get_current_branch():
         info(f"Git Branch: {branch}")
-    if commit := gitta.get_current_commit():
+    if commit := git.get_current_commit():
         info(f"Git Commit: {commit}")
 
 
@@ -812,8 +808,6 @@ def cmd_clip(
     ctx: typer.Context,
 ):
     """Copy subsets of codebase for LLM contexts."""
-    import sys
-
     # Find all arguments after 'clip' command
     clip_index = sys.argv.index("clip")
     args_after_clip = sys.argv[clip_index + 1 :]

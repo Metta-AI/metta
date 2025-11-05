@@ -12,7 +12,7 @@ from metta.rl.advantage import compute_advantage, normalize_advantage_distribute
 from metta.rl.loss import Loss
 from metta.rl.training import ComponentContext, TrainingEnvironment
 from metta.utils.batch import calculate_prioritized_sampling_params
-from mettagrid.base_config import Config
+from mettagrid.config import Config
 
 
 class PrioritizedExperienceReplayConfig(Config):
@@ -140,7 +140,7 @@ class PPO(Loss):
         # Store experience
         env_slice = context.training_env_id
         if env_slice is None:
-            raise RuntimeError("ComponentContext.training_env_id is required for PPO rollout")
+            raise RuntimeError("ComponentContext.training_env_id is missing in rollout.")
         self.replay.store(data_td=td, env_id=env_slice)
 
         return

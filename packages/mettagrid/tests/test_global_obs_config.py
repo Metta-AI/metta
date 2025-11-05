@@ -1,38 +1,33 @@
 """Test global observation configuration functionality."""
 
-from mettagrid.config.mettagrid_c_config import from_mettagrid_config
 from mettagrid.config.mettagrid_config import (
-    ActionConfig,
     ActionsConfig,
     AgentConfig,
     AgentRewards,
     GameConfig,
     GlobalObsConfig,
+    MettaGridConfig,
+    MoveActionConfig,
+    NoopActionConfig,
+    ObsConfig,
     WallConfig,
 )
-from mettagrid.mettagrid_c import MettaGrid, PackedCoordinate
+from mettagrid.simulator import Action, Simulation
+from mettagrid.test_support.map_builders import ObjectNameMapBuilder
 
 
-def create_test_env(global_obs_config: dict[str, bool]):
-    """Create test environment with specified global_obs configuration."""
+def create_test_sim(global_obs_config: dict[str, bool]) -> Simulation:
+    """Create test simulation with specified global_obs configuration."""
     game_config = GameConfig(
         num_agents=2,
-        obs_width=11,
-        obs_height=11,
-        num_observation_tokens=100,
+        obs=ObsConfig(width=11, height=11, num_tokens=100),
         max_steps=100,
         resource_names=["item1", "item2"],
         global_obs=GlobalObsConfig(**global_obs_config),
         agent=AgentConfig(
-            default_resource_limit=10,
-            freeze_duration=0,
-            rewards=AgentRewards(),
-            action_failure_penalty=0,
+            default_resource_limit=10, freeze_duration=0, rewards=AgentRewards(), action_failure_penalty=0
         ),
-        actions=ActionsConfig(
-            noop=ActionConfig(enabled=True),
-            move=ActionConfig(enabled=True),
-        ),
+        actions=ActionsConfig(noop=NoopActionConfig(enabled=True), move=MoveActionConfig(enabled=True)),
         objects={"wall": WallConfig(swappable=False)},
     )
 
@@ -42,91 +37,84 @@ def create_test_env(global_obs_config: dict[str, bool]):
         ["wall", "wall", "wall", "wall"],
     ]
 
-    env = MettaGrid(from_mettagrid_config(game_config), game_map, 42)
-    return env
+    cfg = MettaGridConfig(game=game_config)
+    cfg.game.map_builder = ObjectNameMapBuilder.Config(map_data=game_map)
 
+    sim = Simulation(cfg, seed=42)
 
-def count_global_features(obs, expected_feature_ids):
-    """Count specific global feature tokens in observations."""
-    center_location = PackedCoordinate.pack(5, 5)  # 11x11 obs, center is (5,5)
+    # Step once to populate observations
+    for i in range(sim.num_agents):
+        sim.agent(i).set_action(Action(name="noop"))
+    sim.step()
 
-    total_count = 0
-    num_agents = obs.shape[0]
-    for agent_idx in range(num_agents):
-        found_features = set()
-        for token_idx in range(obs.shape[1]):
-            if obs[agent_idx, token_idx, 0] == center_location:
-                feature_id = obs[agent_idx, token_idx, 1]
-                if feature_id in expected_feature_ids:
-                    found_features.add(feature_id)
-        total_count += len(found_features)
-
-    return total_count
+    return sim
 
 
 def test_all_global_tokens_enabled():
     """Test that all global tokens are present when enabled."""
     global_obs = {"episode_completion_pct": True, "last_action": True, "last_reward": True}
 
-    env = create_test_env(global_obs)
-    obs, _ = env.reset()
+    sim = create_test_sim(global_obs)
 
-    expected_features = {
-        env.feature_spec()[feature_name]["id"]
-        for feature_name in ["episode_completion_pct", "last_action", "last_reward"]
-    }
-    global_token_count = count_global_features(obs, expected_features)
+    # Check both agents have all global observation tokens
+    for i in range(sim.num_agents):
+        agent = sim.agent(i)
+        global_obs_data = agent.global_observations
 
-    # Each agent should have 3 global tokens
-    assert global_token_count == 6  # 2 agents * 3 tokens
+        assert "episode_completion_pct" in global_obs_data, "Should have episode_completion_pct"
+        assert "last_action" in global_obs_data, "Should have last_action"
+        assert "last_reward" in global_obs_data, "Should have last_reward"
 
 
 def test_episode_completion_disabled():
     """Test that episode completion token is not present when disabled."""
     global_obs = {"episode_completion_pct": False, "last_action": True, "last_reward": True}
 
-    env = create_test_env(global_obs)
-    obs, _ = env.reset()
+    sim = create_test_sim(global_obs)
 
-    expected_features = {env.feature_spec()[feature_name]["id"] for feature_name in ["last_action", "last_reward"]}
-    global_token_count = count_global_features(obs, expected_features)
+    # Check that agents have last_action and last_reward but NOT episode_completion_pct
+    for i in range(sim.num_agents):
+        agent = sim.agent(i)
+        global_obs_data = agent.global_observations
 
-    # Each agent should have 2 global tokens
-    assert global_token_count == 4  # 2 agents * 2 tokens
+        assert "episode_completion_pct" not in global_obs_data, "Should NOT have episode_completion_pct when disabled"
+        assert "last_action" in global_obs_data, "Should have last_action"
+        assert "last_reward" in global_obs_data, "Should have last_reward"
 
 
 def test_last_action_disabled():
     """Test that last action tokens are not present when disabled."""
     global_obs = {"episode_completion_pct": True, "last_action": False, "last_reward": True}
 
-    env = create_test_env(global_obs)
-    obs, _ = env.reset()
+    sim = create_test_sim(global_obs)
 
-    expected_features = {
-        env.feature_spec()[feature_name]["id"] for feature_name in ["episode_completion_pct", "last_reward"]
-    }
-    global_token_count = count_global_features(obs, expected_features)
+    # Check that agents have episode_completion_pct and last_reward but NOT last_action
+    for i in range(sim.num_agents):
+        agent = sim.agent(i)
+        global_obs_data = agent.global_observations
 
-    # Each agent should have 2 global tokens
-    assert global_token_count == 4  # 2 agents * 2 tokens
+        assert "episode_completion_pct" in global_obs_data, "Should have episode_completion_pct"
+        assert "last_action" not in global_obs_data, "Should NOT have last_action when disabled"
+        assert "last_reward" in global_obs_data, "Should have last_reward"
 
 
 def test_all_global_tokens_disabled():
     """Test that no global tokens are present when all disabled."""
     global_obs = {"episode_completion_pct": False, "last_action": False, "last_reward": False}
 
-    env = create_test_env(global_obs)
-    obs, _ = env.reset()
+    sim = create_test_sim(global_obs)
 
-    # Should have no global tokens
-    unexpected_features = {
-        env.feature_spec()[feature_name]["id"]
-        for feature_name in ["episode_completion_pct", "last_action", "last_reward"]
-    }
-    global_token_count = count_global_features(obs, unexpected_features)
+    # Check that agents have NO global observation tokens
+    for i in range(sim.num_agents):
+        agent = sim.agent(i)
+        global_obs_data = agent.global_observations
 
-    # No global tokens should be present
-    assert global_token_count == 0
+        assert "episode_completion_pct" not in global_obs_data, "Should NOT have episode_completion_pct"
+        assert "last_action" not in global_obs_data, "Should NOT have last_action"
+        assert "last_reward" not in global_obs_data, "Should NOT have last_reward"
+
+        # Global obs dict should be empty or only have other non-global tokens
+        assert len(global_obs_data) == 0, f"Should have no global tokens, got {list(global_obs_data.keys())}"
 
 
 def test_global_obs_default_values():
@@ -134,33 +122,32 @@ def test_global_obs_default_values():
     # Test with no global_obs specified - should use defaults (all True)
     game_config = GameConfig(
         num_agents=1,
-        obs_width=11,
-        obs_height=11,
-        num_observation_tokens=100,
+        obs=ObsConfig(width=11, height=11, num_tokens=100),
         max_steps=100,
         resource_names=["item1"],
         # No global_obs specified - should use defaults
         agent=AgentConfig(
-            default_resource_limit=10,
-            freeze_duration=0,
-            rewards=AgentRewards(),
-            action_failure_penalty=0,
+            default_resource_limit=10, freeze_duration=0, rewards=AgentRewards(), action_failure_penalty=0
         ),
-        actions=ActionsConfig(noop=ActionConfig(enabled=True)),
+        actions=ActionsConfig(noop=NoopActionConfig(enabled=True)),
         objects={"wall": WallConfig(swappable=False)},
     )
 
     game_map = [["agent.agent"]]
 
-    # This should work without error, using default global_obs values
-    env = MettaGrid(from_mettagrid_config(game_config), game_map, 42)
-    obs, _ = env.reset()
+    cfg = MettaGridConfig(game=game_config)
+    cfg.game.map_builder = ObjectNameMapBuilder.Config(map_data=game_map)
 
-    # Should have all 3 global tokens by default
-    expected_features = {
-        env.feature_spec()[feature_name]["id"]
-        for feature_name in ["episode_completion_pct", "last_action", "last_reward"]
-    }
-    global_token_count = count_global_features(obs, expected_features)
+    sim = Simulation(cfg, seed=42)
 
-    assert global_token_count == 3
+    # Step once to populate observations
+    sim.agent(0).set_action(Action(name="noop"))
+    sim.step()
+
+    # Should have all global tokens by default
+    agent = sim.agent(0)
+    global_obs_data = agent.global_observations
+
+    assert "episode_completion_pct" in global_obs_data, "Should have episode_completion_pct by default"
+    assert "last_action" in global_obs_data, "Should have last_action by default"
+    assert "last_reward" in global_obs_data, "Should have last_reward by default"

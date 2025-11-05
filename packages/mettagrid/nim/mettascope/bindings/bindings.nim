@@ -6,8 +6,7 @@ import
 type
   ActionRequest* = object
     agentId*: int
-    actionId*: int
-    argument*: int
+    actionName*: cstring
 
   RenderResponse* = ref object
     shouldClose*: bool
@@ -67,8 +66,7 @@ proc render(currentStep: int, replayStep: string): RenderResponse =
         for action in requestActions:
           result.actions.add(ActionRequest(
             agentId: action.agentId,
-            actionId: action.actionId,
-            argument: action.argument
+            actionName: action.actionName
           ))
         requestActions.setLen(0)
         return
@@ -92,6 +90,6 @@ exportProcs:
   init
   render
 
-writeFiles("bindings/generated", "Mettascope2")
+writeFiles("bindings/generated", "Mettascope")
 
 include generated/internal

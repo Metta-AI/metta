@@ -4,6 +4,7 @@ import logging
 import math
 import multiprocessing
 import platform
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable, Optional
 
@@ -11,15 +12,17 @@ import psutil
 from rich.console import Console
 
 from cogames.cli.policy import POLICY_ARG_DELIMITER
-from cogames.policy.interfaces import TrainablePolicy
 from cogames.policy.signal_handler import DeferSigintContextManager
-from cogames.policy.utils import (
+from mettagrid import MettaGridConfig, PufferMettaGridEnv
+from mettagrid.policy.policy import TrainablePolicy
+from mettagrid.policy.policy_env_interface import PolicyEnvInterface
+from mettagrid.policy.utils import (
     find_policy_checkpoints,
     get_policy_class_shorthand,
     initialize_or_load_policy,
     resolve_policy_data_path,
 )
-from mettagrid import MettaGridConfig, MettaGridEnv
+from mettagrid.simulator import Simulator
 from pufferlib import pufferl
 from pufferlib import vector as pvector
 from pufferlib.pufferlib import set_buffers
@@ -87,6 +90,7 @@ def train(
     vector_batch_size: Optional[int] = None,
     vector_num_workers: Optional[int] = None,
     env_cfg_supplier: Optional[Callable[[], MettaGridConfig]] = None,
+    log_outputs: bool = False,
 ) -> None:
     import pufferlib.pytorch  # noqa: F401 - ensure modules register with torch
 
@@ -189,7 +193,8 @@ def train(
         seed: Optional[int] = None,
     ):
         target_cfg = cfg.model_copy(deep=True) if cfg is not None else _clone_cfg()
-        env = MettaGridEnv(env_cfg=target_cfg)
+        simulator = Simulator()
+        env = PufferMettaGridEnv(simulator, target_cfg, buf, seed if seed is not None else 0)
         set_buffers(env, buf)
         return env
 
@@ -213,8 +218,9 @@ def train(
     policy = initialize_or_load_policy(
         policy_class_path,
         resolved_initial_weights,
-        vecenv.driver_env,
+        vecenv.driver_env.env_cfg.game.actions,
         device,
+        policy_env_info=PolicyEnvInterface.from_mg_cfg(vecenv.driver_env.env_cfg),
     )
     assert isinstance(policy, TrainablePolicy), (
         f"Policy class {policy_class_path} must implement TrainablePolicy interface"
@@ -308,29 +314,40 @@ def train(
     )
 
     trainer = pufferl.PuffeRL(train_args, vecenv, policy.network())
+    if log_outputs:
+        console.clear()
+        console.print("[dim]Evaluation stats will stream below; disabling Rich dashboard.[/dim]")
+        trainer.print_dashboard = lambda *_, **__: None  # type: ignore[assignment]
 
     training_diverged = False
 
     with DeferSigintContextManager():
         try:
             while trainer.global_step < num_steps:
-                trainer.evaluate()
-                trainer.train()
+                eval_stats = trainer.evaluate()
+                if log_outputs and eval_stats:
+                    console.log(f"Evaluation: {datetime.now(UTC)}")
+                    console.log(dict(eval_stats))
+                trainer_stats = trainer.train()
+                if log_outputs and trainer_stats:
+                    console.log(f"Training: {datetime.now(UTC)}")
+                    console.log(dict(trainer_stats))
                 # Check for NaN in network parameters after each training step
                 network = policy.network()
                 has_nan = False
                 for name, param in network.named_parameters():
                     if param.grad is not None and not param.grad.isfinite().all():
-                        logger.error(f"NaN/Inf detected in gradients for parameter: {name}")
+                        logger.error(f"NaN/Inf detected in gradients for parameter: {name}", exc_info=True)
                         has_nan = True
                     if not param.isfinite().all():
-                        logger.error(f"NaN/Inf detected in parameter: {name}")
+                        logger.error(f"NaN/Inf detected in parameter: {name}", exc_info=True)
                         has_nan = True
 
                 if has_nan:
                     logger.error(
                         f"Training diverged at step {trainer.global_step}! "
-                        "Stopping early to prevent saving corrupted checkpoint."
+                        "Stopping early to prevent saving corrupted checkpoint.",
+                        exc_info=True,
                     )
                     training_diverged = True
                     break

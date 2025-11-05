@@ -8,6 +8,8 @@ from typing import Dict, TypeGuard
 import torch
 
 from metta.agent.policies.puffer import PufferPolicy, PufferPolicyConfig
+from mettagrid.builder.envs import make_arena
+from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 
 logger = logging.getLogger("puffer_policy")
 
@@ -22,15 +24,10 @@ def _is_puffer_state_dict(loaded_obj) -> TypeGuard[Dict[str, torch.Tensor]]:
 
 
 def _create_metta_agent(device: str | torch.device = "cpu"):
-    from mettagrid import MettaGridEnv
-    from mettagrid.builder.envs import make_arena
-
     env_cfg = make_arena(num_agents=60)
-    temp_env = MettaGridEnv(env_cfg, render_mode="rgb_array")
 
     policy_cfg = PufferPolicyConfig()
-    policy = PufferPolicy(temp_env, policy_cfg).to(device)
-    temp_env.close()
+    policy = PufferPolicy(PolicyEnvInterface.from_mg_cfg(env_cfg), policy_cfg).to(device)
     return policy
 
 

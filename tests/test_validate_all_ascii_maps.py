@@ -14,12 +14,17 @@ import yaml
 
 from metta.common.util.fs import cd_repo_root, get_repo_root
 from mettagrid.map_builder.map_builder import MapBuilderConfig
-from tools.map.convert_legacy_maps_to_yaml import DEFAULT_DIRECTORIES
 
 cd_repo_root()
 REPO_ROOT = get_repo_root()
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
+
+
+DEFAULT_DIRECTORIES = (
+    Path("packages/mettagrid/configs/maps"),
+    Path("packages/cogames/src/cogames/maps"),
+)
 
 
 def find_map_files(root_dir: Path | str) -> list[Path]:

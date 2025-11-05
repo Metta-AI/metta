@@ -2,7 +2,7 @@ name: "Test and Benchmark"
 
 # This workflow uses metta ci as the single source of truth for CI checks.
 # Each job calls metta ci with a specific stage:
-#   --stage lint, --stage python-tests, --stage python-benchmarks,
+#   --stage lint, --stage python-tests-and-benchmarks,
 #   --stage cpp-tests, --stage cpp-benchmarks
 # Local development can run all stages with: metta ci
 
@@ -116,7 +116,7 @@ jobs:
         id: check_py_files
         uses: ./.github/actions/file-changes
         with:
-          patterns: "**/*.py,**/*.cpp,**/*.hpp,**/conftest.py,**/pyproject.toml,**/pytest.ini,.github/workflows/*.yml"
+          patterns: "**/*.py,**/*.cpp,**/*.hpp,**/*.md,**/*.toml,**/conftest.py,**/pyproject.toml,**/pytest.ini,.github/workflows/*.yml"
           specific_files: "uv.lock"
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
@@ -247,7 +247,7 @@ jobs:
           echo "PUFFERLIB_CACHE_DIR=$HOME/pufferlib-cache" >> $GITHUB_ENV
           mkdir -p $HOME/pufferlib-cache
 
-      - name: Run Python tests
+      - name: Run Python tests and benchmarks
         shell: bash
         run: |
           set -eo pipefail
@@ -255,7 +255,7 @@ jobs:
           if [[ "${{ needs.setup-checks.outputs.app_backend_has_changes }}" != "true" ]]; then
             ARGS+=(--skip-package app_backend)
           fi
-          uv run python .github/scripts/run_ci_stage.py python-tests -- "${ARGS[@]}"
+          uv run python .github/scripts/run_ci_stage.py python-tests-and-benchmarks -- "${ARGS[@]}"
 
   cpp-tests:
     name: "Tests - C++"
