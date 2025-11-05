@@ -158,7 +158,7 @@ class EvaluateTool(Tool):
                     logger.error("Fallback WandB logging failed: %s", e2, exc_info=True)
 
     def eval_policy(self, normalized_uri: str, stats_client: StatsClient | None) -> EvalResults:
-        policy_env_info = PolicyEnvInterface.from_mg_cfg(self.simulations[0].env_cfg)
+        policy_env_info = PolicyEnvInterface.from_mg_cfg(self.simulations[0].env)
 
         # Verify the checkpoint exists (always use CPU for simulations)
         device = torch.device("cpu")
@@ -180,7 +180,6 @@ class EvaluateTool(Tool):
         eval_results = evaluate_policy(
             checkpoint_uri=normalized_uri,
             simulations=list(self.simulations),
-            stats_dir=self.stats_dir,
             replay_dir=(
                 f"{self.replay_dir}/{eval_run_name}/{metadata.get('run_name', 'unknown')}"
                 if self.enable_replays

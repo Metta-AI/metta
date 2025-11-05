@@ -209,7 +209,8 @@ uv run ./tools/run.py evaluate arena --dry-run
 **Note**: These commands start development servers that run indefinitely. In Claude Code, they may hang without clear
 feedback. Consider running them in separate terminals outside of Claude Code.
 
-- **MettaScope**: Built automatically as part of the mettagrid Python package, see `packages/mettagrid/nim/mettascope/README.md`
+- **MettaScope**: Built automatically as part of the mettagrid Python package, see
+  `packages/mettagrid/nim/mettascope/README.md`
 - **Observatory**: Run `cd observatory && pnpm run dev` for training dashboard
 - **GridWorks**: Run `cd gridworks && pnpm run dev` for web interface
 
