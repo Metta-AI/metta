@@ -33,13 +33,27 @@ def should_preserve_blank_line(prev_line: str) -> bool:
 
 
 def normalize_markdown(content: str) -> str:
-    """Remove blank lines except those following special patterns."""
+    """Remove blank lines except those following special patterns or inside code blocks."""
     lines = content.split("\n")
     result = []
     prev_line = ""
+    in_code_block = False
 
     for line in lines:
-        # If this is a blank line
+        # Check if we're entering or exiting a code block
+        if re.match(r"^\s*```", line):
+            in_code_block = not in_code_block
+            result.append(line)
+            if line.strip():
+                prev_line = line
+            continue
+
+        # If we're inside a code block, preserve everything unchanged
+        if in_code_block:
+            result.append(line)
+            continue
+
+        # If this is a blank line (and we're not in a code block)
         if not line.strip():
             # Only keep it if the previous line warrants preservation
             if should_preserve_blank_line(prev_line):
