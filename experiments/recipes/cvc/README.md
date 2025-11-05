@@ -19,7 +19,7 @@ uv run python experiments/recipes/cvc/experiment.py small_4cogs medium_4cogs
 uv run python experiments/recipes/cvc/experiment.py
 
 # Programmatic usage
-uv run python -c "from experiments.recipes.cvc import experiment; experiment(configs=['debug_single'])"
+uv run python -c "from experiments.recipes.cvc.experiment import experiment; experiment(configs=['debug_single'])"
 ```
 
 **Available experiment configs:**
