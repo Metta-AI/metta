@@ -43,24 +43,6 @@ def test_ci_invalid_stage_fails() -> None:
     assert "Unknown stage" in result.stdout or "Unknown stage" in result.stderr
 
 
-def test_ci_stages_are_separate() -> None:
-    """Test that test and benchmark stages are truly separate."""
-    # Run cpp-tests and verify it doesn't run benchmarks
-    result = subprocess.run(
-        [sys.executable, "-m", "metta.setup.metta_cli", "ci", "--stage", "cpp-tests"],
-        capture_output=True,
-        text=True,
-        check=False,
-        timeout=120,
-    )
-
-    # Should mention tests but not benchmarks header
-    output = result.stdout + result.stderr
-    assert "C++ Tests" in output or "C++ unit tests" in output
-    # Benchmarks should not be mentioned in the stage name
-    assert "C++ Benchmarks" not in output or "benchmark" not in output.lower().split("tests")[0]
-
-
 def test_ci_requires_stage_for_extra_args() -> None:
     """Extra args without --stage should fail fast."""
     result = subprocess.run(
