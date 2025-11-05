@@ -23,23 +23,6 @@ output "instance_role_arn" {
   value       = aws_iam_role.sandbox_instance.arn
 }
 
-output "sandbox_manager_user_name" {
-  description = "Name of the IAM user for sandbox manager service"
-  value       = aws_iam_user.sandbox_manager.name
-}
-
-output "sandbox_manager_access_key_id" {
-  description = "Access key ID for sandbox manager (store in k8s secret)"
-  value       = aws_iam_access_key.sandbox_manager.id
-  sensitive   = true
-}
-
-output "sandbox_manager_secret_access_key" {
-  description = "Secret access key for sandbox manager (store in k8s secret)"
-  value       = aws_iam_access_key.sandbox_manager.secret
-  sensitive   = true
-}
-
 # Output configuration values for FastAPI service
 output "sandbox_config" {
   description = "Configuration values to be used by sandbox-manager FastAPI service"

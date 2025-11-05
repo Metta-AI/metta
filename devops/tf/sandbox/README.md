@@ -7,20 +7,26 @@ This Terraform module creates the AWS infrastructure for the Alignment League re
 - **Isolated VPC** (`10.100.0.0/16`) - Separate from main infrastructure for security
 - **Public subnets** - For sandbox instances with public IPs (researchers SSH in)
 - **Security group** - Allows SSH (port 22) inbound, all outbound
-- **IAM user** (`sandbox-manager`) - For the FastAPI service to orchestrate EC2 instances
 - **IAM role** (`sandbox-instance-role`) - Attached to EC2 instances for minimal permissions
 - **IAM instance profile** - Links the role to EC2 instances
 
+**Note:** The IRSA role for the sandbox-manager service is defined in `devops/tf/eks/sandbox-manager.tf` (part of the EKS stack).
+
 ## Quick Start
 
-### 1. Initialize and Apply Terraform
+### 1. Create Spacelift Stack
 
-```bash
-cd devops/tf/sandbox
-terraform init
-terraform plan
-terraform apply
-```
+This module is deployed via [Spacelift](https://spacelift.io/). See `../README.md` for general Spacelift workflow.
+
+**Create stack in Spacelift UI:**
+1. Go to https://metta-ai.app.spacelift.io/
+2. Create new stack:
+   - **Name**: `sandbox`
+   - **Project root**: `devops/tf/sandbox`
+   - **OpenTofu version**: Latest
+   - **Integrations**: Attach `softmax-aws` cloud integration
+3. (Optional) Enable **Local Preview** for faster iteration
+4. (Optional) Enable **Autodeploy** to apply on merge to main
 
 ### 2. Build Base AMI
 
@@ -40,47 +46,17 @@ The AMI contains Ubuntu 22.04 + Docker + NVIDIA drivers + puffer + cogames.
 # 5. Clean up temporary instance
 ```
 
-**Option B: Manual**
+### 2. Deploy EKS IRSA Role
 
-```bash
-# 1. Launch temporary instance
-aws ec2 run-instances \
-  --image-id ami-0c7217cdde317cfec \
-  --instance-type g5.12xlarge \
-  --key-name YOUR_KEY \
-  --subnet-id $(terraform output -raw public_subnet_ids | jq -r '.[0]') \
-  --security-group-ids $(terraform output -raw security_group_id)
+The sandbox-manager service uses IRSA (IAM Roles for Service Accounts) for AWS access.
 
-# 2. SSH into instance
-ssh ubuntu@<INSTANCE_IP>
+**IRSA role is in `devops/tf/eks/sandbox-manager.tf`** and will be deployed as part of the EKS stack.
 
-# 3. Run setup script
-curl -fsSL https://raw.githubusercontent.com/Metta-AI/metta/main/devops/tf/sandbox/scripts/setup-ami.sh | bash
-
-# 4. Reboot and verify
-sudo reboot
-# (wait 60 seconds, then SSH back in)
-nvidia-smi
-
-# 5. Create AMI
-aws ec2 create-image \
-  --instance-id <INSTANCE_ID> \
-  --name "researcher-sandbox-$(date +%Y%m%d)" \
-  --description "Researcher sandbox with Docker, NVIDIA, puffer, cogames"
-
-# 6. Update terraform.tfvars
-echo 'sandbox_ami_id = "ami-xxxxx"' >> terraform.tfvars
-terraform apply
-```
-
-### 3. Store Credentials in Kubernetes
-
-```bash
-# Create k8s secret for sandbox-manager service
-kubectl create secret generic sandbox-manager-aws \
-  --from-literal=AWS_ACCESS_KEY_ID=$(terraform output -raw sandbox_manager_access_key_id) \
-  --from-literal=AWS_SECRET_ACCESS_KEY=$(terraform output -raw sandbox_manager_secret_access_key) \
-  --namespace=default
+The FastAPI deployment will reference this role via service account annotation:
+```yaml
+serviceAccount:
+  annotations:
+    eks.amazonaws.com/role-arn: arn:aws:iam::751442549699:role/sandbox-manager
 ```
 
 ## AMI Details
@@ -168,8 +144,9 @@ Key outputs for integration with FastAPI service:
 - `public_subnet_ids` - List of subnet IDs
 - `security_group_id` - Security group ID for instances
 - `instance_profile_name` - IAM instance profile name
-- `sandbox_manager_access_key_id` - IAM user access key (sensitive)
-- `sandbox_manager_secret_access_key` - IAM user secret key (sensitive)
+- `instance_role_arn` - ARN of the instance IAM role
+
+**Note:** The IRSA role ARN for the sandbox-manager service is output from the EKS stack (`sandbox_manager_irsa_role_arn`).
 
 ## Security Considerations
 
@@ -181,14 +158,15 @@ Key outputs for integration with FastAPI service:
 
 ### IAM Permissions
 
-**Sandbox manager service** can:
+**Sandbox manager service** (via IRSA role in `devops/tf/eks/sandbox-manager.tf`):
 
-- Launch/stop/terminate EC2 instances in sandbox VPC
+- Launch/stop/terminate EC2 instances
 - Tag instances for cost tracking
 - Read Cost Explorer data
 - Pass `sandbox-instance-role` to EC2 instances
+- Get instance profile information
 
-**Sandbox EC2 instances** can:
+**Sandbox EC2 instances** (via instance role):
 
 - Read from S3 buckets (`softmax-*`)
 - Write to S3 outputs bucket (`softmax-sandbox-outputs`)
