@@ -17,3 +17,7 @@ with Observatory We expect that this won't be perfect at first but want to gauge
 - Commit relatively freely to the `research/` subfolder for now. Don't hold yourself to a high quality bar: these are
   not intended to be depended on
 - Add tools you think others will also want to`utils/` files. These will undergo a more typical dev process
+
+### Colab Notebooks
+
+- notebooks available at ./colab are for running in google colab
