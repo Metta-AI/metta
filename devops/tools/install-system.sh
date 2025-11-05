@@ -345,8 +345,11 @@ ensure_nim_via_nimby() {
     nimby_version=$(nimby --version 2> /dev/null | awk '{print $NF}' | tr -d 'v')
   fi
 
+  local nim_bin_dir="$HOME/.nimby/nim/bin"
+
   if [ -n "$current_version" ] && version_ge "$current_version" "$REQUIRED_NIM_VERSION" \
      && [ -n "$nimby_version" ] && version_ge "$nimby_version" "$REQUIRED_NIMBY_VERSION"; then
+    link_nim_bins "$nim_bin_dir"
     return 0
   fi
 
@@ -359,6 +362,8 @@ ensure_nim_via_nimby() {
   if ! install_nim_via_nimby; then
     return 1
   fi
+
+  link_nim_bins "$nim_bin_dir"
 
   return 0
 }
@@ -402,6 +407,49 @@ install_nim_via_nimby() {
     echo "Failed to move Nimby to bin directory" >&2
     return 1
   fi
+  return 0
+}
+
+link_nim_bins() {
+  local src_dir="${1:-$HOME/.nimby/nim/bin}"
+
+  if [ -z "$src_dir" ] || [ ! -d "$src_dir" ]; then
+    return 0
+  fi
+
+  local install_dir
+  install_dir=$(get_install_dir)
+
+  if [ -z "$install_dir" ]; then
+    echo "Nim is installed in $src_dir. Add it to your PATH (e.g. export PATH=\"$src_dir:\$PATH\")."
+    return 0
+  fi
+
+  if [ ! -d "$install_dir" ]; then
+    if ! mkdir -p "$install_dir"; then
+      echo "Unable to create $install_dir. Nim binaries remain in $src_dir." >&2
+      return 1
+    fi
+  fi
+
+  local linked_any=0
+  for tool in nim nimby; do
+    local src="$src_dir/$tool"
+    local dest="$install_dir/$tool"
+
+    if [ -x "$src" ]; then
+      if ln -sf "$src" "$dest"; then
+        linked_any=1
+      fi
+    fi
+  done
+
+  if [ "$linked_any" -eq 1 ]; then
+    echo "Linked Nim binaries into $install_dir. Ensure this directory is in your PATH."
+  else
+    echo "Could not link Nim binaries into $install_dir. Binaries remain in $src_dir." >&2
+  fi
+
   return 0
 }
 
