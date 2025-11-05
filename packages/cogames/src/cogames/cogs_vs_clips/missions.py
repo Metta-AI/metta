@@ -144,14 +144,15 @@ class NeutralFacedVariant(MissionVariant):
 
             neutral_vibe = ["default"]
             cfg.game.vibe_names = list(neutral_vibe)
-            for obj in cfg.game.objects.values():
+            for name, obj in cfg.game.objects.items():
                 if not isinstance(obj, AssemblerConfig):
+                    if isinstance(obj, ChestConfig) and name == "chest":
+                        obj.vibe_transfers = {"default": {"heart": 255}}
                     continue
-                if not obj.protocols:
-                    continue
-                primary_protocol = obj.protocols[0].model_copy(deep=True)
-                primary_protocol.vibes = list(neutral_vibe)
-                obj.protocols = [primary_protocol]
+                if obj.protocols:
+                    primary_protocol = obj.protocols[0].model_copy(deep=True)
+                    primary_protocol.vibes = list(neutral_vibe)
+                    obj.protocols = [primary_protocol]
 
         mission.add_env_modifier(modifier)
         return mission
