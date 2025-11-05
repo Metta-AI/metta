@@ -1,4 +1,4 @@
-#For baseline control:
+# For baseline control:
 
 1. Record the git hash you are currently on
 2. Git diff since the last benchmark for any changes in trainer
