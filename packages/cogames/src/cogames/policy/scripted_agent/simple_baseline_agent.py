@@ -391,14 +391,14 @@ class SimpleBaselineAgent:
         # Only clear and refresh agent positions every 3 steps to avoid constant re-planning
         # if s.step_count - s.agent_positions_last_updated >= 3:
         s.agent_occupancy.clear()
-            # s.agent_positions_last_updated = s.step_count
+        # s.agent_positions_last_updated = s.step_count
 
         # Update state from observation
         self._update_state_from_obs(s, obs)
 
         # Trace logging
-        if s.step_count % 20 == 0:
-            self._trace_log(s)
+        # if s.step_count % 20 == 0:
+        #     self._trace_log(s)
 
         # Check phase transitions
         self._update_phase(s)
@@ -558,13 +558,6 @@ class SimpleBaselineAgent:
         extractor.cooldown_remaining = obj_state.cooldown_remaining
         extractor.clipped = obj_state.clipped > 0
         extractor.remaining_uses = obj_state.remaining_uses
-
-        if s.step_count < 100 and (extractor.converting or extractor.clipped):
-            state_str = (
-                f"converting={extractor.converting}, "
-                f"cooldown={extractor.cooldown_remaining}, clipped={extractor.clipped}, "
-                f"uses={extractor.remaining_uses}"
-            )
 
     def _update_phase(self, s: SimpleAgentState) -> None:
         """
