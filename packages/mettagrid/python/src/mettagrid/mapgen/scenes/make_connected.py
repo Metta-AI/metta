@@ -51,7 +51,7 @@ class MakeConnected(Scene[MakeConnectedConfig]):
         )
 
         # connect the largest component all other components
-        logger.info(f"Connecting {len(component_sizes)} components")
+        logger.debug(f"Connecting {len(component_sizes)} components")
         for component_id, component in enumerate(component_cells):
             if component_id == largest_component_id:
                 continue

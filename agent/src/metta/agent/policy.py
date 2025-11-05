@@ -89,21 +89,11 @@ class Policy(TrainablePolicy, nn.Module):
         pass
 
     def network(self) -> nn.Module:
-        """Get the underlying neural network for training.
-
-        Since Policy is itself an nn.Module, return self.
-        """
+        """Return the nn.Module representing the policy."""
         return self
 
     def agent_policy(self, agent_id: int) -> AgentPolicy:
-        """Get an AgentPolicy instance for a specific agent.
-
-        Args:
-            agent_id: The ID of the agent
-
-        Returns:
-            An AgentPolicy instance for this agent
-        """
+        """Return an AgentPolicy adapter for the specified agent index."""
         return _SingleAgentAdapter(self, agent_id)
 
 
