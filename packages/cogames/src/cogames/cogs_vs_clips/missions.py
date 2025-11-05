@@ -1,10 +1,14 @@
-from pathlib import Path
+import logging
 from typing import Any
 
 from pydantic import Field
 
-from cogames.cogs_vs_clips.mission import Mission, MissionVariant, Site
+from cogames.cogs_vs_clips.evals import eval_missions
+from cogames.cogs_vs_clips.evals.difficulty_variants import DIFFICULTY_VARIANTS
+from cogames.cogs_vs_clips.mission import Mission, MissionVariant
+from cogames.cogs_vs_clips.mission_utils import get_map
 from cogames.cogs_vs_clips.procedural import MachinaArenaConfig, make_hub_only_map_builder
+from cogames.cogs_vs_clips.sites import EVALS, Site
 from mettagrid.config.mettagrid_config import (
     AssemblerConfig,
     ChestConfig,
@@ -14,13 +18,7 @@ from mettagrid.config.mettagrid_config import (
 from mettagrid.map_builder.map_builder import MapBuilderConfig
 from mettagrid.mapgen.mapgen import MapGen
 
-
-def get_map(site: str) -> MapBuilderConfig:
-    maps_dir = Path(__file__).parent.parent / "maps"
-    map_path = maps_dir / site
-    return MapBuilderConfig.from_uri(str(map_path))
-
-
+logger = logging.getLogger(__name__)
 PROCEDURAL_BASE_BUILDER = MapGen.Config(width=100, height=100, instance=MachinaArenaConfig(spawn_count=4))
 
 
@@ -434,6 +432,7 @@ VARIANTS = [
     PackRatVariant,
     EnergizedVariant,
     NeutralFacedVariant,
+    *DIFFICULTY_VARIANTS,
     SmallMapVariant,
     CogToolsOnlyVariant,
     SeedOneHeartInputsVariant,
@@ -490,6 +489,7 @@ SITES = [
     TRAINING_FACILITY,
     HELLO_WORLD,
     MACHINA_1,
+    EVALS,
     MACHINA_PROCEDURAL,
 ]
 
@@ -498,7 +498,7 @@ SITES = [
 # Training Facility Missions
 class HarvestMission(Mission):
     name: str = "harvest"
-    description: str = "Collect resources and store them in the appropriate chests. Make sure to stay charged!"
+    description: str = "Collect resources, assemble hearts, and deposit them in the chest. Make sure to stay charged!"
     site: Site = TRAINING_FACILITY
 
     # Global Mission.instantiate now applies overrides; no per-mission override needed
@@ -933,3 +933,11 @@ def make_game(num_cogs: int = 2, map_name: str = "training_facility_open_1.map")
     # Use no variant (default)
     variant = MissionVariant(name="default", description="Default mission variant")
     return mission.instantiate(map_builder, num_cogs, variant).make_env()
+
+
+# noqa: E402
+
+# Import eval missions for CLI play access
+
+# Add all eval missions to MISSIONS list
+MISSIONS.extend(eval_missions.EVAL_MISSIONS)

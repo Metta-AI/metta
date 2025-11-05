@@ -229,8 +229,8 @@ def check_job_statuses(job_ids: list[int]) -> dict[int, dict[str, str]]:
     job_data = {}
 
     try:
-        # Get job queue with all users' jobs
-        job_records = sky.get(sky.jobs.queue(refresh=True, all_users=True))
+        # Get job queue filtered to only the requested job IDs (more efficient than fetching all jobs)
+        job_records = sky.get(sky.jobs.queue(refresh=True, all_users=True, job_ids=job_ids))
 
         # Create a mapping for quick lookup
         jobs_map = {job["job_id"]: job for job in job_records}

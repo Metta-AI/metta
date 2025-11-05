@@ -59,7 +59,7 @@
           # Set LD_LIBRARY_PATH for bazel to run properly during uv sync
           export LD_LIBRARY_PATH="${pkgs.stdenv.cc.cc.lib}/lib:$LD_LIBRARY_PATH"
 
-          # Provide X/GL shared libraries for mettascope2.
+          # Provide X/GL shared libraries for mettascope.
           export LD_LIBRARY_PATH="${pkgs.lib.makeLibraryPath [ pkgs.xorg.libX11 pkgs.xorg.libXext pkgs.xorg.libXcursor pkgs.libGL pkgs.curl pkgs.udev pkgs.libevdev pkgs.zlib ]}:$LD_LIBRARY_PATH"
 
           # Use a writable cache for Emscripten.
@@ -71,21 +71,12 @@
           uv sync
           source .venv/bin/activate
 
-          # Build frontend
-          pushd mettascope
-          corepack enable
-          pnpm install
-          tsc
-          python tools/gen_atlas.py
-          echo "Frontend built"
-          popd
-
           echo "# Python version: $(python --version)"
           echo "# uv version: $(uv --version)"
           echo "# -------------------------------------------"
-          echo "# ./tools/train.py run=my_experiment wandb=off"
-          echo "# ./tools/sim.py run=my_experiment wandb=off"
-          echo "# ./tools/play.py run=my_experiment wandb=off"
+          echo "# ./tools/run.py train arena run=my_experiment"
+          echo "# ./tools/run.py play arena policy_uri=file://./train-dir/my_experiment/checkpoints/YOUR-CHECKPOINT-HERE"
+          echo "# ./tools/run.py replay arena policy_uri=file://./train-dir/my_experiment/checkpoints/YOUR-CHECKPOINT-HERE"
           echo "# -------------------------------------------"
         '';
       };

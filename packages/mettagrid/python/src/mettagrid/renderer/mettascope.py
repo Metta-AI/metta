@@ -20,9 +20,9 @@ class MettascopeRenderer(Renderer):
         nim_root, _nim_search_paths = _resolve_nim_root()
         nim_bindings_path = nim_root / "bindings" / "generated" if nim_root else None
         sys.path.insert(0, str(nim_bindings_path))
-        import mettascope2
+        import mettascope
 
-        self._mettascope = mettascope2
+        self._mettascope = mettascope
         self._data_dir = str(nim_root / "data") if nim_root else "."
 
     def on_episode_start(self) -> None:
@@ -69,7 +69,7 @@ class MettascopeRenderer(Renderer):
             "objects": [],
         }
 
-        # mettascope2.init requires data_dir and replay arguments
+        # mettascope.init requires data_dir and replay arguments
         json_str = json.dumps(initial_replay, allow_nan=False)
         self.response = self._mettascope.init(self._data_dir, json_str)
 
@@ -174,7 +174,7 @@ def _resolve_nim_root() -> tuple[Optional[Path], list[Path]]:
 #     def init(replay: Any) -> Any: ...
 #     def render(step: int, replay_step: Any) -> Any: ...
 
-#     class Mettascope2Error(Exception): ...
+#     class MettascopeError(Exception): ...
 # else:
 #     # Runtime import
 #     if nim_bindings_path and nim_bindings_path.exists():
@@ -182,32 +182,32 @@ def _resolve_nim_root() -> tuple[Optional[Path], list[Path]]:
 #         sys.path.insert(0, str(nim_bindings_path))
 
 #         try:
-#             # Import the mettascope2 module
-#             import mettascope2
+#             # Import the mettascope module
+#             import mettascope
 
 #             # Verify the module has the expected attributes
-#             required_attrs = ["init", "render", "Mettascope2Error"]
-#             missing_attrs = [attr for attr in required_attrs if not hasattr(mettascope2, attr)]
+#             required_attrs = ["init", "render", "MettascopeError"]
+#             missing_attrs = [attr for attr in required_attrs if not hasattr(mettascope, attr)]
 
 #             if missing_attrs:
 #                 # List what attributes are actually available
-#                 available_attrs = [attr for attr in dir(mettascope2) if not attr.startswith("_")]
+#                 available_attrs = [attr for attr in dir(mettascope) if not attr.startswith("_")]
 #                 raise ImportError(
-#                     f"mettascope2 module is missing required attributes: {missing_attrs}. "
+#                     f"mettascope module is missing required attributes: {missing_attrs}. "
 #                     f"Available attributes: {available_attrs or 'none'}. "
 #                     f"The Nim bindings may need to be regenerated."
 #                 )
 
 #             # Re-export the functions and classes
 #             def init(replay):
-#                 return mettascope2.init(data_dir=str(nim_root / "data"), replay=replay)
+#                 return mettascope.init(data_dir=str(nim_root / "data"), replay=replay)
 
-#             render = mettascope2.render
-#             Mettascope2Error = mettascope2.Mettascope2Error
+#             render = mettascope.render
+#             MettascopeError = mettascope.MettascopeError
 
 #         except ImportError as e:
 #             raise ImportError(
-#                 f"Failed to import mettascope2 from {nim_bindings_path}: {e}. "
+#                 f"Failed to import mettascope from {nim_bindings_path}: {e}. "
 #                 "Ensure the Nim bindings have been properly generated."
 #             ) from e
 #         finally:
