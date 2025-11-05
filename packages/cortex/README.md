@@ -129,10 +129,6 @@ stack = build_cortex_auto_stack(
     d_hidden=256,
     num_layers=4,
     pattern="AXMS",                 # per-layer expert set (can be a list for per-layer patterns)
-    router=RouterConfig(             # global prior + optional per-token refinement
-        top_k=2,
-        whisper_lambda=0.1,          # 0 disables per-token refinement
-    ),
     post_norm=True,
     compile_blocks=True,             # torch.compile blocks (and Column experts) when grad-enabled
 )
@@ -155,7 +151,7 @@ Advanced control:
 - Column implementation: `packages/cortex/src/cortex/blocks/column/column.py`; pattern builder:
   `packages/cortex/src/cortex/blocks/column/auto.py`.
 
-### Global overrides (type‑based)
+### Global overrides
 
 You can override default configs produced by the token builder by passing `override_global_configs` to the auto stack
 builders. Overrides are applied by type across the entire generated config graph (Column → experts → blocks → cells),
