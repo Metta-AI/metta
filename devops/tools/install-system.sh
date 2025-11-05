@@ -340,7 +340,13 @@ ensure_nim_via_nimby() {
     current_version=$(get_nim_version 2> /dev/null || echo "")
   fi
 
-  if [ -n "$current_version" ] && version_ge "$current_version" "$REQUIRED_NIM_VERSION"; then
+  local nimby_version=""
+  if check_cmd nimby; then
+    nimby_version=$(nimby --version 2> /dev/null | awk '{print $NF}' | tr -d 'v')
+  fi
+
+  if [ -n "$current_version" ] && version_ge "$current_version" "$REQUIRED_NIM_VERSION" \
+     && [ -n "$nimby_version" ] && version_ge "$nimby_version" "$REQUIRED_NIMBY_VERSION"; then
     return 0
   fi
 
@@ -353,6 +359,8 @@ ensure_nim_via_nimby() {
   if ! install_nim_via_nimby; then
     return 1
   fi
+
+  return 0
 }
 
 install_nim_via_nimby() {
