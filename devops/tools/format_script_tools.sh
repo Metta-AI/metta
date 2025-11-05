@@ -92,7 +92,7 @@ format_files() {
       echo "  Excluding: $exclude_pattern"
       git ls-files "*.${file_ext}" | grep -v "$exclude_pattern" | xargs -r pnpm exec prettier $prettier_mode
     else
-      echo "  Formatting all tracked files"
+      echo "  $action all tracked files"
       git ls-files "*.${file_ext}" | xargs -r pnpm exec prettier $prettier_mode
     fi
   fi
