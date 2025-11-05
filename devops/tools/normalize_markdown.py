@@ -18,7 +18,7 @@ def should_preserve_blank_line(prev_line: str) -> bool:
         return False
 
     # Preserve blank lines after list items (bullet or dash)
-    if re.match(r"^\s+[-*]\s", prev_line):
+    if re.match(r"^\s*[-*]\s", prev_line):
         return True
 
     # Preserve blank lines after closing code blocks
@@ -26,7 +26,7 @@ def should_preserve_blank_line(prev_line: str) -> bool:
         return True
 
     # Preserve blank lines after numbered list items
-    if re.match(r"^\s+\d+\.\s", prev_line):
+    if re.match(r"^\s*\d+\.\s", prev_line):
         return True
 
     return False
