@@ -15,12 +15,17 @@ from tests.jobs.conftest import MockProcess, simple_job_config
 def test_job_lifecycle_complete_flow(temp_job_manager):
     """Jobs flow through pending → running → completed with exit codes."""
     manager = temp_job_manager()
-    mock_process = MockProcess(exit_code=0, complete_after_polls=1)
+    mock_process = MockProcess(exit_code=0, complete_after_polls=5)
     with patch("subprocess.Popen", return_value=mock_process):
         config = simple_job_config("test_job")
         manager.submit(config)
 
-        job_state = manager.get_job_state("test_job")
+        # Poll until we see the running state (avoid race condition in CI)
+        for _ in range(20):
+            job_state = manager.get_job_state("test_job")
+            if job_state.status == "running":
+                break
+            time.sleep(0.05)
         assert job_state.status == "running"
 
         time.sleep(0.2)
@@ -77,7 +82,7 @@ def test_respects_max_local_jobs_limit(temp_job_manager):
 def test_queued_job_starts_when_slot_frees(temp_job_manager):
     """Pending jobs start when slots become available."""
     manager = temp_job_manager(max_local_jobs=1)
-    mock_proc1 = MockProcess(exit_code=0, complete_after_polls=1)
+    mock_proc1 = MockProcess(exit_code=0, complete_after_polls=3)
     mock_proc2 = MockProcess(exit_code=0, complete_after_polls=100)
 
     with patch("subprocess.Popen", side_effect=[mock_proc1, mock_proc2]):
@@ -86,6 +91,12 @@ def test_queued_job_starts_when_slot_frees(temp_job_manager):
         manager.submit(config1)
         manager.submit(config2)
 
+        # Poll until we see job_1 running (avoid race condition in CI)
+        for _ in range(20):
+            job1_state = manager.get_job_state("job_1")
+            if job1_state.status == "running":
+                break
+            time.sleep(0.05)
         assert manager.get_job_state("job_1").status == "running"
         assert manager.get_job_state("job_2").status == "pending"
 
