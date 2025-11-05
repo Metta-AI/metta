@@ -26,6 +26,34 @@ a measure of parameter importance - parameters with consistently large gradients
 to learning. The mean importance metric helps identify unused or dead parameters (importance < 1e-8)
 that may be candidates for pruning. The EMA smooths gradient noise within each epoch while
 maintaining sensitivity to recent changes.
+
+**Gradient Flow Metrics** (`GradientFlowState`): Tracks the flow of gradients through the network
+by computing per-unit gradient norms (L2 norm of gradients w.r.t. activations). Uses EMA to smooth
+noise and identify units with persistently near-zero gradients, which indicates no learning signal
+reaches those units. This helps diagnose vanishing gradient problems and identify layers where
+gradients are blocked or attenuated.
+
+**ReLU Gradient Flow** (`ReLUGradientFlowState`): Tracks how often gradients pass through ReLU
+activations (f'=1 when input > 0). Measures the fraction of backward passes where each ReLU unit
+receives a non-zero gradient, indicating whether learning signals propagate through that unit.
+Low gradient flow rates suggest dead ReLUs or vanishing gradients at that layer.
+
+**Usage**: To enable these metrics in a training run, attach the appropriate hooks to your
+`TrainTool` instance. For forward hooks (ReLU activations, saturated activations), use
+`add_training_hook()`. For backward hooks (Fisher information), use `add_training_backward_hook()`.
+Example::
+
+    from metta.rl.model_analysis import (
+        attach_fisher_information_hooks,
+        attach_relu_activation_hooks,
+        attach_saturated_activation_hooks,
+    )
+    from metta.tools.train import TrainTool
+
+    cfg = TrainTool(...)
+    cfg.add_training_hook("actor_mlp", attach_relu_activation_hooks())
+    cfg.add_training_backward_hook("actor_mlp", attach_fisher_information_hooks())
+    cfg.add_training_hook("critic_head", attach_saturated_activation_hooks(activation="tanh"))
 """
 
 from __future__ import annotations
@@ -42,15 +70,21 @@ if TYPE_CHECKING:
 
 __all__ = [
     "FisherInformationState",
+    "GradientFlowState",
     "ReLUActivationState",
+    "ReLUGradientFlowState",
     "SaturatedActivationState",
     "attach_fisher_information_hooks",
+    "attach_gradient_flow_hooks",
     "attach_relu_activation_hooks",
+    "attach_relu_gradient_flow_hooks",
     "attach_saturated_activation_hooks",
     "compute_dead_neuron_stats",
     "compute_saturated_activation_stats",
     "get_fisher_information_metrics",
+    "get_gradient_flow_metrics",
     "get_relu_activation_metrics",
+    "get_relu_gradient_flow_metrics",
     "get_saturated_activation_metrics",
 ]
 
@@ -401,6 +435,155 @@ class FisherInformationState:
         self.fisher_ema.clear()
 
 
+class GradientFlowState:
+    """State container tracking gradient flow (per-unit gradient norms) per component.
+
+    Tracks the L2 norm of gradients w.r.t. activations for each unit, using EMA to smooth noise.
+    Units with persistently near-zero gradient norms indicate that no learning signal reaches them,
+    which can indicate vanishing gradients, dead units, or gradient blocking. This metric helps
+    diagnose gradient flow issues throughout the network.
+    """
+
+    def __init__(self, beta: float = 0.95) -> None:
+        """Initialize gradient flow state with EMA decay factor.
+
+        Args:
+            beta: EMA decay factor (default 0.95). Higher values give more weight to historical gradients
+                within the epoch.
+        """
+        self.beta = beta
+        self.grad_norm_ema: dict[str, torch.Tensor] = {}
+        self.update_count: dict[str, int] = {}
+
+    def has_component(self, component_name: str) -> bool:
+        return component_name in self.grad_norm_ema
+
+    def register_component(self, component_name: str, num_units: int) -> None:
+        """Register a component with known number of units."""
+        if component_name not in self.grad_norm_ema:
+            # Initialize with zeros on CPU (will be moved to device when first gradient arrives)
+            self.grad_norm_ema[component_name] = torch.zeros(num_units, dtype=torch.float32)
+            self.update_count[component_name] = 0
+
+    def update(self, component_name: str, grad_norm: torch.Tensor) -> None:
+        """Update EMA of per-unit gradient norms."""
+        if grad_norm.numel() == 0:
+            return
+
+        grad_norm = grad_norm.detach().cpu().float()
+
+        if component_name not in self.grad_norm_ema:
+            self.grad_norm_ema[component_name] = torch.zeros_like(grad_norm)
+            self.update_count[component_name] = 0
+
+        # EMA update: G = beta * G + (1 - beta) * grad_norm
+        with torch.no_grad():
+            self.grad_norm_ema[component_name].mul_(self.beta).add_((1.0 - self.beta) * grad_norm)
+            self.update_count[component_name] += 1
+
+    def to_metrics(self) -> Dict[str, float]:
+        """Convert gradient flow EMA to metrics."""
+        metrics: Dict[str, float] = {}
+        for component, grad_ema in self.grad_norm_ema.items():
+            count = self.update_count.get(component, 1)
+            if count == 0:
+                continue
+
+            # Mean gradient norm per unit
+            mean_grad = grad_ema.mean().item()
+            metrics[f"gradient_flow/{component}/mean"] = mean_grad
+
+            # Per-unit gradient norms (for units with significant gradients)
+            for idx, grad_val in enumerate(grad_ema):
+                if grad_val.item() > 1e-8:  # Only log non-trivial gradients
+                    metrics[f"gradient_flow/{component}/unit_{idx}"] = grad_val.item()
+
+            # Fraction of units with near-zero gradients
+            near_zero = (grad_ema < 1e-8).sum().item()
+            total_units = grad_ema.numel()
+            if total_units > 0:
+                metrics[f"gradient_flow/{component}/blocked_fraction"] = near_zero / total_units
+                metrics[f"gradient_flow/{component}/active_fraction"] = 1.0 - (near_zero / total_units)
+
+        return metrics
+
+    def reset(self) -> None:
+        """Reset gradient flow EMA (clears all tracked components)."""
+        self.grad_norm_ema.clear()
+        self.update_count.clear()
+
+
+class ReLUGradientFlowState:
+    """State container tracking how often gradients pass through ReLU activations.
+
+    For ReLU, gradients pass through when the input was > 0 (f'=1). This tracks the fraction
+    of backward passes where each ReLU unit receives a non-zero gradient, indicating whether
+    learning signals propagate through that unit. Low gradient flow rates suggest dead ReLUs
+    or vanishing gradients at that layer.
+    """
+
+    def __init__(self) -> None:
+        self.gradient_passed: dict[str, list[int]] = {}
+        self.totals: dict[str, list[int]] = {}
+
+    def has_component(self, component_name: str) -> bool:
+        return component_name in self.gradient_passed
+
+    def register_component(self, component_name: str) -> None:
+        self.gradient_passed.setdefault(component_name, [])
+        self.totals.setdefault(component_name, [])
+
+    def update(self, component_name: str, grad_input: torch.Tensor) -> None:
+        """Update gradient flow statistics from gradient w.r.t. input.
+
+        For ReLU, grad_input is non-zero only when input > 0 (gradient passes through).
+        """
+        if grad_input.ndim == 0:
+            return
+        if grad_input.ndim == 1:
+            flat = grad_input.unsqueeze(0)
+        else:
+            flat = grad_input.reshape(-1, grad_input.shape[-1])
+
+        # Count units with non-zero gradients (gradient passed through)
+        passed_mask = flat.abs() > 1e-8
+        counts = passed_mask.sum(dim=0).tolist()
+        if not counts:
+            return
+        total = int(flat.shape[0])
+
+        gradient_passed = self.gradient_passed.setdefault(component_name, [0] * len(counts))
+        totals = self.totals.setdefault(component_name, [0] * len(counts))
+
+        if len(gradient_passed) < len(counts):
+            gradient_passed.extend([0] * (len(counts) - len(gradient_passed)))
+            totals.extend([0] * (len(counts) - len(totals)))
+
+        for idx, value in enumerate(counts):
+            if idx >= len(gradient_passed):
+                gradient_passed.append(0)
+                totals.append(0)
+            gradient_passed[idx] += int(value)
+            totals[idx] += total
+
+    def to_metrics(self) -> Dict[str, float]:
+        """Convert gradient flow statistics to metrics."""
+        metrics: Dict[str, float] = {}
+        for component, passed_values in self.gradient_passed.items():
+            component_totals = self.totals.get(component, [])
+            for idx, (passed, tot) in enumerate(zip(passed_values, component_totals, strict=False)):
+                if tot:
+                    metrics[f"gradient_flow/relu/{component}/{idx}"] = passed / tot
+        return metrics
+
+    def reset(self) -> None:
+        """Reset gradient flow statistics."""
+        for component, values in self.gradient_passed.items():
+            self.gradient_passed[component] = [0] * len(values)
+        for component, values in self.totals.items():
+            self.totals[component] = [0] * len(values)
+
+
 def attach_saturated_activation_hooks(
     *,
     activation: str = "tanh",
@@ -542,9 +725,116 @@ def attach_fisher_information_hooks(*, beta: float = 0.95) -> "BackwardHookBuild
     return builder
 
 
+def attach_gradient_flow_hooks(*, beta: float = 0.95) -> "BackwardHookBuilder":
+    """Create a builder that prepares gradient flow tracking for a given component.
+
+    Tracks per-unit gradient norms (L2 norm of gradients w.r.t. activations) using EMA.
+    Units with persistently near-zero gradient norms indicate no learning signal reaches them.
+
+    Args:
+        beta: EMA decay factor (default 0.95). Higher values give more weight to historical gradients
+            within the epoch.
+
+    Returns:
+        BackwardHookBuilder that can be registered with add_training_backward_hook()
+    """
+
+    def builder(component_name: str, context: "ComponentContext") -> Optional[Callable[..., None]]:
+        state = context.model_metrics.get("gradient_flow_state")
+        if not isinstance(state, GradientFlowState):
+            state = GradientFlowState(beta=beta)
+            context.model_metrics["gradient_flow_state"] = state
+
+        if state.has_component(component_name):
+            return None
+
+        tracker = state
+
+        def hook(module: nn.Module, _grad_input: tuple[Any, ...], grad_output: tuple[Any, ...]) -> None:
+            # grad_output[0] is gradient w.r.t. module output
+            if not grad_output or grad_output[0] is None:
+                return
+
+            g = grad_output[0].detach()
+            with torch.no_grad():
+                # Reduce to 2D: (batch, features) by averaging over spatial dimensions
+                gn = g
+                while gn.dim() > 2:
+                    gn = gn.flatten(2).mean(dim=2)
+
+                # Compute mean L2 norm per unit: sqrt(mean(g^2)) per unit
+                # Shape: (batch, units) -> (units,)
+                per_unit = gn.pow(2).mean(dim=0).sqrt().cpu()
+
+                # Register component on first update if needed
+                if not tracker.has_component(component_name):
+                    tracker.register_component(component_name, num_units=per_unit.numel())
+
+                tracker.update(component_name, per_unit)
+
+        return hook
+
+    return builder
+
+
+def attach_relu_gradient_flow_hooks() -> "BackwardHookBuilder":
+    """Create a builder that tracks how often gradients pass through ReLU activations.
+
+    For ReLU, gradients pass through when input > 0 (f'=1). This tracks the fraction
+    of backward passes where each ReLU unit receives a non-zero gradient.
+
+    Returns:
+        BackwardHookBuilder that can be registered with add_training_backward_hook()
+    """
+
+    def builder(component_name: str, context: "ComponentContext") -> Optional[Callable[..., None]]:
+        state = context.model_metrics.get("relu_gradient_flow_state")
+        if not isinstance(state, ReLUGradientFlowState):
+            state = ReLUGradientFlowState()
+            context.model_metrics["relu_gradient_flow_state"] = state
+
+        if state.has_component(component_name):
+            return None
+
+        tracker = state
+        tracker.register_component(component_name)
+
+        def hook(module: nn.Module, grad_input: tuple[Any, ...], _grad_output: tuple[Any, ...]) -> None:
+            # grad_input[0] is gradient w.r.t. module input
+            # For ReLU, this is non-zero only when input > 0 (gradient passes through)
+            if not grad_input or grad_input[0] is None:
+                return
+
+            tracker.update(component_name, grad_input[0].detach())
+
+        return hook
+
+    return builder
+
+
 def get_fisher_information_metrics(state: Any, *, reset: bool = False) -> Dict[str, float]:
     """Get Fisher Information metrics from trainer state."""
     if not isinstance(state, FisherInformationState):
+        return {}
+    metrics = state.to_metrics()
+    if reset:
+        state.reset()
+    return metrics
+
+
+def get_gradient_flow_metrics(state: Any, *, reset: bool = False) -> Dict[str, float]:
+    """Get gradient flow metrics from trainer state."""
+    if not isinstance(state, GradientFlowState):
+        return {}
+    metrics = state.to_metrics()
+    if reset:
+        state.reset()
+    return metrics
+
+
+def get_relu_gradient_flow_metrics(state: Any, *, reset: bool = False) -> Dict[str, float]:
+    """Get ReLU gradient flow metrics from trainer state."""
+    if not isinstance(state, ReLUGradientFlowState):
         return {}
     metrics = state.to_metrics()
     if reset:

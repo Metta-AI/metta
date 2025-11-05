@@ -17,7 +17,9 @@ from metta.eval.eval_request_config import EvalRewardSummary
 from metta.rl.model_analysis import (
     compute_dead_neuron_stats,
     get_fisher_information_metrics,
+    get_gradient_flow_metrics,
     get_relu_activation_metrics,
+    get_relu_gradient_flow_metrics,
     get_saturated_activation_metrics,
 )
 from metta.rl.stats import accumulate_rollout_stats, compute_timing_stats, process_training_stats
@@ -464,6 +466,20 @@ class StatsReporter(TrainerComponent):
             sigmoid_stats = get_saturated_activation_metrics(sigmoid_state, activation="sigmoid", reset=True)
             if sigmoid_stats:
                 model_metrics.update(sigmoid_stats)
+
+        # Get gradient flow metrics from model_metrics
+        gradient_flow_state = self.context.model_metrics.get("gradient_flow_state")
+        if gradient_flow_state is not None:
+            gradient_flow_stats = get_gradient_flow_metrics(gradient_flow_state, reset=True)
+            if gradient_flow_stats:
+                model_metrics.update(gradient_flow_stats)
+
+        # Get ReLU gradient flow metrics from model_metrics
+        relu_gradient_flow_state = self.context.model_metrics.get("relu_gradient_flow_state")
+        if relu_gradient_flow_state is not None:
+            relu_gf_stats = get_relu_gradient_flow_metrics(relu_gradient_flow_state, reset=True)
+            if relu_gf_stats:
+                model_metrics.update(relu_gf_stats)
 
         # Add model metrics to weight stats for wandb logging
         if model_metrics:
