@@ -87,13 +87,13 @@ ensure_tool() {
 
   ensure_paths
 
-  if [ "$(uname -s)" = "Linux" ] && { [ "$tool" = "nim" ] || [ "$tool" = "nimble" ]; }; then
-    if ensure_linux_nim_version "$REQUIRED_NIM_VERSION"; then
+  if [ "$tool" = "nim" ] || [ "$tool" = "nimble" ]; then
+    if ensure_nim_via_nimby "$REQUIRED_NIM_VERSION"; then
       ensure_paths
       return 0
     fi
 
-    err "Failed to install Nim via choosenim"
+    err "Failed to install Nim via nimby"
   fi
 
   # Special handling for Bazel via Bazelisk
@@ -129,11 +129,12 @@ ensure_tool() {
 }
 
 # Required tool versions
-REQUIRED_NIM_VERSION="2.2.4"
+REQUIRED_NIM_VERSION="2.2.6"
+REQUIRED_NIMBY_VERSION="0.1.6"
 REQUIRED_BAZEL_VERSION="7.0.0"
 
 # Common install directories in order of preference
-COMMON_INSTALL_DIRS="/usr/local/bin /usr/bin /opt/bin $HOME/.local/bin $HOME/bin $HOME/.nimble/bin $HOME/.cargo/bin /opt/homebrew/bin"
+COMMON_INSTALL_DIRS="/usr/local/bin /usr/bin /opt/bin $HOME/.local/bin $HOME/bin $HOME/.nimby/nim/bin $HOME/.nimble/bin $HOME/.cargo/bin /opt/homebrew/bin"
 
 # Add common directories to PATH if not already present
 ensure_paths() {
@@ -327,7 +328,7 @@ get_bazel_version() {
   return 0
 }
 
-ensure_linux_nim_version() {
+ensure_nim_via_nimby() {
   local required_version="$1"
 
   ensure_paths
@@ -338,17 +339,16 @@ ensure_linux_nim_version() {
   fi
 
   if [ -n "$current_version" ] && version_ge "$current_version" "$required_version" && check_cmd nimble; then
-    link_nim_bins
     return 0
   fi
 
   if [ -n "$current_version" ]; then
-    echo "Found Nim $current_version but require >= $required_version. Upgrading via choosenim..."
+    echo "Found Nim $current_version but require >= $required_version. Installing via Nimby..."
   else
-    echo "Nim not found. Installing via choosenim..."
+    echo "Nim not found. Installing via Nimby..."
   fi
 
-  if ! install_nim_via_choosenim "$required_version"; then
+  if ! install_nim_via_nimby "$required_version"; then
     return 1
   fi
 
@@ -356,8 +356,6 @@ ensure_linux_nim_version() {
   current_version=$(get_nim_version 2> /dev/null || echo "")
 
   if [ -n "$current_version" ] && version_ge "$current_version" "$required_version" && check_cmd nimble; then
-    echo "Nim $current_version with nimble found."
-    link_nim_bins
     return 0
   fi
 
@@ -365,30 +363,82 @@ ensure_linux_nim_version() {
   return 1
 }
 
-link_nim_bins() {
-  local nimble_dir="$HOME/.nimble/bin"
+install_nim_via_nimby() {
+  local target_version="$1"
 
-  if [ ! -d "$nimble_dir" ]; then
+  local detected_system
+  detected_system=$(uname -s)
+  local detected_arch
+  detected_arch=$(uname -m)
+  echo "Detected host: $detected_system ($detected_arch)"
+
+  local url
+  if ! url=$(get_nimby_url "$REQUIRED_NIMBY_VERSION"); then
+    return 1
+  fi
+
+  local tmp_dir
+  tmp_dir=$(mktemp -d 2> /dev/null || mktemp -d -t nimby)
+  if [ -z "$tmp_dir" ] || [ ! -d "$tmp_dir" ]; then
+    echo "Failed to create temporary directory for Nimby install" >&2
+    return 1
+  fi
+
+  local nimby_home="$HOME/.nimby"
+  if ! mkdir -p "$nimby_home"; then
+    echo "Failed to create $nimby_home" >&2
+    rm -rf "$tmp_dir"
+    return 1
+  fi
+
+  (
+    set -e
+    cd "$tmp_dir"
+    echo "Downloading Nimby from $url"
+    curl -fsSL "$url" -o nimby
+    chmod +x nimby
+    ./nimby use "$target_version"
+    mv -f nimby "$nimby_home/nimby"
+  )
+  local status=$?
+  rm -rf "$tmp_dir"
+
+  if [ "$status" -ne 0 ]; then
+    echo "Failed to install Nim $target_version via Nimby" >&2
+    return 1
+  fi
+
+  local nim_path="$nimby_home/nim/bin"
+  link_nimby_bins "$nim_path"
+
+  return 0
+}
+
+link_nimby_bins() {
+  local nim_path="$1"
+
+  if [ -z "$nim_path" ] || [ ! -d "$nim_path" ]; then
     return 0
   fi
 
-  local install_dir=$(get_install_dir)
+  local install_dir
+  install_dir=$(get_install_dir)
 
   if [ -z "$install_dir" ]; then
-    echo "Nim is installed in $nimble_dir. Add it to your PATH (e.g. export PATH=\"$nimble_dir:\$PATH\")."
+    echo "Nim is installed in $nim_path. Add it to your PATH (e.g. export PATH=\"$nim_path:\$PATH\")."
     return 0
   fi
 
   if [ ! -d "$install_dir" ]; then
     if ! mkdir -p "$install_dir"; then
-      echo "Unable to create $install_dir. Nim binaries remain in $nimble_dir." >&2
+      echo "Unable to create $install_dir. Nim binaries remain in $nim_path." >&2
       return 1
     fi
   fi
 
   local linked_any=0
   for tool in nim nimble; do
-    local src="$nimble_dir/$tool"
+    local src="$nim_path/$tool"
     local dest="$install_dir/$tool"
 
     if [ -x "$src" ]; then
@@ -401,37 +451,47 @@ link_nim_bins() {
   if [ "$linked_any" -eq 1 ]; then
     echo "Linked Nim binaries into $install_dir. Ensure this directory is in your PATH."
   else
-    echo "Could not link Nim binaries into $install_dir. Binaries remain in $nimble_dir." >&2
+    echo "Could not link Nim binaries into $install_dir. Binaries remain in $nim_path." >&2
   fi
+
+  return 0
 }
 
-install_nim_via_choosenim() {
-  if [ "$(uname -s)" != "Linux" ]; then
-    return 1
-  fi
+get_nimby_url() {
+  local version="$1"
+  local system
+  system=$(uname -s)
+  local machine
+  machine=$(uname -m)
 
-  local target_version="${1:-}"
-  local choosenim_args="-y"
-  if [ -n "$target_version" ]; then
-    choosenim_args="$choosenim_args $target_version"
-  fi
-
-  echo "Installing Nim via choosenim${target_version:+ (target $target_version)}..."
-
-  if ! env CHOOSENIM_NO_ANALYTICS=1 CHOOSENIM_NO_COLOR=1 bash -lc "curl https://nim-lang.org/choosenim/init.sh -sSf | sh -s -- $choosenim_args"; then
-    echo "Failed to run choosenim installer" >&2
-    return 1
-  fi
-
-  ensure_paths
-
-  if check_cmd nim && check_cmd nimble; then
-    echo "Nim installed successfully via choosenim."
-    return 0
-  fi
-
-  echo "Nim install finished but binaries are still missing. Ensure ~/.nimble/bin is in your PATH or install manually." >&2
-  return 1
+  case "$system" in
+    Linux)
+      case "$machine" in
+        x86_64|amd64)
+          echo "https://github.com/treeform/nimby/releases/download/${version}/nimby-Linux-X64"
+          ;;
+        *)
+          echo "Unsupported Linux architecture for Nimby: $machine" >&2
+          return 1
+          ;;
+      esac
+      ;;
+    Darwin)
+      case "$machine" in
+        arm64|aarch64)
+          echo "https://github.com/treeform/nimby/releases/download/${version}/nimby-macOS-ARM64"
+          ;;
+        *)
+          echo "Unsupported macOS architecture for Nimby: $machine" >&2
+          return 1
+          ;;
+      esac
+      ;;
+    *)
+      echo "Unsupported operating system for Nimby: $system" >&2
+      return 1
+      ;;
+  esac
 }
 
 get_bazelisk_url() {
