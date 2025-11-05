@@ -1,6 +1,7 @@
 # CoGs vs Clips Training Recipes
 
-Training recipes for the Cogs vs Clips eval missions, supporting curriculum learning across multiple missions and difficulty variants.
+Training recipes for the Cogs vs Clips eval missions, supporting curriculum learning across multiple missions and
+difficulty variants.
 
 ## Quick Start
 
@@ -24,19 +25,20 @@ uv run python -c "from experiments.recipes.cvc.experiment import experiment; exp
 
 **Available experiment configs:**
 
-| Config | Agents | GPUs | Steps | Description |
-|--------|--------|------|-------|-------------|
-| `debug_single` | 2 | 1 | 5M | Quick test on single mission |
-| `small_1cog` | 1 | 2 | 20M | Small maps, single agent |
-| `small_2cogs` | 2 | 2 | 20M | Small maps, 2 agents |
-| `small_4cogs` | 4 | 4 | 30M | Small maps, 4 agents |
-| `medium_4cogs` | 4 | 4 | 40M | Medium maps, 4 agents |
-| `coordination_4cogs` | 4 | 4 | 40M | Coordination missions |
-| `full_1cog` | 1 | 4 | 50M | Full curriculum, single agent |
-| `full_4cogs` | 4 | 8 | 100M | Full curriculum, 4 agents |
-| `full_8cogs` | 8 | 8 | 100M | Full curriculum, 8 agents |
+| Config               | Agents | GPUs | Steps | Description                   |
+| -------------------- | ------ | ---- | ----- | ----------------------------- |
+| `debug_single`       | 2      | 1    | 5M    | Quick test on single mission  |
+| `small_1cog`         | 1      | 2    | 20M   | Small maps, single agent      |
+| `small_2cogs`        | 2      | 2    | 20M   | Small maps, 2 agents          |
+| `small_4cogs`        | 4      | 4    | 30M   | Small maps, 4 agents          |
+| `medium_4cogs`       | 4      | 4    | 40M   | Medium maps, 4 agents         |
+| `coordination_4cogs` | 4      | 4    | 40M   | Coordination missions         |
+| `full_1cog`          | 1      | 4    | 50M   | Full curriculum, single agent |
+| `full_4cogs`         | 4      | 8    | 100M  | Full curriculum, 4 agents     |
+| `full_8cogs`         | 8      | 8    | 100M  | Full curriculum, 8 agents     |
 
 **Recommended workflow:**
+
 1. Start with `debug_single` to test the pipeline (~1 hour)
 2. Run `small_4cogs` for initial results (~6 hours)
 3. Run `full_4cogs` for publication-quality results (~24 hours)
@@ -136,7 +138,8 @@ uv run ./tools/run.py experiments.recipes.cvc.curriculum.play
   - Interactive visualization
   - Useful for debugging trained policies
 
-- **`play(policy_uri, mission_name, num_cogs)`** *(via `experiments.recipes.cvc.curriculum.play`)* - Play default training env
+- **`play(policy_uri, mission_name, num_cogs)`** _(via `experiments.recipes.cvc.curriculum.play`)_ - Play default
+  training env
   - Defaults to extractor_hub_30
 
 ### Utility Functions
@@ -153,16 +156,19 @@ uv run ./tools/run.py experiments.recipes.cvc.curriculum.play
 ## Available Missions
 
 ### Small Maps (30x30)
+
 - `extractor_hub_30` - Basic hub layout
 - `oxygen_bottleneck` - Oxygen paces assembly
 - `collect_resources_classic` - Classic balanced layout
 
 ### Medium Maps (50x50)
+
 - `extractor_hub_50` - Medium hub layout
 - `collect_resources_spread` - Resources scattered nearby
 - `energy_starved` - Low energy regeneration
 
 ### Large Maps (70x70+)
+
 - `extractor_hub_70` - Large hub
 - `extractor_hub_80` - Extra large hub
 - `extractor_hub_100` - Huge hub (use with 8+ agents)
@@ -170,6 +176,7 @@ uv run ./tools/run.py experiments.recipes.cvc.curriculum.play
 - `divide_and_conquer` - Regionalized resources
 
 ### Coordination-Heavy
+
 - `go_together` - Favors collective glyphing (min 2 agents)
 - `single_use_swarm` - Single-use stations, team must coordinate (min 2 agents)
 
@@ -190,6 +197,7 @@ The curriculum varies:
    - Lower weights = more exploration, higher weights = more exploitation
 
 The missions themselves provide variation in:
+
 - **Station Efficiency**: Different conversion rates for extractors and chargers
 - **Max Uses**: Some missions have limited extractor uses
 - **Energy Regeneration**: Varies from 1-2 per step depending on mission
@@ -198,6 +206,7 @@ The missions themselves provide variation in:
 ## Comparison to Scripted Agents
 
 The scripted agents achieved:
+
 - **Baseline**: 41.5% success (151/364 tests), best with 4 agents (54.9%)
 - **UnclippingAgent**: 40.5% success (274/676 tests), best with 4 agents (45.0%)
 
