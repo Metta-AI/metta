@@ -23,7 +23,7 @@ class ActionSupervisedConfig(Config):
     vf_clip_coef: float = Field(default=0.1, ge=0)  # pulling from our PPO config
     use_own_sampling: bool = True  # Does not use prioritized sampling
     use_own_rollout: bool = True  # Update when including PPO as concurent loss
-    student_led: bool = False  # sigma as per Matt's document
+    student_led: bool = True  # sigma as per Matt's document
     action_reward_coef: float = Field(default=0.01, ge=0)  # wild ass guess at this point
 
     # Controls whether to add the imitation loss to the environment rewards.
