@@ -279,22 +279,28 @@ class AssemblerConfig(GridObjectConfig):
 
 
 class ChestConfig(GridObjectConfig):
-    """Python chest configuration."""
+    """Python chest configuration for multi-resource chests."""
 
     type: Literal["chest"] = Field(default="chest")
-    resource_type: str = Field(description="Resource type that this chest can store")
-    position_deltas: list[tuple[FixedPosition, int]] = Field(
-        default_factory=list,
+
+    # Vibe-based transfers: vibe -> resource -> delta
+    vibe_transfers: dict[str, dict[str, int]] = Field(
+        default_factory=dict,
         description=(
-            "List of (position, delta) tuples. "
-            "Positive delta = deposit, negative = withdraw (e.g., (E, 1) deposits 1, (N, -5) withdraws 5)"
+            "Map from vibe to resource deltas. "
+            "E.g., {'carbon': {'carbon': 10, 'energy': -5}} deposits 10 carbon and withdraws 5 energy when "
+            "showing carbon vibe"
         ),
     )
-    initial_inventory: int = Field(default=0, ge=0, description="Initial amount of resource_type in the chest")
-    max_inventory: int = Field(
-        default=255,
-        ge=-1,
-        description="Maximum inventory (resources are destroyed when depositing beyond this, -1 = unlimited)",
+
+    # Initial inventory for each resource
+    initial_inventory: dict[str, int] = Field(
+        default_factory=dict, description="Initial inventory for each resource type"
+    )
+
+    # Resource limits for the chest's inventory
+    resource_limits: dict[str, int] = Field(
+        default_factory=dict, description="Maximum amount per resource (uses inventory system's built-in limits)"
     )
 
 
