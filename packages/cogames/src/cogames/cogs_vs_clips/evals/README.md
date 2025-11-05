@@ -19,7 +19,9 @@ unique map, resource configuration, and gameplay challenge.
 
 #### CollectResourcesClassic
 
-**Map:** `evals/eval_collect_resources.map` **Challenge:** Classic balanced layout with extractors near base
+**Map:** `evals/eval_collect_resources.map`
+
+**Challenge:** Classic balanced layout with extractors near base
 
 **Configuration:**
 
@@ -36,8 +38,9 @@ unique map, resource configuration, and gameplay challenge.
 
 #### CollectResourcesSpread
 
-**Map:** `evals/eval_collect_resources_medium.map` **Challenge:** Scattered extractors requiring more exploration and
-routing
+**Map:** `evals/eval_collect_resources_medium.map`
+
+**Challenge:** Scattered extractors requiring more exploration and routing
 
 **Configuration:**
 
@@ -54,8 +57,9 @@ routing
 
 #### CollectFar
 
-**Map:** `evals/eval_collect_resources_hard.map` **Challenge:** Resources scattered far from base; heavy routing
-coordination
+**Map:** `evals/eval_collect_resources_hard.map`
+
+**Challenge:** Resources scattered far from base; heavy routing coordination
 
 **Configuration:**
 
@@ -74,8 +78,9 @@ coordination
 
 #### DivideAndConquer
 
-**Map:** `evals/eval_divide_and_conquer.map` **Challenge:** Resources partitioned into separate regions; agents must
-specialize and reconvene
+**Map:** `evals/eval_divide_and_conquer.map`
+
+**Challenge:** Resources partitioned into separate regions; agents must specialize and reconvene
 
 **Configuration:**
 
@@ -92,8 +97,9 @@ specialize and reconvene
 
 #### GoTogether
 
-**Map:** `evals/eval_balanced_spread.map` **Challenge:** Objects favor collective glyphing; agents must travel and
-return as a pack
+**Map:** `evals/eval_balanced_spread.map`
+
+**Challenge:** Objects favor collective glyphing; agents must travel and return as a pack
 
 **Configuration:**
 
@@ -111,8 +117,9 @@ return as a pack
 
 #### SingleUseSwarm
 
-**Map:** `evals/eval_single_use_world.map` **Challenge:** Every extractor can be used exactly once; team must fan out
-and reconverge
+**Map:** `evals/eval_single_use_world.map`
+
+**Challenge:** Every extractor can be used exactly once; team must fan out and reconverge
 
 **Configuration:**
 
@@ -132,8 +139,9 @@ and reconverge
 
 #### OxygenBottleneck
 
-**Map:** `evals/eval_oxygen_bottleneck.map` **Challenge:** Oxygen extraction is significantly slower; forces batching
-other resources
+**Map:** `evals/eval_oxygen_bottleneck.map`
+
+**Challenge:** Oxygen extraction is significantly slower; forces batching other resources
 
 **Configuration:**
 
@@ -150,8 +158,9 @@ other resources
 
 #### EnergyStarved
 
-**Map:** `evals/eval_energy_starved.map` **Challenge:** Low energy regen and weak chargers; requires careful routing and
-charging
+**Map:** `evals/eval_energy_starved.map`
+
+**Challenge:** Low energy regen and weak chargers; requires careful routing and charging
 
 **Configuration:**
 
@@ -173,7 +182,9 @@ Large open maps with centralized extractors, testing exploration and navigation 
 
 #### ExtractorHub30
 
-**Map:** `evals/extractor_hub_30x30.map` (30×30) **Challenge:** Small hub, quick exploration
+**Map:** `evals/extractor_hub_30x30.map` (30×30)
+
+**Challenge:** Small hub, quick exploration
 
 **Configuration:**
 
@@ -189,7 +200,9 @@ Large open maps with centralized extractors, testing exploration and navigation 
 
 #### ExtractorHub50
 
-**Map:** `evals/extractor_hub_50x50.map` (50×50) **Challenge:** Medium hub, moderate exploration
+**Map:** `evals/extractor_hub_50x50.map` (50×50)
+
+**Challenge:** Medium hub, moderate exploration
 
 **Configuration:**
 
@@ -205,7 +218,9 @@ Large open maps with centralized extractors, testing exploration and navigation 
 
 #### ExtractorHub70
 
-**Map:** `evals/extractor_hub_70x70.map` (70×70) **Challenge:** Large hub, significant exploration required
+**Map:** `evals/extractor_hub_70x70.map` (70×70)
+
+**Challenge:** Large hub, significant exploration required
 
 **Configuration:**
 
@@ -221,7 +236,9 @@ Large open maps with centralized extractors, testing exploration and navigation 
 
 #### ExtractorHub80
 
-**Map:** `evals/extractor_hub_80x80.map` (80×80) **Challenge:** Very large hub, extensive exploration
+**Map:** `evals/extractor_hub_80x80.map` (80×80)
+
+**Challenge:** Very large hub, extensive exploration
 
 **Configuration:**
 
@@ -237,7 +254,9 @@ Large open maps with centralized extractors, testing exploration and navigation 
 
 #### ExtractorHub100
 
-**Map:** `evals/extractor_hub_100x100.map` (100×100) **Challenge:** Extreme hub size, timeout risk high
+**Map:** `evals/extractor_hub_100x100.map` (100×100)
+
+**Challenge:** Extreme hub size, timeout risk high
 
 **Configuration:**
 
@@ -262,7 +281,9 @@ All difficulty variants are defined in `difficulty_variants.py`.
 
 #### story_mode
 
-**Description:** Abundant energy/resource output for reliable completion **Agent Scaling:** Disabled (fixed parameters)
+**Description:** Abundant energy/resource output for reliable completion
+
+**Agent Scaling:** Disabled (fixed parameters)
 
 **Parameters:**
 
@@ -277,7 +298,9 @@ All difficulty variants are defined in `difficulty_variants.py`.
 
 #### standard
 
-**Description:** Baseline mission parameters (default difficulty) **Agent Scaling:** Enabled
+**Description:** Baseline mission parameters (default difficulty)
+
+**Agent Scaling:** Enabled
 
 **Parameters:**
 
@@ -291,7 +314,9 @@ All difficulty variants are defined in `difficulty_variants.py`.
 
 #### hard
 
-**Description:** Tight extractor budgets and no passive regen **Agent Scaling:** Disabled
+**Description:** Tight extractor budgets and no passive regen
+
+**Agent Scaling:** Disabled
 
 **Parameters:**
 
@@ -307,7 +332,9 @@ All difficulty variants are defined in `difficulty_variants.py`.
 
 #### brutal
 
-**Description:** Extreme scarcity, reduced inventories, perfection required **Agent Scaling:** Disabled
+**Description:** Extreme scarcity, reduced inventories, perfection required
+
+**Agent Scaling:** Disabled
 
 **Parameters:**
 
@@ -327,7 +354,9 @@ All difficulty variants are defined in `difficulty_variants.py`.
 
 #### single_use
 
-**Description:** Every extractor can be used exactly once - no second chances **Agent Scaling:** Disabled
+**Description:** Every extractor can be used exactly once - no second chances
+
+**Agent Scaling:** Disabled
 
 **Parameters:**
 
@@ -342,7 +371,9 @@ All difficulty variants are defined in `difficulty_variants.py`.
 
 #### speed_run
 
-**Description:** Short clock, cheap movement, efficient extraction **Agent Scaling:** Enabled
+**Description:** Short clock, cheap movement, efficient extraction
+
+**Agent Scaling:** Enabled
 
 **Parameters:**
 
@@ -359,7 +390,9 @@ All difficulty variants are defined in `difficulty_variants.py`.
 
 #### energy_crisis
 
-**Description:** Zero passive regen and weak chargers - plan every move **Agent Scaling:** Disabled
+**Description:** Zero passive regen and weak chargers - plan every move
+
+**Agent Scaling:** Disabled
 
 **Parameters:**
 
@@ -395,8 +428,9 @@ Each variant clips a specific resource and provides one immune extractor for cra
 
 #### clipped_oxygen
 
-**Description:** Oxygen extractor starts clipped - craft decoder from carbon to unclip **Immune Extractor:**
-carbon_extractor
+**Description:** Oxygen extractor starts clipped - craft decoder from carbon to unclip
+
+**Immune Extractor:** carbon_extractor
 
 **Challenge:** Must gather carbon → craft decoder → unclip oxygen → assemble hearts
 
@@ -406,8 +440,9 @@ carbon_extractor
 
 #### clipped_carbon
 
-**Description:** Carbon extractor starts clipped - craft modulator from oxygen to unclip **Immune Extractor:**
-oxygen_extractor
+**Description:** Carbon extractor starts clipped - craft modulator from oxygen to unclip
+
+**Immune Extractor:** oxygen_extractor
 
 **Challenge:** Must gather oxygen → craft modulator → unclip carbon → assemble hearts
 
@@ -417,8 +452,9 @@ oxygen_extractor
 
 #### clipped_germanium
 
-**Description:** Germanium extractor starts clipped - craft resonator from silicon to unclip **Immune Extractor:**
-silicon_extractor
+**Description:** Germanium extractor starts clipped - craft resonator from silicon to unclip
+
+**Immune Extractor:** silicon_extractor
 
 **Challenge:** Must gather silicon → craft resonator → unclip germanium → assemble hearts
 
@@ -428,8 +464,9 @@ silicon_extractor
 
 #### clipped_silicon
 
-**Description:** Silicon extractor starts clipped - craft scrambler from germanium to unclip **Immune Extractor:**
-germanium_extractor
+**Description:** Silicon extractor starts clipped - craft scrambler from germanium to unclip
+
+**Immune Extractor:** germanium_extractor
 
 **Challenge:** Must gather germanium → craft scrambler → unclip silicon → assemble hearts
 
@@ -439,8 +476,9 @@ germanium_extractor
 
 #### clipping_chaos
 
-**Description:** Random extractors clip over time - must craft unclip items reactively **Clip Rate:** 0.10 (10% chance
-per step)
+**Description:** Random extractors clip over time - must craft unclip items reactively
+
+**Clip Rate:** 0.10 (10% chance per step)
 
 **Challenge:** Extractors randomly clip during gameplay; must detect and unclip reactively
 
@@ -450,7 +488,9 @@ per step)
 
 #### hard_clipped_oxygen
 
-**Description:** Combines hard mode scarcity with oxygen clipping **Immune Extractor:** carbon_extractor
+**Description:** Combines hard mode scarcity with oxygen clipping
+
+**Immune Extractor:** carbon_extractor
 
 **Parameters:**
 
@@ -622,5 +662,10 @@ To add a new difficulty variant:
 
 ---
 
-**Last Updated:** November 4, 2025 **Total Missions:** 14 **Total Difficulty Variants:** 13 **Total Test
-Configurations:** 1,078+ (14 missions × 13 difficulties × variable agent counts)
+**Last Updated:** November 4, 2025
+
+**Total Missions:** 14
+
+**Total Difficulty Variants:** 13
+
+**Total Test Configurations:** 1,078+ (14 missions × 13 difficulties × variable agent counts)
