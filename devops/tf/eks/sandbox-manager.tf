@@ -26,7 +26,7 @@ resource "aws_iam_policy" "sandbox_manager" {
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = [
-      # EC2 instance management
+      # EC2 instance management (scoped to us-east-1 for security)
       {
         Effect = "Allow"
         Action = [
@@ -38,20 +38,20 @@ resource "aws_iam_policy" "sandbox_manager" {
           "ec2:ModifyInstanceAttribute"
         ]
         Resource = [
-          "arn:aws:ec2:*:${data.aws_caller_identity.current.account_id}:instance/*",
-          "arn:aws:ec2:*:${data.aws_caller_identity.current.account_id}:volume/*",
-          "arn:aws:ec2:*:${data.aws_caller_identity.current.account_id}:network-interface/*",
-          "arn:aws:ec2:*:${data.aws_caller_identity.current.account_id}:subnet/*",
-          "arn:aws:ec2:*:${data.aws_caller_identity.current.account_id}:security-group/*"
+          "arn:aws:ec2:us-east-1:751442549699:instance/*",
+          "arn:aws:ec2:us-east-1:751442549699:volume/*",
+          "arn:aws:ec2:us-east-1:751442549699:network-interface/*",
+          "arn:aws:ec2:us-east-1:751442549699:subnet/*",
+          "arn:aws:ec2:us-east-1:751442549699:security-group/*"
         ]
       },
-      # Allow RunInstances to use AMIs
+      # Allow RunInstances to use AMIs (any public or account AMI in us-east-1)
       {
         Effect = "Allow"
         Action = [
           "ec2:RunInstances"
         ]
-        Resource = "arn:aws:ec2:*::image/ami-*"
+        Resource = "arn:aws:ec2:us-east-1::image/ami-*"
       },
       # EC2 tagging (for cost tracking)
       {
@@ -60,7 +60,7 @@ resource "aws_iam_policy" "sandbox_manager" {
           "ec2:CreateTags",
           "ec2:DeleteTags"
         ]
-        Resource = "arn:aws:ec2:*:${data.aws_caller_identity.current.account_id}:*"
+        Resource = "arn:aws:ec2:*:751442549699:*"
       },
       # EC2 describe operations (for status checks)
       {
@@ -76,7 +76,7 @@ resource "aws_iam_policy" "sandbox_manager" {
         Action = [
           "iam:PassRole"
         ]
-        Resource = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/sandbox-instance-role"
+        Resource = "arn:aws:iam::751442549699:role/sandbox-instance-role"
         Condition = {
           StringEquals = {
             "iam:PassedToService" = "ec2.amazonaws.com"
@@ -89,7 +89,7 @@ resource "aws_iam_policy" "sandbox_manager" {
         Action = [
           "iam:GetInstanceProfile"
         ]
-        Resource = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:instance-profile/sandbox-instance-profile"
+        Resource = "arn:aws:iam::751442549699:instance-profile/sandbox-instance-profile"
       },
       # Cost Explorer for spending tracking
       {

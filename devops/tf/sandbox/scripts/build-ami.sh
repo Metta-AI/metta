@@ -117,6 +117,7 @@ INSTANCE_ID=$(aws ec2 run-instances \
     --key-name "$SSH_KEY_NAME" \
     --subnet-id "$SUBNET_ID" \
     --security-group-ids "$SECURITY_GROUP_ID" \
+    --metadata-options "HttpTokens=required,HttpPutResponseHopLimit=1" \
     --tag-specifications "ResourceType=instance,Tags=[{Key=Name,Value=ami-builder-temp},{Key=Purpose,Value=ami-creation}]" \
     --block-device-mappings '[{"DeviceName":"/dev/sda1","Ebs":{"VolumeSize":100,"VolumeType":"gp3","DeleteOnTermination":true}}]' \
     --query 'Instances[0].InstanceId' \
