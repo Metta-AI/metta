@@ -33,13 +33,13 @@ if [ "${CHECK_MODE:-false}" != "true" ]; then
       fi
     done
   else
-    # Otherwise, find all markdown files
+    # Otherwise, find all tracked markdown files (respects .gitignore)
     if [ -n "$EXCLUDE_PATTERN" ]; then
-      find . -name "*.md" -type f -not -path "*/node_modules/*" -not -path "*/.git/*" | grep -v "$EXCLUDE_PATTERN" | while read -r file; do
+      git ls-files "*.md" | grep -v "$EXCLUDE_PATTERN" | while read -r file; do
         python3 "$SCRIPT_DIR/normalize_markdown.py" "$file"
       done
     else
-      find . -name "*.md" -type f -not -path "*/node_modules/*" -not -path "*/.git/*" | while read -r file; do
+      git ls-files "*.md" | while read -r file; do
         python3 "$SCRIPT_DIR/normalize_markdown.py" "$file"
       done
     fi
@@ -58,15 +58,15 @@ if [ "${CHECK_MODE:-false}" != "true" ]; then
       fi
     done
   else
-    # Otherwise, find all markdown files
+    # Otherwise, find all tracked markdown files (respects .gitignore)
     if [ -n "$EXCLUDE_PATTERN" ]; then
-      find . -name "*.md" -type f -not -path "*/node_modules/*" -not -path "*/.git/*" | grep -v "$EXCLUDE_PATTERN" | while read -r file; do
+      git ls-files "*.md" | grep -v "$EXCLUDE_PATTERN" | while read -r file; do
         sed -i '' 's/\(.\)\(\*\*[A-Z][A-Z ]*\*\*:\)/\1\
 \
 \2/g' "$file"
       done
     else
-      find . -name "*.md" -type f -not -path "*/node_modules/*" -not -path "*/.git/*" | while read -r file; do
+      git ls-files "*.md" | while read -r file; do
         sed -i '' 's/\(.\)\(\*\*[A-Z][A-Z ]*\*\*:\)/\1\
 \
 \2/g' "$file"
