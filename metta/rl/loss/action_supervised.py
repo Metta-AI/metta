@@ -112,11 +112,6 @@ class ActionSupervised(Loss):
                 self.policy.forward(td)
                 # if we were only using this loss (and not PPO) we could run the loss here and skip the train loop for
                 # speed. However, not doing that in anticipation of the default being to use PPO.
-        # else:
-        #     # Save td["action"] into the td that goes to the replay buffer but then overwrite it with teacher actions
-        #     # when sending to the environment. After it gets sent to env it is no longer used.
-        #     # NOTE: teacher-leading means actions reported to wandb are teacher actions, not student actions
-        #     td["actions"] = td["teacher_actions"]
 
         env_slice = context.training_env_id
         if env_slice is None:
@@ -157,7 +152,7 @@ class ActionSupervised(Loss):
         # so that's slick. But that means we shouldn't write this policy td to shared_loss_data when using PPO!
         # That means that when using PPO we need to write a separate gather here.
 
-        actor_loss = policy_td["act_log_prob"].mean() * self.action_loss_coef
+        actor_loss = -policy_td["act_log_prob"].mean() * self.action_loss_coef
 
         self.loss_tracker["supervised_action_loss"].append(float(actor_loss.item()))
 
