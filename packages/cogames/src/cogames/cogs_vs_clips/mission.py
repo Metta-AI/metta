@@ -243,7 +243,7 @@ class Mission(Config):
                 ).station_cfg(),
                 "clipped_silicon_extractor": self.silicon_extractor.model_copy(
                     update={"start_clipped": True}
-                ).station_cfg()
+                ).station_cfg(),
             },
         )
 
