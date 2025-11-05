@@ -1,5 +1,6 @@
 """Cogs vs Clips training recipes."""
 
+from experiments.recipes.cogs_v_clips.experiment import experiment
 from experiments.recipes.cogs_v_clips.methods import (
     evaluate,
     make_curriculum,
@@ -17,6 +18,7 @@ from experiments.recipes.cogs_v_clips.methods import (
 
 __all__ = [
     "evaluate",
+    "experiment",
     "make_curriculum",
     "make_eval_suite",
     "make_training_env",

@@ -146,40 +146,18 @@ def make_curriculum(
             "energy_starved",
         ]
 
-    # Start with a base mission
-    base_env = make_training_env(num_cogs=num_cogs, mission_name=base_missions[0])
-
-    # Create bucketed curriculum
-    tasks = cc.bucketed(base_env)
-
-    # Vary efficiency of different stations (affects difficulty)
-    tasks.add_bucket("game.objects.charger.efficiency", [90, 110, 130, 150])
-    tasks.add_bucket("game.objects.carbon_extractor.efficiency", [80, 100, 120, 140])
-    tasks.add_bucket("game.objects.oxygen_extractor.efficiency", [60, 80, 100, 120])
-    tasks.add_bucket("game.objects.silicon_extractor.efficiency", [90, 110, 130, 150])
-    tasks.add_bucket("game.objects.germanium_extractor.efficiency", [70, 90, 110, 130])
-
-    # Vary energy regeneration (affects when agents need to recharge)
-    tasks.add_bucket("game.agent.energy_regen.amount", [1, 2, 3])
-
-    # Vary heart reward (affects learning signal)
-    tasks.add_bucket("game.agent.rewards.inventory.heart", [0.1, 0.333, 0.5, 1.0])
-
-    # Vary episode length
-    tasks.add_bucket("game.max_steps", [500, 1000, 1500, 2000])
-
     # Create separate task sets for each mission type
+    # Note: Each mission already has its own difficulty tuning (efficiency, max_uses, etc.)
+    # so we don't need to vary those - just vary episode length and reward weight
     all_mission_tasks = []
     for mission_name in base_missions:
         mission_env = make_training_env(num_cogs=num_cogs, mission_name=mission_name)
         mission_tasks = cc.bucketed(mission_env)
 
-        # Apply same parameter variations
-        mission_tasks.add_bucket("game.objects.charger.efficiency", [90, 110, 130, 150])
-        mission_tasks.add_bucket(
-            "game.objects.carbon_extractor.efficiency", [80, 100, 120, 140]
-        )
-        mission_tasks.add_bucket("game.agent.energy_regen.amount", [1, 2, 3])
+        # Vary episode length (missions timeout at different rates)
+        mission_tasks.add_bucket("game.max_steps", [750, 1000, 1250, 1500])
+
+        # Vary reward weight (affects learning signal)
         mission_tasks.add_bucket(
             "game.agent.rewards.inventory.heart", [0.1, 0.333, 0.5, 1.0]
         )

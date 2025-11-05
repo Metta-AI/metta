@@ -4,9 +4,46 @@ Training recipes for the Cogs vs Clips eval missions, supporting curriculum lear
 
 ## Quick Start
 
+### Batch Experiments (Skypilot)
+
+Launch multiple training runs on cloud infrastructure:
+
+```bash
+# Test with debug config (recommended first!)
+uv run python experiments/recipes/cogs_v_clips/experiment.py debug_single
+
+# Run specific experiments
+uv run python experiments/recipes/cogs_v_clips/experiment.py small_4cogs medium_4cogs
+
+# Run all standard experiments (excludes debug configs)
+uv run python experiments/recipes/cogs_v_clips/experiment.py
+
+# Programmatic usage
+uv run python -c "from experiments.recipes.cogs_v_clips import experiment; experiment(configs=['debug_single'])"
+```
+
+**Available experiment configs:**
+
+| Config | Agents | GPUs | Steps | Description |
+|--------|--------|------|-------|-------------|
+| `debug_single` | 2 | 1 | 5M | Quick test on single mission |
+| `small_1cog` | 1 | 2 | 20M | Small maps, single agent |
+| `small_2cogs` | 2 | 2 | 20M | Small maps, 2 agents |
+| `small_4cogs` | 4 | 4 | 30M | Small maps, 4 agents |
+| `medium_4cogs` | 4 | 4 | 40M | Medium maps, 4 agents |
+| `coordination_4cogs` | 4 | 4 | 40M | Coordination missions |
+| `full_1cog` | 1 | 4 | 50M | Full curriculum, single agent |
+| `full_4cogs` | 4 | 8 | 100M | Full curriculum, 4 agents |
+| `full_8cogs` | 8 | 8 | 100M | Full curriculum, 8 agents |
+
+**Recommended workflow:**
+1. Start with `debug_single` to test the pipeline (~1 hour)
+2. Run `small_4cogs` for initial results (~6 hours)
+3. Run `full_4cogs` for publication-quality results (~24 hours)
+
 ### Basic Training
 
-Train on small maps with 4 agents:
+Train locally on small maps with 4 agents:
 
 ```bash
 # Train with default curriculum (small/medium missions, 4 agents)
@@ -109,7 +146,8 @@ uv run ./tools/run.py experiments.recipes.cogs_v_clips.play_training_env
   - Useful for custom training setups
 
 - **`make_curriculum(num_cogs, base_missions, ...)`** - Create custom curriculum
-  - Varies mission types, efficiencies, energy regen, episode length
+  - Varies mission types, episode length, and reward weights
+  - Each mission has built-in difficulty tuning (efficiency, max_uses, energy regen)
   - Uses Learning Progress algorithm by default
 
 ## Available Missions
@@ -139,20 +177,23 @@ uv run ./tools/run.py experiments.recipes.cogs_v_clips.play_training_env
 
 The curriculum varies:
 
-1. **Station Efficiency** (80-150%)
-   - charger, carbon_extractor, oxygen_extractor, silicon_extractor, germanium_extractor
+1. **Mission Type**
+   - Different maps, layouts, and resource distributions
+   - Each mission has unique difficulty characteristics (efficiency, max_uses, energy_regen)
 
-2. **Energy Regeneration** (1-3 per step)
-   - Affects recharge frequency
+2. **Episode Length** (750-1500 steps)
+   - Longer episodes = more time to complete complex strategies
+   - Shorter episodes = faster feedback, encourages efficiency
 
 3. **Reward Weights** (0.1-1.0 per heart)
    - Affects learning signal strength
+   - Lower weights = more exploration, higher weights = more exploitation
 
-4. **Episode Length** (500-2000 steps)
-   - Longer episodes = more complex strategies
-
-5. **Mission Type**
-   - Different maps, layouts, and resource distributions
+The missions themselves provide variation in:
+- **Station Efficiency**: Different conversion rates for extractors and chargers
+- **Max Uses**: Some missions have limited extractor uses
+- **Energy Regeneration**: Varies from 1-2 per step depending on mission
+- **Spatial Layout**: Distance to resources, bottlenecks, open vs constrained
 
 ## Comparison to Scripted Agents
 

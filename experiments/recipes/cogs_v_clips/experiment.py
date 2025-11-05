@@ -249,22 +249,15 @@ def experiment(
 
 
 if __name__ == "__main__":
-    # # Example: Inspect a training environment
-    # print("=" * 60)
-    # print("Example: Inspecting Training Environment")
-    # print("=" * 60)
-    # inspect_training_env()
+    import sys
 
-    # print("\n" + "=" * 60)
-    # print("Example: Creating Custom Eval Suite")
-    # print("=" * 60)
-    # custom_eval_suite()
-
-    # print("\n" + "=" * 60)
-    # print("To run training, use the ./tools/run.py command:")
-    # print(
-    #     "  uv run ./tools/run.py experiments.recipes.cogs_v_clips.train_small_maps run=test"
-    # )
-    # print("=" * 60)
-
-    experiment(configs=["small_4cogs", "debug_single"])
+    # Allow passing config names as command line arguments
+    # e.g., python experiment.py debug_single small_4cogs
+    if len(sys.argv) > 1:
+        configs = sys.argv[1:]
+        print(f"Running experiments: {', '.join(configs)}")
+        experiment(configs=configs)
+    else:
+        # Default: run all non-debug experiments
+        print("Running all standard experiments (not debug)")
+        experiment()
