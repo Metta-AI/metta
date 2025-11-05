@@ -27,6 +27,7 @@ def sim_with_assembler():
             num_agents=2,
             obs=ObsConfig(width=5, height=5, num_tokens=100),
             max_steps=100,
+            vibe_names=["neutral", "deposit", "withdraw"],
             resource_names=["iron", "steel"],
             actions=ActionsConfig(noop=NoopActionConfig(), move=MoveActionConfig()),
             objects={
@@ -64,10 +65,7 @@ def sim_with_chest():
             actions=ActionsConfig(noop=NoopActionConfig(), move=MoveActionConfig()),
             objects={
                 "wall": WallConfig(),
-                "chest": ChestConfig(
-                    resource_type="gold",
-                    position_deltas=[("NW", 1), ("N", 1), ("NE", 1), ("SW", -1), ("S", -1), ("SE", -1)],
-                ),
+                "chest": ChestConfig(vibe_transfers={}),
             },
             map_builder=RandomMapBuilder.Config(
                 width=10,
@@ -267,22 +265,11 @@ class TestChestProperties:
 
         if chest:
             # Check chest-specific properties
-            assert "resource_type" in chest
-            assert "position_deltas" in chest
-            assert "max_inventory" in chest
+            assert "vibe_transfers" in chest
 
             # Check values match config
-            assert chest["resource_type"] == 0, "Should be gold (resource 0)"
-            # Positions are stored as integers internally (bit indices)
-            # NW=0, N=1, NE=2, SW=5, S=6, SE=7
-            # Positive delta = deposit, negative delta = withdraw
-            position_deltas = chest["position_deltas"]
-            assert position_deltas[0] == 1, "NW should have delta +1 (deposit)"
-            assert position_deltas[1] == 1, "N should have delta +1 (deposit)"
-            assert position_deltas[2] == 1, "NE should have delta +1 (deposit)"
-            assert position_deltas[5] == -1, "SW should have delta -1 (withdraw)"
-            assert position_deltas[6] == -1, "S should have delta -1 (withdraw)"
-            assert position_deltas[7] == -1, "SE should have delta -1 (withdraw)"
+            vibe_transfers = chest["vibe_transfers"]
+            assert isinstance(vibe_transfers, dict)
 
             # Check that chest has inventory dict
             assert "inventory" in chest

@@ -1,7 +1,6 @@
 from mettagrid.config.mettagrid_config import (
     AssemblerConfig,
     ChestConfig,
-    FixedPosition,
     ProtocolConfig,
     WallConfig,
 )
@@ -101,44 +100,56 @@ assembler_temple = AssemblerConfig(
 
 # Chest building definitions. Maybe not needed beyond the raw config?
 def make_chest(
-    resource_type: str,
-    initial_inventory: int = 0,
-    position_deltas: list[tuple[FixedPosition, int]] | None = None,
-    max_inventory: int = 255,
+    vibe_transfers: dict[str | int, dict[str, int]] | None = None,
+    initial_inventory: dict[str, int] | None = None,
+    resource_limits: dict[str, int] | None = None,
     name: str | None = None,
     map_char: str = "C",
     render_symbol: str = "📦",
 ) -> ChestConfig:
-    """Create a chest configuration for a specific resource type.
+    """Create a multi-resource chest configuration.
 
     Args:
-        resource_type: Resource type that this chest can store
         name: Name of the chest
         map_char: Character for ASCII maps
         render_symbol: Symbol for rendering
-        position_deltas: List of (position, delta) tuples. Positive delta = deposit amount, negative = withdraw amount
-        initial_inventory: Initial amount of resource_type in the chest
-        max_inventory: Maximum inventory (255 = default, -1 = unlimited, resources destroyed when full)
+        vibe_transfers: Map from vibe to resource deltas. E.g. {'carbon': {'carbon': 10, 'energy': -5}}
+        initial_inventory: Initial amounts for each resource type
+        resource_limits: Maximum amount per resource (uses inventory system's built-in limits)
     """
-    if position_deltas is None:
-        position_deltas = []
+    if vibe_transfers is None:
+        # By default, deposit everything when you have a neutral expression, and withdraw specific resources when you
+        # show that vibe.
+        vibe_transfers = {
+            "default": {"heart": 255, "carbon": 255, "oxygen": 255, "germanium": 255, "silicon": 255},
+            "heart": {"heart": -1},
+            "carbon": {"carbon": -10},
+            "oxygen": {"oxygen": -10},
+            "germanium": {"germanium": -1},
+            "silicon": {"silicon": -25},
+        }
+
+    if initial_inventory is None:
+        initial_inventory = {}
+
+    if resource_limits is None:
+        resource_limits = {}
 
     if name is None:
-        name = f"chest_{resource_type}"
+        name = "chest"
 
     return ChestConfig(
         name=name,
         map_char=map_char,
         render_symbol=render_symbol,
-        resource_type=resource_type,
-        position_deltas=position_deltas,
+        vibe_transfers=vibe_transfers,
         initial_inventory=initial_inventory,
-        max_inventory=max_inventory,
+        resource_limits=resource_limits,
     )
 
 
 # Example chest configurations
-chest_heart = make_chest("heart", position_deltas=[("N", 1), ("S", -1)])
+chest_heart = make_chest()
 
 nav_assembler = AssemblerConfig(
     name="nav_assembler",
