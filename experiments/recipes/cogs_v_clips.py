@@ -195,7 +195,35 @@ def make_training_env(
         num_cogs,
         variant=combined_variant,
     )
-    return instantiated.make_env()
+    env = instantiated.make_env()
+
+    # Guard against upstream modifiers pushing limits beyond supported bounds.
+    energy_limit = env.game.agent.resource_limits.get("energy")
+    if isinstance(energy_limit, int) and energy_limit > 255:
+        env.game.agent.resource_limits["energy"] = 255
+        if env.game.agent.initial_inventory.get("energy", 0) > 255:
+            env.game.agent.initial_inventory["energy"] = 255
+
+    # If vibe swapping is disabled, prune stale vibe transfers to avoid invalid IDs.
+    change_vibe_action = getattr(env.game.actions, "change_vibe", None)
+    if change_vibe_action is not None and change_vibe_action.number_of_vibes <= 1:
+        allowed_vibes = set(env.game.vibe_names or [])
+        if not allowed_vibes:
+            allowed_vibes = {"default"}
+            env.game.vibe_names = ["default"]
+
+        chest = env.game.objects.get("chest")
+        if chest is not None and hasattr(chest, "vibe_transfers"):
+            try:
+                chest.vibe_transfers = {
+                    vibe: transfers
+                    for vibe, transfers in chest.vibe_transfers.items()
+                    if vibe in allowed_vibes
+                }
+            except Exception:
+                pass
+
+    return env
 
 
 def make_curriculum(
