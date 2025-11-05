@@ -162,17 +162,12 @@ class MettaGridPufferEnv(PufferEnv):
         self._buffers.teacher_actions[:] = actions
         self._sim.step()
 
-        infos = self._sim._context.get("infos", {})
-
-        # Return a shallow copy so downstream consumers can safely mutate the mapping.
-        info_payload = {k: v for k, v in infos.items()} if infos else {}
-
         return (
             self._buffers.observations,
             self._buffers.rewards,
             self._buffers.terminals,
             self._buffers.truncations,
-            info_payload,
+            self._sim._context.get("infos", {}),
         )
 
     @property
