@@ -198,7 +198,7 @@ class Mission(Config):
                 },
                 shareable_resources=["energy"],
                 inventory_regen_amounts={"energy": self.energy_regen_amount},
-                diversity_tracked_resources=["energy", "carbon", "oxygen", "germanium", "silicon"],
+                diversity_tracked_resources=["energy", "carbon", "oxygen", "germanium", "silicon", "heart"],
             ),
             inventory_regen_interval=self.inventory_regen_interval,
             clipper=ClipperConfig(
