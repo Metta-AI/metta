@@ -20,7 +20,7 @@ class Rollout:
         max_action_time_ms: int = 10000,
         render_mode: Optional[RenderMode] = None,
         seed: int = 0,
-        pass_sim_to_policies: bool = True,
+        pass_sim_to_policies: bool = False,
     ):
         self._config = config
         self._policies = policies
@@ -43,9 +43,12 @@ class Rollout:
             policy.reset(simulation=self._sim)
             self._policies = [policy.agent_policy(i) for i in range(config.game.num_agents)]
         else:
-            # Regular agent policies
+            # Regular agent policies - only pass simulation if policy expects it
             for policy in self._policies:
-                policy.reset(simulation=self._sim if self._pass_sim_to_policies else None)
+                if self._pass_sim_to_policies:
+                    policy.reset(simulation=self._sim)
+                else:
+                    policy.reset()
 
     def step(self) -> None:
         """Execute one step of the rollout."""
