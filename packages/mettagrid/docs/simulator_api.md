@@ -23,6 +23,7 @@ names, number of agents, etc.). It manages event handlers and enforces that only
 ```python
 from mettagrid.simulator.simulator import Simulator
 from mettagrid.config.mettagrid_config import MettaGridConfig
+
 simulator = Simulator()
 ```
 
@@ -43,17 +44,21 @@ The simulator enforces that the following configuration properties remain consta
 - Action names
 - Object type names
 - Resource names
-- Vibe names Attempting to create a simulation with different invariants will raise a `ValueError`.
+- Vibe names
+
+Attempting to create a simulation with different invariants will raise a `ValueError`.
 
 #### Example: Basic Usage
 
 ```python
 simulator = Simulator()
+
 # First simulation
 config1 = load_config("arena")
 sim1 = simulator.new_simulation(config1, seed=42)
 # ... run simulation ...
 simulator.close()
+
 # Second simulation with same invariants
 config2 = load_config("arena")
 sim2 = simulator.new_simulation(config2, seed=100)
@@ -126,24 +131,31 @@ rewards, and environment state.
 
 ```python
 from mettagrid.simulator.interface import Action
+
 # Create simulation
 sim = simulator.new_simulation(config, seed=42)
+
 # Get agents
 agents = sim.agents()
+
 # Game loop
 while not sim.is_done():
     # Set actions for each agent
     for agent in agents:
         action = Action(name="move_forward")
         agent.set_action(action)
+
     # Execute timestep
     sim.step()
+
     # Check rewards
     for agent in agents:
         print(f"Agent {agent.id} reward: {agent.step_reward}")
+
 # Get final statistics
 print(f"Episode rewards: {sim.episode_rewards}")
 print(f"Episode stats: {sim.episode_stats}")
+
 sim.close()
 ```
 
@@ -172,18 +184,23 @@ The `SimulationAgent` class provides per-agent operations and state access. Agen
 ```python
 # Get an agent
 agent = sim.agent(0)
+
 # Read observation
 obs = agent.observation
 for token in obs.tokens:
     print(f"Feature: {token.feature.name}, Location: {token.location}, Value: {token.value}")
+
 # Check inventory
 inventory = agent.inventory
 print(f"Food: {inventory.get('food', 0)}")
+
 # Set inventory
 agent.set_inventory({"food": 10, "wood": 5})
+
 # Set action
 from mettagrid.simulator.interface import Action
 agent.set_action(Action(name="harvest"))
+
 # Check if last action succeeded
 if not agent.last_action_success:
     print("Action failed!")
@@ -212,6 +229,7 @@ class ObservationToken:
     feature: ObservationFeatureSpec  # What is being observed
     location: tuple[int, int]        # (col, row) in observation window
     value: int                       # The observed value
+
     def row() -> int  # Extract row from location
     def col() -> int  # Extract column from location
 ```
@@ -233,11 +251,14 @@ Observations are token-based, where each token represents a feature at a specifi
 
 - **Spatial features**: Object types, terrain, other agents (vary by location)
 - **Inventory features**: Resources held by the agent (appear at agent's center position)
-- **Global features**: Episode progress, last action/reward (appear at agent's center position) Example:
+- **Global features**: Episode progress, last action/reward (appear at agent's center position)
+
+Example:
 
 ```python
 agent = sim.agent(0)
 obs = agent.observation
+
 for token in obs.tokens:
     if token.feature.name == "object_type":
         print(f"Object at ({token.col()}, {token.row()}): {token.value}")
@@ -260,15 +281,19 @@ class SimulatorEventHandler:
     def set_simulation(self, simulation: Simulation) -> None:
         """Called when the handler is attached to a simulation."""
         pass
+
     def on_episode_start(self) -> None:
         """Called at the start of each episode."""
         pass
+
     def on_step(self) -> None:
         """Called after each simulation step."""
         pass
+
     def on_episode_end(self) -> None:
         """Called when an episode ends."""
         pass
+
     def on_close(self) -> None:
         """Called when the simulation is closed."""
         pass
@@ -281,20 +306,25 @@ class RewardLogger(SimulatorEventHandler):
     def __init__(self):
         super().__init__()
         self.episode_rewards = []
+
     def on_episode_start(self):
         self.step_rewards = []
+
     def on_step(self):
         # Access simulation via self._sim
         rewards = [agent.step_reward for agent in self._sim.agents()]
         self.step_rewards.append(rewards)
+
     def on_episode_end(self):
         total = sum(sum(r) for r in self.step_rewards)
         self.episode_rewards.append(total)
         print(f"Episode total reward: {total}")
+
 # Use the handler
 simulator = Simulator()
 logger = RewardLogger()
 simulator.add_event_handler(logger)
+
 sim = simulator.new_simulation(config, seed=42)
 # ... run simulation ...
 ```
@@ -318,13 +348,17 @@ class BoundingBox:
 
 ```python
 from mettagrid.simulator.simulator import BoundingBox
+
 # Get all objects
 all_objects = sim.grid_objects()
+
 # Get objects in a region
 bbox = BoundingBox(min_row=0, max_row=10, min_col=0, max_col=10)
 region_objects = sim.grid_objects(bbox=bbox)
+
 # Get objects excluding walls
 non_walls = sim.grid_objects(ignore_types=["wall"])
+
 # Inspect an object
 for obj_id, obj_data in all_objects.items():
     print(f"Object {obj_id}: {obj_data}")
@@ -336,19 +370,24 @@ for obj_id, obj_data in all_objects.items():
 from mettagrid.simulator.simulator import Simulator
 from mettagrid.simulator.interface import Action
 from mettagrid.config.mettagrid_config import MettaGridConfig
+
 # Setup
 config = MettaGridConfig.load("arena")
 simulator = Simulator()
+
 # Optional: Add event handlers
 from mettagrid.renderer.renderer import create_renderer, RenderMode
 renderer = create_renderer(RenderMode.ASCII)
 simulator.add_event_handler(renderer)
+
 # Create simulation
 sim = simulator.new_simulation(config, seed=42)
+
 # Define policies (example: random actions)
 import random
 def random_policy(observation):
     return Action(name=random.choice(sim.action_names))
+
 # Run episode
 step_count = 0
 while not sim.is_done():
@@ -356,17 +395,21 @@ while not sim.is_done():
     for agent in sim.agents():
         action = random_policy(agent.observation)
         agent.set_action(action)
+
     # Step simulation
     sim.step()
     step_count += 1
+
     # Optional: Print per-step info
     if step_count % 100 == 0:
         avg_reward = sum(a.episode_reward for a in sim.agents()) / sim.num_agents
         print(f"Step {step_count}, Avg reward: {avg_reward:.2f}")
+
 # Report results
 print(f"Episode ended after {step_count} steps")
 print(f"Final rewards: {sim.episode_rewards}")
 print(f"Episode stats: {sim.episode_stats}")
+
 # Cleanup
 sim.close()
 ```

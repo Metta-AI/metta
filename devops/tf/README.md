@@ -1,15 +1,21 @@
 # How to use Spacelift to manage Terraform
 
-OpenTofu (Terraform) configs are managed by [Spacelift](https://spacelift.io/). This directory contains
-[stacks](https://docs.spacelift.io/concepts/stack/creating-a-stack): Terraform configurations for different parts of the
-infrastructure. Note that `spacelift` stack configures Spacelift, but not the individual stacks in it (see
-`spacelift/README.md` for details).
+OpenTofu (Terraform) configs are managed by [Spacelift](https://spacelift.io/).
+
+This directory contains [stacks](https://docs.spacelift.io/concepts/stack/creating-a-stack): Terraform configurations
+for different parts of the infrastructure.
+
+Note that `spacelift` stack configures Spacelift, but not the individual stacks in it (see `spacelift/README.md` for
+details).
 
 ## Common workflow
 
 Terraform works in two stages: first, `plan`, and then `apply`. Planning is relatively safe, so it can be done
-automatically, or even locally without pushing to the repo. Applying should ideally happen only from the `main` branch,
-but see below for the possible loopholes. General workflow:
+automatically, or even locally without pushing to the repo.
+
+Applying should ideally happen only from the `main` branch, but see below for the possible loopholes.
+
+General workflow:
 
 1. Update terraform files
 2. Register new stacks in Spacelift if necessary
@@ -23,9 +29,10 @@ but see below for the possible loopholes. General workflow:
 - Use the latest OpenTofu instead of Terraform.
 - If the stack includes AWS resources, don't forget to "Attach cloud" during stack creation, or later in **Stack
   Settings → Integrations**.
-- (Optional) Enable **Local Preview** under **Stack Settings → Behavior** for faster iteration. When working on a PR
-  that adds a new stack, you can enable **Run Promotion** (see [Applying without merging](#applying-without-merging)
-  below) and iterate on it before the PR is merged.
+- (Optional) Enable **Local Preview** under **Stack Settings → Behavior** for faster iteration.
+
+When working on a PR that adds a new stack, you can enable **Run Promotion** (see
+[Applying without merging](#applying-without-merging) below) and iterate on it before the PR is merged.
 
 ## Previewing plans without pushing to GitHub
 
@@ -35,8 +42,11 @@ You can preview changes without pushing anything:
 spacectl stack local-preview
 ```
 
-This sends your local changes to Spacelift and shows the planned diff. **Enable local preview** option must be enabled
-in stack settings for this to work. It's not possible to apply the stack locally without pushing to the repo.
+This sends your local changes to Spacelift and shows the planned diff.
+
+**Enable local preview** option must be enabled in stack settings for this to work.
+
+It's not possible to apply the stack locally without pushing to the repo.
 
 ## Applying changes
 

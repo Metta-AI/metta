@@ -19,8 +19,9 @@ initializes all other layers without passing any args, trusting that the config 
 the layer. This config of configs should also should meet the following requirements\*\*: - Must have an 'obs_shaper'
 attribute and it should have an instantiate method that takes an obs_meta dict. - Must have an 'instantiate' method that
 uses itself as the config to instantiate the layer. - Must be in the order the network is to be executed. Policy also
-calls methods like initialize_to_environment on every layer if that layer has such a method as an attribute. For an
-example of this path of policy generation, look at vit_lstm.py
+calls methods like initialize_to_environment on every layer if that layer has such a method as an attribute.
+
+For an example of this path of policy generation, look at vit_lstm.py
 
 ## Custom Policy Classes
 
@@ -77,5 +78,6 @@ performance for obvious reasons. It runs at roughly half the speed of latent_att
 - Positional encoding is high-yield. We don't have enough samples to quickly infer position from learnable embeddings.
   In experiments, the prior injected by Fourier features significantly improved performance over both learnable
   embeddings and RoPE. Further, moving from four frequencies up to eight also helped although this is confounded by the
-  expanded size of the observation embedding. This architecture search is far from complete; there are a number of
-  additional techniques to try!
+  expanded size of the observation embedding.
+
+This architecture search is far from complete; there are a number of additional techniques to try!

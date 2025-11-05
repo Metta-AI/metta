@@ -35,16 +35,24 @@ code, and implement changes.
 
 ### 1. 💬 Comment Response Mode
 
-Responds to general questions, provides code analysis, and offers suggestions. **Triggers**:
+Responds to general questions, provides code analysis, and offers suggestions.
+
+**Triggers**:
 
 - Any comment containing `@claude` (without `open-pr`)
 - Works on issues and pull requests
-- Responds to PR review comments **Capabilities**:
+- Responds to PR review comments
+
+**Capabilities**:
+
 - Code review and analysis
 - Explanations and documentation
 - Architecture suggestions
 - Debugging help
-- Running linters (ruff for Python) **Available Tools**:
+- Running linters (ruff for Python)
+
+**Available Tools**:
+
 - `Bash`: Git commands, Python scripts, linters
 - `View`: Read file contents
 - `GlobTool`: Find files by pattern
@@ -52,17 +60,28 @@ Responds to general questions, provides code analysis, and offers suggestions. *
 
 ### 2. 🚀 PR Creation Mode
 
-Automatically implements requested changes and creates a pull request. **Triggers**:
+Automatically implements requested changes and creates a pull request.
+
+**Triggers**:
 
 - Comments containing `@claude open-pr`
-- Works on both issues and existing PRs **Capabilities**:
+- Works on both issues and existing PRs
+
+**Capabilities**:
+
 - Implements code changes based on natural language
 - Creates feature branches automatically
 - Commits changes with descriptive messages
 - Opens PRs with detailed descriptions
-- Targets appropriate branches (not always main) **Smart Branch Targeting**:
+- Targets appropriate branches (not always main)
+
+**Smart Branch Targeting**:
+
 - **From Issue**: Creates PR targeting the default branch (usually main)
-- **From PR**: Creates PR targeting the PR's feature branch (iterative development) **Available Tools**:
+- **From PR**: Creates PR targeting the PR's feature branch (iterative development)
+
+**Available Tools**:
+
 - All comment mode tools plus:
 - `Edit`: Modify existing files
 - `Replace`: Replace code sections
@@ -183,12 +202,20 @@ Example: `claude/auto-123-2024-01-15T10-30-45`
 ### PR Description Format
 
 ```markdown
-🤖 **Automated PR created by Claude** **Original request:**
+🤖 **Automated PR created by Claude**
 
-> [User's @claude open-pr comment] **Context:** This PR addresses the request from [issue/PR #X] **Target:** This PR
-> will merge into `branch-name` (not main) **Changes made:**
+**Original request:**
 
-- X commit(s) with: [commit message] **Branch flow:** `claude/auto-X-timestamp` → `target-branch`
+> [User's @claude open-pr comment]
+
+**Context:** This PR addresses the request from [issue/PR #X] **Target:** This PR will merge into `branch-name` (not
+main)
+
+**Changes made:**
+
+- X commit(s) with: [commit message]
+
+**Branch flow:** `claude/auto-X-timestamp` → `target-branch`
 
 ---
 
@@ -202,9 +229,11 @@ _This PR was automatically created by Claude Code Assistant._
 1. **No commits created**
    - Claude may have failed to use the commit tool
    - Solution: Ensure request is clear and specific
+
 2. **Branch push failed**
    - Permissions or conflict issues
    - Solution: Check GitHub token permissions
+
 3. **PR creation failed**
    - Target branch may be protected
    - Solution: Review branch protection rules
@@ -222,12 +251,19 @@ The workflow provides extensive debugging:
 When PR creation fails, Claude posts a diagnostic comment:
 
 ```markdown
-⚠️ **Unable to create PR** **Reason:** No changes were committed **Debug info:**
+⚠️ **Unable to create PR**
+
+**Reason:** No changes were committed
+
+**Debug info:**
 
 - Expected branch: `claude/auto-123-...`
 - Target branch: `main`
 - Has commits: false
-- Claude execution: success **Possible solutions:**
+- Claude execution: success
+
+**Possible solutions:**
+
 - Try a simpler, more specific request
 - Check if the changes conflict with existing code
 - Ensure Claude used mcp**github_file_ops**commit_files
@@ -242,7 +278,10 @@ When PR creation fails, Claude posts a diagnostic comment:
 - Be specific about what changes you want
 - Break complex requests into numbered steps
 - Mention specific files when possible
-- Provide context about the goal **DON'T:**
+- Provide context about the goal
+
+**DON'T:**
+
 - Make vague requests like "improve this code"
 - Ask for massive refactors in one go
 - Request changes to protected files

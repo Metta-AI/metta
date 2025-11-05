@@ -14,6 +14,7 @@ To update an existing component (e.g., change mettascope install steps):
 To add a new tool or service dependency:
 
 1. Create a new file `metta/setup/components/[tool_name].py` and subclass `SetupModule`
+
 2. (Optional) Add to profiles in `config.py`, specifying expected connected accounts if applicable
 
 ## Per-Component Configuration
@@ -28,20 +29,24 @@ and customize their behavior.
 ```python
 class MyComponentSetup(SetupModule):
     install_once: bool = False
+
     def dependencies(self) -> list[str]:
         """Define components that should be installed before this one"""
         return ['aws']
+
     def get_configuration_options(self) -> dict[str, tuple[Any, str]]:
         """Define available configuration options."""
         return {
             "install_mode": ("standard", "Installation mode"),
             "verbose": (False, "Enable verbose output"),
         }
+
     def configure(self) -> None:
         """Interactive configuration for this component."""
         # Implement interactive configuration logic
         mode = prompt_choice(...)
         self.set_setting("install_mode", mode)
+
     def install(self):
         # Get settings with defaults - only non-default values are stored
         mode = self.get_setting("install_mode", "standard")
@@ -65,8 +70,10 @@ Configure components using the `metta configure` command:
 ```bash
 # Configure a specific component
 metta configure githooks
+
 # Run the general setup wizard
 metta configure
+
 # Set a profile directly
 metta configure --profile=softmax
 ```
@@ -86,7 +93,9 @@ The git hooks component supports three commit hook modes:
 
 - `none`: No pre-commit linting
 - `check`: Check only, fail if issues found (default)
-- `fix`: Auto-fix issues before committing To configure:
+- `fix`: Auto-fix issues before committing
+
+To configure:
 
 ```bash
 metta configure githooks

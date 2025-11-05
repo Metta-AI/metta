@@ -7,10 +7,13 @@ A unified script for launching and checking multi-node SkyPilot test jobs with v
 ```bash
 # Launch 12 jobs: 3 node configs × 4 exit conditions
 ./cluster_test.py launch
+
 # Check results
 ./cluster_test.py check
+
 # Check with detailed logs
 ./cluster_test.py check -l
+
 # Kill all jobs
 ./cluster_test.py kill
 ```
@@ -80,10 +83,13 @@ Launching jobs produces a JSON file with the structure:
 ```bash
 # Launch with custom base name
 ./cluster_test.py launch --base-name my_cluster_test
+
 # Check specific output file with more log lines
 ./cluster_test.py check -f my_output.json -n 500
+
 # Launch without git validation
 ./cluster_test.py launch --skip-git-check
+
 # Get help for specific commands
 ./cluster_test.py launch --help
 ./cluster_test.py check --help

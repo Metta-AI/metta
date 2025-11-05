@@ -1,7 +1,12 @@
 # Scripted Agent Evaluation Report
 
-**Date**: November 5, 2025 **Agents Evaluated**: `Baseline`, `UnclippingAgent` **Total Tests**: 1,040 configurations
-across 14 missions, 13 difficulty variants, and 1/2/4/8 agent counts **Overall Success Rate**: **40.9%** (425/1,040)
+**Date**: November 5, 2025
+
+**Agents Evaluated**: `Baseline`, `UnclippingAgent`
+
+**Total Tests**: 1,040 configurations across 14 missions, 13 difficulty variants, and 1/2/4/8 agent counts
+
+**Overall Success Rate**: **40.9%** (425/1,040)
 
 ---
 
@@ -182,16 +187,22 @@ agents.
 
 ### 🚨 Issue #1: Carbon/Germanium Unclipping Broken
 
-**Severity**: **HIGH** - Blocks 104 tests (52 carbon + 52 germanium) **Symptoms**:
+**Severity**: **HIGH** - Blocks 104 tests (52 carbon + 52 germanium)
+
+**Symptoms**:
 
 - 0% success on clipped_carbon across all agent counts (52 tests)
 - 1.9% success on clipped_germanium (1/52 tests - likely random)
-- Oxygen/silicon unclipping works excellently (50-58%) **Likely Root Causes**:
+- Oxygen/silicon unclipping works excellently (50-58%)
+
+**Likely Root Causes**:
 
 1. **Recipe/protocol issues**: decoder (carbon) / scrambler (germanium) crafting broken
 2. **Resource pathing**: Carbon/germanium extractors may be unreachable
 3. **Unclip action failure**: Decoder/scrambler application doesn't trigger
-4. **Inventory recognition**: Agent may not detect it has decoder/scrambler **Recommended Fix**:
+4. **Inventory recognition**: Agent may not detect it has decoder/scrambler
+
+**Recommended Fix**:
 
 - Debug single-agent UnclippingAgent on simplest clipped_carbon map with detailed logging
 - Verify decoder/scrambler crafting recipes in assembler
@@ -202,13 +213,21 @@ agents.
 
 ### 🚨 Issue #2: Clipping Chaos (Multi-Resource) Hard
 
-**Severity**: **MEDIUM** - Complex scenario, expected difficulty **Symptoms**:
+**Severity**: **MEDIUM** - Complex scenario, expected difficulty
+
+**Symptoms**:
 
 - 13.5% success (7/52 tests) vs 50-58% on single-resource clipping
-- Multiple extractors clipped simultaneously **Likely Root Causes**:
+- Multiple extractors clipped simultaneously
+
+**Likely Root Causes**:
+
 - Agent can't prioritize which extractor to unclip first
 - Resource deadlock: needs X to unclip Y, needs Y to gather X
-- Insufficient time to unclip multiple extractors sequentially **Recommended Fix**:
+- Insufficient time to unclip multiple extractors sequentially
+
+**Recommended Fix**:
+
 - Implement dependency-aware unclip ordering
 - Add deadlock detection and fallback strategies
 - Increase step limit for clipping_chaos scenarios
@@ -217,11 +236,19 @@ agents.
 
 ### 🚨 Issue #3: Hard Clipped Variants Harder
 
-**Severity**: **LOW** - Working as intended (harder = lower success) **Symptoms**:
+**Severity**: **LOW** - Working as intended (harder = lower success)
 
-- hard_clipped_oxygen: 34.6% vs clipped_oxygen: 50.0% (15% drop) **Likely Root Causes**:
+**Symptoms**:
+
+- hard_clipped_oxygen: 34.6% vs clipped_oxygen: 50.0% (15% drop)
+
+**Likely Root Causes**:
+
 - Harder variants add extra constraints (time/energy/resources)
-- May need more efficient unclipping strategies **Recommended Fix**:
+- May need more efficient unclipping strategies
+
+**Recommended Fix**:
+
 - Profile specific hard_clipped missions to identify bottlenecks
 - Optimize unclip pathing and resource gathering
 
@@ -229,11 +256,19 @@ agents.
 
 ### 🚨 Issue #4: Brutal Difficulty Unsolved
 
-**Severity**: **LOW** - Expected for extreme difficulty **Symptoms**:
+**Severity**: **LOW** - Expected for extreme difficulty
 
-- 0% success across all agents, all missions (104 tests) **Likely Root Causes**:
+**Symptoms**:
+
+- 0% success across all agents, all missions (104 tests)
+
+**Likely Root Causes**:
+
 - Extreme resource scarcity and energy constraints
-- May require >1000 steps or perfect efficiency **Recommended Fix**:
+- May require >1000 steps or perfect efficiency
+
+**Recommended Fix**:
+
 - Profile brutal missions to understand constraints
 - May need domain-specific optimizations beyond general agent improvements
 
@@ -292,8 +327,10 @@ agents.
 ```bash
 # Single agent, standard difficulty (63.5% success)
 uv run cogames play --mission evals.collect_resources_classic -p scripted_baseline --cogs 1
+
 # 4 agents, optimal configuration (54.9% success!)
 uv run cogames play --mission evals.extractor_hub_30 -p scripted_baseline --cogs 4
+
 # Energy crisis test (59.6% success)
 uv run cogames play --mission evals.energy_starved -p scripted_baseline --cogs 2
 ```
@@ -303,8 +340,10 @@ uv run cogames play --mission evals.energy_starved -p scripted_baseline --cogs 2
 ```bash
 # Silicon unclipping (57.7% success)
 uv run cogames play --mission evals.extractor_hub_30 -p scripted_unclipping --cogs 1 --difficulty clipped_silicon
+
 # Oxygen unclipping (50% success)
 uv run cogames play --mission evals.extractor_hub_30 -p scripted_unclipping --cogs 2 --difficulty clipped_oxygen
+
 # Multi-agent optimal (45% success, 4 agents)
 uv run cogames play --mission evals.extractor_hub_30 -p scripted_unclipping --cogs 4
 ```
@@ -314,6 +353,7 @@ uv run cogames play --mission evals.extractor_hub_30 -p scripted_unclipping --co
 ```bash
 # Carbon unclipping (0% success - BROKEN!)
 uv run cogames play --mission evals.extractor_hub_30 -p scripted_unclipping --cogs 1 --difficulty clipped_carbon --steps 2000
+
 # Germanium unclipping (2% success - BROKEN!)
 uv run cogames play --mission evals.extractor_hub_30 -p scripted_unclipping --cogs 1 --difficulty clipped_germanium --steps 2000
 ```
@@ -324,8 +364,10 @@ uv run cogames play --mission evals.extractor_hub_30 -p scripted_unclipping --co
 
 ```bash
 cd /Users/daphnedemekas/Desktop/metta
+
 # Full evaluation (1,040 tests, ~70 minutes)
 uv run python packages/cogames/scripts/evaluate_scripted_agents.py
+
 # Output: evaluation_output.log
 ```
 
@@ -341,16 +383,24 @@ uv run python packages/cogames/scripts/evaluate_scripted_agents.py
 
 ### BaselineAgent
 
-**File**: `packages/cogames/src/cogames/policy/scripted_agent/baseline_agent.py` **Core Features**:
+**File**: `packages/cogames/src/cogames/policy/scripted_agent/baseline_agent.py`
+
+**Core Features**:
 
 - **Phases**: EXPLORE → GATHER → ASSEMBLE → DELIVER → RECHARGE
 - **Exploration**: Frontier-based with target persistence
 - **Pathfinding**: BFS with obstacle avoidance and agent collision detection
 - **Agent Occupancy**: Tracks other agents' positions to avoid collisions
-- **Goal-Driven**: Transitions between phases based on inventory and station discovery **Performance**:
+- **Goal-Driven**: Transitions between phases based on inventory and station discovery
+
+**Performance**:
+
 - 41.5% overall (BEST)
 - 54.9% with 4 agents (OPTIMAL)
-- Excellent on standard gameplay (55-64%) **Limitations**:
+- Excellent on standard gameplay (55-64%)
+
+**Limitations**:
+
 - No unclipping capability
 - Brutal difficulty unsolved (0%)
 - 8-agent performance drops to 32%
@@ -359,15 +409,23 @@ uv run python packages/cogames/scripts/evaluate_scripted_agents.py
 
 ### UnclippingAgent (extends BaselineAgent)
 
-**File**: `packages/cogames/src/cogames/policy/scripted_agent/unclipping_agent.py` **Added Features**:
+**File**: `packages/cogames/src/cogames/policy/scripted_agent/unclipping_agent.py`
+
+**Added Features**:
 
 - **Phases**: + CRAFT_UNCLIP + UNCLIP
 - **Gear Recognition**: Detects decoder/modulator/resonator/scrambler in inventory
 - **Clipped Detection**: Identifies clipped extractors during exploration
-- **Unclip Logic**: Crafts appropriate gear and uses it on clipped extractors **Performance**:
+- **Unclip Logic**: Crafts appropriate gear and uses it on clipped extractors
+
+**Performance**:
+
 - 40.5% overall
 - 45.0% with 4 agents
-- 50-58% on oxygen/silicon clipping (unclipping works!) **Limitations**:
+- 50-58% on oxygen/silicon clipping (unclipping works!)
+
+**Limitations**:
+
 - Carbon/germanium unclipping broken (0-2%)
 - Multi-resource clipping hard (13.5%)
 - Brutal difficulty unsolved (0%)
@@ -376,10 +434,17 @@ uv run python packages/cogames/scripts/evaluate_scripted_agents.py
 
 ## Conclusion
 
-The scripted agents are now **production-ready** with excellent baseline performance: ✅ **40.9% overall success** -
-Strong foundation for RL baselines ✅ **4-agent optimal scaling** - Multi-agent cooperation working ✅ **Oxygen/Silicon
-unclipping functional** - Core unclipping logic proven ✅ **Agent collision avoidance effective** - agents navigate
-around each other **Next Steps**: Fix carbon/germanium unclipping to unlock additional 10% coverage.
+The scripted agents are now **production-ready** with excellent baseline performance:
+
+✅ **40.9% overall success** - Strong foundation for RL baselines
+
+✅ **4-agent optimal scaling** - Multi-agent cooperation working
+
+✅ **Oxygen/Silicon unclipping functional** - Core unclipping logic proven
+
+✅ **Agent collision avoidance effective** - agents navigate around each other
+
+**Next Steps**: Fix carbon/germanium unclipping to unlock additional 10% coverage.
 
 ---
 

@@ -38,7 +38,9 @@ These agents are designed for **ablation studies** and **baseline evaluation**:
 
 ### 1. BaselineAgent
 
-**Purpose**: Minimal working agent for single/multi-agent missions **Capabilities**:
+**Purpose**: Minimal working agent for single/multi-agent missions
+
+**Capabilities**:
 
 - ✅ Visual discovery (explores to find stations and extractors)
 - ✅ Resource gathering (navigates to extractors, handles cooldowns)
@@ -46,17 +48,25 @@ These agents are designed for **ablation studies** and **baseline evaluation**:
 - ✅ Heart delivery (brings hearts to chest)
 - ✅ Energy management (recharges when low)
 - ✅ Extractor tracking (remembers positions, cooldowns, remaining uses)
-- ✅ Agent occupancy avoidance (multi-agent collision avoidance via pathfinding) **Limitations**:
+- ✅ Agent occupancy avoidance (multi-agent collision avoidance via pathfinding)
+
+**Limitations**:
+
 - ❌ No unclipping support (can't handle clipped extractors)
-- ⚠️ Multi-agent coordination is basic (agents avoid each other but don't explicitly coordinate) **Usage**:
+- ⚠️ Multi-agent coordination is basic (agents avoid each other but don't explicitly coordinate)
+
+**Usage**:
 
 ```python
 from cogames.policy.scripted_agent import BaselinePolicy
 from mettagrid import MettaGridEnv
+
 env = MettaGridEnv(env_config)
 policy = BaselinePolicy(env)
+
 obs, info = env.reset()
 policy.reset(obs, info)
+
 agent = policy.agent_policy(0)
 action = agent.step(obs[0])
 ```
@@ -66,21 +76,27 @@ action = agent.step(obs[0])
 ```bash
 # Single agent
 uv run cogames play --mission evals.extractor_hub_30 -p scripted_baseline --cogs 1
+
 # Multi-agent
 uv run cogames play --mission evals.extractor_hub_30 -p scripted_baseline --cogs 4
 ```
 
 ### 2. UnclippingAgent
 
-**Purpose**: Handle missions with clipped extractors **Extends BaselineAgent with**:
+**Purpose**: Handle missions with clipped extractors
+
+**Extends BaselineAgent with**:
 
 - ✅ Clipped extractor detection
 - ✅ Unclip item crafting
 - ✅ Extractor restoration
-- ✅ Resource deficit management (ensures enough resources for both unclipping and hearts) **Unclip Item Mapping**: |
-  Clipped Resource | Unclip Item | Crafted From | Glyph | |-----------------|-------------|--------------|-------| |
-  Oxygen | decoder | carbon | gear | | Carbon | modulator | oxygen | gear | | Germanium | resonator | silicon | gear | |
-  Silicon | scrambler | germanium | gear | **Workflow**:
+- ✅ Resource deficit management (ensures enough resources for both unclipping and hearts)
+
+**Unclip Item Mapping**: | Clipped Resource | Unclip Item | Crafted From | Glyph |
+|-----------------|-------------|--------------|-------| | Oxygen | decoder | carbon | gear | | Carbon | modulator |
+oxygen | gear | | Germanium | resonator | silicon | gear | | Silicon | scrambler | germanium | gear |
+
+**Workflow**:
 
 1. Detects clipped extractor blocking progress
 2. Gathers craft resource (e.g., carbon for decoder)
@@ -88,10 +104,13 @@ uv run cogames play --mission evals.extractor_hub_30 -p scripted_baseline --cogs
 4. Crafts unclip item at assembler
 5. Navigates to clipped extractor
 6. Uses item to unclip
-7. Resumes normal gathering **Usage**:
+7. Resumes normal gathering
+
+**Usage**:
 
 ```python
 from cogames.policy.scripted_agent import UnclippingPolicy
+
 policy = UnclippingPolicy(env)
 # ... same as BaselinePolicy
 ```
@@ -101,6 +120,7 @@ policy = UnclippingPolicy(env)
 ```bash
 # Test with clipped oxygen (single agent)
 uv run cogames play --mission evals.extractor_hub_30 -p scripted_unclipping --variant clipped_oxygen --cogs 1
+
 # Test with clipped oxygen (multi-agent)
 uv run cogames play --mission evals.extractor_hub_30 -p scripted_unclipping --variant clipped_oxygen --cogs 4
 ```
@@ -159,16 +179,21 @@ class ExtractorInfo:
 ```bash
 # Default difficulty (single agent)
 uv run cogames play --mission evals.extractor_hub_30 -p scripted_baseline --cogs 1 --steps 1000
+
 # Story mode (easy)
 uv run cogames play --mission evals.extractor_hub_30 -p scripted_baseline --variant story_mode --cogs 1 --steps 1000
+
 # Standard difficulty
 uv run cogames play --mission evals.extractor_hub_30 -p scripted_baseline --variant standard --cogs 1 --steps 1500
+
 # Hard difficulty
 uv run cogames play --mission evals.extractor_hub_30 -p scripted_baseline --variant hard --cogs 1 --steps 2000
+
 # Multi-agent (2, 4, 8 agents)
 uv run cogames play --mission evals.extractor_hub_30 -p scripted_baseline --cogs 2 --steps 1500
 uv run cogames play --mission evals.extractor_hub_30 -p scripted_baseline --cogs 4 --steps 2000
 uv run cogames play --mission evals.extractor_hub_30 -p scripted_baseline --cogs 8 --steps 2500
+
 # Different mission
 uv run cogames play --mission evals.oxygen_bottleneck -p scripted_baseline --cogs 1 --steps 1000
 ```
@@ -178,16 +203,22 @@ uv run cogames play --mission evals.oxygen_bottleneck -p scripted_baseline --cog
 ```bash
 # Clipped oxygen (single agent)
 uv run cogames play --mission evals.extractor_hub_30 -p scripted_unclipping --variant clipped_oxygen --cogs 1 --steps 2000
+
 # Clipped carbon
 uv run cogames play --mission evals.extractor_hub_30 -p scripted_unclipping --variant clipped_carbon --cogs 1 --steps 2000
+
 # Clipped germanium
 uv run cogames play --mission evals.extractor_hub_30 -p scripted_unclipping --variant clipped_germanium --cogs 1 --steps 2000
+
 # Clipped silicon
 uv run cogames play --mission evals.extractor_hub_30 -p scripted_unclipping --variant clipped_silicon --cogs 1 --steps 2000
+
 # Hard + clipped oxygen (combined difficulty)
 uv run cogames play --mission evals.extractor_hub_30 -p scripted_unclipping --variant hard_clipped_oxygen --cogs 1 --steps 3000
+
 # Clipping chaos (random clipping)
 uv run cogames play --mission evals.extractor_hub_30 -p scripted_unclipping --variant clipping_chaos --cogs 1 --steps 2000
+
 # Multi-agent with clipping
 uv run cogames play --mission evals.extractor_hub_30 -p scripted_unclipping --variant clipped_oxygen --cogs 2 --steps 2000
 uv run cogames play --mission evals.extractor_hub_30 -p scripted_unclipping --variant clipped_oxygen --cogs 4 --steps 2500
@@ -198,6 +229,7 @@ uv run cogames play --mission evals.extractor_hub_30 -p scripted_unclipping --va
 ```bash
 # Run full evaluation suite
 uv run python packages/cogames/scripts/evaluate_scripted_agents.py
+
 # Evaluate specific agent
 uv run python packages/cogames/scripts/evaluate_scripted_agents.py --agent simple
 uv run python packages/cogames/scripts/evaluate_scripted_agents.py --agent unclipping
@@ -206,7 +238,9 @@ uv run python packages/cogames/scripts/evaluate_scripted_agents.py --agent uncli
 ## Evaluation Results
 
 See `experiments/SCRIPTED_AGENT_EVALUATION.md` for comprehensive evaluation results across all missions and difficulty
-variants. **Summary**:
+variants.
+
+**Summary**:
 
 - **BaselineAgent**: 33.8% success rate across 1-8 agents, best for non-clipped missions
 - **UnclippingAgent**: 38.6% success rate, best overall performance, handles clipping well
@@ -222,10 +256,12 @@ To create a new agent variant:
 
 ```python
 from .baseline_agent import BaselineAgent, SimpleAgentState
+
 class MyAgent(BaselineAgent):
     def _update_phase(self, s: SimpleAgentState) -> None:
         # Add custom phase logic
         super()._update_phase(s)
+
     def _execute_phase(self, s: SimpleAgentState) -> int:
         # Add custom phase execution
         return super()._execute_phase(s)
@@ -239,17 +275,21 @@ class MyAgentPolicy:
     def __init__(self, impl: MyAgent, agent_id: int):
         self._impl = impl
         self._agent_id = agent_id
+
     def step(self, obs) -> int:
         return self._impl.step(self._agent_id, obs)
+
 class MyPolicy:
     """Policy wrapper for MyAgent."""
     def __init__(self, simulation=None):
         self._simulation = simulation
         self._impl = None
         self._agent_policies = {}
+
     def reset(self, obs, info):
         # Initialize impl from simulation
         pass
+
     def agent_policy(self, agent_id: int):
         # Return per-agent policy
         pass
@@ -259,6 +299,7 @@ class MyPolicy:
 
 ```python
 from cogames.policy.scripted_agent.my_agent import MyPolicy
+
 __all__ = [..., "MyPolicy"]
 ```
 
@@ -269,7 +310,9 @@ Agents track deficits and gather in priority order:
 1. Germanium (5 needed, highest priority)
 2. Silicon (50 needed)
 3. Carbon (20 needed)
-4. Oxygen (20 needed) UnclippingAgent adds special logic:
+4. Oxygen (20 needed)
+
+UnclippingAgent adds special logic:
 
 - Ensures enough craft resource for both unclipping AND hearts
 - Prevents resource deficits when crafting decoders

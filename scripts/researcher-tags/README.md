@@ -53,6 +53,7 @@ Locks the system to a specific commit.
 ```bash
 # Lock to current HEAD (wherever you are now)
 ./scripts/researcher-tags/pin-researcher-current.sh
+
 # Lock to a specific commit
 ./scripts/researcher-tags/pin-researcher-current.sh <commit-hash>
 ```
@@ -76,9 +77,11 @@ Unlocks the system and restores auto-updates.
 ```bash
 # Check system status
 ./scripts/researcher-tags/researcher-current-status.sh
+
 # Use the appropriate tag based on status
 git checkout researcher_current      # If system is auto-updating
 git checkout researcher_current_lock  # If system is locked
+
 # Always update your local tags first
 git fetch --tags
 ```
@@ -90,7 +93,9 @@ git fetch --tags
 ```bash
 # 1. Lock to last known good commit
 ./scripts/researcher-tags/pin-researcher-current.sh <good-commit>
+
 # 2. Fix the bug in main...
+
 # 3. Unlock when fixed
 ./scripts/researcher-tags/unpin-researcher-current.sh
 ```
@@ -100,7 +105,9 @@ git fetch --tags
 ```bash
 # Lock to current version
 ./scripts/researcher-tags/pin-researcher-current.sh
+
 # Run experiments...
+
 # Unlock when done
 ./scripts/researcher-tags/unpin-researcher-current.sh
 ```

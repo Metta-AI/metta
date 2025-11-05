@@ -40,6 +40,7 @@ Or programmatically:
 ```python
 import asyncio
 from wandb_dashboard.server import main
+
 asyncio.run(main())
 ```
 
@@ -61,13 +62,17 @@ Add to your `claude_desktop_config.json`:
 
 ### `create_dashboard`
 
-Create a new WandB workspace dashboard. **Parameters:**
+Create a new WandB workspace dashboard.
+
+**Parameters:**
 
 - `name` (string): Dashboard name
 - `entity` (string): WandB entity (user/team)
 - `project` (string): WandB project
 - `description` (string, optional): Dashboard description
-- `sections` (array, optional): Dashboard sections configuration **Example:**
+- `sections` (array, optional): Dashboard sections configuration
+
+**Example:**
 
 ```json
 {
@@ -85,14 +90,18 @@ Create a new WandB workspace dashboard. **Parameters:**
 
 ### `update_dashboard`
 
-Update an existing dashboard. **Parameters:**
+Update an existing dashboard.
+
+**Parameters:**
 
 - `dashboard_url` (string): URL of the dashboard to update
 - `modifications` (object): Changes to apply
 
 ### `list_dashboards`
 
-List available dashboards for an entity/project. **Parameters:**
+List available dashboards for an entity/project.
+
+**Parameters:**
 
 - `entity` (string): WandB entity
 - `project` (string, optional): WandB project
@@ -100,7 +109,9 @@ List available dashboards for an entity/project. **Parameters:**
 
 ### `add_panel`
 
-Add a panel to an existing dashboard section. **Parameters:**
+Add a panel to an existing dashboard section.
+
+**Parameters:**
 
 - `dashboard_url` (string): Dashboard URL
 - `section_name` (string): Target section name
@@ -109,7 +120,9 @@ Add a panel to an existing dashboard section. **Parameters:**
 
 ### `list_available_metrics`
 
-List available metrics for a project. **Parameters:**
+List available metrics for a project.
+
+**Parameters:**
 
 - `entity` (string): WandB entity
 - `project` (string): WandB project
@@ -117,13 +130,17 @@ List available metrics for a project. **Parameters:**
 
 ### `get_dashboard_config`
 
-Get the configuration of an existing dashboard. **Parameters:**
+Get the configuration of an existing dashboard.
+
+**Parameters:**
 
 - `dashboard_url` (string): Dashboard URL
 
 ### `clone_dashboard`
 
-Clone an existing dashboard. **Parameters:**
+Clone an existing dashboard.
+
+**Parameters:**
 
 - `source_url` (string): Source dashboard URL
 - `new_name` (string): Name for the cloned dashboard
@@ -168,8 +185,9 @@ The server includes pre-built templates for common dashboard types:
 
 - **`training_overview`**: Loss and performance metrics
 - **`hyperparameter_analysis`**: Learning rate and hyperparameter analysis
-- **`model_comparison`**: Validation metrics for comparing models Templates can be used when creating dashboards to
-  quickly set up common visualization patterns.
+- **`model_comparison`**: Validation metrics for comparing models
+
+Templates can be used when creating dashboards to quickly set up common visualization patterns.
 
 ## Configuration
 

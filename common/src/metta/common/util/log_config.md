@@ -4,6 +4,7 @@
 
 ```python
 from metta.common.util.log_config import init_logging
+
 if __name__ == "__main__":
     init_logging(run_dir=Path("./train_dir/run_001"))  # Optional; only if you want file logging
 ```
@@ -55,5 +56,8 @@ The following variables automatically trigger simple (non-Rich) formatting: `WAN
 
 - Ensure `init_logging()` is called first
 - Check log level: `export LOG_LEVEL=DEBUG`
-- Verify logger.propagate is True (default) **No rank prefix?**
+- Verify logger.propagate is True (default)
+
+**No rank prefix?**
+
 - Rank environment variables must be set (usually by your distributed framework)

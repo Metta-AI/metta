@@ -43,7 +43,9 @@ The integration consists of:
 
 - `clang_tidy.bzl`: Bazel aspect and rules for running clang-tidy
 - `clang_tidy_wrapper.sh`: Simple wrapper script for the system clang-tidy
-- `BUILD`: Defines the lint targets The aspect automatically:
+- `BUILD`: Defines the lint targets
+
+The aspect automatically:
 
 1. Extracts compilation flags from C++ targets
 2. Runs clang-tidy on each source file

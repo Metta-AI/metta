@@ -42,6 +42,7 @@ def get_world_size(self) -> int:
 ```python
 def get_world_size(self) -> int:
     """Get the number of processes.
+
     Returns:
         World size
     """
@@ -109,5 +110,6 @@ Our code should be:
 
 - **Conventional** - Follow established patterns
 - **Clean** - Remove unnecessary ceremony
-- **Direct** - Don't be clever when simple will do When in doubt, ask: "What's the simplest thing that could possibly
-  work?" Then write that.
+- **Direct** - Don't be clever when simple will do
+
+When in doubt, ask: "What's the simplest thing that could possibly work?" Then write that.

@@ -6,9 +6,12 @@ This script provides a convenient way to launch training jobs on AWS using SkyPi
 
 - AWS credentials configured with `softmax` profile
 - SkyPilot CLI installed and configured. This results in a ~/.sky/config.yaml
-- Bazel 7.0.0 or newer If you have successfully run `./devops/skypilot/install.sh` or `metta install`, these should be
-  handled. You can run this command to confirm your connectivity to the Softmax skypilot server, its health, and if you
-  are authenticated.
+- Bazel 7.0.0 or newer
+
+If you have successfully run `./devops/skypilot/install.sh` or `metta install`, these should be handled.
+
+You can run this command to confirm your connectivity to the Softmax skypilot server, its health, and if you are
+authenticated.
 
 ```bash
 uv run sky api info
@@ -44,9 +47,11 @@ There's a [web dashboard](https://skypilot-api.softmax-research.net/) that displ
 ### Basic Usage
 
 1. **Launch a training run with default parameters:**
+
    ```bash
    devops/skypilot/launch.py train run=my_experiment_001
    ```
+
 2. **Launch with custom hyperparameters:**
    ```bash
    devops/skypilot/launch.py train run=my_experiment_002 trainer.optimizer.learning_rate=0.001 trainer.rollout.batch_size=32
@@ -55,13 +60,17 @@ There's a [web dashboard](https://skypilot-api.softmax-research.net/) that displ
 ### Resource Configuration
 
 3. **Use multiple GPUs:**
+
    ```bash
    devops/skypilot/launch.py train run=gpu_experiment --gpus 4
    ```
+
 4. **Multi-node training:**
+
    ```bash
    devops/skypilot/launch.py train run=distributed_training --nodes 2 --gpus 8
    ```
+
 5. **Use on-demand instances (more reliable but costlier):**
    ```bash
    devops/skypilot/launch.py train run=critical_experiment --no-spot
@@ -70,9 +79,11 @@ There's a [web dashboard](https://skypilot-api.softmax-research.net/) that displ
 ### Time Management
 
 6. **Quick 30-minute experiment:**
+
    ```bash
    devops/skypilot/launch.py train run=quick_test --max-runtime-hours 0.5
    ```
+
 7. **Long-running job with 8-hour limit:**
    ```bash
    devops/skypilot/launch.py train run=long_experiment ---max-runtime-hours 8 --gpus 2
@@ -81,16 +92,23 @@ There's a [web dashboard](https://skypilot-api.softmax-research.net/) that displ
 ### Advanced Usage
 
 8. **Launch multiple identical experiments:**
+
    ```bash
    devops/skypilot/launch.py train run=ablation_study --copies 5 ---max-runtime-hours 2
    ```
+
 9. **Use specific git commit:**
+
    ```bash
    devops/skypilot/launch.py train run=reproducible_exp --git-ref abc123def
    ```
+
 10. **Preview configuration before launching:**
-    `bash     devops/skypilot/launch.py train run=test_config --confirm     ` The `--confirm` flag displays a detailed
-    job summary before launching:
+    ```bash
+    devops/skypilot/launch.py train run=test_config --confirm
+    ```
+
+The `--confirm` flag displays a detailed job summary before launching:
 
 ```sh
 ============================================================
@@ -111,9 +129,14 @@ Task Arguments:
 Should we launch this task? (Y/n):
 ```
 
-11. **Dry run:** `bash     devops/skypilot/launch.py train run=test_config --dry-run     ` The `--dry-run` flag allows
-    you to preview the configuration that will be used before launching. It will output the complete YAML configuration
-    that would be used for the deployment, including:
+11. **Dry run:**
+    ```bash
+    devops/skypilot/launch.py train run=test_config --dry-run
+    ```
+
+The `--dry-run` flag allows you to preview the configuration that will be used before launching.
+
+It will output the complete YAML configuration that would be used for the deployment, including:
 
 - Resource specifications (cloud provider, instance types, GPUs)
 - Docker configurations
@@ -128,10 +151,13 @@ Should we launch this task? (Y/n):
 ```bash
 # List all jobs with status
 uv run sky jobs queue
+
 # View job logs
 uv run sky jobs logs <JOB_ID>
+
 # View controller logs (for debugging)
 uv run sky jobs logs <JOB_ID> --controller
+
 # Stream logs in real-time
 uv run sky jobs logs <JOB_ID> --follow
 ```
@@ -141,8 +167,10 @@ uv run sky jobs logs <JOB_ID> --follow
 ```bash
 # Cancel a specific job
 uv run sky jobs cancel <JOB_ID>
+
 # Cancel all jobs
 uv run sky jobs cancel --all
+
 # Cancel jobs by name pattern
 uv run sky jobs cancel -n "experiment_*"
 ```
@@ -160,7 +188,9 @@ Jobs can have the following statuses:
 ## Shell Aliases
 
 To streamline your workflow, we provide a script to set shell aliases for common SkyPilot operations. It also sets
-`AWS_PROFILE=softmax` automatically. To add these aliases temporarily:
+`AWS_PROFILE=softmax` automatically.
+
+To add these aliases temporarily:
 
 ```bash
 source ./devops/skypilot/setup_shell.sh
@@ -171,8 +201,10 @@ To add them permanently, add the source command to your shell profile:
 ```bash
 # For bash users:
 echo "source /path/to/your/project/devops/skypilot/setup_shell.sh" >> ~/.bashrc
+
 # For zsh users:
 echo "source /path/to/your/project/devops/skypilot/setup_shell.sh" >> ~/.zshrc
+
 # For fish users:
 echo "source /path/to/your/project/devops/skypilot/setup_shell.sh" >> ~/.config/fish/config.fish
 ```
@@ -213,10 +245,13 @@ terminate after completion, sandboxes remain running until you stop them.
 ```bash
 # Create sandbox with main branch
 ./devops/skypilot/sandbox.py
+
 # Check if you have any existing sandboxes
 ./devops/skypilot/sandbox.py --check
+
 # Force create new sandbox (even if one exists)
 ./devops/skypilot/sandbox.py --new
+
 # Connect to your sandbox
 ssh <sandbox-name>
 ```
@@ -226,12 +261,16 @@ ssh <sandbox-name>
 ```bash
 # Show existing sandboxes and management commands
 ./devops/skypilot/sandbox.py
+
 # Launch a new sandbox with 1 GPU (default)
 ./devops/skypilot/sandbox.py --new
+
 # Launch with multiple GPUs
 ./devops/skypilot/sandbox.py --new --gpus 4
+
 # Launch with specific git branch
 ./devops/skypilot/sandbox.py --new --git-ref feature/my-branch
+
 # Increase wait timeout for cluster initialization
 ./devops/skypilot/sandbox.py --new --wait-timeout 600
 ```
@@ -250,9 +289,11 @@ Example output:
 Found 2 sandbox(es) for user alice:
   • alice-sandbox-1 (running) [L4:1]
   • alice-sandbox-2 (stopped) [L4:4]
+
 Summary:
   1 running
   1 stopped
+
 📦 Manage sandboxes:
   Launch new:     ./devops/skypilot/sandbox.py --new
   Connect:        ssh alice-sandbox-1
@@ -266,14 +307,19 @@ Summary:
 ```bash
 # Connect to a running sandbox
 ssh <sandbox-name>
+
 # Stop sandbox (preserves data, saves costs)
 uv run sky stop <sandbox-name>
+
 # Restart a stopped sandbox
 uv run sky start <sandbox-name>
+
 # Delete sandbox completely
 uv run sky down <sandbox-name>
+
 # Check logs if sandbox is stuck in INIT
 uv run sky logs <sandbox-name>
+
 # Retry launch for stuck clusters
 uv run sky launch -c <sandbox-name> --no-setup
 ```
@@ -285,7 +331,9 @@ uv run sky launch -c <sandbox-name> --no-setup
   - 1 GPU: ~$0.70-0.90/hour
   - 2 GPUs: ~$1.40-1.80/hour
   - 4 GPUs: ~$2.80-3.60/hour
-  - 8 GPUs: ~$5.60-7.20/hour To disable auto-stop:
+  - 8 GPUs: ~$5.60-7.20/hour
+
+To disable auto-stop:
 
 ```bash
 uv run sky autostop --cancel <sandbox-name>
@@ -312,10 +360,13 @@ The following environment variables are automatically set:
 ```bash
 # Check cluster status
 uv run sky status
+
 # View detailed resource availability
 uv run sky show-gpus
+
 # Check SkyPilot configuration
 uv run sky check
+
 # View job details
 uv run sky jobs queue -a
 ```
@@ -323,14 +374,20 @@ uv run sky jobs queue -a
 ## Best Practices
 
 1. **Use descriptive run IDs**: Include date, user name, experiment type, and key parameters
+
    ```bash
    lt run=2024_01_15_bert_lr_sweep_001
    ```
+
 2. **Set appropriate timeouts**: Always use `---max-runtime-hours` to prevent runaway costs
+
 3. **Use confirmation for important jobs**: Add `--confirm` to review the job details including GPU allocation, spot
    instance usage, and all command arguments
+
 4. **Monitor actively**: Check job status regularly, especially for long-running jobs
+
 5. **Clean up resources**: Cancel failed jobs and shut down unused sandboxes
+
 6. **Use sandboxes wisely**: Stop sandboxes when not in use to save costs, and delete old sandboxes you no longer need
 
 ## Additional Resources

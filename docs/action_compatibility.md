@@ -44,7 +44,9 @@ construction, so policies only emit a scalar `action_id` per agent.
 
 ### 1. Action Index Changes
 
-**Description**: Modifying the order in which actions are registered changes their numeric indices. **Example**:
+**Description**: Modifying the order in which actions are registered changes their numeric indices.
+
+**Example**:
 
 ```yaml
 # Before
@@ -52,6 +54,7 @@ actions:
   noop: {...}      # index 0
   move: {...}      # index 1
   rotate: {...}    # index 2
+
 # After (BREAKING)
 actions:
   move: {...}      # index 0 (was 1)
@@ -64,13 +67,16 @@ Tracked**: `action.invalid_type`
 
 ### 2. Action Variant Count Changes
 
-**Description**: Changing how many concrete variants are generated for a logical verb. **Example**:
+**Description**: Changing how many concrete variants are generated for a logical verb.
+
+**Example**:
 
 ```yaml
 # Before
 actions:
   move:
     allow_diagonals: false  # Only N, S, E, W -> 4 move_* entries
+
 # After (BREAKING)
 actions:
   move:
@@ -80,17 +86,21 @@ actions:
 **Impact**:
 
 - Removing variants: Formerly valid action ids now fall outside the handler list
-- Adding variants: Action ids shift after the insertion point; trained policies must be remapped **Detection**:
-  `action.invalid_type` errors increase **Stats Tracked**: `action.invalid_type`, `action.<name>.failed`
+- Adding variants: Action ids shift after the insertion point; trained policies must be remapped
+
+**Detection**: `action.invalid_type` errors increase **Stats Tracked**: `action.invalid_type`, `action.<name>.failed`
 
 ### 3. Action Removal or Renaming
 
-**Description**: Removing an action or changing its name in configuration. **Example**:
+**Description**: Removing an action or changing its name in configuration.
+
+**Example**:
 
 ```yaml
 # Before
 actions:
   attack: {...}
+
 # After (BREAKING)
 actions:
   # attack removed or renamed to combat
@@ -99,17 +109,21 @@ actions:
 **Impact**:
 
 - Removal: Action indices shift, causing wrong actions
-- Renaming: Action becomes unregistered **Detection**: `Unknown action` errors during initialization **Stats Tracked**:
-  `action.invalid_type`
+- Renaming: Action becomes unregistered
+
+**Detection**: `Unknown action` errors during initialization **Stats Tracked**: `action.invalid_type`
 
 ### 4. Resource Requirement Changes
 
-**Description**: Modifying required or consumed resources for actions. **Example**:
+**Description**: Modifying required or consumed resources for actions.
+
+**Example**:
 
 ```cpp
 // Before
 required_resources: {ore: 1}
 consumed_resources: {ore: 1}
+
 // After (BREAKING)
 required_resources: {ore: 2, energy: 1}
 consumed_resources: {ore: 2}
@@ -120,7 +134,9 @@ consumed_resources: {ore: 2}
 
 ### 5. Agent State Conflicts
 
-**Description**: Changes to agent state that prevent action execution. **Example**: Frozen duration changes
+**Description**: Changes to agent state that prevent action execution.
+
+**Example**: Frozen duration changes
 
 ```cpp
 // Frozen agents cannot perform actions
@@ -133,7 +149,9 @@ if (actor->frozen != 0) {
 
 ### 6. Action Priority Changes
 
-**Description**: Modifying action execution priority affects order of processing. **Example**:
+**Description**: Modifying action execution priority affects order of processing.
+
+**Example**:
 
 ```cpp
 // Attack has priority 1, others have priority 0
@@ -144,11 +162,14 @@ if (actor->frozen != 0) {
 
 ### 7. Inventory Item Index Changes
 
-**Description**: Changing the order or IDs of inventory items that actions depend on. **Example**:
+**Description**: Changing the order or IDs of inventory items that actions depend on.
+
+**Example**:
 
 ```yaml
 # Before
 resource_names: [ore, wood, gold]  # ore=0, wood=1, gold=2
+
 # After (BREAKING)
 resource_names: [wood, ore, gold]  # wood=0, ore=1, gold=2
 ```
@@ -157,7 +178,9 @@ resource_names: [wood, ore, gold]  # wood=0, ore=1, gold=2
 
 ### 8. Action Handler Implementation Changes
 
-**Description**: Modifying the internal logic of action handlers. **Example**:
+**Description**: Modifying the internal logic of action handlers.
+
+**Example**:
 
 ```cpp
 // Move action now checks for walls differently
@@ -183,11 +206,14 @@ _action_handlers.push_back(std::make_unique<AttackNearest>(...));
 ### 10. Action Space Flattening
 
 **Description**: Legacy builds exposed a `MultiDiscrete([num_verbs, max_arg + 1])` action space. Current builds flatten
-every verb/argument combination into a `gymnasium.spaces.Discrete(num_variants)` space. **Example**:
+every verb/argument combination into a `gymnasium.spaces.Discrete(num_variants)` space.
+
+**Example**:
 
 ```python
 # Before (legacy two-field actions)
 action_space = gymnasium.spaces.MultiDiscrete([len(verbs), max_arg + 1])
+
 # After (current single-index actions)
 action_space = gymnasium.spaces.Discrete(len(env.action_names()))
 # env.action_names() -> ["noop", "move_north", "move_south", "attack_0", ...]
@@ -226,12 +252,14 @@ action_space = gymnasium.spaces.Discrete(len(env.action_names()))
 def legacy_flatten(action_type: int, action_arg: int, max_args: list[int]) -> int:
     offset = sum(max_args[i] + 1 for i in range(action_type))
     return offset + action_arg
+
 # Remap flattened ids onto the new enumerated action list
 ACTION_REMAP = {
     0: 0,   # noop -> noop
     1: 4,   # move,dir=0 -> move_north
     2: 5,   # move,dir=1 -> move_south
 }
+
 def migrate_action(old_action, max_args):
     action_type, action_arg = old_action
     legacy_id = legacy_flatten(action_type, action_arg, max_args)
@@ -290,6 +318,7 @@ def test_action_compatibility():
 def test_policy_behavior():
     # Load saved policy
     policy = load_policy("trained_model.pt")
+
     # Test on reference scenarios
     for scenario in test_scenarios:
         env.reset(scenario)
@@ -302,11 +331,13 @@ def test_policy_behavior():
 ```python
 def detect_breaking_changes(old_config, new_config):
     issues = []
+
     # Check action order
     old_actions = list(old_config['actions'].keys())
     new_actions = list(new_config['actions'].keys())
     if old_actions != new_actions[:len(old_actions)]:
         issues.append("Action order changed")
+
     # Check max args
     for action in old_actions:
         if action in new_actions:
@@ -314,6 +345,7 @@ def detect_breaking_changes(old_config, new_config):
             new_max = get_max_arg(new_config, action)
             if new_max < old_max:
                 issues.append(f"{action} max_arg reduced")
+
     return issues
 ```
 

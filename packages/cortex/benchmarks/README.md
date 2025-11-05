@@ -20,17 +20,21 @@ uv run python packages/cortex/benchmarks/run.py rtu --device cuda
 ```
 
 Performance varies with sequence length and hidden size. Triton benefits most for longer sequences and when per‑timestep
-resets are used (segmented scan path). The tool reports per‑config speed and max output difference. Sample run (NVIDIA
-L4, CUDA 12.8):
+resets are used (segmented scan path). The tool reports per‑config speed and max output difference.
+
+Sample run (NVIDIA L4, CUDA 12.8):
 
 ```
 /workspace/metta/packages/cortex# uv run python benchmarks/bench_rtu_triton_vs_pytorch.py
 ================================================================================
 RTU (low-rank) Triton vs PyTorch Benchmark
 ================================================================================
+
 Device: NVIDIA L4
 CUDA Version: 12.8
+
 Configuration format: (batch, seq_len, hidden, rank, resets, p)
+
 Config                                           PyTorch (ms)    Triton (ms)     Speedup    Max Diff
 --------------------------------------------------------------------------------------------------------------
 (4, 128, 64, 8, False, 0.0)                        Benchmarking PyTorch implementation...
@@ -54,6 +58,7 @@ Config                                           PyTorch (ms)    Triton (ms)    
 (8, 1024, 64, 16, True, 0.1)                       Benchmarking PyTorch implementation...
   Benchmarking Triton implementation...
 297.344         1.890           157.31x    7.40e-01
+
 ================================================================================
 Benchmark complete!
 ================================================================================
@@ -81,8 +86,9 @@ uv run python packages/cortex/benchmarks/run.py mlstm --device cuda
 uv run python packages/cortex/benchmarks/run.py lstm --device cuda
 ```
 
-**Performance:** PyTorch (cuDNN) is 3x - 25x faster. Triton kernel useful for custom reset patterns. **Why Triton is
-still slower:**
+**Performance:** PyTorch (cuDNN) is 3x - 25x faster. Triton kernel useful for custom reset patterns.
+
+**Why Triton is still slower:**
 
 - Each timestep recomputes the full recurrent GEMM from global memory; cuDNN keeps weights in on-chip caches and fuses
   the sequence.
@@ -91,8 +97,9 @@ still slower:**
 - Python dispatch launches the forward kernel once per sequence iteration, whereas cuDNN handles the whole sequence
   inside one launch.
 - Mixed-precision support is conservative (fp32 accumulation), so cuDNN’s tensor-core kernels retain a throughput edge.
-  Closing these gaps would mean redesigning the Triton kernel (persistent tiles, better tensor-core tiling, fewer
-  launches), which is feasible but a substantial engineering effort.
+
+Closing these gaps would mean redesigning the Triton kernel (persistent tiles, better tensor-core tiling, fewer
+launches), which is feasible but a substantial engineering effort.
 
 ### Conv1D
 
