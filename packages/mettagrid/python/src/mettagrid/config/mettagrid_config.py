@@ -436,12 +436,21 @@ class GameConfig(Config):
         return IdMap(wrapper)
 
 
+class TeacherConfig(Config):
+    """Teacher configuration."""
+
+    enabled: bool = Field(default=False)
+    use_actions: bool = Field(default=False)
+    policy: str = Field(default="baseline")
+
+
 class MettaGridConfig(Config):
     """Environment configuration."""
 
     label: str = Field(default="mettagrid")
     game: GameConfig = Field(default_factory=GameConfig)
     desync_episodes: bool = Field(default=True)
+    teacher: TeacherConfig = Field(default_factory=TeacherConfig)
 
     def id_map(self) -> "IdMap":
         """Get the observation feature ID map for this configuration."""

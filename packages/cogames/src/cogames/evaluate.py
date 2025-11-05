@@ -306,10 +306,9 @@ def _evaluate_single_mission(
     policy_env_info = PolicyEnvInterface.from_mg_cfg(env_cfg)
     policy_instances = [
         initialize_or_load_policy(
+            policy_env_info,
             spec.policy_class_path,
             spec.policy_data_path,
-            env_cfg.game.actions,
-            policy_env_info=policy_env_info,
         )
         for spec in policy_specs
     ]
