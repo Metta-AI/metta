@@ -130,7 +130,6 @@ class Experience:
         """Get mean values of all tracked buffers."""
         stats = {
             "rewards": self.buffer["rewards"].mean().item(),
-            "act_log_prob": self.buffer["act_log_prob"].mean().item(),
             "dones": self.buffer["dones"].mean().item(),
             "truncateds": self.buffer["truncateds"].mean().item(),
         }
@@ -139,6 +138,8 @@ class Experience:
             stats["values"] = self.buffer["values"].mean().item()
         if "ratio" in self.buffer.keys():
             stats["ratio"] = self.buffer["ratio"].mean().item()
+        if "act_log_prob" in self.buffer.keys():
+            stats["act_log_prob"] = self.buffer["act_log_prob"].mean().item()
 
         # Add episode length stats for active episodes
         active_episodes = self.ep_lengths > 0
