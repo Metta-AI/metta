@@ -196,11 +196,9 @@ def _run_mettascope_build() -> None:
         _sync_mettascope_package_data()
         return
 
-    # Check if nim and nimble are available
-    if shutil.which("nim") is None or shutil.which("nimby") is None:
-        raise RuntimeError(
-            "Nim compiler or Nimble package manager not found! To build mettascope, install Nim: https://nim-lang.org/install.html"
-        )
+    for x in ["nim", "nimby"]:
+        if shutil.which(x) is None:
+            raise RuntimeError(f"{x} not found!")
 
     print(f"Building mettascope from {METTASCOPE_DIR}")
 
