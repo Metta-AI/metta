@@ -133,6 +133,10 @@ builds its configuration, and runs it.
 - **Play** (browser): `./tools/run.py play arena policy_uri=file://./train_dir/my_run/checkpoints`
 - **Replay**: `./tools/run.py replay arena policy_uri=file://./train_dir/my_run/checkpoints`
 **Navigation recipe**: Replace `arena` with `navigation` for navigation tasks
+### Example Training Notebooks
+All the notebooks available at `./notebooks`
+#### Train on Cogames:
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1YaIdg5a5Ji5_J_HkVOdY9itJTFju54oG?usp=sharing)
 ### Task arguments
 run.py applies arguments provided through `[key=value ...]`, classifying each:
 - **Function arguments**: Arguments that match parameters of your task function
