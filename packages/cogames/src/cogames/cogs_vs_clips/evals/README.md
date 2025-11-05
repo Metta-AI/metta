@@ -3,6 +3,7 @@
 This directory contains standardized evaluation missions and difficulty variants for testing CoGames agents.
 
 **Contents:**
+
 - [Evaluation Missions](#evaluation-missions) - 14 distinct environments testing different skills
 - [Difficulty Variants](#difficulty-variants) - 13 difficulty levels that can be applied to any mission
 - [Quick Reference](#quick-reference) - Tables and usage examples
@@ -11,15 +12,19 @@ This directory contains standardized evaluation missions and difficulty variants
 
 ## Evaluation Missions
 
-All evaluation missions are defined in `eval_missions.py` and registered under the `evals` site. Each mission has a unique map, resource configuration, and gameplay challenge.
+All evaluation missions are defined in `eval_missions.py` and registered under the `evals` site. Each mission has a
+unique map, resource configuration, and gameplay challenge.
 
 ### Resource Collection Missions
 
 #### CollectResourcesClassic
+
 **Map:** `evals/eval_collect_resources.map`
+
 **Challenge:** Classic balanced layout with extractors near base
 
 **Configuration:**
+
 - Energy regen: 2/step
 - Charger efficiency: 130
 - Resource efficiency: Carbon 125, Oxygen 115, Germanium 90, Silicon 125
@@ -32,10 +37,13 @@ All evaluation missions are defined in `eval_missions.py` and registered under t
 ---
 
 #### CollectResourcesSpread
+
 **Map:** `evals/eval_collect_resources_medium.map`
+
 **Challenge:** Scattered extractors requiring more exploration and routing
 
 **Configuration:**
+
 - Energy regen: 2/step
 - Charger efficiency: 135
 - Resource efficiency: Carbon 130, Oxygen 120, Germanium 95, Silicon 130
@@ -48,10 +56,13 @@ All evaluation missions are defined in `eval_missions.py` and registered under t
 ---
 
 #### CollectFar
+
 **Map:** `evals/eval_collect_resources_hard.map`
+
 **Challenge:** Resources scattered far from base; heavy routing coordination
 
 **Configuration:**
+
 - Energy regen: 2/step
 - Charger efficiency: 135
 - Resource efficiency: Carbon 130, Oxygen 120, Germanium 100, Silicon 135
@@ -66,10 +77,13 @@ All evaluation missions are defined in `eval_missions.py` and registered under t
 ### Specialization & Coordination Missions
 
 #### DivideAndConquer
+
 **Map:** `evals/eval_divide_and_conquer.map`
+
 **Challenge:** Resources partitioned into separate regions; agents must specialize and reconvene
 
 **Configuration:**
+
 - Energy regen: 2/step
 - Charger efficiency: 130
 - Resource efficiency: Carbon 125, Oxygen 120, Germanium 95, Silicon 130
@@ -82,10 +96,13 @@ All evaluation missions are defined in `eval_missions.py` and registered under t
 ---
 
 #### GoTogether
+
 **Map:** `evals/eval_balanced_spread.map`
+
 **Challenge:** Objects favor collective glyphing; agents must travel and return as a pack
 
 **Configuration:**
+
 - Energy regen: 2/step
 - Charger efficiency: 140
 - Resource efficiency: Carbon 130, Oxygen 125, Germanium 100, Silicon 135
@@ -99,10 +116,13 @@ All evaluation missions are defined in `eval_missions.py` and registered under t
 ---
 
 #### SingleUseSwarm
+
 **Map:** `evals/eval_single_use_world.map`
+
 **Challenge:** Every extractor can be used exactly once; team must fan out and reconverge
 
 **Configuration:**
+
 - Energy regen: 2/step
 - Charger efficiency: 140
 - Resource efficiency: Carbon 130, Oxygen 125, Germanium 105, Silicon 135
@@ -118,10 +138,13 @@ All evaluation missions are defined in `eval_missions.py` and registered under t
 ### Bottleneck & Constraint Missions
 
 #### OxygenBottleneck
+
 **Map:** `evals/eval_oxygen_bottleneck.map`
+
 **Challenge:** Oxygen extraction is significantly slower; forces batching other resources
 
 **Configuration:**
+
 - Energy regen: 2/step
 - Charger efficiency: 130
 - Resource efficiency: Carbon 115, **Oxygen 60**, Germanium 80, Silicon 120
@@ -134,10 +157,13 @@ All evaluation missions are defined in `eval_missions.py` and registered under t
 ---
 
 #### EnergyStarved
+
 **Map:** `evals/eval_energy_starved.map`
+
 **Challenge:** Low energy regen and weak chargers; requires careful routing and charging
 
 **Configuration:**
+
 - Energy regen: 1/step
 - Inventory regen interval: 2 steps (slower!)
 - Charger efficiency: 90 (weak!)
@@ -155,10 +181,13 @@ All evaluation missions are defined in `eval_missions.py` and registered under t
 Large open maps with centralized extractors, testing exploration and navigation efficiency.
 
 #### ExtractorHub30
+
 **Map:** `evals/extractor_hub_30x30.map` (30×30)
+
 **Challenge:** Small hub, quick exploration
 
 **Configuration:**
+
 - Energy regen: 2/step
 - Charger efficiency: 125
 - Resource efficiency: Carbon 115, Oxygen 110, Germanium 90, Silicon 120
@@ -170,10 +199,13 @@ Large open maps with centralized extractors, testing exploration and navigation 
 ---
 
 #### ExtractorHub50
+
 **Map:** `evals/extractor_hub_50x50.map` (50×50)
+
 **Challenge:** Medium hub, moderate exploration
 
 **Configuration:**
+
 - Energy regen: 2/step
 - Charger efficiency: 125
 - Resource efficiency: Carbon 115, Oxygen 110, Germanium 90, Silicon 120
@@ -185,10 +217,13 @@ Large open maps with centralized extractors, testing exploration and navigation 
 ---
 
 #### ExtractorHub70
+
 **Map:** `evals/extractor_hub_70x70.map` (70×70)
+
 **Challenge:** Large hub, significant exploration required
 
 **Configuration:**
+
 - Energy regen: 2/step
 - Charger efficiency: 130
 - Resource efficiency: Carbon 115, Oxygen 110, Germanium 95, Silicon 120
@@ -200,10 +235,13 @@ Large open maps with centralized extractors, testing exploration and navigation 
 ---
 
 #### ExtractorHub80
+
 **Map:** `evals/extractor_hub_80x80.map` (80×80)
+
 **Challenge:** Very large hub, extensive exploration
 
 **Configuration:**
+
 - Energy regen: 2/step
 - Charger efficiency: 135
 - Resource efficiency: Carbon 115, Oxygen 110, Germanium 95, Silicon 120
@@ -215,10 +253,13 @@ Large open maps with centralized extractors, testing exploration and navigation 
 ---
 
 #### ExtractorHub100
+
 **Map:** `evals/extractor_hub_100x100.map` (100×100)
+
 **Challenge:** Extreme hub size, timeout risk high
 
 **Configuration:**
+
 - Energy regen: 2/step
 - Charger efficiency: 140
 - Resource efficiency: Carbon 115, Oxygen 110, Germanium 100, Silicon 120
@@ -231,17 +272,21 @@ Large open maps with centralized extractors, testing exploration and navigation 
 
 ## Difficulty Variants
 
-Difficulty variants are modifiers that can be applied to any mission to create varied challenges. Each variant adjusts extractor max_uses, efficiency, energy_regen, and other parameters.
+Difficulty variants are modifiers that can be applied to any mission to create varied challenges. Each variant adjusts
+extractor max_uses, efficiency, energy_regen, and other parameters.
 
 All difficulty variants are defined in `difficulty_variants.py`.
 
 ### Standard Difficulty Progression
 
 #### story_mode
+
 **Description:** Abundant energy/resource output for reliable completion
+
 **Agent Scaling:** Disabled (fixed parameters)
 
 **Parameters:**
+
 - Max uses: 12 for all extractors (generous)
 - Efficiency: 140 for all extractors, 150 for charger (high)
 - Energy regen: 2/step (abundant)
@@ -252,10 +297,13 @@ All difficulty variants are defined in `difficulty_variants.py`.
 ---
 
 #### standard
+
 **Description:** Baseline mission parameters (default difficulty)
+
 **Agent Scaling:** Enabled
 
 **Parameters:**
+
 - Uses mission's default values for all parameters
 - No multipliers or overrides applied
 - **Use case:** Standard evaluation baseline
@@ -265,10 +313,13 @@ All difficulty variants are defined in `difficulty_variants.py`.
 ---
 
 #### hard
+
 **Description:** Tight extractor budgets and no passive regen
+
 **Agent Scaling:** Disabled
 
 **Parameters:**
+
 - Max uses: Carbon 4, Oxygen 4, Germanium 6, Silicon 3 (tight!)
 - Efficiency: Carbon 80, Oxygen 65, Germanium 75, Silicon 70, Charger 80 (reduced)
 - Energy regen: 0/step (none!)
@@ -280,10 +331,13 @@ All difficulty variants are defined in `difficulty_variants.py`.
 ---
 
 #### brutal
+
 **Description:** Extreme scarcity, reduced inventories, perfection required
+
 **Agent Scaling:** Disabled
 
 **Parameters:**
+
 - Max uses: Carbon 2, Oxygen 2, Germanium 3, Silicon 2 (minimal!)
 - Efficiency: Carbon 55, Oxygen 45, Germanium 50, Silicon 50, Charger 60 (very low)
 - Energy regen: 0/step
@@ -299,10 +353,13 @@ All difficulty variants are defined in `difficulty_variants.py`.
 ### Specialized Difficulty Variants
 
 #### single_use
+
 **Description:** Every extractor can be used exactly once - no second chances
+
 **Agent Scaling:** Disabled
 
 **Parameters:**
+
 - Max uses: 1 for all extractors (single use!)
 - Charger efficiency: 120 (compensatory boost)
 - Energy regen: 1/step
@@ -313,10 +370,13 @@ All difficulty variants are defined in `difficulty_variants.py`.
 ---
 
 #### speed_run
+
 **Description:** Short clock, cheap movement, efficient extraction
+
 **Agent Scaling:** Enabled
 
 **Parameters:**
+
 - Max uses: 6 for all extractors
 - Efficiency: 160 for all extractors and charger (high)
 - Energy regen: 2/step
@@ -329,10 +389,13 @@ All difficulty variants are defined in `difficulty_variants.py`.
 ---
 
 #### energy_crisis
+
 **Description:** Zero passive regen and weak chargers - plan every move
+
 **Agent Scaling:** Disabled
 
 **Parameters:**
+
 - Charger efficiency: 50 (very weak!)
 - Energy regen: 0/step (none!)
 - **Use case:** Testing extreme energy management
@@ -343,9 +406,11 @@ All difficulty variants are defined in `difficulty_variants.py`.
 
 ### Clipping Difficulty Variants
 
-Clipping variants introduce extractors that start "clipped" (disabled) and require crafting special items to unclip. Each variant clips a specific resource and provides one immune extractor for crafting the unclip item.
+Clipping variants introduce extractors that start "clipped" (disabled) and require crafting special items to unclip.
+Each variant clips a specific resource and provides one immune extractor for crafting the unclip item.
 
 **Unclipping Mechanics:**
+
 1. One extractor starts clipped (disabled)
 2. One other extractor is immune (always usable)
 3. Agent must gather from immune extractor
@@ -353,6 +418,7 @@ Clipping variants introduce extractors that start "clipped" (disabled) and requi
 5. Agent uses unclip item on clipped extractor to reactivate it
 
 **Unclip Item Recipes:**
+
 - **Decoder** (unclips oxygen): Requires 1 carbon
 - **Modulator** (unclips carbon): Requires 1 oxygen
 - **Resonator** (unclips germanium): Requires 1 silicon
@@ -361,7 +427,9 @@ Clipping variants introduce extractors that start "clipped" (disabled) and requi
 ---
 
 #### clipped_oxygen
+
 **Description:** Oxygen extractor starts clipped - craft decoder from carbon to unclip
+
 **Immune Extractor:** carbon_extractor
 
 **Challenge:** Must gather carbon → craft decoder → unclip oxygen → assemble hearts
@@ -371,7 +439,9 @@ Clipping variants introduce extractors that start "clipped" (disabled) and requi
 ---
 
 #### clipped_carbon
+
 **Description:** Carbon extractor starts clipped - craft modulator from oxygen to unclip
+
 **Immune Extractor:** oxygen_extractor
 
 **Challenge:** Must gather oxygen → craft modulator → unclip carbon → assemble hearts
@@ -381,7 +451,9 @@ Clipping variants introduce extractors that start "clipped" (disabled) and requi
 ---
 
 #### clipped_germanium
+
 **Description:** Germanium extractor starts clipped - craft resonator from silicon to unclip
+
 **Immune Extractor:** silicon_extractor
 
 **Challenge:** Must gather silicon → craft resonator → unclip germanium → assemble hearts
@@ -391,7 +463,9 @@ Clipping variants introduce extractors that start "clipped" (disabled) and requi
 ---
 
 #### clipped_silicon
+
 **Description:** Silicon extractor starts clipped - craft scrambler from germanium to unclip
+
 **Immune Extractor:** germanium_extractor
 
 **Challenge:** Must gather germanium → craft scrambler → unclip silicon → assemble hearts
@@ -401,7 +475,9 @@ Clipping variants introduce extractors that start "clipped" (disabled) and requi
 ---
 
 #### clipping_chaos
+
 **Description:** Random extractors clip over time - must craft unclip items reactively
+
 **Clip Rate:** 0.10 (10% chance per step)
 
 **Challenge:** Extractors randomly clip during gameplay; must detect and unclip reactively
@@ -411,10 +487,13 @@ Clipping variants introduce extractors that start "clipped" (disabled) and requi
 ---
 
 #### hard_clipped_oxygen
+
 **Description:** Combines hard mode scarcity with oxygen clipping
+
 **Immune Extractor:** carbon_extractor
 
 **Parameters:**
+
 - Max uses: Carbon 4, Oxygen 4, Germanium 6, Silicon 3
 - Efficiency: Carbon 80, Oxygen 65, Germanium 75, Silicon 70, Charger 80
 - Energy regen: 0/step
@@ -431,39 +510,39 @@ Clipping variants introduce extractors that start "clipped" (disabled) and requi
 
 ### Mission Categories
 
-| Category | Missions | Key Challenge |
-|----------|----------|---------------|
-| **Basic Collection** | CollectResourcesClassic, CollectResourcesSpread | Gather-assemble-deliver loop |
-| **Distance/Scarcity** | CollectFar | Long distances, limited extractors |
-| **Coordination** | DivideAndConquer, GoTogether, SingleUseSwarm | Multi-agent cooperation |
-| **Bottlenecks** | OxygenBottleneck, EnergyStarved | Resource/energy constraints |
-| **Exploration** | ExtractorHub30/50/70/80/100 | Map exploration, large scales |
+| Category              | Missions                                        | Key Challenge                      |
+| --------------------- | ----------------------------------------------- | ---------------------------------- |
+| **Basic Collection**  | CollectResourcesClassic, CollectResourcesSpread | Gather-assemble-deliver loop       |
+| **Distance/Scarcity** | CollectFar                                      | Long distances, limited extractors |
+| **Coordination**      | DivideAndConquer, GoTogether, SingleUseSwarm    | Multi-agent cooperation            |
+| **Bottlenecks**       | OxygenBottleneck, EnergyStarved                 | Resource/energy constraints        |
+| **Exploration**       | ExtractorHub30/50/70/80/100                     | Map exploration, large scales      |
 
 ### Difficulty Categories
 
-| Category | Difficulties | Key Challenge |
-|----------|-------------|---------------|
-| **Standard Progression** | story_mode, standard, hard, brutal | Increasing scarcity/difficulty |
-| **Specialized** | single_use, speed_run, energy_crisis | Unique constraints |
-| **Clipping** | clipped_oxygen/carbon/germanium/silicon, clipping_chaos, hard_clipped_oxygen | Unclipping mechanics |
+| Category                 | Difficulties                                                                 | Key Challenge                  |
+| ------------------------ | ---------------------------------------------------------------------------- | ------------------------------ |
+| **Standard Progression** | story_mode, standard, hard, brutal                                           | Increasing scarcity/difficulty |
+| **Specialized**          | single_use, speed_run, energy_crisis                                         | Unique constraints             |
+| **Clipping**             | clipped_oxygen/carbon/germanium/silicon, clipping_chaos, hard_clipped_oxygen | Unclipping mechanics           |
 
 ### Agent Count Recommendations
 
-| Mission | 1 Agent | 2 Agents | 4 Agents | 8 Agents |
-|---------|---------|----------|----------|----------|
-| CollectResourcesClassic | ✅ Good | ✅ Good | ✅ Good | ⚠️ Overkill |
-| CollectResourcesSpread | ✅ Good | ✅ Good | ✅ Good | ⚠️ Possible |
-| CollectFar | ⚠️ Hard | ✅ Good | ✅ Good | ✅ Good |
-| DivideAndConquer | ❌ N/A | ✅ Good | ✅ Good | ✅ Good |
-| GoTogether | ❌ N/A | ✅ Good | ✅ Good | ⚠️ Possible |
-| SingleUseSwarm | ❌ N/A | ⚠️ Hard | ✅ Good | ✅ Good |
-| OxygenBottleneck | ✅ Good | ✅ Good | ✅ Good | ⚠️ Possible |
-| EnergyStarved | ✅ Good | ✅ Good | ⚠️ Hard | ❌ Very Hard |
-| ExtractorHub30 | ✅ Good | ✅ Good | ✅ Good | ⚠️ Overkill |
-| ExtractorHub50 | ✅ Good | ✅ Good | ✅ Good | ⚠️ Possible |
-| ExtractorHub70 | ⚠️ Slow | ✅ Good | ✅ Good | ✅ Good |
-| ExtractorHub80 | ⚠️ Slow | ✅ Good | ✅ Good | ✅ Good |
-| ExtractorHub100 | ❌ Timeout | ⚠️ Hard | ✅ Good | ✅ Good |
+| Mission                 | 1 Agent    | 2 Agents | 4 Agents | 8 Agents     |
+| ----------------------- | ---------- | -------- | -------- | ------------ |
+| CollectResourcesClassic | ✅ Good    | ✅ Good  | ✅ Good  | ⚠️ Overkill  |
+| CollectResourcesSpread  | ✅ Good    | ✅ Good  | ✅ Good  | ⚠️ Possible  |
+| CollectFar              | ⚠️ Hard    | ✅ Good  | ✅ Good  | ✅ Good      |
+| DivideAndConquer        | ❌ N/A     | ✅ Good  | ✅ Good  | ✅ Good      |
+| GoTogether              | ❌ N/A     | ✅ Good  | ✅ Good  | ⚠️ Possible  |
+| SingleUseSwarm          | ❌ N/A     | ⚠️ Hard  | ✅ Good  | ✅ Good      |
+| OxygenBottleneck        | ✅ Good    | ✅ Good  | ✅ Good  | ⚠️ Possible  |
+| EnergyStarved           | ✅ Good    | ✅ Good  | ⚠️ Hard  | ❌ Very Hard |
+| ExtractorHub30          | ✅ Good    | ✅ Good  | ✅ Good  | ⚠️ Overkill  |
+| ExtractorHub50          | ✅ Good    | ✅ Good  | ✅ Good  | ⚠️ Possible  |
+| ExtractorHub70          | ⚠️ Slow    | ✅ Good  | ✅ Good  | ✅ Good      |
+| ExtractorHub80          | ⚠️ Slow    | ✅ Good  | ✅ Good  | ✅ Good      |
+| ExtractorHub100         | ❌ Timeout | ⚠️ Hard  | ✅ Good  | ✅ Good      |
 
 ---
 
@@ -526,18 +605,21 @@ uv run cogames play --mission evals.energy_starved -p scripted_baseline --cogs 2
 ## Design Principles
 
 ### Missions
+
 1. **Focused challenges**: Each mission tests specific skills (exploration, coordination, bottlenecks)
 2. **Scalable**: Missions work across different agent counts (with recommended ranges)
 3. **Observable**: Agents can learn strategies through observation and trial
 4. **Balanced baselines**: Default configurations are solvable but challenging
 
 ### Difficulty Variants
+
 1. **Composable**: Any difficulty can be applied to any mission
 2. **Skill-specific**: Each variant tests specific capabilities (scarcity, speed, unclipping)
 3. **Progressive**: Clear difficulty progression from story_mode → standard → hard → brutal
 4. **Specialized challenges**: Unique constraints (single_use, clipping) test specific algorithms
 
 ### Evaluation Philosophy
+
 1. **No arbitrary thresholds**: Missions are winnable through observation and adaptation
 2. **Deterministic mechanics**: Clipping is the only stochastic element (except clipping_chaos)
 3. **Multiple solution paths**: Missions don't prescribe a single correct strategy
@@ -547,14 +629,14 @@ uv run cogames play --mission evals.energy_starved -p scripted_baseline --cogs 2
 
 ## Common Failure Modes
 
-| Failure Mode | Likely Cause | Test With |
-|--------------|--------------|-----------|
-| Timeout (0 hearts) | Exploration inefficiency | ExtractorHub100, CollectFar |
-| Low hearts (< expected) | Resource scarcity, poor routing | hard, brutal difficulties |
-| Zero hearts (energy) | Energy management failure | energy_crisis, EnergyStarved |
-| Zero hearts (clipping) | Unclipping logic failure | Any clipped_* difficulty |
-| Coordination failure | Multi-agent collision/contention | GoTogether, SingleUseSwarm with 4+ agents |
-| Bottleneck failure | Resource prioritization failure | OxygenBottleneck, clipped_oxygen |
+| Failure Mode            | Likely Cause                     | Test With                                 |
+| ----------------------- | -------------------------------- | ----------------------------------------- |
+| Timeout (0 hearts)      | Exploration inefficiency         | ExtractorHub100, CollectFar               |
+| Low hearts (< expected) | Resource scarcity, poor routing  | hard, brutal difficulties                 |
+| Zero hearts (energy)    | Energy management failure        | energy_crisis, EnergyStarved              |
+| Zero hearts (clipping)  | Unclipping logic failure         | Any clipped\_\* difficulty                |
+| Coordination failure    | Multi-agent collision/contention | GoTogether, SingleUseSwarm with 4+ agents |
+| Bottleneck failure      | Resource prioritization failure  | OxygenBottleneck, clipped_oxygen          |
 
 ---
 
@@ -581,7 +663,9 @@ To add a new difficulty variant:
 ---
 
 **Last Updated:** November 4, 2025
-**Total Missions:** 14
-**Total Difficulty Variants:** 13
-**Total Test Configurations:** 1,078+ (14 missions × 13 difficulties × variable agent counts)
 
+**Total Missions:** 14
+
+**Total Difficulty Variants:** 13
+
+**Total Test Configurations:** 1,078+ (14 missions × 13 difficulties × variable agent counts)
