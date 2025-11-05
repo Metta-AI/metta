@@ -1,0 +1,19 @@
+# Example Terraform variables for sandbox module
+# Copy to terraform.tfvars and customize
+
+region      = "us-east-1"
+environment = "production"
+
+# VPC Configuration
+vpc_cidr = "10.100.0.0/16"
+
+# Security
+# allowed_ssh_cidrs = ["0.0.0.0/0"]  # Allow SSH from anywhere (default)
+# To restrict to specific IPs/ranges:
+# allowed_ssh_cidrs = ["1.2.3.4/32", "10.0.0.0/8"]
+
+# Instance Configuration
+default_instance_type = "g5.12xlarge"  # 4x A10G GPUs
+
+# AMI (leave empty to use latest Ubuntu 22.04, or specify custom AMI)
+# sandbox_ami_id = "ami-xxxxx"
