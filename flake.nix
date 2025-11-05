@@ -75,11 +75,18 @@
           if [ -e "/dev/kfd" ]; then
             echo "# AMD GPU detected, configuring PyTorch for ROCm 6.4"
             export FORCE_CUDA=0
-            # Create and activate a virtual environment with uv
+
+            # Create and activate virtual environment with uv
             uv sync
             source .venv/bin/activate
-            # Reinstall PyTorch with ROCm support
-            pip install --force-reinstall --index-url https://download.pytorch.org/whl/rocm6.4 torch torchvision torchaudio
+
+            # Check if ROCm PyTorch is already installed to avoid slow reinstall
+            if python -c "import torch; print(torch.__version__)" 2>/dev/null | grep -q "rocm"; then
+              echo "# ROCm PyTorch already installed, skipping reinstall"
+            else
+              echo "# Installing ROCm PyTorch..."
+              pip install --force-reinstall --index-url https://download.pytorch.org/whl/rocm6.4 torch torchvision torchaudio
+            fi
           else
             echo "# No AMD GPU detected, using default PyTorch installation"
             # Create and activate a virtual environment with uv
