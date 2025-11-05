@@ -18,43 +18,40 @@ ensure_prettier
 
 # Only normalize markdown when formatting (not in check mode)
 if [ "${CHECK_MODE:-false}" != "true" ]; then
-  # Strip all blank lines from markdown files to normalize formatting
+  # Strip blank lines from markdown files, except those following:
+  # - List items (bullet or dash)
+  # - Closing code blocks (```)
+  # - Numbered list items
   # Prettier will add back the appropriate blank lines (between headings, sections, etc.)
-  # but will NOT add blank lines in nested lists (which is what we want for consistency)
-  echo "Normalizing markdown formatting by removing blank lines..."
+  echo "Normalizing markdown formatting by removing blank lines (with smart preservation)..."
   if [ -n "$EXCLUDE_PATTERN" ]; then
     find . -name "*.md" -type f -not -path "*/node_modules/*" -not -path "*/.git/*" | grep -v "$EXCLUDE_PATTERN" | while read -r file; do
-      sed -i '' '/^$/d' "$file"
+      python3 "$SCRIPT_DIR/normalize_markdown.py" "$file"
     done
   else
     find . -name "*.md" -type f -not -path "*/node_modules/*" -not -path "*/.git/*" | while read -r file; do
-      sed -i '' '/^$/d' "$file"
+      python3 "$SCRIPT_DIR/normalize_markdown.py" "$file"
+    done
+  fi
+
+  # Add blank line before ALL CAPS emphasis patterns like **IMPORTANT**: or **NOTE**:
+  echo "Adding blank lines before ALL CAPS emphasis patterns..."
+  if [ -n "$EXCLUDE_PATTERN" ]; then
+    find . -name "*.md" -type f -not -path "*/node_modules/*" -not -path "*/.git/*" | grep -v "$EXCLUDE_PATTERN" | while read -r file; do
+      sed -i '' 's/\(.\)\(\*\*[A-Z][A-Z ]*\*\*:\)/\1\
+\
+\2/g' "$file"
+    done
+  else
+    find . -name "*.md" -type f -not -path "*/node_modules/*" -not -path "*/.git/*" | while read -r file; do
+      sed -i '' 's/\(.\)\(\*\*[A-Z][A-Z ]*\*\*:\)/\1\
+\
+\2/g' "$file"
     done
   fi
 fi
 
 # Format or check markdown files with Prettier
 format_files "md"
-
-# Also handle README files without extension (if any)
-prettier_mode="--write"
-action_text="Checking for"
-if [ "${CHECK_MODE:-false}" = "true" ]; then
-  prettier_mode="--check"
-  action_text="Checking"
-fi
-
-echo "$action_text README files without extension..."
-if [ -n "$EXCLUDE_PATTERN" ]; then
-  if [ "${CHECK_MODE:-false}" != "true" ]; then
-    find . -name "README" -type f | grep -v "$EXCLUDE_PATTERN" | xargs -r sed -i '' '/^$/d'
-  fi
-  find . -name "README" -type f | grep -v "$EXCLUDE_PATTERN" | xargs -r pnpm exec prettier $prettier_mode --parser markdown
-else
-  if [ "${CHECK_MODE:-false}" != "true" ]; then
-    find . -name "README" -type f | xargs -r sed -i '' '/^$/d'
-  fi
-  find . -name "README" -type f | xargs -r pnpm exec prettier $prettier_mode --parser markdown
-fi
 
 echo "All Markdown files (except excluded ones) have been formatted with Prettier."
