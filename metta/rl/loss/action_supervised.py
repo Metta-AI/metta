@@ -1,6 +1,5 @@
 from typing import Any
 
-import numpy as np
 import torch
 from pydantic import Field
 from tensordict import TensorDict
@@ -89,12 +88,9 @@ class ActionSupervised(Loss):
         self.action_reward_coef = self.loss_cfg.action_reward_coef
 
     def get_experience_spec(self) -> Composite:
-        act_space = self.env.single_action_space
-        act_dtype = torch.int32 if np.issubdtype(act_space.dtype, np.integer) else torch.float32
         scalar_f32 = UnboundedContinuous(shape=torch.Size([]), dtype=torch.float32)
 
         spec = Composite(
-            actions=UnboundedDiscrete(shape=torch.Size([]), dtype=act_dtype),
             teacher_actions=UnboundedDiscrete(shape=torch.Size([]), dtype=torch.long),
             rewards=scalar_f32,
             dones=scalar_f32,
@@ -116,6 +112,11 @@ class ActionSupervised(Loss):
                 self.policy.forward(td)
                 # if we were only using this loss (and not PPO) we could run the loss here and skip the train loop for
                 # speed. However, not doing that in anticipation of the default being to use PPO.
+        # else:
+        #     # Save td["action"] into the td that goes to the replay buffer but then overwrite it with teacher actions
+        #     # when sending to the environment. After it gets sent to env it is no longer used.
+        #     # NOTE: teacher-leading means actions reported to wandb are teacher actions, not student actions
+        #     td["actions"] = td["teacher_actions"]
 
         env_slice = context.training_env_id
         if env_slice is None:
