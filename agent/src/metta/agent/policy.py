@@ -21,6 +21,7 @@ from metta.agent.components.obs_shim import (
     ObsShimTokens,
     ObsShimTokensConfig,
 )
+from metta.rl.utils import ensure_sequence_metadata
 from mettagrid.config.mettagrid_config import Config
 from mettagrid.policy.policy import AgentPolicy, TrainablePolicy
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
@@ -139,7 +140,7 @@ class _SingleAgentAdapter(AgentPolicy):
         obs_array = np.array(tokens, dtype=np.uint8)
         obs_tensor = torch.from_numpy(obs_array).unsqueeze(0).to(device)
 
-        return TensorDict(
+        td = TensorDict(
             {
                 "env_obs": obs_tensor,
                 "dones": torch.zeros(1, dtype=torch.float32, device=device),
@@ -147,6 +148,10 @@ class _SingleAgentAdapter(AgentPolicy):
             },
             batch_size=[1],
         )
+
+        ensure_sequence_metadata(td, batch_size=1, time_steps=1)
+
+        return td
 
 
 class DistributedPolicy(DistributedDataParallel):
