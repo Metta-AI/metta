@@ -170,12 +170,19 @@ def make_curriculum(
     # Configure learning progress algorithm
     if algorithm_config is None:
         algorithm_config = LearningProgressConfig(
-            use_bidirectional=True,
-            ema_timescale=0.001,
+            use_bidirectional=True,  # Bidirectional learning progress
+            ema_timescale=0.01,
+            num_active_tasks=256,
+            slow_timescale_factor=0.2,
+            rand_task_rate=0.01,
             exploration_bonus=0.1,
-            max_memory_tasks=2000,  # More tasks due to mission variety
-            max_slice_axes=4,  # Multiple dimensions of variation
+            min_samples_for_lp=5,  # Use exploration bonus for first 10 samples
             enable_detailed_slice_logging=enable_detailed_slice_logging,
+            lp_score_temperature=0.0,  # Z-score normalization for relative LP comparison
+            z_score_amplification=10.0,  # Amplification after z-score (only when temp=0)
+            show_curriculum_troubleshooting_logging=True,  # Enable per-task metrics for debugging
+            early_progress_amplification=0.5,  # 0.5 = OFF, low values (0.05) amplify unsolved tasks
+            max_slice_axes=4,  # Multiple dimensions of variation (game.max_steps, rewards, missions, etc.)
         )
 
     return merged_tasks.to_curriculum(
