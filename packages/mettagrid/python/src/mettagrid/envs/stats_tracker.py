@@ -46,10 +46,6 @@ class StatsTracker(SimulatorEventHandler):
         for n, v in infos["agent"].items():
             infos["agent"][n] = v / num_agents
 
-        # Maintain backwards-compatible top-level averages for dashboard consumers.
-        infos["agent/avg_reward_per_agent"] = float(mean_reward)
-        infos["agent"]["avg_reward_per_agent"] = float(mean_reward)
-
         # If reward estimates are set, plot them compared to the mean reward
         if config.game.reward_estimates:
             infos["reward_estimates"] = {}
