@@ -94,6 +94,15 @@ def cogames_job(
         acceptance_criteria: Acceptance criteria for validation
         eval_episodes: Number of evaluation episodes to run (default: 10)
     """
+    import json
+
+    # Build artifact paths using JobManager's S3 convention
+    artifacts = ["eval_results.json"]
+    artifact_paths = {
+        artifact_name: f"s3://softmax-public/stable/jobs/{name}/{artifact_name}" for artifact_name in artifacts
+    }
+    artifacts_json = json.dumps(artifact_paths)
+
     # Build cogames train+eval wrapper command
     variants_args = " ".join(f"--variant {v}" for v in variants)
     checkpoints_dir = f"./train_dir/{name}/checkpoints"
@@ -102,7 +111,8 @@ def cogames_job(
         f"--mission {mission} {variants_args} "
         f"--steps {steps} "
         f"--checkpoints-dir {checkpoints_dir} "
-        f"--eval-episodes {eval_episodes}"
+        f"--eval-episodes {eval_episodes} "
+        f"--artifacts '{artifacts_json}'"
     )
 
     # Extract metrics to track from acceptance criteria
@@ -116,6 +126,7 @@ def cogames_job(
         metrics_source=MetricsSource.COGAMES_LOG,
         metrics_to_track=metrics_to_track,
         acceptance_criteria=acceptance_criteria or [],
+        artifacts=artifacts,
     )
 
 
