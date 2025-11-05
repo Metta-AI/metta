@@ -11,6 +11,7 @@ from metta.rl import mps
 
 try:
     importlib.import_module("pufferlib._C")
+    from pufferlib.pufferl import ADVANTAGE_CUDA
 except ImportError:
     raise ImportError("Failed to import C/CUDA kernel. Try: pip install --no-build-isolation") from None
 
@@ -30,7 +31,9 @@ def compute_advantage(
     """CUDA kernel for puffer advantage with automatic CPU & MPS fallback."""
 
     # Move tensors to device and compute advantage
-    if str(device) == "mps":
+    # for mps (macbook pro)
+    # also if pytorch cuda is detected but we are not using the advantage cuda kernel (on AMD)
+    if str(device) == "mps" or (device.type == "cuda" and not ADVANTAGE_CUDA):
         return mps.advantage(
             values, rewards, dones, importance_sampling_ratio, vtrace_rho_clip, vtrace_c_clip, gamma, gae_lambda, device
         )
