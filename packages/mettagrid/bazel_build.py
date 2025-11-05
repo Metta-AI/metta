@@ -30,6 +30,7 @@ METTASCOPE_DIR = PROJECT_ROOT / "nim" / "mettascope"
 PYTHON_PACKAGE_DIR = PROJECT_ROOT / "python" / "src" / "mettagrid"
 METTASCOPE_PACKAGE_DIR = PYTHON_PACKAGE_DIR / "nim" / "mettascope"
 
+
 def cmd(cmd: str) -> None:
     """Run a command and raise an error if it fails."""
     print(f"Running: {cmd}")
@@ -38,6 +39,7 @@ def cmd(cmd: str) -> None:
     print(result.stdout, file=sys.stderr)
     if result.returncode != 0:
         raise RuntimeError(f"Mettascope build failed: {cmd}")
+
 
 def _run_bazel_build() -> None:
     """Run Bazel build to compile the C++ extension."""
@@ -195,7 +197,7 @@ def _run_mettascope_build() -> None:
         return
 
     # Check if nim and nimble are available
-    if shutil.which("nim") is None or shutil.which("nimble") is None:
+    if shutil.which("nim") is None or shutil.which("nimby") is None:
         raise RuntimeError(
             "Nim compiler or Nimble package manager not found! To build mettascope, install Nim: https://nim-lang.org/install.html"
         )
