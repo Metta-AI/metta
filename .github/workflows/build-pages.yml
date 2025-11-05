@@ -31,9 +31,6 @@ jobs:
         with:
           install-mode: "minimal"
 
-      - name: Setup Emscripten
-        uses: mymindstorm/setup-emsdk@v14
-
       - name: Install Mettascope Dependencies
         run: |
           cd ..
