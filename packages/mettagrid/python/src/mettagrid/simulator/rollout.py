@@ -36,8 +36,16 @@ class Rollout:
         self._sim = self._simulator.new_simulation(config, seed)
         self._agents = self._sim.agents()
 
-        for policy in self._policies:
-            policy.reset(simulation=self._sim if self._pass_sim_to_policies else None)
+        # Reset policies and create agent policies if needed
+        if self._pass_sim_to_policies and len(self._policies) > 0 and hasattr(self._policies[0], "agent_policy"):
+            # Multi-agent policy (like scripted agents) - reset with simulation, then create agent policies
+            policy = self._policies[0]
+            policy.reset(simulation=self._sim)
+            self._policies = [policy.agent_policy(i) for i in range(config.game.num_agents)]
+        else:
+            # Regular agent policies
+            for policy in self._policies:
+                policy.reset(simulation=self._sim if self._pass_sim_to_policies else None)
 
     def step(self) -> None:
         """Execute one step of the rollout."""
