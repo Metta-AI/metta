@@ -24,11 +24,20 @@ parse_format_args "$@"
 ensure_pnpm
 ensure_prettier
 
+# Determine mode for messages
+if [ "${CHECK_MODE:-false}" = "true" ]; then
+  mode_action="checking"
+  mode_past="checked"
+else
+  mode_action="formatting"
+  mode_past="formatted"
+fi
+
 # Show what exclusion pattern is being used
 if [ -n "$EXCLUDE_PATTERN" ]; then
   echo "Using exclusion pattern: $EXCLUDE_PATTERN"
 else
-  echo "No exclusion pattern - formatting all YAML files"
+  echo "No exclusion pattern - $mode_action all YAML files"
 fi
 echo ""
 
@@ -37,4 +46,4 @@ format_files "yml"
 format_files "yaml"
 
 echo ""
-echo "All matching YAML files have been formatted with Prettier."
+echo "All matching YAML files have been $mode_past with Prettier."
