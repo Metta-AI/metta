@@ -85,29 +85,23 @@ composition at any level:
 **Shared Signatures:**
 
 ```python
-# All three abstractions implement these methods:
+# All four abstractions implement a unified interface for forward pass
 def forward(x: Tensor, state: TensorDict, *, resets: Optional[ResetMask] = None) -> Tuple[Tensor, TensorDict]:
     """Process input with state, optionally applying resets, return output and new state."""
-
-def init_state(batch: int, *, device: torch.device, dtype: torch.dtype) -> TensorDict:
-    """Initialize state for a batch."""
-
-def reset_state(state: TensorDict, mask: ResetMask) -> TensorDict:
-    """Apply episode boundary resets to state (rarely needed, see below)."""
+    ...
+    return out, new_state
 ```
 
-**Key Properties:**
-
-- **Consistent shapes**: All accept `[B, T, H]` for sequences or `[B, H]` for single-step
-- **TensorDict state**: State is always a TensorDict with arbitrary nesting depth
+- **Input (x)**: All accept `[B, T, H]` for sequences or `[B, H]` for single-step
+- **Recurrent state**: State is always a TensorDict with arbitrary nesting depth
   - Cells: Flat state (e.g., `{"h": ..., "c": ...}`)
   - Blocks: Nest cell state under cell class name (e.g., `{"LSTMCell": {"h": ..., "c": ...}}`)
   - Columns: One entry per expert (e.g., `{"expert_PreUpBlock_0": {...}, ...}`)
   - Stacks: Nest block states under indexed keys (e.g., `{"PreUpBlock_0": {"LSTMCell": {...}}}`)
+- **Output (out)**: `[B, T, H]` for sequences or `[B, H]` for single-step
 - **Automatic reset handling**: Resets are handled automatically when passed through `forward(resets=mask)`
   - The reset mask propagates through Stack → Block → Cell automatically
-  - `reset_state()` exists for completeness but is typically not needed in practice
-  - Just pass `resets` to `forward()` and the hierarchy handles it internally
+
 
 This uniformity means you can treat a complex multi-layer stack exactly like a single cell, enabling arbitrary
 composition without changing your code interface.
