@@ -145,6 +145,7 @@ class _SingleAgentAdapter(AgentPolicy):
                 "env_obs": obs_tensor,
                 "dones": torch.zeros(1, dtype=torch.float32, device=device),
                 "truncateds": torch.zeros(1, dtype=torch.float32, device=device),
+                "bptt": torch.ones(1, dtype=torch.long, device=device),
             },
             batch_size=[1],
         )
