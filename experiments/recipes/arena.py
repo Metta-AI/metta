@@ -10,6 +10,7 @@ from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgre
 from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.eval import EvaluateTool
+from metta.tools.notebook import NotebookTool
 from metta.tools.play import PlayTool
 from metta.tools.replay import ReplayTool
 from metta.tools.train import TrainTool
@@ -136,3 +137,35 @@ def replay(policy_uri: Optional[str] = None) -> ReplayTool:
 
 def play(policy_uri: Optional[str] = None) -> PlayTool:
     return PlayTool(sim=simulations()[0], policy_uri=policy_uri)
+
+
+def notebook(
+    runs: list[str] | None = None,
+    group: str | None = None,
+    gpus: int = 4,
+) -> NotebookTool:
+    """Launch parallel training runs and generate analysis notebook.
+
+    Example:
+        # Launch runs and generate notebook
+        uv run ./tools/run.py arena.notebook \\
+            runs='["baseline","high_lr"]' \\
+            group=my_experiment
+
+        # Monitor the jobs
+        metta job monitor my_experiment
+
+        # Generate notebook manually (if generate_notebook=False)
+        metta job notebook my_experiment
+    """
+    if runs is None:
+        runs = ["baseline", "variant"]
+
+    return NotebookTool(
+        module="arena.train",
+        runs=runs,
+        args_per_run={},
+        group=group,
+        gpus=gpus,
+        generate_notebook=True,
+    )

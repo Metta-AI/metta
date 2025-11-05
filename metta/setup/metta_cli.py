@@ -21,6 +21,7 @@ from metta.setup.symlink_setup import app as symlink_app
 from metta.setup.tools.book import app as book_app
 from metta.setup.tools.ci_runner import cmd_ci
 from metta.setup.tools.code_formatters import get_formatters, parse_format_types, partition_files_by_type, run_formatter
+from metta.setup.tools.job_commands import app as job_commands_app
 from metta.setup.tools.test_runner.test_cpp import app as cpp_test_runner_app
 from metta.setup.tools.test_runner.test_python import app as python_test_runner_app
 from metta.setup.utils import debug, error, info, success, warning
@@ -830,6 +831,7 @@ def cmd_gridworks(ctx: typer.Context):
 
 
 app.add_typer(run_monitor_app, name="run-monitor", help="Monitor training runs.")
+app.add_typer(job_commands_app, name="job", help="Manage job groups (monitor, kill, list).")
 app.add_typer(local_app, name="local")
 app.add_typer(book_app, name="book")
 app.add_typer(symlink_app, name="symlink-setup")

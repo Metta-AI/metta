@@ -1,5 +1,4 @@
 import random
-import subprocess
 import time
 from dataclasses import dataclass, field
 from typing import Any, Optional
@@ -12,6 +11,7 @@ from metta.rl.loss import LossConfig
 from metta.rl.trainer_config import TrainerConfig
 from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
 from metta.sim.simulation_config import SimulationConfig
+from metta.tools.notebook import NotebookTool
 from metta.tools.play import PlayTool
 from metta.tools.replay import ReplayTool
 from metta.tools.train import TrainTool
@@ -385,21 +385,37 @@ def replay(
     )
 
 
-def experiment():
-    for curriculum_style in curriculum_args:
-        subprocess.run(
-            [
-                "./devops/skypilot/launch.py",
-                "experiments.recipes.assembly_lines.train",
-                f"run=assembly_lines_{curriculum_style}.{time.strftime('%Y-%m-%d')}",
-                f"curriculum_style={curriculum_style}",
-                "--gpus=4",
-                "--heartbeat-timeout=3600",
-                "--skip-git-check",
-            ]
-        )
-        time.sleep(1)
+def notebook(
+    group: str | None = None,
+    gpus: int = 4,
+) -> NotebookTool:
+    """Launch parallel training runs for all curriculum styles and generate notebook.
 
+    Example:
+        # Launch all curriculum styles
+        uv run ./tools/run.py assembly_lines.notebook \\
+            group=assembly_lines_sweep_$(date +%Y%m%d)
 
-if __name__ == "__main__":
-    experiment()
+        # Monitor progress
+        metta job monitor assembly_lines_sweep_20250104
+
+        # Generate notebook
+        metta job notebook assembly_lines_sweep_20250104
+    """
+    # Generate run names and args for each curriculum style
+    timestamp = time.strftime("%Y-%m-%d")
+    runs = [f"assembly_lines_{style}.{timestamp}" for style in curriculum_args.keys()]
+
+    args_per_run = {
+        f"assembly_lines_{style}.{timestamp}": [f"curriculum_style={style}"]
+        for style in curriculum_args.keys()
+    }
+
+    return NotebookTool(
+        module="assembly_lines.train",
+        runs=runs,
+        args_per_run=args_per_run,
+        group=group,
+        gpus=gpus,
+        generate_notebook=True,
+    )
