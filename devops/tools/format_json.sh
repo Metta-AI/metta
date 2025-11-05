@@ -29,6 +29,13 @@ ensure_prettier
 # Format JSON files
 format_files "json"
 
+# Determine mode for final message
+if [ "${CHECK_MODE:-false}" = "true" ]; then
+  mode_past="checked"
+else
+  mode_past="formatted"
+fi
+
 # Also format .code-workspace files
 if [ -f "metta.code-workspace" ]; then
   prettier_mode="--write"
@@ -41,4 +48,4 @@ if [ -f "metta.code-workspace" ]; then
   pnpm exec prettier $prettier_mode metta.code-workspace
 fi
 
-echo "All JSON files (except excluded ones) have been formatted with Prettier."
+echo "All JSON files (except excluded ones) have been $mode_past with Prettier."
