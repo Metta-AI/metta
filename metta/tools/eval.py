@@ -179,7 +179,7 @@ class EvaluateTool(Tool):
 
         eval_results = evaluate_policy(
             checkpoint_uri=normalized_uri,
-            simulations=list[SimulationConfig](self.simulations),
+            simulations=list(self.simulations),
             replay_dir=(
                 f"{self.replay_dir}/{eval_run_name}/{metadata.get('run_name', 'unknown')}"
                 if self.enable_replays
