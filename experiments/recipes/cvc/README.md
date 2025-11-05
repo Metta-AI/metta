@@ -81,13 +81,13 @@ uv run ./tools/run.py experiments.recipes.cvc.evaluation.evaluate \\
 
 ```bash
 # Play with a trained policy
-uv run ./tools/run.py experiments.recipes.cvc.play.play \\
+uv run ./tools/run.py experiments.recipes.cvc.core.play \\
     policy_uri=file://./checkpoints/cvc_default/latest \\
     mission_name=extractor_hub_30 \\
     num_cogs=4
 
 # Play without a policy (random actions)
-uv run ./tools/run.py experiments.recipes.cvc.play.play_training_env
+uv run ./tools/run.py experiments.recipes.cvc.core.play_training_env
 ```
 
 ## Recipe Functions
@@ -217,7 +217,7 @@ uv run ./tools/run.py experiments.recipes.cvc.evaluation.evaluate \\
     policy_uris=file://./checkpoints/cvc_small/latest
 
 # 4. Play to visualize behavior
-uv run ./tools/run.py experiments.recipes.cvc.play.play \\
+uv run ./tools/run.py experiments.recipes.cvc.core.play \\
     policy_uri=file://./checkpoints/cvc_small/latest \\
     mission_name=extractor_hub_30 \\
     num_cogs=4

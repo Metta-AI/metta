@@ -15,7 +15,7 @@ from experiments.recipes.cvc.curriculum import (
 )
 from experiments.recipes.cvc.evaluation import evaluate, make_eval_suite
 from experiments.recipes.cvc.medium_maps import train as train_medium_maps
-from experiments.recipes.cvc.play import play
+from experiments.recipes.cvc.core import play
 from experiments.recipes.cvc.single_mission import train as train_single_mission
 from experiments.recipes.cvc.small_maps import train as train_small_maps
 from metta.sim.simulation_config import SimulationConfig

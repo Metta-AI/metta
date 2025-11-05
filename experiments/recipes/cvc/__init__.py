@@ -7,7 +7,6 @@ __all__ = [
     "experiment",
     "large_maps",
     "medium_maps",
-    "play",
     "single_mission",
     "small_maps",
 ]
