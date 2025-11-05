@@ -17,10 +17,10 @@ from torch import Tensor
 from metta.cogworks.curriculum import Curriculum, CurriculumConfig, env_curriculum
 from metta.rl.vecenv import make_vecenv
 from metta.utils.batch import calculate_batch_sizes
-from mettagrid.base_config import Config
 from mettagrid.builder.envs import make_arena
-from mettagrid.core import ObsFeature
+from mettagrid.config import Config
 from mettagrid.mettagrid_c import dtype_actions
+from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 
 logger = logging.getLogger(__name__)
 
@@ -69,18 +69,6 @@ class TrainingEnvironmentConfig(Config):
 
 
 @dataclass
-class GameRules:
-    obs_width: int
-    obs_height: int
-    obs_features: dict[str, ObsFeature]
-    action_names: List[str]
-    num_agents: int
-    observation_space: Any
-    action_space: Any
-    feature_normalizations: dict[int, float]
-
-
-@dataclass
 class BatchInfo:
     target_batch_size: int
     batch_size: int
@@ -95,7 +83,7 @@ class TrainingEnvironment(ABC):
         """Close the environment."""
 
     @abstractmethod
-    def get_observations(self) -> Tuple[Tensor, Tensor, Tensor, Tensor, List[dict], slice, Tensor, int]:
+    def get_observations(self) -> Tuple[Tensor, Tensor, Tensor, Tensor, Tensor, List[dict], slice, Tensor, int]:
         """Get the observations."""
 
     @abstractmethod
@@ -119,8 +107,8 @@ class TrainingEnvironment(ABC):
 
     @property
     @abstractmethod
-    def game_rules(self) -> GameRules:
-        """Get the environment game rules."""
+    def policy_env_info(self) -> PolicyEnvInterface:
+        """Get the environment policy interface information."""
 
 
 class VectorizedTrainingEnvironment(TrainingEnvironment):
@@ -179,8 +167,6 @@ class VectorizedTrainingEnvironment(TrainingEnvironment):
             batch_size=self._batch_size,
             num_workers=num_workers,
             zero_copy=cfg.zero_copy,
-            is_training=True,
-            replay_directory=str(self._replay_directory) if self._replay_directory else None,
         )
 
         # NOTE: Downstream rollout code currently assumes that PufferLib returns
@@ -191,16 +177,8 @@ class VectorizedTrainingEnvironment(TrainingEnvironment):
         # Initialize environment with seed
         self._vecenv.async_reset(cfg.seed)
 
-        self._game_rules = GameRules(
-            obs_width=self._vecenv.driver_env.obs_width,
-            obs_height=self._vecenv.driver_env.obs_height,
-            obs_features=self._vecenv.driver_env.observation_features,
-            action_names=self._vecenv.driver_env.action_names,
-            num_agents=self._num_agents,
-            observation_space=self._vecenv.driver_env.observation_space,
-            action_space=self._vecenv.driver_env.single_action_space,
-            feature_normalizations=self._vecenv.driver_env.feature_normalizations,
-        )
+        # Create policy environment interface from config
+        self._policy_env_info = PolicyEnvInterface.from_mg_cfg(env_cfg)
 
     def __repr__(self) -> str:
         return (
@@ -217,8 +195,8 @@ class VectorizedTrainingEnvironment(TrainingEnvironment):
         self._vecenv.close()
 
     @property
-    def game_rules(self) -> GameRules:
-        return self._game_rules
+    def policy_env_info(self) -> PolicyEnvInterface:
+        return self._policy_env_info
 
     @property
     def batch_info(self) -> BatchInfo:
@@ -253,8 +231,8 @@ class VectorizedTrainingEnvironment(TrainingEnvironment):
         """Expose the driver environment for components that need direct access."""
         return self._vecenv.driver_env
 
-    def get_observations(self) -> Tuple[Tensor, Tensor, Tensor, Tensor, List[dict], slice, Tensor, int]:
-        o, r, d, t, info, env_id, mask = self._vecenv.recv()
+    def get_observations(self) -> Tuple[Tensor, Tensor, Tensor, Tensor, Tensor, List[dict], slice, Tensor, int]:
+        o, r, d, t, ta, info, env_id, mask = self._vecenv.recv()
 
         training_env_id = slice(env_id[0], env_id[-1] + 1)
 
@@ -266,8 +244,8 @@ class VectorizedTrainingEnvironment(TrainingEnvironment):
         r = torch.as_tensor(r)
         d = torch.as_tensor(d)
         t = torch.as_tensor(t)
-
-        return o, r, d, t, info, training_env_id, mask, num_steps
+        ta = torch.as_tensor(ta)
+        return o, r, d, t, ta, info, training_env_id, mask, num_steps
 
     def send_actions(self, actions: np.ndarray) -> None:
         if actions.dtype != dtype_actions:

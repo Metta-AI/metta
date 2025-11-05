@@ -7,13 +7,11 @@ import sys
 import termios
 import time
 import tty
-from typing import Any, Dict, List, Optional
+from typing import List, Optional
 
-import numpy as np
 from rich.console import Console
 
-from cogames.cogs_vs_clips.vibes import VIBES as VIBE_DATA
-from mettagrid import MettaGridEnv
+from mettagrid.config.vibes import VIBES as VIBE_DATA
 from mettagrid.renderer.renderer import Renderer
 
 from .components import (
@@ -41,8 +39,7 @@ class MiniscopeRenderer(Renderer):
         Args:
             interactive: Ignored, always runs in interactive mode
         """
-        # Environment reference
-        self._env: Optional[MettaGridEnv] = None
+        super().__init__()
 
         # Renderer state
         self._state = MiniscopeState()
@@ -80,20 +77,24 @@ class MiniscopeRenderer(Renderer):
         # Sidebar hotkey mapping
         self._sidebar_hotkeys: dict[str, str] = {}
 
-    def on_episode_start(self, env: MettaGridEnv) -> None:
+    def on_episode_start(self) -> None:
         """Initialize the renderer for a new episode."""
-        self._env = env
+        assert self._sim is not None
 
         # Reset state for new episode
-        self._state.reset_for_episode(num_agents=env.num_agents, map_height=env.map_height, map_width=env.map_width)
+        self._state.reset_for_episode(
+            num_agents=self._sim.num_agents,
+            map_height=self._sim.map_height,
+            map_width=self._sim.map_width,
+        )
 
         # Initialize configuration in state
-        self._state.object_type_names = env.object_type_names
-        self._state.resource_names = env.resource_names
+        self._state.object_type_names = self._sim.object_type_names
+        self._state.resource_names = self._sim.resource_names
         self._state.symbol_map = DEFAULT_SYMBOL_MAP.copy()
 
         # Add custom symbols from game config
-        for obj in env.mg_config.game.objects.values():
+        for obj in self._sim.config.game.objects.values():
             self._state.symbol_map[obj.name] = obj.render_symbol
 
         self._state.vibes = [g.symbol for g in VIBE_DATA] if VIBE_DATA else None
@@ -122,18 +123,15 @@ class MiniscopeRenderer(Renderer):
         # Create all components with panel layout
         self._components = []
 
-        # Base components
-        self._components.append(MapComponent(env=env, state=self._state, panels=self._panels))
-        self._components.append(SimControlComponent(env=env, state=self._state, panels=self._panels))
-        self._components.append(AgentControlComponent(env=env, state=self._state, panels=self._panels))
-
-        # Sidebar components
-        for _, _, component_cls in sidebar_defs:
-            self._components.append(component_cls(env=env, state=self._state, panels=self._panels))
-
-        # Modal components (not in hotkey list)
-        self._components.append(VibePickerComponent(env=env, state=self._state, panels=self._panels))
-        self._components.append(HelpPanelComponent(env=env, state=self._state, panels=self._panels))
+        # Create components - all get the same PanelLayout
+        self._components.append(MapComponent(sim=self._sim, state=self._state, panels=self._panels))
+        self._components.append(SimControlComponent(sim=self._sim, state=self._state, panels=self._panels))
+        self._components.append(AgentControlComponent(sim=self._sim, state=self._state, panels=self._panels))
+        self._components.append(AgentInfoComponent(sim=self._sim, state=self._state, panels=self._panels))
+        self._components.append(ObjectInfoComponent(sim=self._sim, state=self._state, panels=self._panels))
+        self._components.append(SymbolsTableComponent(sim=self._sim, state=self._state, panels=self._panels))
+        self._components.append(VibePickerComponent(sim=self._sim, state=self._state, panels=self._panels))
+        self._components.append(HelpPanelComponent(sim=self._sim, state=self._state, panels=self._panels))
 
         # Set up terminal (hide cursor and set up input handling)
         self._setup_terminal()
@@ -145,29 +143,19 @@ class MiniscopeRenderer(Renderer):
         self._state.playback = PlaybackState.PAUSED
         self._last_frame_time = time.time()
 
-    def on_step(
-        self,
-        current_step: int,
-        observations: np.ndarray,
-        actions: np.ndarray,
-        rewards: np.ndarray,
-        infos: Dict[str, Any],
-    ) -> None:
+    def on_step(self) -> None:
         """Handle step event."""
-        self._state.step_count = current_step
+        assert self._sim is not None
+
+        self._state.step_count = self._sim.current_step
         if self._state.total_rewards is not None:
-            self._state.total_rewards += rewards
+            self._state.total_rewards += self._sim.episode_rewards
 
-    def should_continue(self) -> bool:
-        """Check if rendering should continue."""
-        return self._state.is_running()
-
-    def on_episode_end(self, infos: Dict[str, Any]) -> None:
+    def on_episode_end(self) -> None:
         """Clean up renderer resources."""
         self._state.playback = PlaybackState.STOPPED
         self._panels.stop_live()
         self._cleanup_terminal()
-        self._env = None
 
     def render(self) -> None:
         """Run the rendering loop until an action is ready or simulation should advance.
@@ -175,13 +163,17 @@ class MiniscopeRenderer(Renderer):
         When paused, this loops indefinitely until user takes an action.
         When running, this returns after the frame delay has elapsed.
         """
-        assert self._env is not None
+        assert self._sim is not None
 
         start_time = time.time()
         frame_delay = self._state.get_frame_delay()
         was_paused_last_frame = False
 
         while True:
+            # Check if we should exit (episode done or stopped)
+            if self._sim.is_done() or self._state.playback == PlaybackState.STOPPED:
+                break
+
             # Clear previous user action before reading new input
             self._state.user_action = None
 
@@ -207,14 +199,13 @@ class MiniscopeRenderer(Renderer):
             # Clear input after processing
             self._state.user_input = None
 
-            # If user requested to quit, break
-            if not self._state.is_running():
-                break
-
-            # If we have a manual action ready, return to advance simulation
-            if self._state.user_action is not None:
-                # Clear should_step after taking the action
+            # If we have a manual action ready, set it and return
+            if self._state.user_action is not None and self._state.selected_agent is not None:
+                # Set the action for the manually controlled agent
+                self._sim.agent(self._state.selected_agent).set_action(self._state.user_action)
+                # Clear should_step and action after setting it
                 self._state.should_step = False
+                self._state.user_action = None
                 break
 
             # If paused, keep looping until we get a user action or unpause
@@ -239,7 +230,6 @@ class MiniscopeRenderer(Renderer):
 
     def _handle_user_input(self) -> None:
         """Handle user input by delegating to components."""
-        assert self._env is not None
         if not self._state.user_input:
             return
 
@@ -276,9 +266,6 @@ class MiniscopeRenderer(Renderer):
 
     def _render_display(self) -> None:
         """Render the panel layout to the terminal."""
-        if not self._env:
-            return
-
         # Render using Rich Console API
         self._panels.render_to_console()
 
@@ -374,23 +361,6 @@ class MiniscopeRenderer(Renderer):
             if visible:
                 return True
         return False
-
-    def get_user_actions(self) -> dict[int, int]:
-        """Get the current user actions for manually controlled agents.
-
-        Returns:
-            Dictionary mapping agent_id to action_id.
-            Empty dict if no manual actions are set.
-        """
-        actions = {}
-
-        # If there's a manual action for the selected agent, return it
-        if self._state.user_action is not None and self._state.selected_agent is not None:
-            actions[self._state.selected_agent] = self._state.user_action
-            # Clear the action after returning it
-            self._state.user_action = None
-
-        return actions
 
     def _setup_terminal(self) -> None:
         """Set up terminal for interactive mode."""

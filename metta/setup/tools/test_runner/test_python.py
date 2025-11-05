@@ -38,7 +38,6 @@ class Package(BaseModel):
 
 PACKAGES: tuple[Package, ...] = (
     Package(name="tests", target=Path("tests")),
-    Package(name="mettascope", target=Path("mettascope/tests")),
     Package(name="agent", target=Path("agent/tests")),
     Package(name="app_backend", target=Path("app_backend/tests")),
     Package(name="common", target=Path("common/tests")),
@@ -203,7 +202,7 @@ def run(
             "--timeout=100",
             "--timeout-method=thread",
             "--disable-warnings",
-            "--color=yes",
+            "--color=no",
             "-v",
         ]
 

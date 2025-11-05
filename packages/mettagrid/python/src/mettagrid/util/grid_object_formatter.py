@@ -57,6 +57,7 @@ def format_agent_properties(
     update_object["freeze_duration"] = grid_object.get("freeze_duration", 0)
     update_object["group_id"] = grid_object["group_id"]
     update_object["vibe_id"] = grid_object.get("vibe", 0)
+    update_object["vibe"] = grid_object.get("vibe", 0)  # Alias for vibe_id
 
 
 def format_converter_properties(grid_object: dict, update_object: dict) -> None:
@@ -82,13 +83,13 @@ def format_assembler_properties(grid_object: dict, update_object: dict) -> None:
     update_object["max_uses"] = grid_object.get("max_uses", 0)
     update_object["allow_partial_usage"] = grid_object.get("allow_partial_usage", False)
 
-    update_object["recipes"] = []
-    for recipe in grid_object.get("recipes", []):
-        update_recipe = {}
-        update_recipe["inputs"] = list(recipe.get("inputs", {}).items())
-        update_recipe["outputs"] = list(recipe.get("outputs", {}).items())
-        update_recipe["cooldown"] = recipe["cooldown"]
-        update_object["recipes"].append(update_recipe)
+    update_object["protocols"] = []
+    for protocol in grid_object.get("protocols", []):
+        update_protocol = {}
+        update_protocol["inputs"] = list(protocol.get("inputs", {}).items())
+        update_protocol["outputs"] = list(protocol.get("outputs", {}).items())
+        update_protocol["cooldown"] = protocol["cooldown"]
+        update_object["protocols"].append(update_protocol)
 
 
 def format_grid_object(
@@ -137,7 +138,7 @@ def format_grid_object(
     elif "input_resources" in grid_object:
         format_converter_properties(grid_object, update_object)
 
-    elif "recipes" in grid_object:
+    elif "protocols" in grid_object:
         format_assembler_properties(grid_object, update_object)
 
     return update_object
