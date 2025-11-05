@@ -6,6 +6,7 @@ import pytest
 from mettagrid.config.mettagrid_config import (
     ActionsConfig,
     AssemblerConfig,
+    ChangeVibeActionConfig,
     ChestConfig,
     GameConfig,
     MettaGridConfig,
@@ -29,7 +30,11 @@ def sim_with_assembler():
             max_steps=100,
             vibe_names=["neutral", "deposit", "withdraw"],
             resource_names=["iron", "steel"],
-            actions=ActionsConfig(noop=NoopActionConfig(), move=MoveActionConfig()),
+            actions=ActionsConfig(
+                noop=NoopActionConfig(),
+                move=MoveActionConfig(),
+                change_vibe=ChangeVibeActionConfig(number_of_vibes=3),
+            ),
             objects={
                 "wall": WallConfig(),
                 "assembler": AssemblerConfig(
