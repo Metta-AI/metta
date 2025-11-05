@@ -283,25 +283,38 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
             cpp_assembler_config.start_clipped = object_config.start_clipped
             objects_cpp_params[object_type] = cpp_assembler_config
         elif isinstance(object_config, ChestConfig):
-            # Convert resource type name to ID
-            resource_type_id = resource_name_to_id.get(object_config.resource_type, 0)
-
             # Convert tag names to IDs
             tag_ids = [tag_name_to_id[tag] for tag in object_config.tags]
 
-            # Convert position_deltas from (FixedPosition, delta) to (position_index, delta)
-            position_deltas_map = {}
-            for pos, delta in object_config.position_deltas:
-                position_index = FIXED_POSITIONS.index(pos)
-                position_deltas_map[position_index] = delta
+            # Convert vibe_transfers: vibe -> resource -> delta
+            vibe_transfers_map = {}
+            for vibe_name, resource_deltas in object_config.vibe_transfers.items():
+                vibe_id = vibe_name_to_id[vibe_name]
+                resource_deltas_cpp = {
+                    resource_name_to_id[resource]: delta for resource, delta in resource_deltas.items()
+                }
+                vibe_transfers_map[vibe_id] = resource_deltas_cpp
+
+            # Convert initial inventory
+            initial_inventory_cpp = {}
+            for resource, amount in object_config.initial_inventory.items():
+                resource_id = resource_name_to_id[resource]
+                initial_inventory_cpp[resource_id] = amount
+
+            # Create inventory config with limits
+            limits_list = []
+            for resource, limit in object_config.resource_limits.items():
+                resource_id = resource_name_to_id[resource]
+                limits_list.append([[resource_id], limit])
+
+            inventory_config = CppInventoryConfig(limits=limits_list)
 
             cpp_chest_config = CppChestConfig(
                 type_id=object_config.type_id, type_name=object_type, initial_vibe=object_config.vibe
             )
-            cpp_chest_config.resource_type = resource_type_id
-            cpp_chest_config.position_deltas = position_deltas_map
-            cpp_chest_config.initial_inventory = object_config.initial_inventory
-            cpp_chest_config.max_inventory = object_config.max_inventory
+            cpp_chest_config.vibe_transfers = vibe_transfers_map
+            cpp_chest_config.initial_inventory = initial_inventory_cpp
+            cpp_chest_config.inventory_config = inventory_config
             cpp_chest_config.tag_ids = tag_ids
             objects_cpp_params[object_type] = cpp_chest_config
         else:
