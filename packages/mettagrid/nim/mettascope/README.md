@@ -1,4 +1,4 @@
-# Mettascope2
+# Mettascope
 
 ## Building
 
@@ -17,12 +17,12 @@ nim --version
 Build the dynamic link library:
 
 ```
-cd mettascope2
+cd mettascope
 ./build.sh
 ```
 
 ## Running
 
 ```
-./tools/run.py arena.play mettascope2=true
+./tools/run.py arena.play mettascope=true
 ```

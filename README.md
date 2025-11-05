@@ -307,7 +307,8 @@ Notes:
 Mettascope allows you to run and view episodes in the environment you specify. It goes beyond just spectator mode, and
 allows taking over an agent and controlling it manually.
 
-For more information, see [./mettascope/README.md](./mettascope/README.md).
+For more information, see
+[./packages/mettagrid/nim/mettascope/README.md](./packages/mettagrid/nim/mettascope/README.md).
 
 #### Run the interactive simulation
 
