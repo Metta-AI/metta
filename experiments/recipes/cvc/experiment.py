@@ -7,7 +7,7 @@ For CLI usage, see README.md
 import subprocess
 import time
 
-from experiments.recipes.cogs_v_clips.methods import (
+from experiments.recipes.cvc import (
     evaluate,
     make_curriculum,
     make_eval_suite,
@@ -15,6 +15,7 @@ from experiments.recipes.cogs_v_clips.methods import (
     play,
     train,
     train_coordination,
+    train_medium_maps,
     train_single_mission,
     train_small_maps,
 )
@@ -23,7 +24,7 @@ from experiments.recipes.cogs_v_clips.methods import (
 experiment_configs = {
     # Quick experiments (for testing/debugging)
     "debug_single": {
-        "function": "train_single_mission",
+        "function": "single_mission.train",
         "mission_name": "extractor_hub_30",
         "num_cogs": 2,
         "gpus": 1,
@@ -31,52 +32,52 @@ experiment_configs = {
     },
     # Small maps experiments
     "small_1cog": {
-        "function": "train_small_maps",
+        "function": "small_maps.train",
         "num_cogs": 1,
         "gpus": 2,
         "timesteps": 20_000_000,
     },
     "small_2cogs": {
-        "function": "train_small_maps",
+        "function": "small_maps.train",
         "num_cogs": 2,
         "gpus": 2,
         "timesteps": 20_000_000,
     },
     "small_4cogs": {
-        "function": "train_small_maps",
+        "function": "small_maps.train",
         "num_cogs": 4,
         "gpus": 4,
         "timesteps": 30_000_000,
     },
     # Medium maps experiments
     "medium_4cogs": {
-        "function": "train_medium_maps",
+        "function": "medium_maps.train",
         "num_cogs": 4,
         "gpus": 4,
         "timesteps": 40_000_000,
     },
     # Coordination-focused
     "coordination_4cogs": {
-        "function": "train_coordination",
+        "function": "coordination.train",
         "num_cogs": 4,
         "gpus": 4,
         "timesteps": 40_000_000,
     },
     # Full curriculum (all missions)
     "full_1cog": {
-        "function": "train",
+        "function": "curriculum.train",
         "num_cogs": 1,
         "gpus": 4,
         "timesteps": 50_000_000,
     },
     "full_4cogs": {
-        "function": "train",
+        "function": "curriculum.train",
         "num_cogs": 4,
         "gpus": 8,
         "timesteps": 100_000_000,
     },
     "full_8cogs": {
-        "function": "train",
+        "function": "curriculum.train",
         "num_cogs": 8,
         "gpus": 8,
         "timesteps": 100_000_000,
@@ -87,6 +88,12 @@ experiment_configs = {
 def basic_training():
     """Train on small maps with 4 agents."""
     tool = train_small_maps(num_cogs=4)
+    return tool
+
+
+def medium_training():
+    """Train on medium maps with 4 agents."""
+    tool = train_medium_maps(num_cogs=4)
     return tool
 
 
@@ -222,7 +229,7 @@ def experiment(
         # Build command args
         cmd_args = [
             "./devops/skypilot/launch.py",
-            f"experiments.recipes.cogs_v_clips.{function_name}",
+            f"experiments.recipes.cvc.{function_name}",
             f"run={run_name}",
             f"num_cogs={num_cogs}",
             f"trainer.total_timesteps={timesteps}",

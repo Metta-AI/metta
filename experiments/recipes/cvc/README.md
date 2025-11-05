@@ -10,16 +10,16 @@ Launch multiple training runs on cloud infrastructure:
 
 ```bash
 # Test with debug config (recommended first!)
-uv run python experiments/recipes/cogs_v_clips/experiment.py debug_single
+uv run python experiments/recipes/cvc/experiment.py debug_single
 
 # Run specific experiments
-uv run python experiments/recipes/cogs_v_clips/experiment.py small_4cogs medium_4cogs
+uv run python experiments/recipes/cvc/experiment.py small_4cogs medium_4cogs
 
 # Run all standard experiments (excludes debug configs)
-uv run python experiments/recipes/cogs_v_clips/experiment.py
+uv run python experiments/recipes/cvc/experiment.py
 
 # Programmatic usage
-uv run python -c "from experiments.recipes.cogs_v_clips import experiment; experiment(configs=['debug_single'])"
+uv run python -c "from experiments.recipes.cvc import experiment; experiment(configs=['debug_single'])"
 ```
 
 **Available experiment configs:**
@@ -47,32 +47,32 @@ Train locally on small maps with 4 agents:
 
 ```bash
 # Train with default curriculum (small/medium missions, 4 agents)
-uv run ./tools/run.py experiments.recipes.cogs_v_clips.train run=cvc_default
+uv run ./tools/run.py experiments.recipes.cvc.curriculum.train run=cvc_default
 
 # Train on single mission (fast, for debugging)
-uv run ./tools/run.py experiments.recipes.cogs_v_clips.train_single_mission run=cvc_single
+uv run ./tools/run.py experiments.recipes.cvc.single_mission.train run=cvc_single
 
 # Train on small maps only
-uv run ./tools/run.py experiments.recipes.cogs_v_clips.train_small_maps run=cvc_small
+uv run ./tools/run.py experiments.recipes.cvc.small_maps.train run=cvc_small
 
 # Train on coordination-heavy missions
-uv run ./tools/run.py experiments.recipes.cogs_v_clips.train_coordination run=cvc_coord
+uv run ./tools/run.py experiments.recipes.cvc.coordination.train run=cvc_coord
 ```
 
 ### Evaluation
 
 ```bash
 # Evaluate a trained policy on all eval missions
-uv run ./tools/run.py experiments.recipes.cogs_v_clips.evaluate \\
+uv run ./tools/run.py experiments.recipes.cvc.evaluation.evaluate \\
     policy_uris=file://./checkpoints/cvc_default/latest
 
 # Evaluate on specific missions
-uv run ./tools/run.py experiments.recipes.cogs_v_clips.evaluate \\
+uv run ./tools/run.py experiments.recipes.cvc.evaluation.evaluate \\
     policy_uris=file://./checkpoints/cvc_default/latest \\
     subset='["extractor_hub_30", "oxygen_bottleneck"]'
 
 # Evaluate on hard difficulty
-uv run ./tools/run.py experiments.recipes.cogs_v_clips.evaluate \\
+uv run ./tools/run.py experiments.recipes.cvc.evaluation.evaluate \\
     policy_uris=file://./checkpoints/cvc_default/latest \\
     difficulty=hard
 ```
@@ -81,13 +81,13 @@ uv run ./tools/run.py experiments.recipes.cogs_v_clips.evaluate \\
 
 ```bash
 # Play with a trained policy
-uv run ./tools/run.py experiments.recipes.cogs_v_clips.play \\
+uv run ./tools/run.py experiments.recipes.cvc.play.play \\
     policy_uri=file://./checkpoints/cvc_default/latest \\
     mission_name=extractor_hub_30 \\
     num_cogs=4
 
 # Play without a policy (random actions)
-uv run ./tools/run.py experiments.recipes.cogs_v_clips.play_training_env
+uv run ./tools/run.py experiments.recipes.cvc.play.play_training_env
 ```
 
 ## Recipe Functions
@@ -205,7 +205,7 @@ The scripted agents achieved:
 
 ```bash
 # 1. Train on small maps for quick iteration
-uv run ./tools/run.py experiments.recipes.cogs_v_clips.train_small_maps \\
+uv run ./tools/run.py experiments.recipes.cvc.small_maps.train \\
     run=cvc_small \\
     trainer.total_timesteps=10_000_000
 
@@ -213,17 +213,17 @@ uv run ./tools/run.py experiments.recipes.cogs_v_clips.train_small_maps \\
 # (Check wandb or tensorboard for metrics)
 
 # 3. Evaluate on full suite
-uv run ./tools/run.py experiments.recipes.cogs_v_clips.evaluate \\
+uv run ./tools/run.py experiments.recipes.cvc.evaluation.evaluate \\
     policy_uris=file://./checkpoints/cvc_small/latest
 
 # 4. Play to visualize behavior
-uv run ./tools/run.py experiments.recipes.cogs_v_clips.play \\
+uv run ./tools/run.py experiments.recipes.cvc.play.play \\
     policy_uri=file://./checkpoints/cvc_small/latest \\
     mission_name=extractor_hub_30 \\
     num_cogs=4
 
 # 5. Scale up to full curriculum
-uv run ./tools/run.py experiments.recipes.cogs_v_clips.train \\
+uv run ./tools/run.py experiments.recipes.cvc.curriculum.train \\
     run=cvc_full \\
     trainer.total_timesteps=50_000_000 \\
     num_cogs=4
@@ -243,4 +243,3 @@ uv run ./tools/run.py experiments.recipes.cogs_v_clips.train \\
 - **Difficulty Variants**: `packages/cogames/src/cogames/cogs_vs_clips/evals/difficulty_variants.py`
 - **Scripted Agent Baselines**: `packages/cogames/src/cogames/policy/scripted_agent/`
 - **Evaluation Results**: `experiments/SCRIPTED_AGENT_EVALUATION.md`
-
