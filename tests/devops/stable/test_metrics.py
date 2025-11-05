@@ -2,76 +2,78 @@
 
 import pytest
 
-from devops.stable.metrics import extract_metrics, extract_wandb_run_info
+from metta.jobs.job_metrics import extract_skypilot_job_id, fetch_wandb_metrics
 
 
-def test_extract_wandb_url():
-    """Test extraction of wandb run information from URL."""
+def test_extract_skypilot_job_id_pattern1():
+    """Test extraction of SkyPilot job ID from launcher logs."""
     log_text = """
-    Training started
-    View run at: https://wandb.ai/myteam/myproject/runs/abc123xyz
-    Training complete
+    Launching job...
+    Job submitted with ID: 12345
+    Job is running
     """
-    info = extract_wandb_run_info(log_text)
-
-    assert info is not None
-    entity, project, run_id = info
-    assert entity == "myteam"
-    assert project == "myproject"
-    assert run_id == "abc123xyz"
+    job_id = extract_skypilot_job_id(log_text)
+    assert job_id == "12345"
 
 
-def test_extract_wandb_no_url():
-    """Test that missing wandb URL returns None."""
-    log_text = "Training logs without wandb URL"
-    info = extract_wandb_run_info(log_text)
-
-    assert info is None
-
-
-def test_extract_metrics_empty_log():
-    """Test that empty logs return empty metrics dict."""
-    metrics = extract_metrics("")
-    assert metrics == {}
+def test_extract_skypilot_job_id_pattern2():
+    """Test extraction using alternative pattern."""
+    log_text = "Submitted job 67890"
+    job_id = extract_skypilot_job_id(log_text)
+    assert job_id == "67890"
 
 
-def test_extract_metrics_no_wandb_metrics():
-    """Test that extract_metrics returns empty dict when no wandb_metrics specified."""
-    log_text = """
-    Training started
-    Some log output
-    View run: https://wandb.ai/team/proj/runs/run123
-    """
-    metrics = extract_metrics(log_text)
-    assert metrics == {}
+def test_extract_skypilot_job_id_no_match():
+    """Test that missing job ID returns None."""
+    log_text = "Training logs without job ID"
+    job_id = extract_skypilot_job_id(log_text)
+    assert job_id is None
 
 
-def test_extract_metrics_no_wandb_url():
-    """Test that extract_metrics returns empty dict when wandb URL not found."""
-    log_text = "Training logs without wandb URL"
-    metrics = extract_metrics(log_text, wandb_metrics=["some/metric"])
-    assert metrics == {}
+def test_fetch_metrics_with_mocked_wandb(monkeypatch):
+    """Test wandb metric fetching with mocked wandb API."""
 
+    # Mock wandb API
+    class FakeRun:
+        def history(self, keys, pandas=False):
+            if keys == ["overview/sps"]:
+                return [
+                    {"overview/sps": 48000.0},
+                    {"overview/sps": 49000.0},
+                    {"overview/sps": 50000.0},
+                    {"overview/sps": 51000.0},
+                ]
+            elif keys == ["env_agent/heart.get"]:
+                return [
+                    {"env_agent/heart.get": 1.0},
+                    {"env_agent/heart.get": 1.23},
+                    {"env_agent/heart.get": 1.5},
+                    {"env_agent/heart.get": 1.3},
+                ]
+            return []
 
-def test_extract_with_wandb_metrics_mocked(monkeypatch):
-    """Test wandb metric fetching when wandb_metrics list is provided."""
-    log_text = "https://wandb.ai/team/proj/runs/abc123"
+    class FakeApi:
+        def runs(self, path, filters=None):
+            # Return an iterator with our fake run
+            return iter([FakeRun()])
 
-    # Mock fetch_wandb_metric to avoid real API call
-    def fake_fetch(entity, project, run_id, metric_key, **kwargs):
-        if metric_key == "overview/sps":
-            return 50000.0
-        elif metric_key == "env_agent/heart.gained":
-            return 1.23
-        return None
+    import metta.jobs.job_metrics as metrics_module
 
-    import devops.stable.metrics as metrics_module
+    monkeypatch.setattr(metrics_module.wandb, "Api", FakeApi)
 
-    monkeypatch.setattr(metrics_module, "fetch_wandb_metric", fake_fetch)
-
-    metrics = extract_metrics(log_text, wandb_metrics=["overview/sps", "env_agent/heart.gained"])
+    metrics, current_step = fetch_wandb_metrics(
+        entity="team",
+        project="proj",
+        run_name="test_run",
+        metric_keys=["overview/sps", "env_agent/heart.get"],
+        last_n_percent=0.5,
+    )
 
     assert "overview/sps" in metrics
-    assert "env_agent/heart.gained" in metrics
-    assert metrics["overview/sps"] == pytest.approx(50000.0)
-    assert metrics["env_agent/heart.gained"] == pytest.approx(1.23)
+    assert "env_agent/heart.get" in metrics
+    # Should average last 50% (last 2 values)
+    assert metrics["overview/sps"]["value"] == pytest.approx(50500.0)  # avg(50000, 51000)
+    assert metrics["overview/sps"]["count"] == 2
+    assert metrics["env_agent/heart.get"]["value"] == pytest.approx(1.4)  # avg(1.5, 1.3)
+    assert metrics["env_agent/heart.get"]["count"] == 2
+    assert current_step is None  # Not requested
