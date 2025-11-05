@@ -13,5 +13,7 @@ oauth2_proxy:
   email_domains:
     - stem.ai
     - softmax.com
+    - samesided.org # for testing domain-change; remove any time after Dec 2025
+
   # This secret is terraformed by devops/tf/eks
   secret_name: softmax-infra-oauth
