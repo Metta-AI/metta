@@ -72,6 +72,17 @@ def _build_variant(names: Sequence[str]) -> MissionVariant | None:
     return _combine_variants(variant_objects)
 
 
+def _resolve_eval_variants(
+    train_variants: Optional[Sequence[str]],
+    eval_variants: Optional[Sequence[str]],
+) -> Optional[list[str]]:
+    if eval_variants is not None:
+        return list(eval_variants)
+    if train_variants is not None:
+        return list(train_variants)
+    return None
+
+
 def make_eval_suite(
     num_cogs: int = 4,
     difficulty: str | None = "standard",
@@ -229,10 +240,11 @@ def train(
         losses=LossConfig(),
     )
 
+    resolved_eval_variants = _resolve_eval_variants(variants, eval_variants)
     eval_suite = make_eval_suite(
         num_cogs=num_cogs,
         difficulty=eval_difficulty,
-        variants=eval_variants if eval_variants is not None else variants,
+        variants=resolved_eval_variants,
     )
 
     evaluator_cfg = EvaluatorConfig(
@@ -266,10 +278,11 @@ def train_single_mission(
         losses=LossConfig(),
     )
 
+    resolved_eval_variants = _resolve_eval_variants(variants, eval_variants)
     eval_suite = make_eval_suite(
         num_cogs=num_cogs,
         difficulty=eval_difficulty,
-        variants=eval_variants if eval_variants is not None else variants,
+        variants=resolved_eval_variants,
     )
 
     return TrainTool(
