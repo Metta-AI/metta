@@ -1,4 +1,32 @@
-"""Utilities for analyzing policy network structure."""
+"""Utilities for analyzing policy network structure.
+
+This module provides several metrics for monitoring neural network health during training:
+
+**Dead Neuron Statistics** (`compute_dead_neuron_stats`): Identifies neurons with very small
+outgoing weights, indicating they may not be contributing to the network's output. Dead neurons
+are detected by computing the mean absolute weight magnitude for each neuron's outgoing connections.
+Neurons below a threshold (default 1e-6) are considered dead. High dead neuron counts can indicate
+over-regularization, vanishing gradients, or insufficient capacity.
+
+**ReLU Activation Statistics** (`ReLUActivationState`): Tracks how frequently each ReLU neuron
+activates (outputs > 0) during forward passes. This is measured as the fraction of samples where
+each neuron fires. Low activation frequencies suggest neurons that are rarely used, which can
+indicate redundancy or dead neurons. Very high frequencies (>0.95) suggest neurons that fire
+almost always, which may indicate they're not learning useful nonlinearities.
+
+**Saturated Activation Statistics** (`SaturatedActivationState`): Monitors saturation in smooth
+activation functions (tanh, sigmoid) where neurons output values near the activation boundaries.
+For tanh, saturation occurs when abs(output) > threshold (default 0.95). For sigmoid, saturation
+occurs when output is close to 0 or 1. Saturated neurons have near-zero gradients, making them
+difficult to train and potentially indicating vanishing gradient problems or poor initialization.
+
+**Fisher Information Metrics** (`FisherInformationState`): Uses an exponentially weighted moving
+average (EMA) of squared gradients as a proxy for the Fisher Information Matrix. This provides
+a measure of parameter importance - parameters with consistently large gradients contribute more
+to learning. The mean importance metric helps identify unused or dead parameters (importance < 1e-8)
+that may be candidates for pruning. The EMA smooths gradient noise within each epoch while
+maintaining sensitivity to recent changes.
+"""
 
 from __future__ import annotations
 
@@ -9,23 +37,53 @@ import torch.nn as nn
 from tensordict import TensorDictBase
 
 if TYPE_CHECKING:
+    from metta.rl.training import ComponentContext
     from metta.tools.train import BackwardHookBuilder, HookBuilder
 
+__all__ = [
+    "FisherInformationState",
+    "ReLUActivationState",
+    "SaturatedActivationState",
+    "attach_fisher_information_hooks",
+    "attach_relu_activation_hooks",
+    "attach_saturated_activation_hooks",
+    "compute_dead_neuron_stats",
+    "compute_saturated_activation_stats",
+    "get_fisher_information_metrics",
+    "get_relu_activation_metrics",
+    "get_saturated_activation_metrics",
+]
 
-def compute_dormant_neuron_stats(policy: nn.Module, *, threshold: float = 1e-6) -> Dict[str, float]:
-    """
-    Compute dormant neuron statistics for a policy.
 
-    A neuron is considered dormant when the mean absolute weight for its outgoing connections
-    falls below the supplied threshold. Results are returned as a dictionary compatible with
-    wandb logging (keys are already namespaced).
+def compute_dead_neuron_stats(policy: nn.Module, *, threshold: float = 1e-6) -> Dict[str, float]:
+    """Compute dead neuron statistics for a policy.
+
+    Dead neurons are output units in linear layers whose mean absolute outgoing weight magnitude
+    falls below a threshold (default 1e-6). This metric helps identify neurons that have become
+    effectively inactive during training, which can indicate over-regularization, vanishing
+    gradients, or insufficient model capacity. The statistics include per-layer dead neuron
+    fractions and aggregate counts across the entire network. High dead neuron rates (>50%) may
+    suggest the network is underutilizing its capacity, while very low rates (<1%) indicate
+    healthy neuron utilization.
+
+    Args:
+        policy: The neural network policy to analyze.
+        threshold: Minimum mean absolute weight magnitude to consider a neuron active (default 1e-6).
+
+    Returns:
+        Dictionary of metrics with keys like:
+        - ``weights/dead_neurons/{layer_name}``: Fraction of dead neurons per layer
+        - ``weights/dead_neurons/total_neurons``: Total number of neurons analyzed
+        - ``weights/dead_neurons/dead_neurons``: Total number of dead neurons
+        - ``weights/dead_neurons/fraction``: Overall fraction of dead neurons
+        - ``weights/dead_neurons/active_fraction``: Overall fraction of active neurons
     """
 
     if not isinstance(policy, nn.Module):
         return {}
 
     total_neurons = 0
-    dormant_neurons = 0
+    dead_neurons = 0
     stats: Dict[str, float] = {}
 
     for name, module in policy.named_modules():
@@ -43,30 +101,39 @@ def compute_dormant_neuron_stats(policy: nn.Module, *, threshold: float = 1e-6) 
             continue
 
         layer_total = int(activity.numel())
-        layer_dormant = int((activity < threshold).sum().item())
+        layer_dead = int((activity < threshold).sum().item())
         if layer_total == 0:
             continue
 
         total_neurons += layer_total
-        dormant_neurons += layer_dormant
+        dead_neurons += layer_dead
 
         sanitized = name.replace(".", "/") if name else "root"
-        stats[f"weights/dormant_neurons/{sanitized}"] = layer_dormant / layer_total
+        stats[f"weights/dead_neurons/{sanitized}"] = layer_dead / layer_total
 
     if total_neurons == 0:
         return {}
 
-    dormant_fraction = dormant_neurons / total_neurons
-    stats["weights/dormant_neurons/total_neurons"] = float(total_neurons)
-    stats["weights/dormant_neurons/dormant_neurons"] = float(dormant_neurons)
-    stats["weights/dormant_neurons/fraction"] = dormant_fraction
-    stats["weights/dormant_neurons/active_fraction"] = 1.0 - dormant_fraction
+    dead_fraction = dead_neurons / total_neurons
+    stats["weights/dead_neurons/total_neurons"] = float(total_neurons)
+    stats["weights/dead_neurons/dead_neurons"] = float(dead_neurons)
+    stats["weights/dead_neurons/fraction"] = dead_fraction
+    stats["weights/dead_neurons/active_fraction"] = 1.0 - dead_fraction
 
     return stats
 
 
 class ReLUActivationState:
-    """State container tracking ReLU activation frequencies per component."""
+    """State container tracking ReLU activation frequencies per component.
+
+    This class monitors how frequently each ReLU neuron activates (outputs a value > 0) during
+    training. The activation frequency is computed as the fraction of samples where each neuron
+    fires across forward passes within an epoch. Neurons with very low activation frequencies
+    (<5%) are rarely used and may indicate redundancy or dead neurons. Neurons with very high
+    frequencies (>95%) fire almost always, suggesting they're not learning useful nonlinearities
+    and may be effectively linear. Healthy networks typically show a broad distribution of
+    activation frequencies, with most neurons firing on 20-80% of samples.
+    """
 
     def __init__(self) -> None:
         self.active: dict[str, list[int]] = {}
@@ -122,54 +189,263 @@ class ReLUActivationState:
             self.totals[component] = [0] * len(values)
 
 
-class FisherInformationState:
-    """State container tracking Fisher Information Matrix (squared gradients) per component."""
+class SaturatedActivationState:
+    """State container tracking saturated neuron statistics for smooth activations (tanh, sigmoid).
 
-    def __init__(self) -> None:
-        self.accumulated_fim: dict[str, dict[str, torch.Tensor]] = {}
-        self.update_count: dict[str, int] = {}
+    Saturation occurs when activation outputs are near the function boundaries, resulting in
+    near-zero gradients. For tanh activations, saturation happens when abs(output) > threshold
+    (default 0.95, meaning outputs near ±1). For sigmoid, saturation occurs when outputs are
+    close to 0 or 1. High saturation rates (>50%) indicate that many neurons are operating in
+    regions with vanishing gradients, making learning difficult and potentially causing training
+    instabilities. This metric helps diagnose gradient flow issues and can suggest the need for
+    better initialization, gradient clipping, or alternative activation functions.
+    """
+
+    def __init__(self, activation: str, saturation_threshold: float = 0.95) -> None:
+        """
+        Args:
+            activation: Activation type, either "tanh" or "sigmoid"
+            saturation_threshold: Threshold for considering a neuron saturated.
+                For tanh: abs(output) > threshold (default 0.95)
+                For sigmoid: output < (1 - threshold) or output > threshold (default 0.95)
+        """
+        if activation not in {"tanh", "sigmoid"}:
+            raise ValueError(f"Unsupported activation '{activation}'. Expected 'tanh' or 'sigmoid'.")
+        self.activation = activation
+        self.saturation_threshold = saturation_threshold
+        self.saturated: dict[str, list[int]] = {}
+        self.totals: dict[str, list[int]] = {}
 
     def has_component(self, component_name: str) -> bool:
-        return component_name in self.accumulated_fim
+        return component_name in self.saturated
 
     def register_component(self, component_name: str) -> None:
-        self.accumulated_fim.setdefault(component_name, {})
-        self.update_count.setdefault(component_name, 0)
+        self.saturated.setdefault(component_name, [])
+        self.totals.setdefault(component_name, [])
 
-    def update(self, component_name: str, param_name: str, grad: torch.Tensor) -> None:
-        """Accumulate squared gradients for Fisher Information Matrix."""
-        if grad is None:
+    def update(self, component_name: str, tensor: torch.Tensor) -> None:
+        """Update saturation statistics from activation output tensor."""
+        if tensor.ndim == 0:
             return
-        grad = grad.detach()
-        squared_grad = grad * grad
+        if tensor.ndim == 1:
+            flat = tensor.unsqueeze(0)
+        else:
+            flat = tensor.reshape(-1, tensor.shape[-1])
 
-        component_fim = self.accumulated_fim.setdefault(component_name, {})
-        if param_name not in component_fim:
-            component_fim[param_name] = torch.zeros_like(squared_grad)
-        component_fim[param_name] += squared_grad
-        self.update_count[component_name] = self.update_count.get(component_name, 0) + 1
+        if flat.numel() == 0:
+            return
+
+        # Compute saturation mask
+        if self.activation == "tanh":
+            # For tanh: saturated when abs(output) is close to 1.0
+            saturated_mask = flat.abs() > self.saturation_threshold
+        else:  # sigmoid
+            # For sigmoid: saturated when output is close to 0 or 1
+            saturated_mask = (flat < (1.0 - self.saturation_threshold)) | (flat > self.saturation_threshold)
+
+        counts = saturated_mask.sum(dim=0).tolist()
+        if not counts:
+            return
+        total = int(flat.shape[0])
+
+        saturated = self.saturated.setdefault(component_name, [0] * len(counts))
+        totals = self.totals.setdefault(component_name, [0] * len(counts))
+
+        if len(saturated) < len(counts):
+            saturated.extend([0] * (len(counts) - len(saturated)))
+            totals.extend([0] * (len(counts) - len(totals)))
+
+        for idx, value in enumerate(counts):
+            if idx >= len(saturated):
+                saturated.append(0)
+                totals.append(0)
+            saturated[idx] += int(value)
+            totals[idx] += total
 
     def to_metrics(self) -> Dict[str, float]:
-        """Convert accumulated Fisher Information to metrics."""
+        """Convert accumulated saturation statistics to metrics."""
         metrics: Dict[str, float] = {}
-        for component, param_fim in self.accumulated_fim.items():
-            count = self.update_count.get(component, 1)
-            if count == 0:
-                continue
-            for param_name, fim_values in param_fim.items():
-                # Average FIM over updates
-                avg_fim = fim_values / count
-                # Compute statistics: mean, trace (sum), max
-                metrics[f"fisher_info/{component}/{param_name}/mean"] = float(avg_fim.mean().item())
-                metrics[f"fisher_info/{component}/{param_name}/trace"] = float(avg_fim.sum().item())
-                metrics[f"fisher_info/{component}/{param_name}/max"] = float(avg_fim.max().item())
+        total_saturated = 0
+        total_neurons = 0
+
+        for component, saturated_values in self.saturated.items():
+            component_totals = self.totals.get(component, [])
+            component_saturated = 0
+            component_total = 0
+
+            for idx, (sat, tot) in enumerate(zip(saturated_values, component_totals, strict=False)):
+                if tot:
+                    fraction = sat / tot
+                    metrics[f"activations/{self.activation}/saturated_fraction/{component}/{idx}"] = fraction
+                    component_saturated += sat
+                    component_total += tot
+
+            if component_total > 0:
+                metrics[f"activations/{self.activation}/saturation/{component}/total_neurons"] = float(component_total)
+                metrics[f"activations/{self.activation}/saturation/{component}/saturated_neurons"] = float(
+                    component_saturated
+                )
+                metrics[f"activations/{self.activation}/saturation/{component}/fraction"] = float(
+                    component_saturated / component_total
+                )
+                metrics[f"activations/{self.activation}/saturation/{component}/active_fraction"] = float(
+                    1.0 - (component_saturated / component_total)
+                )
+                total_saturated += component_saturated
+                total_neurons += component_total
+
+        if total_neurons > 0:
+            prefix = f"activations/{self.activation}/saturation"
+            metrics[f"{prefix}/total_neurons"] = float(total_neurons)
+            metrics[f"{prefix}/saturated_neurons"] = float(total_saturated)
+            metrics[f"{prefix}/fraction"] = float(total_saturated / total_neurons)
+            metrics[f"{prefix}/active_fraction"] = float(1.0 - (total_saturated / total_neurons))
+
         return metrics
 
     def reset(self) -> None:
-        """Reset accumulated Fisher Information."""
-        for component in self.accumulated_fim:
-            self.accumulated_fim[component] = {}
-            self.update_count[component] = 0
+        """Reset accumulated saturation statistics."""
+        for component, values in self.saturated.items():
+            self.saturated[component] = [0] * len(values)
+        for component, values in self.totals.items():
+            self.totals[component] = [0] * len(values)
+
+
+class FisherInformationState:
+    """State container tracking Fisher Information Matrix (EMA of squared gradients) per component.
+
+    Uses an exponentially weighted moving average (EMA) of squared gradients as a proxy for the
+    Fisher Information Matrix diagonal. The Fisher Information captures parameter importance by
+    measuring how much each parameter's gradients contribute to the loss. Parameters with
+    consistently large squared gradients (high Fisher information) are more important for learning,
+    while parameters with consistently small gradients (low Fisher information, < 1e-8) may be
+    unused or dead. This metric helps identify parameters that can potentially be pruned without
+    affecting model performance. The EMA smooths gradient noise within each epoch (default beta=0.95),
+    providing stable importance estimates while maintaining sensitivity to recent changes. State
+    resets at epoch end, providing sufficient within-epoch smoothing for dead parameter detection.
+    """
+
+    def __init__(self, beta: float = 0.95) -> None:
+        """Initialize Fisher Information state with EMA decay factor.
+
+        Args:
+            beta: EMA decay factor (default 0.95). Higher values give more weight to historical gradients
+                within the epoch. Note: State resets at epoch end, so this only affects within-epoch smoothing.
+        """
+        self.beta = beta
+        self.fisher_ema: dict[str, dict[str, torch.Tensor]] = {}
+        self.unused_threshold: float = 1e-8
+
+    def has_component(self, component_name: str) -> bool:
+        return component_name in self.fisher_ema
+
+    def register_component(self, component_name: str) -> None:
+        self.fisher_ema.setdefault(component_name, {})
+
+    def update(self, component_name: str, param_name: str, grad: torch.Tensor) -> None:
+        """Update EMA of squared gradients for Fisher Information Matrix proxy."""
+        if grad is None:
+            return
+        grad = grad.detach()
+        squared_grad = grad.pow(2)
+
+        component_fim = self.fisher_ema.setdefault(component_name, {})
+        if param_name not in component_fim:
+            component_fim[param_name] = torch.zeros_like(squared_grad)
+
+        # EMA update: F = beta * F + (1 - beta) * grad^2
+        with torch.no_grad():
+            component_fim[param_name].mul_(self.beta).add_((1.0 - self.beta) * squared_grad)
+
+    def to_metrics(self) -> Dict[str, float]:
+        """Convert EMA Fisher Information to metrics, including dead parameter detection."""
+        metrics: Dict[str, float] = {}
+        dead_params: list[str] = []
+
+        for component, param_fim in self.fisher_ema.items():
+            for param_name, fim_ema in param_fim.items():
+                # Mean importance (proxy for Fisher information)
+                importance = fim_ema.mean().item()
+                metrics[f"fisher_info/{component}/{param_name}/mean"] = importance
+                metrics[f"fisher_info/{component}/{param_name}/trace"] = float(fim_ema.sum().item())
+                metrics[f"fisher_info/{component}/{param_name}/max"] = float(fim_ema.max().item())
+
+                # Detect possibly unused/dead parameters
+                if importance < self.unused_threshold:
+                    dead_params.append(f"{component}/{param_name}")
+                    metrics[f"fisher_info/{component}/{param_name}/dead"] = 1.0
+                else:
+                    metrics[f"fisher_info/{component}/{param_name}/dead"] = 0.0
+
+        # Aggregate dead parameter counts per component
+        if dead_params:
+            component_dead_counts: dict[str, int] = {}
+            for param_path in dead_params:
+                component = param_path.split("/", 1)[0]
+                component_dead_counts[component] = component_dead_counts.get(component, 0) + 1
+
+            for component, count in component_dead_counts.items():
+                total_params = len(self.fisher_ema.get(component, {}))
+                if total_params > 0:
+                    metrics[f"fisher_info/{component}/dead_fraction"] = count / total_params
+                    metrics[f"fisher_info/{component}/dead_count"] = float(count)
+
+        return metrics
+
+    def reset(self) -> None:
+        """Reset Fisher Information EMA (clears all tracked parameters).
+
+        Called at epoch end to start fresh for the next epoch. This is intentional:
+        within-epoch EMA provides sufficient smoothing for dead parameter detection.
+        """
+        self.fisher_ema.clear()
+
+
+def attach_saturated_activation_hooks(
+    *,
+    activation: str = "tanh",
+    saturation_threshold: float = 0.95,
+    extractor: Any = "critic_1",
+) -> "HookBuilder":
+    """Create a builder that prepares saturated activation tracking for smooth activations (tanh/sigmoid).
+
+    Args:
+        activation: Activation type, either "tanh" or "sigmoid"
+        saturation_threshold: Threshold for considering a neuron saturated (default 0.95)
+        extractor: Function or key to extract activation tensor from module output
+
+    Returns:
+        HookBuilder that can be registered with add_training_hook()
+    """
+    if activation not in {"tanh", "sigmoid"}:
+        raise ValueError(f"Unsupported activation '{activation}'. Expected 'tanh' or 'sigmoid'.")
+
+    def builder(component_name: str, context: "ComponentContext") -> Optional[Callable[..., None]]:
+        state_key = f"saturated_activation_state_{activation}"
+        state = context.model_metrics.get(state_key)
+        if not isinstance(state, SaturatedActivationState):
+            state = SaturatedActivationState(activation=activation, saturation_threshold=saturation_threshold)
+            context.model_metrics[state_key] = state
+
+        if state.has_component(component_name):
+            return None
+
+        extractor_fn = _build_extractor(extractor)
+        if extractor_fn is None:
+            return None
+
+        tracker = state
+        tracker.register_component(component_name)
+
+        def hook(_: nn.Module, __: tuple[Any, ...], output: Any) -> None:
+            tensor = extractor_fn(output)
+            if tensor is None:
+                return
+            tracker.update(component_name, tensor.detach())
+
+        return hook
+
+    return builder
 
 
 def attach_relu_activation_hooks(
@@ -178,14 +454,11 @@ def attach_relu_activation_hooks(
 ) -> "HookBuilder":
     """Create a builder that prepares ReLU activation tracking for a given component."""
 
-    def builder(component_name: str, trainer: Any) -> Optional[Callable[..., None]]:
-        state = getattr(trainer, "_relu_activation_state", None)
+    def builder(component_name: str, context: "ComponentContext") -> Optional[Callable[..., None]]:
+        state = context.model_metrics.get("relu_activation_state")
         if not isinstance(state, ReLUActivationState):
             state = ReLUActivationState()
-            trainer._relu_activation_state = state  # type: ignore[attr-defined]
-            context = getattr(trainer, "context", None)
-            if context is not None:
-                context.relu_activation_state = state
+            context.model_metrics["relu_activation_state"] = state
 
         if state.has_component(component_name):
             return None
@@ -217,17 +490,38 @@ def get_relu_activation_metrics(state: Any, *, reset: bool = False) -> Dict[str,
     return metrics
 
 
-def attach_fisher_information_hooks() -> "BackwardHookBuilder":
-    """Create a builder that prepares Fisher Information tracking for a given component."""
+def get_saturated_activation_metrics(state: Any, *, activation: str = "tanh", reset: bool = False) -> Dict[str, float]:
+    """Get saturated activation metrics from trainer state."""
+    if not isinstance(state, SaturatedActivationState):
+        return {}
+    if state.activation != activation:
+        return {}
+    metrics = state.to_metrics()
+    if reset:
+        state.reset()
+    return metrics
 
-    def builder(component_name: str, trainer: Any) -> Optional[Callable[..., None]]:
-        state = getattr(trainer, "_fisher_information_state", None)
+
+def attach_fisher_information_hooks(*, beta: float = 0.95) -> "BackwardHookBuilder":
+    """Create a builder that prepares Fisher Information tracking for a given component.
+
+    Uses EMA (Exponentially Weighted Moving Average) of squared gradients as a proxy for Fisher Information.
+    The EMA accumulates within each epoch and resets at epoch end, providing sufficient smoothing
+    for dead parameter detection without needing cross-epoch persistence.
+
+    Args:
+        beta: EMA decay factor (default 0.95). Higher values give more weight to historical gradients
+            within the epoch.
+
+    Returns:
+        BackwardHookBuilder that can be registered with add_training_backward_hook()
+    """
+
+    def builder(component_name: str, context: "ComponentContext") -> Optional[Callable[..., None]]:
+        state = context.model_metrics.get("fisher_information_state")
         if not isinstance(state, FisherInformationState):
-            state = FisherInformationState()
-            trainer._fisher_information_state = state  # type: ignore[attr-defined]
-            context = getattr(trainer, "context", None)
-            if context is not None:
-                context.fisher_information_state = state  # type: ignore[attr-defined]
+            state = FisherInformationState(beta=beta)
+            context.model_metrics["fisher_information_state"] = state
 
         if state.has_component(component_name):
             return None
@@ -236,11 +530,12 @@ def attach_fisher_information_hooks() -> "BackwardHookBuilder":
         tracker.register_component(component_name)
 
         def hook(module: nn.Module, _grad_input: tuple[Any, ...], _grad_output: tuple[Any, ...]) -> None:
-            # Accumulate squared gradients for all parameters in the module
-            for param_name, param in module.named_parameters(recurse=False):
-                if param.grad is not None:
-                    full_param_name = f"{component_name}.{param_name}"
-                    tracker.update(component_name, full_param_name, param.grad)
+            # Update EMA of squared gradients for all parameters in the module
+            with torch.no_grad():
+                for param_name, param in module.named_parameters(recurse=False):
+                    if param.grad is not None:
+                        full_param_name = f"{component_name}.{param_name}"
+                        tracker.update(component_name, full_param_name, param.grad)
 
         return hook
 
@@ -289,12 +584,29 @@ def compute_saturated_activation_stats(
     activation: str,
     derivative_threshold: float = 1e-3,
 ) -> Dict[str, float]:
-    """
-    Compute saturated neuron statistics for activations with bounded derivatives.
+    """Compute saturated neuron statistics for activations with bounded derivatives.
 
-    This helper targets architectures where a linear layer feeds into either a tanh or
-    sigmoid activation. A neuron is flagged as saturated when the magnitude of the
-    activation derivative (evaluated at its bias) falls below ``derivative_threshold``.
+    This static analysis method evaluates saturation by computing the activation derivative
+    at each neuron's bias value. For tanh, the derivative is 1 - tanh²(bias). For sigmoid,
+    it's σ(bias) * (1 - σ(bias)). Neurons with derivative magnitudes below the threshold
+    (default 1e-3) are considered saturated. Unlike the dynamic `SaturatedActivationState` which
+    tracks saturation during training, this method provides a static snapshot based on the
+    current weight values. It's useful for analyzing model initialization and understanding
+    saturation patterns before training begins. High saturation at initialization suggests poor
+    weight initialization that may lead to vanishing gradients.
+
+    Args:
+        policy: The neural network policy to analyze.
+        activation: Activation type, either "tanh" or "sigmoid".
+        derivative_threshold: Minimum derivative magnitude to consider a neuron active (default 1e-3).
+
+    Returns:
+        Dictionary of metrics with keys like:
+        - ``activations/{activation}/saturated_fraction/{layer_name}``: Per-layer saturation fraction
+        - ``activations/{activation}/saturation/total_neurons``: Total neurons analyzed
+        - ``activations/{activation}/saturation/saturated_neurons``: Total saturated neurons
+        - ``activations/{activation}/saturation/fraction``: Overall saturation fraction
+        - ``activations/{activation}/saturation/active_fraction``: Overall active fraction
     """
 
     if not isinstance(policy, nn.Module):

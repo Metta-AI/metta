@@ -14,7 +14,12 @@ from pydantic import Field
 from metta.app_backend.clients.stats_client import StatsClient
 from metta.common.wandb.context import WandbRun
 from metta.eval.eval_request_config import EvalRewardSummary
-from metta.rl.model_analysis import compute_dormant_neuron_stats, get_relu_activation_metrics
+from metta.rl.model_analysis import (
+    compute_dead_neuron_stats,
+    get_fisher_information_metrics,
+    get_relu_activation_metrics,
+    get_saturated_activation_metrics,
+)
 from metta.rl.stats import accumulate_rollout_stats, compute_timing_stats, process_training_stats
 from metta.rl.training.component import TrainerComponent
 from metta.rl.utils import should_run
@@ -123,8 +128,8 @@ class StatsReporterConfig(Config):
     """How often to report stats (in epochs)"""
     analyze_weights_interval: int = 0
     """How often to compute weight metrics (0 disables)."""
-    dormant_neuron_threshold: float = 1e-6
-    """Threshold for considering a neuron dormant based on mean absolute weight magnitude."""
+    dead_neuron_threshold: float = 1e-6
+    """Threshold for considering a neuron dead based on mean absolute weight magnitude."""
 
 
 class StatsReporterState(Config):
@@ -425,12 +430,44 @@ class StatsReporter(TrainerComponent):
         self._normalize_steps_per_second(timing_info, agent_step)
 
         weight_stats = self._collect_weight_stats(policy=policy, epoch=epoch)
-        dormant_stats = self._compute_dormant_neuron_stats(policy=policy)
-        if dormant_stats:
-            weight_stats.update(dormant_stats)
-        activation_stats = get_relu_activation_metrics(policy, reset=True)
-        if activation_stats:
-            weight_stats.update(activation_stats)
+
+        # Collect all model analysis metrics
+        model_metrics: dict[str, float] = {}
+
+        dead_stats = self._compute_dead_neuron_stats(policy=policy)
+        if dead_stats:
+            model_metrics.update(dead_stats)
+
+        # Get ReLU activation metrics from model_metrics
+        relu_state = self.context.model_metrics.get("relu_activation_state")
+        if relu_state is not None:
+            relu_stats = get_relu_activation_metrics(relu_state, reset=True)
+            if relu_stats:
+                model_metrics.update(relu_stats)
+
+        # Get Fisher information metrics from model_metrics
+        fisher_state = self.context.model_metrics.get("fisher_information_state")
+        if fisher_state is not None:
+            fisher_stats = get_fisher_information_metrics(fisher_state, reset=True)
+            if fisher_stats:
+                model_metrics.update(fisher_stats)
+
+        # Get saturated activation metrics (tanh and sigmoid) from model_metrics
+        tanh_state = self.context.model_metrics.get("saturated_activation_state_tanh")
+        if tanh_state is not None:
+            tanh_stats = get_saturated_activation_metrics(tanh_state, activation="tanh", reset=True)
+            if tanh_stats:
+                model_metrics.update(tanh_stats)
+
+        sigmoid_state = self.context.model_metrics.get("saturated_activation_state_sigmoid")
+        if sigmoid_state is not None:
+            sigmoid_stats = get_saturated_activation_metrics(sigmoid_state, activation="sigmoid", reset=True)
+            if sigmoid_stats:
+                model_metrics.update(sigmoid_stats)
+
+        # Add model metrics to weight stats for wandb logging
+        if model_metrics:
+            weight_stats.update(model_metrics)
         system_stats = self._collect_system_stats()
         memory_stats = self._collect_memory_stats()
         parameters = self._collect_parameters(
@@ -508,14 +545,14 @@ class StatsReporter(TrainerComponent):
             logger.warning("Failed to compute weight metrics: %s", exc, exc_info=True)
         return weight_stats
 
-    def _compute_dormant_neuron_stats(self, *, policy: Any) -> dict[str, float]:
+    def _compute_dead_neuron_stats(self, *, policy: Any) -> dict[str, float]:
         if not isinstance(policy, nn.Module):
             return {}
-        threshold = getattr(self._config, "dormant_neuron_threshold", 1e-6)
+        threshold = getattr(self._config, "dead_neuron_threshold", 1e-6)
         try:
-            return compute_dormant_neuron_stats(policy, threshold=threshold)
+            return compute_dead_neuron_stats(policy, threshold=threshold)
         except Exception as exc:  # pragma: no cover - safeguard against model-specific failures
-            logger.debug("Failed to compute dormant neuron stats: %s", exc, exc_info=True)
+            logger.debug("Failed to compute dead neuron stats: %s", exc, exc_info=True)
             return {}
 
     def _collect_system_stats(self) -> dict[str, Any]:

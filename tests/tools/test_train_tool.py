@@ -2,9 +2,9 @@ from __future__ import annotations
 
 import types
 from types import SimpleNamespace
+from typing import Any
 
 from metta.agent.policies.vit import ViTDefaultConfig
-from metta.rl.trainer import Trainer
 from metta.rl.training import GameRules, TrainingEnvironmentConfig
 from metta.tools.train import TrainTool
 
@@ -22,7 +22,7 @@ def _game_rules() -> GameRules:
     )
 
 
-def _builder(component_name: str, trainer: Trainer):
+def _builder(component_name: str, context: Any):
     if component_name != "actor_mlp":
         return None
 
@@ -37,7 +37,8 @@ def test_add_training_hook_invokes_registered_hook() -> None:
     tool.add_training_hook("actor_mlp", _builder)
 
     policy = ViTDefaultConfig().make_policy(_game_rules())
-    trainer = type("DummyTrainer", (), {})()
+    context = type("DummyContext", (), {})()
+    trainer = type("DummyTrainer", (), {"context": context})()
 
     calls: list[tuple[str, str]] = []
     original_register = policy.register_component_hook_rule

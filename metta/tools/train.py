@@ -23,6 +23,7 @@ from metta.rl.trainer_config import TorchProfilerConfig, TrainerConfig
 from metta.rl.training import (
     Checkpointer,
     CheckpointerConfig,
+    ComponentContext,
     ContextCheckpointer,
     DistributedHelper,
     Evaluator,
@@ -55,11 +56,13 @@ from metta.tools.utils.auto_config import (
 logger = getRankAwareLogger(__name__)
 
 # Forward hook: called after forward pass with (module, input, output) -> None
-HookBuilder = Callable[[str, Trainer], Optional[Callable[[Any, tuple[Any, ...], Any], None]]]
+HookBuilder = Callable[[str, ComponentContext], Optional[Callable[[Any, tuple[Any, ...], Any], None]]]
 HookSpec = Tuple[str, HookBuilder]
 
 # Backward hook: called during backward pass with (module, grad_input, grad_output) -> None
-BackwardHookBuilder = Callable[[str, Trainer], Optional[Callable[[Any, tuple[Any, ...], tuple[Any, ...]], None]]]
+BackwardHookBuilder = Callable[
+    [str, ComponentContext], Optional[Callable[[Any, tuple[Any, ...], tuple[Any, ...]], None]]
+]
 BackwardHookSpec = Tuple[str, BackwardHookBuilder]
 
 
@@ -251,7 +254,7 @@ class TrainTool(Tool):
             module = policy.components.get(component_name)
             if module is None:
                 continue
-            hook = hook_builder(component_name, trainer)
+            hook = hook_builder(component_name, trainer.context)
             if hook is None:
                 continue
             handle = policy.register_component_hook_rule(
@@ -265,7 +268,7 @@ class TrainTool(Tool):
             module = policy.components.get(component_name)
             if module is None:
                 continue
-            hook = hook_builder(component_name, trainer)
+            hook = hook_builder(component_name, trainer.context)
             if hook is None:
                 continue
             handle = policy.register_component_backward_hook_rule(
