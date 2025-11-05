@@ -21,11 +21,13 @@
 // If the argument (agent index to attack) > num_agents, the last agent is attacked.
 struct AttackActionConfig : public ActionConfig {
   std::unordered_map<InventoryItem, InventoryQuantity> defense_resources;
+  bool enabled;
 
   AttackActionConfig(const std::unordered_map<InventoryItem, InventoryQuantity>& required_resources,
                      const std::unordered_map<InventoryItem, InventoryProbability>& consumed_resources,
-                     const std::unordered_map<InventoryItem, InventoryQuantity>& defense_resources)
-      : ActionConfig(required_resources, consumed_resources), defense_resources(defense_resources) {}
+                     const std::unordered_map<InventoryItem, InventoryQuantity>& defense_resources,
+                     bool enabled = true)
+      : ActionConfig(required_resources, consumed_resources), defense_resources(defense_resources), enabled(enabled) {}
 };
 
 class Attack : public ActionHandler {
@@ -33,73 +35,45 @@ public:
   explicit Attack(const AttackActionConfig& cfg,
                   const GameConfig* game_config,
                   const std::string& action_name = "attack")
-      : ActionHandler(cfg, action_name), _defense_resources(cfg.defense_resources), _game_config(game_config) {
+      : ActionHandler(cfg, action_name),
+        _defense_resources(cfg.defense_resources),
+        _game_config(game_config),
+        _enabled(cfg.enabled) {
     priority = 1;
   }
 
-  unsigned char max_arg() const override {
-    return 8;
+  std::vector<Action> create_actions() override {
+    std::vector<Action> actions;
+    if (_enabled) {
+      // Attack is enabled - create actions
+      for (unsigned char i = 0; i <= 8; ++i) {
+        actions.emplace_back(this, "attack_" + std::to_string(i), static_cast<ActionArg>(i));
+      }
+    }
+    return actions;
   }
 
 protected:
   std::unordered_map<InventoryItem, InventoryQuantity> _defense_resources;
   const GameConfig* _game_config;
+  bool _enabled;
 
   bool _handle_action(Agent& actor, ActionArg arg) override {
     Agent* last_agent = nullptr;
     short num_skipped = 0;
 
-    // Attack pattern depends on diagonal support
-    if (!_game_config->allow_diagonals) {
-      // Original 3x3 grid pattern for cardinal-only movement
-      // 7 6 8  (3 cells forward)
-      // 4 3 5  (2 cells forward)
-      // 1 0 2  (1 cell forward)
-      // . A .  (Agent position)
+    // 3x3 grid pattern for cardinal-only movement
+    // 7 6 8  (3 cells forward)
+    // 4 3 5  (2 cells forward)
+    // 1 0 2  (1 cell forward)
+    // . A .  (Agent position)
 
-      static constexpr short COL_OFFSETS[3] = {0, -1, 1};
+    static constexpr short COL_OFFSETS[3] = {0, -1, 1};
 
-      for (short distance = 1; distance <= 3; distance++) {
-        for (short offset : COL_OFFSETS) {
-          GridLocation target_loc = _grid->relative_location(actor.location, actor.orientation, distance, offset);
-          target_loc.layer = GridLayer::AgentLayer;
-
-          Agent* target_agent = static_cast<Agent*>(_grid->object_at(target_loc));
-          if (target_agent) {
-            last_agent = target_agent;
-            if (num_skipped == arg) {
-              return _handle_target(actor, *target_agent);
-            }
-            num_skipped++;
-          }
-        }
-      }
-    } else {
-      // Diagonal attack pattern when diagonals are enabled
-      // Agent facing NE example:
-      // . 4 6 8
-      // . 1 3 7
-      // . 0 2 5
-      // A . . .
-
-      // Define the 9 positions in order (0-8)
-      static constexpr struct {
-        short forward;
-        short lateral;
-      } DIAGONAL_POSITIONS[9] = {
-          {1, 0},   // 0: directly forward
-          {2, -1},  // 1: forward-left
-          {1, 1},   // 2: forward-right
-          {2, 0},   // 3: 2 forward
-          {3, -2},  // 4: far forward-left
-          {1, 2},   // 5: right-forward
-          {3, -1},  // 6: far forward-left-center
-          {2, 1},   // 7: forward-right-center
-          {3, 0}    // 8: 3 forward
-      };
-
-      for (const auto& pos : DIAGONAL_POSITIONS) {
-        GridLocation target_loc = _grid->relative_location(actor.location, actor.orientation, pos.forward, pos.lateral);
+    for (short distance = 1; distance <= 3; distance++) {
+      for (short offset : COL_OFFSETS) {
+        // Attack always northward
+        GridLocation target_loc = _grid->relative_location(actor.location, Orientation::North, distance, offset);
         target_loc.layer = GridLayer::AgentLayer;
 
         Agent* target_agent = static_cast<Agent*>(_grid->object_at(target_loc));
@@ -231,11 +205,14 @@ inline void bind_attack_action_config(py::module& m) {
   py::class_<AttackActionConfig, ActionConfig, std::shared_ptr<AttackActionConfig>>(m, "AttackActionConfig")
       .def(py::init<const std::unordered_map<InventoryItem, InventoryQuantity>&,
                     const std::unordered_map<InventoryItem, InventoryProbability>&,
-                    const std::unordered_map<InventoryItem, InventoryQuantity>&>(),
+                    const std::unordered_map<InventoryItem, InventoryQuantity>&,
+                    bool>(),
            py::arg("required_resources") = std::unordered_map<InventoryItem, InventoryQuantity>(),
            py::arg("consumed_resources") = std::unordered_map<InventoryItem, InventoryProbability>(),
-           py::arg("defense_resources") = std::unordered_map<InventoryItem, InventoryQuantity>())
-      .def_readwrite("defense_resources", &AttackActionConfig::defense_resources);
+           py::arg("defense_resources") = std::unordered_map<InventoryItem, InventoryQuantity>(),
+           py::arg("enabled") = true)
+      .def_readwrite("defense_resources", &AttackActionConfig::defense_resources)
+      .def_readwrite("enabled", &AttackActionConfig::enabled);
 }
 
 #endif  // PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_ACTIONS_ATTACK_HPP_

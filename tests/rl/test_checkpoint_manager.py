@@ -12,7 +12,7 @@ from metta.agent.mocks import MockAgent
 from metta.agent.policy import PolicyArchitecture
 from metta.rl.checkpoint_manager import CheckpointManager
 from metta.rl.system_config import SystemConfig
-from mettagrid.base_config import Config
+from mettagrid.config import Config
 
 
 class MockActionComponentConfig(ComponentConfig):
@@ -26,7 +26,7 @@ class MockAgentPolicyArchitecture(PolicyArchitecture):
     class_path: str = "metta.agent.mocks.mock_agent.MockAgent"
     action_probs_config: Config = Field(default_factory=MockActionComponentConfig)
 
-    def make_policy(self, game_rules):  # pragma: no cover - tests use provided agent
+    def make_policy(self, policy_env_info):  # pragma: no cover - tests use provided agent
         return MockAgent()
 
 

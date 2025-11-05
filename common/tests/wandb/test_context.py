@@ -7,7 +7,7 @@ import wandb
 from wandb.errors import CommError
 
 from metta.common.wandb.context import WandbConfig, WandbContext
-from mettagrid.base_config import Config
+from mettagrid.config import Config
 
 
 class SampleConfig(Config):

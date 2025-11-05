@@ -13,7 +13,7 @@ from metta.rl.checkpoint_manager import CheckpointManager
 from metta.rl.loss import Loss
 from metta.rl.trainer_config import TrainerConfig
 from metta.rl.training import ComponentContext
-from mettagrid.base_config import Config
+from mettagrid.config import Config
 
 
 class SLKickstarterConfig(Config):
