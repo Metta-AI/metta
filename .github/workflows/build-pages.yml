@@ -29,14 +29,7 @@ jobs:
       - name: Setup Environment
         uses: ./.github/actions/setup-environment
         with:
-          install-mode: "minimal"
-
-      - name: Install Mettascope Dependencies
-        run: |
-          cd ..
-          nimby sync -g metta/packages/mettagrid/nim/mettascope/nimby.lock
-          nimby list
-          cat nim.cfg
+          install-mode: "runtime"
 
       - name: Setup Emscripten
         uses: mymindstorm/setup-emsdk@v14
