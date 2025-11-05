@@ -172,8 +172,8 @@ def run_formatter(
     else:
         cmd = formatter.format_cmd.copy()
 
-    # Add specific files if provided (only for Python/C++)
-    if files and file_type in ("python", "cpp"):
+    # Add specific files if provided (all formatters now support this)
+    if files:
         cmd.extend(files)
 
     result = subprocess.run(cmd, cwd=repo_root, check=False)
