@@ -48,6 +48,7 @@
           udev
           libevdev
           zlib
+          zstd
         ];
 
         shellHook = ''
@@ -62,14 +63,29 @@
           # Provide X/GL shared libraries for mettascope.
           export LD_LIBRARY_PATH="${pkgs.lib.makeLibraryPath [ pkgs.xorg.libX11 pkgs.xorg.libXext pkgs.xorg.libXcursor pkgs.libGL pkgs.curl pkgs.udev pkgs.libevdev pkgs.zlib ]}:$LD_LIBRARY_PATH"
 
+          # Add zstd library path for PyTorch dependencies
+          export LD_LIBRARY_PATH="${pkgs.zstd.out}/lib:$LD_LIBRARY_PATH"
+
           # Use a writable cache for Emscripten.
           # Emscripten default cache points to the read-only nix store, which does not work.
           export EM_CACHE="$HOME/.cache/emscripten"
           mkdir -p "$EM_CACHE"
 
-          # Create and activate a virtual environment with uv
-          uv sync
-          source .venv/bin/activate
+          # Check for AMD GPU (ROCm support) by looking for /dev/kfd
+          if [ -e "/dev/kfd" ]; then
+            echo "# AMD GPU detected, configuring PyTorch for ROCm 6.4"
+            export FORCE_CUDA=0
+            # Create and activate a virtual environment with uv
+            uv sync
+            source .venv/bin/activate
+            # Reinstall PyTorch with ROCm support
+            pip install --force-reinstall --index-url https://download.pytorch.org/whl/rocm6.4 torch torchvision torchaudio
+          else
+            echo "# No AMD GPU detected, using default PyTorch installation"
+            # Create and activate a virtual environment with uv
+            uv sync
+            source .venv/bin/activate
+          fi
 
           echo "# Python version: $(python --version)"
           echo "# uv version: $(uv --version)"
