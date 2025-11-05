@@ -3,6 +3,7 @@ import os
 import subprocess
 
 import yaml
+
 from metta.common.util.collections import remove_none_values
 from metta.common.util.fs import get_repo_root
 
@@ -34,9 +35,7 @@ def launch_training(
     wandb_tags: list[str] | None = None,
 ) -> dict:
     if curriculum and curriculum not in load_available_environments():
-        raise ValueError(
-            f"Curriculum {curriculum} not found. Available environments: {load_available_environments()}"
-        )
+        raise ValueError(f"Curriculum {curriculum} not found. Available environments: {load_available_environments()}")
 
     cmd_args = remove_none_values(
         {
