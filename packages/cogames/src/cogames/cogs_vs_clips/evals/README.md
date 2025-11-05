@@ -512,13 +512,13 @@ uv run cogames play --mission evals.collect_resources_classic -p unclipping --co
 uv run cogames play --mission evals.go_together -p coordinating --cogs 4 --difficulty standard
 
 # Test extreme scarcity
-uv run cogames play --mission evals.oxygen_bottleneck -p simple_baseline --cogs 1 --difficulty brutal
+uv run cogames play --mission evals.oxygen_bottleneck -p scripted_baseline --cogs 1 --difficulty brutal
 
 # Test large-scale exploration
 uv run cogames play --mission evals.extractor_hub_100 -p coordinating --cogs 8 --difficulty standard
 
 # Test energy management
-uv run cogames play --mission evals.energy_starved -p simple_baseline --cogs 2 --difficulty energy_crisis
+uv run cogames play --mission evals.energy_starved -p scripted_baseline --cogs 2 --difficulty energy_crisis
 ```
 
 ---

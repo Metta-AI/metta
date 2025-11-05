@@ -1,5 +1,5 @@
 """
-UnclippingAgent - Extends SimpleBaselineAgent with unclipping capabilities.
+UnclippingAgent - Extends BaselineAgent with unclipping capabilities.
 
 This agent can detect clipped extractors and craft unclip items to restore them.
 """
@@ -9,12 +9,12 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Dict, Optional
 
-from .simple_baseline_agent import (
+from .baseline_agent import (
+    BaselineAgent,
     CellType,
     ExtractorInfo,
     Phase,
     SimpleAgentState,
-    SimpleBaselineAgent,
 )
 
 if TYPE_CHECKING:
@@ -37,7 +37,7 @@ class UnclippingAgentState(SimpleAgentState):
     unclip_target_resource: Optional[str] = None  # Which resource is clipped
 
 
-class UnclippingAgent(SimpleBaselineAgent):
+class UnclippingAgent(BaselineAgent):
     """
     Agent that can unclip extractors by crafting and using unclip items.
 

@@ -42,9 +42,8 @@ def play(
 
     # Check if this is a scripted agent policy that needs simulation
     scripted_agents = [
-        "cogames.policy.scripted_agent.simple_baseline_agent.SimpleBaselinePolicy",
+        "cogames.policy.scripted_agent.baseline_agent.BaselinePolicy",
         "cogames.policy.scripted_agent.unclipping_agent.UnclippingPolicy",
-        "cogames.policy.scripted_agent.coordinating_agent.CoordinatingPolicy",
     ]
     pass_sim = policy_spec.policy_class_path in scripted_agents
 

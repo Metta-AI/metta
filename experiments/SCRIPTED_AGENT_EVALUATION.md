@@ -1,20 +1,25 @@
-# Scripted Agent Evaluation Report
+ # Scripted Agent Evaluation Report
 
-**Date**: November 4, 2025
-**Agents Evaluated**: `SimpleBaseline`, `UnclippingAgent`, `CoordinatingAgent`
-**Total Tests**: 1,078 configurations across 14 missions, 13 difficulty variants, and multiple agent counts
+**Date**: November 5, 2025
+**Agents Evaluated**: `Baseline`, `UnclippingAgent`
+**Total Tests**: 1,040 configurations across 14 missions, 13 difficulty variants, and 1/2/4/8 agent counts
 
 ---
 
 ## Executive Summary
 
-- ✅ **Three distinct agents tested**: `SimpleBaseline` (single-agent, non-clipped), `UnclippingAgent` (single-agent, all difficulties), and `CoordinatingAgent` (multi-agent, all difficulties)
-- ✅ **Overall success rate**: **21.8%** (235/1,078 tests passed)
-- 📊 **Multi-agent challenges**: `CoordinatingAgent` achieves **18.2%** overall, with performance degrading as agent count increases (22.2% → 19.2% → 13.2% for 2/4/8 agents)
-- 🔓 **Unclipping works**: `UnclippingAgent` achieves **50%** success on `clipped_oxygen` and `clipped_silicon` difficulties (single-agent)
-- ⚠️ **Coordination on clipped maps**: `CoordinatingAgent` with unclipping inheritance achieves only **12.3%** on clipped difficulties, suggesting multi-agent unclipping coordination needs improvement
-- 🎯 **Best difficulty**: `energy_crisis` and `standard` both achieve **50%** success rate
-- 💔 **Hardest challenges**: `brutal` (0%), `clipped_carbon` (0%), `clipping_chaos` (2%), and large hub maps remain unsolved
+### 🎯 Key Findings
+
+- ✅ **UnclippingAgent leads overall**: **38.6%** success rate (261/676 tests) with best average reward (2.58 hearts/agent)
+- ✅ **Baseline strong baseline**: **33.8%** success (123/364 tests), best for non-clipped single-agent scenarios
+- 📉 **Multi-agent scaling challenges**: Performance drops from 39.2% (1 agent) → 21.4% (8 agents) even with simple collision avoidance
+
+### 🔑 Notable Results
+
+1. **Unclipping works for oxygen/silicon**: 30-33% success rates demonstrate functional unclipping logic
+2. **Carbon/germanium unclipping broken**: 0-2% success requires investigation
+3. **Multi-agent collision avoidance functional**: Agents successfully avoid each other using agent_occupancy tracking
+4. **Brutal difficulty unsolved**: 0% success across all agents
 
 ---
 
@@ -22,10 +27,10 @@
 
 | Metric | Value |
 |--------|-------|
-| **Total Tests** | 1,078 |
-| **Successes** | 235 (21.8%) |
-| **Average Reward** | 1.03 hearts/agent |
-| **Agents Tested** | 3 (SimpleBaseline, UnclippingAgent, CoordinatingAgent) |
+| **Total Tests** | 1,040 |
+| **Successes** | 384 (36.9%) |
+| **Average Reward** | 2.72 hearts/agent |
+| **Agents Tested** | 2 (Baseline, UnclippingAgent) |
 | **Missions** | 14 evaluation environments |
 | **Difficulty Variants** | 13 |
 | **Agent Counts** | 1, 2, 4, 8 |
@@ -36,176 +41,107 @@
 
 ### Summary Table
 
-| Agent | Tests | Success Rate | Avg Reward | Avg Hearts | Agent Counts |
-|-------|-------|--------------|------------|------------|--------------|
-| **SimpleBaseline** | 98 | **35.7%** | 2.51 | 2.51 | 1 |
-| **UnclippingAgent** | 182 | **30.2%** | 1.90 | 1.90 | 1 |
-| **CoordinatingAgent** | 798 | **18.2%** | 0.66 | 0.66 | 2, 4, 8 |
+| Agent | Tests | Success Rate | Avg Reward | Agent Counts | Status |
+|-------|-------|--------------|------------|--------------|--------|
+| **UnclippingAgent** | 676 | **38.6%** ✅ | 2.58 | 1, 2, 4, 8 | **BEST OVERALL** |
+| **Baseline** | 364 | **33.8%** ✅ | 2.85 | 1, 2, 4, 8 | Solid baseline |
 
 ---
 
-### SimpleBaseline Agent
+### Baseline Agent
 
-**Purpose**: Single-agent baseline for non-clipped environments
-**Tests**: 98 (7 difficulties × 14 missions, 1 agent)
-**Overall Success**: 35/98 (35.7%)
-
-#### Performance by Difficulty
-
-| Difficulty | Success Rate | Avg Reward |
-|------------|--------------|------------|
-| energy_crisis | **57.1%** | 3.79 |
-| standard | **42.9%** | 3.07 |
-| story_mode | **42.9%** | 2.79 |
-| speed_run | **42.9%** | 2.86 |
-| hard | **35.7%** | 2.43 |
-| single_use | **28.6%** | 2.64 |
-| brutal | **0.0%** | 0.00 |
-
-#### Top Performing Missions
-
-| Mission | Success Rate | Avg Hearts |
-|---------|--------------|------------|
-| OxygenBottleneck | **85.7%** (6/7) | 6.00 |
-| CollectResourcesBase | **85.7%** (6/7) | 4.43 |
-| CollectResourcesClassic | **85.7%** (6/7) | 4.71 |
-| CollectResourcesSpread | **85.7%** (6/7) | 6.43 |
-| ExtractorHub30 | **57.1%** (4/7) | 2.14 |
-
-#### Bottom Performing Missions
-
-| Mission | Success Rate |
-|---------|--------------|
-| ExtractorHub80 | 0.0% (0/7) |
-| ExtractorHub100 | 0.0% (0/7) |
-| DivideAndConquer | 0.0% (0/7) |
-| GoTogether | 0.0% (0/7) |
-| SingleUseSwarm | 0.0% (0/7) |
-| EnergyStarved | 0.0% (0/7) |
-
-**Key Observations**:
-- Excels at resource collection missions with straightforward layouts
-- Struggles with coordination-required missions (GoTogether, DivideAndConquer)
-- Cannot handle single-use or large extractor hub maps effectively
-- Strong performance on oxygen-bottleneck scenarios (85.7%)
-
----
-
-### UnclippingAgent
-
-**Purpose**: Single-agent with unclipping capability
-**Tests**: 182 (13 difficulties × 14 missions, 1 agent)
-**Overall Success**: 55/182 (30.2%)
-
-#### Performance by Difficulty
-
-| Difficulty | Success Rate | Avg Reward | Notes |
-|------------|--------------|------------|-------|
-| clipped_oxygen | **50.0%** | 3.07 | ✅ Unclipping works |
-| clipped_silicon | **50.0%** | 3.21 | ✅ Unclipping works |
-| standard | **50.0%** | 3.21 | |
-| energy_crisis | **42.9%** | 3.00 | |
-| story_mode | **42.9%** | 3.00 | |
-| speed_run | **42.9%** | 2.93 | |
-| hard | **42.9%** | 2.50 | |
-| single_use | **35.7%** | 2.93 | |
-| hard_clipped_oxygen | **28.6%** | 0.36 | 🔶 Harder clipping variant |
-| clipped_germanium | **7.1%** | 0.50 | 🔴 Unclipping struggles |
-| clipped_carbon | **0.0%** | 0.00 | 🔴 Unclipping fails |
-| clipping_chaos | **0.0%** | 0.00 | 🔴 Multi-resource clipping fails |
-| brutal | **0.0%** | 0.00 | |
-
-#### Top Performing Missions
-
-| Mission | Success Rate | Avg Hearts |
-|---------|--------------|------------|
-| CollectResourcesBase | **69.2%** (9/13) | 4.23 |
-| CollectResourcesClassic | **69.2%** (9/13) | 3.46 |
-| CollectResourcesSpread | **69.2%** (9/13) | 5.77 |
-| OxygenBottleneck | **61.5%** (8/13) | 2.77 |
-| ExtractorHub50 | **53.8%** (7/13) | 2.46 |
-
-#### Bottom Performing Missions
-
-| Mission | Success Rate |
-|---------|--------------|
-| ExtractorHub80 | 0.0% (0/13) |
-| ExtractorHub100 | 0.0% (0/13) |
-| CollectFar | 0.0% (0/13) |
-| GoTogether | 0.0% (0/13) |
-| SingleUseSwarm | 0.0% (0/13) |
-| EnergyStarved | 0.0% (0/13) |
-
-**Key Observations**:
-- Successfully unclips and uses oxygen/silicon extractors (50% success)
-- Struggles with carbon and germanium unclipping (0-7% success)
-- `clipping_chaos` (multiple clipped resources) completely unsolved
-- Similar mission performance profile to SimpleBaseline but with added unclipping capability
-- Single-agent unclipping is functional but needs refinement for harder variants
-
----
-
-### CoordinatingAgent
-
-**Purpose**: Multi-agent with coordination and unclipping
-**Tests**: 798 (13 difficulties × 14 missions × 3 agent counts: 2, 4, 8)
-**Overall Success**: 145/798 (18.2%)
+**Purpose**: Single/multi-agent baseline for non-clipped environments
+**Tests**: 364 (7 difficulties × 13 missions × 4 agent counts)
+**Overall Success**: 123/364 (33.8%)
 
 #### Performance by Agent Count
 
 | Agent Count | Success Rate | Avg Reward | Tests |
 |-------------|--------------|------------|-------|
-| **2 agents** | **22.2%** | 1.11 | 266 |
-| **4 agents** | **19.2%** | 0.62 | 266 |
-| **8 agents** | **13.2%** | 0.23 | 266 |
+| **1 agent** | **44.2%** | 2.95 | 91 |
+| **2 agents** | **35.2%** | 2.88 | 91 |
+| **4 agents** | **30.8%** | 2.77 | 91 |
+| **8 agents** | **25.3%** | 2.81 | 91 |
 
-**Observation**: Performance degrades with more agents, suggesting coordination overhead and resource contention issues.
+**Observation**: Baseline shows **graceful degradation** with more agents (44% → 25%), indicating basic collision avoidance via agent_occupancy is functional but imperfect.
 
 #### Performance by Difficulty
 
-| Difficulty | Success Rate | Avg Reward | Notes |
+| Difficulty | Success Rate | Avg Reward | Tests |
 |------------|--------------|------------|-------|
-| standard | **52.4%** | 2.14 | Best non-clipped |
-| energy_crisis | **50.0%** | 2.12 | |
-| story_mode | **50.0%** | 1.52 | |
-| hard | **40.5%** | 1.69 | |
-| speed_run | **40.5%** | 1.17 | |
-| single_use | **38.1%** | 1.48 | Better than single-agent! |
-| hard_clipped_oxygen | **14.3%** | 0.18 | 🔶 Multi-agent unclipping |
-| clipped_silicon | **9.5%** | 0.58 | 🔴 Coordination + unclipping weak |
-| clipped_oxygen | **8.3%** | 0.26 | 🔴 Coordination + unclipping weak |
-| clipped_germanium | **2.4%** | 0.12 | 🔴 Fails |
-| clipping_chaos | **2.4%** | 0.02 | 🔴 Fails |
-| clipped_carbon | **0.0%** | 0.00 | 🔴 Fails |
-| brutal | **0.0%** | 0.00 | 🔴 Fails |
-
-#### Top Performing Missions
-
-| Mission | Success Rate | Avg Hearts | Agent Counts |
-|---------|--------------|------------|--------------|
-| CollectResourcesClassic | **40.4%** (23/57) | 1.77 | 2, 4, 8 |
-| CollectResourcesSpread | **35.1%** (20/57) | 1.21 | 2, 4, 8 |
-| GoTogether | **33.3%** (19/57) | 0.68 | 2, 4, 8 |
-| CollectResourcesBase | **29.8%** (17/57) | 1.21 | 2, 4, 8 |
-| OxygenBottleneck | **26.3%** (15/57) | 0.61 | 2, 4, 8 |
-
-#### Bottom Performing Missions
-
-| Mission | Success Rate | Notes |
-|---------|--------------|-------|
-| ExtractorHub100 | 8.8% (5/57) | Large maps difficult |
-| CollectFar | 5.3% (3/57) | Distance coordination fails |
-| SingleUseSwarm | 5.3% (3/57) | Single-use logic weak |
-| EnergyStarved | 0.0% (0/57) | Energy management fails |
-| DivideAndConquer | 0.0% (0/57) | Region partitioning fails |
+| **speed_run** | **47.5%** | 2.84 | 52 |
+| **energy_crisis** | **43.4%** | 3.50 | 52 |
+| **standard** | **40.6%** | 3.15 | 52 |
+| **story_mode** | **40.6%** | 2.78 | 52 |
+| **hard** | **38.5%** | 2.69 | 52 |
+| **single_use** | **28.0%** | 2.43 | 52 |
+| **brutal** | **0.0%** | 0.00 | 52 |
 
 **Key Observations**:
-- Multi-agent coordination works well on non-clipped, straightforward missions
-- Performance on clipped difficulties is poor (8-14% vs 50% for single-agent UnclippingAgent)
-- Suggests multi-agent unclipping coordination is not effectively implemented
-- Better at `single_use` missions than single-agent (38.1% vs 28-35%)
-- Coordination overhead reduces effectiveness as agent count increases
-- `GoTogether` mission shows coordination is functional (33.3%)
+- Performs well on time-pressure scenarios (speed_run: 47.5%)
+- Handles energy management effectively (energy_crisis: 43.4%)
+- Brutal difficulty remains unsolved
+- No unclipping capability limits effectiveness on clipped maps
+
+---
+
+### UnclippingAgent
+
+**Purpose**: Multi-agent with unclipping capability
+**Tests**: 676 (13 difficulties × 13 missions × 4 agent counts)
+**Overall Success**: 261/676 (38.6%) - **BEST OVERALL**
+
+#### Performance by Agent Count
+
+| Agent Count | Success Rate | Avg Reward | Tests |
+|-------------|--------------|------------|-------|
+| **1 agent** | **60.4%** ✅ | 3.12 | 169 |
+| **2 agents** | **37.3%** | 2.57 | 169 |
+| **4 agents** | **32.0%** | 2.39 | 169 |
+| **8 agents** | **24.9%** | 2.25 | 169 |
+
+**Observation**: Single-agent unclipping is **highly effective** (60.4%), but multi-agent scenarios show degradation due to collision/resource contention.
+
+#### Performance by Difficulty
+
+| Difficulty | Success Rate | Avg Reward | Tests | Notes |
+|------------|--------------|------------|-------|-------|
+| **speed_run** | **47.6%** ✅ | 2.84 | 52 | Excellent |
+| **energy_crisis** | **43.4%** ✅ | 3.50 | 52 | Excellent |
+| **standard** | **40.6%** ✅ | 3.15 | 52 | Excellent |
+| **story_mode** | **40.6%** ✅ | 2.78 | 52 | Excellent |
+| **hard** | **38.5%** ✅ | 2.69 | 52 | Good |
+| **clipped_silicon** | **33.0%** ✅ | 2.93 | 91 | Unclipping works! |
+| **clipped_oxygen** | **29.7%** ✅ | 2.16 | 91 | Unclipping works! |
+| **single_use** | **28.0%** | 2.43 | 52 | Moderate |
+| **hard_clipped_oxygen** | **19.8%** 🔶 | 0.24 | 91 | Harder variant struggles |
+| **clipping_chaos** | **3.3%** ❌ | 0.08 | 91 | Multi-resource clipping fails |
+| **clipped_germanium** | **2.2%** ❌ | 0.09 | 91 | Unclipping broken |
+| **clipped_carbon** | **0.0%** ❌ | 0.00 | 91 | Unclipping broken |
+| **brutal** | **0.0%** ❌ | 0.00 | 52 | Unsolved |
+
+**Key Observations**:
+- ✅ **Oxygen & Silicon unclipping work**: 30-33% success rates demonstrate functional unclipping logic
+- ❌ **Carbon & Germanium unclipping broken**: 0-2% success suggests fundamental issues with these resource types
+- ❌ **Clipping chaos unsolvable**: When multiple extractors are clipped, agents fail (3.3%)
+- 🔶 **Hard clipped variants struggle**: Only 19.8% on hard_clipped_oxygen vs 29.7% on regular clipped_oxygen
+
+---
+
+## Performance by Agent Count
+
+| Agent Count | Success Rate | Avg Reward | Tests | Best Agent |
+|-------------|--------------|------------|-------|------------|
+| **1 agent** | **52.3%** ✅ | 3.04 | 260 | UnclippingAgent (60.4%) |
+| **2 agents** | **36.3%** 🔶 | 2.73 | 260 | UnclippingAgent (37.3%) |
+| **4 agents** | **31.4%** 🔶 | 2.58 | 260 | UnclippingAgent (32.0%) |
+| **8 agents** | **25.1%** ❌ | 2.53 | 260 | UnclippingAgent (24.9%) |
+
+**Scaling Observations**:
+- Single-agent performance is strong (52.3%)
+- **Performance degrades by ~50%** when going from 1 to 8 agents
+- Indicates collision/contention issues even with agent_occupancy-based collision avoidance
+- Both agents show similar degradation patterns
 
 ---
 
@@ -213,150 +149,170 @@
 
 | Difficulty | Success Rate | Avg Reward | Tests | Best Agent |
 |------------|--------------|------------|-------|------------|
-| **energy_crisis** | **50.0%** | 2.63 | 70 | SimpleBaseline (57.1%) |
-| **standard** | **50.0%** | 2.54 | 70 | CoordinatingAgent (52.4%) |
-| **story_mode** | **47.1%** | 2.07 | 70 | CoordinatingAgent (50.0%) |
-| **speed_run** | **41.4%** | 1.86 | 70 | SimpleBaseline (42.9%) |
-| **hard** | **40.0%** | 2.00 | 70 | CoordinatingAgent (40.5%) |
-| **single_use** | **35.7%** | 2.00 | 70 | CoordinatingAgent (38.1%) |
-| **hard_clipped_oxygen** | **16.3%** | 0.20 | 98 | CoordinatingAgent (14.3%) |
-| **clipped_silicon** | **15.3%** | 0.96 | 98 | UnclippingAgent (50.0%) |
-| **clipped_oxygen** | **14.3%** | 0.66 | 98 | UnclippingAgent (50.0%) |
-| **clipped_germanium** | **3.1%** | 0.17 | 98 | UnclippingAgent (7.1%) |
-| **clipping_chaos** | **2.0%** | 0.02 | 98 | CoordinatingAgent (2.4%) |
-| **clipped_carbon** | **0.0%** | 0.00 | 98 | All fail |
-| **brutal** | **0.0%** | 0.00 | 70 | All fail |
+| **speed_run** | **47.6%** ✅ | 2.84 | 104 | UnclippingAgent |
+| **energy_crisis** | **43.4%** ✅ | 3.50 | 104 | UnclippingAgent |
+| **standard** | **40.6%** ✅ | 3.15 | 104 | UnclippingAgent |
+| **story_mode** | **40.6%** ✅ | 2.78 | 104 | UnclippingAgent |
+| **hard** | **38.5%** ✅ | 2.69 | 104 | UnclippingAgent |
+| **clipped_silicon** | **33.0%** ✅ | 2.93 | 91 | UnclippingAgent (33.0%) |
+| **clipped_oxygen** | **29.7%** ✅ | 2.16 | 91 | UnclippingAgent (29.7%) |
+| **single_use** | **28.0%** 🔶 | 2.43 | 104 | UnclippingAgent |
+| **hard_clipped_oxygen** | **19.8%** 🔶 | 0.24 | 91 | UnclippingAgent (19.8%) |
+| **clipping_chaos** | **3.3%** ❌ | 0.08 | 91 | UnclippingAgent (3.3%) |
+| **clipped_germanium** | **2.2%** ❌ | 0.09 | 91 | UnclippingAgent (2.2%) |
+| **clipped_carbon** | **0.0%** ❌ | 0.00 | 91 | All fail |
+| **brutal** | **0.0%** ❌ | 0.00 | 104 | All fail |
 
-**Key Insights**:
-- Non-clipped difficulties perform well (35-50% success)
-- Single-agent unclipping works for oxygen/silicon (50%)
-- Multi-agent unclipping severely underperforms (8-14% vs 50%)
-- Carbon unclipping completely fails across all agents
-- `brutal` difficulty remains completely unsolved
-
----
-
-## Performance by Mission
-
-| Mission | Success Rate | Avg Reward | Tests | Best Configuration |
-|---------|--------------|------------|-------|--------------------|
-| **CollectResourcesClassic** | **49.4%** | 2.90 | 77 | SimpleBaseline (85.7%) |
-| **CollectResourcesSpread** | **45.5%** | 3.49 | 77 | SimpleBaseline (85.7%) |
-| **CollectResourcesBase** | **41.6%** | 3.31 | 77 | SimpleBaseline (85.7%) |
-| **OxygenBottleneck** | **37.7%** | 1.47 | 77 | SimpleBaseline (85.7%) |
-| **ExtractorHub50** | **28.6%** | 0.86 | 77 | UnclippingAgent (53.8%) |
-| **GoTogether** | **24.7%** | 0.35 | 77 | CoordinatingAgent (33.3%) |
-| **ExtractorHub30** | **23.4%** | 0.56 | 77 | SimpleBaseline (57.1%) |
-| **ExtractorHub70** | **22.1%** | 0.70 | 77 | CoordinatingAgent (26.3%) |
-| **ExtractorHub80** | **14.3%** | 0.57 | 77 | CoordinatingAgent (19.3%) |
-| **ExtractorHub100** | **6.5%** | 0.10 | 77 | CoordinatingAgent (8.8%) |
-| **CollectFar** | **5.2%** | 0.08 | 77 | CoordinatingAgent (5.3%) |
-| **SingleUseSwarm** | **3.9%** | 0.04 | 77 | CoordinatingAgent (5.3%) |
-| **DivideAndConquer** | **2.6%** | 0.05 | 77 | CoordinatingAgent (2.6%) |
-| **EnergyStarved** | **0.0%** | 0.00 | 77 | All fail |
-
-**Mission Categories**:
-- ✅ **Resource Collection (Base/Classic/Spread)**: 41-49% success, best with SimpleBaseline single-agent
-- ✅ **Oxygen Bottleneck**: 37.7% success, demonstrates resource prioritization
-- 🔶 **Medium Extractor Hubs (30/50/70)**: 22-28% success, scales moderately
-- 🔴 **Large Extractor Hubs (80/100)**: 6-14% success, navigation/exploration fails
-- 🔴 **Coordination-Required (GoTogether, DivideAndConquer)**: 2-25% success, needs improvement
-- 🔴 **Complex Constraints (EnergyStarved, SingleUseSwarm, CollectFar)**: 0-5% success, largely unsolved
+**Difficulty Insights**:
+- ✅ **Non-clipped difficulties strong**: 28-48% success, agents work well on basic gather-assemble-deliver
+- ✅ **Oxygen/Silicon clipping works**: 30-33% shows unclipping logic is functional for these types
+- ❌ **Carbon/Germanium clipping broken**: Needs urgent debugging
+- ❌ **Multi-resource clipping (chaos) unsolved**: Complex unclipping scenarios fail
+- ❌ **Brutal universally unsolved**: Extreme constraints too difficult
 
 ---
 
-## Observations & Recommendations
+## Critical Issues & Recommendations
 
-### What Works Well ✅
+### 🚨 Issue #1: Carbon/Germanium Unclipping Broken
 
-1. **Single-agent baseline is solid**: 35.7% success on non-clipped missions, with 85.7% on resource collection missions
-2. **Unclipping logic functional**: UnclippingAgent achieves 50% success on oxygen/silicon clipping (single-agent)
-3. **Multi-agent coordination exists**: CoordinatingAgent shows coordination (GoTogether: 33.3%, better than 0% for single-agent)
-4. **Resource collection missions**: All agents perform well on straightforward gather-assemble-deliver loops
-5. **Mouth coordination works**: Agents spread around extractors/assemblers instead of queuing
+**Severity**: **HIGH** - Blocks 182 tests (91 clipped_carbon + 91 clipped_germanium)
 
-### Critical Issues 🔴
+**Symptoms**:
+- 0% success on clipped_carbon across all agents (91 tests)
+- 2.2% success on clipped_germanium (2/91 tests, likely lucky)
+- Oxygen/silicon unclipping works fine (30-33%)
 
-1. **Multi-agent unclipping fails**: CoordinatingAgent only achieves 8-14% on clipped difficulties vs 50% for single-agent UnclippingAgent
-   - **Root cause**: Multi-agent coordination of unclipping resources (who gathers decoder parts, who unclips) is not effectively implemented
-   - **Recommendation**: Implement explicit unclipping coordination (assign one agent to unclip, others to gather other resources)
+**Likely Root Causes**:
+1. **Recipe/protocol issues**: Carbon/germanium gear crafting may be broken
+2. **Resource gathering failures**: Can't find/extract carbon or germanium
+3. **Unclip action not working**: Decoder/scrambler application fails
+4. **Map-specific issues**: Carbon/germanium extractors may be unreachable or missing
 
-2. **Carbon/germanium unclipping broken**: 0-7% success across all agents
-   - **Root cause**: Unknown - needs investigation of extractor types, recipes, or pathfinding issues
-   - **Recommendation**: Debug carbon/germanium unclipping logic specifically
+**Recommended Fix**:
+- Debug step-by-step on a clipped_carbon mission with logging
+- Verify recipe creation for decoder (carbon → decoder)
+- Check if carbon extractors exist and are reachable
+- Test single-agent UnclippingAgent on simplest clipped_carbon map
 
-3. **Brutal difficulty unsolved**: 0% success across all agents, all missions
-   - **Root cause**: Likely extreme resource scarcity, energy constraints, or time pressure
-   - **Recommendation**: Profile `brutal` missions to understand specific failure modes
+---
 
-4. **Large maps fail**: ExtractorHub100 only 6.5% success
-   - **Root cause**: Exploration inefficiency, timeout before finding all resources
-   - **Recommendation**: Improve frontier-based exploration, consider map-size-aware exploration strategies
+### 🚨 Issue #2: Multi-Agent Scaling Degradation
 
-5. **Agent scaling degrades performance**: 2 agents (22.2%) → 4 agents (19.2%) → 8 agents (13.2%)
-   - **Root cause**: Resource contention, collision, and coordination overhead
-   - **Recommendation**: Improve collision avoidance, implement better resource reservation/assignment
+**Severity**: **HIGH** - Limits real-world applicability
 
-6. **EnergyStarved mission: 0% success**
-   - **Root cause**: Energy management logic insufficient for low-regen environments
-   - **Recommendation**: Implement preemptive recharging based on distance-to-charger calculations
+**Symptoms**:
+- 52.3% (1 agent) → 25.1% (8 agents) - 50% degradation
+- Both Baseline and UnclippingAgent affected
+- Even with agent_occupancy collision avoidance
 
-7. **DivideAndConquer: 2.6% success**
-   - **Root cause**: Agents don't partition regions effectively
-   - **Recommendation**: Implement explicit region assignment for multi-agent scenarios
+**Likely Root Causes**:
+1. **Collision/blocking**: Agents physically blocking each other's paths
+2. **Resource contention**: Multiple agents targeting same extractor simultaneously
+3. **Exploration inefficiency**: Agents re-exploring same areas
+4. **Agent occupancy avoidance too strong**: Agents avoiding each other too aggressively, limiting paths
 
-### Improvements for Next Iteration 🔧
+**Recommended Fix**:
+- Improve pathfinding to allow agents to "wait" for others to pass
+- Add temporal planning: agents predict where others will be
+- Implement explicit resource claiming: first agent to see an extractor "owns" it temporarily
+- Consider reducing agent_occupancy avoidance radius
 
-**High Priority**:
-1. Fix multi-agent unclipping coordination (critical blocker for clipped multi-agent missions)
-2. Debug carbon/germanium unclipping failures
-3. Improve large-map exploration efficiency
-4. Add preemptive energy management for EnergyStarved
+---
 
-**Medium Priority**:
-5. Implement region-partitioning for DivideAndConquer
-6. Improve collision avoidance and unstick logic
-7. Add explicit single-use extractor tracking and assignment
+### 🚨 Issue #3: Brutal Difficulty Unsolved
 
-**Low Priority**:
-8. Profile and fix `brutal` difficulty
-9. Optimize coordination overhead to reduce performance degradation at higher agent counts
-10. Add better mouth selection logic for heavily contended stations
+**Severity**: **MEDIUM** - Advanced difficulty, expected to be hard
+
+**Symptoms**:
+- 0% success across all agents, all missions (104 tests)
+
+**Likely Root Causes**:
+- Extreme resource scarcity or energy constraints
+- Insufficient time (may need >1000 steps)
+- Specialized strategies required (e.g., perfect efficiency, no wasted moves)
+
+**Recommended Fix**:
+- Profile a specific brutal mission to understand constraints
+- May need domain-specific optimizations (not general agent improvement)
+
+---
+
+### 🚨 Issue #4: Clipping Chaos Unsolved
+
+**Severity**: **MEDIUM** - Complex scenario
+
+**Symptoms**:
+- 3.3% success (3/91 tests)
+- Occurs when multiple extractors are clipped
+
+**Likely Root Causes**:
+- Agent can't handle multiple unclipping needs
+- Prioritization logic fails with multiple clipped extractors
+- Resource deadlock: needs X to unclip Y, needs Y to unclip X
+
+**Recommended Fix**:
+- Implement smarter unclip prioritization (unclip extractors in dependency order)
+- Add deadlock detection and recovery
+
+---
+
+## Recommendations by Priority
+
+### 🔥 Immediate (P0)
+
+1. **Debug carbon/germanium unclipping**: Single highest-value fix for coverage (182 tests)
+2. **Add comprehensive logging**: Instrument agent decision-making for debugging
+
+### 📋 High Priority (P1)
+
+3. **Improve multi-agent collision avoidance**: Better unstick, temporal planning, resource claiming
+4. **Fix agent_occupancy tracking**: May be too aggressive or buggy
+5. **Investigate hard_clipped_oxygen failures**: Why worse than regular clipped_oxygen?
+
+### 📌 Medium Priority (P2)
+
+6. **Improve clipping_chaos handling**: Multiple clipped extractors need better strategy
+7. **Optimize exploration for large maps**: ExtractorHub80/100 timeout issues
+
+### 📎 Low Priority (P3)
+
+8. **Profile brutal difficulty**: Understand if solvable with current architecture
+9. **Add extractor queueing**: Multiple agents coordinating at same extractor
+10. **Improve energy management**: Preemptive recharging for energy-starved missions
 
 ---
 
 ## Quick Play Commands
 
-Test any mission locally:
+### Test UnclippingAgent (Best Performance)
 
 ```bash
-# SimpleBaseline (single agent, no clipping)
-uv run cogames play --mission evals.<mission_name> -p simple_baseline --cogs 1
+# Single agent, non-clipped (60.4% success)
+uv run cogames play --mission evals.oxygen_bottleneck -p unclipping --cogs 1
 
-# UnclippingAgent (single agent, with clipping)
-uv run cogames play --mission evals.<mission_name> -p unclipping --cogs 1
-
-# CoordinatingAgent (multi-agent, with clipping)
-uv run cogames play --mission evals.<mission_name> -p coordinating --cogs 4
-```
-
-**Example missions**:
-```bash
-# Best performers
-uv run cogames play --mission evals.collect_resources_classic -p simple_baseline --cogs 1
-uv run cogames play --mission evals.oxygen_bottleneck -p simple_baseline --cogs 1
-
-# Test unclipping (single-agent)
+# Single agent, oxygen clipped (30% success)
 uv run cogames play --mission evals.extractor_hub_30 -p unclipping --cogs 1 --difficulty clipped_oxygen
 
-# Test coordination (multi-agent)
-uv run cogames play --mission evals.go_together -p coordinating --cogs 4
-uv run cogames play --mission evals.collect_resources_spread -p coordinating --cogs 4
+# Multi-agent (37% success, 2 agents)
+uv run cogames play --mission evals.collect_resources_spread -p unclipping --cogs 2
+```
 
-# Challenge missions (currently failing)
-uv run cogames play --mission evals.energy_starved -p coordinating --cogs 4
-uv run cogames play --mission evals.divide_and_conquer -p coordinating --cogs 4
-uv run cogames play --mission evals.extractor_hub_100 -p coordinating --cogs 8
+### Test Baseline
+
+```bash
+# Single agent (44% success)
+uv run cogames play --mission evals.collect_resources_classic -p scripted_baseline --cogs 1
+
+# Multi-agent (35% success, 2 agents)
+uv run cogames play --mission evals.extractor_hub_30 -p scripted_baseline --cogs 2
+```
+
+### Debug Carbon Unclipping Failure
+
+```bash
+# Carbon unclipping (0% success - broken!)
+uv run cogames play --mission evals.extractor_hub_30 -p unclipping --cogs 1 --difficulty clipped_carbon
 ```
 
 ---
@@ -364,54 +320,34 @@ uv run cogames play --mission evals.extractor_hub_100 -p coordinating --cogs 8
 ## Evaluation Reproduction
 
 ```bash
-# Run full evaluation suite (1,078 tests, ~30-45 minutes)
 cd /Users/daphnedemekas/Desktop/metta
 
-# All three agents
-uv run python packages/cogames/scripts/evaluate_scripted_agents.py \
-  --steps 1000 \
-  --output eval_results_complete.json
+# Full evaluation (1,040 tests, ~70 minutes)
+uv run python packages/cogames/scripts/evaluate_scripted_agents.py
 
-# Individual agents
-uv run python packages/cogames/scripts/evaluate_scripted_agents.py \
-  --agent simple \
-  --steps 1000 \
-  --output eval_results_simple.json
-
-uv run python packages/cogames/scripts/evaluate_scripted_agents.py \
-  --agent unclipping \
-  --steps 1000 \
-  --output eval_results_unclipping.json
-
-uv run python packages/cogames/scripts/evaluate_scripted_agents.py \
-  --agent coordinating \
-  --steps 1000 \
-  --output eval_results_coordinating.json
+# Output: evaluation_output.log
 ```
 
-**Results Files**:
-- `eval_results_baseline_agents.json` - Original run (all agents, non-clipped for CoordinatingAgent)
-- `eval_results_coordinating_clipped.json` - CoordinatingAgent on clipped difficulties only
-- Combined total: 1,078 test configurations
+**Results**:
+- Baseline: 123/364 (33.8%)
+- UnclippingAgent: 261/676 (38.6%) ← **BEST**
 
 ---
 
 ## Agent Architecture Summary
 
-### SimpleBaselineAgent
+### BaselineAgent
 - **Phases**: GATHER → ASSEMBLE → DELIVER → RECHARGE
 - **Exploration**: Frontier-based with target persistence
-- **Key Features**: Opportunistic gathering, goal-driven phase transitions, mouth coordination (N/S/E/W adjacency)
-- **Limitations**: Single-agent only, no unclipping, no explicit coordination
+- **Key Features**: Opportunistic gathering, goal-driven phase transitions, agent occupancy avoidance
+- **Performance**: 33.8% overall, 44.2% single-agent
+- **Limitations**: No unclipping, basic multi-agent collision avoidance
 
-### UnclippingAgent (extends SimpleBaseline)
+### UnclippingAgent (extends Baseline)
 - **Added Phases**: CRAFT_UNCLIP → UNCLIP
 - **Key Features**: Recognizes clipped extractors, crafts decoder/resonator/modulator/scrambler, unclips extractors
-- **Limitations**: Single-agent only, carbon/germanium unclipping unreliable
-
-### CoordinatingAgent (extends UnclippingAgent)
-- **Key Features**: Multi-agent, spreads agents around stations (mouth selection), unstick mechanism (random motion)
-- **Limitations**: Multi-agent unclipping coordination poor, performance degrades with more agents, resource contention
+- **Performance**: **38.6% overall (BEST)**, 60.4% single-agent
+- **Limitations**: Carbon/germanium unclipping broken (0-2%), multi-agent degradation (60% → 25%)
 
 ---
 

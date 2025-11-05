@@ -2,10 +2,9 @@
 """
 Evaluation Script for Baseline Scripted Agents
 
-Tests three baseline policies:
-- SimpleBaselinePolicy: Single-agent resource gathering and heart assembly
+Tests two baseline policies:
+- BaselinePolicy: Single/multi-agent resource gathering and heart assembly
 - UnclippingPolicy: Extends baseline with extractor unclipping
-- CoordinatingPolicy: Multi-agent coordination around stations
 
 Usage:
   # Quick test
@@ -17,7 +16,7 @@ Usage:
 
   # Specific configuration
   uv run python packages/cogames/scripts/evaluate_scripted_agents.py \\
-      --agent coordinating --experiments ExtractorHub30 ExtractorHub50 --cogs 1 2 4
+      --agent unclipping --experiments ExtractorHub30 ExtractorHub50 --cogs 1 2 4
 """
 
 import argparse
@@ -28,7 +27,7 @@ from typing import Any, Callable, Dict, List
 
 from cogames.cogs_vs_clips.evals import CANONICAL_DIFFICULTY_ORDER, DIFFICULTY_LEVELS, apply_difficulty
 from cogames.cogs_vs_clips.evals.eval_missions import EVAL_MISSIONS
-from cogames.policy.scripted_agent import CoordinatingPolicy, SimpleBaselinePolicy, UnclippingPolicy
+from cogames.policy.scripted_agent import BaselinePolicy, UnclippingPolicy
 from mettagrid.simulator.rollout import Rollout
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
@@ -69,10 +68,10 @@ def is_clipping_difficulty(name: str) -> bool:
 
 # Available agents
 AGENT_CONFIGS: Dict[str, AgentConfig] = {
-    "simple": AgentConfig(
-        key="simple",
-        label="SimpleBaseline",
-        policy_factory=lambda: SimpleBaselinePolicy(),
+    "baseline": AgentConfig(
+        key="baseline",
+        label="Baseline",
+        policy_factory=lambda: BaselinePolicy(),
         cogs_list=[1, 2, 4, 8],
         difficulties=[d for d in CANONICAL_DIFFICULTY_ORDER if not is_clipping_difficulty(d)],
     ),
@@ -81,13 +80,6 @@ AGENT_CONFIGS: Dict[str, AgentConfig] = {
         label="UnclippingAgent",
         policy_factory=lambda: UnclippingPolicy(),
         cogs_list=[1, 2, 4, 8],
-        difficulties=CANONICAL_DIFFICULTY_ORDER,  # With and without clipping
-    ),
-    "coordinating": AgentConfig(
-        key="coordinating",
-        label="CoordinatingAgent",
-        policy_factory=lambda: CoordinatingPolicy(),
-        cogs_list=[2, 4, 8],  # Multi-agent only
         difficulties=CANONICAL_DIFFICULTY_ORDER,  # With and without clipping
     ),
 }
