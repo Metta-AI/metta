@@ -1,8 +1,6 @@
-"""Built-in Column expert symbols and helpers."""
+"""Built-in token definitions registered via decorators."""
 
 from __future__ import annotations
-
-from typing import Callable, Dict, Iterable, List
 
 from cortex.config import (
     AxonConfig,
@@ -17,97 +15,65 @@ from cortex.config import (
     mLSTMCellConfig,
     sLSTMCellConfig,
 )
-
-# A builder returns a configured BlockConfig for a symbol; the boolean is whether
-# the symbol carries a "^" suffix (request to enable Axon-backed projections if supported).
-BuilderFn = Callable[[bool], BlockConfig]
+from cortex.registry import register_token
 
 
-def _build_A(ax: bool) -> BlockConfig:
+@register_token("A")
+def _build_A() -> BlockConfig:
     # Axon (post-up) expert; caret is irrelevant here.
     return PostUpBlockConfig(cell=AxonConfig())
 
 
-def _build_X(ax: bool) -> BlockConfig:
+@register_token("X")
+def _build_X() -> BlockConfig:
     cell = XLCellConfig()
-    if ax:
-        dumped = cell.model_dump()
-        dumped["use_axon_qkv"] = True
-        cell = XLCellConfig(**dumped)
     return PostUpGatedBlockConfig(cell=cell)
 
 
-def _build_M(ax: bool) -> BlockConfig:
+@register_token("X^")
+def _build_X_axon() -> BlockConfig:
+    dumped = XLCellConfig().model_dump()
+    dumped["use_axon_qkv"] = True
+    return PostUpGatedBlockConfig(cell=XLCellConfig(**dumped))
+
+
+@register_token("M")
+def _build_M() -> BlockConfig:
     cell = mLSTMCellConfig()
-    if ax:
-        dumped = cell.model_dump()
-        dumped["use_axon_layer"] = True
-        dumped["use_axon_qkv"] = True
-        cell = mLSTMCellConfig(**dumped)
     return PreUpBlockConfig(cell=cell)
 
 
-def _build_S(ax: bool) -> BlockConfig:
+@register_token("M^")
+def _build_M_axon() -> BlockConfig:
+    dumped = mLSTMCellConfig().model_dump()
+    dumped["use_axon_layer"] = True
+    dumped["use_axon_qkv"] = True
+    return PreUpBlockConfig(cell=mLSTMCellConfig(**dumped))
+
+
+@register_token("S")
+def _build_S() -> BlockConfig:
     cell = sLSTMCellConfig()
-    if ax:
-        dumped = cell.model_dump()
-        dumped["use_axon_layer"] = True
-        cell = sLSTMCellConfig(**dumped)
     return PostUpBlockConfig(cell=cell)
 
 
-def _build_L(ax: bool) -> BlockConfig:
+@register_token("S^")
+def _build_S_axon() -> BlockConfig:
+    dumped = sLSTMCellConfig().model_dump()
+    dumped["use_axon_layer"] = True
+    return PostUpBlockConfig(cell=sLSTMCellConfig(**dumped))
+
+
+@register_token("L")
+def _build_L() -> BlockConfig:
     # Standard LSTM expert, passthrough block to keep projections external.
     return PassThroughBlockConfig(cell=LSTMCellConfig())
 
 
-def _build_C(ax: bool) -> BlockConfig:
+@register_token("C")
+def _build_C() -> BlockConfig:
     # Causal convolution expert, passthrough block.
     return PassThroughBlockConfig(cell=CausalConv1dConfig())
 
 
-# Registry of built-in symbols.
-BUILTIN_TOKENS: Dict[str, BuilderFn] = {
-    "A": _build_A,
-    "C": _build_C,
-    "L": _build_L,
-    "X": _build_X,
-    "M": _build_M,
-    "S": _build_S,
-}
-
-# Single-character built-ins allowed in concatenated patterns.
-SINGLE_CHAR_BUILTINS: List[str] = [k for k in BUILTIN_TOKENS.keys() if len(k) == 1]
-
-# Symbols for which the "^" suffix is supported.
-CARET_ALLOWED_BASES = frozenset({"M", "X", "S"})
-
-
-def builtin_block_for_token(token: str) -> BlockConfig | None:
-    """Return a BlockConfig for a built-in token, or None if unknown.
-
-    The token may optionally end with "^" to request Axon-backed projections
-    where applicable.
-    """
-
-    base = token.rstrip("^")
-    ax = token.endswith("^") and (base in CARET_ALLOWED_BASES)
-    builder = BUILTIN_TOKENS.get(base)
-    return builder(ax) if builder else None
-
-
-def get_single_char_builtin_symbols() -> Iterable[str]:
-    return tuple(SINGLE_CHAR_BUILTINS)
-
-
-def can_use_caret(base: str) -> bool:
-    return base in CARET_ALLOWED_BASES
-
-
-__all__ = [
-    "BUILTIN_TOKENS",
-    "builtin_block_for_token",
-    "get_single_char_builtin_symbols",
-    "can_use_caret",
-    "CARET_ALLOWED_BASES",
-]
+__all__: list[str] = []

@@ -6,6 +6,8 @@ from typing import Dict, List
 
 from pydantic import BaseModel
 
+# Ensure built-in tokens are registered via decorators.
+import cortex.tokens  # noqa: F401
 from cortex.blocks.column import ColumnBlock
 from cortex.blocks.registry import build_block
 from cortex.config import (
@@ -16,7 +18,7 @@ from cortex.config import (
     mLSTMCellConfig,
     sLSTMCellConfig,
 )
-from cortex.tokens import builtin_block_for_token, can_use_caret, get_single_char_builtin_symbols
+from cortex.registry import block_config_for_token, can_use_caret, get_single_char_symbols
 
 
 def _clone_model(model: BaseModel) -> BaseModel:
@@ -26,7 +28,7 @@ def _clone_model(model: BaseModel) -> BaseModel:
 
 
 def _builtin_for_token(token: str) -> BlockConfig | None:
-    return builtin_block_for_token(token)
+    return block_config_for_token(token)
 
 
 def _parse_tokens(pattern: str, custom_map: Dict[str, BlockConfig] | None) -> List[str]:
@@ -39,7 +41,7 @@ def _parse_tokens(pattern: str, custom_map: Dict[str, BlockConfig] | None) -> Li
     # Single concatenated run: scan for built-ins only
     tokens: List[str] = []
     i = 0
-    allowed = set(get_single_char_builtin_symbols())
+    allowed = set(get_single_char_symbols())
     while i < len(s):
         ch = s[i]
         if ch not in allowed:
