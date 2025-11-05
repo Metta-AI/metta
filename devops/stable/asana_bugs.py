@@ -18,8 +18,9 @@ def check_blockers() -> Optional[bool]:
     Returns:
         True if no blockers (clear to ship)
         False if blockers exist
-        None if check is inconclusive (Asana unavailable)
+        None if check is inconclusive (Asana unavailable or SDK missing)
     """
+
     token = os.getenv("ASANA_TOKEN")
     project_id = os.getenv("ASANA_PROJECT_ID")
 

@@ -188,6 +188,15 @@ builds its configuration, and runs it.
 
 **Navigation recipe**: Replace `arena` with `navigation` for navigation tasks
 
+### Example Training Notebooks
+
+All the notebooks available at `./notebooks`
+
+#### Train on Cogames:
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1YaIdg5a5Ji5_J_HkVOdY9itJTFju54oG?usp=sharing)
+
+
+
 ### Task arguments
 
 run.py applies arguments provided through `[key=value ...]`, classifying each:
@@ -298,7 +307,8 @@ Notes:
 Mettascope allows you to run and view episodes in the environment you specify. It goes beyond just spectator mode, and
 allows taking over an agent and controlling it manually.
 
-For more information, see [./mettascope/README.md](./mettascope/README.md).
+For more information, see
+[./packages/mettagrid/nim/mettascope/README.md](./packages/mettagrid/nim/mettascope/README.md).
 
 #### Run the interactive simulation
 

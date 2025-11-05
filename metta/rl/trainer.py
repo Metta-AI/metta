@@ -54,6 +54,9 @@ class Trainer:
         self._policy = policy
         self._cfg = cfg
         self._device = device
+        if self._cfg.detect_anomaly:
+            torch.autograd.set_detect_anomaly(True)
+            logger.warning("Torch autograd anomaly detection enabled; backward will be slower.")
         if distributed_helper is None:
             distributed_helper = DistributedHelper(SystemConfig(device=self._device.type))
         self._distributed_helper = distributed_helper

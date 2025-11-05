@@ -23,6 +23,12 @@ _POLICY_CLASS_SHORTHAND: dict[str, str] = {
     "stateless": "mettagrid.policy.stateless.StatelessPolicy",
     "token": "mettagrid.policy.token.TokenPolicy",
     "lstm": "mettagrid.policy.lstm.LSTMPolicy",
+    "scripted_baseline": "cogames.policy.scripted_agent.baseline_agent.BaselinePolicy",
+    "scripted_unclipping": "cogames.policy.scripted_agent.unclipping_agent.UnclippingPolicy",
+    # Backwards compatibility aliases
+    "baseline": "cogames.policy.scripted_agent.baseline_agent.BaselinePolicy",
+    "simple_baseline": "cogames.policy.scripted_agent.baseline_agent.BaselinePolicy",
+    "unclipping": "cogames.policy.scripted_agent.unclipping_agent.UnclippingPolicy",
 }
 
 
@@ -78,14 +84,19 @@ def initialize_or_load_policy(
     # Check if policy requires obs_shape parameter (like LSTMPolicy)
     sig = inspect.signature(policy_class.__init__)
     params = list(sig.parameters.keys())
+    # Remove 'self' from params
+    params = [p for p in params if p != "self"]
 
-    # Check the first parameter to see if it's policy_env_info
+    # Check for special cases
     first_param = params[0] if params else None
     has_policy_env_info_param = "policy_env_info" in params
     has_obs_shape_param = "obs_shape" in params
     has_actions_param = "actions" in params or "actions_cfg" in params
 
-    if has_obs_shape_param:
+    # Handle policies that take no arguments (like scripted agents)
+    if not params:
+        policy = policy_class()  # type: ignore[misc]
+    elif has_obs_shape_param:
         # LSTMPolicy-style: requires (actions_cfg, obs_shape, device, policy_env_info)
         if device is None:
             device = torch.device("cpu")
