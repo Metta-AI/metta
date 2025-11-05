@@ -42,7 +42,7 @@ def fetch_eval_data_for_policies(
                 training_run_ids=tr_ids, run_free_policy_ids=rf_ids
             )
             # print(
-            #     f"🔍 ScorecardClient returned {len(completed_eval_names)} eval names: {completed_eval_names[:5] if completed_eval_names else 'None'}"
+            #     f"🔍 ScorecardClient returned {len(completed_eval_names)} eval names"
             # )
 
             # Get performance data to understand which evals succeeded/failed
@@ -159,7 +159,7 @@ def _create_policy_aware_eval_metadata(
         is_completed = eval_name in completed_evals
         if is_completed and performance_data:
             # Get actual performance score if available, but don't add fake tags
-            for policy_name, policy_data in performance_data.items():
+            for policy_data in performance_data.values():
                 # Make sure policy_data is a dict and contains eval_name
                 if isinstance(policy_data, dict) and eval_name in policy_data:
                     cell_data = policy_data[eval_name]

@@ -229,7 +229,8 @@ class ScorecardWidget(anywidget.AnyWidget):
             restrict_to_policy_ids: List of policy IDs to include (e.g., ["123", "456"])
             restrict_to_metrics: List of metrics to include (e.g., ["reward", "heart.gained"])
             restrict_to_policy_names: List of policy name filters (e.g., ["relh.skypilot", "daveey.arena.rnd"])
-            restrict_to_eval_names: List of specific evaluation names to include (e.g., ["navigation/labyrinth", "memory/easy"])
+            restrict_to_eval_names: List of specific evaluation names to include
+                (e.g., ["navigation/labyrinth", "memory/easy"])
             policy_selector: "best" or "latest" policy selection strategy
             max_policies: Maximum number of policies to display
             include_run_free_policies: Whether to include standalone policies
@@ -321,7 +322,11 @@ class ScorecardWidget(anywidget.AnyWidget):
         all_policies = training_run_ids + run_free_policy_ids
         if len(all_policies) != len(scorecard_data.policyNames):
             warning(
-                f"Number of policies in scorecard data ({len(scorecard_data.policyNames)}) does not match number of policies in your query ({len(training_run_ids) + len(run_free_policy_ids)})"
+                (
+                    "Number of policies in scorecard data "
+                    f"({len(scorecard_data.policyNames)}) does not match number of policies in your query "
+                    f"({len(training_run_ids) + len(run_free_policy_ids)})"
+                )
             )
             raise Exception("Number of policies in scorecard data does not match number of policies in your query")
 

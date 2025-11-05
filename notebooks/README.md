@@ -21,7 +21,6 @@ anything that is painful or that you need!
   not intended to be depended on
 - Add tools you think others will also want to`utils/` files. These will undergo a more typical dev process
 
-
 ### Colab Notebooks
 
 - notebooks available at ./colab are for running in google colab
