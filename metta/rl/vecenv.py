@@ -9,6 +9,7 @@ import pufferlib.vector
 from metta.cogworks.curriculum import Curriculum, CurriculumEnv
 from metta.common.util.log_config import init_logging
 from metta.sim.replay_log_writer import ReplayLogWriter
+from mettagrid.envs.early_reset_handler import EarlyResetHandler
 from mettagrid.envs.mettagrid_puffer_env import MettaGridPufferEnv
 from mettagrid.envs.stats_tracker import StatsTracker
 from mettagrid.simulator import Simulator
@@ -35,6 +36,7 @@ def make_env_func(
         sim.add_event_handler(replay_writer)
     stats_writer = stats_writer or NoopStatsWriter()
     sim.add_event_handler(StatsTracker(stats_writer))
+    sim.add_event_handler(EarlyResetHandler())
 
     env = MettaGridPufferEnv(sim, curriculum.get_task().get_env_cfg(), buf)
     env = CurriculumEnv(env, curriculum)
