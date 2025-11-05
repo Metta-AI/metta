@@ -1,10 +1,5 @@
-"""Small-map CoGs vs Clips training entrypoints."""
+"""Small-map CoGs vs Clips training entrypoint."""
 
-from functools import partial
-
-from experiments.recipes.cvc.core import play as _play, train_small_maps as train
-
-play = partial(_play, mission_name="extractor_hub_30", num_cogs=4)
-play.__doc__ = "Play a small-map mission (defaults to extractor_hub_30 with 4 cogs)."
+from experiments.recipes.cvc.core import play, train_small_maps as train
 
 __all__ = ["train", "play"]
