@@ -1,11 +1,11 @@
-"""Example usage of the CoGs vs Clips training recipe.
+"""Programmatic helpers and Skypilot launch utilities for CVC recipes."""
 
-This file demonstrates how to use the recipe programmatically.
-For CLI usage, see README.md
-"""
+from __future__ import annotations
 
 import subprocess
 import time
+from dataclasses import dataclass
+from typing import Sequence
 
 from experiments.recipes.cvc.coordination import train as train_coordination
 from experiments.recipes.cvc.curriculum import (
@@ -18,120 +18,173 @@ from experiments.recipes.cvc.medium_maps import train as train_medium_maps
 from experiments.recipes.cvc.play import play
 from experiments.recipes.cvc.single_mission import train as train_single_mission
 from experiments.recipes.cvc.small_maps import train as train_small_maps
+from metta.sim.simulation_config import SimulationConfig
+from metta.tools.eval import EvaluateTool
+from metta.tools.play import PlayTool
+from metta.tools.train import TrainTool
+from mettagrid.config.mettagrid_config import MettaGridConfig
 
-# Define experiment configurations for skypilot jobs
-experiment_configs = {
-    # Quick experiments (for testing/debugging)
-    "debug_single": {
-        "function": "single_mission.train",
-        "mission_name": "extractor_hub_30",
-        "num_cogs": 2,
-        "gpus": 1,
-        "timesteps": 5_000_000,
-    },
-    # Small maps experiments
-    "small_1cog": {
-        "function": "small_maps.train",
-        "num_cogs": 1,
-        "gpus": 2,
-        "timesteps": 20_000_000,
-    },
-    "small_2cogs": {
-        "function": "small_maps.train",
-        "num_cogs": 2,
-        "gpus": 2,
-        "timesteps": 20_000_000,
-    },
-    "small_4cogs": {
-        "function": "small_maps.train",
-        "num_cogs": 4,
-        "gpus": 4,
-        "timesteps": 30_000_000,
-    },
-    # Medium maps experiments
-    "medium_4cogs": {
-        "function": "medium_maps.train",
-        "num_cogs": 4,
-        "gpus": 4,
-        "timesteps": 40_000_000,
-    },
-    # Coordination-focused
-    "coordination_4cogs": {
-        "function": "coordination.train",
-        "num_cogs": 4,
-        "gpus": 4,
-        "timesteps": 40_000_000,
-    },
-    # Full curriculum (all missions)
-    "full_1cog": {
-        "function": "curriculum.train",
-        "num_cogs": 1,
-        "gpus": 4,
-        "timesteps": 50_000_000,
-    },
-    "full_4cogs": {
-        "function": "curriculum.train",
-        "num_cogs": 4,
-        "gpus": 8,
-        "timesteps": 100_000_000,
-    },
-    "full_8cogs": {
-        "function": "curriculum.train",
-        "num_cogs": 8,
-        "gpus": 8,
-        "timesteps": 100_000_000,
-    },
+RECIPE_MODULE = "experiments.recipes.cvc"
+
+__all__ = [
+    "SkypilotExperiment",
+    "EXPERIMENTS",
+    "DEFAULT_EXPERIMENTS",
+    "basic_training",
+    "medium_training",
+    "custom_curriculum",
+    "single_mission_debug",
+    "evaluation",
+    "multi_agent_coordination",
+    "custom_eval_suite",
+    "play_trained_policy",
+    "inspect_training_env",
+    "experiment",
+]
+
+
+@dataclass(frozen=True)
+class SkypilotExperiment:
+    """Configuration for launching a Skypilot job."""
+
+    tool_suffix: str
+    num_cogs: int
+    gpus: int
+    timesteps: int
+    mission_name: str | None = None
+
+    @property
+    def tool_path(self) -> str:
+        return f"{RECIPE_MODULE}.{self.tool_suffix}"
+
+    def build_command(
+        self,
+        *,
+        run_name: str,
+        heartbeat_timeout: int,
+        skip_git_check: bool,
+    ) -> list[str]:
+        """Create the command line for this experiment."""
+        cmd = [
+            "./devops/skypilot/launch.py",
+            self.tool_path,
+            f"run={run_name}",
+            f"num_cogs={self.num_cogs}",
+            f"trainer.total_timesteps={self.timesteps}",
+            f"--gpus={self.gpus}",
+            f"--heartbeat-timeout={heartbeat_timeout}",
+        ]
+        if self.mission_name:
+            cmd.insert(3, f"mission_name={self.mission_name}")
+        if skip_git_check:
+            cmd.append("--skip-git-check")
+        return cmd
+
+
+EXPERIMENTS: dict[str, SkypilotExperiment] = {
+    "debug_single": SkypilotExperiment(
+        tool_suffix="single_mission.train",
+        mission_name="extractor_hub_30",
+        num_cogs=2,
+        gpus=1,
+        timesteps=5_000_000,
+    ),
+    "small_1cog": SkypilotExperiment(
+        tool_suffix="small_maps.train",
+        num_cogs=1,
+        gpus=2,
+        timesteps=20_000_000,
+    ),
+    "small_2cogs": SkypilotExperiment(
+        tool_suffix="small_maps.train",
+        num_cogs=2,
+        gpus=2,
+        timesteps=20_000_000,
+    ),
+    "small_4cogs": SkypilotExperiment(
+        tool_suffix="small_maps.train",
+        num_cogs=4,
+        gpus=4,
+        timesteps=30_000_000,
+    ),
+    "medium_4cogs": SkypilotExperiment(
+        tool_suffix="medium_maps.train",
+        num_cogs=4,
+        gpus=4,
+        timesteps=40_000_000,
+    ),
+    "coordination_4cogs": SkypilotExperiment(
+        tool_suffix="coordination.train",
+        num_cogs=4,
+        gpus=4,
+        timesteps=40_000_000,
+    ),
+    "full_1cog": SkypilotExperiment(
+        tool_suffix="curriculum.train",
+        num_cogs=1,
+        gpus=4,
+        timesteps=50_000_000,
+    ),
+    "full_4cogs": SkypilotExperiment(
+        tool_suffix="curriculum.train",
+        num_cogs=4,
+        gpus=8,
+        timesteps=100_000_000,
+    ),
+    "full_8cogs": SkypilotExperiment(
+        tool_suffix="curriculum.train",
+        num_cogs=8,
+        gpus=8,
+        timesteps=100_000_000,
+    ),
 }
 
-
-def basic_training():
-    """Train on small maps with 4 agents."""
-    tool = train_small_maps(num_cogs=4)
-    return tool
+DEFAULT_EXPERIMENTS: tuple[str, ...] = tuple(
+    name for name in EXPERIMENTS if not name.startswith("debug")
+)
 
 
-def medium_training():
-    """Train on medium maps with 4 agents."""
-    tool = train_medium_maps(num_cogs=4)
-    return tool
+def basic_training(*, num_cogs: int = 4) -> TrainTool:
+    """Train on small maps with a configurable number of agents."""
+    return train_small_maps(num_cogs=num_cogs)
 
 
-def custom_curriculum():
-    """Create a custom curriculum with specific missions."""
+def medium_training(*, num_cogs: int = 4) -> TrainTool:
+    """Train on medium maps with a configurable number of agents."""
+    return train_medium_maps(num_cogs=num_cogs)
+
+
+def custom_curriculum() -> TrainTool:
+    """Create a custom curriculum tool with additional logging."""
     curriculum = make_curriculum(
         num_cogs=4,
         base_missions=["extractor_hub_30", "oxygen_bottleneck", "energy_starved"],
         enable_detailed_slice_logging=True,
     )
-    tool = train_curriculum(num_cogs=4, curriculum=curriculum)
-    return tool
+    return train_curriculum(num_cogs=4, curriculum=curriculum)
 
 
-def single_mission_debug():
-    """Quick debug training on a single mission."""
-    tool = train_single_mission(mission_name="extractor_hub_30", num_cogs=2)
-    return tool
+def single_mission_debug() -> TrainTool:
+    """Create a debugging tool for a single mission."""
+    return train_single_mission(mission_name="extractor_hub_30", num_cogs=2)
 
 
-def evaluation():
-    """Evaluate a trained policy."""
-    tool = evaluate(
+def evaluation() -> EvaluateTool:
+    """Create an evaluation tool for the default checkpoints."""
+    return evaluate(
         policy_uris=["file://./checkpoints/cvc_default/latest"],
         num_cogs=4,
         difficulty="standard",
     )
-    return tool
 
 
-def multi_agent_coordination():
+def multi_agent_coordination(*, num_cogs: int = 4) -> TrainTool:
     """Train specifically on multi-agent coordination."""
-    tool = train_coordination(num_cogs=4)
-    return tool
+    return train_coordination(num_cogs=num_cogs)
 
 
-def custom_eval_suite():
+def custom_eval_suite() -> Sequence[SimulationConfig]:
     """Create a custom evaluation suite."""
-    # Test only on hub missions with 8 agents
     suite = make_eval_suite(
         num_cogs=8,
         difficulty="standard",
@@ -143,17 +196,16 @@ def custom_eval_suite():
     return suite
 
 
-def play_trained_policy():
+def play_trained_policy() -> PlayTool:
     """Play a trained policy interactively."""
-    tool = play(
+    return play(
         policy_uri="file://./checkpoints/cvc_default/latest",
         mission_name="extractor_hub_30",
         num_cogs=4,
     )
-    return tool
 
 
-def inspect_training_env():
+def inspect_training_env() -> MettaGridConfig:
     """Inspect the configuration of a training environment."""
     env = make_training_env(num_cogs=4, mission_name="extractor_hub_30")
 
@@ -161,7 +213,6 @@ def inspect_training_env():
     print(f"  Num agents: {env.game.num_agents}")
     print(f"  Max steps: {env.game.max_steps}")
 
-    # Check station efficiencies
     print("\nStation Efficiencies:")
     for obj_name in [
         "charger",
@@ -174,84 +225,47 @@ def inspect_training_env():
             if hasattr(obj, "efficiency"):
                 print(f"  {obj_name}: {obj.efficiency}%")
 
-    # Check reward structure
     print("\nReward Structure:")
     print(f"  Inventory rewards: {env.game.agent.rewards.inventory}")
-
     return env
 
 
 def experiment(
-    configs: list[str] | None = None,
+    configs: Sequence[str] | None = None,
     heartbeat_timeout: int = 3600,
     skip_git_check: bool = True,
-):
-    """Launch skypilot jobs for multiple training configurations.
+) -> None:
+    """Launch Skypilot jobs for multiple training configurations."""
+    target_configs = list(configs or DEFAULT_EXPERIMENTS)
 
-    Args:
-        configs: List of config names to run (defaults to all non-debug configs)
-        heartbeat_timeout: Timeout in seconds for heartbeat monitoring
-        skip_git_check: Whether to skip git status check before launching
+    print(f"Launching {len(target_configs)} Skypilot job(s):")
+    for name in target_configs:
+        print(f"  - {name}")
 
-    Example:
-        # Run all standard experiments
-        experiment()
-
-        # Run specific experiments
-        experiment(configs=["small_4cogs", "medium_4cogs"])
-
-        # Run debug experiment
-        experiment(configs=["debug_single"])
-    """
-    # Default to non-debug configs if not specified
-    if configs is None:
-        configs = [k for k in experiment_configs.keys() if not k.startswith("debug")]
-
-    print(f"Launching {len(configs)} skypilot jobs:")
-    for config_name in configs:
-        print(f"  - {config_name}")
-
-    for config_name in configs:
-        if config_name not in experiment_configs:
-            print(f"Warning: Unknown config '{config_name}', skipping")
+    for name in target_configs:
+        config = EXPERIMENTS.get(name)
+        if config is None:
+            print(f"Warning: Unknown config '{name}', skipping")
             continue
 
-        config = experiment_configs[config_name]
-        function_name = config["function"]
-        num_cogs = config["num_cogs"]
-        gpus = config["gpus"]
-        timesteps = config["timesteps"]
+        run_name = f"cvc_{name}.{time.strftime('%Y-%m-%d_%H%M')}"
+        cmd_args = config.build_command(
+            run_name=run_name,
+            heartbeat_timeout=heartbeat_timeout,
+            skip_git_check=skip_git_check,
+        )
 
-        # Build run name with timestamp
-        run_name = f"cvc_{config_name}.{time.strftime('%Y-%m-%d_%H%M')}"
-
-        # Build command args
-        cmd_args = [
-            "./devops/skypilot/launch.py",
-            f"experiments.recipes.cvc.{function_name}",
-            f"run={run_name}",
-            f"num_cogs={num_cogs}",
-            f"trainer.total_timesteps={timesteps}",
-            f"--gpus={gpus}",
-            f"--heartbeat-timeout={heartbeat_timeout}",
-        ]
-
-        # Add mission_name if it's a single mission experiment
-        if "mission_name" in config:
-            cmd_args.insert(3, f"mission_name={config['mission_name']}")
-
-        if skip_git_check:
-            cmd_args.append("--skip-git-check")
-
-        print(f"\nLaunching: {config_name}")
+        print(f"\nLaunching: {name}")
         print(f"  Run: {run_name}")
-        print(f"  Function: {function_name}")
-        print(f"  Agents: {num_cogs}, GPUs: {gpus}, Steps: {timesteps:,}")
+        print(f"  Tool: {config.tool_path}")
+        print(
+            f"  Agents: {config.num_cogs}, GPUs: {config.gpus}, Steps: {config.timesteps:,}"
+        )
 
-        subprocess.run(cmd_args)
-        time.sleep(1)  # Brief delay between launches
+        subprocess.run(cmd_args, check=False)
+        time.sleep(1)
 
-    print(f"\n✓ Successfully launched {len(configs)} jobs")
+    print(f"\n✓ Successfully launched {len(target_configs)} jobs")
 
 
 if __name__ == "__main__":
