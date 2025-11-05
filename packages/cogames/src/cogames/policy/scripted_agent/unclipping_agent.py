@@ -112,7 +112,6 @@ class UnclippingAgent(SimpleBaselineAgent):
         # Priority 1: Recharge if energy low
         if s.energy < 30:
             if s.phase != Phase.RECHARGE:
-                print(f"[Agent {s.agent_id}] Phase: {s.phase.name} -> RECHARGE (energy={s.energy})")
                 s.phase = Phase.RECHARGE
             return
 

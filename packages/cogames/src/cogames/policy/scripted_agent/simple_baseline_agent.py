@@ -27,6 +27,10 @@ if TYPE_CHECKING:
     from mettagrid.simulator import Simulation
 
 logger = logging.getLogger(__name__)
+
+# Debug flag - set to True to enable detailed logging
+DEBUG = False
+
 # Observation grid half-ranges (hardcoded for now)
 OBS_HR = 5  # rows - egocentric observation half-radius
 OBS_WR = 5  # cols - egocentric observation half-radius
@@ -268,8 +272,6 @@ class SimpleBaselineAgent:
         # Resource requirements for one heart
         self._heart_recipe = {"carbon": 20, "oxygen": 20, "germanium": 5, "silicon": 50}
 
-        print(f"[SimpleBaseline] Initialized for map {self._map_h}x{self._map_w}")
-
     def parse_observation(
         self, obs: AgentObservation, agent_row: int, agent_col: int, debug: bool = False
     ) -> ParsedObservation:
@@ -394,30 +396,6 @@ class SimpleBaselineAgent:
         # Update state from observation
         self._update_state_from_obs(s, obs)
 
-        # DEBUG: Detailed logging every step
-        if s.step_count % 10 == 0 or s.step_count <= 20:
-            print(f"\n[STEP {s.step_count}] Agent {s.agent_id} @ ({s.row},{s.col})")
-            print(f"  Phase: {s.phase.name}")
-            print(
-                f"  Inventory: C={s.carbon} O={s.oxygen} G={s.germanium} S={s.silicon} "
-                f"Hearts={s.hearts} Energy={s.energy}"
-            )
-            print(
-                f"  Recipe needs: C={self._heart_recipe['carbon']} O={self._heart_recipe['oxygen']} "
-                f"G={self._heart_recipe['germanium']} S={self._heart_recipe['silicon']}"
-            )
-            can_assemble = (
-                s.carbon >= self._heart_recipe["carbon"]
-                and s.oxygen >= self._heart_recipe["oxygen"]
-                and s.germanium >= self._heart_recipe["germanium"]
-                and s.silicon >= self._heart_recipe["silicon"]
-            )
-            print(f"  Can assemble: {can_assemble}")
-            print(
-                f"  Stations: assembler={self._stations.get('assembler')}, "
-                f"chest={self._stations.get('chest')}, charger={self._stations.get('charger')}"
-            )
-
         # Trace logging
         if s.step_count % 20 == 0:
             self._trace_log(s)
@@ -430,19 +408,6 @@ class SimpleBaselineAgent:
 
         # Save action for next step's position update
         s.last_action = action
-
-        # Debug: Log action for first few steps and when position doesn't change
-        if s.step_count <= 20 or s.step_count % 10 == 0:
-            action_name = "?"
-            for name, idx in self._action_lookup.items():
-                if idx == action:
-                    action_name = name
-                    break
-            if s.target_resource:
-                print(f"  Target resource: {s.target_resource}")
-            if s.target_position:
-                print(f"  Target position: {s.target_position}")
-            print(f"  → Action: {action_name}")
 
         return action
 
@@ -499,12 +464,6 @@ class SimpleBaselineAgent:
             current_amount = getattr(s, s.pending_use_resource, 0)
             # Extractor gave us the resource!
             if current_amount > s.pending_use_amount:
-                print(
-                    (
-                        f"[Agent {s.agent_id}] ✓✓ Received {s.pending_use_resource}! "
-                        f"({s.pending_use_amount} -> {current_amount})"
-                    )
-                )
                 s.pending_use_resource = None
                 s.pending_use_amount = 0
                 s.waiting_at_extractor = None
@@ -572,7 +531,6 @@ class SimpleBaselineAgent:
     def _discover_station(self, s: SimpleAgentState, pos: tuple[int, int], station_key: str) -> None:
         if self._stations.get(station_key) is None:
             self._stations[station_key] = pos
-            print(f"[Agent {s.agent_id}] Discovered {station_key} at {pos}")
 
     def _discover_extractor(
         self,
@@ -594,7 +552,6 @@ class SimpleBaselineAgent:
                 last_seen_step=s.step_count,
             )
             self._extractors[resource_type].append(extractor)
-            print(f"[Agent {s.agent_id}] Discovered {resource_type} extractor at {pos}")
 
         extractor.last_seen_step = s.step_count
         extractor.converting = obj_state.converting > 0
@@ -608,7 +565,6 @@ class SimpleBaselineAgent:
                 f"cooldown={extractor.cooldown_remaining}, clipped={extractor.clipped}, "
                 f"uses={extractor.remaining_uses}"
             )
-            print(f"  -> {resource_type} @ {pos}: {state_str}")
 
     def _update_phase(self, s: SimpleAgentState) -> None:
         """
@@ -624,7 +580,6 @@ class SimpleBaselineAgent:
         # Enter RECHARGE if energy drops below 30
         if s.energy < 30:
             if s.phase != Phase.RECHARGE:
-                print(f"[Agent {s.agent_id}] Phase: {s.phase.name} -> RECHARGE (energy={s.energy})")
                 s.phase = Phase.RECHARGE
                 # Clear extractor waiting state when leaving GATHER
                 s.pending_use_resource = None
@@ -635,7 +590,6 @@ class SimpleBaselineAgent:
         # Stay in RECHARGE until energy is fully restored (>= 90)
         if s.phase == Phase.RECHARGE:
             if s.energy >= 90:
-                print(f"[Agent {s.agent_id}] Phase: RECHARGE -> GATHER (energy={s.energy})")
                 s.phase = Phase.GATHER
                 s.target_position = None
             # Still recharging, stay in this phase
@@ -644,7 +598,6 @@ class SimpleBaselineAgent:
         # Priority 2: Deliver hearts if we have any
         if s.hearts > 0:
             if s.phase != Phase.DELIVER:
-                print(f"[Agent {s.agent_id}] Phase: {s.phase.name} -> DELIVER ({s.hearts} hearts)")
                 s.phase = Phase.DELIVER
                 # Clear extractor waiting state when leaving GATHER
                 s.pending_use_resource = None
@@ -660,23 +613,8 @@ class SimpleBaselineAgent:
             and s.silicon >= self._heart_recipe["silicon"]
         )
 
-        # Debug: log inventory periodically
-        if s.step_count % 50 == 0:
-            print(
-                f"[Agent {s.agent_id}] Inventory check: "
-                f"C={s.carbon}/{self._heart_recipe['carbon']} "
-                f"O={s.oxygen}/{self._heart_recipe['oxygen']} "
-                f"G={s.germanium}/{self._heart_recipe['germanium']} "
-                f"S={s.silicon}/{self._heart_recipe['silicon']} "
-                f"can_assemble={can_assemble}"
-            )
-
         if can_assemble:
             if s.phase != Phase.ASSEMBLE:
-                print(
-                    f"[Agent {s.agent_id}] Phase: {s.phase.name} -> ASSEMBLE "
-                    f"(C={s.carbon} O={s.oxygen} G={s.germanium} S={s.silicon})"
-                )
                 s.phase = Phase.ASSEMBLE
                 # Clear extractor waiting state when leaving GATHER
                 s.pending_use_resource = None
@@ -687,12 +625,8 @@ class SimpleBaselineAgent:
         # Priority 5: Default to GATHER
         # GATHER will explore internally when it can't find needed extractors
         if s.phase != Phase.GATHER:
-            print(f"[Agent {s.agent_id}] Phase: {s.phase.name} -> GATHER (need resources)")
             s.phase = Phase.GATHER
             s.target_position = None
-            # Clear extractor waiting state when entering GATHER from another phase
-            if s.pending_use_resource is not None:
-                print(f"[Agent {s.agent_id}] Clearing pending_use_resource={s.pending_use_resource} (was waiting)")
             s.pending_use_resource = None
             s.pending_use_amount = 0
             s.waiting_at_extractor = None
@@ -708,7 +642,6 @@ class SimpleBaselineAgent:
 
     def _execute_phase(self, s: SimpleAgentState) -> int:
         """Execute action for current phase."""
-        print(f"Current phase: {s.phase}")
         if s.phase == Phase.GATHER:
             return self._do_gather(s)
         elif s.phase == Phase.ASSEMBLE:
@@ -841,10 +774,6 @@ class SimpleBaselineAgent:
             # Condition met, stop exploring
             return None
 
-        # Condition not met, continue exploring
-        if s.step_count % 50 == 0:
-            print(f"[Agent {s.agent_id}] {reason}, exploring")
-
         return self._explore(s)
 
     def _explore(self, s: SimpleAgentState) -> int:
@@ -880,10 +809,6 @@ class SimpleBaselineAgent:
             # Safety check: if we've been waiting too long, clear and retry
             s.wait_steps += 1
             if s.wait_steps > 50:  # If stuck waiting for 50 steps
-                print(
-                    f"[Agent {s.agent_id}] WARNING: Waited {s.wait_steps} steps for {s.pending_use_resource}, "
-                    f"clearing and retrying"
-                )
                 s.pending_use_resource = None
                 s.pending_use_amount = 0
                 s.waiting_at_extractor = None
@@ -898,8 +823,6 @@ class SimpleBaselineAgent:
         if all(d <= 0 for d in deficits.values()):
             s.waiting_at_extractor = None
             s.wait_steps = 0
-            if s.step_count % 50 == 0:
-                print(f"[Agent {s.agent_id}] No resource deficits, all gathered!")
             return self._NOOP
 
         # Explore until we find ANY extractor for ANY needed resource
@@ -909,21 +832,15 @@ class SimpleBaselineAgent:
             reason=f"Need extractors for: {', '.join(k for k, v in deficits.items() if v > 0)}",
         )
         if explore_action is not None:
-            if s.step_count % 20 == 0:
-                print(f"[Agent {s.agent_id}] Still exploring to find extractors (deficits: {deficits})")
             return explore_action
 
         # Found an extractor, get it
         result = self._find_any_needed_extractor(s)
         if result is None:
             # This shouldn't happen since condition just passed, but handle it
-            if s.step_count % 20 == 0:
-                print(f"[Agent {s.agent_id}] No extractors found, continuing exploration")
             return self._explore(s)
 
         extractor, resource_type = result
-        if s.step_count % 20 == 0:
-            print(f"[Agent {s.agent_id}] Targeting {resource_type} extractor at {extractor.position}")
 
         # Clear exploration target - we're now targeting an extractor
         s.exploration_target = None
@@ -934,53 +851,26 @@ class SimpleBaselineAgent:
         dr = abs(s.row - er)
         dc = abs(s.col - ec)
         is_adjacent = (dr == 1 and dc == 0) or (dr == 0 and dc == 1)
-        print(f"Is adjacent: {is_adjacent}")
 
         # If not adjacent, move towards the extractor
         if not is_adjacent:
             s.waiting_at_extractor = None
             s.wait_steps = 0
-            if s.step_count % 20 == 0:
-                print(
-                    (
-                        f"[Agent {s.agent_id}] Moving towards {resource_type} extractor at {extractor.position} "
-                        f"from ({s.row},{s.col})"
-                    )
-                )
             action = self._move_towards(s, extractor.position, reach_adjacent=True)
-            print(f"Action: {action}")
             if action == self._NOOP:
-                if s.step_count % 10 == 0:
-                    print(f"[Agent {s.agent_id}] Can't pathfind to extractor, exploring")
                 return self._explore(s)
             return action
 
         # We're adjacent to the extractor!
         # Verify position from simulation
-        if s.step_count % 20 == 0:
-            print(
-                f"[Agent {s.agent_id}] At {resource_type} extractor at {extractor.position} "
-                f"(cooldown={extractor.cooldown_remaining}, uses={extractor.remaining_uses})"
-            )
-
         # If in cooldown or converting, wait for it
         if extractor.cooldown_remaining > 0 or extractor.converting:
-            print(
-                (
-                    f"[Agent {s.agent_id}] Waiting for extractor (cooldown={extractor.cooldown_remaining}, "
-                    f"converting={extractor.converting})"
-                )
-            )
             s.waiting_at_extractor = extractor.position
             s.wait_steps += 1
             return self._NOOP
 
         # If out of uses or clipped, it's not usable - move on to next extractor
         if extractor.remaining_uses == 0 or extractor.clipped:
-            print(
-                f"[Agent {s.agent_id}] Extractor at {extractor.position} not usable "
-                f"(uses={extractor.remaining_uses}, clipped={extractor.clipped})"
-            )
             s.waiting_at_extractor = None
             s.wait_steps = 0
             # Will find another extractor on next iteration
@@ -1014,7 +904,6 @@ class SimpleBaselineAgent:
         # First, ensure we have the correct glyph (heart) for assembling
         if s.current_glyph != "heart":
             vibe_action = self._change_vibe_actions["heart"]
-            print(f"[Agent {s.agent_id}] Changing glyph from '{s.current_glyph}' to 'heart' (action {vibe_action})")
             s.current_glyph = "heart"
             return vibe_action
 
@@ -1082,22 +971,18 @@ class SimpleBaselineAgent:
         """Unclip extractors (TODO: implement)."""
         # TODO: Find nearest clipped extractor, go to it, activate it to unclip
         # For now, just return to GATHER phase
-        print(f"[Agent {s.agent_id}] UNCLIP not implemented yet, returning to GATHER")
         s.phase = Phase.GATHER
         return self._NOOP
 
     def _find_nearest_extractor(self, s: SimpleAgentState, resource_type: str) -> Optional[ExtractorInfo]:
         """Find the nearest AVAILABLE extractor of the given type."""
         extractors = self._extractors.get(resource_type, [])
-        print(f"Extractors: {extractors}")
         if not extractors:
             return None
 
         # Filter out clipped (depleted) extractors
         available = [e for e in extractors if not e.clipped]
         if not available:
-            if s.step_count % 100 == 0:
-                print(f"[Agent {s.agent_id}] All {resource_type} extractors are clipped!")
             return None
 
         def distance(pos: tuple[int, int]) -> int:
@@ -1120,19 +1005,11 @@ class SimpleBaselineAgent:
             return self._NOOP
 
         goal_cells = self._compute_goal_cells(s, target, reach_adjacent)
-        print(
-            f"_move_towards: start={start}, target={target}, reach_adjacent={reach_adjacent}, goal_cells={goal_cells}"
-        )
         if not goal_cells:
-            print("  No goal cells found!")
             return self._NOOP
 
         path = self._shortest_path(s, start, goal_cells, allow_goal_block)
-        print(f"  path={path}")
         if not path:
-            print("  No path found!")
-            # Debug: show occupancy around start and target
-            print(f"  Occupancy around start {start}:")
             for dr in range(-2, 3):
                 row_str = "    "
                 for dc in range(-2, 3):
@@ -1147,8 +1024,6 @@ class SimpleBaselineAgent:
                             row_str += "?"
                     else:
                         row_str += "X"
-                print(row_str)
-            print(f"  Occupancy around target {target}:")
             for dr in range(-2, 3):
                 row_str = "    "
                 for dc in range(-2, 3):
@@ -1163,15 +1038,12 @@ class SimpleBaselineAgent:
                             row_str += "?"
                     else:
                         row_str += "X"
-                print(row_str)
             return self._NOOP
 
         # First step after start
         next_pos = path[0]
         dr = next_pos[0] - s.row
         dc = next_pos[1] - s.col
-
-        print(f"  Moving from {(s.row, s.col)} to {next_pos}, path length: {len(path) + 1}")
 
         if dr == -1 and dc == 0:
             return self._MOVE_N
