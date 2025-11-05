@@ -493,12 +493,13 @@ def step_job_validation(
     jobs = list(jobs_dict.values())
 
     # Count results (distinguish failed vs skipped) - single source of truth
+    # Note: job_config.name has already been mutated to include version prefix during submission
     passed = 0
     failed = 0
     skipped = 0
 
     for job_config in job_configs:
-        job_state = job_manager.get_job_state(f"{state_version}_{job_config.name}")
+        job_state = job_manager.get_job_state(job_config.name)
         if not job_state:
             skipped += 1
         elif job_state.exit_code == -2:  # SKIPPED (job skipped due to failed dependency)
