@@ -355,8 +355,28 @@ class BucketedTaskGenerator(TaskGenerator):
 
         # Get task from the child generator
         mg_config = self._child_generator.get_task(task_id)
+
+        # Build label from bucket values
+        label_parts = []
         if self._config.label is not None:
-            mg_config.label += "|" + self._config.label
+            label_parts.append(self._config.label)
+
+        # Add bucket values to label (using short key names for readability)
+        for key, value in sorted(overrides.items()):
+            # Extract the last part of the key for shorter labels
+            # e.g., "game.agent.rewards.inventory.heart" -> "heart"
+            short_key = key.split(".")[-1]
+            # Format value to avoid too many decimals
+            if isinstance(value, float):
+                label_parts.append(f"{short_key}:{value:.3g}")
+            else:
+                label_parts.append(f"{short_key}:{value}")
+
+        if label_parts:
+            if mg_config.label:
+                mg_config.label += "|" + "|".join(label_parts)
+            else:
+                mg_config.label = "|".join(label_parts)
 
         # Apply the sampled bucket values as overrides
         return self._apply_overrides(mg_config, overrides)

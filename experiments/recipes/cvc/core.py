@@ -109,7 +109,12 @@ def make_training_env(
     mission_template = mission_cls()
     map_builder = get_map(mission_template.map_name)
     instantiated = mission_template.instantiate(map_builder, num_cogs, variant=None)
-    return instantiated.make_env()
+    env = instantiated.make_env()
+
+    # Set label with mission name so curriculum can track by mission
+    env.label = mission_name
+
+    return env
 
 
 def make_curriculum(
