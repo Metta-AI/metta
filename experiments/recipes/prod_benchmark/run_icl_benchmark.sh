@@ -19,7 +19,7 @@ set -euo pipefail
 ARCHITECTURE="vit_reset"
 CURRICULUM="terrain_2"
 BASE_RUN_NAME="icl_benchmark_$(date +%Y%m%d_%H%M%S)"
-USE_SKYPILOT=false
+USE_SKYPILOT=true
 NUM_GPUS=4
 DRY_RUN=false
 
@@ -101,8 +101,7 @@ launch_run() {
             "run=${run_name}"
             "curriculum_style=${CURRICULUM}"
             "architecture=${ARCHITECTURE}"
-            "system.seed=${seed}"
-            "training_env.seed=${seed}"
+            "seed=${seed}"
             "--gpus=${NUM_GPUS}"
             "--heartbeat-timeout=3600"
             "--skip-git-check"
@@ -115,8 +114,7 @@ launch_run() {
             "run=${run_name}"
             "curriculum_style=${CURRICULUM}"
             "architecture=${ARCHITECTURE}"
-            "system.seed=${seed}"
-            "training_env.seed=${seed}"
+            "seed=${seed}"
         )
     fi
 
