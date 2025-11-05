@@ -33,9 +33,9 @@ class TestTaskGeneratorInvariants:
         base_config = make_arena(num_agents=24)
         generator_config = BucketedTaskGenerator.Config.from_mg(base_config)
 
-        # Add buckets that don't change invariants (use correct nested paths)
-        generator_config.add_bucket("game.map_builder.width", [25, 32, 40])
+        # Add buckets that don't change invariants (avoid deep map_builder paths)
         generator_config.add_bucket("game.max_steps", [1000, 2000, 3000])
+        generator_config.add_bucket("game.agent.default_resource_limit", [25, 50, 100])
 
         generator = generator_config.create()
 
@@ -94,7 +94,7 @@ class TestTaskGeneratorInvariants:
 
         # Modify config2 to have different actions by disabling some
         config2.game.actions.move.enabled = False  # Disable an action
-        config2.game.actions.put_items.enabled = False  # Disable another action
+        config2.game.actions.attack.enabled = False  # Disable another action
 
         generator_config = (
             TaskGeneratorSet.Config()

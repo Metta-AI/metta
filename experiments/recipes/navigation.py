@@ -1,7 +1,6 @@
 import random
 from typing import Optional, Sequence
 
-import metta.cogworks.curriculum as cc
 import mettagrid.builder.envs as eb
 from metta.cogworks.curriculum.curriculum import (
     CurriculumAlgorithmConfig,
@@ -9,8 +8,6 @@ from metta.cogworks.curriculum.curriculum import (
 )
 from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
 from metta.cogworks.curriculum.task_generator import (
-    AnyTaskGeneratorConfig,
-    Span,
     TaskGenerator,
     TaskGeneratorConfig,
 )
@@ -31,44 +28,71 @@ from experiments.evals.navigation import make_navigation_eval_suite
 
 
 class NavigationTaskGenerator(TaskGenerator):
-    """Custom task generator for navigation that sets dynamic labels based on task parameters."""
+    """Custom task generator for navigation that creates map_builder configs directly."""
 
     class Config(TaskGeneratorConfig["NavigationTaskGenerator"]):
         """Configuration for NavigationTaskGenerator."""
 
-        child_generator: AnyTaskGeneratorConfig
+        base_env: MettaGridConfig
+        num_instances: int = 4
+        num_agents_per_instance: int = 1
 
     def __init__(self, config: "NavigationTaskGenerator.Config"):
         super().__init__(config)
         self._config = config
-        self._child_generator = config.child_generator.create()
+
+        # Build list of dense terrain maps
+        self._dense_maps = ["terrain_maps_nohearts"]
+        for size in ["large", "medium", "small"]:
+            for terrain in ["balanced", "maze", "sparse", "dense", "cylinder-world"]:
+                self._dense_maps.append(f"varied_terrain/{terrain}_{size}")
+
+        # Ranges for variation
+        self._altar_range = (3, 50)
+        self._sparse_width_range = (60, 120)
+        self._sparse_height_range = (60, 120)
+        self._sparse_altar_range = (1, 10)
 
     def _generate_task(self, task_id: int, rng: random.Random) -> MettaGridConfig:
-        """Generate task and set dynamic label based on task parameters."""
-        env_cfg = self._child_generator.get_task(task_id)
+        """Generate task by constructing full map_builder config."""
+        env_cfg = self._config.base_env.model_copy(deep=True)
 
-        # Get the bucket values that were sampled
-        bucket_values = getattr(self._child_generator, "_last_bucket_values", {})
+        # 50% chance of dense terrain, 50% chance of sparse random map
+        if rng.random() < 0.5:
+            # Dense terrain task
+            map_dir = rng.choice(self._dense_maps)
+            altar_count = rng.randint(*self._altar_range)
 
-        # Extract key parameters for labeling
-        map_dir = bucket_values.get("game.map_builder.instance.dir", "")
+            env_cfg.game.map_builder = MapGen.Config(
+                instances=self._config.num_instances,
+                border_width=6,
+                instance_border_width=3,
+                instance=NavigationFromNumpy.Config(
+                    agents=self._config.num_agents_per_instance,
+                    objects={"altar": altar_count},
+                    dir=map_dir,
+                ),
+            )
 
-        # Create label based on task type
-        if map_dir:
-            # Dense task - use terrain directory
-            # Extract just the terrain name from path like "varied_terrain/dense_large"
+            # Set label based on terrain
             terrain_name = map_dir.split("/")[-1] if "/" in map_dir else map_dir
-            label = terrain_name
-        elif (
-            "game.map_builder.width" in bucket_values
-            or "game.map_builder.height" in bucket_values
-        ):
-            # Sparse task - random maps
-            label = "random"
+            env_cfg.label = terrain_name
         else:
-            label = "navigation"
+            # Sparse random map task
+            width = rng.randint(*self._sparse_width_range)
+            height = rng.randint(*self._sparse_height_range)
+            altar_count = rng.randint(*self._sparse_altar_range)
 
-        env_cfg.label = label
+            env_cfg.game.map_builder = RandomMapBuilder.Config(
+                agents=self._config.num_instances
+                * self._config.num_agents_per_instance,
+                width=width,
+                height=height,
+                objects={"altar": altar_count},
+            )
+
+            env_cfg.label = "random"
+
         return env_cfg
 
 
@@ -96,35 +120,18 @@ def make_curriculum(
     nav_env: Optional[MettaGridConfig] = None,
     enable_detailed_slice_logging: bool = False,
     algorithm_config: Optional[CurriculumAlgorithmConfig] = None,
+    num_instances: int = 4,
+    num_agents_per_instance: int = 1,
 ) -> CurriculumConfig:
-    nav_env = nav_env or mettagrid()
-
-    # make a set of training tasks for navigation
-    dense_tasks = cc.bucketed(nav_env)
-
-    maps = ["terrain_maps_nohearts"]
-    for size in ["large", "medium", "small"]:
-        for terrain in ["balanced", "maze", "sparse", "dense", "cylinder-world"]:
-            maps.append(f"varied_terrain/{terrain}_{size}")
-
-    dense_tasks.add_bucket("game.map_builder.instance.dir", maps)
-    dense_tasks.add_bucket("game.map_builder.instance.objects.altar", [Span(3, 50)])
-
-    # sparse environments are just random maps
-    sparse_nav_env = nav_env.model_copy()
-    sparse_nav_env.game.map_builder = RandomMapBuilder.Config(
-        agents=4,
-        objects={"altar": 10},
+    nav_env = nav_env or mettagrid(
+        num_agents=num_agents_per_instance, num_instances=num_instances
     )
-    sparse_tasks = cc.bucketed(sparse_nav_env)
-    sparse_tasks.add_bucket("game.map_builder.width", [Span(60, 120)])
-    sparse_tasks.add_bucket("game.map_builder.height", [Span(60, 120)])
-    sparse_tasks.add_bucket("game.map_builder.objects.altar", [Span(1, 10)])
 
-    # Wrap in NavigationTaskGenerator to add dynamic labels
-    nav_tasks_config = cc.merge([dense_tasks, sparse_tasks])
-    nav_tasks_with_labels = NavigationTaskGenerator.Config(
-        child_generator=nav_tasks_config
+    # Use custom task generator that creates map_builder configs directly
+    nav_tasks_config = NavigationTaskGenerator.Config(
+        base_env=nav_env,
+        num_instances=num_instances,
+        num_agents_per_instance=num_agents_per_instance,
     )
 
     if algorithm_config is None:
@@ -144,7 +151,7 @@ def make_curriculum(
         )
 
     return CurriculumConfig(
-        task_generator=nav_tasks_with_labels,
+        task_generator=nav_tasks_config,
         num_active_tasks=50,
         algorithm_config=algorithm_config,
     )

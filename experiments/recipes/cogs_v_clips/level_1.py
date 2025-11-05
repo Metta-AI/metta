@@ -304,7 +304,7 @@ class CogsVsClippiesTaskGenerator(TaskGenerator):
         else:
             env.game.map_builder = MapGen.Config(
                 instances=num_instances,
-                instance_map=env.game.map_builder,
+                instance=env.game.map_builder,
                 num_agents=24,
             )
         env.game.num_agents = 24

@@ -85,7 +85,11 @@ class MapGenConfig(MapBuilderConfig["MapGen"]):
             if isinstance(target, type) and issubclass(target, Scene):
                 return validate_any_scene_config(v)
             elif isinstance(target, type) and issubclass(target, MapBuilder):
-                return MapBuilderConfig.model_validate(v)
+                # Use the Config class associated with this MapBuilder
+                return target.Config.model_validate(v)
+            elif isinstance(target, type) and issubclass(target, MapBuilderConfig):
+                # The type string pointed directly to a Config class (e.g., "Foo.Config")
+                return target.model_validate(v)
             else:
                 raise ValueError(f"Invalid instance type: {target!r}")
         else:
