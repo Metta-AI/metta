@@ -84,7 +84,7 @@ ensure_tool() {
 
   ensure_paths
 
-  if [ "$tool" = "nim" ] || [ "$tool" = "nimby" ]; then
+  if [ "$tool" = "nim" ] ]; then
     if ensure_nim_via_nimby ; then
       ensure_paths
       return 0
@@ -408,7 +408,6 @@ get_bazelisk_url() {
 ensure_tool "curl"
 ensure_tool "g++"
 ensure_tool "git"
-ensure_tool "nimby"
 ensure_tool "nim"
 ensure_tool "bazel"
 ensure_uv_setup
