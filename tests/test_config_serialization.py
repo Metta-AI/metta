@@ -12,7 +12,7 @@ from experiments.recipes.assembly_lines import (
 )
 
 from metta.cogworks.curriculum.config_serialization import (
-    serialize_config,         
+    serialize_config,
     extract_features_from_config,
     get_feature_spec,
     get_feature_dim,
@@ -46,6 +46,7 @@ def test_extract_features_structured_first(task_generator):
     assert "height" in feats and 5 <= feats["height"] <= 50
     assert "chain_length" in feats and 1 <= feats["chain_length"] <= 6
     assert "num_sinks" in feats and 0 <= feats["num_sinks"] <= 2
+    # keep xlarge in the acceptable set (future use)
     assert feats["room_size"] in {"tiny", "small", "medium", "large", "xlarge"}
     assert feats["terrain"] in {"no-terrain", "sparse", "balanced", "dense"}
 
@@ -71,7 +72,7 @@ def test_roundtrip(task_generator):
     """Serialize -> Deserialize (Option B factory) should preserve base fields exactly."""
     cfg0 = task_generator.get_task(42)
 
-    base = serialize_config(cfg0)  
+    base = serialize_config(cfg0)
     cfg1 = deserialize_config(base)
 
     f0 = extract_features_from_config(cfg0)
@@ -136,3 +137,26 @@ def test_categorical_segments_are_one_hot(task_generator):
     assert np.isclose(rs.sum(), 1.0, atol=1e-6)
     assert np.isclose(tr.sum(), 1.0, atol=1e-6)
     assert (rs >= -1e-6).all() and (tr >= -1e-6).all()
+
+
+@pytest.mark.parametrize("terrain", ["no-terrain", "sparse", "balanced", "dense"])
+def test_all_terrains_roundtrip(task_generator, terrain):
+    """Ensure each terrain survives serialize/deserialize."""
+    cfg = task_generator.build_config_from_params(
+        chain_length=3, num_sinks=1, width=12, height=9,
+        terrain=terrain, room_size="small", rng=random.Random(0),
+    )
+    rt = deserialize_config(serialize_config(cfg))
+    f0, f1 = extract_features_from_config(cfg), extract_features_from_config(rt)
+    assert f0["terrain"] == f1["terrain"]
+
+
+def test_assemblers_block_differs_when_structure_differs(task_generator):
+    """Optional assembler block should reflect structure (even with count-only fallback)."""
+    a = task_generator.build_config_from_params(1, 0, 10, 10, "sparse", "small", random.Random(0))
+    b = task_generator.build_config_from_params(6, 2, 10, 10, "sparse", "small", random.Random(0))
+    sa = serialize_config(a, include_assemblers=True)
+    sb = serialize_config(b, include_assemblers=True)
+    assert "assemblers" in sa and "assemblers" in sb
+    assert sa["assemblers"].shape == sb["assemblers"].shape
+    assert not np.allclose(sa["assemblers"], sb["assemblers"])

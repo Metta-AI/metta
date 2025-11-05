@@ -9,11 +9,6 @@ import numpy as np
 
 from mettagrid.config.mettagrid_config import MettaGridConfig
 
-# If to add/remove/reorder fields or categories, introduce versions, and bump the version(s) below.
-# Example
-# FEATURE_VERSION_BASE: Final[str] = "assembly_lines.v1"
-# FEATURE_VERSION_SUMMARY: Final[str] = "assemblers_summary.v1"
-
 
 @dataclass
 class FeatureSpec:
@@ -66,6 +61,7 @@ _BASE_SPECS: List[FeatureSpec] = [
     FeatureSpec("height", "discrete", 5, 50),
     FeatureSpec("chain_length", "discrete", 1, 6),
     FeatureSpec("num_sinks", "discrete", 0, 2),
+    # Keep 'xlarge' in the schema (may be used later by curricula)
     FeatureSpec("room_size", "categorical", categories=["tiny", "small", "medium", "large", "xlarge"]),
     FeatureSpec("terrain", "categorical", categories=["no-terrain", "sparse", "balanced", "dense"]),
 ]
@@ -76,12 +72,24 @@ def get_feature_spec() -> List[FeatureSpec]:
     return list(_BASE_SPECS)
 
 
+def get_feature_spec_map() -> Mapping[str, FeatureSpec]:
+    """Return a mapping name -> FeatureSpec (ordered like _BASE_SPECS)."""
+    return {s.name: s for s in _BASE_SPECS}
+
+
 def get_feature_dim() -> int:
     """Return total dimensionality of the concatenated base vector (continuous + categorical)."""
     dim = 0
     for s in _BASE_SPECS:
         dim += len(s.categories) if s.categories else 1
     return dim
+
+
+def get_block_dims() -> Tuple[int, int]:
+    """Return (#continuous_scalars, #categorical_onehot_dims)."""
+    cont = sum(1 for s in _BASE_SPECS if s.feature_type != "categorical")
+    cat = sum(len(s.categories or []) for s in _BASE_SPECS if s.feature_type == "categorical")
+    return cont, cat
 
 
 def _map_builder(cfg: MettaGridConfig):
@@ -175,15 +183,23 @@ def extract_features_from_config(config: MettaGridConfig) -> Dict[str, Any]:
     }
 
 
-
-
-def serialize_config(config: MettaGridConfig) -> dict[str, np.ndarray]:
-    """Serialize MettaGridConfig to {"continuous": 1-D, "categorical": 1-D}.
+def serialize_config(
+    config: MettaGridConfig,
+    *,
+    include_assemblers: bool = False,
+    resource_types: Sequence[str] | None = None,
+    sentinels: Tuple[str, str] = ("nothing", "heart"),
+) -> dict[str, np.ndarray]:
+    """Serialize MettaGridConfig to {"continuous": 1-D, "categorical": 1-D[, "assemblers": 1-D]}.
 
     continuous: normalized scalars in base-spec order for non-categorical features
                 [width, height, chain_length, num_sinks]
     categorical: concatenated one-hots in base-spec order for categorical features
                  [room_size one-hot, terrain one-hot]
+
+    If `include_assemblers`:
+      - if `resource_types` provided: adds a non-invertible summary vector
+      - else: adds a 1-D vector with normalized assembler count
     """
     raw = extract_features_from_config(config)
     continuous_vals: List[float] = []
@@ -196,20 +212,34 @@ def serialize_config(config: MettaGridConfig) -> dict[str, np.ndarray]:
         else:
             continuous_vals.append(float(norm))
 
-    return {
+    out: dict[str, np.ndarray] = {
         "continuous": np.asarray(continuous_vals, dtype=np.float32),
         "categorical": np.asarray(categorical_vals, dtype=np.float32),
     }
 
+    if include_assemblers:
+        if resource_types:
+            out["assemblers"] = _summary_vector(
+                config, resource_types=resource_types, sentinels=sentinels
+            ).astype(np.float32)
+        else:
+            # Minimal signal: normalized assembler count (chain+1+sinks capped at 12)
+            num_assemblers = float(raw.get("num_assemblers", 0))
+            out["assemblers"] = np.asarray(
+                [min(12.0, max(0.0, num_assemblers)) / 12.0], dtype=np.float32
+            )
+
+    return out
+
 
 def _denormalize_from_blocks(continuous: np.ndarray, categorical: np.ndarray) -> Dict[str, Any]:
-    """Inverse of `serialize_config`."""
+    """Inverse of `serialize_config` (base blocks only)."""
     cont = np.asarray(continuous, dtype=np.float32).ravel()
     cat = np.asarray(categorical, dtype=np.float32).ravel()
 
     raw: Dict[str, Any] = {}
-    ci = 0 
-    ki = 0 
+    ci = 0
+    ki = 0
 
     for spec in _BASE_SPECS:
         if spec.feature_type == "categorical":
@@ -238,7 +268,7 @@ def _denormalize_from_blocks(continuous: np.ndarray, categorical: np.ndarray) ->
 
 
 def deserialize_config(features: Mapping[str, np.ndarray], *, rng: random.Random | None = None) -> MettaGridConfig:
-    """Deserialize guided dict features back to a MettaGridConfig"""
+    """Deserialize guided dict features back to a MettaGridConfig."""
     if "continuous" not in features or "categorical" not in features:
         raise KeyError("features must include 'continuous' and 'categorical'")
     cont = np.asarray(features["continuous"], dtype=np.float32)
@@ -382,7 +412,7 @@ def flatten_payload(payload: dict[str, Any], *, include_summary: bool = True) ->
 
 def get_total_feature_dim(resource_types: Sequence[str], *, include_summary: bool = True) -> int:
     """Compute total feature dim given resource_types and include_summary flag."""
-    base = get_feature_dim() 
+    base = get_feature_dim()
     if include_summary and len(resource_types) > 0:
         return base + len(resource_types) + 2
     return base
