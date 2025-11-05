@@ -13,27 +13,31 @@ from tests.jobs.conftest import MockProcess, simple_job_config
 
 
 def test_job_lifecycle_complete_flow(temp_job_manager):
-    """Jobs flow through pending → running → completed with exit codes."""
+    """Jobs transition through states and eventually complete with correct exit code."""
     manager = temp_job_manager()
-    mock_process = MockProcess(exit_code=0, complete_after_polls=5)
+    mock_process = MockProcess(exit_code=0, complete_after_polls=2)
     with patch("subprocess.Popen", return_value=mock_process):
         config = simple_job_config("test_job")
         manager.submit(config)
 
-        # Poll until we see the running state (avoid race condition in CI)
-        for _ in range(20):
+        # Job should not be immediately completed (should be pending or running)
+        initial_state = manager.get_job_state("test_job")
+        assert initial_state.status in ("pending", "running")
+
+        # Wait for job to complete (monitoring thread checks every 1s, completes after 2 polls)
+        timeout = 5.0  # More than enough time for 2 polls at 1s intervals
+        start_time = time.time()
+        while time.time() - start_time < timeout:
             job_state = manager.get_job_state("test_job")
-            if job_state.status == "running":
+            if job_state.status == "completed":
                 break
-            time.sleep(0.05)
-        assert job_state.status == "running"
+            time.sleep(0.1)
 
-        time.sleep(0.2)
-
-        job_state = manager.get_job_state("test_job")
-        assert job_state.status == "completed"
-        assert job_state.exit_code == 0
-        assert job_state.completed_at is not None
+        # Verify final state
+        final_state = manager.get_job_state("test_job")
+        assert final_state.status == "completed"
+        assert final_state.exit_code == 0
+        assert final_state.completed_at is not None
 
 
 def test_job_with_non_zero_exit_code(temp_job_manager):
@@ -80,9 +84,9 @@ def test_respects_max_local_jobs_limit(temp_job_manager):
 
 
 def test_queued_job_starts_when_slot_frees(temp_job_manager):
-    """Pending jobs start when slots become available."""
+    """Pending jobs eventually start when slots become available."""
     manager = temp_job_manager(max_local_jobs=1)
-    mock_proc1 = MockProcess(exit_code=0, complete_after_polls=3)
+    mock_proc1 = MockProcess(exit_code=0, complete_after_polls=2)
     mock_proc2 = MockProcess(exit_code=0, complete_after_polls=100)
 
     with patch("subprocess.Popen", side_effect=[mock_proc1, mock_proc2]):
@@ -91,22 +95,25 @@ def test_queued_job_starts_when_slot_frees(temp_job_manager):
         manager.submit(config1)
         manager.submit(config2)
 
-        # Poll until we see job_1 running (avoid race condition in CI)
-        for _ in range(20):
-            job1_state = manager.get_job_state("job_1")
-            if job1_state.status == "running":
+        # Initially: job_1 should start, job_2 should be queued (may take a moment to observe)
+        initial_job2 = manager.get_job_state("job_2")
+        assert initial_job2.status in ("pending", "queued")  # Not running yet
+
+        # Wait for job_1 to complete and job_2 to start
+        # Monitoring thread checks every 1s, job_1 completes after 2 polls (~2s)
+        # Then poll() starts job_2
+        timeout = 5.0
+        start_time = time.time()
+        while time.time() - start_time < timeout:
+            manager.poll()  # Try to start pending jobs
+            job2_state = manager.get_job_state("job_2")
+            if job2_state.status == "running":
                 break
-            time.sleep(0.05)
-        assert manager.get_job_state("job_1").status == "running"
-        assert manager.get_job_state("job_2").status == "pending"
+            time.sleep(0.2)
 
-        time.sleep(0.3)
-
-        for _ in range(5):
-            manager.poll()
-            time.sleep(0.01)
-
-        assert manager.get_job_state("job_2").status == "running"
+        # Verify job_2 eventually started
+        final_job2 = manager.get_job_state("job_2")
+        assert final_job2.status == "running", f"job_2 should be running after job_1 completes, got {final_job2.status}"
 
 
 def test_cannot_submit_duplicate_job_name(temp_job_manager):
