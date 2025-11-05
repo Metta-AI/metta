@@ -9,16 +9,19 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Dict, Optional
 
+from mettagrid.policy.policy import MultiAgentPolicy, StatefulPolicyImpl
+
 from .baseline_agent import (
-    BaselineAgent,
     CellType,
     ExtractorInfo,
     Phase,
+    SharedAgentState,
     SimpleAgentState,
 )
 
 if TYPE_CHECKING:
     from cogames.policy import AgentPolicy
+    from mettagrid.policy.policy_env_interface import PolicyEnvInterface
     from mettagrid.simulator import Simulation
 
 
@@ -37,7 +40,7 @@ class UnclippingAgentState(SimpleAgentState):
     unclip_target_resource: Optional[str] = None  # Which resource is clipped
 
 
-class UnclippingAgent(BaselineAgent):
+class UnclippingAgent:
     """
     Agent that can unclip extractors by crafting and using unclip items.
 
@@ -49,8 +52,13 @@ class UnclippingAgent(BaselineAgent):
     """
 
     def __init__(self, simulation: "Simulation"):
-        super().__init__(simulation)
+        # TODO: UnclippingAgent needs to be properly implemented
+        # Currently it references many methods/attributes that don't exist
+        # This is a placeholder until proper refactoring
         self._unclip_recipes = self._load_unclip_recipes()
+        self._agent_states: Dict[int, UnclippingAgentState] = {}
+        self._map_h = simulation.map_height
+        self._map_w = simulation.map_width
 
     def _load_unclip_recipes(self) -> dict[str, str]:
         """
@@ -335,19 +343,29 @@ class UnclippingAgent(BaselineAgent):
 # ============================================================================
 
 
-class UnclippingPolicyImpl:
+class UnclippingPolicyImpl(StatefulPolicyImpl[UnclippingAgentState]):
     """Implementation that wraps UnclippingAgent."""
 
-    def __init__(self, simulation: "Simulation"):
+    def __init__(self, simulation: "Simulation", agent_id: int):
+        self._shared_state = SharedAgentState()
         self._agent = UnclippingAgent(simulation)
         self._sim = simulation
+        self._agent_id = agent_id
 
-    def agent_state(self, agent_id: int = 0) -> UnclippingAgentState:
+    def reset(self, simulation: Optional["Simulation"]) -> None:
+        """Reset the policy."""
+        pass
+
+    def initial_agent_state(self, simulation: Optional["Simulation"]) -> UnclippingAgentState:
         """Get initial state for an agent."""
+        assert simulation is not None
+        agent_id = self._agent_id
         # Make sure agent states are initialized
         if agent_id not in self._agent._agent_states:
             state = UnclippingAgentState(
                 agent_id=agent_id,
+                simulation=simulation,
+                shared_state=self._shared_state,
                 map_height=self._agent._map_h,
                 map_width=self._agent._map_w,
                 occupancy=[[CellType.FREE.value] * self._agent._map_w for _ in range(self._agent._map_h)],
@@ -374,20 +392,21 @@ class UnclippingPolicyImpl:
         return action, self._agent._agent_states[agent_id]
 
 
-class UnclippingPolicy:
+class UnclippingPolicy(MultiAgentPolicy):
     """Policy class for unclipping agent.
 
     This policy requires a Simulation object for accessing grid_objects()
     to get absolute agent positions. Pass it via reset(simulation=sim).
     """
 
-    def __init__(self):
-        """Initialize policy (simulation will be provided via reset)."""
+    def __init__(self, policy_env_info: "PolicyEnvInterface"):
+        """Initialize policy."""
+        super().__init__(policy_env_info)
         self._sim = None
-        self._impl = None
+        self._impls: Dict[int, UnclippingPolicyImpl] = {}
         self._agent_policies: Dict[int, "AgentPolicy"] = {}
 
-    def reset(self, simulation: "Simulation" = None) -> None:
+    def reset(self, simulation: Optional["Simulation"] = None) -> None:
         """Reset all agent states.
 
         Args:
@@ -397,17 +416,20 @@ class UnclippingPolicy:
             raise RuntimeError("UnclippingPolicy requires simulation parameter in reset()")
 
         self._sim = simulation
-        self._impl = UnclippingPolicyImpl(simulation)
+        self._impls.clear()
         self._agent_policies.clear()
 
     def agent_policy(self, agent_id: int):
         """Get an AgentPolicy instance for a specific agent."""
-        if self._impl is None:
+        if self._sim is None:
             raise RuntimeError("Policy not initialized - call reset(simulation=sim) first")
 
         # Create agent policies lazily
         if agent_id not in self._agent_policies:
             from cogames.policy import StatefulAgentPolicy
 
-            self._agent_policies[agent_id] = StatefulAgentPolicy(self._impl, agent_id)
+            # Create per-agent impl instance
+            if agent_id not in self._impls:
+                self._impls[agent_id] = UnclippingPolicyImpl(self._sim, agent_id)
+            self._agent_policies[agent_id] = StatefulAgentPolicy(self._impls[agent_id])
         return self._agent_policies[agent_id]
