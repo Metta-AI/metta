@@ -368,6 +368,7 @@ def play(curriculum_style: str = "level_0") -> PlayTool:
         )
     )
 
+
 def replay(
     curriculum_style: str = "level_0",
 ) -> ReplayTool:
@@ -383,8 +384,10 @@ def replay(
         policy_uri=default_policy_uri,
     )
 
-if __name__ == "__main__":
-    subprocess.run(
+
+def experiment():
+    for curriculum_style in curriculum_args:
+        subprocess.run(
             [
                 "./devops/skypilot/launch.py",
                 "experiments.recipes.assembly_lines.train",
@@ -395,3 +398,8 @@ if __name__ == "__main__":
                 "--skip-git-check",
             ]
         )
+        time.sleep(1)
+
+
+if __name__ == "__main__":
+    experiment()
