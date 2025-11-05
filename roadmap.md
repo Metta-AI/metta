@@ -5,13 +5,11 @@
 ### 1.1. Game Dynamics
 
 - 1.1.1. Resource System
-
   - Resource generation rates
   - Rarity
   - Mining cost
   - Probabilistic mining
 - 1.1.2. Metabolism and Energy Costs
-
   - Converting between resources
   - Converting to energy
 - 1.1.3. Object Interactions and Crafting

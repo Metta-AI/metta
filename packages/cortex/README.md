@@ -42,15 +42,12 @@ from cortex import build_cortex, CortexStackConfig
 Cortex implements a modular stack-based memory architecture with four core abstractions:
 
 1. **Cells**: Stateless memory units (LSTM, GRU, etc.) that process sequences
-
    - Purpose: Encapsulate recurrent computation logic (gates, state updates, memory mechanisms)
    - Interface: Accepts input tensor and state, returns output and updated state
    - Examples: LSTM, mLSTM, sLSTM, AGaLiTe style memory, self-attention, or pretty much any other memory cell!
 2. **Blocks**: Wrappers around cells that handle projections and transformations
-
    - Purpose: Control information flow, stabilize gradients, and manage dimensionality
 3. **Column**: A router‑mixed set of expert blocks executed in parallel and combined
-
    - Purpose: Let multiple block "experts" compete/cooperate per token/over time.
    - How: A global prior gate (with optional per‑token refinement) mixes expert deltas; an E‑axis mixer and outer ReZero
      stabilize depth
@@ -178,9 +175,11 @@ AxonLayer‑backed Q/K/V projections. | No | No | **Notes:**
 
 ### Blocks
 
-Wrappers around cells that handle projections, normalization, and information flow. | Block | Description | |
------------------- |
-------------------------------------------------------------------------------------------------------------------------------------------------
+| Wrappers around cells that handle projections, normalization, and information flow. | Block | Description |     |
+| ----------------------------------------------------------------------------------- | ----- | ----------- | --- |
+
+---
+
 | | `PassThroughBlock` | Applies the nested cell directly at `d_hidden` with residual; no projections. | | `PreUpBlock`
 | Pre-upsamples to `d_inner = int(proj_factor * d_hidden)`, runs the cell at `d_inner`, gates and projects back to
 `d_hidden`, then adds residual. | | `PostUpBlock` | Runs the cell at `d_hidden`, then applies a gated feed-forward
@@ -382,8 +381,8 @@ See also the reference wiring in:
 - `bptt`: int Tensor (shape [1]); 1 for rollout (step mode), >1 for training (sequence mode)
 - `batch`: int Tensor (shape [1]); batch size B
 - `training_env_ids`: Long Tensor identifying environments (B or [B, T])
-- Optional resets via `dones`/`truncateds` booleans (B or [B, T]) `CortexTD` maintains separate caches for rollout and
-  training, supports checkpointing via `get_memory()`/`set_memory()`, and applies resets automatically.
+- Optional resets via `dones`/`truncateds` booleans (B or [B, T]) `CortexTD` maintains separate caches for rollout and training,
+  supports checkpointing via `get_memory()`/`set_memory()`, and applies resets automatically.
 
 ## Evaluate Quickly
 

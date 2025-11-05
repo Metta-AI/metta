@@ -8,9 +8,7 @@ This collector tracks three key areas:
 
 1. **Resource Efficiency** - CPU/memory waste from overallocation
 2. **Pod Health** - Crashes, failures, and restarts
-3. **Underutilization** - Idle and underperforming pods
-
-**Collection Frequency**: Every 5-10 minutes (recommended)
+3. **Underutilization** - Idle and underperforming pods **Collection Frequency**: Every 5-10 minutes (recommended)
 
 ## Metrics Collected (15 total)
 
@@ -58,9 +56,7 @@ This collector tracks three key areas:
 
 - Pods (all namespaces)
 - Deployments (all namespaces)
-- Pod metrics (metrics.k8s.io/v1beta1)
-
-**Required RBAC**:
+- Pod metrics (metrics.k8s.io/v1beta1) **Required RBAC**:
 
 ```yaml
 apiVersion: rbac.authorization.k8s.io/v1
@@ -110,10 +106,8 @@ The collector automatically loads Kubernetes config:
 ```bash
 # Test collection (dry-run)
 uv run python devops/datadog/scripts/run_collector.py kubernetes --verbose
-
 # Test and push to Datadog
 uv run python devops/datadog/scripts/run_collector.py kubernetes --push
-
 # JSON output
 uv run python devops/datadog/scripts/run_collector.py kubernetes --json
 ```
@@ -123,7 +117,6 @@ uv run python devops/datadog/scripts/run_collector.py kubernetes --json
 ```
 Collecting Kubernetes efficiency and health metrics...
 Collected 15 metrics
-
 Collected metrics:
   k8s.deployments.zero_replicas: 0
   k8s.pods.crash_looping: 0
@@ -196,15 +189,9 @@ spec:
 **Widget**: Timeseries
 
 - `k8s.resources.cpu_waste_cores` - Track CPU waste trend
-- `k8s.resources.memory_waste_gb` - Track memory waste trend
-
-**Widget**: Query Value
-
+- `k8s.resources.memory_waste_gb` - Track memory waste trend **Widget**: Query Value
 - `k8s.resources.cpu_efficiency_pct` - Show current efficiency
-- Alert if < 30% (very wasteful)
-
-**Widget**: Top List
-
+- Alert if < 30% (very wasteful) **Widget**: Top List
 - `k8s.resources.overallocated_pods` by pod name
 - Shows worst offenders for rightsizing
 
@@ -213,10 +200,7 @@ spec:
 **Widget**: Heatmap
 
 - `k8s.pods.crash_looping` by namespace
-- `k8s.pods.oomkilled_24h` by namespace
-
-**Widget**: Query Value
-
+- `k8s.pods.oomkilled_24h` by namespace **Widget**: Query Value
 - `sum:k8s.pods.failed{*}` - Total failed pods
 - Alert if > 0
 
@@ -289,31 +273,24 @@ message: |
 
 ### Issue: "No metrics collected"
 
-**Cause**: Metrics server not installed or not responding
-
-**Solution**:
+**Cause**: Metrics server not installed or not responding **Solution**:
 
 ```bash
 # Check if metrics-server is installed
 kubectl get deployment metrics-server -n kube-system
-
 # If not installed, install it
 kubectl apply -f https://github.com/kubernetes-sigs/metrics-server/releases/latest/download/components.yaml
-
 # Verify it's working
 kubectl top nodes
 ```
 
 ### Issue: "Permission denied" errors
 
-**Cause**: Insufficient RBAC permissions
-
-**Solution**:
+**Cause**: Insufficient RBAC permissions **Solution**:
 
 ```bash
 # Apply RBAC permissions (see Configuration section)
 kubectl apply -f rbac.yaml
-
 # Verify permissions
 kubectl auth can-i get pods --all-namespaces
 kubectl auth can-i get deployments --all-namespaces
@@ -322,23 +299,18 @@ kubectl auth can-i get pods.metrics.k8s.io --all-namespaces
 
 ### Issue: CPU/Memory efficiency is 0%
 
-**Cause**: Pod metrics not available yet (metrics-server needs time to collect)
-
-**Solution**: Wait 1-2 minutes and try again. Metrics-server scrapes every 60 seconds.
+**Cause**: Pod metrics not available yet (metrics-server needs time to collect) **Solution**: Wait 1-2 minutes and try
+again. Metrics-server scrapes every 60 seconds.
 
 ### Issue: Only collecting some metrics
 
-**Cause**: Partial metrics-server data or API connectivity issues
-
-**Check**:
+**Cause**: Partial metrics-server data or API connectivity issues **Check**:
 
 ```bash
 # Verify metrics-server is healthy
 kubectl get apiservice v1beta1.metrics.k8s.io -o yaml
-
 # Check metrics-server logs
 kubectl logs -n kube-system deployment/metrics-server
-
 # Test metrics API directly
 kubectl get --raw /apis/metrics.k8s.io/v1beta1/pods
 ```
@@ -352,10 +324,7 @@ kubectl get --raw /apis/metrics.k8s.io/v1beta1/pods
 - Requested: 8 CPU, 16Gi memory
 - Actual usage: 34m CPU, 5.3Gi memory
 - Waste: 7.97 CPU cores, 10.7Gi memory
-- **Monthly cost**: ~$240/month wasted
-
-**After rightsizing** (recommended: 500m CPU, 8Gi memory):
-
+- **Monthly cost**: ~$240/month wasted **After rightsizing** (recommended: 500m CPU, 8Gi memory):
 - **Savings**: ~$180/month (75% reduction)
 
 ### Example 2: Cluster-Wide Optimization
@@ -364,9 +333,7 @@ kubectl get --raw /apis/metrics.k8s.io/v1beta1/pods
 
 - CPU efficiency: 2.45%
 - Memory efficiency: 34.12%
-- Overallocated pods: 4
-
-**Potential savings**: 15.47 cores _ $30/core _ 730 hours = **$3,388/month**
+- Overallocated pods: 4 **Potential savings**: 15.47 cores _ $30/core _ 730 hours = **$3,388/month**
 
 ## Integration with Other Collectors
 
@@ -374,9 +341,8 @@ The Kubernetes collector complements other collectors:
 
 - **EC2 Collector**: Shows node-level costs and utilization
 - **GitHub Collector**: Correlate deployment frequency with pod crashes
-- **Skypilot Collector**: Compare training job resource usage
-
-**Combined Dashboard**: Track end-to-end infrastructure efficiency
+- **Skypilot Collector**: Compare training job resource usage **Combined Dashboard**: Track end-to-end infrastructure
+  efficiency
 
 ## Maintenance
 
@@ -394,7 +360,6 @@ To add new metrics:
 ```bash
 # Run tests
 pytest devops/datadog/tests/collectors/test_kubernetes.py -v
-
 # Test against live cluster
 uv run python devops/datadog/scripts/run_collector.py kubernetes --verbose
 ```

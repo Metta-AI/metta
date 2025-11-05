@@ -9,7 +9,6 @@ This guide will help you get started with splitting large PRs using gitta.
    pip install gitta
    ```
 2. **Get an Anthropic API key:**
-
    - Sign up at https://console.anthropic.com/
    - Create an API key
    - Set it as an environment variable:

@@ -45,7 +45,7 @@ jobs:
         uses: mymindstorm/setup-emsdk@v14
         with:
           version: 4.0.19
-          actions-cache-folder: 'emsdk-cache'
+          actions-cache-folder: "emsdk-cache"
 
       - name: Build mettascope
         run: |

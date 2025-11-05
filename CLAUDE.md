@@ -126,9 +126,7 @@ implementation.
 
 ### Guiding Question
 
-"Would this prompt produce the best result for a non-expert user?" The goal: Design interactions, not just instructions.
-
----
+## "Would this prompt produce the best result for a non-expert user?" The goal: Design interactions, not just instructions.
 
 ## Project Overview
 
@@ -342,7 +340,6 @@ Renovate groups related packages together to reduce PR noise:
 #### Handling Dependency Updates
 
 1. **Automatic Updates**
-
    - Patch updates for stable packages are auto-merged
    - Minor updates create PRs for review
    - Major updates require approval via dependency dashboard

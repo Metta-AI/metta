@@ -18,7 +18,6 @@ between stack recipes. Quick start
 - This harness keeps things minimal on purpose; it is not aimed at state-of-the-art training, just fast debugging of
   block/cell wiring and step/sequence parity. Tasks
 - Delayed Recall (T‑Maze)
-
   - Tokens: {0, 1, 2} where 2 is a filler/PAD token.
   - Sequence: length = delay + 1. The first token is a binary cue bit (0/1); the remaining positions are filler (2).
   - Label: equals the cue bit. The model must store the first token across a variable delay and recall it at the end.
@@ -26,7 +25,6 @@ between stack recipes. Quick start
     inputs carry no information.
   - Defaults here: delay=50, vocab_size=3, binary classification.
 - Majority (Running Majority / Counting)
-
   - Tokens: {0 (pad), 1 ("+1"), 2 ("‑1")}.
   - Sequence: fixed length L. Each position is non‑zero with probability p; non‑zeros are equally likely 1 or 2.
   - Label: 1 if count(1) > count(2); otherwise 0.

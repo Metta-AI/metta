@@ -1,8 +1,7 @@
 # GitHub Collector
 
-Collects development metrics from GitHub API for the Metta repository.
-
-**Status**: ✅ **Production** - Deployed and operational (Helm revision 16, monitoring namespace)
+Collects development metrics from GitHub API for the Metta repository. **Status**: ✅ **Production** - Deployed and
+operational (Helm revision 16, monitoring namespace)
 
 ## Metrics Collected
 

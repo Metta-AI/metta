@@ -11,9 +11,7 @@ Automated metric collection from multiple services for Datadog monitoring.
 
 ## System Overview
 
-Automated metric collection from multiple services via Kubernetes CronJobs:
-
-**Current Collectors:**
+Automated metric collection from multiple services via Kubernetes CronJobs: **Current Collectors:**
 
 - **GitHub** ✅ **(Production)**: 28 metrics - PRs, commits, branches, CI/CD workflows, developer activity
 - **Skypilot** ✅ **(Production)**: 30 metrics - Jobs, clusters, resource utilization
@@ -22,10 +20,8 @@ Automated metric collection from multiple services via Kubernetes CronJobs:
 - **WandB** ✅ **(Production)**: 11 per-run metrics - Training runs with per-run tags (duration, SPS, hearts, latency)
   for PTM/sweep/all runs
 - **Kubernetes** ✅ **(Production)**: 15 metrics - Resource efficiency, pod health, waste tracking
-- **Health FoM** ✅ **(Production)**: 14 metrics - Normalized 0.0-1.0 health scores for CI/CD and training metrics
-
-All collectors:
-
+- **Health FoM** ✅ **(Production)**: 14 metrics - Normalized 0.0-1.0 health scores for CI/CD and training metrics All
+  collectors:
 - Run together every 15 minutes via unified CronJob
 - Use AWS Secrets Manager for credentials
 - Emit health metrics about themselves
@@ -50,7 +46,6 @@ Collectors require AWS credentials for Secrets Manager access:
 ```bash
 # Configure AWS CLI (if not already done)
 aws configure
-
 # Verify access to secrets
 aws secretsmanager get-secret-value --secret-id github/dashboard-token --region us-east-1
 ```
@@ -58,14 +53,11 @@ aws secretsmanager get-secret-value --secret-id github/dashboard-token --region 
 ### Datadog API Keys & Secrets
 
 All secrets are stored in AWS Secrets Manager. See [docs/SECRETS_SETUP.md](docs/SECRETS_SETUP.md) for complete setup
-guide.
-
-**Both Production and Local Development** use AWS Secrets Manager:
+guide. **Both Production and Local Development** use AWS Secrets Manager:
 
 ```bash
 # Configure AWS CLI (one-time setup)
 aws configure
-
 # Verify access to secrets
 uv run python scripts/validate_secrets.py
 ```
@@ -81,7 +73,6 @@ your personal AWS CLI credentials
 # Run all collectors locally (pushes metrics to Datadog)
 cd devops/datadog
 uv run python scripts/run_all_collectors.py
-
 # Run individual collector
 uv run python scripts/run_collector.py github --verbose
 ```
@@ -91,12 +82,10 @@ uv run python scripts/run_collector.py github --verbose
 ```bash
 # Run all collectors (recommended - used by CronJob)
 uv run python devops/datadog/scripts/run_all_collectors.py
-
 # Run individual collector
 uv run python devops/datadog/scripts/run_collector.py github --verbose
 uv run python devops/datadog/scripts/run_collector.py kubernetes --verbose
 uv run python devops/datadog/scripts/run_collector.py ec2 --verbose
-
 # Push metrics to Datadog
 uv run python devops/datadog/scripts/run_all_collectors.py  # Pushes all
 uv run python devops/datadog/scripts/run_collector.py github --push  # Individual
@@ -110,7 +99,6 @@ See [Adding New Collector](docs/ADDING_NEW_COLLECTOR.md) for complete guide.
 # 1. Create collector structure
 mkdir -p collectors/skypilot
 touch collectors/skypilot/{__init__.py,collector.py,metrics.py,README.md}
-
 # 2. Implement collector (see guide)
 # 3. Add secrets to AWS Secrets Manager
 # 4. Configure Helm chart in devops/charts/
