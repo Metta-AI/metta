@@ -2,7 +2,7 @@
 
 import pytest
 
-from mettagrid.config.mettagrid_c_config import from_mettagrid_config
+from mettagrid.config.mettagrid_c_config import convert_to_cpp_game_config
 from mettagrid.config.mettagrid_config import (
     ActionsConfig,
     AgentConfig,
@@ -53,7 +53,7 @@ def test_exception_when_laser_not_in_inventory():
     # Check that creating the environment raises an exception
     with pytest.raises(ValueError) as exc_info:
         # This should trigger an exception about missing laser resource
-        MettaGrid(from_mettagrid_config(game_config), game_map, 42)
+        MettaGrid(convert_to_cpp_game_config(game_config), game_map, 42)
 
     # Check the exception message
     assert "attack" in str(exc_info.value)
@@ -92,7 +92,7 @@ def test_no_exception_when_resources_in_inventory():
 
     # This should not raise an exception
     try:
-        MettaGrid(from_mettagrid_config(game_config), game_map, 42)
+        MettaGrid(convert_to_cpp_game_config(game_config), game_map, 42)
         print("✓ No exception raised when all resources are in inventory")
     except ValueError as e:
         pytest.fail(f"Unexpected ValueError: {e}")
