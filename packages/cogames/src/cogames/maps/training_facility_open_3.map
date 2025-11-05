@@ -28,7 +28,7 @@ char_to_name_map:
   "+": charger
   "&": assembler
   "=": chest
-  "C": carbon
-  "O": oxygen
-  "G": germanium
-  "S": silicon
+  "C": carbon_extractor
+  "O": oxygen_extractor
+  "G": germanium_extractor
+  "S": silicon_extractor

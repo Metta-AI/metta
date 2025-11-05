@@ -158,8 +158,11 @@ class LSTMAgentPolicy(StatefulAgentPolicy[LSTMState]):
         self._obs_shape = obs_shape
         self._actions = actions
 
-    def agent_state(self) -> Optional[LSTMState]:
+    def agent_state(self, agent_id: int = 0) -> Optional[LSTMState]:
         """Get initial state for a new agent.
+
+        Args:
+            agent_id: The ID of the agent (unused for LSTM)
 
         For LSTM, we return None and let the network initialize the state on first forward pass.
         """
