@@ -10,8 +10,14 @@ from metta.cogworks.curriculum.curriculum import (
 )
 from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
 from metta.rl.loss import LossConfig
+from metta.rl.loss.tl_kickstarter import TLKickstarterConfig
 from metta.rl.trainer_config import TorchProfilerConfig, TrainerConfig
-from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
+from metta.rl.training import (
+    CheckpointerConfig,
+    EvaluatorConfig,
+    TrainingEnvironmentConfig,
+)
+from metta.rl.training.scheduler import LossRunGate, SchedulerConfig
 from metta.sim.simulation_config import SimulationConfig
 from metta.sweep.core import Distribution as D
 from metta.sweep.core import SweepParameters as SP
@@ -102,12 +108,29 @@ def train(
     )
 
     eval_simulations = simulations()
+
+    # Configure losses with tl_kickstarter
+    loss_config = LossConfig()
+    # loss_config.loss_configs["tl_kickstarter"] = TLKickstarterConfig()
+
     trainer_cfg = TrainerConfig(
-        losses=LossConfig(),
+        losses=loss_config,
     )
 
     if policy_architecture is None:
         policy_architecture = ViTDefaultConfig()
+
+    # Configure scheduler with run gates
+    # scheduler = SchedulerConfig(
+    #     run_gates=[
+    #         # PPO rollout doesn't run for the first 50 epochs (starts at epoch 50)
+    #         LossRunGate(loss_instance_name="ppo", phase="rollout", begin_at_epoch=50),
+    #         # tl_kickstarter rollout doesn't run after the 50th epoch (ends before epoch 51)
+    #         LossRunGate(
+    #             loss_instance_name="tl_kickstarter", phase="rollout", end_at_epoch=51
+    #         ),
+    #     ],
+    # )
 
     return TrainTool(
         trainer=trainer_cfg,
@@ -115,6 +138,10 @@ def train(
         evaluator=EvaluatorConfig(simulations=eval_simulations),
         policy_architecture=policy_architecture,
         torch_profiler=TorchProfilerConfig(),
+        # scheduler=scheduler,
+        checkpointer=CheckpointerConfig(
+            epoch_interval=10
+        ),  # Checkpoint every 100 epochs
     )
 
 
