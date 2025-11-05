@@ -223,24 +223,37 @@ def _evaluate_single_mission(
     with typer.progressbar(range(episodes), label=progress_label) as progress:
         for episode_idx in progress:
             rng.shuffle(assignments)
-            agent_policies = [
-                policy_instances[assignments[agent_id]].agent_policy(agent_id)
-                for agent_id in range(env_cfg.game.num_agents)
-            ]
 
-            rollout = Rollout(
-                env_cfg,
-                agent_policies,
-                max_action_time_ms=action_timeout_ms,
-                render_mode=None,
-                seed=seed + episode_idx,
-            )
+            # Fast path for single-policy evaluations (common for scripted agents)
+            if len(policy_instances) == 1 and hasattr(policy_instances[0], "agent_policy"):
+                rollout = Rollout(
+                    env_cfg,
+                    [policy_instances[0]],
+                    max_action_time_ms=action_timeout_ms,
+                    render_mode=None,
+                    seed=seed + episode_idx,
+                )
+                per_episode_assignments.append(assignments.copy())
+            else:
+                agent_policies = [
+                    policy_instances[assignments[agent_id]].agent_policy(agent_id)
+                    for agent_id in range(env_cfg.game.num_agents)
+                ]
+
+                rollout = Rollout(
+                    env_cfg,
+                    agent_policies,
+                    max_action_time_ms=action_timeout_ms,
+                    render_mode=None,
+                    seed=seed + episode_idx,
+                )
+
+                per_episode_assignments.append(assignments.copy())
 
             rollout.run_until_done()
 
             per_episode_rewards.append(np.array(rollout._sim.episode_rewards, dtype=float))
             per_episode_stats.append(rollout._sim.episode_stats)
-            per_episode_assignments.append(assignments.copy())
 
             # Aggregate timeout counts by policy
             for agent_id, timeout_count in enumerate(rollout.timeout_counts):

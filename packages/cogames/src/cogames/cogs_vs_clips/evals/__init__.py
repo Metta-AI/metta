@@ -5,9 +5,8 @@ from cogames.cogs_vs_clips.evals.difficulty_variants import (
     DIFFICULTY_LEVELS,
     apply_difficulty,
 )
-from cogames.cogs_vs_clips.evals.eval_missions import (
-    EVAL_MISSIONS,
-)
+from cogames.cogs_vs_clips.evals.diagnostic_evals import DIAGNOSTIC_EVALS
+from cogames.cogs_vs_clips.evals.eval_missions import EVAL_MISSIONS
 
 __all__ = [
     # Difficulty variants
@@ -16,4 +15,5 @@ __all__ = [
     "apply_difficulty",
     # Utilities / registry
     "EVAL_MISSIONS",
+    "DIAGNOSTIC_EVALS",
 ]

@@ -1,10 +1,10 @@
 import logging
-from pathlib import Path
-from typing import Any, cast
+from typing import Any
 
 from pydantic import Field
 
 from cogames.cogs_vs_clips.evals import eval_missions
+from cogames.cogs_vs_clips.evals.diagnostic_evals import DIAGNOSTIC_EVALS
 from cogames.cogs_vs_clips.evals.difficulty_variants import DIFFICULTY_VARIANTS
 from cogames.cogs_vs_clips.mission import Mission, MissionVariant
 from cogames.cogs_vs_clips.mission_utils import get_map
@@ -942,3 +942,4 @@ def make_game(num_cogs: int = 2, map_name: str = "training_facility_open_1.map")
 
 # Add all eval missions to MISSIONS list
 MISSIONS.extend(eval_missions.EVAL_MISSIONS)
+MISSIONS.extend(DIAGNOSTIC_EVALS)
