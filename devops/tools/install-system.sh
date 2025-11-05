@@ -84,7 +84,7 @@ ensure_tool() {
 
   ensure_paths
 
-  if [ "$tool" = "nim" ] ]; then
+  if [ "$tool" = "nim" ]; then
     if ensure_nim_via_nimby ; then
       ensure_paths
       return 0
@@ -378,13 +378,30 @@ install_nim_via_nimby() {
 
   local url="https://github.com/treeform/nimby/releases/download/${REQUIRED_NIMBY_VERSION}/nimby-${os}-${arch}"
   echo "Downloading Nimby from $url"
-  curl -fsSL -o nimby "$url"
-  chmod +x nimby
-  ./nimby use "$REQUIRED_NIM_VERSION"
+  if ! curl -fsSL -o nimby "$url"; then
+    echo "Failed to download Nimby" >&2
+    return 1
+  fi
 
+  if ! chmod +x nimby; then
+    echo "Failed to make Nimby executable" >&2
+    return 1
+  fi
+
+  if ! ./nimby use "$REQUIRED_NIM_VERSION"; then
+    echo "Failed to install Nim version $REQUIRED_NIM_VERSION" >&2
+    return 1
+  fi
   bin="$HOME/.nimby/nim/bin"
-  mkdir -p "$bin"
-  mv -f nimby "$bin/nimby"
+  if ! mkdir -p "$bin"; then
+    echo "Failed to create Nimby bin directory" >&2
+    return 1
+  fi
+
+  if ! mv -f nimby "$bin/nimby"; then
+    echo "Failed to move Nimby to bin directory" >&2
+    return 1
+  fi
   return 0
 }
 
