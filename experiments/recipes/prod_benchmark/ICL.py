@@ -588,19 +588,18 @@ def replay(
 
 
 def experiment():
-    for curriculum_style in curriculum_args:
-        subprocess.run(
-            [
-                "./devops/skypilot/launch.py",
-                "experiments.recipes.assembly_lines.train",
-                f"run=assembly_lines_{curriculum_style}.{time.strftime('%Y-%m-%d')}",
-                f"curriculum_style={curriculum_style}",
-                "--gpus=4",
-                "--heartbeat-timeout=3600",
-                "--skip-git-check",
-            ]
-        )
-        time.sleep(1)
+    curriculum_style = "all_room_sizes"
+    subprocess.run(
+        [
+            "./devops/skypilot/launch.py",
+            "experiments.recipes.assembly_lines.train",
+            f"run=assembly_lines_{curriculum_style}.{time.strftime('%Y-%m-%d')}",
+            f"curriculum_style={curriculum_style}",
+            "--gpus=4",
+            "--heartbeat-timeout=3600",
+            "--skip-git-check",
+        ]
+    )
 
 
 if __name__ == "__main__":
