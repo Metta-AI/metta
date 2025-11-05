@@ -388,17 +388,10 @@ class SimpleBaselineAgent:
         s = self._agent_states[agent_id]
         s.step_count += 1
 
-        # Only clear and refresh agent positions every 3 steps to avoid constant re-planning
-        # if s.step_count - s.agent_positions_last_updated >= 3:
         s.agent_occupancy.clear()
-        # s.agent_positions_last_updated = s.step_count
 
         # Update state from observation
         self._update_state_from_obs(s, obs)
-
-        # Trace logging
-        # if s.step_count % 20 == 0:
-        #     self._trace_log(s)
 
         # Check phase transitions
         self._update_phase(s)
@@ -419,8 +412,8 @@ class SimpleBaselineAgent:
                     new_row, new_col = obj.get("r", -1), obj.get("c", -1)
                     s.row, s.col = new_row, new_col
                     break
-        except Exception as e:
-            print(f"[Agent {s.agent_id}] Warning: could not get position from env: {e}")
+        except Exception:
+            pass  # Silently fail if we can't get position
 
     def _update_state_from_obs(self, s: SimpleAgentState, obs: AgentObservation) -> None:
         """Update agent state from observation."""
