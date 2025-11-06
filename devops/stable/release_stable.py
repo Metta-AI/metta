@@ -492,18 +492,33 @@ def step_job_validation(
     jobs_dict = job_manager.get_group_jobs(state_version)
     jobs = list(jobs_dict.values())
 
-    # Compute counts
-    total = len(jobs)
-    completed = sum(1 for j in jobs if j.status == "completed")
-    succeeded = sum(1 for j in jobs if j.status == "completed" and j.exit_code == 0)
-    failed = sum(1 for j in jobs if j.status == "completed" and j.exit_code != 0)
+    # Count results (distinguish failed vs skipped) - single source of truth
+    passed = 0
+    failed = 0
+    skipped = 0
 
-    # Show progress bar
+    for job_config in job_configs:
+        job_state = job_manager.get_job_state(f"{state_version}_{job_config.name}")
+        if not job_state:
+            skipped += 1
+        elif job_state.exit_code == -2:  # SKIPPED (job skipped due to failed dependency)
+            skipped += 1
+        elif job_state.is_successful:
+            passed += 1
+        else:
+            failed += 1
+
+    # Compute progress (completed = passed + failed, not including skipped)
+    total = len(job_configs)
+    completed = passed + failed
     progress = format_progress_bar(completed, total)
     pct = (completed / total * 100) if total > 0 else 0
     print(f"\nProgress: {completed}/{total} ({pct:.0f}%)")
     print(f"{progress}")
-    print(f"Succeeded: {green(str(succeeded))}  Failed: {red(str(failed))}")
+    print(f"Succeeded: {green(str(passed))}  Failed: {red(str(failed))}", end="")
+    if skipped > 0:
+        print(f"  Skipped: {yellow(str(skipped))}", end="")
+    print()
     print()
 
     # Show each job with integrated status + acceptance
@@ -523,23 +538,7 @@ def step_job_validation(
         print(display)
         print()
 
-    # Count results (distinguish failed vs skipped)
-    passed = 0
-    failed = 0
-    skipped = 0
-
-    for job_config in job_configs:
-        job_state = job_manager.get_job_state(f"{state_version}_{job_config.name}")
-        if not job_state:
-            skipped += 1
-        elif job_state.exit_code == -2:  # SKIPPED (job skipped due to failed dependency)
-            skipped += 1
-        elif job_state.is_successful:
-            passed += 1
-        else:
-            failed += 1
-
-    # Print verdict
+    # Print verdict (counts already computed above)
     print()
     if failed > 0:
         msg = f"❌ Task validation FAILED ({passed} passed, {failed} failed"
