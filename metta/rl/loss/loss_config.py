@@ -5,7 +5,7 @@ from pydantic import Field
 
 from metta.agent.policy import Policy
 from metta.rl.loss import ContrastiveConfig, PPOConfig
-from mettagrid.config import Config
+from mettagrid.base_config import Config
 
 if TYPE_CHECKING:
     from metta.rl.training import TrainingEnvironment

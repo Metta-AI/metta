@@ -59,19 +59,48 @@ format_files() {
   local file_ext="$1"
   local exclude_pattern="${2:-$EXCLUDE_PATTERN}"
 
-  echo "Formatting *.$file_ext files..."
+  # Determine prettier mode
+  local prettier_mode="--write"
+  local action="Formatting"
+  if [ "${CHECK_MODE:-false}" = "true" ]; then
+    prettier_mode="--check"
+    action="Checking"
+  fi
 
-  if [ -n "$exclude_pattern" ]; then
-    echo "  Excluding: $exclude_pattern"
-    find . -name "*.$file_ext" -type f | grep -v "$exclude_pattern" | xargs pnpm exec prettier --write
+  # If specific files were provided via FORMAT_FILES, use those
+  if [ -n "${FORMAT_FILES:-}" ]; then
+    # Filter files by extension
+    local matching_files=()
+    for file in "${FORMAT_FILES[@]}"; do
+      if [[ "$file" == *".$file_ext" ]]; then
+        matching_files+=("$file")
+      fi
+    done
+
+    if [ ${#matching_files[@]} -eq 0 ]; then
+      echo "No *.$file_ext files in provided file list, skipping..."
+      return
+    fi
+
+    echo "$action ${#matching_files[@]} *.$file_ext file(s)..."
+    pnpm exec prettier $prettier_mode "${matching_files[@]}"
   else
-    echo "  Formatting all files (no exclusions)"
-    find . -name "*.$file_ext" -type f | xargs pnpm exec prettier --write
+    # Fall back to finding all tracked files (respects .gitignore)
+    echo "$action *.$file_ext files..."
+
+    if [ -n "$exclude_pattern" ]; then
+      echo "  Excluding: $exclude_pattern"
+      git ls-files "*.${file_ext}" | grep -v "$exclude_pattern" | xargs -r pnpm exec prettier $prettier_mode
+    else
+      echo "  $action all tracked files"
+      git ls-files "*.${file_ext}" | xargs -r pnpm exec prettier $prettier_mode
+    fi
   fi
 }
 
 # Parse common formatting script arguments
 parse_format_args() {
+  FORMAT_FILES=()
   while [[ $# -gt 0 ]]; do
     case $1 in
       --exclude)
@@ -82,13 +111,29 @@ parse_format_args() {
         fi
         shift 2
         ;;
-      *)
+      --check)
+        CHECK_MODE="true"
+        shift
+        ;;
+      --help)
+        echo "Usage: $0 [--check] [--exclude \"pattern\"] [file1 file2 ...]"
+        if [ -n "${EXCLUDE_HELP_TEXT:-}" ]; then
+          echo "$EXCLUDE_HELP_TEXT"
+        fi
+        exit 0
+        ;;
+      -*)
         echo "Unknown option: $1"
-        echo "Usage: $0 [--exclude \"pattern\"]"
+        echo "Usage: $0 [--check] [--exclude \"pattern\"] [file1 file2 ...]"
         if [ -n "${EXCLUDE_HELP_TEXT:-}" ]; then
           echo "$EXCLUDE_HELP_TEXT"
         fi
         exit 1
+        ;;
+      *)
+        # Positional argument - treat as file path
+        FORMAT_FILES+=("$1")
+        shift
         ;;
     esac
   done
