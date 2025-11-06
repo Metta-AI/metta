@@ -1182,6 +1182,25 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
         # Only traverse cells we KNOW are free, not unknown cells
         return cell == CellType.FREE.value
 
+    def _trace_log(self, s: SimpleAgentState) -> None:
+        """Detailed trace logging."""
+        extractors_known = {r: len(s.shared_state.extractors[r]) for r in ["carbon", "oxygen", "germanium", "silicon"]}
+        print(f"[TRACE Step {s.step_count}] Agent {s.agent_id} @ ({s.row},{s.col})")
+        print(f"  Phase: {s.phase.name}, Energy: {s.energy}")
+        print(f"  Inventory: C={s.carbon} O={s.oxygen} G={s.germanium} S={s.silicon} Hearts={s.hearts}")
+        print(f"  Extractors known: {extractors_known}")
+        # Debug: show first few extractors if any
+        if s.step_count == 100:
+            for rtype in self._heart_recipe:
+                if len(s.shared_state.extractors[rtype]) > 0:
+                    first_3 = s.shared_state.extractors[rtype][:3]
+                    print(f"    {rtype}: {[(e.position, e.last_seen_step) for e in first_3]}")
+        stations = f"assembler={s.shared_state.stations['assembler'] is not None}"
+        stations += f" chest={s.shared_state.stations['chest'] is not None}"
+        stations += f" charger={s.shared_state.stations['charger'] is not None}"
+        print(f"  Stations: {stations}")
+        print(f"  Target: {s.target_position}, Target resource: {s.target_resource}")
+
     def _move_into_cell(self, s: SimpleAgentState, target: tuple[int, int]) -> Action:
         """Return the action that attempts to step into the target cell."""
         tr, tc = target
