@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from abc import ABC
+from typing import override
 
 from pydantic import Field
 
@@ -62,6 +63,22 @@ class MissionVariant(Config, ABC):
             site=site,
             variants=[self],
         )
+
+
+class NumCogsVariant(MissionVariant):
+    name: str = "num_cogs"
+    description: str = "Set the number of cogs for the mission."
+    num_cogs: int
+
+    @override
+    def modify_mission(self, mission: Mission) -> None:
+        if self.num_cogs < mission.site.min_cogs or self.num_cogs > mission.site.max_cogs:
+            raise ValueError(
+                f"Invalid number of cogs for {mission.site.name}: {self.num_cogs}. "
+                + f"Must be between {mission.site.min_cogs} and {mission.site.max_cogs}"
+            )
+
+        mission.num_cogs = self.num_cogs
 
 
 class Site(Config):

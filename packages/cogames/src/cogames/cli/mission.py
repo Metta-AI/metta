@@ -7,7 +7,7 @@ from rich import box
 from rich.table import Table
 
 from cogames.cli.base import console
-from cogames.cogs_vs_clips.mission import MAP_MISSION_DELIMITER, Mission, MissionVariant, Site
+from cogames.cogs_vs_clips.mission import MAP_MISSION_DELIMITER, Mission, MissionVariant, NumCogsVariant, Site
 from cogames.cogs_vs_clips.missions import MISSIONS
 from cogames.cogs_vs_clips.sites import SITES
 from cogames.cogs_vs_clips.variants import VARIANTS
@@ -222,15 +222,7 @@ def get_mission(
     mission = mission.with_variants(variants)
 
     if cogs is not None:
-        # Validate cogs is within site's allowed range
-        # TODO - move this validation to the Mission class
-        if cogs < mission.site.min_cogs or cogs > mission.site.max_cogs:
-            raise ValueError(
-                f"Invalid number of cogs for {site_name}: {cogs}. "
-                + f"Must be between {mission.site.min_cogs} and {mission.site.max_cogs}"
-            )
-
-        mission = mission.model_copy(update={"num_cogs": cogs})
+        mission = mission.with_variants([NumCogsVariant(num_cogs=cogs)])
 
     return (
         mission.full_name(),
