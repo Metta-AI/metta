@@ -27,30 +27,19 @@ def setup_logging(verbose: bool) -> None:
     logging.basicConfig(level=level, format="%(levelname)s: %(message)s")
 
 
-def get_credential(env_var: str, secret_key: str, required: bool = True) -> str | None:
-    """Get credential from environment or AWS Secrets Manager.
+def get_credential(secret_key: str, required: bool = True) -> str | None:
+    """Get credential from AWS Secrets Manager.
 
     Args:
-        env_var: Environment variable name
         secret_key: AWS Secrets Manager key
-        required: If True, exit on failure
+        required: If True, raise error on failure
 
     Returns:
         Credential value or None
     """
-    value = os.getenv(env_var)
-    if value:
-        return value
+    from metta.common.util.aws_secrets import get_secretsmanager_secret
 
-    # Try AWS Secrets Manager
-    try:
-        from metta.common.util.aws_secrets import get_secretsmanager_secret
-
-        return get_secretsmanager_secret(secret_key, require_exists=required)
-    except Exception as e:
-        if required:
-            raise RuntimeError(f"{env_var} not found in environment or AWS Secrets Manager. {e}") from e
-        return None
+    return get_secretsmanager_secret(secret_key, require_exists=required)
 
 
 def get_collector_instance(collector_name: str):
@@ -63,16 +52,16 @@ def get_collector_instance(collector_name: str):
         Collector instance
     """
     if collector_name == "github":
-        token = get_credential("GITHUB_TOKEN", "github/dashboard-token")
+        token = get_credential("github/dashboard-token")
         org = os.getenv("GITHUB_ORG", "PufferAI")
         repo = os.getenv("GITHUB_REPO", "metta")
         collector_class = COLLECTOR_REGISTRY[collector_name]["class"]
         return collector_class(organization=org, repository=repo, github_token=token)
 
     elif collector_name == "asana":
-        token = get_credential("ASANA_ACCESS_TOKEN", "asana/access-token")
-        workspace = get_credential("ASANA_WORKSPACE_GID", "asana/workspace-gid")
-        bugs_project = get_credential("ASANA_BUGS_PROJECT_GID", "asana/bugs-project-gid", required=False)
+        token = get_credential("asana/access-token")
+        workspace = get_credential("asana/workspace-gid")
+        bugs_project = get_credential("asana/bugs-project-gid", required=False)
         collector_class = COLLECTOR_REGISTRY[collector_name]["class"]
         return collector_class(access_token=token, workspace_gid=workspace, bugs_project_gid=bugs_project)
 
@@ -82,7 +71,7 @@ def get_collector_instance(collector_name: str):
         return collector_class(region=region)
 
     elif collector_name == "wandb":
-        api_key = get_credential("WANDB_API_KEY", "wandb/api-key")
+        api_key = get_credential("wandb/api-key")
         entity = os.getenv("WANDB_ENTITY", "metta-research")
         project = os.getenv("WANDB_PROJECT", "metta")
         collector_class = COLLECTOR_REGISTRY[collector_name]["class"]
@@ -131,8 +120,8 @@ def push_metrics_to_datadog(metrics: dict, source_tag: str, extra_tags: list[str
         True if successful, False otherwise
     """
     # Get Datadog credentials
-    api_key = get_credential("DD_API_KEY", "datadog/api-key")
-    app_key = get_credential("DD_APP_KEY", "datadog/app-key")
+    api_key = get_credential("datadog/api-key")
+    app_key = get_credential("datadog/app-key")
     site = os.getenv("DD_SITE", "datadoghq.com")
 
     # Create client
