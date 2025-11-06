@@ -95,6 +95,26 @@ class XLCellConfig(CellConfig):
     axon_qkv_config: AxonConfig | None = Field(default=None)
 
 
+class AGaLiTeCellConfig(CellConfig):
+    """Configuration for AGaLiTe attention cell with recurrent discounted state."""
+
+    cell_type: str = "agalite"
+    hidden_size: int | None = Field(default=None)
+    n_heads: int = Field(default=4, ge=1)
+    head_dim: int | None = Field(default=None, ge=1)
+
+    # Feature expansion parameter (outer products)
+    eta: int = Field(default=6, ge=1)
+
+    # Oscillatory basis and numerics
+    r: int = Field(default=2, ge=1)  # number of oscillatory frequencies
+    eps: float = Field(default=1e-5, ge=0.0)
+    dropout: float = Field(default=0.0, ge=0.0, le=1.0)
+    # No clamping in baseline; keep behavior faithful to JAX
+
+    # Backend selection (select_backend decides final path)
+    backend: str = Field(default="auto")  # auto|pytorch|cuda
+
 class AxonConfig(CellConfig):
     """Configuration for Axon cell with streaming RTU and diagonal input weights."""
 

@@ -9,6 +9,7 @@ from cortex.kernels.pytorch.mlstm import (
 from cortex.kernels.pytorch.rtu.rtu_stream_diag import rtu_stream_diag_pytorch
 from cortex.kernels.pytorch.rtu.rtu_stream_fullrank import rtu_stream_full_pytorch
 from cortex.kernels.pytorch.slstm import slstm_sequence_pytorch
+from cortex.kernels.pytorch.agalite import discounted_sum_pytorch
 
 __all__ = [
     "causal_conv1d_pytorch",
@@ -18,4 +19,5 @@ __all__ = [
     "rtu_stream_diag_pytorch",
     "rtu_stream_full_pytorch",
     "slstm_sequence_pytorch",
+    "discounted_sum_pytorch",
 ]
