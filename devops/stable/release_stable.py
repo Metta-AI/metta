@@ -505,9 +505,9 @@ def step_job_validation(
     pct = (completed / total * 100) if total > 0 else 0
     print(f"\nProgress: {completed}/{total} ({pct:.0f}%)")
     print(f"{progress}")
-    print(
-        f"Succeeded: {metta.common.util.text_styles.green(str(succeeded))}  Failed: {metta.common.util.text_styles.red(str(failed))}"
-    )
+    succeeded_text = metta.common.util.text_styles.green(str(succeeded))
+    failed_text = metta.common.util.text_styles.red(str(failed))
+    print(f"Succeeded: {succeeded_text}  Failed: {failed_text}")
     print()
 
     # Show each job with integrated status + acceptance

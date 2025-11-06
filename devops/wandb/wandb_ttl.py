@@ -18,7 +18,11 @@ def apply_ttl_to_artifacts(artifact_project: str, version_start: int, version_en
     version = version_start
     while version <= version_end:
         try:
-            artifact_name = f"{metta.common.util.constants.METTA_WANDB_ENTITY}/{metta.common.util.constants.METTA_WANDB_PROJECT}/{artifact_project}:v{version}"
+            artifact_name = (
+                f"{metta.common.util.constants.METTA_WANDB_ENTITY}/"
+                f"{metta.common.util.constants.METTA_WANDB_PROJECT}/"
+                f"{artifact_project}:v{version}"
+            )
             artifact = run.use_artifact(artifact_name)
             print(f"Applying TTL to artifact: {artifact_name}")
             artifact.ttl = datetime.timedelta(days=ttl_days)

@@ -17,6 +17,24 @@ def train(
     )
 
 
+if "mettagrid" not in globals():
+    mettagrid = experiments.recipes.arena_basic_easy_shaped.mettagrid
+if "make_curriculum" not in globals():
+    make_curriculum = experiments.recipes.arena_basic_easy_shaped.make_curriculum
+if "simulations" not in globals():
+    simulations = experiments.recipes.arena_basic_easy_shaped.simulations
+if "play" not in globals():
+    play = experiments.recipes.arena_basic_easy_shaped.play
+if "replay" not in globals():
+    replay = experiments.recipes.arena_basic_easy_shaped.replay
+if "evaluate" not in globals():
+    evaluate = experiments.recipes.arena_basic_easy_shaped.evaluate
+if "evaluate_in_sweep" not in globals():
+    evaluate_in_sweep = experiments.recipes.arena_basic_easy_shaped.evaluate_in_sweep
+if "sweep" not in globals():
+    sweep = experiments.recipes.arena_basic_easy_shaped.sweep
+
+
 __all__ = [
     "mettagrid",
     "make_curriculum",
@@ -28,20 +46,3 @@ __all__ = [
     "sweep",
     "train",
 ]
-
-
-for _name in [
-    "mettagrid",
-    "make_curriculum",
-    "simulations",
-    "play",
-    "replay",
-    "evaluate",
-    "evaluate_in_sweep",
-    "sweep",
-]:
-    if _name in globals():
-        continue
-    globals()[_name] = getattr(experiments.recipes.arena_basic_easy_shaped, _name)
-
-del _name

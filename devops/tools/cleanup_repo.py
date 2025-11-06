@@ -53,18 +53,22 @@ def clean_directory(root_path, dry_run=True):
         if is_dir_empty_or_pycache_only(dirpath):
             if dry_run:
                 print(
-                    f"{metta.common.util.text_styles.yellow('Would remove:')} {metta.common.util.text_styles.cyan(dirpath)}"
+                    f"{metta.common.util.text_styles.yellow('Would remove:')} "
+                    f"{metta.common.util.text_styles.cyan(dirpath)}"
                 )
             else:
                 try:
                     shutil.rmtree(dirpath)
                     print(
-                        f"{metta.common.util.text_styles.green('Removed:')} {metta.common.util.text_styles.cyan(dirpath)}"
+                        f"{metta.common.util.text_styles.green('Removed:')} "
+                        f"{metta.common.util.text_styles.cyan(dirpath)}"
                     )
                     removed_dirs.append(dirpath)
                 except Exception as e:
                     print(
-                        f"{metta.common.util.text_styles.red('Error removing')} {metta.common.util.text_styles.cyan(dirpath)}: {metta.common.util.text_styles.red(str(e))}"
+                        f"{metta.common.util.text_styles.red('Error removing')} "
+                        f"{metta.common.util.text_styles.cyan(dirpath)}: "
+                        f"{metta.common.util.text_styles.red(str(e))}"
                     )
 
     return removed_dirs

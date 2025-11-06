@@ -769,10 +769,12 @@ class SkyPilotJobChecker:
             # Show parsed summary info
             if any(summary.values()):
                 print(
-                    f"{metta.common.util.text_styles.bold('Exit Code:')} {self.formatter.format_exit_code(summary.get('exit_code'))}"
+                    f"{metta.common.util.text_styles.bold('Exit Code:')} "
+                    f"{self.formatter.format_exit_code(summary.get('exit_code'))}"
                 )
                 print(
-                    f"{metta.common.util.text_styles.bold('Restart Count:')} {self.formatter.format_restart_count(summary.get('restart_count'))}"
+                    f"{metta.common.util.text_styles.bold('Restart Count:')} "
+                    f"{self.formatter.format_restart_count(summary.get('restart_count'))}"
                 )
                 print(
                     f"{metta.common.util.text_styles.bold('Termination:')} "
