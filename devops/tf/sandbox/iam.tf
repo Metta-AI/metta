@@ -1,5 +1,3 @@
-data "aws_caller_identity" "current" {}
-
 # IAM role for sandbox EC2 instances
 # This role is assumed by instances and grants them necessary permissions
 resource "aws_iam_role" "sandbox_instance" {
