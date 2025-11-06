@@ -317,56 +317,109 @@ def _summary_vector(
     max_assemblers: int = 12,
 ) -> np.ndarray:
     """
-    Non-invertible summary (for model context only):
-      [ normalized histogram over `resource_types`,
-        num_assemblers_norm,
-        unique_resource_fraction ]
+    Construct a lossy assembler summary suitable as auxiliary model input.
+
+    This block is NOT used when reconstructing `MettaGridConfig` and its exact
+    layout may evolve over time. It is intentionally non-invertible and should
+    be treated purely as contextual signal for representation learning
+    (e.g. VAE inputs, auxiliary predictors), not as part of the core reversible
+    config schema.
+
+    Current:
+
+      1. resource_histogram (len(resource_types)):
+         Normalized frequency of each resource that appears along a simple
+         "main chain" (start -> ... -> goal), excluding the goal sentinel.
+         If no matching resources are found, this slice is all zeros.
+
+      2. num_assemblers_norm (1):
+         Total number of assemblers, clipped at `max_assemblers` and scaled
+         into [0, 1].
+
+      3. unique_resource_fraction (1):
+         Fraction of distinct resources used along the main chain (excluding
+         the goal sentinel) relative to len(resource_types), in [0, 1].
+
+    If to be extendend, (e.g. cooldown statistics, branching factors),
+    append new scalars at the end and update helpers that depend on the size
+    of this block (e.g. `get_total_feature_dim`) accordingly.
     """
     objs = _objects(cfg)
+
     num_assemblers = sum(1 for o in objs.values() if getattr(o, "type", None) == "assembler")
     num_assemblers_norm = float(min(max_assemblers, max(0, num_assemblers))) / float(max_assemblers)
 
     start, goal = sentinels
+
     next_of: dict[str, str] = {}
-    outs: List[str] = []
     for o in objs.values():
         if getattr(o, "type", None) != "assembler":
             continue
+
         protos = getattr(o, "protocols", []) or []
         if not protos:
             continue
+
         p = protos[0]
         out = dict(getattr(p, "output_resources", {}) or {})
         inp = dict(getattr(p, "input_resources", {}) or {})
-        if len(out) == 1:
-            out_res = next(iter(out))
-            in_res = start if len(inp) == 0 else (next(iter(inp)) if len(inp) == 1 else None)
-            if in_res is not None:
-                next_of[in_res] = out_res
 
+        if len(out) != 1:
+            continue
+
+        out_res = next(iter(out))
+
+        if len(inp) == 0:
+            in_res = start
+        elif len(inp) == 1:
+            in_res = next(iter(inp))
+        else:
+            continue
+
+        next_of[in_res] = out_res
+
+    chain_outputs: List[str] = []
     cur = start
     for _ in range(64):
         if cur not in next_of:
             break
         out_res = next_of[cur]
-        outs.append(out_res)
+        chain_outputs.append(out_res)
         if out_res == goal:
             break
         cur = out_res
 
-    outs_no_goal = [r for r in outs if r != goal]
+    effective_outputs = [r for r in chain_outputs if r != goal]
+
     idx = {name: i for i, name in enumerate(resource_types)}
     hist: np.ndarray = np.zeros(len(resource_types), dtype=np.float32)
-    for r in outs_no_goal:
+    for r in effective_outputs:
         j = idx.get(r)
         if j is not None:
             hist[j] += 1.0
-    s = float(hist.sum())
-    if s > 0:
-        hist /= s
 
-    uniq = 0.0 if not outs_no_goal else min(1.0, len(set(outs_no_goal)) / float(max(1, len(resource_types))))
-    return np.concatenate([hist, np.array([num_assemblers_norm, float(uniq)], dtype=np.float32)], axis=0)
+    total = float(hist.sum())
+    if total > 0.0:
+        hist /= total
+
+    if effective_outputs and len(resource_types) > 0:
+        unique_resource_fraction = min(
+            1.0,
+            float(len(set(effective_outputs))) / float(len(resource_types)),
+        )
+    else:
+        unique_resource_fraction = 0.0
+
+    return np.concatenate(
+        [
+            hist,
+            np.array(
+                [num_assemblers_norm, float(unique_resource_fraction)],
+                dtype=np.float32,
+            ),
+        ],
+        axis=0,
+    )
 
 
 def serialize_payload(
