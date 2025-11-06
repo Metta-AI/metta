@@ -37,7 +37,6 @@ PYTHON_PACKAGE_DIR = PROJECT_ROOT / "python" / "src" / "mettagrid"
 METTASCOPE_PACKAGE_DIR = PYTHON_PACKAGE_DIR / "nim" / "mettascope"
 
 
-
 def cmd(cmd: str) -> None:
     """Run a command and raise an error if it fails."""
     print(f"Running: {cmd}")

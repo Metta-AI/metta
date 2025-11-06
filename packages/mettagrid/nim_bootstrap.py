@@ -13,6 +13,8 @@ from pathlib import Path
 REQUIRED_NIM_VERSION = os.environ.get("METTAGRID_NIM_VERSION", "2.2.6")
 REQUIRED_NIMBY_VERSION = os.environ.get("METTAGRID_NIMBY_VERSION", "0.1.6")
 NIMBY_HOME = Path.home() / ".nimby" / "nim" / "bin"
+NIM_BIN = NIMBY_HOME / "nim"
+NIMBY_BIN = NIMBY_HOME / "nimby"
 _BOOTSTRAPPED = False
 
 
@@ -38,10 +40,9 @@ def ensure_nim_dependencies() -> None:
         subprocess.run([str(nimby_path), "use", REQUIRED_NIM_VERSION], check=True)
 
         NIMBY_HOME.mkdir(parents=True, exist_ok=True)
-        destination = NIMBY_HOME / "nimby"
-        if destination.exists():
-            destination.unlink()
-        shutil.move(str(nimby_path), destination)
+        if NIMBY_BIN.exists():
+            NIMBY_BIN.unlink()
+        shutil.move(str(nimby_path), NIMBY_BIN)
 
     path = os.environ.get("PATH", "")
     if str(NIMBY_HOME) not in path.split(os.pathsep):
@@ -50,4 +51,4 @@ def ensure_nim_dependencies() -> None:
     _BOOTSTRAPPED = True
 
 
-__all__ = ["ensure_nim_dependencies"]
+__all__ = ["ensure_nim_dependencies", "NIM_BIN", "NIMBY_BIN"]
