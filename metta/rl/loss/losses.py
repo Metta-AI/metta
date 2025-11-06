@@ -17,13 +17,14 @@ if TYPE_CHECKING:
 
 
 class LossesConfig(Config):
+    # PPO (Proximal Policy Optimization) is enabled by default as it's the primary
+    # reinforcement learning algorithm used in most training scenarios
     ppo: PPOConfig = Field(default_factory=lambda: PPOConfig(enabled=True))
     contrastive: contrastive_config.ContrastiveConfig = Field(
         default_factory=lambda: contrastive_config.ContrastiveConfig(enabled=False)
     )
     supervisor: ActionSupervisedConfig = Field(default_factory=lambda: ActionSupervisedConfig(enabled=False))
     grpo: GRPOConfig = Field(default_factory=lambda: GRPOConfig(enabled=False))
-
 
     def _configs(self) -> dict[str, LossConfig]:
         loss_configs: dict[str, LossConfig] = {}
@@ -36,7 +37,6 @@ class LossesConfig(Config):
         if self.grpo.enabled:
             loss_configs["grpo"] = self.grpo
         return loss_configs
-
 
     def init_losses(
         self,
