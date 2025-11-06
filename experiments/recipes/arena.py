@@ -7,10 +7,7 @@ from metta.cogworks.curriculum.curriculum import (
     CurriculumConfig,
 )
 from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
-from metta.rl.loss.action_supervised import ActionSupervisedConfig
-from metta.rl.loss.losses import LossesConfig
-from metta.rl.trainer_config import TrainerConfig
-from metta.rl.training import CheckpointerConfig, TrainingEnvironmentConfig
+from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.eval import EvaluateTool
 from metta.tools.play import PlayTool
@@ -87,15 +84,9 @@ def train(
         enable_detailed_slice_logging=enable_detailed_slice_logging
     )
 
-    trainer_cfg = TrainerConfig(
-        losses=LossesConfig(supervisor=ActionSupervisedConfig()),
-    )
-
     return TrainTool(
-        trainer=trainer_cfg,
         training_env=TrainingEnvironmentConfig(curriculum=curriculum),
-        checkpointer=CheckpointerConfig(epoch_interval=2),
-        # evaluator=EvaluatorConfig(simulations=simulations()),
+        evaluator=EvaluatorConfig(simulations=simulations()),
     )
 
 
@@ -126,7 +117,7 @@ def train_shaped(rewards: bool = True) -> TrainTool:
 
     return TrainTool(
         training_env=TrainingEnvironmentConfig(curriculum=cc.env_curriculum(env_cfg)),
-        # evaluator=EvaluatorConfig(simulations=simulations()),
+        evaluator=EvaluatorConfig(simulations=simulations()),
     )
 
 

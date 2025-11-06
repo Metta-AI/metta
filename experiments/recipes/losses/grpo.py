@@ -38,6 +38,7 @@ def train(
 
     # Configure GRPO loss
     grpo_config = GRPOConfig(
+        enabled=True,
         clip_coef=0.2,
         ent_coef=0.01,
         gamma=0.99,
