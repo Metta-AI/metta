@@ -17,53 +17,8 @@ import logging
 import os
 import sys
 
-from devops.datadog.collectors.asana.collector import AsanaCollector
-from devops.datadog.collectors.ec2.collector import EC2Collector
-from devops.datadog.collectors.github.collector import GitHubCollector
-from devops.datadog.collectors.health_fom.collector import HealthFomCollector
-from devops.datadog.collectors.kubernetes.collector import KubernetesCollector
-from devops.datadog.collectors.skypilot.collector import SkypilotCollector
-from devops.datadog.collectors.wandb.collector import WandBCollector
+from devops.datadog.scripts.collectors import COLLECTOR_REGISTRY
 from devops.datadog.utils.datadog_client import DatadogClient
-
-# Collector registry with configuration
-COLLECTORS = {
-    "github": {
-        "class": GitHubCollector,
-        "source": "github-collector",
-        "description": "GitHub metrics",
-    },
-    "skypilot": {
-        "class": SkypilotCollector,
-        "source": "skypilot-collector",
-        "description": "Skypilot job metrics",
-    },
-    "asana": {
-        "class": AsanaCollector,
-        "source": "asana-collector",
-        "description": "Asana project metrics",
-    },
-    "ec2": {
-        "class": EC2Collector,
-        "source": "ec2-collector",
-        "description": "AWS EC2 metrics",
-    },
-    "wandb": {
-        "class": WandBCollector,
-        "source": "wandb-collector",
-        "description": "WandB training metrics",
-    },
-    "kubernetes": {
-        "class": KubernetesCollector,
-        "source": "kubernetes-collector",
-        "description": "Kubernetes efficiency metrics",
-    },
-    "health_fom": {
-        "class": HealthFomCollector,
-        "source": "health-fom-collector",
-        "description": "Health FoM metrics",
-    },
-}
 
 
 def setup_logging(verbose: bool) -> None:
@@ -111,27 +66,31 @@ def get_collector_instance(collector_name: str):
         token = get_credential("GITHUB_TOKEN", "github/dashboard-token")
         org = os.getenv("GITHUB_ORG", "PufferAI")
         repo = os.getenv("GITHUB_REPO", "metta")
-        return GitHubCollector(organization=org, repository=repo, github_token=token)
+        collector_class = COLLECTOR_REGISTRY[collector_name]["class"]
+        return collector_class(organization=org, repository=repo, github_token=token)
 
     elif collector_name == "asana":
         token = get_credential("ASANA_ACCESS_TOKEN", "asana/access-token")
         workspace = get_credential("ASANA_WORKSPACE_GID", "asana/workspace-gid")
         bugs_project = get_credential("ASANA_BUGS_PROJECT_GID", "asana/bugs-project-gid", required=False)
-        return AsanaCollector(access_token=token, workspace_gid=workspace, bugs_project_gid=bugs_project)
+        collector_class = COLLECTOR_REGISTRY[collector_name]["class"]
+        return collector_class(access_token=token, workspace_gid=workspace, bugs_project_gid=bugs_project)
 
     elif collector_name == "ec2":
         region = os.getenv("AWS_REGION", "us-east-1")
-        return EC2Collector(region=region)
+        collector_class = COLLECTOR_REGISTRY[collector_name]["class"]
+        return collector_class(region=region)
 
     elif collector_name == "wandb":
         api_key = get_credential("WANDB_API_KEY", "wandb/api-key")
         entity = os.getenv("WANDB_ENTITY", "metta-research")
         project = os.getenv("WANDB_PROJECT", "metta")
-        return WandBCollector(api_key=api_key, entity=entity, project=project)
+        collector_class = COLLECTOR_REGISTRY[collector_name]["class"]
+        return collector_class(api_key=api_key, entity=entity, project=project)
 
     elif collector_name in ["skypilot", "kubernetes", "health_fom"]:
         # These collectors don't need credentials
-        collector_class = COLLECTORS[collector_name]["class"]
+        collector_class = COLLECTOR_REGISTRY[collector_name]["class"]
         return collector_class()
 
     else:
@@ -286,13 +245,13 @@ def run_collector(collector_name: str, push: bool = False, verbose: bool = False
     """
     setup_logging(verbose)
 
-    if collector_name not in COLLECTORS:
-        available = ", ".join(COLLECTORS.keys())
+    if collector_name not in COLLECTOR_REGISTRY:
+        available = ", ".join(COLLECTOR_REGISTRY.keys())
         print(f"Error: Unknown collector '{collector_name}'", file=sys.stderr)
         print(f"Available collectors: {available}", file=sys.stderr)
         sys.exit(1)
 
-    config = COLLECTORS[collector_name]
+    config = COLLECTOR_REGISTRY[collector_name]
     description = config["description"]
 
     print_status(f"Collecting {description}...", json_output)
@@ -327,7 +286,7 @@ def main():
     parser = argparse.ArgumentParser(description="Run a Datadog metrics collector")
     parser.add_argument(
         "collector",
-        choices=list(COLLECTORS.keys()),
+        choices=list(COLLECTOR_REGISTRY.keys()),
         help="Collector name",
     )
     parser.add_argument("--push", action="store_true", help="Push metrics to Datadog")

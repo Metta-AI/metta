@@ -22,20 +22,8 @@ import sys
 import time
 from datetime import datetime
 
-# Import the generic run_collector function and registry
+from devops.datadog.scripts.collectors import COLLECTOR_RUN_ORDER
 from devops.datadog.scripts.run_collector import run_collector
-
-# Define collector run order (use registry keys)
-# Health FoM runs last since it depends on other collectors' metrics
-COLLECTORS = [
-    "github",
-    "kubernetes",
-    "ec2",
-    "skypilot",
-    "wandb",
-    "asana",
-    "health_fom",
-]
 
 # Per-collector timeout in seconds (2 minutes default)
 # Protects against indefinite hangs from slow API responses or network issues
@@ -143,7 +131,7 @@ def main():
     results = {}
     start_time = time.time()
 
-    for name in COLLECTORS:
+    for name in COLLECTOR_RUN_ORDER:
         print(f"\n{'=' * 80}")
         print(f"Running {name} collector...")
         print(f"{'=' * 80}")
@@ -196,7 +184,7 @@ def main():
 
     total_metrics = sum(r["metrics_count"] for r in results.values())
 
-    print(f"Collectors run: {len(results)}/{len(COLLECTORS)}")
+    print(f"Collectors run: {len(results)}/{len(COLLECTOR_RUN_ORDER)}")
     print(f"✅ Successful: {len(successful)}")
     print(f"❌ Failed: {len(failed)}")
     print(f"⚠️  Interrupted: {len(interrupted)}")
@@ -219,7 +207,7 @@ def main():
     # Partial data is better than no data
     if successful:
         if failed:
-            print(f"\n⚠️  Partial success: {len(successful)}/{len(COLLECTORS)} collectors succeeded")
+            print(f"\n⚠️  Partial success: {len(successful)}/{len(COLLECTOR_RUN_ORDER)} collectors succeeded")
             print("Job will exit with success code - partial data collected")
         else:
             print("\n✅ All collectors completed successfully")
