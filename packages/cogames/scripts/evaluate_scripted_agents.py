@@ -27,7 +27,11 @@ from typing import Dict, List
 
 from cogames.cogs_vs_clips.evals import CANONICAL_DIFFICULTY_ORDER, DIFFICULTY_LEVELS, apply_difficulty
 from cogames.cogs_vs_clips.evals.eval_missions import EVAL_MISSIONS
-from cogames.policy.scripted_agent import BaselinePolicy, UnclippingPolicy
+from cogames.policy.scripted_agent import (
+    BASELINE_HYPERPARAMETER_PRESETS,
+    BaselinePolicy,
+    UnclippingPolicy,
+)
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.simulator.rollout import Rollout
 
@@ -43,6 +47,7 @@ class EvalResult:
     experiment: str
     num_cogs: int
     difficulty: str
+    preset: str
     clip_rate: float
     total_reward: float
     hearts_assembled: int
@@ -96,12 +101,20 @@ def run_evaluation(
     cogs_list: List[int],
     max_steps: int = 1000,
     seed: int = 42,
+    preset: str = "default",
 ) -> List[EvalResult]:
     """Run evaluation for an agent configuration."""
     results = []
 
+    # Get hyperparameters for the preset
+    hyperparams = BASELINE_HYPERPARAMETER_PRESETS.get(preset)
+    if hyperparams is None:
+        logger.error(f"Unknown preset: {preset}. Using 'default'.")
+        hyperparams = BASELINE_HYPERPARAMETER_PRESETS["default"]
+        preset = "default"
+
     logger.info(f"\n{'=' * 80}")
-    logger.info(f"Evaluating: {agent_config.label}")
+    logger.info(f"Evaluating: {agent_config.label} (preset: {preset})")
     logger.info(f"Experiments: {len(experiments)}")
     logger.info(f"Difficulties: {len(difficulties)}")
     logger.info(f"Agent counts: {cogs_list}")
@@ -142,9 +155,9 @@ def run_evaluation(
                     env_config = mission_inst.make_env()
                     env_config.game.max_steps = max_steps
 
-                    # Create policy with PolicyEnvInterface
+                    # Create policy with PolicyEnvInterface and hyperparameters
                     policy_env_info = PolicyEnvInterface.from_mg_cfg(env_config)
-                    policy = agent_config.policy_class(policy_env_info)
+                    policy = agent_config.policy_class(policy_env_info, hyperparams)
                     agent_policies = [policy.agent_policy(i) for i in range(num_cogs)]
 
                     # Create rollout and run episode
@@ -167,6 +180,7 @@ def run_evaluation(
                         experiment=exp_name,
                         num_cogs=num_cogs,
                         difficulty=difficulty_name,
+                        preset=preset,
                         clip_rate=clip_rate,
                         total_reward=total_reward,
                         hearts_assembled=int(total_reward),
@@ -187,6 +201,7 @@ def run_evaluation(
                         experiment=exp_name,
                         num_cogs=num_cogs,
                         difficulty=difficulty_name,
+                        preset=preset,
                         clip_rate=0.0,
                         total_reward=0.0,
                         hearts_assembled=0,
@@ -253,6 +268,20 @@ def print_summary(results: List[EvalResult]):
             f"avg_reward={avg_reward:.2f}"
         )
 
+    # By preset (if multiple presets tested)
+    presets = sorted(set(r.preset for r in results))
+    if len(presets) > 1:
+        logger.info("\n## By Hyperparameter Preset")
+        for preset in presets:
+            preset_results = [r for r in results if r.preset == preset]
+            preset_successes = sum(1 for r in preset_results if r.success)
+            avg_reward = sum(r.total_reward for r in preset_results) / len(preset_results)
+            logger.info(
+                f"  {preset:15s}: {preset_successes}/{len(preset_results)} "
+                f"({100 * preset_successes / len(preset_results):.1f}%) "
+                f"avg_reward={avg_reward:.2f}"
+            )
+
 
 def main():
     parser = argparse.ArgumentParser(description="Evaluate baseline scripted agents")
@@ -284,6 +313,17 @@ def main():
     parser.add_argument("--steps", type=int, default=1000, help="Max steps per episode (default: 1000)")
     parser.add_argument("--seed", type=int, default=42, help="Random seed (default: 42)")
     parser.add_argument("--output", type=str, default=None, help="Output JSON file for results")
+    parser.add_argument(
+        "--preset",
+        choices=list(BASELINE_HYPERPARAMETER_PRESETS.keys()),
+        default="default",
+        help="Hyperparameter preset to use (default: default)",
+    )
+    parser.add_argument(
+        "--all-presets",
+        action="store_true",
+        help="Run evaluation across all hyperparameter presets",
+    )
 
     args = parser.parse_args()
 
@@ -299,24 +339,32 @@ def main():
     else:
         experiments = list(EXPERIMENT_MAP.keys())
 
+    # Determine which presets to test
+    if args.all_presets:
+        presets = list(BASELINE_HYPERPARAMETER_PRESETS.keys())
+    else:
+        presets = [args.preset]
+
     # Run evaluations
     all_results = []
-    for config in configs:
-        # Use specified difficulties or agent-specific defaults
-        difficulties = args.difficulties if args.difficulties else config.difficulties
+    for preset in presets:
+        for config in configs:
+            # Use specified difficulties or agent-specific defaults
+            difficulties = args.difficulties if args.difficulties else config.difficulties
 
-        # Use specified cogs or agent-specific defaults
-        cogs_list = args.cogs if args.cogs else config.cogs_list
+            # Use specified cogs or agent-specific defaults
+            cogs_list = args.cogs if args.cogs else config.cogs_list
 
-        results = run_evaluation(
-            agent_config=config,
-            experiments=experiments,
-            difficulties=difficulties,
-            cogs_list=cogs_list,
-            max_steps=args.steps,
-            seed=args.seed,
-        )
-        all_results.extend(results)
+            results = run_evaluation(
+                agent_config=config,
+                experiments=experiments,
+                difficulties=difficulties,
+                cogs_list=cogs_list,
+                max_steps=args.steps,
+                seed=args.seed,
+                preset=preset,
+            )
+            all_results.extend(results)
 
     # Print summary
     print_summary(all_results)
