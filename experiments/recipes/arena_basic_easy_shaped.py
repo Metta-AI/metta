@@ -1,5 +1,4 @@
 from typing import Optional, Sequence
-from ray import tune
 import metta.cogworks.curriculum as cc
 import mettagrid.builder.envs as eb
 from metta.agent.policies.vit import ViTDefaultConfig
@@ -13,7 +12,6 @@ from metta.rl.loss import LossConfig
 from metta.rl.trainer_config import TorchProfilerConfig, TrainerConfig
 from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
 from metta.sim.simulation_config import SimulationConfig
-from metta.sweep.core import ParameterSpec
 from metta.sweep.core import SweepParameters as SP
 from metta.sweep.ray.ray_controller import SweepConfig
 from metta.tools.eval import EvaluateTool
@@ -173,83 +171,84 @@ def evaluate_in_sweep(policy_uri: str) -> EvaluateTool:
     )
 
 
+def sweep_muon(sweep_name: str) -> RaySweepTool:
+    """
+    Sweep using Muon optimizer for large-scale training.
+
+    Muon is designed for training large models and uses momentum-based optimization.
+    """
+    all_specs = [
+        *SP.muon_optimizer_hypers(),  # Muon-specific parameters
+        *SP.ppo_loss_hypers(include_advanced=False),  # Basic PPO for simplicity
+    ]
+
+    search_space = {spec.path: spec.space for spec in all_specs}
+    search_space["trainer.total_timesteps"] = 2_000_000_000
+    # IMPORTANT: Set optimizer type to muon
+    search_space["trainer.optimizer.type"] = "muon"
+
+    sweep_config = SweepConfig(
+        sweep_id=sweep_name,
+        recipe_module="experiments.recipes.arena_basic_easy_shaped",
+        train_entrypoint="train",
+        eval_entrypoint="evaluate_in_sweep",
+        num_samples=50,
+        gpus_per_trial=4,
+        max_concurrent_trials=4,
+    )
+
+    return RaySweepTool(
+        sweep_config=sweep_config,
+        search_space=search_space,
+    )
+
+
+def sweep_minimal(sweep_name: str) -> RaySweepTool:
+    """
+    Minimal sweep focusing on the most impactful hyperparameters.
+
+    Uses only basic PPO parameters without advanced features like V-trace or PER.
+    """
+    all_specs = [
+        *SP.adam_optimizer_hypers(),
+        *SP.ppo_loss_hypers(include_advanced=False),  # Basic PPO only
+    ]
+
+    search_space = {spec.path: spec.space for spec in all_specs}
+    search_space["trainer.total_timesteps"] = (
+        500_000_000  # Shorter runs for quick iteration
+    )
+
+    sweep_config = SweepConfig(
+        sweep_id=sweep_name,
+        recipe_module="experiments.recipes.arena_basic_easy_shaped",
+        train_entrypoint="train",
+        eval_entrypoint="evaluate_in_sweep",
+        num_samples=50,  # Fewer samples for faster exploration
+        gpus_per_trial=2,  # Less GPU per trial
+        max_concurrent_trials=8,  # More concurrent trials
+    )
+
+    return RaySweepTool(
+        sweep_config=sweep_config,
+        search_space=search_space,
+    )
+
+
 def sweep_full(sweep_name: str) -> RaySweepTool:
     """
     Comprehensive Ray sweep covering TrainerConfig and PPOConfig hyperparameters.
     """
 
-    trainer_specs: list[ParameterSpec] = [
-        SP.LEARNING_RATE,
-        ParameterSpec("trainer.optimizer.beta1", tune.uniform(0.85, 0.99)),
-        ParameterSpec("trainer.optimizer.beta2", tune.uniform(0.95, 0.9999)),
-        ParameterSpec("trainer.optimizer.eps", tune.loguniform(1e-8, 1e-5)),
-        ParameterSpec(
-            "trainer.optimizer.weight_decay", tune.choice([0.0, 1e-6, 1e-5, 1e-4])
-        ),
-        ParameterSpec("trainer.optimizer.momentum", tune.uniform(0.8, 0.99)),
-        # ParameterSpec("trainer.batch_size", tune.choice([131_072, 262_144, 524_288])),
-        # ParameterSpec("trainer.minibatch_size", tune.choice([8_192, 16_384, 32_768])),
-        # ParameterSpec("trainer.bptt_horizon", tune.choice([16, 32, 64, 128])),
-        # ParameterSpec("trainer.update_epochs", tune.randint(1, 6)),
+    # Use canonical parameter sets from SweepParameters
+    all_specs = [
+        *SP.adam_optimizer_hypers(),  # Adam-specific parameters only
+        *SP.ppo_loss_hypers(include_advanced=True),
+        # Uncomment to include training hyperparameters:
+        # *SP.training_hypers(),
     ]
 
-    ppo_specs: list[ParameterSpec] = [
-        ParameterSpec(
-            "trainer.losses.loss_configs.ppo.clip_coef", tune.uniform(0.005, 0.3)
-        ),
-        ParameterSpec(
-            "trainer.losses.loss_configs.ppo.ent_coef", tune.loguniform(1e-4, 1e-1)
-        ),
-        ParameterSpec(
-            "trainer.losses.loss_configs.ppo.gae_lambda", tune.uniform(0.8, 0.99)
-        ),
-        ParameterSpec(
-            "trainer.losses.loss_configs.ppo.gamma", tune.uniform(0.95, 0.999)
-        ),
-        ParameterSpec(
-            "trainer.losses.loss_configs.ppo.max_grad_norm", tune.uniform(0.1, 1.0)
-        ),
-        ParameterSpec(
-            "trainer.losses.loss_configs.ppo.vf_clip_coef", tune.uniform(0.0, 0.5)
-        ),
-        ParameterSpec(
-            "trainer.losses.loss_configs.ppo.vf_coef", tune.uniform(0.1, 1.0)
-        ),
-        ParameterSpec(
-            "trainer.losses.loss_configs.ppo.l2_reg_loss_coef",
-            tune.choice([0.0, 1e-6, 1e-5, 1e-4]),
-        ),
-        ParameterSpec(
-            "trainer.losses.loss_configs.ppo.l2_init_loss_coef",
-            tune.choice([0.0, 1e-6, 1e-5, 1e-4]),
-        ),
-        ParameterSpec(
-            "trainer.losses.loss_configs.ppo.norm_adv", tune.choice([True, False])
-        ),
-        ParameterSpec(
-            "trainer.losses.loss_configs.ppo.clip_vloss", tune.choice([True, False])
-        ),
-        ParameterSpec(
-            "trainer.losses.loss_configs.ppo.target_kl",
-            tune.choice([None, 0.01, 0.05, 0.1]),
-        ),
-        ParameterSpec(
-            "trainer.losses.loss_configs.ppo.vtrace.rho_clip", tune.uniform(0.5, 2.0)
-        ),
-        ParameterSpec(
-            "trainer.losses.loss_configs.ppo.vtrace.c_clip", tune.uniform(0.5, 2.0)
-        ),
-        ParameterSpec(
-            "trainer.losses.loss_configs.ppo.prioritized_experience_replay.prio_alpha",
-            tune.uniform(0.0, 1.0),
-        ),
-        ParameterSpec(
-            "trainer.losses.loss_configs.ppo.prioritized_experience_replay.prio_beta0",
-            tune.uniform(0.4, 1.0),
-        ),
-    ]
-
-    search_space = {spec.path: spec.space for spec in (*trainer_specs, *ppo_specs)}
+    search_space = {spec.path: spec.space for spec in all_specs}
     search_space["trainer.total_timesteps"] = 2_000_000_000
 
     sweep_config = SweepConfig(
