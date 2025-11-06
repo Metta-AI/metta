@@ -6,7 +6,6 @@ implement the required methods that MettaAgent depends on."""
 from abc import abstractmethod
 from typing import ClassVar, List, Optional
 
-import numpy as np
 import torch
 import torch.nn as nn
 from pydantic import ConfigDict
@@ -102,10 +101,10 @@ class _SingleAgentAdapter(AgentPolicy):
     """Adapter to provide AgentPolicy interface for a single agent from a multi-agent Policy."""
 
     def __init__(self, policy: "Policy", agent_id: int):
-        super().__init__(policy._actions)
+        super().__init__(policy._policy_env_info)
         self._policy = policy
         self._agent_id = agent_id
-        self._actions_by_id = self._actions.actions()
+        self._actions_by_id = self._policy_env_info.actions.actions()
 
     def step(self, obs: AgentObservation) -> Action:
         """Get action from Policy."""
@@ -122,23 +121,8 @@ class _SingleAgentAdapter(AgentPolicy):
 
     def _obs_to_td(self, obs: AgentObservation, device: torch.device) -> TensorDict:
         """Convert AgentObservation to TensorDict."""
-        tokens = []
-
-        for token in obs.tokens:
-            col, row = token.location
-            # Pack coordinates into a single byte: first 4 bits are col, last 4 bits are row
-            coords_byte = ((col & 0x0F) << 4) | (row & 0x0F)
-            feature_id = token.feature.id
-            value = token.value
-            tokens.append([coords_byte, feature_id, value])
-
-        # Pad to max_tokens with [0xFF, 0, 0] (end-of-tokens marker)
-        while len(tokens) < 200:
-            tokens.append([0xFF, 0, 0])
-
-        # Convert to numpy array and then to tensor: [M, 3] -> [1, M, 3]
-        obs_array = np.array(tokens, dtype=np.uint8)
-        obs_tensor = torch.from_numpy(obs_array).unsqueeze(0).to(device)
+        tokens = [token.value for token in obs.tokens]
+        obs_tensor = torch.tensor(tokens, dtype=torch.uint8).unsqueeze(0).to(device)
 
         td = TensorDict(
             {
