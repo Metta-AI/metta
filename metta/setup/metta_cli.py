@@ -15,14 +15,13 @@ import rich.progress
 import rich.table
 import typer
 
-repo_root_path = pathlib.Path(__file__).resolve().parents[2]
-if repo_root_path.exists():
-    sys.path.insert(0, str(repo_root_path))
-
 import gitta as git
 import metta.common.util.fs
+import metta.setup._path_setup  # noqa: F401
 import metta.setup.components.base
 import metta.setup.local_commands
+import metta.setup.profiles
+import metta.setup.saved_settings
 import metta.setup.symlink_setup
 import metta.setup.tools.book
 import metta.setup.tools.ci_runner
@@ -30,6 +29,7 @@ import metta.setup.tools.code_formatters
 import metta.setup.tools.test_runner.test_cpp
 import metta.setup.tools.test_runner.test_python
 import metta.setup.utils
+import metta.tools.utils.auto_config
 import metta.utils.live_run_monitor
 import softmax.dashboard.report
 
@@ -54,9 +54,6 @@ class MettaCLI:
         self._components_initialized = True
 
     def setup_wizard(self, non_interactive: bool = False):
-        import metta.setup.profiles
-        import metta.setup.saved_settings
-
         metta.setup.utils.header("Welcome to Metta!\n\n")
         metta.setup.utils.info(
             "Note: You can run 'metta configure <component>' to change component-level settings later.\n"
@@ -367,8 +364,6 @@ def cmd_status(
 
     console = rich.console.Console()
     console.print(table)
-
-    import metta.tools.utils.auto_config
 
     policy_decision = metta.tools.utils.auto_config.auto_policy_storage_decision()
     if policy_decision.using_remote and policy_decision.base_prefix:

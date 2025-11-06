@@ -172,3 +172,21 @@ def sweep_async_progressive(
 
 def _delegate_sweep(sweep_name: str, **kwargs: object) -> metta.tools.sweep.SweepTool:
     return experiments.recipes.arena_basic_easy_shaped.sweep(sweep_name, **kwargs)
+
+
+
+for _name in [
+    "mettagrid",
+    "make_curriculum",
+    "simulations",
+    "play",
+    "replay",
+    "evaluate",
+    "evaluate_in_sweep",
+    "sweep",
+]:
+    if _name in globals():
+        continue
+    globals()[_name] = getattr(experiments.recipes.arena_basic_easy_shaped, _name)
+
+del _name

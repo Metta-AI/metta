@@ -5,6 +5,7 @@ import cortex
 import cortex.blocks.base
 import cortex.cells.base
 import cortex.config
+import cortex.stacks
 import cortex.types
 import pydantic
 import torch
@@ -115,8 +116,6 @@ def test_custom_block():
 
     # Build the stack using the standard CortexStack - no custom class needed!
     # The registry system automatically handles our custom block type
-    import cortex.stacks
-
     stack = cortex.stacks.CortexStack(recipe)
 
     print(f"Built custom stack with {len(stack.blocks)} blocks")

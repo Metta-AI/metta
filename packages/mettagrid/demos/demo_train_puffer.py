@@ -28,6 +28,7 @@ Run with: uv run python packages/mettagrid/demos/demo_train_puffer.py (from proj
 
 import time
 
+import gymnasium
 import numpy as np
 
 # MettaGrid imports
@@ -36,7 +37,6 @@ import mettagrid.builder.envs
 import mettagrid.envs.mettagrid_puffer_env
 import mettagrid.mettagrid_c
 import mettagrid.simulator
-import gymnasium
 
 # Training framework imports
 try:
@@ -77,8 +77,6 @@ def demo_puffer_env():
     print(f"   - Reset successful: observations shape {observations.shape}")
 
     # Generate random actions compatible with the action space
-    import gymnasium
-
     assert isinstance(env.single_action_space, gymnasium.spaces.Discrete)
     actions = np.random.randint(0, env.single_action_space.n, size=(env.num_agents,)).astype(
         mettagrid.mettagrid_c.dtype_actions, copy=False

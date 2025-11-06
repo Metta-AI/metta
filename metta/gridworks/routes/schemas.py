@@ -49,7 +49,8 @@ def make_schemas_router() -> fastapi.APIRouter:
             [
                 (x, "serialization")
                 for x in [
-                    mettagrid.base_config.Config,  # including Config here guarantees that MapGen.Config name will be fully qualified
+                    # Including Config ensures MapGen.Config name is fully qualified.
+                    mettagrid.base_config.Config,
                     mettagrid.builder.envs.MettaGridConfig,
                     metta.sim.simulation_config.SimulationConfig,
                     metta.cogworks.curriculum.curriculum.CurriculumConfig,

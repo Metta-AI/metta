@@ -6,6 +6,7 @@ making them perfect for fine-tuning pretrained models without disrupting learned
 """
 
 import cortex
+import cortex.blocks.adapter
 import torch
 
 
@@ -101,8 +102,6 @@ def test_freezing_and_training():
     # Freeze all non-adapter blocks
     frozen_count = 0
     for i, block in enumerate(stack.blocks):
-        import cortex.blocks.adapter
-
         if not isinstance(block, cortex.blocks.adapter.AdapterBlock):
             for param in block.parameters():
                 param.requires_grad = False

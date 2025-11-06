@@ -250,13 +250,13 @@ class Scene(typing.Generic[ConfigT]):
             raise TypeError(f"{cls.__name__} must inherit from Scene[…], with a concrete Config class parameter")
 
         # Set the Config class - this allows to use Scene.Config shorthand
-        Config = typing.get_args(scene_bases[0])[0]
-        if mettagrid.base_config.Config._scene_cls:
+        config_cls = typing.get_args(scene_bases[0])[0]
+        if config_cls._scene_cls:
             raise ValueError(
-                f"{mettagrid.base_config.Config.__name__} is already bound to another scene class: {mettagrid.base_config.Config._scene_cls.__name__}"
+                f"{config_cls.__name__} is already bound to another scene class: {config_cls._scene_cls.__name__}"
             )
-        mettagrid.base_config.Config._scene_cls = cls
-        cls.Config = mettagrid.base_config.Config
+        config_cls._scene_cls = cls
+        cls.Config = config_cls
         return
 
     def __init__(

@@ -41,9 +41,8 @@ import rich.text
 import typer
 
 import metta.adaptive.models
-import metta.jobs.job_state
-
 import metta.common.util.constants
+import metta.jobs.job_state
 
 if typing.TYPE_CHECKING:
     import metta.adaptive.models

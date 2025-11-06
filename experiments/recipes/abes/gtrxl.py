@@ -48,3 +48,20 @@ __all__ = [
     "sweep",
     "train",
 ]
+
+
+for _name in [
+    "mettagrid",
+    "make_curriculum",
+    "simulations",
+    "play",
+    "replay",
+    "evaluate",
+    "evaluate_in_sweep",
+    "sweep",
+]:
+    if _name in globals():
+        continue
+    globals()[_name] = getattr(experiments.recipes.arena_basic_easy_shaped, _name)
+
+del _name

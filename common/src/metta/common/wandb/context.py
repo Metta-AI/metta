@@ -7,6 +7,8 @@ import mettagrid.base_config
 
 if typing.TYPE_CHECKING:
     import wandb.sdk.wandb_run
+
+    WandbRun = wandb.sdk.wandb_run.Run
 else:
     WandbRun = typing.Any
 
@@ -74,13 +76,13 @@ class WandbContext:
         self.wandb_config = wandb_config
         self.run_config = run_config
         self.run_config_name = run_config_name
-        self.run: wandb.sdk.wandb_run.Run | None = None
+        self.run: WandbRun | None = None
         self.timeout = timeout  # Add configurable timeout (wandb default is 90 seconds)
         self.wandb_host = "api.wandb.ai"
         self.wandb_port = 443
         self._generated_ipc_file_path: str | None = None  # To store path if generated
 
-    def __enter__(self) -> wandb.sdk.wandb_run.Run | None:
+    def __enter__(self) -> WandbRun | None:
         if not self.wandb_config.enabled:
             return None
 
@@ -169,7 +171,7 @@ class WandbContext:
         return self.run
 
     @staticmethod
-    def cleanup_run(run: wandb.sdk.wandb_run.Run | None):
+    def cleanup_run(run: WandbRun | None):
         if run:
             import wandb
 

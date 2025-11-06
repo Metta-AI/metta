@@ -220,6 +220,13 @@ def build_sdist(sdist_directory, config_settings=None):
     return setuptools.build_meta.build_sdist(sdist_directory, config_settings)
 
 
+# Re-export setuptools build hooks for completeness
+get_requires_for_build_wheel = setuptools.build_meta.get_requires_for_build_wheel
+get_requires_for_build_editable = setuptools.build_meta.get_requires_for_build_editable
+get_requires_for_build_sdist = setuptools.build_meta.get_requires_for_build_sdist
+prepare_metadata_for_build_wheel = setuptools.build_meta.prepare_metadata_for_build_wheel
+prepare_metadata_for_build_editable = setuptools.build_meta.prepare_metadata_for_build_editable
+
 __all__ = [
     "build_wheel",
     "build_editable",

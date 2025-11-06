@@ -5,10 +5,9 @@ import logging
 import random
 import typing
 
-import metta.cogworks.curriculum.learning_progress_algorithm
-
 import pydantic
 
+import metta.cogworks.curriculum.learning_progress_algorithm
 import metta.cogworks.curriculum.stats
 import metta.cogworks.curriculum.task_generator
 import mettagrid.base_config
@@ -232,9 +231,7 @@ class CurriculumConfig(mettagrid.base_config.Config):
             "DiscreteRandomConfig",
             metta.cogworks.curriculum.learning_progress_algorithm.LearningProgressConfig,
         ]
-    ] = pydantic.Field(
-        default=None, description="Curriculum algorithm hyperparameters"
-    )
+    ] = pydantic.Field(default=None, description="Curriculum algorithm hyperparameters")
 
     @classmethod
     def from_mg(cls, mg_config: mettagrid.config.mettagrid_config.MettaGridConfig) -> "CurriculumConfig":

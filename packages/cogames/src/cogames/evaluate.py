@@ -322,7 +322,7 @@ def _evaluate_single_mission(
     assert len(assignments) == env_cfg.game.num_agents
 
     per_episode_rewards: list[np.ndarray] = []
-    per_episode_stats: list["EpisodeStats"] = []
+    per_episode_stats: list[EpisodeStats] = []
     per_episode_assignments: list[np.ndarray] = []
     per_policy_timeouts: np.ndarray = np.zeros(len(policy_specs), dtype=int)
 

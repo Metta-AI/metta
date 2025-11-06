@@ -210,6 +210,11 @@ STACKS: typing.Dict[str, StackSpec] = {
 }
 
 
+def build_cortex_auto_stack(*, d_hidden: int = 128, num_layers: int = 2, **kwargs) -> cortex.stacks.CortexStack:
+    """Thin wrapper to expose cortex.stacks.build_cortex_auto_stack via __all__."""
+    return cortex.stacks.build_cortex_auto_stack(d_hidden=d_hidden, num_layers=num_layers, **kwargs)
+
+
 __all__ = [
     "StackSpec",
     "STACKS",

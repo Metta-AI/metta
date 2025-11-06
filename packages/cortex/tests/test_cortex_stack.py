@@ -54,7 +54,7 @@ def test_cortex_stack():
     print()
 
     # Build the cortex stack
-    cortex = cortex.build_cortex(recipe)
+    cortex_stack = cortex.build_cortex(recipe)
     print(f"Built CortexStack with {len(cortex.blocks)} blocks")
 
     # Count parameters
@@ -68,11 +68,11 @@ def test_cortex_stack():
     print(f"Input shape: {x_seq.shape}")
 
     # Initialize state
-    state = cortex.init_state(batch=batch_size, device=device, dtype=dtype)
+    state = cortex_stack.init_state(batch=batch_size, device=device, dtype=dtype)
     print(f"State keys: {list(state.keys())}")
 
     # Forward pass
-    output, new_state = cortex(x_seq, state)
+    output, new_state = cortex_stack(x_seq, state)
     print(f"Output shape: {output.shape}")
     print(f"Output preserved d_hidden: {output.shape[-1] == d_hidden}")
     assert output.shape == x_seq.shape, "Output shape mismatch!"
@@ -84,7 +84,7 @@ def test_cortex_stack():
     x_longer = torch.randn(batch_size, seq_len * 2, d_hidden, device=device, dtype=dtype)
     print(f"Input shape: {x_longer.shape}")
 
-    output_longer, state_longer = cortex(x_longer, state)
+    output_longer, state_longer = cortex_stack(x_longer, state)
     print(f"Output shape: {output_longer.shape}")
     assert output_longer.shape == x_longer.shape, "Output shape mismatch!"
     print("✓ Different sequence length test passed\n")
@@ -95,7 +95,7 @@ def test_cortex_stack():
     x_step = torch.randn(batch_size, d_hidden, device=device, dtype=dtype)
     print(f"Input shape: {x_step.shape}")
 
-    output_step, state_step = cortex.step(x_step, new_state)
+    output_step, state_step = cortex_stack.step(x_step, new_state)
     print(f"Output shape: {output_step.shape}")
     assert output_step.shape == x_step.shape, "Output shape mismatch!"
     print("✓ Step mode test passed\n")
@@ -107,7 +107,7 @@ def test_cortex_stack():
     print(f"Reset mask: {reset_mask}")
 
     # Apply reset
-    reset_state = cortex.reset_state(new_state, reset_mask)
+    reset_state = cortex_stack.reset_state(new_state, reset_mask)
 
     # Verify reset was applied
     for block_key in reset_state.keys():
@@ -134,7 +134,7 @@ def test_cortex_stack():
     resets_seq = torch.randint(0, 2, (batch_size, seq_len), device=device).bool()
     print(f"Resets shape: {resets_seq.shape}")
 
-    output_with_resets, state_with_resets = cortex(x_seq, state, resets=resets_seq)
+    output_with_resets, state_with_resets = cortex_stack(x_seq, state, resets=resets_seq)
     print(f"Output shape: {output_with_resets.shape}")
     assert output_with_resets.shape == x_seq.shape, "Output shape mismatch!"
     print("✓ Per-timestep resets test passed\n")

@@ -31,7 +31,7 @@ class GameMap:
         self.grid = grid
 
 
-TBuilder = typing.TypeVar("TBuilder", bound="MapBuilder[Any]")
+TBuilder = typing.TypeVar("TBuilder", bound="MapBuilder[typing.Any]")
 
 
 class MapBuilderConfig(mettagrid.base_config.Config, typing.Generic[TBuilder]):
@@ -177,22 +177,17 @@ class MapBuilder(abc.ABC, typing.Generic[ConfigT]):
             ) from None
 
         # Set the Config class - this allows to use MapBuilder.Config shorthand
-        Config = typing.get_args(base)[0]
+        config_cls = typing.get_args(base)[0]
 
-        # Should be guaranteed by the type checker.
-        assert isinstance(mettagrid.base_config.Config, type) and issubclass(
-            mettagrid.base_config.Config, MapBuilderConfig
-        )
-
-        if mettagrid.base_config.Config._builder_cls:
+        if config_cls._builder_cls:
             # Already bound to another MapBuilder class, so we need to clone it
-            class CloneConfig(mettagrid.base_config.Config):
+            class CloneConfig(config_cls):  # type: ignore[misc]
                 pass
 
-            Config = CloneConfig
+            config_cls = CloneConfig
 
-        mettagrid.base_config.Config._builder_cls = cls
-        cls.Config = mettagrid.base_config.Config  # pyright: ignore[reportAttributeAccessIssue]
+        config_cls._builder_cls = cls
+        cls.Config = config_cls  # pyright: ignore[reportAttributeAccessIssue]
         return
 
     def __init__(self, config: ConfigT):

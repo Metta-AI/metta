@@ -191,10 +191,6 @@ class KindLocal(Kind):
             metta.setup.utils.error("No WANDB API key found. Please run 'wandb login' and try again.")
             sys.exit(1)
 
-        # Lazy import to avoid loading app_backend dependencies when using metta CLI for linting.
-        # This keeps the metta-cli install mode lightweight and fast.
-        import metta.app_backend.clients.base_client  # pylint: disable=import-outside-toplevel
-
         machine_token = metta.app_backend.clients.base_client.get_machine_token(
             metta.common.util.constants.DEV_STATS_SERVER_URI
         )
@@ -217,8 +213,6 @@ class KindLocal(Kind):
                 subprocess.run(["kind", "delete", "cluster", "--name", self.cluster_name], check=True)
                 subprocess.run(["kind", "create", "cluster", "--name", self.cluster_name], check=True)
         self._use_appropriate_context()
-
-        import metta.setup.local_commands
 
         self._ensure_docker_img_built(
             "metta-policy-evaluator-local:latest", metta.setup.local_commands.build_policy_evaluator_img_internal

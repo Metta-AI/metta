@@ -357,4 +357,4 @@ class mLSTMCell(cortex.cells.base.MemoryCell):
         return state
 
 
-__all__ = ["mLSTMCell", "mLSTMCellConfig"]
+__all__ = ["mLSTMCell"]

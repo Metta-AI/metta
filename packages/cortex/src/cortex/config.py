@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import typing
 
-import pydantic
 import cortex.blocks.registry
+import pydantic
 
 
 class CellConfig(pydantic.BaseModel):

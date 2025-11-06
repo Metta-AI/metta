@@ -7,8 +7,8 @@ import torch
 
 import metta.agent.policy
 import metta.rl.loss
-import mettagrid.base_config
 import metta.rl.training.training_environment
+import mettagrid.base_config
 
 if typing.TYPE_CHECKING:
     import metta.rl.training

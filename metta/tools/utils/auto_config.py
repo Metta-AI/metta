@@ -52,9 +52,7 @@ def _merge_wandb_settings(*settings_dicts: dict[str, typing.Any]) -> dict[str, t
     return merged
 
 
-def auto_wandb_config(
-    run: str | None = None, group: str | None = None, tags: list[str] | None = None
-) -> WandbConfig:
+def auto_wandb_config(run: str | None = None, group: str | None = None, tags: list[str] | None = None) -> WandbConfig:
     wandb_setup_module = metta.setup.components.wandb.WandbSetup()
     merged_settings = _merge_wandb_settings(
         metta.common.wandb.context.WandbConfig.Off().model_dump(),

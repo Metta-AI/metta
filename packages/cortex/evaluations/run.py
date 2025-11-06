@@ -372,14 +372,14 @@ def train_one(
     val_loader = torch.utils.data.DataLoader(val_ds, batch_size=batch_size)
     test_loader = torch.utils.data.DataLoader(test_ds, batch_size=batch_size)
 
-    model = model.SequenceClassifier(
+    sequence_model = model.SequenceClassifier(
         stack=stack, vocab_size=task.vocab_size, d_hidden=d_hidden, n_classes=task.n_classes
     )
-    model.to(device)
+    sequence_model.to(device)
 
     # Count and log model parameters
-    total_params = sum(p.numel() for p in model.parameters())
-    trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
+    total_params = sum(p.numel() for p in sequence_model.parameters())
+    trainable_params = sum(p.numel() for p in sequence_model.parameters() if p.requires_grad)
     logging.info("model parameters: total=%d trainable=%d", total_params, trainable_params)
 
     # Optimizer: optionally boost LR and/or set weight_decay for Axon dynamics/input params
@@ -387,7 +387,7 @@ def train_one(
         axon_names = ("nu_log", "theta_log", "w1", "w2")
         axon_params = []
         base_params = []
-        for n, p in model.named_parameters():
+        for n, p in sequence_model.named_parameters():
             if any(n.endswith(k) or (f".{k}" in n) for k in axon_names):
                 axon_params.append(p)
             else:
@@ -409,7 +409,7 @@ def train_one(
         )
         opt = torch.optim.AdamW(param_groups)
     else:
-        opt = torch.optim.AdamW(model.parameters(), lr=lr)
+        opt = torch.optim.AdamW(sequence_model.parameters(), lr=lr)
     criterion = nn.CrossEntropyLoss()
 
     # Generic chunked processing (TBPTT on last chunk) for any stack when enabled
@@ -496,7 +496,7 @@ def train_one(
         return scanned, zeroed
 
     def _run_epoch(loader: torch.utils.data.DataLoader, train: bool) -> typing.Tuple[float, float]:
-        model.train(train)
+        sequence_model.train(train)
         total_loss = 0.0
         correct = 0
         total = 0
@@ -524,7 +524,7 @@ def train_one(
                         start = i * C
                         end = start + C
                         with torch.no_grad():
-                            _out, state = model(seq[:, start:end], state)
+                            _out, state = sequence_model(seq[:, start:end], state)
                             if state is not None:
                                 state = state.detach()
 
@@ -543,27 +543,27 @@ def train_one(
                     state = None
                 if tail > 0:
                     start = n_full * C
-                    logits, state = model(seq[:, start:], state)
+                    logits, state = sequence_model(seq[:, start:], state)
                 else:
                     start = (n_full - 1) * C if n_full > 0 else 0
-                    logits, state = model(seq[:, start : start + C], state)
+                    logits, state = sequence_model(seq[:, start : start + C], state)
             else:
-                logits, state = model(seq, state)
+                logits, state = sequence_model(seq, state)
             loss = criterion(logits, labels)
             # Optional Axons parity probe: compute grads with both backends on the same minibatch
             # to catch any drift. This is a no-op for optimization; used for diagnostics only.
             if (
                 train
                 and AXONS_PARITY_PROBE > 0
-                and hasattr(model.stack.blocks[0], "cell")
-                and model.stack.blocks[0].cell.__class__.__name__ == "AxonsCell"
+                and hasattr(sequence_model.stack.blocks[0], "cell")
+                and sequence_model.stack.blocks[0].cell.__class__.__name__ == "AxonsCell"
                 and total == 0  # first minibatch only to avoid overhead
                 and (EPOCH_IDX % max(AXONS_PARITY_PROBE, 1) == 0)
             ):
                 import copy
 
-                model_a = copy.deepcopy(model).to(device)
-                model_b = copy.deepcopy(model).to(device)
+                model_a = copy.deepcopy(sequence_model).to(device)
+                model_b = copy.deepcopy(sequence_model).to(device)
                 # Disable Triton for model_a
                 os.environ["CORTEX_DISABLE_TRITON"] = "1"
                 opt_a = torch.optim.SGD(model_a.parameters(), lr=0.0)
@@ -595,7 +595,7 @@ def train_one(
                     logging.info("[parity] grad list length mismatch: %d vs %d", len(grads_a), len(grads_b))
             if train:
                 loss.backward()
-                torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
+                torch.nn.utils.clip_grad_norm_(sequence_model.parameters(), max_norm=1.0)
                 opt.step()
             total_loss += loss.item() * seq.size(0)
             preds = logits.argmax(dim=-1)
