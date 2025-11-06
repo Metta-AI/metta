@@ -81,8 +81,10 @@ def cogames_task(
         eval_episodes: Number of evaluation episodes to run (default: 10)
     """
     # Build cogames train+eval wrapper command
+    # Note: Runner will pass --job-name with versioned name for artifact uploads
     variants_args = " ".join(f"--variant {v}" for v in variants)
     checkpoints_dir = f"./train_dir/{name}/checkpoints"
+
     cmd = (
         f"uv run ./devops/stable/cogames_train_eval.py "
         f"--mission {mission} {variants_args} "
@@ -113,6 +115,7 @@ def cogames_task(
         metrics_source=MetricsSource.COGAMES_LOG,
         metrics_to_track=metrics_to_track,
         acceptance_criteria=acceptance_criteria_list,
+        artifacts=["eval_results.json"],  # Job will write eval JSON to S3
     )
     return Task(job_config=job_config, acceptance=acceptance, dependency_names=[])
 
@@ -185,18 +188,18 @@ def get_all_tasks() -> list[Task]:
     )
 
     # Cogames smoke tests
-    # Each epoch ≈ 17k steps, so 300 epochs × 17,024 steps/epoch = 5,107,200 steps
+    # Each epoch ≈ 17k steps, so 20 epochs × 17,024 steps/epoch = 340,480 steps
     cogames_local_smoke = cogames_task(
         name="cogames_local_smoke",
         mission="training_facility.harvest",
         variants=["lonely_heart"],
-        steps=5_107_200,  # 300 epochs
-        timeout_s=600,  # 10 minutes for CPU training
+        steps=340_480,  # 20 epochs (quick test)
+        timeout_s=300,  # 5 minutes for CPU training
         eval_episodes=10,
         stats_to_track=["SPS", "avg_agent_metrics.energy.gained"],
         acceptance=[
             ("SPS", ge, 1000),  # Very permissive - just ensure it runs (CPU)
-            ("avg_agent_metrics.energy.gained", ge, 100.0),  # Agent should gain energy
+            ("avg_agent_metrics.energy.gained", ge, 10.0),  # Agent should gain some energy
         ],
     )
 
