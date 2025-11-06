@@ -25,7 +25,11 @@ from setuptools.build_meta import (
 )
 from setuptools.dist import Distribution
 
-from .nim_bootstrap import ensure_nim_dependencies
+BOOTSTRAP_DIR = Path(__file__).resolve().parent
+if str(BOOTSTRAP_DIR) not in sys.path:
+    sys.path.insert(0, str(BOOTSTRAP_DIR))
+
+from nim_bootstrap import ensure_nim_dependencies
 
 PROJECT_ROOT = Path(__file__).resolve().parent
 METTASCOPE_DIR = PROJECT_ROOT / "nim" / "mettascope"
