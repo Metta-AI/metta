@@ -84,7 +84,7 @@ class MapGenConfig(MapBuilderConfig["MapGen"]):
             target = load_symbol(t) if isinstance(t, str) else t
             if isinstance(target, type) and issubclass(target, SceneConfig):
                 return SceneConfig.model_validate(v)
-            elif isinstance(target, type) and issubclass(target, MapBuilder):
+            elif isinstance(target, type) and issubclass(target, MapBuilderConfig):
                 return MapBuilderConfig.model_validate(v)
             else:
                 raise ValueError(f"Invalid instance type: {target!r}")
@@ -128,6 +128,8 @@ class MapGenConfig(MapBuilderConfig["MapGen"]):
     # many agents there are in the instance scene. (It will assume that the instance always places the same number
     # of agents.)
     num_agents: int | None = Field(default=None, ge=0)
+
+    fixed_spawn_order: bool = Field(default=False, description="If True, the spawn order will be fixed")
 
     # Inner border width between instances. This value usually shouldn't be changed.
     instance_border_width: int = Field(default=5, ge=0)
@@ -443,3 +445,8 @@ class MapGen(MapBuilder[MapGenConfig]):
 
     def get_scene_tree(self) -> dict:
         return self.root_scene.get_scene_tree()
+
+    def shuffle_spawn_indices(self, indices: np.ndarray):
+        if self.config.fixed_spawn_order:
+            return
+        self.rng.shuffle(indices)

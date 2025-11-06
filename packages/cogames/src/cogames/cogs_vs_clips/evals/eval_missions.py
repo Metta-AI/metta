@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 from typing import override
 
-from cogames.cogs_vs_clips.mission import Mission, MissionVariant
+from cogames.cogs_vs_clips.mission import Mission, MissionVariant, NumCogsVariant
 from cogames.cogs_vs_clips.mission_utils import get_map
 from cogames.cogs_vs_clips.sites import EVALS
 from mettagrid.config.mettagrid_config import ProtocolConfig
@@ -50,7 +50,10 @@ class EvalVariant(MissionVariant):
 
     @override
     def modify_env(self, mission, env) -> None:
-        env.game.map_builder = get_map(self.map_name)
+        env.game.map_builder = get_map(
+            self.map_name,
+            fixed_spawn_order=True,  # spawn positions are always fixed for evals
+        )
         # Set episode length for all evals
         env.game.max_steps = 1000
         # Make HEART crafting feasible with a single agent using the heart glyph
@@ -350,17 +353,10 @@ GoTogether = Mission(
             max_uses_silicon=20,
             max_uses_carbon=30,
             max_uses_oxygen=25,
-        )
+        ),
+        NumCogsVariant(num_cogs=2),
     ],
 )
-
-# def instantiate(
-#     self, map_builder: MapBuilderConfig, num_cogs: int, variant: MissionVariant | None = None, **kwargs
-# ) -> "Mission":
-#     # Enforce at least two agents
-#     enforced_cogs = max(2, num_cogs)
-#     return super().instantiate(map_builder, enforced_cogs, variant)
-
 
 SingleUseSwarm = Mission(
     name="single_use_swarm",
@@ -380,17 +376,10 @@ SingleUseSwarm = Mission(
             max_uses_oxygen=1,
             max_uses_germanium=1,
             max_uses_silicon=1,
-        )
+        ),
+        NumCogsVariant(num_cogs=2),
     ],
 )
-
-# def instantiate(
-#     self, map_builder: MapBuilderConfig, num_cogs: int, variant: MissionVariant | None = None, **kwargs
-# ) -> "Mission":
-#     # Enforce at least two agents
-#     enforced_cogs = max(2, num_cogs)
-#     return super().instantiate(map_builder, enforced_cogs, variant)
-
 
 EVAL_MISSIONS: list[Mission] = [
     EnergyStarved,
