@@ -261,8 +261,7 @@ def sweep_full(sweep_name: str) -> RaySweepTool:
         # No score key yet
         score_key="evaluator/eval_sweep/score",
         num_samples=100,
-        num_seeds_per_trial=1,
-        gpus_per_trial=0,
+        gpus_per_trial=4,
         # Issues with concurrent trials computations
         # Issues with CPU compuations
         max_concurrent_trials=4,

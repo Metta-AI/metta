@@ -42,11 +42,15 @@ class RaySweepTool(Tool):
 
     sweep_config: SweepConfig = SweepConfig()
     search_space: dict[str, Any] = Field(default_factory=dict)
-
-    #  TODO: Add some logging here?
+    local_test: bool = False
 
     def invoke(self, args: dict[str, str]) -> int | None:
         ray_address = args.get("ray_address") or os.getenv("RAY_ADDRESS")
+
+        if local_test: 
+            self.search_space["trainer.total_timesteps"] = 100_000
+            # TODO: Add diagnostic output, confirmations, etc...
+
         return ray_sweep(
             sweep_config=self.sweep_config,
             search_space=self.search_space,

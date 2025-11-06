@@ -47,13 +47,6 @@ class SweepConfig(Config):
     max_failures_per_trial: int = 3  # Max retries for failed trials (e.g., spot terminations)
     fail_fast: bool = False  # Whether to stop the sweep if any trial fails permanently
 
-    # TODO I don't like having a default score key
-    score_key: str = Field(default="evaluator/eval_sweep/score")
-
-    # Number of times to repeat each suggested configuration (e.g., multi-seed evaluation)
-    num_seeds_per_trial: int = Field(default=1, gt=0)
-
-
 def ray_sweep(
     *,
     search_space: Dict[str, Any],
@@ -159,18 +152,9 @@ def ray_sweep(
 
     optuna_search = OptunaSearch(metric="reward", mode="max")
 
-    search_alg = optuna_search
-
-    if sweep_config.num_seeds_per_trial > 1:
-        optuna_search = Repeater(
-            optuna_search,
-            repeat=sweep_config.num_seeds_per_trial,
-        )
-    # Limit Optuna to a single suggestion's repeats at a time so it averages seeds before proposing new configs
-    # TODO: The behavior is that this will queue up
     search_alg = ConcurrencyLimiter(
         optuna_search,
-        max_concurrent=min(sweep_config.num_seeds_per_trial, sweep_config.max_concurrent_trials),
+        max_concurrent=sweep_config.max_concurrent_trials
     )
 
     trial_counter = count()
