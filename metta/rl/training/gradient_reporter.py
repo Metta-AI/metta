@@ -5,7 +5,7 @@ import logging
 import pydantic
 import torch
 
-import metta.rl.training
+import metta.rl.training.component as training_component
 import mettagrid.base_config
 
 logger = logging.getLogger(__name__)
@@ -18,7 +18,7 @@ class GradientReporterConfig(mettagrid.base_config.Config):
     """How often to compute gradient statistics (in epochs)."""
 
 
-class GradientReporter(metta.rl.training.TrainerComponent):
+class GradientReporter(training_component.TrainerComponent):
     """Computes gradient statistics for monitoring."""
 
     def __init__(self, config: GradientReporterConfig):

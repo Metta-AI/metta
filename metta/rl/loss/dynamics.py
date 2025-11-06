@@ -8,7 +8,7 @@ import torch.nn.functional as F
 
 import metta.agent.policy
 import metta.rl.loss.loss
-import metta.rl.training
+import metta.rl.training.component_context as training_component_context
 import mettagrid.base_config
 
 
@@ -44,7 +44,7 @@ class Dynamics(metta.rl.loss.loss.Loss):
     def run_train(
         self,
         shared_loss_data: tensordict.TensorDict,
-        context: metta.rl.training.ComponentContext,
+        context: training_component_context.ComponentContext,
         mb_idx: int,
     ) -> tuple[torch.Tensor, tensordict.TensorDict, bool]:
         policy_td = shared_loss_data["policy_td"]

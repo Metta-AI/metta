@@ -11,7 +11,7 @@ import metta.common.wandb.context
 import metta.eval.eval_request_config
 import metta.rl.evaluate
 import metta.rl.trainer_config
-import metta.rl.training
+import metta.rl.training.experience as training_experience
 import metta.rl.wandb
 import mettagrid.profiling.stopwatch
 import mettagrid.util.dict_utils
@@ -88,7 +88,7 @@ def filter_movement_metrics(stats: dict[str, typing.Any]) -> dict[str, typing.An
 def process_training_stats(
     raw_stats: dict[str, typing.Any],
     losses_stats: dict[str, typing.Any],
-    experience: metta.rl.training.Experience,
+    experience: training_experience.Experience,
     trainer_config: metta.rl.trainer_config.TrainerConfig,
 ) -> dict[str, typing.Any]:
     """Process training statistics into a clean format.

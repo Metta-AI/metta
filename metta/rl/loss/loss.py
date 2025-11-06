@@ -8,7 +8,9 @@ import torch
 import torchrl.data
 
 import metta.agent.policy
-import metta.rl.training
+import metta.rl.training.component_context as training_component_context
+import metta.rl.training.experience as training_experience
+import metta.rl.training.training_environment as training_environment
 
 
 @dataclasses.dataclass(slots=True)
@@ -17,16 +19,16 @@ class Loss:
 
     policy: metta.agent.policy.Policy
     trainer_cfg: typing.Any
-    env: metta.rl.training.TrainingEnvironment
+    env: training_environment.TrainingEnvironment
     device: torch.device
     instance_name: str
     loss_cfg: typing.Any
 
     policy_experience_spec: torchrl.data.Composite | None = None
-    replay: metta.rl.training.Experience | None = None
+    replay: training_experience.Experience | None = None
     loss_tracker: dict[str, list[float]] | None = None
     _zero_tensor: torch.Tensor | None = None
-    _context: metta.rl.training.ComponentContext | None = None
+    _context: training_component_context.ComponentContext | None = None
 
     rollout_start_epoch: int = 0
     rollout_end_epoch: float = float("inf")
@@ -45,13 +47,13 @@ class Loss:
         self.register_state_attr("loss_tracker")
         self._configure_schedule()
 
-    def attach_context(self, context: metta.rl.training.ComponentContext) -> None:
+    def attach_context(self, context: training_component_context.ComponentContext) -> None:
         """Register the shared trainer context for this loss instance."""
         self._context = context
 
     def _require_context(
-        self, context: metta.rl.training.ComponentContext | None = None
-    ) -> metta.rl.training.ComponentContext:
+        self, context: training_component_context.ComponentContext | None = None
+    ) -> training_component_context.ComponentContext:
         if context is not None:
             self._context = context
             return context
@@ -65,16 +67,16 @@ class Loss:
 
     # --------- Control flow hooks; override in subclasses when custom behaviour is needed ---------
 
-    def on_new_training_run(self, context: metta.rl.training.ComponentContext | None = None) -> None:
+    def on_new_training_run(self, context: training_component_context.ComponentContext | None = None) -> None:
         """Called at the very beginning of a training epoch."""
         self._require_context(context)
 
-    def on_rollout_start(self, context: metta.rl.training.ComponentContext | None = None) -> None:
+    def on_rollout_start(self, context: training_component_context.ComponentContext | None = None) -> None:
         """Called before starting a rollout phase."""
         self._ensure_context(context)
         self.policy.reset_memory()
 
-    def rollout(self, td: tensordict.TensorDict, context: metta.rl.training.ComponentContext | None = None) -> None:
+    def rollout(self, td: tensordict.TensorDict, context: training_component_context.ComponentContext | None = None) -> None:
         """Rollout step executed while experience buffer requests more data."""
         ctx = self._ensure_context(context)
         if not self._should_run("rollout", ctx.epoch):
@@ -83,14 +85,14 @@ class Loss:
             raise RuntimeError("ComponentContext.training_env_id must be set before calling Loss.rollout")
         self.run_rollout(td, ctx)
 
-    def run_rollout(self, td: tensordict.TensorDict, context: metta.rl.training.ComponentContext) -> None:
+    def run_rollout(self, td: tensordict.TensorDict, context: training_component_context.ComponentContext) -> None:
         """Override in subclasses to implement rollout logic."""
         return
 
     def train(
         self,
         shared_loss_data: tensordict.TensorDict,
-        context: metta.rl.training.ComponentContext | None,
+        context: training_component_context.ComponentContext | None,
         mb_idx: int,
     ) -> tuple[torch.Tensor, tensordict.TensorDict, bool]:
         """Training step executed while scheduler allows it."""
@@ -102,21 +104,21 @@ class Loss:
     def run_train(
         self,
         shared_loss_data: tensordict.TensorDict,
-        context: metta.rl.training.ComponentContext,
+        context: training_component_context.ComponentContext,
         mb_idx: int,
     ) -> tuple[torch.Tensor, tensordict.TensorDict, bool]:
         """Override in subclasses to implement training logic."""
         return self._zero(), shared_loss_data, False
 
-    def on_mb_end(self, context: metta.rl.training.ComponentContext | None, mb_idx: int) -> None:
+    def on_mb_end(self, context: training_component_context.ComponentContext | None, mb_idx: int) -> None:
         """Hook executed at the end of each minibatch."""
         self._ensure_context(context)
 
-    def on_train_phase_end(self, context: metta.rl.training.ComponentContext | None = None) -> None:
+    def on_train_phase_end(self, context: training_component_context.ComponentContext | None = None) -> None:
         """Hook executed after the training phase completes."""
         self._ensure_context(context)
 
-    def save_loss_states(self, context: metta.rl.training.ComponentContext | None = None) -> None:
+    def save_loss_states(self, context: training_component_context.ComponentContext | None = None) -> None:
         """Save loss states at the end of training (optional)."""
         self._ensure_context(context)
 
@@ -166,7 +168,9 @@ class Loss:
 
     # Internal utilities -------------------------------------------------
 
-    def _ensure_context(self, context: metta.rl.training.ComponentContext | None) -> metta.rl.training.ComponentContext:
+    def _ensure_context(
+        self, context: training_component_context.ComponentContext | None
+    ) -> training_component_context.ComponentContext:
         if context is not None:
             self._context = context
             return context
@@ -178,7 +182,7 @@ class Loss:
         assert self._zero_tensor is not None
         return self._zero_tensor
 
-    def attach_replay_buffer(self, experience: metta.rl.training.Experience) -> None:
+    def attach_replay_buffer(self, experience: training_experience.Experience) -> None:
         """Attach the replay buffer to the loss."""
         self.replay = experience
 

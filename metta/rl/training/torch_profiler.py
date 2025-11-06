@@ -12,7 +12,8 @@ import torch.profiler
 import wandb
 
 import metta.common.wandb.context
-import metta.rl.training
+import metta.rl.training.component as training_component
+import metta.rl.training.component_context as training_component_context
 import metta.rl.utils
 import metta.utils.file
 
@@ -138,7 +139,7 @@ class TorchProfileSession:
             logger.debug("Unable to delete temporary torch profile %s", input_path)
 
 
-class TorchProfiler(metta.rl.training.TrainerComponent):
+class TorchProfiler(training_component.TrainerComponent):
     """Manages torch profiling during training."""
 
     def __init__(
@@ -159,7 +160,7 @@ class TorchProfiler(metta.rl.training.TrainerComponent):
         self._original_train_epoch = None
         self._master_only = True
 
-    def register(self, context: metta.rl.training.ComponentContext) -> None:  # type: ignore[override]
+    def register(self, context: training_component_context.ComponentContext) -> None:  # type: ignore[override]
         super().register(context)
         interval = getattr(self._config, "interval_epochs", 0)
         if not interval:

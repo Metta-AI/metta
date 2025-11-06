@@ -7,7 +7,13 @@ import metta.agent.policy
 import metta.common.util.log_config
 import metta.rl.system_config
 import metta.rl.trainer_config
-import metta.rl.training
+import metta.rl.training.component as training_component
+import metta.rl.training.component_context as training_component_context
+import metta.rl.training.context_checkpointer as training_context_checkpointer
+import metta.rl.training.core as training_core
+import metta.rl.training.distributed_helper as training_distributed_helper
+import metta.rl.training.experience as training_experience
+import metta.rl.training.training_environment as training_environment
 import metta.rl.training.optimizer
 import mettagrid.profiling.stopwatch
 
@@ -25,10 +31,10 @@ class Trainer:
     def __init__(
         self,
         cfg: metta.rl.trainer_config.TrainerConfig,
-        env: metta.rl.training.TrainingEnvironment,
+        env: training_environment.TrainingEnvironment,
         policy: metta.agent.policy.Policy,
         device: torch.device,
-        distributed_helper: typing.Optional[metta.rl.training.DistributedHelper] = None,
+        distributed_helper: typing.Optional[training_distributed_helper.DistributedHelper] = None,
         run_name: typing.Optional[str] = None,
     ):
         """Initialize trainer with all components.
@@ -47,12 +53,12 @@ class Trainer:
             torch.autograd.set_detect_anomaly(True)
             logger.warning("Torch autograd anomaly detection enabled; backward will be slower.")
         if distributed_helper is None:
-            distributed_helper = metta.rl.training.DistributedHelper(
+            distributed_helper = training_distributed_helper.DistributedHelper(
                 metta.rl.system_config.SystemConfig(device=self._device.type)
             )
         self._distributed_helper = distributed_helper
         self._run_name = run_name
-        self._components: list[metta.rl.training.TrainerComponent] = []
+        self._components: list[training_component.TrainerComponent] = []
         self.timer = mettagrid.profiling.stopwatch.Stopwatch(log_level=logger.getEffectiveLevel())
         self.timer.start()
 
@@ -71,7 +77,7 @@ class Trainer:
         if parallel_agents is None:
             parallel_agents = batch_info.num_envs * self._env.policy_env_info.num_agents
 
-        self._experience = metta.rl.training.Experience.from_losses(
+        self._experience = training_experience.Experience.from_losses(
             total_agents=parallel_agents,
             batch_size=self._cfg.batch_size,
             bptt_horizon=self._cfg.bptt_horizon,
@@ -85,12 +91,12 @@ class Trainer:
         self.optimizer = metta.rl.training.optimizer.create_optimizer(self._cfg.optimizer, self._policy)
         self._is_schedulefree = metta.rl.training.optimizer.is_schedulefree_optimizer(self.optimizer)
 
-        self._state = metta.rl.training.TrainerState()
+        self._state = training_component_context.TrainerState()
 
         # Extract curriculum from environment if available
         curriculum = getattr(self._env, "_curriculum", None)
 
-        self._context = metta.rl.training.ComponentContext(
+        self._context = training_component_context.ComponentContext(
             state=self._state,
             policy=self._policy,
             env=self._env,
@@ -107,7 +113,7 @@ class Trainer:
 
         self._train_epoch_callable: typing.Callable[[], None] = self._run_epoch
 
-        self.core_loop = metta.rl.training.CoreTrainingLoop(
+        self.core_loop = training_core.CoreTrainingLoop(
             policy=self._policy,
             experience=self._experience,
             losses=losses,
@@ -125,7 +131,7 @@ class Trainer:
         self._prev_agent_step_for_step_callbacks: int = 0
 
     @property
-    def context(self) -> metta.rl.training.ComponentContext:
+    def context(self) -> training_component_context.ComponentContext:
         """Return the shared trainer context."""
 
         return self._context
@@ -138,11 +144,11 @@ class Trainer:
                 self._train_epoch_callable()
 
         except Exception:
-            self._invoke_callback(metta.rl.training.TrainerCallback.FAILURE)
+            self._invoke_callback(training_component.TrainerCallback.FAILURE)
             raise
 
         self._distributed_helper.synchronize()
-        self._invoke_callback(metta.rl.training.TrainerCallback.TRAINING_COMPLETE)
+        self._invoke_callback(training_component.TrainerCallback.TRAINING_COMPLETE)
 
     def _set_train_epoch_callable(self, fn: typing.Callable[[], None]) -> None:
         self._train_epoch_callable = fn
@@ -168,7 +174,7 @@ class Trainer:
                 self._context.record_rollout(rollout_result.agent_steps, world_size)
             if rollout_result.raw_infos:
                 self._prev_agent_step_for_step_callbacks = previous_agent_step
-                self._invoke_callback(metta.rl.training.TrainerCallback.STEP, rollout_result.raw_infos)
+        self._invoke_callback(training_component.TrainerCallback.STEP, rollout_result.raw_infos)
 
         # Training phase
         with self.timer("_train"):
@@ -194,7 +200,7 @@ class Trainer:
         # Invoke callbacks for epoch end on every rank. Components that should
         # only run on the master process must set `_master_only` so they aren't
         # registered on other ranks.
-        self._invoke_callback(metta.rl.training.TrainerCallback.EPOCH_END)
+        self._invoke_callback(training_component.TrainerCallback.EPOCH_END)
 
         # Progress logging handled by ProgressLogger component
 
@@ -202,10 +208,10 @@ class Trainer:
     def load_or_create(
         checkpoint_path: str,
         cfg: metta.rl.trainer_config.TrainerConfig,
-        training_env: metta.rl.training.TrainingEnvironment,
+        training_env: training_environment.TrainingEnvironment,
         policy: metta.agent.policy.Policy,
         device: torch.device,
-        distributed_helper: typing.Optional[metta.rl.training.DistributedHelper] = None,
+        distributed_helper: typing.Optional[training_distributed_helper.DistributedHelper] = None,
         run_name: typing.Optional[str] = None,
     ) -> "Trainer":
         """Create a trainer from a configuration.
@@ -222,7 +228,7 @@ class Trainer:
             run_name=run_name,
         )
 
-    def register(self, component: metta.rl.training.TrainerComponent) -> None:
+    def register(self, component: training_component.TrainerComponent) -> None:
         """Register a training component.
 
         Args:
@@ -236,7 +242,7 @@ class Trainer:
 
     def _invoke_callback(
         self,
-        callback_type: metta.rl.training.TrainerCallback,
+        callback_type: training_component.TrainerCallback,
         infos: typing.Optional[list[dict[str, typing.Any]]] = None,
     ) -> None:
         """Invoke all registered callbacks of the specified type.
@@ -251,18 +257,18 @@ class Trainer:
 
         for component in self._components:
             try:
-                if callback_type == metta.rl.training.TrainerCallback.STEP:
+                if callback_type == training_component.TrainerCallback.STEP:
                     if (
                         component.should_handle_step(current_step=current_step, previous_step=previous_step)
                         and infos is not None
                     ):
                         component.on_step(infos)
-                elif callback_type == metta.rl.training.TrainerCallback.EPOCH_END:
+                elif callback_type == training_component.TrainerCallback.EPOCH_END:
                     if component.should_handle_epoch(current_epoch):
                         component.on_epoch_end(current_epoch)
-                elif callback_type == metta.rl.training.TrainerCallback.TRAINING_COMPLETE:
+                elif callback_type == training_component.TrainerCallback.TRAINING_COMPLETE:
                     component.on_training_complete()
-                elif callback_type == metta.rl.training.TrainerCallback.FAILURE:
+                elif callback_type == training_component.TrainerCallback.FAILURE:
                     component.on_failure()
             except Exception as e:
                 logger.error(
@@ -276,7 +282,7 @@ class Trainer:
         This should be called after setup() to restore any saved state.
         """
         for component in self._components:
-            if isinstance(component, metta.rl.training.ContextCheckpointer):
+            if isinstance(component, training_context_checkpointer.ContextCheckpointer):
                 component.restore(self._context)
                 break
             # Wandb setup will be handled by callbacks if configured

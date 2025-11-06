@@ -3,14 +3,14 @@
 import logging
 import typing
 
-import metta.rl.training
+import metta.rl.training.component as training_component
 import mettagrid.profiling.memory_monitor
 import mettagrid.profiling.system_monitor
 
 logger = logging.getLogger(__name__)
 
 
-class Monitor(metta.rl.training.TrainerComponent):
+class Monitor(training_component.TrainerComponent):
     """Manage memory and system monitors independently of stats reporting."""
 
     _master_only = True

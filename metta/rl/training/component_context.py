@@ -10,15 +10,16 @@ import torch.optim
 import metta.agent.policy
 import metta.cogworks.curriculum.curriculum
 import metta.eval.eval_request_config
-import metta.rl.training
+import metta.rl.training.distributed_helper as training_distributed_helper
+import metta.rl.training.experience as training_experience
+import metta.rl.training.stats_reporter as training_stats_reporter
+import metta.rl.training.training_environment as training_environment
 import mettagrid.profiling.memory_monitor
 import mettagrid.profiling.stopwatch
 import mettagrid.profiling.system_monitor
 
 if typing.TYPE_CHECKING:
     import metta.cogworks.curriculum
-    import metta.rl.training.distributed_helper
-    import metta.rl.training.stats_reporter
 
 
 @dataclasses.dataclass(slots=True)
@@ -66,12 +67,12 @@ class ComponentContext:
         *,
         state: typing.Optional[TrainerState],
         policy: metta.agent.policy.Policy,
-        env: metta.rl.training.TrainingEnvironment,
-        experience: metta.rl.training.Experience,
+        env: training_environment.TrainingEnvironment,
+        experience: training_experience.Experience,
         optimizer: torch.optim.Optimizer,
         config: typing.Any,
         stopwatch: mettagrid.profiling.stopwatch.Stopwatch,
-        distributed: metta.rl.training.distributed_helper.DistributedHelper,
+        distributed: training_distributed_helper.DistributedHelper,
         run_name: typing.Optional[str] = None,
         curriculum: typing.Optional[metta.cogworks.curriculum.curriculum.Curriculum] = None,
     ) -> None:
@@ -88,7 +89,7 @@ class ComponentContext:
 
         self.timing_baseline = {"agent_step": 0, "wall_time": 0.0}
 
-        self.stats_reporter: metta.rl.training.stats_reporter.StatsReporter | None = None
+        self.stats_reporter: training_stats_reporter.StatsReporter | None = None
         self.memory_monitor: mettagrid.profiling.memory_monitor.MemoryMonitor | None = None
         self.system_monitor: mettagrid.profiling.system_monitor.SystemMonitor | None = None
         self.latest_policy_uri_fn: typing.Callable[[], typing.Optional[str]] | None = None

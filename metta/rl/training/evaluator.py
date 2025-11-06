@@ -14,7 +14,7 @@ import metta.common.util.git_repo
 import metta.eval.eval_request_config
 import metta.eval.eval_service
 import metta.rl.evaluate
-import metta.rl.training
+import metta.rl.training.component as training_component
 import metta.rl.training.optimizer
 import metta.sim.simulation_config
 import metta.tools.utils.auto_config
@@ -44,7 +44,7 @@ class EvaluatorConfig(mettagrid.base_config.Config):
     git_hash: str | None = pydantic.Field(default=None)
 
 
-class NoOpEvaluator(metta.rl.training.TrainerComponent):
+class NoOpEvaluator(training_component.TrainerComponent):
     """No-op evaluator for when evaluation is disabled."""
 
     def __init__(self) -> None:
@@ -62,7 +62,7 @@ class NoOpEvaluator(metta.rl.training.TrainerComponent):
         pass
 
 
-class Evaluator(metta.rl.training.TrainerComponent):
+class Evaluator(training_component.TrainerComponent):
     """Manages policy evaluation."""
 
     def __init__(

@@ -6,7 +6,7 @@ import torch
 
 import metta.agent.policy
 import metta.rl.loss.contrastive
-import metta.rl.training
+import metta.rl.training.training_environment as training_environment
 import mettagrid.base_config
 
 
@@ -33,7 +33,7 @@ class ContrastiveConfig(mettagrid.base_config.Config):
         self,
         policy: metta.agent.policy.Policy,
         trainer_cfg: typing.Any,
-        env: metta.rl.training.TrainingEnvironment,
+        env: training_environment.TrainingEnvironment,
         device: torch.device,
         instance_name: str,
         loss_config: typing.Any,

@@ -3,11 +3,11 @@
 import typing
 
 import metta.common.wandb.context
-import metta.rl.training
+import metta.rl.training.component as training_component
 import metta.rl.wandb
 
 
-class WandbLogger(metta.rl.training.TrainerComponent):
+class WandbLogger(training_component.TrainerComponent):
     """Logs core training metrics to wandb at epoch boundaries."""
 
     def __init__(self, wandb_run: metta.common.wandb.context.WandbRun, epoch_interval: int = 1):

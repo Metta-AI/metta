@@ -8,7 +8,8 @@ import torch
 
 import metta.agent.policy
 import metta.rl.checkpoint_manager
-import metta.rl.training
+import metta.rl.training.component as training_component
+import metta.rl.training.distributed_helper as training_distributed_helper
 import mettagrid.base_config
 import mettagrid.policy.policy_env_interface
 
@@ -21,7 +22,7 @@ class CheckpointerConfig(mettagrid.base_config.Config):
     epoch_interval: int = pydantic.Field(default=30, ge=0)  # How often to save policy checkpoints (in epochs)
 
 
-class Checkpointer(metta.rl.training.TrainerComponent):
+class Checkpointer(training_component.TrainerComponent):
     """Manages policy checkpointing with distributed awareness and URI support."""
 
     def __init__(
@@ -29,7 +30,7 @@ class Checkpointer(metta.rl.training.TrainerComponent):
         *,
         config: CheckpointerConfig,
         checkpoint_manager: metta.rl.checkpoint_manager.CheckpointManager,
-        distributed_helper: metta.rl.training.DistributedHelper,
+        distributed_helper: training_distributed_helper.DistributedHelper,
         policy_architecture: metta.agent.policy.PolicyArchitecture,
     ) -> None:
         super().__init__(epoch_interval=max(1, config.epoch_interval))

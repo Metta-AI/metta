@@ -9,7 +9,8 @@ import torchrl.data
 import metta.agent.policy
 import metta.rl.advantage
 import metta.rl.loss.loss
-import metta.rl.training
+import metta.rl.training.component_context as training_component_context
+import metta.rl.training.training_environment as training_environment
 import metta.utils.batch
 import mettagrid.base_config
 
@@ -68,7 +69,7 @@ class PPOConfig(mettagrid.base_config.Config):
         self,
         policy: metta.agent.policy.Policy,
         trainer_cfg: typing.Any,
-        env: metta.rl.training.TrainingEnvironment,
+        env: training_environment.TrainingEnvironment,
         device: torch.device,
         instance_name: str,
         loss_config: typing.Any,
@@ -99,7 +100,7 @@ class PPO(metta.rl.loss.loss.Loss):
         self,
         policy: metta.agent.policy.Policy,
         trainer_cfg: typing.Any,
-        env: metta.rl.training.TrainingEnvironment,
+        env: training_environment.TrainingEnvironment,
         device: torch.device,
         instance_name: str,
         loss_config: typing.Any,
@@ -128,7 +129,7 @@ class PPO(metta.rl.loss.loss.Loss):
             values=scalar_f32,
         )
 
-    def run_rollout(self, td: tensordict.TensorDict, context: metta.rl.training.ComponentContext) -> None:
+    def run_rollout(self, td: tensordict.TensorDict, context: training_component_context.ComponentContext) -> None:
         with torch.no_grad():
             self.policy.forward(td)
 
@@ -145,7 +146,7 @@ class PPO(metta.rl.loss.loss.Loss):
         return
 
     def run_train(
-        self, shared_loss_data: tensordict.TensorDict, context: metta.rl.training.ComponentContext, mb_idx: int
+        self, shared_loss_data: tensordict.TensorDict, context: training_component_context.ComponentContext, mb_idx: int
     ) -> tuple[torch.Tensor, tensordict.TensorDict, bool]:
         """This is the PPO algorithm training loop."""
         config = self.loss_cfg
@@ -193,7 +194,7 @@ class PPO(metta.rl.loss.loss.Loss):
 
         return loss, shared_loss_data, stop_update_epoch
 
-    def on_train_phase_end(self, context: metta.rl.training.ComponentContext) -> None:
+    def on_train_phase_end(self, context: training_component_context.ComponentContext) -> None:
         with torch.no_grad():
             y_pred = self.replay.buffer["values"].flatten()
             y_true = self.advantages.flatten() + self.replay.buffer["values"].flatten()
@@ -201,7 +202,7 @@ class PPO(metta.rl.loss.loss.Loss):
             ev = (1 - (y_true - y_pred).var() / var_y).item() if var_y > 0 else 0.0
             self.loss_tracker["explained_variance"].append(float(ev))
 
-    def _on_first_mb(self, context: metta.rl.training.ComponentContext) -> tuple[torch.Tensor, float]:
+    def _on_first_mb(self, context: training_component_context.ComponentContext) -> tuple[torch.Tensor, float]:
         # reset importance sampling ratio
         if "ratio" in self.replay.buffer.keys():
             self.replay.buffer["ratio"].fill_(1.0)

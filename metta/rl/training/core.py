@@ -7,7 +7,9 @@ import torch
 
 import metta.agent.policy
 import metta.rl.loss.loss
-import metta.rl.training
+import metta.rl.training.component_context as training_component_context
+import metta.rl.training.experience as training_experience
+import metta.rl.training.training_environment as training_environment
 import mettagrid.base_config
 
 logger = logging.getLogger(__name__)
@@ -29,11 +31,11 @@ class CoreTrainingLoop:
     def __init__(
         self,
         policy: metta.agent.policy.Policy,
-        experience: metta.rl.training.Experience,
+        experience: training_experience.Experience,
         losses: dict[str, metta.rl.loss.loss.Loss],
         optimizer: torch.optim.Optimizer,
         device: torch.device,
-        context: metta.rl.training.ComponentContext,
+        context: training_component_context.ComponentContext,
     ):
         """Initialize core training loop.
 
@@ -62,8 +64,8 @@ class CoreTrainingLoop:
 
     def rollout_phase(
         self,
-        env: metta.rl.training.TrainingEnvironment,
-        context: metta.rl.training.ComponentContext,
+        env: training_environment.TrainingEnvironment,
+        context: training_component_context.ComponentContext,
     ) -> RolloutResult:
         """Perform rollout phase to collect experience.
 
@@ -210,7 +212,7 @@ class CoreTrainingLoop:
 
     def training_phase(
         self,
-        context: metta.rl.training.ComponentContext,
+        context: training_component_context.ComponentContext,
         update_epochs: int,
         max_grad_norm: float = 0.5,
     ) -> tuple[dict[str, float], int]:
@@ -297,7 +299,7 @@ class CoreTrainingLoop:
 
         return losses_stats, epochs_trained
 
-    def on_epoch_start(self, context: metta.rl.training.ComponentContext) -> None:
+    def on_epoch_start(self, context: training_component_context.ComponentContext) -> None:
         """Called at the start of each epoch.
 
         Args:
@@ -306,7 +308,7 @@ class CoreTrainingLoop:
         for loss in self.losses.values():
             loss.on_new_training_run(context)
 
-    def add_last_action_to_td(self, td: tensordict.TensorDict, env: metta.rl.training.TrainingEnvironment) -> None:
+    def add_last_action_to_td(self, td: tensordict.TensorDict, env: training_environment.TrainingEnvironment) -> None:
         env_ids = td["training_env_ids"]
         if env_ids.dim() == 2:
             env_ids = env_ids.squeeze(-1)

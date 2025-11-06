@@ -4,7 +4,8 @@ import logging
 
 import metta.common.wandb.context
 import metta.common.wandb.utils
-import metta.rl.training
+import metta.rl.training.component as training_component
+import metta.rl.training.component_context as training_component_context
 import mettagrid.base_config
 
 logger = logging.getLogger(__name__)
@@ -17,7 +18,7 @@ class WandbAborterConfig(mettagrid.base_config.Config):
     """How often to poll wandb for abort tags (in epochs)."""
 
 
-class WandbAborter(metta.rl.training.TrainerComponent):
+class WandbAborter(training_component.TrainerComponent):
     """Polls wandb for abort tags and stops training when detected."""
 
     def __init__(
@@ -32,7 +33,7 @@ class WandbAborter(metta.rl.training.TrainerComponent):
         self._config = cfg
 
     def on_epoch_end(self, epoch: int) -> None:  # noqa: D401 - documented in base class
-        context: metta.rl.training.ComponentContext = self.context
+        context: training_component_context.ComponentContext = self.context
         distributed_helper = context.distributed
 
         target_timesteps: int | None = None

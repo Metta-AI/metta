@@ -9,9 +9,9 @@ import metta.rl.loss.ppo
 import mettagrid.base_config
 
 if typing.TYPE_CHECKING:
-    import metta.rl.training
+    import metta.rl.training.training_environment as training_environment_module
 
-    TrainingEnvironment = metta.rl.training.TrainingEnvironment
+    TrainingEnvironment = training_environment_module.TrainingEnvironment
 
 
 class LossSchedule(mettagrid.base_config.Config):

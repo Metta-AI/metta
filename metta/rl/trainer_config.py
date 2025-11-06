@@ -3,7 +3,8 @@ import typing
 import pydantic
 
 import metta.rl.loss.loss_config
-import metta.rl.training
+import metta.rl.training.heartbeat as training_heartbeat
+import metta.rl.training.scheduler as training_scheduler
 import mettagrid.base_config
 
 
@@ -65,11 +66,11 @@ class TrainerConfig(mettagrid.base_config.Config):
     compile_mode: typing.Literal["default", "reduce-overhead", "max-autotune"] = "reduce-overhead"
     detect_anomaly: bool = pydantic.Field(default=False)
 
-    hyperparameter_scheduler: metta.rl.training.HyperparameterSchedulerConfig = pydantic.Field(
-        default_factory=metta.rl.training.HyperparameterSchedulerConfig
+    hyperparameter_scheduler: training_scheduler.HyperparameterSchedulerConfig = pydantic.Field(
+        default_factory=training_scheduler.HyperparameterSchedulerConfig
     )
-    heartbeat: typing.Optional[metta.rl.training.HeartbeatConfig] = pydantic.Field(
-        default_factory=metta.rl.training.HeartbeatConfig
+    heartbeat: typing.Optional[training_heartbeat.HeartbeatConfig] = pydantic.Field(
+        default_factory=training_heartbeat.HeartbeatConfig
     )
 
     initial_policy: InitialPolicyConfig = pydantic.Field(default_factory=InitialPolicyConfig)

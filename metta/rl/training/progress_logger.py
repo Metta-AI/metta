@@ -8,7 +8,7 @@ import typing
 import rich.console
 import rich.table
 
-import metta.rl.training
+import metta.rl.training.component as training_component
 
 logger = logging.getLogger(__name__)
 
@@ -158,7 +158,7 @@ def _human_readable_si(value: float, unit: str = "") -> str:
     return f"{value:.0f} {unit}" if unit else f"{value:.0f}"
 
 
-class ProgressLogger(metta.rl.training.TrainerComponent):
+class ProgressLogger(training_component.TrainerComponent):
     """Master-only component that logs epoch progress."""
 
     _master_only = True

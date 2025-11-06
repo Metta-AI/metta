@@ -3,7 +3,7 @@
 import logging
 
 import metta.common.util.heartbeat
-import metta.rl.training
+import metta.rl.training.component as training_component
 import mettagrid.base_config
 
 logger = logging.getLogger(__name__)
@@ -16,7 +16,7 @@ class HeartbeatConfig(mettagrid.base_config.Config):
     """How often to write heartbeat (in epochs)."""
 
 
-class Heartbeat(metta.rl.training.TrainerComponent):
+class Heartbeat(training_component.TrainerComponent):
     """Writes heartbeat signals for monitoring training progress."""
 
     def on_epoch_end(self, epoch: int) -> None:

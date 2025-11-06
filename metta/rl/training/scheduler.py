@@ -3,7 +3,7 @@
 import logging
 import math
 
-import metta.rl.training
+import metta.rl.training.component as training_component
 import mettagrid.base_config
 
 logger = logging.getLogger(__name__)
@@ -26,7 +26,7 @@ class SchedulerConfig(mettagrid.base_config.Config):
     """How often to update hyperparameters (in epochs)."""
 
 
-class Scheduler(metta.rl.training.TrainerComponent):
+class Scheduler(training_component.TrainerComponent):
     """Manages hyperparameter scheduling."""
 
     def __init__(self, config: SchedulerConfig):

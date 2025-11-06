@@ -10,7 +10,8 @@ import wandb
 
 import metta.common.wandb.context
 import metta.rl.checkpoint_manager
-import metta.rl.training
+import metta.rl.training.component as training_component
+import metta.rl.training.distributed_helper as training_distributed_helper
 import metta.utils.file
 import mettagrid.base_config
 
@@ -24,7 +25,7 @@ class UploaderConfig(mettagrid.base_config.Config):
     """How often to upload policy to wandb (in epochs)."""
 
 
-class Uploader(metta.rl.training.TrainerComponent):
+class Uploader(training_component.TrainerComponent):
     """Manages uploading policies to wandb and other destinations."""
 
     def __init__(
@@ -32,7 +33,7 @@ class Uploader(metta.rl.training.TrainerComponent):
         *,
         config: UploaderConfig,
         checkpoint_manager: metta.rl.checkpoint_manager.CheckpointManager,
-        distributed_helper: metta.rl.training.DistributedHelper,
+        distributed_helper: training_distributed_helper.DistributedHelper,
         wandb_run: typing.Optional[metta.common.wandb.context.WandbRun] = None,
     ) -> None:
         super().__init__(epoch_interval=max(1, config.epoch_interval))

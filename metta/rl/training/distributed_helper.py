@@ -10,7 +10,7 @@ import metta.agent.policy
 import metta.common.util.log_config
 import metta.rl.system_config
 import metta.rl.trainer_config
-import metta.rl.training
+import metta.rl.training.training_environment as training_environment
 import mettagrid.base_config
 
 logger = metta.common.util.log_config.getRankAwareLogger(__name__)
@@ -144,7 +144,7 @@ class DistributedHelper:
     def scale_batch_config(
         self,
         trainer_cfg: metta.rl.trainer_config.TrainerConfig,
-        env_cfg: metta.rl.training.TrainingEnvironmentConfig,
+        env_cfg: training_environment.TrainingEnvironmentConfig,
     ) -> None:
         """Scale batch sizes for distributed training if configured.
 
