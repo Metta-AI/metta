@@ -1016,7 +1016,6 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
             return explore_action
 
         # First, ensure we have the correct glyph (default/neutral) for chest deposit
-        # The boss's refactoring changed chests to use vibe_transfers:
         # - "default" vibe: DEPOSIT resources (positive values)
         # - specific resource vibes (e.g., "heart"): WITHDRAW resources (negative values)
         if s.current_glyph != "default":
