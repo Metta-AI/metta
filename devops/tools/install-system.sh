@@ -340,7 +340,45 @@ get_bazel_version() {
   return 0
 }
 
+remove_legacy_nim_installations() {
+  if check_cmd brew && brew list --versions nim >/dev/null 2>&1; then
+    echo "Removing legacy Homebrew Nim installation..."
+    if ! brew uninstall --force nim >/dev/null 2>&1; then
+      echo "Warning: Failed to uninstall Homebrew Nim; please remove it manually." >&2
+    fi
+  fi
+
+  if [ -d "$HOME/.nimble/bin" ]; then
+    echo "Removing legacy Nimble binaries at $HOME/.nimble/bin..."
+    rm -rf "$HOME/.nimble/bin"
+  fi
+
+  if [ -d "$HOME/.choosenim" ]; then
+    echo "Removing legacy choosenim directory at $HOME/.choosenim..."
+    rm -rf "$HOME/.choosenim"
+  fi
+
+  if [ -L "$HOME/.local/bin/nim" ]; then
+    local target
+    target=$(readlink "$HOME/.local/bin/nim")
+    if [ -n "$target" ] && printf "%s" "$target" | grep -q ".nimble"; then
+      echo "Removing legacy symlink $HOME/.local/bin/nim -> $target..."
+      rm -f "$HOME/.local/bin/nim"
+    fi
+  fi
+
+  if [ -L "$HOME/.local/bin/nimble" ]; then
+    local target
+    target=$(readlink "$HOME/.local/bin/nimble")
+    if [ -n "$target" ] && printf "%s" "$target" | grep -q ".nimble"; then
+      echo "Removing legacy symlink $HOME/.local/bin/nimble -> $target..."
+      rm -f "$HOME/.local/bin/nimble"
+    fi
+  fi
+}
+
 ensure_nim_via_nimby() {
+  remove_legacy_nim_installations
   ensure_paths
 
   local current_version=""
@@ -441,11 +479,20 @@ link_nim_bins() {
   fi
 
   local linked_any=0
+  local sources_found=0
   for tool in nim nimby; do
     local src="$src_dir/$tool"
     local dest="$install_dir/$tool"
 
     if [ -x "$src" ]; then
+      sources_found=1
+      if [ -L "$dest" ]; then
+        local current_target
+        current_target=$(readlink "$dest")
+        if [ "$current_target" = "$src" ]; then
+          continue
+        fi
+      fi
       if ln -sf "$src" "$dest"; then
         linked_any=1
       fi
@@ -454,7 +501,7 @@ link_nim_bins() {
 
   if [ "$linked_any" -eq 1 ]; then
     echo "Linked Nim binaries into $install_dir. Ensure this directory is in your PATH."
-  else
+  elif [ "$sources_found" -eq 0 ]; then
     echo "Could not link Nim binaries into $install_dir. Binaries remain in $src_dir." >&2
   fi
 
