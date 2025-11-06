@@ -128,7 +128,11 @@ def ray_sweep(
     if isinstance(sweep_config.gpus_per_trial, int) and sweep_config.gpus_per_trial > 0:
         trial_resources["gpu"] = float(sweep_config.gpus_per_trial)
 
-    effective_max_concurrent = min(sweep_config.max_concurrent_trials, int(total_available_gpus / sweep_config.gpus_per_trial))
+
+    effective_max_concurrent = sweep_config.max_concurrent_trials
+
+    if sweep_config.gpus_per_trial > 0:
+        effective_max_concurrent = min(sweep_config.max_concurrent_trials, int(total_available_gpus / sweep_config.gpus_per_trial))
 
     logger.info(
         "Trials will request resources: %s; max concurrent trials capped at %d",
@@ -159,14 +163,14 @@ def ray_sweep(
     search_alg = optuna_search
 
     if sweep_config.num_seeds_per_trial > 1:
-        repeated_search = Repeater(
+        optuna_search = Repeater(
             optuna_search,
             repeat=sweep_config.num_seeds_per_trial,
         )
     # Limit Optuna to a single suggestion's repeats at a time so it averages seeds before proposing new configs
     # TODO: The behavior is that this will queue up
     search_alg = ConcurrencyLimiter(
-        repeated_search,
+        optuna_search,
         max_concurrent=min(sweep_config.num_seeds_per_trial, sweep_config.max_concurrent_trials),
     )
 
