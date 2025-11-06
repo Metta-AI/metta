@@ -1,15 +1,15 @@
-from typing import TYPE_CHECKING, Any, Dict
+from typing import Any, Dict
 
 import torch
 from pydantic import Field
 
 import metta.rl.loss.action_supervised as action_supervised
+import metta.rl.loss.contrastive_config as contrastive_config
+import metta.rl.loss.ppo as ppo
+import metta.rl.trainer_config as trainer_config
 from metta.agent.policy import Policy
-from metta.rl.loss import ContrastiveConfig, PPOConfig
+from metta.rl.training import TrainingEnvironment
 from mettagrid.base_config import Config
-
-if TYPE_CHECKING:
-    from metta.rl.training import TrainingEnvironment
 
 
 class LossSchedule(Config):
@@ -37,11 +37,11 @@ class LossConfig(Config):
 
         # If loss_configs is empty, add default PPO config
         if not self.loss_configs:
-            self.loss_configs = {"ppo": PPOConfig()}
+            self.loss_configs = {"ppo": ppo.PPOConfig()}
 
         # Add contrastive config only if enabled to avoid inconsistent behavior
         if self.enable_contrastive and "contrastive" not in self.loss_configs:
-            self.loss_configs["contrastive"] = ContrastiveConfig(
+            self.loss_configs["contrastive"] = contrastive_config.ContrastiveConfig(
                 temperature=self.contrastive_temperature,
                 contrastive_coef=self.contrastive_coef,
                 embedding_dim=self.contrastive_embedding_dim,
@@ -54,9 +54,10 @@ class LossConfig(Config):
     def init_losses(
         self,
         policy: Policy,
-        trainer_cfg: Any,
-        env: "TrainingEnvironment",
+        trainer_cfg: trainer_config.TrainerConfig,
+        env: TrainingEnvironment,
         device: torch.device,
+        instance_name: str,
     ):
         losses = {}
         for loss_name, loss_config in self.loss_configs.items():
