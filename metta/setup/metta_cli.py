@@ -285,7 +285,7 @@ def cmd_install(
             continue
 
         try:
-            module.install(non_interactive=non_interactive)
+            module.install(non_interactive=non_interactive, force=force)
             print()
         except Exception as e:
             error(f"  Error: {e}\n")
