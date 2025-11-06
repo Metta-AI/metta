@@ -7,7 +7,7 @@
       "type": "debugpy",
       "request": "launch",
       "module": "tools.run",
-      "args": ["experiments.recipes.scratchpad.${env:USER}.train"],
+      "args": ["experiments.recipes.scratchpad.${env:USER}.train", "training_env.env_supervisor.enabled=true"],
       "cwd": "${workspaceFolder}",
       "env": {
         "PYTHONPATH": "${workspaceFolder}",

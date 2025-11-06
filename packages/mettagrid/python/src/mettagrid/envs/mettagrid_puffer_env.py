@@ -23,8 +23,8 @@ This avoids double-wrapping while maintaining full PufferLib compatibility.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import Any, Dict, Optional, Tuple
+import logging
+from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 from gymnasium.spaces import Box, Discrete
@@ -42,7 +42,10 @@ from mettagrid.mettagrid_c import (
 )
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.simulator import Simulation, Simulator
+from mettagrid.simulator.simulator import Buffers
 from pufferlib.pufferlib import PufferEnv
+
+logger = logging.getLogger(__name__)
 
 # Type compatibility assertions - ensure C++ types match PufferLib expectations
 # PufferLib expects particular datatypes - see pufferlib/vector.py
@@ -51,17 +54,6 @@ assert dtype_terminals == np.dtype(np.bool_)
 assert dtype_truncations == np.dtype(np.bool_)
 assert dtype_rewards == np.dtype(np.float32)
 assert dtype_actions == np.dtype(np.int32)
-
-
-@dataclass
-class Buffers:
-    observations: np.ndarray
-    terminals: np.ndarray
-    truncations: np.ndarray
-    rewards: np.ndarray
-    masks: np.ndarray
-    actions: np.ndarray
-    teacher_actions: np.ndarray
 
 
 class MettaGridPufferEnv(PufferEnv):
@@ -130,24 +122,12 @@ class MettaGridPufferEnv(PufferEnv):
     def current_simulation(self) -> Simulation:
         return self._sim
 
-    def _update_buffers(self) -> None:
-        """Set buffers on the C simulator."""
-        self._sim._c_sim.set_buffers(
-            self._buffers.observations,
-            self._buffers.terminals,
-            self._buffers.truncations,
-            self._buffers.rewards,
-            self._buffers.actions,
-        )
-
-    def _get_initial_observations(self) -> np.ndarray:
-        observations, _ = super().reset()
-        return observations
-
     def _new_sim(self) -> None:
         if hasattr(self, "_sim") and self._sim is not None:
             self._sim.close()
-        self._sim = self._simulator.new_simulation(self._current_cfg, self._current_seed)
+
+        self._sim = self._simulator.new_simulation(self._current_cfg, self._current_seed, buffers=self._buffers)
+
         if self._env_supervisor_cfg.enabled:
             self._env_supervisor_policy = BaselinePolicy(PolicyEnvInterface.from_mg_cfg(self._current_cfg))
             self._env_supervisor_agent_policies = [
@@ -157,11 +137,7 @@ class MettaGridPufferEnv(PufferEnv):
             for agent_policy in self._env_supervisor_agent_policies:
                 agent_policy.reset(self._sim)
 
-        self._update_buffers()
-        self._buffers.rewards[:] = 0.0
-        self._buffers.terminals[:] = False
-        self._buffers.truncations[:] = False
-        self._buffers.teacher_actions[:] = 0
+        self._compute_teacher_actions()
 
     @override
     def reset(self, seed: Optional[int] = None) -> Tuple[np.ndarray, Dict[str, Any]]:
@@ -173,24 +149,16 @@ class MettaGridPufferEnv(PufferEnv):
         return self._buffers.observations, {}
 
     @override
-    def step(self, actions: np.ndarray) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, Dict[str, Any]]:
+    def step(self, actions: np.ndarray) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, List[Dict[str, Any]]]:
         assert self._sim is not None
         if self._sim._c_sim.terminals().all() or self._sim._c_sim.truncations().all():
             self._new_sim()
 
-        if self._env_supervisor_cfg.enabled:
-            agents = self._sim.agents()
-            teacher_actions = [
-                self._sim.action_names.index(
-                    self._env_supervisor_agent_policies[agent_id].step(agents[agent_id].observation).name
-                )
-                for agent_id in range(self._current_cfg.game.num_agents)
-            ]
-            self._buffers.teacher_actions[:] = np.array(teacher_actions, dtype=dtype_actions)
-            if self._env_supervisor_cfg.use_actions:
-                self._buffers.actions[:] = self._buffers.teacher_actions[:]
-
         self._sim.step()
+
+        # Do this after step() so that the trainer can use it if needed
+        if self._env_supervisor_cfg.enabled:
+            self._compute_teacher_actions()
 
         return (
             self._buffers.observations,
@@ -199,6 +167,19 @@ class MettaGridPufferEnv(PufferEnv):
             self._buffers.truncations,
             self._sim._context.get("infos", {}),
         )
+
+    def _compute_teacher_actions(self) -> None:
+        assert self._env_supervisor_cfg.enabled
+        teacher_actions = np.array(
+            [
+                self._sim.action_names.index(
+                    self._env_supervisor_agent_policies[agent_id].step(self._sim.agents()[agent_id].observation).name
+                )
+                for agent_id in range(self._current_cfg.game.num_agents)
+            ],
+            dtype=dtype_actions,
+        )
+        self._buffers.teacher_actions[:] = np.array(teacher_actions, dtype=dtype_actions)
 
     @property
     def observations(self) -> np.ndarray:
