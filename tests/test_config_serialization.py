@@ -46,7 +46,7 @@ def test_extract_features_structured_first(task_generator):
     assert "height" in feats and 5 <= feats["height"] <= 50
     assert "chain_length" in feats and 1 <= feats["chain_length"] <= 6
     assert "num_sinks" in feats and 0 <= feats["num_sinks"] <= 2
-    # keep xlarge in the acceptable set (future use)
+    # keeps xlarge in the acceptable set (future use)
     assert feats["room_size"] in {"tiny", "small", "medium", "large", "xlarge"}
     assert feats["terrain"] in {"no-terrain", "sparse", "balanced", "dense"}
 
@@ -69,7 +69,7 @@ def test_serialize_base_and_dict_shapes(task_generator):
 
 
 def test_roundtrip(task_generator):
-    """Serialize -> Deserialize (Option B factory) should preserve base fields exactly."""
+    """Serialize -> Deserialize should preserve base fields exactly."""
     cfg0 = task_generator.get_task(42)
 
     base = serialize_config(cfg0)
