@@ -232,12 +232,12 @@ class LSTMAgentPolicy(StatefulPolicyImpl[LSTMState]):
 class LSTMPolicy(TrainablePolicy):
     """LSTM-based policy that creates StatefulPolicy wrappers for each agent."""
 
-    def __init__(self, device: torch.device, policy_env_info: PolicyEnvInterface):
+    def __init__(self, policy_env_info: PolicyEnvInterface):
         super().__init__(policy_env_info)
-        self._net = LSTMPolicyNet(policy_env_info).to(device)
-        self._device = device
+        self._device = torch.device("cpu")
         self._policy_env_info = policy_env_info
-        self._agent_policy = LSTMAgentPolicy(self._net, device, policy_env_info)
+        self._net = LSTMPolicyNet(policy_env_info).to(self._device)
+        self._agent_policy = LSTMAgentPolicy(self._net, self._device, policy_env_info)
 
     def network(self) -> nn.Module:
         return self._net

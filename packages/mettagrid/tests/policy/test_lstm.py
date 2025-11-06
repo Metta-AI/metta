@@ -136,8 +136,12 @@ def test_stateful_agent_policy_requires_reset():
     raise an AssertionError.
     """
     policy_env_info = create_mock_policy_env_info()
+<<<<<<< HEAD
     device = torch.device("cpu")
     policy = LSTMPolicy(device, policy_env_info)
+=======
+    policy = LSTMPolicy(policy_env_info)
+>>>>>>> 553a3c88758eeacc31c9c88419856b2f9c68bea6
 
     # Get an agent policy (returns StatefulAgentPolicy wrapper)
     agent_policy = policy.agent_policy(agent_id=0)

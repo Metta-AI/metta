@@ -5,7 +5,6 @@ from mettagrid.config.mettagrid_config import (
     AssemblerConfig,
     ChestConfig,
     ClipperConfig,
-    FixedPosition,
     GameConfig,
     WallConfig,
 )
@@ -24,18 +23,6 @@ from mettagrid.mettagrid_c import MoveActionConfig as CppMoveActionConfig
 from mettagrid.mettagrid_c import Protocol as CppProtocol
 from mettagrid.mettagrid_c import ResourceModConfig as CppResourceModConfig
 from mettagrid.mettagrid_c import WallConfig as CppWallConfig
-
-# Note that these are left to right, top to bottom.
-FIXED_POSITIONS: list[FixedPosition] = ["NW", "N", "NE", "W", "E", "SW", "S", "SE"]
-
-
-def recursive_update(d, u):
-    for k, v in u.items():
-        if isinstance(v, dict):
-            d[k] = recursive_update(d.get(k, {}), v)
-        else:
-            d[k] = v
-    return d
 
 
 def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
@@ -472,7 +459,3 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
     game_cpp_params["tag_id_map"] = tag_id_to_name
 
     return CppGameConfig(**game_cpp_params)
-
-
-# Alias for backward compatibility
-from_mettagrid_config = convert_to_cpp_game_config
