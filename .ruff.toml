@@ -37,13 +37,7 @@ known-first-party = [
   "softmax",
 ]
 
-section-order = [
-  "future",
-  "standard-library",
-  "third-party",
-  "first-party",
-  "local-folder",
-]
+section-order = ["future", "standard-library", "third-party", "first-party", "local-folder"]
 
 [lint]
 # Rules to enable for linting
