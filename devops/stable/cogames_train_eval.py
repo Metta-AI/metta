@@ -73,6 +73,7 @@ def main() -> int:
         args.policy,
         "--seed",
         str(args.seed),
+        "--log-outputs",
     ]
 
     for variant in args.variant:
