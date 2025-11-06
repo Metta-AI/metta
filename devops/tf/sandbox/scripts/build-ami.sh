@@ -87,7 +87,7 @@ if [ ! -f "terraform.tfstate" ]; then
     exit 1
 fi
 
-SUBNET_ID=$(terraform output -raw public_subnet_ids | jq -r '.[0]')
+SUBNET_ID=$(terraform output -json public_subnet_ids | jq -r '.[0]')
 SECURITY_GROUP_ID=$(terraform output -raw security_group_id)
 VPC_ID=$(terraform output -raw vpc_id)
 

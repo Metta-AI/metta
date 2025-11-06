@@ -125,12 +125,12 @@ Welcome! This sandbox is provided as part of the ALife 2024 compute credits prog
 
 Available Resources:
 --------------------
-- 4x NVIDIA A10G GPUs (48GB VRAM total)
+- 4x NVIDIA A10G GPUs (96GB VRAM total)
   Check status: nvidia-smi
 
 - Pre-installed software:
   - Docker + NVIDIA Container Toolkit
-  - Python 3.11 + uv package manager
+  - Python 3.12 + uv package manager
   - Metta/Puffer repository: ~/metta
 
 Getting Started:

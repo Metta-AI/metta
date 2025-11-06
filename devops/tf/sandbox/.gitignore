@@ -22,8 +22,7 @@ override.tf.json
 .terraformrc
 terraform.rc
 
-# Terraform lock file (commit this in real projects, but excluding for example)
-.terraform.lock.hcl
+# Terraform lock file is committed to ensure consistent provider versions
 
 # Terraform directories
 .terraform/

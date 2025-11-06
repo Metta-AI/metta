@@ -42,7 +42,8 @@ resource "aws_iam_policy" "sandbox_manager" {
           "arn:aws:ec2:us-east-1:751442549699:volume/*",
           "arn:aws:ec2:us-east-1:751442549699:network-interface/*",
           "arn:aws:ec2:us-east-1:751442549699:subnet/*",
-          "arn:aws:ec2:us-east-1:751442549699:security-group/*"
+          "arn:aws:ec2:us-east-1:751442549699:security-group/*",
+          "arn:aws:ec2:us-east-1:751442549699:key-pair/*"
         ]
       },
       # Allow RunInstances to use AMIs (any public or account AMI in us-east-1)
