@@ -53,10 +53,10 @@ def _(mo):
 @app.cell
 def _():
     # Import the eval finder widget
-    from experiments.notebooks.utils.eval_finder_widget.eval_finder_widget import (
+    from notebooks.utils.eval_finder_widget.eval_finder_widget import (
         EvalFinderWidget,
     )
-    from experiments.notebooks.utils.eval_finder_widget.eval_finder_widget.util import (
+    from notebooks.utils.eval_finder_widget.eval_finder_widget.util import (
         create_demo_eval_finder_widget,
         fetch_eval_data_for_policies,
     )
@@ -347,7 +347,7 @@ async def _(
     run_free_policies,
     training_run_policies,
 ):
-    from experiments.notebooks.utils.scorecard_widget.scorecard_widget.ScorecardWidget import (
+    from notebooks.utils.scorecard_widget.scorecard_widget.ScorecardWidget import (
         ScorecardWidget,
     )
 

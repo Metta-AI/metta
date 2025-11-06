@@ -9,7 +9,7 @@ with app.setup:
 
 @app.cell
 def _():
-    from experiments.notebooks.utils.policy_selector_widget.policy_selector_widget import (
+    from notebooks.utils.policy_selector_widget.policy_selector_widget import (
         create_policy_selector_widget,
     )
 
@@ -74,7 +74,7 @@ def _(live_widget):
 @app.cell
 async def _(client, live_widget):
     # Access the widget's value to trigger reactivity in Marimo
-    from experiments.notebooks.utils.scorecard_widget.scorecard_widget.ScorecardWidget import (
+    from notebooks.utils.scorecard_widget.scorecard_widget.ScorecardWidget import (
         ScorecardWidget,
     )
 

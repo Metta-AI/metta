@@ -72,7 +72,7 @@ def _():
 
     # Import MettaScope replay viewer
     try:
-        from experiments.notebooks.utils.replays import show_replay
+        from notebooks.utils.replays import show_replay
 
         replay_available = True
     except ImportError:
