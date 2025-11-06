@@ -94,7 +94,7 @@ def train(
     return TrainTool(
         trainer=trainer_cfg,
         training_env=TrainingEnvironmentConfig(curriculum=curriculum),
-        evaluator=EvaluatorConfig(epoch_interval=0),
+        evaluator=EvaluatorConfig(epoch_interval=10),
     )
 
 
@@ -125,7 +125,7 @@ def train_shaped(rewards: bool = True) -> TrainTool:
 
     return TrainTool(
         training_env=TrainingEnvironmentConfig(curriculum=cc.env_curriculum(env_cfg)),
-        evaluator=EvaluatorConfig(epoch_interval=0),
+        evaluator=EvaluatorConfig(epoch_interval=10),
     )
 
 
