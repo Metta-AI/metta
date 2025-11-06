@@ -160,7 +160,7 @@ class ActionSupervised(Loss):
         # --------------------------Now Value Loss----------------------------------
         if self.add_action_loss_to_rewards:
             minibatch["rewards"] = minibatch["rewards"] + self.action_reward_coef * policy_td["act_log_prob"].detach()
-            # NOTE: we should somehownormalize the policy loss before adding it to rewards, perhaps exponentiate then
+            # NOTE: we should somehow normalize the policy loss before adding it to rewards, perhaps exponentiate then
             # softplus?
 
         if self.student_led:

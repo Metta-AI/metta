@@ -89,7 +89,11 @@ def train(
     )
 
     trainer_cfg = TrainerConfig(
-        losses=LossConfig(loss_configs={"action_supervised": ActionSupervisedConfig()}),
+        losses=LossConfig(
+            loss_configs={
+                "action_supervised": ActionSupervisedConfig(student_led=False)
+            }
+        ),
     )
 
     return TrainTool(

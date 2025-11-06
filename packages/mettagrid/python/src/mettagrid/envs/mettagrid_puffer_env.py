@@ -142,7 +142,6 @@ class MettaGridPufferEnv(PufferEnv):
         self._buffers.rewards[:] = 0.0
         self._buffers.terminals[:] = False
         self._buffers.truncations[:] = False
-        self._buffers.teacher_actions[:] = 0
 
         # xcxc make a teacher(?)
         # xcxc consider having the teacher be connected to the policy and set actions that way
@@ -157,14 +156,26 @@ class MettaGridPufferEnv(PufferEnv):
                     for token in agent_observations.tokens:
                         if token.feature.name == "last_action":
                             # This should be "go in a circle".
-                            if token.value < 5:
-                                actions[i] = token.value + 1
+                            if token.value == 0:
+                                # noop => north
+                                actions[i] = 1
+                            if token.value == 1:
+                                # north => east
+                                actions[i] = 3
+                            if token.value == 3:
+                                # east => south
+                                actions[i] = 2
+                            if token.value == 2:
+                                # south => west
+                                actions[i] = 4
                             else:
+                                # everything (including west) => noop
                                 actions[i] = 0
                             break
                 return actions
 
         self._teacher = Teacher()
+        self._buffers.teacher_actions[:] = self._teacher.get_actions(self._buffers.observations, self._sim)
 
     @override
     def reset(self, seed: Optional[int] = None) -> Tuple[np.ndarray, Dict[str, Any]]:
@@ -177,18 +188,17 @@ class MettaGridPufferEnv(PufferEnv):
 
     @override
     def step(self, actions: np.ndarray) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, Dict[str, Any]]:
+        assert self._sim is not None
         if self._sim._c_sim.terminals().all() or self._sim._c_sim.truncations().all():
             self._new_sim()
 
-        # setting the buffer actions and sim actions may be redundant
-        if self._teacher is not None:
-            actions = self._teacher.get_actions(self._buffers.observations, self._sim)
         self._buffers.actions[:] = actions
-        # xcxc
         assert (self._buffers.actions == self._sim._c_sim.actions()).all()
 
-        self._buffers.teacher_actions[:] = actions
         self._sim.step()
+
+        if self._teacher is not None:
+            self._buffers.teacher_actions[:] = self._teacher.get_actions(self._buffers.observations, self._sim)
 
         return (
             self._buffers.observations,
