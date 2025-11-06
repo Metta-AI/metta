@@ -33,12 +33,12 @@ def _extract_version(text: str) -> Optional[str]:
 
 
 def _resolve_command(binary: str) -> Optional[Path]:
-    resolved = shutil.which(binary)
-    if resolved:
-        return Path(resolved)
     candidate = Path.home() / ".nimby" / "nim" / "bin" / binary
     if candidate.exists():
         return candidate
+    resolved = shutil.which(binary)
+    if resolved:
+        return Path(resolved)
     return None
 
 
@@ -123,13 +123,18 @@ def _install_nim(nimby_cmd: Path) -> None:
         raise RuntimeError(f"Failed to install Nim {REQUIRED_NIM_VERSION} using {nimby_cmd}: {exc}") from exc
 
 
-def _stage_nimby(nimby_cmd: Path) -> Path:
+def _stage_nimby(nimby_cmd: Path, *, preserve_source: bool = False) -> Path:
     bin_dir = Path.home() / ".nimby" / "nim" / "bin"
     bin_dir.mkdir(parents=True, exist_ok=True)
     destination = bin_dir / "nimby"
     if destination.exists():
         destination.unlink()
-    shutil.move(str(nimby_cmd), destination)
+    if not nimby_cmd.exists():
+        raise RuntimeError(f"Nimby binary not found at {nimby_cmd}")
+    if preserve_source:
+        shutil.copy2(nimby_cmd, destination)
+    else:
+        shutil.move(str(nimby_cmd), destination)
     destination.chmod(0o755)
     return destination
 
@@ -166,6 +171,16 @@ def ensure_nim_dependencies() -> None:
     if nimby_ok and nimby_cmd:
         print(f"Installing Nim {REQUIRED_NIM_VERSION} with existing Nimby at {nimby_cmd}.", file=sys.stdout)
         _install_nim(nimby_cmd)
+        try:
+            nimby_cmd = _stage_nimby(nimby_cmd, preserve_source=True)
+            nimby_version = _command_version(nimby_cmd)
+        except RuntimeError:
+            print("Existing Nimby could not be staged, re-downloading.", file=sys.stdout)
+            with tempfile.TemporaryDirectory() as tmp_dir:
+                staged = _download_nimby(Path(tmp_dir))
+                _install_nim(staged)
+                nimby_cmd = _stage_nimby(staged)
+                nimby_version = _command_version(nimby_cmd)
     else:
         print(f"Bootstrapping Nimby {REQUIRED_NIMBY_VERSION} and Nim {REQUIRED_NIM_VERSION}.", file=sys.stdout)
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -173,15 +188,26 @@ def ensure_nim_dependencies() -> None:
             _install_nim(staged)
             nimby_cmd = _stage_nimby(staged)
             nimby_version = _command_version(nimby_cmd)
+    _ensure_path_env()
+    nim_path = Path.home() / ".nimby" / "nim" / "bin" / "nim"
+    nim_cmd = nim_path if nim_path.exists() else _resolve_command("nim")
+    nim_version = _command_version(nim_cmd) if nim_cmd else None
 
-    nim_version = _current_nim_version()
-    nimby_version = nimby_version or (_command_version(nimby_cmd) if nimby_cmd else None)
+    nimby_path = Path.home() / ".nimby" / "nim" / "bin" / "nimby"
+    if nimby_path.exists():
+        nimby_cmd = nimby_path
+        nimby_version = _command_version(nimby_cmd)
+    else:
+        nimby_version = nimby_version or (_command_version(nimby_cmd) if nimby_cmd else None)
 
     nim_ok = nim_version is not None and _version_tuple(nim_version) >= required_nim
     nimby_ok = nimby_cmd is not None and nimby_version is not None and _version_tuple(nimby_version) >= required_nimby
 
     if not nim_ok or not nimby_ok:
-        raise RuntimeError("Failed to provision Nim/Nimby dependencies. Inspect the logs for details.")
+        raise RuntimeError(
+            f"Failed to provision Nim/Nimby dependencies. Nim detected: {nim_version!r} at {nim_cmd}, "
+            f"Nimby detected: {nimby_version!r} at {nimby_cmd}"
+        )
 
     _ensure_path_env()
     print(
