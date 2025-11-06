@@ -25,7 +25,7 @@ class BaseHubConfig(SceneConfig):
     # - corner_bundle/cross_bundle can be "none" | "extractors" | "custom".
     # - When both objects and bundle are provided, objects win (per BaseHub logic).
     corner_objects: list[str] | None = None
-    corner_bundle: Literal["extractors", "none", "custom"] = "none"
+    corner_bundle: Literal["extractors", "none", "custom"] = "extractors"
     cross_objects: list[str] | None = None
     cross_bundle: Literal["none", "extractors", "custom"] = "none"
     cross_distance: int = 4
