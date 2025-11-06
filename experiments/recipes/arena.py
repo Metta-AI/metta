@@ -7,7 +7,7 @@ from metta.cogworks.curriculum.curriculum import (
     CurriculumConfig,
 )
 from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
-from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
+from metta.rl.training import TrainingEnvironmentConfig
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.eval import EvaluateTool
 from metta.tools.play import PlayTool
@@ -94,7 +94,7 @@ def train(
     return TrainTool(
         trainer=trainer_cfg,
         training_env=TrainingEnvironmentConfig(curriculum=curriculum),
-        evaluator=EvaluatorConfig(epoch_interval=10),
+        # evaluator=EvaluatorConfig(simulations=simulations()),
     )
 
 
@@ -125,7 +125,7 @@ def train_shaped(rewards: bool = True) -> TrainTool:
 
     return TrainTool(
         training_env=TrainingEnvironmentConfig(curriculum=cc.env_curriculum(env_cfg)),
-        evaluator=EvaluatorConfig(epoch_interval=10),
+        # evaluator=EvaluatorConfig(simulations=simulations()),
     )
 
 
