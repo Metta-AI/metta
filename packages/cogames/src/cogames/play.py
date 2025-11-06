@@ -41,10 +41,7 @@ def play(
 
     logger.debug("Starting play session", extra={"game_name": game_name})
 
-<<<<<<< HEAD
-=======
     policy_env_info = PolicyEnvInterface.from_mg_cfg(env_cfg)
->>>>>>> 553a3c88758eeacc31c9c88419856b2f9c68bea6
     policy = initialize_or_load_policy(
         policy_env_info,
         policy_spec.policy_class_path,

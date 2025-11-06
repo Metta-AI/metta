@@ -217,7 +217,7 @@ class UnclippingAgentPolicyImpl(BaselineAgentPolicyImpl):
             if deficit <= 0:
                 continue
 
-            extractors = self._extractors.get(resource_type, [])
+            extractors = s.shared_state.extractors.get(resource_type, [])
             if not extractors:
                 continue
 
@@ -295,7 +295,7 @@ class UnclippingAgentPolicyImpl(BaselineAgentPolicyImpl):
 
         # Explore until we find assembler
         explore_action = self._explore_until(
-            s, condition=lambda: self._stations["assembler"] is not None, reason="Need assembler for crafting"
+            s, condition=lambda: s.shared_state.stations["assembler"] is not None, reason="Need assembler for crafting"
         )
         if explore_action is not None:
             return explore_action
@@ -307,7 +307,7 @@ class UnclippingAgentPolicyImpl(BaselineAgentPolicyImpl):
             return vibe_action
 
         # Move to assembler and use it
-        assembler = self._stations["assembler"]
+        assembler = s.shared_state.stations["assembler"]
         if assembler is None:
             return self._NOOP
 

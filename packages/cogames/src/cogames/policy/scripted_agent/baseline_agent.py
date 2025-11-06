@@ -600,8 +600,8 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
 
         # Invalidate cached path if phase changed (likely targeting something different now)
         if old_phase != s.phase:
-            s.shared_state.cached_path = None
-            s.shared_state.cached_path_target = None
+            s.cached_path = None
+            s.cached_path_target = None
 
     def _calculate_deficits(self, s: SimpleAgentState) -> dict[str, int]:
         """Calculate how many more of each resource we need for a heart."""
@@ -1021,25 +1021,25 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
         # Check if we can reuse cached path
         path = None
         if (
-            s.shared_state.cached_path
-            and len(s.shared_state.cached_path) > 0
-            and s.shared_state.cached_path_target == target
-            and s.shared_state.cached_path_reach_adjacent == reach_adjacent
+            s.cached_path
+            and len(s.cached_path) > 0
+            and s.cached_path_target == target
+            and s.cached_path_reach_adjacent == reach_adjacent
         ):
             # Validate cached path - check if next step is still walkable
-            next_pos = s.shared_state.cached_path[0]
+            next_pos = s.cached_path[0]
             if self._is_traversable(s, next_pos[0], next_pos[1]) or (allow_goal_block and next_pos in goal_cells):
                 # Cached path is valid! Use it
-                path = s.shared_state.cached_path
+                path = s.cached_path
             # If next step blocked, fall through to recompute
 
         # Need to recompute path
         if path is None:
             path = self._shortest_path(s, start, goal_cells, allow_goal_block)
             # Cache the new path
-            s.shared_state.cached_path = path.copy() if path else None
-            s.shared_state.cached_path_target = target
-            s.shared_state.cached_path_reach_adjacent = reach_adjacent
+            s.cached_path = path.copy() if path else None
+            s.cached_path_target = target
+            s.cached_path_reach_adjacent = reach_adjacent
         if not path:
             for dr in range(-2, 3):
                 row_str = "    "
@@ -1075,12 +1075,12 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
         next_pos = path[0]
 
         # Advance cached path (remove the step we're about to take)
-        if s.shared_state.cached_path and len(s.shared_state.cached_path) > 0:
-            s.shared_state.cached_path = s.shared_state.cached_path[1:]  # Remove first element
+        if s.cached_path and len(s.cached_path) > 0:
+            s.cached_path = s.cached_path[1:]  # Remove first element
             # Clear cache if we've reached the end
-            if len(s.shared_state.cached_path) == 0:
-                s.shared_state.cached_path = None
-                s.shared_state.cached_path_target = None
+            if len(s.cached_path) == 0:
+                s.cached_path = None
+                s.cached_path_target = None
 
         # Convert next position to action
         dr = next_pos[0] - s.row
