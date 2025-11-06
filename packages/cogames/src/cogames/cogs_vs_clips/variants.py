@@ -330,17 +330,6 @@ class StoreBaseVariant(BaseHubVariant):
         node.cross_distance = 7
 
 
-class ExtractorBaseVariant(BaseHubVariant):
-    name: str = "extractor_base"
-    description: str = "Sanctum corners host extractors; cross remains clear."
-
-    @override
-    def modify_node(self, node):
-        node.corner_bundle = "extractors"
-        node.cross_bundle = "none"
-        node.cross_distance = 7
-
-
 class BothBaseVariant(BaseHubVariant):
     name: str = "both_base"
     description: str = "Sanctum corners store chests and cross arms host extractors."
@@ -381,7 +370,6 @@ VARIANTS: list[MissionVariant] = [
     CityVariant(),
     CavesVariant(),
     StoreBaseVariant(),
-    ExtractorBaseVariant(),
     BothBaseVariant(),
     LonelyHeartVariant(),
     PackRatVariant(),
