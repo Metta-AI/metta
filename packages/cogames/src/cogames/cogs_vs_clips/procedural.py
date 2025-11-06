@@ -1,54 +1,67 @@
-from typing import Any, Literal, cast
+from abc import ABC, abstractmethod
+from typing import Any, Literal, override
 
 import numpy as np
 
-from mettagrid.map_builder.map_builder import MapBuilderConfig
+from cogames.cogs_vs_clips.mission import MissionVariant
+from mettagrid.config.mettagrid_config import MettaGridConfig
 from mettagrid.mapgen.area import AreaWhere
-from mettagrid.mapgen.mapgen import MapGen
+from mettagrid.mapgen.mapgen import MapGen, MapGenConfig
 from mettagrid.mapgen.random.int import IntConstantDistribution
-from mettagrid.mapgen.scene import ChildrenAction, GridTransform, Scene, SceneConfig
-from mettagrid.mapgen.scenes.base_hub import BaseHubConfig
+from mettagrid.mapgen.scene import (
+    AnySceneConfig,
+    ChildrenAction,
+    GridTransform,
+    Scene,
+    SceneConfig,
+)
+from mettagrid.mapgen.scenes.base_hub import BaseHub, BaseHubConfig
 from mettagrid.mapgen.scenes.biome_caves import BiomeCavesConfig
 from mettagrid.mapgen.scenes.biome_city import BiomeCityConfig
 from mettagrid.mapgen.scenes.biome_desert import BiomeDesertConfig
 from mettagrid.mapgen.scenes.biome_forest import BiomeForestConfig
-from mettagrid.mapgen.scenes.bounded_layout import BoundedLayoutConfig
-from mettagrid.mapgen.scenes.bsp import BSPConfig, BSPLayoutConfig
+from mettagrid.mapgen.scenes.bounded_layout import BoundedLayout
+from mettagrid.mapgen.scenes.bsp import BSPConfig, BSPLayout
 from mettagrid.mapgen.scenes.building_distributions import (
     DistributionConfig,
     UniformExtractorParams,
 )
-from mettagrid.mapgen.scenes.make_connected import MakeConnectedConfig
+from mettagrid.mapgen.scenes.make_connected import MakeConnected
 from mettagrid.mapgen.scenes.maze import MazeConfig
-from mettagrid.mapgen.scenes.radial_maze import RadialMazeConfig
-from mettagrid.mapgen.scenes.random_scene import RandomSceneCandidate, RandomSceneConfig
+from mettagrid.mapgen.scenes.radial_maze import RadialMaze
+from mettagrid.mapgen.scenes.random_scene import RandomScene, RandomSceneCandidate, RandomSceneConfig
 
 HubBundle = Literal["chests", "extractors", "none", "custom"]
-
-
-def _normalize_bundle(value: str | None, default: HubBundle) -> HubBundle:
-    if value in {"chests", "extractors", "none", "custom"}:
-        return cast(HubBundle, value)
-    return default
 
 
 class MachinaArenaConfig(SceneConfig):
     # Core composition
     spawn_count: int
+
+    # Biome / dungeon structure
     base_biome: str = "caves"
     base_biome_config: dict[str, Any] = {}
 
-    # Building placement
+    #### Building placement ####
+
+    # How much of the map is covered by buildings
     building_coverage: float = 0.01
-    building_weights: dict[str, float] | None = None
+    # Resource placement (building-based API)
+    # Defines the set of buildings that can be placed on the map
     building_names: list[str] | None = None
+    # What proportion of buildings are of a type, falls back to default if not set
+    # If building_names is not set, this is used to determine the buildings
+    building_weights: dict[str, float] | None = None
 
-    # Hub bundles
-    hub_corner_bundle: HubBundle = "chests"
-    hub_cross_bundle: HubBundle = "none"
-    hub_cross_distance: int = 7
+    # Hub config. `spawn_count` will be set based on `spawn_count` in this config.
+    hub: BaseHubConfig = BaseHubConfig(
+        corner_bundle="chests",
+        cross_bundle="none",
+        cross_distance=7,
+    )
 
-    # Layers
+    #### Layers ####
+
     biome_weights: dict[str, float] | None = None
     dungeon_weights: dict[str, float] | None = None
     biome_count: int | None = None
@@ -57,8 +70,12 @@ class MachinaArenaConfig(SceneConfig):
     max_biome_zone_fraction: float = 0.35
     max_dungeon_zone_fraction: float = 0.25
 
-    # Distributions
+    #### Distributions ####
+
+    # How buildings are distributed on the map
     distribution: DistributionConfig = DistributionConfig()
+
+    # How buildings are distributed on the map per building type, falls back to global distribution if not set
     building_distributions: dict[str, DistributionConfig] | None = None
 
 
@@ -190,7 +207,7 @@ class MachinaArena(Scene[MachinaArenaConfig]):
             if w.get("radial", 0) > 0:
                 cands.append(
                     RandomSceneCandidate(
-                        scene=RadialMazeConfig(arms=8, arm_width=2, clear_background=False, outline_walls=True),
+                        scene=RadialMaze.Config(arms=8, arm_width=2, clear_background=False, outline_walls=True),
                         weight=w["radial"],
                     )
                 )
@@ -202,7 +219,7 @@ class MachinaArena(Scene[MachinaArenaConfig]):
         dungeon_max_h = max(10, int(min(self.height * cfg.max_dungeon_zone_fraction, self.height // 2)))
 
         def _wrap_in_layout(scene_cfg: SceneConfig, tag: str, max_w: int, max_h: int) -> SceneConfig:
-            return BoundedLayoutConfig(
+            return BoundedLayout.Config(
                 max_width=max_w,
                 max_height=max_h,
                 tag=tag,
@@ -221,12 +238,12 @@ class MachinaArena(Scene[MachinaArenaConfig]):
         if biome_cands:
             biome_fill_count = max(1, int(biome_count * 0.6))
             biome_layer = ChildrenAction(
-                scene=BSPLayoutConfig(
+                scene=BSPLayout.Config(
                     area_count=biome_count,
                     children=[
                         ChildrenAction(
                             scene=_wrap_in_layout(
-                                RandomSceneConfig(candidates=biome_cands),
+                                RandomScene.Config(candidates=biome_cands),
                                 tag="biome.zone",
                                 max_w=biome_max_w,
                                 max_h=biome_max_h,
@@ -238,8 +255,6 @@ class MachinaArena(Scene[MachinaArenaConfig]):
                     ],
                 ),
                 where="full",
-                order_by="first",
-                limit=1,
             )
 
         dungeon_layer: ChildrenAction | None = None
@@ -247,7 +262,7 @@ class MachinaArena(Scene[MachinaArenaConfig]):
         if dungeon_cands:
             dungeon_fill_count = max(1, int(dungeon_count * 0.5))
             dungeon_layer = ChildrenAction(
-                scene=BSPLayoutConfig(
+                scene=BSPLayout.Config(
                     area_count=dungeon_count,
                     children=[
                         ChildrenAction(
@@ -271,7 +286,7 @@ class MachinaArena(Scene[MachinaArenaConfig]):
         children: list[ChildrenAction] = []
 
         # Base shell first
-        children.append(ChildrenAction(scene=base_cfg, where="full", order_by="first", limit=1))
+        children.append(ChildrenAction(scene=base_cfg, where="full"))
 
         if biome_layer is not None:
             children.append(biome_layer)
@@ -282,7 +297,7 @@ class MachinaArena(Scene[MachinaArenaConfig]):
         children.append(
             ChildrenAction(
                 scene=UniformExtractorParams(
-                    target_coverage=float(cfg.building_coverage),
+                    target_coverage=cfg.building_coverage,
                     building_names=building_names_final,
                     building_weights=building_weights_final,
                     clear_existing=False,
@@ -290,236 +305,98 @@ class MachinaArena(Scene[MachinaArenaConfig]):
                     building_distributions=cfg.building_distributions,
                 ),
                 where="full",
-                order_by="last",
-                lock="arena.resources",
-                limit=1,
             )
         )
 
         # Connectivity + hub
         children.append(
-            ChildrenAction(scene=MakeConnectedConfig(), where="full", order_by="last", lock="arena.connect", limit=1)
-        )
-
-        children.append(
             ChildrenAction(
-                scene=BaseHubConfig(
-                    spawn_count=int(cfg.spawn_count),
-                    hub_width=21,
-                    hub_height=21,
-                    corner_bundle=cfg.hub_corner_bundle,
-                    cross_bundle=cfg.hub_cross_bundle,
-                    cross_distance=int(cfg.hub_cross_distance),
-                ),
+                scene=MakeConnected.Config(),
                 where="full",
-                order_by="last",
-                limit=1,
             )
         )
 
         children.append(
             ChildrenAction(
-                scene=MakeConnectedConfig(),
+                scene=cfg.hub.model_copy(deep=True, update={"spawn_count": cfg.spawn_count}),
                 where="full",
-                order_by="last",
-                lock="arena.connect.final",
-                limit=1,
+            )
+        )
+
+        children.append(
+            ChildrenAction(
+                scene=MakeConnected.Config(),
+                where="full",
             )
         )
 
         return children
 
 
-def make_hub_only_map_builder(
-    num_cogs: int,
-    *,
-    width: int = 21,
-    height: int = 21,
-    seed: int | None = None,
-    layout: Literal["default", "tight"] = "default",
-    corner_bundle: HubBundle = "none",
-    cross_bundle: HubBundle = "none",
-    cross_distance: int = 7,
-    corner_objects: list[str] | None = None,
-    cross_objects: list[str] | None = None,
-    transforms: list[GridTransform] | None = None,
-) -> MapBuilderConfig:
-    """Build a hub-only map using RandomScene over BaseHub with random transforms.
-
-    Notes:
-    - If corner_objects is provided (len==4), BaseHub will use that set directly.
-    - corner_bundle/cross_bundle can be "none" | "chests" | "extractors".
-    - When both objects and bundle are provided, objects win (per BaseHub logic).
-    """
-
-    # Default transform set to randomize orientation/reflection
-    transform_set = transforms or [
-        GridTransform.IDENTITY,
-        GridTransform.ROT_90,
-        GridTransform.ROT_180,
-        GridTransform.ROT_270,
-        GridTransform.FLIP_H,
-        GridTransform.FLIP_V,
-        GridTransform.TRANSPOSE,
-        GridTransform.TRANSPOSE_ALT,
-    ]
-
-    base_kwargs: dict[str, Any] = {
-        "spawn_count": num_cogs,
-        "hub_width": width,
-        "hub_height": height,
-        "include_inner_wall": True,
-        "layout": layout,
-        "corner_bundle": corner_bundle,
-        "cross_bundle": cross_bundle,
-        "cross_distance": cross_distance,
-    }
-    if corner_objects is not None:
-        base_kwargs["corner_objects"] = list(corner_objects)
-    if cross_objects is not None:
-        base_kwargs["cross_objects"] = list(cross_objects)
-
-    candidates = [
-        RandomSceneCandidate(scene=BaseHubConfig(**base_kwargs, transform=t), weight=1.0) for t in transform_set
-    ]
-
-    return MapGen.Config(
-        width=width,
-        height=height,
-        seed=seed,
-        instance=RandomSceneConfig(candidates=candidates),
-    )
+class RandomTransformConfig(SceneConfig):
+    scene: AnySceneConfig
 
 
-def apply_hub_overrides_to_builder(
-    builder: MapBuilderConfig,
-    *,
-    num_cogs: int,
-    overrides: dict[str, Any] | None = None,
-) -> MapBuilderConfig:
-    """If builder is a hub-only MapGen with BaseHub scenes, apply corner/cross overrides.
+class RandomTransform(Scene[RandomTransformConfig]):
+    def render(self) -> None:
+        return
 
-    Best-effort: if structure is not recognized, return builder unchanged.
-    """
-    if not isinstance(builder, MapGen.Config):
-        return builder
-
-    # Preserve existing top-level seed unless explicitly overridden
-    existing_seed = builder.seed
-    override_seed = (overrides or {}).get("seed", None)
-    final_seed = override_seed if override_seed is not None else existing_seed
-
-    width = builder.width or 21
-    height = builder.height or 21
-
-    inst = builder.instance
-    if isinstance(inst, RandomSceneConfig):
-        # Verify candidates are BaseHub configs; extract transforms
-        transforms: list[GridTransform] = []
-        basehub_seen = False
-        existing_corner_bundle: HubBundle | None = None
-        existing_cross_bundle: HubBundle | None = None
-        existing_cross_distance: int | None = None
-        for cand in inst.candidates:
-            scn = cand.scene
-            if isinstance(scn, BaseHubConfig):
-                basehub_seen = True
-                transforms.append(scn.transform)
-                if existing_corner_bundle is None:
-                    existing_corner_bundle = scn.corner_bundle
-                if existing_cross_bundle is None:
-                    existing_cross_bundle = scn.cross_bundle
-                if existing_cross_distance is None:
-                    existing_cross_distance = int(scn.cross_distance)
-        if basehub_seen:
-            ov_corner = (overrides or {}).get("hub_corner_bundle")
-            ov_cross = (overrides or {}).get("hub_cross_bundle")
-            ov_dist = (overrides or {}).get("hub_cross_distance")
-
-            # If override not provided, preserve existing scene values
-            corner_bundle = (
-                _normalize_bundle(ov_corner, existing_corner_bundle or "chests")
-                if ov_corner is not None
-                else (existing_corner_bundle or "chests")
+    def get_children(self) -> list[ChildrenAction]:
+        return [
+            ChildrenAction(
+                scene=self.config.scene.model_copy(
+                    update={"transform": GridTransform(self.rng.choice(list(GridTransform)))}
+                ),
+                where="full",
             )
-            cross_bundle = (
-                _normalize_bundle(ov_cross, existing_cross_bundle or "none")
-                if ov_cross is not None
-                else (existing_cross_bundle or "none")
-            )
-            cross_distance = int(ov_dist) if ov_dist is not None else int(existing_cross_distance or 7)
-            return make_hub_only_map_builder(
-                num_cogs=num_cogs,
-                width=width,
-                height=height,
-                seed=final_seed,
-                corner_bundle=corner_bundle,
-                cross_bundle=cross_bundle,
-                cross_distance=cross_distance,
-                transforms=transforms or None,
-            )
-    return builder
+        ]
 
 
-def apply_procedural_overrides_to_builder(
-    builder: MapBuilderConfig,
-    *,
-    num_cogs: int,
-    overrides: dict[str, Any] | None = None,
-) -> MapBuilderConfig:
-    """Apply mission-level procedural_overrides to a MapGen builder when possible.
+class EnvNodeVariant[T](MissionVariant, ABC):
+    @abstractmethod
+    def extract_node(self, env: MettaGridConfig) -> T: ...
 
-    Supports:
-    - Hub-only builders produced by make_hub_only_map_builder (RandomScene[BaseHub]).
-    - Machina builders produced by make_machina_procedural_map_builder (Biome* base scenes).
-    Falls back to the original builder if structure is unrecognized.
-    """
-    ov = overrides or {}
+    @abstractmethod
+    def modify_node(self, node: T): ...
 
-    # 1) Try hub-only first
-    hub_applied = apply_hub_overrides_to_builder(builder, num_cogs=num_cogs, overrides=ov)
-    if hub_applied is not builder:
-        return hub_applied
+    @override
+    def modify_env(self, mission, env) -> None:
+        node = self.extract_node(env)
+        self.modify_node(node)
 
-    # 2) Try machina-style (biome-based) procedural
-    if not isinstance(builder, MapGen.Config):
-        return builder
 
-    base_inst = builder.instance
-    if isinstance(base_inst, MachinaArenaConfig):
-        width = int(ov.pop("width", builder.width))
-        height = int(ov.pop("height", builder.height))
-        seed = ov.pop("seed", builder.seed)
+class MapGenVariant(EnvNodeVariant[MapGenConfig]):
+    @classmethod
+    def extract_node(cls, env: MettaGridConfig) -> MapGenConfig:
+        map_builder = env.game.map_builder
+        if not isinstance(map_builder, MapGen.Config):
+            raise TypeError("MapGenConfigVariant can only be applied to MapGen.Config builders")
+        return map_builder
 
-        allowed_keys = {
-            "base_biome",
-            "base_biome_config",
-            # Building-based keys
-            "building_coverage",
-            "building_weights",
-            "building_names",
-            "hub_corner_bundle",
-            "hub_cross_bundle",
-            "hub_cross_distance",
-            "biome_weights",
-            "dungeon_weights",
-            "biome_count",
-            "dungeon_count",
-            "density_scale",
-            "max_biome_zone_fraction",
-            "max_dungeon_zone_fraction",
-            "distribution",
-            "building_distributions",
-        }
-        unknown = set(ov.keys()) - allowed_keys - {"width", "height", "seed"}
-        if unknown:
-            raise ValueError("Unknown procedural override key(s): " + ", ".join(sorted(unknown)))
 
-        kwargs = {k: v for k, v in ov.items() if k in allowed_keys}
-        return MapGen.Config(
-            width=width,
-            height=height,
-            seed=seed,
-            instance=MachinaArenaConfig(spawn_count=num_cogs, **kwargs),
-        )
-    return builder
+class BaseHubVariant(EnvNodeVariant[BaseHubConfig]):
+    @classmethod
+    def extract_node(cls, env: MettaGridConfig) -> BaseHubConfig:
+        map_builder = env.game.map_builder
+        if not isinstance(map_builder, MapGen.Config):
+            raise TypeError("BaseHubVariant can only be applied to MapGen.Config builders")
+        instance = map_builder.instance
+        if isinstance(instance, RandomTransform.Config) and isinstance(instance.scene, BaseHub.Config):
+            return instance.scene
+        elif isinstance(instance, MachinaArena.Config):
+            return instance.hub
+        else:
+            raise TypeError("BaseHubVariant can only be applied RandomTransform/BaseHub or MachinaArena scenes")
+
+
+class MachinaArenaVariant(EnvNodeVariant[MachinaArenaConfig]):
+    @classmethod
+    def extract_node(cls, env: MettaGridConfig) -> MachinaArenaConfig:
+        map_builder = env.game.map_builder
+        if not isinstance(map_builder, MapGen.Config):
+            raise TypeError("MachinaArenaVariant can only be applied to MapGen.Config builders")
+        instance = map_builder.instance
+        if isinstance(instance, MachinaArena.Config):
+            return instance
+        else:
+            raise TypeError("MachinaArenaVariant can only be applied to MachinaArena.Config scenes")
