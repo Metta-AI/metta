@@ -1,10 +1,10 @@
 import typing
 
 import metta.cogworks.curriculum.curriculum
-import pufferlib
+import pufferlib.pufferlib
 
 
-class CurriculumEnv(pufferlib.PufferEnv):
+class CurriculumEnv(pufferlib.pufferlib.PufferEnv):
     """Environment wrapper that integrates with a curriculum system.
 
     This wrapper passes all function calls to the wrapped environment, with special

@@ -1,18 +1,19 @@
+from __future__ import annotations
+
 import dataclasses
 import typing
 
 if typing.TYPE_CHECKING:
-    import mettagrid.config.id_map
-    import mettagrid.simulator.simulator
-
-    Simulation = mettagrid.simulator.simulator.Simulator
+    from mettagrid.config.id_map import ObservationFeatureSpec
+    from mettagrid.simulator.simulator import Simulator
 else:
-    Simulation = typing.Any
+    ObservationFeatureSpec = typing.Any
+    Simulator = typing.Any
 
 
 @dataclasses.dataclass
 class ObservationToken:
-    feature: mettagrid.config.id_map.ObservationFeatureSpec
+    feature: ObservationFeatureSpec
     location: tuple[int, int]
     value: int
 
