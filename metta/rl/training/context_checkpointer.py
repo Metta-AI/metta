@@ -1,15 +1,19 @@
 """Trainer state checkpoint management component."""
 
+from __future__ import annotations
+
 import logging
 import typing
 
 import metta.rl.checkpoint_manager
-import metta.rl.training
+from metta.rl.training.component import TrainerComponent
+from metta.rl.training.component_context import ComponentContext
+from metta.rl.training.distributed_helper import DistributedHelper
 
 logger = logging.getLogger(__name__)
 
 
-class ContextCheckpointer(metta.rl.training.TrainerComponent):
+class ContextCheckpointer(TrainerComponent):
     """Persist and restore optimizer/timing state alongside policy checkpoints."""
 
     trainer_attr = "trainer_checkpointer"
@@ -18,7 +22,7 @@ class ContextCheckpointer(metta.rl.training.TrainerComponent):
         self,
         *,
         checkpoint_manager: metta.rl.checkpoint_manager.CheckpointManager,
-        distributed_helper: metta.rl.training.DistributedHelper,
+        distributed_helper: DistributedHelper,
     ) -> None:
         super().__init__(epoch_interval=1)
         self._checkpoint_manager = checkpoint_manager
@@ -38,7 +42,7 @@ class ContextCheckpointer(metta.rl.training.TrainerComponent):
     # ------------------------------------------------------------------
     # Public API used by Trainer
     # ------------------------------------------------------------------
-    def restore(self, context: metta.rl.training.ComponentContext) -> None:
+    def restore(self, context: ComponentContext) -> None:
         """Load trainer state if checkpoints exist and broadcast to all ranks."""
         payload: typing.Optional[typing.Dict[str, typing.Any]] = None
 
