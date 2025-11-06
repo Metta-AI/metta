@@ -7,7 +7,7 @@ import torch
 
 import metta.agent.policy
 import metta.rl.loss.loss
-import metta.rl.training.component_context as training_component_context
+import metta.rl.training.component_context as component_context
 import metta.rl.training.experience as training_experience
 import metta.rl.training.training_environment as training_environment
 import mettagrid.base_config
@@ -35,7 +35,7 @@ class CoreTrainingLoop:
         losses: dict[str, metta.rl.loss.loss.Loss],
         optimizer: torch.optim.Optimizer,
         device: torch.device,
-        context: training_component_context.ComponentContext,
+        context: component_context.ComponentContext,
     ):
         """Initialize core training loop.
 
@@ -65,7 +65,7 @@ class CoreTrainingLoop:
     def rollout_phase(
         self,
         env: training_environment.TrainingEnvironment,
-        context: training_component_context.ComponentContext,
+        context: component_context.ComponentContext,
     ) -> RolloutResult:
         """Perform rollout phase to collect experience.
 
@@ -212,7 +212,7 @@ class CoreTrainingLoop:
 
     def training_phase(
         self,
-        context: training_component_context.ComponentContext,
+        context: component_context.ComponentContext,
         update_epochs: int,
         max_grad_norm: float = 0.5,
     ) -> tuple[dict[str, float], int]:
@@ -299,7 +299,7 @@ class CoreTrainingLoop:
 
         return losses_stats, epochs_trained
 
-    def on_epoch_start(self, context: training_component_context.ComponentContext) -> None:
+    def on_epoch_start(self, context: component_context.ComponentContext) -> None:
         """Called at the start of each epoch.
 
         Args:

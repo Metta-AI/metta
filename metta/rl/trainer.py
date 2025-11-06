@@ -8,7 +8,7 @@ import metta.common.util.log_config
 import metta.rl.system_config
 import metta.rl.trainer_config
 import metta.rl.training.component as training_component
-import metta.rl.training.component_context as training_component_context
+import metta.rl.training.component_context as component_context
 import metta.rl.training.context_checkpointer as training_context_checkpointer
 import metta.rl.training.core as training_core
 import metta.rl.training.distributed_helper as training_distributed_helper
@@ -91,12 +91,12 @@ class Trainer:
         self.optimizer = metta.rl.training.optimizer.create_optimizer(self._cfg.optimizer, self._policy)
         self._is_schedulefree = metta.rl.training.optimizer.is_schedulefree_optimizer(self.optimizer)
 
-        self._state = training_component_context.TrainerState()
+        self._state = component_context.TrainerState()
 
         # Extract curriculum from environment if available
         curriculum = getattr(self._env, "_curriculum", None)
 
-        self._context = training_component_context.ComponentContext(
+        self._context = component_context.ComponentContext(
             state=self._state,
             policy=self._policy,
             env=self._env,
@@ -131,7 +131,7 @@ class Trainer:
         self._prev_agent_step_for_step_callbacks: int = 0
 
     @property
-    def context(self) -> training_component_context.ComponentContext:
+    def context(self) -> component_context.ComponentContext:
         """Return the shared trainer context."""
 
         return self._context

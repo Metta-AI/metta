@@ -7,7 +7,7 @@ import typing
 
 import metta.rl.checkpoint_manager
 import metta.rl.training.component as training_component
-import metta.rl.training.component_context as training_component_context
+import metta.rl.training.component_context as component_context
 import metta.rl.training.distributed_helper as training_distributed_helper
 
 logger = logging.getLogger(__name__)
@@ -42,7 +42,7 @@ class ContextCheckpointer(training_component.TrainerComponent):
     # ------------------------------------------------------------------
     # Public API used by Trainer
     # ------------------------------------------------------------------
-    def restore(self, context: training_component_context.ComponentContext) -> None:
+    def restore(self, context: component_context.ComponentContext) -> None:
         """Load trainer state if checkpoints exist and broadcast to all ranks."""
         payload: typing.Optional[typing.Dict[str, typing.Any]] = None
 

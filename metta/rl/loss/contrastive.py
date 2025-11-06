@@ -7,7 +7,8 @@ import torchrl.data
 
 import metta.agent.policy
 import metta.rl.loss.loss
-import metta.rl.training
+import metta.rl.training.component_context as component_context
+import metta.rl.training.training_environment as training_environment
 
 
 class ContrastiveLoss(metta.rl.loss.loss.Loss):
@@ -28,7 +29,7 @@ class ContrastiveLoss(metta.rl.loss.loss.Loss):
         self,
         policy: metta.agent.policy.Policy,
         trainer_cfg: typing.Any,
-        env: metta.rl.training.TrainingEnvironment,
+        env: training_environment.TrainingEnvironment,
         device: torch.device,
         instance_name: str,
         loss_config: typing.Any,
@@ -58,7 +59,10 @@ class ContrastiveLoss(metta.rl.loss.loss.Loss):
         )
 
     def run_train(
-        self, shared_loss_data: tensordict.TensorDict, context: metta.rl.training.ComponentContext, mb_idx: int
+        self,
+        shared_loss_data: tensordict.TensorDict,
+        context: component_context.ComponentContext,
+        mb_idx: int,
     ) -> tuple[torch.Tensor, tensordict.TensorDict, bool]:
         """Compute contrastive loss."""
         policy_td = shared_loss_data["policy_td"]

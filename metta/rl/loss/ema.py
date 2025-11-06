@@ -8,7 +8,7 @@ import torch.nn
 
 import metta.agent.policy
 import metta.rl.loss.loss
-import metta.rl.training
+import metta.rl.training.component_context as component_context
 import metta.rl.utils
 import mettagrid.base_config
 
@@ -72,7 +72,7 @@ class EMA(metta.rl.loss.loss.Loss):
     def run_train(
         self,
         shared_loss_data: tensordict.TensorDict,
-        context: metta.rl.training.ComponentContext,
+        context: component_context.ComponentContext,
         mb_idx: int,
     ) -> tuple[torch.Tensor, tensordict.TensorDict, bool]:
         self.update_target_model()

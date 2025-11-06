@@ -5,7 +5,7 @@ import logging
 import metta.common.wandb.context
 import metta.common.wandb.utils
 import metta.rl.training.component as training_component
-import metta.rl.training.component_context as training_component_context
+import metta.rl.training.component_context as component_context
 import mettagrid.base_config
 
 logger = logging.getLogger(__name__)
@@ -33,7 +33,7 @@ class WandbAborter(training_component.TrainerComponent):
         self._config = cfg
 
     def on_epoch_end(self, epoch: int) -> None:  # noqa: D401 - documented in base class
-        context: training_component_context.ComponentContext = self.context
+        context: component_context.ComponentContext = self.context
         distributed_helper = context.distributed
 
         target_timesteps: int | None = None

@@ -13,7 +13,7 @@ import wandb
 
 import metta.common.wandb.context
 import metta.rl.training.component as training_component
-import metta.rl.training.component_context as training_component_context
+import metta.rl.training.component_context as component_context
 import metta.rl.utils
 import metta.utils.file
 
@@ -160,7 +160,7 @@ class TorchProfiler(training_component.TrainerComponent):
         self._original_train_epoch = None
         self._master_only = True
 
-    def register(self, context: training_component_context.ComponentContext) -> None:  # type: ignore[override]
+    def register(self, context: component_context.ComponentContext) -> None:  # type: ignore[override]
         super().register(context)
         interval = getattr(self._config, "interval_epochs", 0)
         if not interval:

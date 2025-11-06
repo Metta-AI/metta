@@ -10,7 +10,7 @@ import metta.agent.policy
 import metta.rl.checkpoint_manager
 import metta.rl.loss.loss
 import metta.rl.trainer_config
-import metta.rl.training
+import metta.rl.training.component_context as component_context
 import mettagrid.base_config
 
 
@@ -77,7 +77,7 @@ class TLKickstarter(metta.rl.loss.loss.Loss):
     def run_train(
         self,
         shared_loss_data: tensordict.TensorDict,
-        context: metta.rl.training.ComponentContext,
+        context: component_context.ComponentContext,
         mb_idx: int,
     ) -> tuple[torch.Tensor, tensordict.TensorDict, bool]:
         policy_td = shared_loss_data["policy_td"]

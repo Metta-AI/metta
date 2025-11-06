@@ -10,7 +10,7 @@ import metta.rl.advantage
 import metta.rl.loss.loss
 import metta.rl.loss.replay_samplers
 import metta.rl.trainer_config
-import metta.rl.training
+import metta.rl.training.component_context as component_context
 import mettagrid.base_config
 
 
@@ -101,7 +101,7 @@ class ActionSupervised(metta.rl.loss.loss.Loss):
 
         return spec
 
-    def run_rollout(self, td: tensordict.TensorDict, context: metta.rl.training.ComponentContext) -> None:
+    def run_rollout(self, td: tensordict.TensorDict, context: component_context.ComponentContext) -> None:
         if not self.use_own_rollout:
             # this will be replaced with loss run-gate scheduling
             return
@@ -126,7 +126,7 @@ class ActionSupervised(metta.rl.loss.loss.Loss):
     def run_train(
         self,
         shared_loss_data: tensordict.TensorDict,
-        context: metta.rl.training.ComponentContext,
+        context: component_context.ComponentContext,
         mb_idx: int,
     ) -> tuple[torch.Tensor, tensordict.TensorDict, bool]:
         if self.use_own_sampling:

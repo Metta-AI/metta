@@ -8,7 +8,7 @@ import torchrl.data
 
 import metta.agent.policy
 import metta.rl.loss.loss
-import metta.rl.training.component_context as training_component_context
+import metta.rl.training.component_context as component_context
 import metta.rl.training.training_environment as training_environment
 import mettagrid.base_config
 
@@ -104,7 +104,7 @@ class GRPO(metta.rl.loss.loss.Loss):
             act_log_prob=scalar_f32,
         )
 
-    def run_rollout(self, td: tensordict.TensorDict, context: training_component_context.ComponentContext) -> None:
+    def run_rollout(self, td: tensordict.TensorDict, context: component_context.ComponentContext) -> None:
         """Run policy rollout without value prediction."""
         with torch.no_grad():
             self.policy.forward(td)
@@ -122,7 +122,7 @@ class GRPO(metta.rl.loss.loss.Loss):
         return
 
     def run_train(
-        self, shared_loss_data: tensordict.TensorDict, context: training_component_context.ComponentContext, mb_idx: int
+        self, shared_loss_data: tensordict.TensorDict, context: component_context.ComponentContext, mb_idx: int
     ) -> tuple[torch.Tensor, tensordict.TensorDict, bool]:
         """GRPO training loop with group-based advantage estimation."""
         config = self.loss_cfg
@@ -162,11 +162,11 @@ class GRPO(metta.rl.loss.loss.Loss):
 
         return loss, shared_loss_data, stop_update_epoch
 
-    def on_train_phase_end(self, context: training_component_context.ComponentContext) -> None:
+    def on_train_phase_end(self, context: component_context.ComponentContext) -> None:
         """Track metrics at the end of training phase."""
         pass
 
-    def _compute_group_advantages(self, context: training_component_context.ComponentContext) -> torch.Tensor:
+    def _compute_group_advantages(self, context: component_context.ComponentContext) -> torch.Tensor:
         """Compute group-based advantages relative to mean reward.
 
         In GRPO, we compute advantages by comparing each trajectory's
