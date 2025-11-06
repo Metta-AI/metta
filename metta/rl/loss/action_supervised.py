@@ -8,7 +8,7 @@ from torchrl.data import Composite, UnboundedContinuous, UnboundedDiscrete
 
 from metta.agent.policy import Policy
 from metta.rl.advantage import compute_advantage, normalize_advantage_distributed
-from metta.rl.loss import Loss
+from metta.rl.loss.loss import Loss
 from metta.rl.loss.replay_samplers import sample_minibatch_sequential
 from metta.rl.trainer_config import TrainerConfig
 from metta.rl.training import ComponentContext

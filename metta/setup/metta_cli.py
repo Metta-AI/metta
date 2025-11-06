@@ -1,7 +1,6 @@
 #!/usr/bin/env -S uv run
 import concurrent.futures
 import re
-import shutil
 import subprocess
 import sys
 import webbrowser
@@ -20,6 +19,7 @@ from metta.setup.local_commands import app as local_app
 from metta.setup.symlink_setup import app as symlink_app
 from metta.setup.tools.book import app as book_app
 from metta.setup.tools.ci_runner import cmd_ci
+from metta.setup.tools.clean import cmd_clean
 from metta.setup.tools.code_formatters import get_formatters, parse_format_types, partition_files_by_type, run_formatter
 from metta.setup.tools.test_runner.test_cpp import app as cpp_test_runner_app
 from metta.setup.tools.test_runner.test_python import app as python_test_runner_app
@@ -423,51 +423,10 @@ def cmd_run(
 
 
 @app.command(name="clean", help="Clean build artifacts and temporary files")
-def cmd_clean(
-    verbose: Annotated[bool, typer.Option("--verbose", help="Verbose output")] = False,
+def clean(
     force: Annotated[bool, typer.Option("--force", help="Force clean")] = False,
 ):
-    def _remove_matching_dirs(base: Path, patterns: list[str], *, include_globs: bool = False) -> None:
-        for pattern in patterns:
-            candidates = base.glob(pattern) if include_globs else (base / pattern,)
-            for path in candidates:
-                if not path.exists() or not path.is_dir():
-                    continue
-                info(f"  Removing {path.relative_to(cli.repo_root)}...")
-                subprocess.run(["chmod", "-R", "u+w", str(path)], cwd=cli.repo_root, check=False)
-                subprocess.run(["rm", "-rf", str(path)], cwd=cli.repo_root, check=False)
-
-    build_dir = cli.repo_root / "build"
-    if build_dir.exists():
-        info("  Removing root build directory...")
-        shutil.rmtree(build_dir)
-
-    mettagrid_dir = cli.repo_root / "packages" / "mettagrid"
-    for build_name in ["build-debug", "build-release"]:
-        build_path = mettagrid_dir / build_name
-        if build_path.exists():
-            info(f"  Removing packages/mettagrid/{build_name}...")
-            shutil.rmtree(build_path)
-
-    _remove_matching_dirs(cli.repo_root, ["bazel-*"], include_globs=True)
-    _remove_matching_dirs(cli.repo_root, [".bazel_output"])
-    if mettagrid_dir.exists():
-        _remove_matching_dirs(mettagrid_dir, ["bazel-*"], include_globs=True)
-        _remove_matching_dirs(mettagrid_dir, [".bazel_output"])
-
-    nim_generated_dir = cli.repo_root / "packages" / "mettagrid" / "nim" / "mettascope" / "bindings" / "generated"
-    if force and nim_generated_dir.exists():
-        shutil.rmtree(nim_generated_dir)
-
-    cleanup_script = cli.repo_root / "devops" / "tools" / "cleanup_repo.py"
-    if cleanup_script.exists():
-        cmd = [str(cleanup_script)]
-        if verbose:
-            cmd.append("--verbose")
-        try:
-            subprocess.run(cmd, cwd=str(cli.repo_root), check=True)
-        except subprocess.CalledProcessError as e:
-            warning(f"  Cleanup script failed: {e}")
+    cmd_clean(force=force)
 
 
 @app.command(name="publish", help="Create and push a release tag for a package")
