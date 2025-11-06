@@ -471,11 +471,20 @@ link_nim_bins() {
   fi
 
   local linked_any=0
+  local sources_found=0
   for tool in nim nimby; do
     local src="$src_dir/$tool"
     local dest="$install_dir/$tool"
 
     if [ -x "$src" ]; then
+      sources_found=1
+      if [ -L "$dest" ]; then
+        local current_target
+        current_target=$(readlink "$dest")
+        if [ "$current_target" = "$src" ]; then
+          continue
+        fi
+      fi
       if ln -sf "$src" "$dest"; then
         linked_any=1
       fi
@@ -484,7 +493,7 @@ link_nim_bins() {
 
   if [ "$linked_any" -eq 1 ]; then
     echo "Linked Nim binaries into $install_dir. Ensure this directory is in your PATH."
-  else
+  elif [ "$sources_found" -eq 0 ]; then
     echo "Could not link Nim binaries into $install_dir. Binaries remain in $src_dir." >&2
   fi
 
