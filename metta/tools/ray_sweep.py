@@ -47,7 +47,7 @@ class RaySweepTool(Tool):
     def invoke(self, args: dict[str, str]) -> int | None:
         ray_address = args.get("ray_address") or os.getenv("RAY_ADDRESS")
 
-        if self.local_test: 
+        if self.local_test:
             self.search_space["trainer.total_timesteps"] = 100_000
             self.sweep_config.gpus_per_trial = 0
             # TODO: Add diagnostic output, confirmations, etc...

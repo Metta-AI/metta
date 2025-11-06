@@ -18,6 +18,7 @@ from metta.adaptive.utils import create_training_job
 
 logger = logging.getLogger(__name__)
 
+
 def _fallback_run_id() -> str:
     return f"local-{datetime.now().strftime('%Y%m%d-%H%M%S')}"
 
@@ -111,7 +112,7 @@ def metta_train_fn(config: dict[str, Any]) -> None:
         recipe_module=sweep_config.get("recipe_module"),
         train_entrypoint=sweep_config.get("train_entrypoint"),
         stats_server_uri=sweep_config.get("stats_server_uri"),
-        train_overrides=config["params"]
+        train_overrides=config["params"],
     )
     job.metadata["sweep/suggestion"] = config["params"]
     job.metadata["sweep/assigned_gpus"] = assigned_gpus

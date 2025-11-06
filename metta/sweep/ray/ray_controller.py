@@ -12,7 +12,6 @@ from ray import init, tune
 from ray.tune import RunConfig, TuneConfig, Tuner
 from ray.tune.search import ConcurrencyLimiter
 from ray.tune.search.optuna import OptunaSearch
-from ray.tune.search.repeater import Repeater
 
 from metta.common.util.constants import PROD_STATS_SERVER_URI
 from metta.sweep.ray.ray_run_trial import metta_train_fn
@@ -46,6 +45,7 @@ class SweepConfig(Config):
     max_concurrent_trials: int = 4
     max_failures_per_trial: int = 3  # Max retries for failed trials (e.g., spot terminations)
     fail_fast: bool = False  # Whether to stop the sweep if any trial fails permanently
+
 
 def ray_sweep(
     *,
@@ -152,10 +152,7 @@ def ray_sweep(
 
     optuna_search = OptunaSearch(metric="reward", mode="max")
 
-    search_alg = ConcurrencyLimiter(
-        optuna_search,
-        max_concurrent=sweep_config.max_concurrent_trials
-    )
+    search_alg = ConcurrencyLimiter(optuna_search, max_concurrent=sweep_config.max_concurrent_trials)
 
     trial_counter = count()
 

@@ -38,8 +38,8 @@ class ToolRegistry:
         from metta.tools.eval import EvaluateTool
         from metta.tools.eval_remote import EvalRemoteTool
         from metta.tools.play import PlayTool
-        from metta.tools.replay import ReplayTool
         from metta.tools.ray_sweep import RaySweepTool
+        from metta.tools.replay import ReplayTool
         from metta.tools.train import TrainTool
 
         self.register(TrainTool)
