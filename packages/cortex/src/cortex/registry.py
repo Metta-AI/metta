@@ -8,7 +8,7 @@ be registered with the same decorator.
 
 from __future__ import annotations
 
-from typing import Callable, Dict, Iterable, List, Optional
+from typing import Callable, Dict, Iterable, List, Optional, Tuple
 
 from cortex.config import BlockConfig
 
@@ -82,3 +82,8 @@ __all__ = [
     "get_single_char_symbols",
     "can_use_caret",
 ]
+
+
+def get_registered_tokens() -> Tuple[str, ...]:
+    """Return all registered token symbols (exact strings)."""
+    return tuple(_BUILDERS.keys())

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from typing import Dict, List
+import re
 
 from pydantic import BaseModel
 
@@ -18,7 +19,7 @@ from cortex.config import (
     mLSTMCellConfig,
     sLSTMCellConfig,
 )
-from cortex.registry import block_config_for_token, can_use_caret, get_single_char_symbols
+from cortex.registry import block_config_for_token, get_registered_tokens
 
 
 def _clone_model(model: BaseModel) -> BaseModel:
@@ -38,22 +39,20 @@ def _parse_tokens(pattern: str, custom_map: Dict[str, BlockConfig] | None) -> Li
     parts = s.split()
     if len(parts) > 1:
         return parts
-    # Single concatenated run: scan for built-ins only
+    # Single concatenated run: greedy regex over registered tokens only
+    registered = sorted(get_registered_tokens(), key=len, reverse=True)
+    if not registered:
+        return []
+    pattern_re = re.compile("|".join(re.escape(tok) for tok in registered))
     tokens: List[str] = []
-    i = 0
-    allowed = set(get_single_char_symbols())
-    while i < len(s):
-        ch = s[i]
-        if ch not in allowed:
-            raise ValueError(
-                f"Unknown token at position {i}: '{ch}'. Use separators for custom symbols or allowed built-ins."
-            )
-        if i + 1 < len(s) and s[i + 1] == "^" and can_use_caret(ch):
-            tokens.append(ch + "^")
-            i += 2
-        else:
-            tokens.append(ch)
-            i += 1
+    pos = 0
+    n = len(s)
+    while pos < n:
+        m = pattern_re.match(s, pos)
+        if not m:
+            raise ValueError(f"Unknown token at position {pos}: '{s[pos]}'")
+        tokens.append(m.group(0))
+        pos = m.end()
     return tokens
 
 
