@@ -59,6 +59,8 @@ class VarianceResults:
     num_samples: list[int]
     auc_variance: list[float]
     derivative_variance: list[float]
+    auc_variance_change: list[float]
+    derivative_variance_change: list[float]
     auc_threshold_n: int | None
     derivative_threshold_n: int | None
 
@@ -139,55 +141,61 @@ class VarianceAnalysisTool(Tool):
 
         return sample_sizes, variances
 
+    def _compute_variance_change(self, variances: list[float]) -> list[float]:
+        """Compute the rate of change in variance between consecutive sample sizes.
+
+        Returns the percent change: |variance[i] - variance[i-1]| / variance[i-1]
+        First element is inf since there's no previous value to compare.
+        """
+        changes = [float("inf")]  # No previous value for first sample
+
+        for i in range(1, len(variances)):
+            prev_var = variances[i - 1]
+            curr_var = variances[i]
+
+            # Avoid division by zero or inf
+            if prev_var == float("inf") or prev_var == 0 or curr_var == float("inf"):
+                changes.append(float("inf"))
+            else:
+                # Compute absolute percent change
+                pct_change = abs(curr_var - prev_var) / abs(prev_var)
+                changes.append(pct_change)
+
+        return changes
+
     def _find_threshold_crossing(
-        self, sample_sizes: list[int], variances: list[float], threshold: float
+        self, sample_sizes: list[int], variance_changes: list[float], threshold: float
     ) -> int | None:
-        """Find the first sample size where variance drops below threshold."""
-        for n, var in zip(sample_sizes, variances):
-            if var < threshold:
+        """Find the first sample size where variance change drops below threshold.
+
+        This identifies when adding more runs doesn't significantly change the variance estimate.
+        """
+        for n, change in zip(sample_sizes, variance_changes):
+            # Skip first value (which is inf)
+            if n > 1 and change < threshold:
                 return n
         return None
 
     def _plot_variance_analysis(self, results: VarianceResults, output_path: str):
-        """Create visualization of variance vs sample size."""
-        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 6))
+        """Create visualization of variance change vs sample size."""
+        fig, axes = plt.subplots(2, 2, figsize=(16, 12))
+        (ax1, ax2), (ax3, ax4) = axes
 
-        # Plot 1: AUC Variance
+        # Plot 1: AUC Variance (absolute)
         ax1.plot(
             results.num_samples,
             [v * 100 for v in results.auc_variance],
             marker="o",
             linewidth=2,
             markersize=6,
-        )
-        ax1.axhline(
-            y=self.variance_threshold * 100,
-            color="r",
-            linestyle="--",
-            label=f"{self.variance_threshold * 100}% threshold",
+            color="blue",
         )
         ax1.set_xlabel("Number of Runs", fontsize=12)
         ax1.set_ylabel("Coefficient of Variation (%)", fontsize=12)
-        ax1.set_title("Variance in AUC vs Sample Size", fontsize=14, fontweight="bold")
+        ax1.set_title("AUC: Absolute Variance", fontsize=14, fontweight="bold")
         ax1.grid(True, alpha=0.3)
-        ax1.legend()
 
-        if results.auc_threshold_n:
-            ax1.axvline(
-                x=results.auc_threshold_n,
-                color="g",
-                linestyle=":",
-                label=f"Stable at N={results.auc_threshold_n}",
-            )
-            ax1.text(
-                results.auc_threshold_n,
-                ax1.get_ylim()[1] * 0.9,
-                f"N={results.auc_threshold_n}",
-                ha="center",
-                fontweight="bold",
-            )
-
-        # Plot 2: Derivative Variance
+        # Plot 2: Derivative Variance (absolute)
         ax2.plot(
             results.num_samples,
             [v * 100 for v in results.derivative_variance],
@@ -196,34 +204,104 @@ class VarianceAnalysisTool(Tool):
             markersize=6,
             color="orange",
         )
-        ax2.axhline(
+        ax2.set_xlabel("Number of Runs", fontsize=12)
+        ax2.set_ylabel("Coefficient of Variation (%)", fontsize=12)
+        ax2.set_title("Derivative: Absolute Variance", fontsize=14, fontweight="bold")
+        ax2.grid(True, alpha=0.3)
+
+        # Plot 3: AUC Variance Change (rate of change)
+        # Filter out inf values for plotting
+        auc_changes_filtered = [
+            c if c != float("inf") else None for c in results.auc_variance_change
+        ]
+        ax3.plot(
+            results.num_samples[1:],  # Skip first sample (has inf change)
+            [c * 100 for c in auc_changes_filtered[1:] if c is not None],
+            marker="o",
+            linewidth=2,
+            markersize=6,
+            color="blue",
+        )
+        ax3.axhline(
             y=self.variance_threshold * 100,
             color="r",
             linestyle="--",
+            linewidth=2,
             label=f"{self.variance_threshold * 100}% threshold",
         )
-        ax2.set_xlabel("Number of Runs", fontsize=12)
-        ax2.set_ylabel("Coefficient of Variation (%)", fontsize=12)
-        ax2.set_title(
-            "Variance in Derivative vs Sample Size", fontsize=14, fontweight="bold"
-        )
-        ax2.grid(True, alpha=0.3)
-        ax2.legend()
+        if results.auc_threshold_n:
+            ax3.axvline(
+                x=results.auc_threshold_n,
+                color="g",
+                linestyle=":",
+                linewidth=2,
+                label=f"Stable at N={results.auc_threshold_n}",
+            )
+            ax3.scatter(
+                [results.auc_threshold_n],
+                [results.auc_variance_change[results.auc_threshold_n - 1] * 100],
+                color="g",
+                s=200,
+                marker="*",
+                zorder=5,
+                edgecolor="black",
+                linewidth=1.5,
+            )
+        ax3.set_xlabel("Number of Runs", fontsize=12)
+        ax3.set_ylabel("Variance Change from Previous (%)", fontsize=12)
+        ax3.set_title("AUC: Rate of Variance Change", fontsize=14, fontweight="bold")
+        ax3.grid(True, alpha=0.3)
+        ax3.legend()
 
+        # Plot 4: Derivative Variance Change (rate of change)
+        deriv_changes_filtered = [
+            c if c != float("inf") else None for c in results.derivative_variance_change
+        ]
+        ax4.plot(
+            results.num_samples[1:],  # Skip first sample (has inf change)
+            [c * 100 for c in deriv_changes_filtered[1:] if c is not None],
+            marker="s",
+            linewidth=2,
+            markersize=6,
+            color="orange",
+        )
+        ax4.axhline(
+            y=self.variance_threshold * 100,
+            color="r",
+            linestyle="--",
+            linewidth=2,
+            label=f"{self.variance_threshold * 100}% threshold",
+        )
         if results.derivative_threshold_n:
-            ax2.axvline(
+            ax4.axvline(
                 x=results.derivative_threshold_n,
                 color="g",
                 linestyle=":",
+                linewidth=2,
                 label=f"Stable at N={results.derivative_threshold_n}",
             )
-            ax2.text(
-                results.derivative_threshold_n,
-                ax2.get_ylim()[1] * 0.9,
-                f"N={results.derivative_threshold_n}",
-                ha="center",
-                fontweight="bold",
+            ax4.scatter(
+                [results.derivative_threshold_n],
+                [
+                    results.derivative_variance_change[
+                        results.derivative_threshold_n - 1
+                    ]
+                    * 100
+                ],
+                color="g",
+                s=200,
+                marker="*",
+                zorder=5,
+                edgecolor="black",
+                linewidth=1.5,
             )
+        ax4.set_xlabel("Number of Runs", fontsize=12)
+        ax4.set_ylabel("Variance Change from Previous (%)", fontsize=12)
+        ax4.set_title(
+            "Derivative: Rate of Variance Change", fontsize=14, fontweight="bold"
+        )
+        ax4.grid(True, alpha=0.3)
+        ax4.legend()
 
         fig.tight_layout()
         fig.savefig(output_path, dpi=300, bbox_inches="tight")
@@ -257,12 +335,16 @@ class VarianceAnalysisTool(Tool):
         auc_samples, auc_variances = self._compute_variance_curve(auc_values)
         deriv_samples, deriv_variances = self._compute_variance_curve(derivative_values)
 
-        # Find threshold crossings
+        # Compute variance change rates
+        auc_variance_changes = self._compute_variance_change(auc_variances)
+        deriv_variance_changes = self._compute_variance_change(deriv_variances)
+
+        # Find threshold crossings (using variance change, not absolute variance)
         auc_threshold_n = self._find_threshold_crossing(
-            auc_samples, auc_variances, self.variance_threshold
+            auc_samples, auc_variance_changes, self.variance_threshold
         )
         derivative_threshold_n = self._find_threshold_crossing(
-            deriv_samples, deriv_variances, self.variance_threshold
+            deriv_samples, deriv_variance_changes, self.variance_threshold
         )
 
         # Create results
@@ -270,6 +352,8 @@ class VarianceAnalysisTool(Tool):
             num_samples=auc_samples,
             auc_variance=auc_variances,
             derivative_variance=deriv_variances,
+            auc_variance_change=auc_variance_changes,
+            derivative_variance_change=deriv_variance_changes,
             auc_threshold_n=auc_threshold_n,
             derivative_threshold_n=derivative_threshold_n,
         )
@@ -281,30 +365,45 @@ class VarianceAnalysisTool(Tool):
         print(f"\nMetric: {self.metric_key}")
         print(f"Summary type: {self.summary.type}")
         print(f"Total runs analyzed: {len(auc_values)}")
+        print(
+            f"Stability threshold: Variance change < {self.variance_threshold * 100}%"
+        )
 
         print("\n--- AUC Variance ---")
+        print(f"Final variance (N={len(auc_values)}): {auc_variances[-1] * 100:.2f}%")
         if auc_threshold_n:
+            change_at_n = auc_variance_changes[auc_threshold_n - 1] * 100
             print(
-                f" Variance drops below {self.variance_threshold * 100}% at N = {auc_threshold_n} runs"
+                f" STABILIZED at N = {auc_threshold_n} runs (change: {change_at_n:.2f}%)"
             )
         else:
-            print(
-                f" Variance never drops below {self.variance_threshold * 100}% (need more runs)"
+            last_change = (
+                auc_variance_changes[-1] * 100
+                if auc_variance_changes[-1] != float("inf")
+                else "inf"
             )
-        print(f"Final variance (N={len(auc_values)}): {auc_variances[-1] * 100:.2f}%")
+            print(
+                f" NOT YET STABLE (last change: {last_change if isinstance(last_change, str) else f'{last_change:.2f}'}%, need more runs)"
+            )
 
         print("\n--- Derivative Variance ---")
-        if derivative_threshold_n:
-            print(
-                f" Variance drops below {self.variance_threshold * 100}% at N = {derivative_threshold_n} runs"
-            )
-        else:
-            print(
-                f" Variance never drops below {self.variance_threshold * 100}% (need more runs)"
-            )
         print(
             f"Final variance (N={len(derivative_values)}): {deriv_variances[-1] * 100:.2f}%"
         )
+        if derivative_threshold_n:
+            change_at_n = deriv_variance_changes[derivative_threshold_n - 1] * 100
+            print(
+                f" STABILIZED at N = {derivative_threshold_n} runs (change: {change_at_n:.2f}%)"
+            )
+        else:
+            last_change = (
+                deriv_variance_changes[-1] * 100
+                if deriv_variance_changes[-1] != float("inf")
+                else "inf"
+            )
+            print(
+                f" NOT YET STABLE (last change: {last_change if isinstance(last_change, str) else f'{last_change:.2f}'}%, need more runs)"
+            )
 
         print("\n" + "=" * 70)
 
@@ -352,8 +451,23 @@ def main():
     parser.add_argument(
         "--output", default="variance_analysis.png", help="Output plot path"
     )
+    parser.add_argument(
+        "--window-percent",
+        type=float,
+        default=None,
+        help="Percent of data to use for AUC window (0-1). If None, uses all data. Default: None for full data",
+    )
 
     args = parser.parse_args()
+
+    # Create SummarySpec with custom percent if provided
+    from experiments.recipes.prod_benchmark.statistics.analysis import SummarySpec
+
+    summary_spec = (
+        SummarySpec(percent=args.window_percent)
+        if args.window_percent
+        else SummarySpec(percent=None)
+    )
 
     tool = variance_analysis(
         run_ids=args.run_ids,
@@ -361,6 +475,8 @@ def main():
         variance_threshold=args.threshold,
         output_path=args.output,
     )
+    # Override the summary spec
+    tool.summary = summary_spec
     tool.invoke({})
 
 
