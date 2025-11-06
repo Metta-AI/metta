@@ -26,11 +26,11 @@ def _():
             }
         ]
         widget.set_policy_data(test_policies)
-        widget
+        widget  # noqa: B018 - render widget inside marimo cell
     except Exception as e:
         f"Error: {e}"
 
-    widget
+    widget  # noqa: B018 - render widget inside marimo cell
     return (create_policy_selector_widget,)
 
 
@@ -53,7 +53,7 @@ def _():
 def _(client, create_policy_selector_widget):
     live_widget = mo.ui.anywidget(create_policy_selector_widget(client=client))
 
-    live_widget
+    live_widget  # noqa: B018 - render widget inside marimo cell
     return (live_widget,)
 
 
@@ -63,9 +63,7 @@ def _(live_widget):
     selected_policies = live_widget.selected_policies
 
     mds = [mo.md(f"## You selected {len(selected_policies)} policies:")]
-    mds.append(
-        mo.md("\n".join([f"  - {policy_id}" for policy_id in selected_policies]))
-    )
+    mds.append(mo.md("\n".join([f"  - {policy_id}" for policy_id in selected_policies])))
 
     mo.vstack(mds)
     return
@@ -88,7 +86,7 @@ async def _(client, live_widget):
         max_policies=20,
     )
 
-    scorecard_widget
+    scorecard_widget  # noqa: B018 - render widget inside marimo cell
     return
 
 
