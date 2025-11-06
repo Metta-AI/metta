@@ -85,7 +85,7 @@ ensure_tool() {
   ensure_paths
 
   if [ "$tool" = "nim" ]; then
-    if ensure_nim_via_nimby ; then
+    if ensure_nim_via_nimby; then
       ensure_paths
       return 0
     fi
@@ -394,7 +394,7 @@ ensure_nim_via_nimby() {
   local nim_bin_dir="$HOME/.nimby/nim/bin"
 
   if [ -n "$current_version" ] && version_ge "$current_version" "$REQUIRED_NIM_VERSION" \
-     && [ -n "$nimby_version" ] && version_ge "$nimby_version" "$REQUIRED_NIMBY_VERSION"; then
+    && [ -n "$nimby_version" ] && version_ge "$nimby_version" "$REQUIRED_NIMBY_VERSION"; then
     link_nim_bins "$nim_bin_dir"
     return 0
   fi
@@ -418,13 +418,19 @@ install_nim_via_nimby() {
   case "$(uname -s)" in
     Linux) os="Linux" ;;
     Darwin) os="macOS" ;;
-    *) echo "Unsupported OS" >&2; exit 1 ;;
+    *)
+      echo "Unsupported OS" >&2
+      exit 1
+      ;;
   esac
 
   case "$(uname -m)" in
-    x86_64|amd64) arch="X64" ;;
-    arm64|aarch64) arch="ARM64" ;;
-    *) echo "Unsupported arch" >&2; exit 1 ;;
+    x86_64 | amd64) arch="X64" ;;
+    arm64 | aarch64) arch="ARM64" ;;
+    *)
+      echo "Unsupported arch" >&2
+      exit 1
+      ;;
   esac
 
   local url="https://github.com/treeform/nimby/releases/download/${REQUIRED_NIMBY_VERSION}/nimby-${os}-${arch}"
@@ -507,7 +513,6 @@ link_nim_bins() {
 
   return 0
 }
-
 
 get_bazelisk_url() {
   local version="${1:-v1.19.0}"
