@@ -12,8 +12,7 @@ from typing import Optional, Sequence
 import metta.cogworks.curriculum as cc
 from cogames.cli.mission import parse_variants
 from cogames.cogs_vs_clips.evals.eval_missions import EVAL_MISSIONS
-from cogames.cogs_vs_clips.mission import Mission, MissionVariant
-from cogames.cogs_vs_clips.mission_utils import get_map
+from cogames.cogs_vs_clips.mission import Mission, MissionVariant, NumCogsVariant
 from metta.cogworks.curriculum.curriculum import (
     CurriculumAlgorithmConfig,
     CurriculumConfig,
@@ -61,9 +60,7 @@ COORDINATION_MISSIONS: tuple[str, ...] = (
     "collect_resources_spread",
 )
 
-_MISSION_CLASS_BY_NAME: dict[str, type[Mission]] = {
-    mission_cls().name: mission_cls for mission_cls in EVAL_MISSIONS
-}
+_MISSION_BY_NAME: dict[str, Mission] = {mission.name: mission for mission in EVAL_MISSIONS}
 
 
 def _normalize_variant_names(
@@ -81,32 +78,10 @@ def _normalize_variant_names(
     return names
 
 
-def _combine_variants(
-    variant_objects: Sequence[MissionVariant],
-) -> MissionVariant | None:
-    if not variant_objects:
-        return None
-    if len(variant_objects) == 1:
-        return variant_objects[0]
-
-    class _CombinedVariant(MissionVariant):
-        name: str = "combined"
-        description: str = "Composite of multiple mission variants"
-
-        def apply(self, mission: Mission) -> Mission:  # type: ignore[override]
-            for variant in variant_objects:
-                mission = variant.apply(mission)
-            return mission
-
-    return _CombinedVariant()
-
-
-def _build_variant(names: Sequence[str]) -> MissionVariant | None:
+def _parse_variant_objects(names: Sequence[str] | None) -> list[MissionVariant]:
     if not names:
-        return None
-    # Instantiate variants per call to avoid sharing mutable state across missions
-    variant_objects = parse_variants(list(names))
-    return _combine_variants(variant_objects)
+        return []
+    return parse_variants(list(names))
 
 
 def _resolve_eval_variants(
@@ -118,6 +93,19 @@ def _resolve_eval_variants(
     if train_variants is not None:
         return list(train_variants)
     return None
+
+
+def _prepare_mission(
+    base_mission: Mission,
+    *,
+    num_cogs: int,
+    variant_objects: Sequence[MissionVariant] | None = None,
+) -> Mission:
+    mission = base_mission
+    if variant_objects:
+        mission = mission.with_variants(list(variant_objects))
+    mission = mission.with_variants([NumCogsVariant(num_cogs=num_cogs)])
+    return mission
 
 
 def make_eval_suite(
@@ -138,7 +126,7 @@ def make_eval_suite(
         A list of SimulationConfig objects ready for evaluation.
     """
     if subset:
-        missions = [m for m in EVAL_MISSIONS if m().name in subset]
+        missions = [m for m in EVAL_MISSIONS if m.name in subset]
     else:
         missions = EVAL_MISSIONS
 
@@ -147,26 +135,23 @@ def make_eval_suite(
         variants=variants,
     )
 
-    simulations: list[SimulationConfig] = []
-    for mission_cls in missions:
-        mission_template = mission_cls()
+    variant_objects = _parse_variant_objects(variant_names)
 
+    simulations: list[SimulationConfig] = []
+    for mission_template in missions:
         if num_cogs == 1 and mission_template.name in {
             "go_together",
             "single_use_swarm",
         }:
             continue
 
-        map_builder = get_map(mission_template.map_name)
-        combined_variant = _build_variant(variant_names)
-
-        instantiated = mission_template.instantiate(
-            map_builder=map_builder,
+        mission = _prepare_mission(
+            mission_template,
             num_cogs=num_cogs,
-            variant=combined_variant,
+            variant_objects=variant_objects,
         )
 
-        env_cfg = instantiated.make_env()
+        env_cfg = mission.make_env()
         sim = SimulationConfig(
             suite="cogs_vs_clips",
             name=f"{mission_template.name}_{num_cogs}cogs",
@@ -183,19 +168,18 @@ def make_training_env(
     variants: Optional[Sequence[str]] = None,
 ) -> MettaGridConfig:
     """Create a single training environment from a mission."""
-    mission_cls = _MISSION_CLASS_BY_NAME.get(mission_name)
-    if mission_cls is None:
+    mission_template = _MISSION_BY_NAME.get(mission_name)
+    if mission_template is None:
         raise ValueError(f"Mission '{mission_name}' not found in EVAL_MISSIONS")
 
-    mission_template = mission_cls()
-    map_builder = get_map(mission_template.map_name)
-    combined_variant = _build_variant(_normalize_variant_names(variants=variants))
-    instantiated = mission_template.instantiate(
-        map_builder,
-        num_cogs,
-        variant=combined_variant,
+    variant_names = _normalize_variant_names(variants=variants)
+    variant_objects = _parse_variant_objects(variant_names)
+    mission = _prepare_mission(
+        mission_template,
+        num_cogs=num_cogs,
+        variant_objects=variant_objects,
     )
-    env = instantiated.make_env()
+    env = mission.make_env()
 
     # Guard against upstream modifiers pushing limits beyond supported bounds.
     energy_limit = env.game.agent.resource_limits.get("energy")
