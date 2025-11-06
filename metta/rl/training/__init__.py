@@ -8,37 +8,7 @@ actually needed.
 from __future__ import annotations
 
 import importlib
-import typing
-
-if typing.TYPE_CHECKING:
-    from metta.rl.training.checkpointer import Checkpointer, CheckpointerConfig
-    from metta.rl.training.component import TrainerCallback, TrainerComponent
-    from metta.rl.training.component_context import ComponentContext, TrainerState, TrainingEnvWindow
-    from metta.rl.training.context_checkpointer import ContextCheckpointer
-    from metta.rl.training.core import CoreTrainingLoop, RolloutResult
-    from metta.rl.training.distributed_helper import DistributedHelper
-    from metta.rl.training.evaluator import Evaluator, EvaluatorConfig, NoOpEvaluator
-    from metta.rl.training.experience import Experience
-    from metta.rl.training.gradient_reporter import GradientReporter, GradientReporterConfig
-    from metta.rl.training.heartbeat import Heartbeat, HeartbeatConfig
-    from metta.rl.training.monitor import Monitor
-    from metta.rl.training.progress_logger import ProgressLogger
-    from metta.rl.training.scheduler import HyperparameterSchedulerConfig, Scheduler, SchedulerConfig
-    from metta.rl.training.stats_reporter import (
-        NoOpStatsReporter,
-        StatsReporter,
-        StatsReporterConfig,
-        StatsReporterState,
-    )
-    from metta.rl.training.torch_profiler import TorchProfiler
-    from metta.rl.training.training_environment import (
-        TrainingEnvironment,
-        TrainingEnvironmentConfig,
-        VectorizedTrainingEnvironment,
-    )
-    from metta.rl.training.uploader import Uploader, UploaderConfig
-    from metta.rl.training.wandb_aborter import WandbAborter, WandbAborterConfig
-    from metta.rl.training.wandb_logger import WandbLogger
+from typing import Any
 
 _EXPORTS: dict[str, tuple[str, str | None]] = {
     "Checkpointer": ("metta.rl.training.checkpointer", "Checkpointer"),

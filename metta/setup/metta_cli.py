@@ -12,27 +12,31 @@ import rich.progress
 import rich.table
 import typer
 
-import metta
-
 import gitta as git
-import metta.common.util.fs
-import metta.setup.components.base
-import metta.setup.local_commands
-import metta.setup.symlink_setup
-import metta.setup.tools.book
-import metta.setup.tools.ci_runner
-import metta.setup.tools.clean
-import metta.setup.tools.code_formatters
-import metta.setup.tools.test_runner.test_cpp
-import metta.setup.tools.test_runner.test_python
-import metta.setup.utils
-import metta.utils.live_run_monitor
+import fs_utils as fs_utils
+import components_base as components_base
+import local_commands as local_commands
+import symlink_setup as symlink_setup
+import setup_profiles as setup_profiles
+import setup_registry as setup_registry
+import book_tools as book_tools
+import ci_runner_tools as ci_runner_tools
+import clean_tools as clean_tools
+import code_formatters_tools as code_formatters_tools
+import test_cpp_tools as test_cpp_tools
+import test_python_tools as test_python_tools
+import setup_utils as setup_utils
+import saved_settings as saved_settings
+import live_run_monitor as live_run_monitor
+import auto_config as auto_config
 import softmax.dashboard.report
 
-if typing.TYPE_CHECKING:
-    import metta.setup.registry
+metta = typing.cast(typing.Any, metta)
 
-    SetupModule = metta.setup.registry.SetupModule
+if typing.TYPE_CHECKING:
+    import setup_registry
+
+    SetupModule = setup_registry.SetupModule
 
 VERSION_PATTERN = re.compile(r"^(\d+\.\d+\.\d+(?:\.\d+)?)$")
 DEFAULT_INITIAL_VERSION = "0.0.0.1"
@@ -40,7 +44,7 @@ DEFAULT_INITIAL_VERSION = "0.0.0.1"
 
 class MettaCLI:
     def __init__(self):
-        self.repo_root: pathlib.Path = metta.common.util.fs.get_repo_root()
+        self.repo_root: pathlib.Path = fs_utils.get_repo_root()
         self._components_initialized = False
 
     def _init_all(self):
@@ -48,70 +52,70 @@ class MettaCLI:
         if self._components_initialized:
             return
 
-        metta.setup.utils.import_all_modules_from_subpackage("metta.setup", "components")
+        setup_utils.import_all_modules_from_subpackage("metta.setup", "components")
         self._components_initialized = True
 
     def setup_wizard(self, non_interactive: bool = False):
-        import metta.setup.profiles
-        import metta.setup.saved_settings
+        import setup_profiles
+        import saved_settings
 
-        metta.setup.utils.header("Welcome to Metta!\n\n")
-        metta.setup.utils.info(
+        setup_utils.header("Welcome to Metta!\n\n")
+        setup_utils.info(
             "Note: You can run 'metta configure <component>' to change component-level settings later.\n"
         )
 
-        saved_settings = metta.setup.saved_settings.get_saved_settings()
+        saved_settings = saved_settings.get_saved_settings()
         if saved_settings.exists():
-            metta.setup.utils.info("Current configuration:")
-            metta.setup.utils.info(f"Profile: {saved_settings.user_type.value}")
-            metta.setup.utils.info(f"Mode: {'custom' if saved_settings.is_custom_config else 'profile'}")
-            metta.setup.utils.info("\nEnabled components:")
+            setup_utils.info("Current configuration:")
+            setup_utils.info(f"Profile: {saved_settings.user_type.value}")
+            setup_utils.info(f"Mode: {'custom' if saved_settings.is_custom_config else 'profile'}")
+            setup_utils.info("\nEnabled components:")
             components = saved_settings.get_components()
             for comp, settings in components.items():
                 if settings.get("enabled"):
-                    metta.setup.utils.success(f"  + {comp}")
-            metta.setup.utils.info("\n")
+                    setup_utils.success(f"  + {comp}")
+            setup_utils.info("\n")
 
-        choices = [(ut, ut.get_description()) for ut in metta.setup.profiles.UserType]
+        choices = [(ut, ut.get_description()) for ut in setup_profiles.UserType]
 
         current_user_type = saved_settings.user_type if saved_settings.exists() else None
 
-        result = metta.setup.utils.prompt_choice(
+        result = setup_utils.prompt_choice(
             "Select configuration:",
             choices,
             current=current_user_type,
             non_interactive=non_interactive,
         )
 
-        if result == metta.setup.profiles.UserType.CUSTOM:
+        if result == setup_profiles.UserType.CUSTOM:
             self._custom_setup(non_interactive=non_interactive)
         else:
             saved_settings.apply_profile(result)
-            metta.setup.utils.success(f"\nConfigured as {result.value} user.")
-        metta.setup.utils.info("\nRun 'metta install' to set up your environment.")
+            setup_utils.success(f"\nConfigured as {result.value} user.")
+        setup_utils.info("\nRun 'metta install' to set up your environment.")
 
     def _custom_setup(self, non_interactive: bool = False):
-        user_type = metta.setup.utils.prompt_choice(
+        user_type = setup_utils.prompt_choice(
             "Select base profile for custom configuration:",
             [
                 (ut, ut.get_description())
-                for ut in metta.setup.profiles.UserType
-                if ut != metta.setup.profiles.UserType.CUSTOM
+                for ut in setup_profiles.UserType
+                if ut != setup_profiles.UserType.CUSTOM
             ],
-            default=metta.setup.profiles.UserType.EXTERNAL,
+            default=setup_profiles.UserType.EXTERNAL,
             non_interactive=non_interactive,
         )
 
-        saved_settings = metta.setup.saved_settings.get_saved_settings()
+        saved_settings = saved_settings.get_saved_settings()
         saved_settings.setup_custom_profile(user_type)
 
-        metta.setup.utils.info("\nCustomize components:")
-        all_modules = metta.setup.registry.get_all_modules()
+        setup_utils.info("\nCustomize components:")
+        all_modules = setup_registry.get_all_modules()
 
         for module in all_modules:
             current_enabled = saved_settings.is_component_enabled(module.name)
 
-            enabled = metta.setup.utils.prompt_choice(
+            enabled = setup_utils.prompt_choice(
                 f"Enable {module.name} ({module.description})?",
                 [(True, "Yes"), (False, "No")],
                 default=current_enabled,
@@ -120,7 +124,7 @@ class MettaCLI:
             )
 
             profile_default = (
-                metta.setup.profiles.PROFILE_DEFINITIONS.get(user_type, {})
+                setup_profiles.PROFILE_DEFINITIONS.get(user_type, {})
                 .get("components", {})
                 .get(module.name, {})
                 .get("enabled", False)
@@ -128,8 +132,8 @@ class MettaCLI:
             if enabled != profile_default:
                 saved_settings.set(f"components.{module.name}.enabled", enabled)
 
-        metta.setup.utils.success("\nCustom configuration saved.")
-        metta.setup.utils.info("\nRun 'metta install' to set up your environment.")
+        setup_utils.success("\nCustom configuration saved.")
+        setup_utils.info("\nRun 'metta install' to set up your environment.")
 
     def _truncate(self, text: str, max_len: int) -> str:
         """Truncate text to max length with ellipsis."""
@@ -156,7 +160,7 @@ def _bump_version(version: str) -> str:
 
 def _validate_version_format(version: str) -> None:
     if not VERSION_PATTERN.match(version):
-        metta.setup.utils.error(f"Invalid version '{version}'. Expected numeric segments like '1.2.3' or '1.2.3.4'.")
+        setup_utils.error(f"Invalid version '{version}'. Expected numeric segments like '1.2.3' or '1.2.3.4'.")
         raise typer.Exit(1)
 
 
@@ -169,7 +173,7 @@ def _ensure_tag_unique(package: str, version: str) -> None:
         text=True,
     )
     if result.returncode == 0:
-        metta.setup.utils.error(f"Tag '{tag_name}' already exists.")
+        setup_utils.error(f"Tag '{tag_name}' already exists.")
         raise typer.Exit(1)
 
 
@@ -188,34 +192,34 @@ def cmd_configure(
     """Configure Metta settings."""
     if component:
         if profile:
-            metta.setup.utils.error("Cannot configure a component and a profile at the same time.")
+            setup_utils.error("Cannot configure a component and a profile at the same time.")
             raise typer.Exit(1)
         configure_component(component)
     elif profile:
-        selected_user_type = metta.setup.profiles.UserType(profile)
-        if selected_user_type in metta.setup.profiles.PROFILE_DEFINITIONS:
-            saved_settings = metta.setup.saved_settings.get_saved_settings()
+        selected_user_type = setup_profiles.UserType(profile)
+        if selected_user_type in setup_profiles.PROFILE_DEFINITIONS:
+            saved_settings = saved_settings.get_saved_settings()
             saved_settings.apply_profile(selected_user_type)
-            metta.setup.utils.success(f"Configured as {selected_user_type.value} user.")
+            setup_utils.success(f"Configured as {selected_user_type.value} user.")
         else:
-            metta.setup.utils.error(f"Unknown profile: {profile}")
+            setup_utils.error(f"Unknown profile: {profile}")
             raise typer.Exit(1)
     else:
         cli.setup_wizard(non_interactive=non_interactive)
 
 
 def configure_component(component_name: str):
-    modules = metta.setup.registry.get_all_modules()
+    modules = setup_registry.get_all_modules()
     module_map = {m.name: m for m in modules}
 
     if not (module := module_map.get(component_name)):
-        metta.setup.utils.error(f"Unknown component: {component_name}")
-        metta.setup.utils.info(f"Available components: {', '.join(sorted(module_map.keys()))}")
+        setup_utils.error(f"Unknown component: {component_name}")
+        setup_utils.info(f"Available components: {', '.join(sorted(module_map.keys()))}")
         raise typer.Exit(1)
 
     options = module.get_configuration_options()
     if not options:
-        metta.setup.utils.info(f"Component '{component_name}' has no configuration options.")
+        setup_utils.info(f"Component '{component_name}' has no configuration options.")
         return
     module.configure()
 
@@ -223,7 +227,7 @@ def configure_component(component_name: str):
 def _get_selected_modules(components: list[str] | None = None) -> list["SetupModule"]:
     return [
         m
-        for m in metta.setup.registry.get_all_modules()
+        for m in setup_registry.get_all_modules()
         if (components is not None and m.name in components) or (components is None and m.is_enabled())
     ]
 
@@ -249,14 +253,14 @@ def cmd_install(
     check_status: typing.Annotated[bool, typer.Option("--check-status", help="Check status after installation")] = True,
 ):
     if not no_clean:
-        metta.setup.tools.clean.cmd_clean(force=force)
+        clean_tools.cmd_clean(force=force)
 
     # A profile must exist before installing. If installing in non-interactive mode,
     # the target profile must be specified with --profile. If in interactive mode and
     # no profile is specified, the setup wizard will be run.
-    profile_exists = metta.setup.saved_settings.get_saved_settings().exists()
+    profile_exists = saved_settings.get_saved_settings().exists()
     if non_interactive and not profile_exists and not profile:
-        metta.setup.utils.error("Must specify a profile if installing in non-interactive mode without an existing one.")
+        setup_utils.error("Must specify a profile if installing in non-interactive mode without an existing one.")
         raise typer.Exit(1)
     elif profile or not profile_exists:
         cmd_configure(profile=profile, non_interactive=non_interactive, component=None)
@@ -269,23 +273,23 @@ def cmd_install(
     modules = _get_selected_modules(limited_components)
 
     if not modules:
-        metta.setup.utils.info("No modules to install.")
+        setup_utils.info("No modules to install.")
         return
 
-    metta.setup.utils.info(f"\nInstalling {len(modules)} components...\n")
+    setup_utils.info(f"\nInstalling {len(modules)} components...\n")
 
     for module in modules:
-        metta.setup.utils.info(f"[{module.name}] {module.description}")
+        setup_utils.info(f"[{module.name}] {module.description}")
 
         if module.install_once and module.check_installed() and not force:
-            metta.setup.utils.debug("  -> Already installed, skipping (use --force to reinstall)\n")
+            setup_utils.debug("  -> Already installed, skipping (use --force to reinstall)\n")
             continue
 
         try:
             module.install(non_interactive=non_interactive, force=force)
             print()
         except Exception as e:
-            metta.setup.utils.error(f"  Error: {e}\n")
+            setup_utils.error(f"  Error: {e}\n")
 
     if not non_interactive and check_status:
         cmd_status(components=components, non_interactive=non_interactive)
@@ -303,11 +307,11 @@ def cmd_status(
 ):
     modules = _get_selected_modules(components if components else None)
     if not modules:
-        metta.setup.utils.warning("No modules to check.")
+        setup_utils.warning("No modules to check.")
         return
 
     modules_by_name = {m.name: m for m in modules}
-    module_status: dict[str, metta.setup.components.base.SetupModuleStatus] = {}
+    module_status: dict[str, components_base.SetupModuleStatus] = {}
 
     console = rich.console.Console()
     with rich.progress.Progress(
@@ -364,27 +368,27 @@ def cmd_status(
     console = rich.console.Console()
     console.print(table)
 
-    import metta.tools.utils.auto_config
+    import auto_config
 
-    policy_decision = metta.tools.utils.auto_config.auto_policy_storage_decision()
+    policy_decision = auto_config.auto_policy_storage_decision()
     if policy_decision.using_remote and policy_decision.base_prefix:
         if policy_decision.reason == "env_override":
-            metta.setup.utils.success(
+            setup_utils.success(
                 f"Policy storage: S3 uploads enabled via POLICY_REMOTE_PREFIX → {policy_decision.base_prefix}/<run>."
             )
         else:
-            metta.setup.utils.success(
+            setup_utils.success(
                 f"Policy storage: Softmax S3 uploads active → {policy_decision.base_prefix}/<run>."
             )
     elif policy_decision.reason == "not_connected" and policy_decision.base_prefix:
-        metta.setup.utils.warning(
+        setup_utils.warning(
             "Policy storage: local only. Run 'aws sso login --profile softmax' to enable uploads to "
             f"{policy_decision.base_prefix}/<run>."
         )
     elif policy_decision.reason == "aws_not_enabled":
-        metta.setup.utils.info("Policy storage: local only (AWS component disabled).")
+        setup_utils.info("Policy storage: local only (AWS component disabled).")
     elif policy_decision.reason == "no_base_prefix":
-        metta.setup.utils.info(
+        setup_utils.info(
             "Policy storage: local only (remote policy prefix not configured). "
             "Set POLICY_REMOTE_PREFIX or rerun 'metta configure aws'."
         )
@@ -412,12 +416,12 @@ def cmd_run(
         typing.Optional[list[str]], typer.Argument(help="Arguments to pass to the component")
     ] = None,
 ):
-    modules = metta.setup.registry.get_all_modules()
+    modules = setup_registry.get_all_modules()
     module_map = {m.name: m for m in modules}
 
     if not (module := module_map.get(component)):
-        metta.setup.utils.error(f"Unknown component: {component}")
-        metta.setup.utils.info(f"Available components: {', '.join(sorted(module_map.keys()))}")
+        setup_utils.error(f"Unknown component: {component}")
+        setup_utils.info(f"Available components: {', '.join(sorted(module_map.keys()))}")
         raise typer.Exit(1)
 
     module.run(args or [])
@@ -427,7 +431,7 @@ def cmd_run(
 def clean(
     force: typing.Annotated[bool, typer.Option("--force", help="Force clean")] = False,
 ):
-    metta.setup.tools.clean.cmd_clean(force=force)
+    clean_tools.cmd_clean(force=force)
 
 
 @app.command(name="publish", help="Create and push a release tag for a package")
@@ -444,27 +448,27 @@ def cmd_publish(
 ):
     package = package.lower()
     if package not in _get_all_package_names():
-        metta.setup.utils.error(
+        setup_utils.error(
             f"Unsupported package '{package}'. Supported packages: {', '.join(sorted(_get_all_package_names()))}."
         )
         raise typer.Exit(1)
 
     prefix = f"{package}-v"
     try:
-        metta.setup.utils.info(f"Fetching tags from {remote}...")
+        setup_utils.info(f"Fetching tags from {remote}...")
         git.run_git("fetch", remote, "--tags", "--force")
     except subprocess.CalledProcessError as exc:
-        metta.setup.utils.error(f"Failed to fetch tags from {remote}: {exc}")
+        setup_utils.error(f"Failed to fetch tags from {remote}: {exc}")
         raise typer.Exit(exc.returncode) from exc
 
     try:
         status_output = git.run_git("status", "--porcelain")
     except subprocess.CalledProcessError as exc:
-        metta.setup.utils.error(f"Failed to read git status: {exc}")
+        setup_utils.error(f"Failed to read git status: {exc}")
         raise typer.Exit(exc.returncode) from exc
 
     if status_output.strip() and not force:
-        metta.setup.utils.error(
+        setup_utils.error(
             "Working tree is not clean. Commit, stash, or clean changes before publishing (use --force to override)."
         )
         raise typer.Exit(1)
@@ -473,11 +477,11 @@ def cmd_publish(
         current_branch = git.run_git("rev-parse", "--abbrev-ref", "HEAD")
         current_commit = git.run_git("rev-parse", "HEAD")
     except subprocess.CalledProcessError as exc:
-        metta.setup.utils.error(f"Failed to determine git state: {exc}")
+        setup_utils.error(f"Failed to determine git state: {exc}")
         raise typer.Exit(exc.returncode) from exc
 
     if current_branch not in {"main"} and not force:
-        metta.setup.utils.error(
+        setup_utils.error(
             "Publishing is only supported from the main branch. Switch to 'main' or pass --force to override."
         )
         raise typer.Exit(1)
@@ -506,23 +510,23 @@ def cmd_publish(
 
     tag_name = f"{prefix}{target_version}"
 
-    metta.setup.utils.info("Release summary:\n")
-    metta.setup.utils.info(f"  Package: {package}")
-    metta.setup.utils.info(f"  Current branch: {current_branch}")
-    metta.setup.utils.info(f"  Commit: {current_commit}")
-    metta.setup.utils.info(f"  Tag: {tag_name}")
+    setup_utils.info("Release summary:\n")
+    setup_utils.info(f"  Package: {package}")
+    setup_utils.info(f"  Current branch: {current_branch}")
+    setup_utils.info(f"  Commit: {current_commit}")
+    setup_utils.info(f"  Tag: {tag_name}")
     if latest_tag:
-        metta.setup.utils.info(f"  Previous tag: {latest_tag}")
+        setup_utils.info(f"  Previous tag: {latest_tag}")
     else:
-        metta.setup.utils.info("  Previous tag: none")
+        setup_utils.info("  Previous tag: none")
     if force:
-        metta.setup.utils.warning("Force mode enabled: branch and clean checks were bypassed.")
-    metta.setup.utils.info("")
+        setup_utils.warning("Force mode enabled: branch and clean checks were bypassed.")
+    setup_utils.info("")
 
     publish_mettagrid_after = False
 
     if dry_run:
-        metta.setup.utils.success("Dry run: no tag created. Run without --dry-run to proceed.")
+        setup_utils.success("Dry run: no tag created. Run without --dry-run to proceed.")
         return
 
     if package == "cogames":
@@ -532,33 +536,33 @@ def cmd_publish(
         )
 
     if not typer.confirm("Create and push this tag?", default=True):
-        metta.setup.utils.info("Publishing aborted.")
+        setup_utils.info("Publishing aborted.")
         return
 
     try:
-        metta.setup.utils.info(f"Tagging {package} {target_version}...")
+        setup_utils.info(f"Tagging {package} {target_version}...")
         git.run_git("tag", "-a", tag_name, "-m", f"Release {package} {target_version}")
         git.run_git("push", remote, tag_name)
     except subprocess.CalledProcessError as exc:
-        metta.setup.utils.error(f"Failed to tag: {exc}.")
+        setup_utils.error(f"Failed to tag: {exc}.")
         raise typer.Exit(exc.returncode) from exc
 
-    metta.setup.utils.success(f"Published {tag_name} to {remote}.")
+    setup_utils.success(f"Published {tag_name} to {remote}.")
 
     try:
         if not no_repo:
-            metta.setup.utils.info(f"Pushing {package} as child repo...")
+            setup_utils.info(f"Pushing {package} as child repo...")
             subprocess.run([f"{cli.repo_root}/devops/git/push_child_repo.py", package, "-y"], check=True)
     except subprocess.CalledProcessError as exc:
-        metta.setup.utils.error(
+        setup_utils.error(
             f"Failed to publish: {exc}. {tag_name} was still published to {remote}."
             + " Use --no-repo to skip pushing to github repo."
         )
         raise typer.Exit(exc.returncode) from exc
 
     if publish_mettagrid_after:
-        metta.setup.utils.info("")
-        metta.setup.utils.info("Starting mettagrid publish flow...")
+        setup_utils.info("")
+        setup_utils.info("Starting mettagrid publish flow...")
         cmd_publish(
             package="mettagrid",
             version_override=None,
@@ -596,7 +600,7 @@ def cmd_lint(
         metta lint --staged --fix     # Format and lint only staged files
     """
     # Get available formatters
-    formatters = metta.setup.tools.code_formatters.get_formatters(cli.repo_root)
+    formatters = code_formatters_tools.get_formatters(cli.repo_root)
 
     # Determine which files to process
     if files is not None:
@@ -609,7 +613,7 @@ def cmd_lint(
 
     # Partition files by type
     if target_files is not None:
-        files_by_type = metta.setup.tools.code_formatters.partition_files_by_type(target_files)
+        files_by_type = code_formatters_tools.partition_files_by_type(target_files)
     else:
         # No specific files provided - will format all files of each type
         files_by_type = {}
@@ -617,9 +621,9 @@ def cmd_lint(
     # Determine which types to format
     if type:
         try:
-            types_to_format = metta.setup.tools.code_formatters.parse_format_types(type, formatters)
+            types_to_format = code_formatters_tools.parse_format_types(type, formatters)
         except ValueError as e:
-            metta.setup.utils.error(str(e))
+            setup_utils.error(str(e))
             raise typer.Exit(1) from e
     else:
         # Default: format all detected types (or all types if no files specified)
@@ -627,7 +631,7 @@ def cmd_lint(
             types_to_format = list(files_by_type.keys())
         elif target_files is not None:
             # Files were specified but none have supported extensions
-            metta.setup.utils.info("No files with supported extensions found")
+            setup_utils.info("No files with supported extensions found")
             return
         else:
             # No specific files - format all supported types
@@ -652,7 +656,7 @@ def cmd_lint(
 
         # Run formatter
         check_mode = check or not fix
-        success_fmt = metta.setup.tools.code_formatters.run_formatter(
+        success_fmt = code_formatters_tools.run_formatter(
             file_type,
             formatter,
             cli.repo_root,
@@ -676,7 +680,7 @@ def cmd_lint(
         python_files = files_by_type.get("python") if files_by_type else None
 
         if python_files is not None and not python_files:
-            metta.setup.utils.info("No Python files to lint")
+            setup_utils.info("No Python files to lint")
         else:
             check_cmd = ["uv", "run", "--active", "ruff", "check"]
             if fix:
@@ -684,7 +688,7 @@ def cmd_lint(
             if python_files:
                 check_cmd.extend(python_files)
 
-            metta.setup.utils.info(f"Running: {' '.join(check_cmd)}")
+            setup_utils.info(f"Running: {' '.join(check_cmd)}")
             try:
                 subprocess.run(check_cmd, cwd=cli.repo_root, check=True)
             except subprocess.CalledProcessError:
@@ -695,24 +699,24 @@ def cmd_lint(
         cpp_files = files_by_type.get("cpp") if files_by_type else None
 
         if cpp_files is not None and not cpp_files:
-            metta.setup.utils.info("No C++ files to lint")
+            setup_utils.info("No C++ files to lint")
         else:
             script_path = cli.repo_root / "packages" / "mettagrid" / "tests" / "cpplint.sh"
             res = subprocess.run(["bash", str(script_path)], cwd=cli.repo_root, check=False, capture_output=True)
             if res.returncode != 0:
                 failed_linters.append("C++")
-                metta.setup.utils.error("C++ linting failed")
-                metta.setup.utils.info(res.stderr.decode("utf-8"))
+                setup_utils.error("C++ linting failed")
+                setup_utils.info(res.stderr.decode("utf-8"))
 
     # Print summary
     if failed_formatters or failed_linters:
         if failed_formatters:
-            metta.setup.utils.error(f"Formatting failed for: {', '.join(failed_formatters)}")
+            setup_utils.error(f"Formatting failed for: {', '.join(failed_formatters)}")
         if failed_linters:
-            metta.setup.utils.error(f"Linting failed for: {', '.join(failed_linters)}")
+            setup_utils.error(f"Linting failed for: {', '.join(failed_linters)}")
         raise typer.Exit(1)
     else:
-        metta.setup.utils.success("All linting and formatting complete")
+        setup_utils.success("All linting and formatting complete")
 
 
 @app.command(name="tool", help="Run a tool from the tools/ directory", context_settings={"allow_extra_args": True})
@@ -722,7 +726,7 @@ def cmd_tool(
 ):
     tool_path = cli.repo_root / "tools" / f"{tool_name}.py"
     if not tool_path.exists():
-        metta.setup.utils.error(f"Error: Tool '{tool_name}' not found at {tool_path}")
+        setup_utils.error(f"Error: Tool '{tool_name}' not found at {tool_path}")
         raise typer.Exit(1)
 
     cmd = [str(tool_path)] + (ctx.args or [])
@@ -744,18 +748,18 @@ def cmd_shell():
 @app.command(name="go", help="Navigate to a Softmax Home shortcut", context_settings={"allow_extra_args": True})
 def cmd_go(ctx: typer.Context):
     if not ctx.args:
-        metta.setup.utils.error("Please specify a shortcut (e.g., 'metta go g' for GitHub)")
-        metta.setup.utils.info("\nCommon shortcuts:")
-        metta.setup.utils.info("  g    - GitHub")
-        metta.setup.utils.info("  w    - Weights & Biases")
-        metta.setup.utils.info("  o    - Observatory")
-        metta.setup.utils.info("  d    - Datadog")
+        setup_utils.error("Please specify a shortcut (e.g., 'metta go g' for GitHub)")
+        setup_utils.info("\nCommon shortcuts:")
+        setup_utils.info("  g    - GitHub")
+        setup_utils.info("  w    - Weights & Biases")
+        setup_utils.info("  o    - Observatory")
+        setup_utils.info("  d    - Datadog")
         return
 
     shortcut = ctx.args[0]
     url = f"https://home.softmax-research.net/{shortcut}"
 
-    metta.setup.utils.info(f"Opening {url}...")
+    setup_utils.info(f"Opening {url}...")
     webbrowser.open(url)
 
 
@@ -763,12 +767,12 @@ def cmd_go(ctx: typer.Context):
 @app.command(name="report-env-details", help="Report environment details including UV project directory")
 def cmd_report_env_details():
     """Report environment details."""
-    metta.setup.utils.info(f"UV Project Directory: {cli.repo_root}")
-    metta.setup.utils.info(f"Metta CLI Working Directory: {pathlib.Path.cwd()}")
+    setup_utils.info(f"UV Project Directory: {cli.repo_root}")
+    setup_utils.info(f"Metta CLI Working Directory: {pathlib.Path.cwd()}")
     if branch := git.get_current_branch():
-        metta.setup.utils.info(f"Git Branch: {branch}")
+        setup_utils.info(f"Git Branch: {branch}")
     if commit := git.get_current_commit():
-        metta.setup.utils.info(f"Git Commit: {commit}")
+        setup_utils.info(f"Git Commit: {commit}")
 
 
 @app.command(
@@ -791,8 +795,8 @@ def cmd_clip(
     try:
         subprocess.run(cmd, cwd=cli.repo_root, check=False)
     except FileNotFoundError:
-        metta.setup.utils.error("Error: Command not found: codeclip")
-        metta.setup.utils.info("Run: metta install codebot")
+        setup_utils.error("Error: Command not found: codeclip")
+        setup_utils.info("Run: metta install codebot")
         raise typer.Exit(1) from None
 
 
@@ -802,18 +806,18 @@ def cmd_gridworks(ctx: typer.Context):
     subprocess.run(cmd, cwd=cli.repo_root, check=False)
 
 
-app.add_typer(metta.utils.live_run_monitor.app, name="run-monitor", help="Monitor training runs.")
-app.add_typer(metta.setup.local_commands.app, name="local")
-app.add_typer(metta.setup.tools.book.app, name="book")
-app.add_typer(metta.setup.symlink_setup.app, name="symlink-setup")
+app.add_typer(live_run_monitor.app, name="run-monitor", help="Monitor training runs.")
+app.add_typer(local_commands.app, name="local")
+app.add_typer(book_tools.app, name="book")
+app.add_typer(symlink_setup.app, name="symlink-setup")
 app.add_typer(softmax.dashboard.report.app, name="softmax-system-health")
-app.add_typer(metta.setup.tools.test_runner.test_python.app, name="pytest")
-app.add_typer(metta.setup.tools.test_runner.test_cpp.app, name="cpptest")
+app.add_typer(test_python_tools.app, name="pytest")
+app.add_typer(test_cpp_tools.app, name="cpptest")
 app.command(
     name="ci",
     help="Run CI checks locally",
     context_settings={"allow_extra_args": True, "ignore_unknown_options": True, "allow_interspersed_args": False},
-)(metta.setup.tools.ci_runner.cmd_ci)
+)(ci_runner_tools.cmd_ci)
 
 
 def main() -> None:
