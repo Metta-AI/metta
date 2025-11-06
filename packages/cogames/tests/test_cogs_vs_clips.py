@@ -1,4 +1,5 @@
-from cogames.cogs_vs_clips.missions import HarvestMission, NeutralFacedVariant, make_game
+from cogames.cogs_vs_clips.missions import HarvestMission, make_game
+from cogames.cogs_vs_clips.variants import NeutralFacedVariant
 from mettagrid.config.mettagrid_config import AssemblerConfig, MettaGridConfig
 
 
@@ -42,10 +43,10 @@ def test_make_cogs_vs_clips_scenario():
 
 
 def test_neutral_faced_variant_neutralizes_recipes():
-    mission = HarvestMission()
+    mission = HarvestMission
     assert mission.site is not None
-    instantiated = mission.instantiate(mission.site.map_builder, mission.site.min_cogs, NeutralFacedVariant())
-    env = instantiated.make_env()
+    mission = mission.with_variants([NeutralFacedVariant()])
+    env = mission.make_env()
 
     change_vibe = env.game.actions.change_vibe
     assert change_vibe.enabled is False
