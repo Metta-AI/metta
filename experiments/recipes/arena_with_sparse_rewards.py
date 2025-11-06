@@ -9,7 +9,8 @@ from metta.cogworks.curriculum.curriculum import (
     CurriculumConfig,
 )
 from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
-from metta.rl.loss import LossConfig
+from metta.rl.loss.loss_config import LossConfig
+from mettagrid.base_config import Config
 from metta.rl.loss.contrastive_config import ContrastiveConfig
 from metta.rl.loss.ppo import PPOConfig
 from metta.rl.trainer_config import TrainerConfig
@@ -112,7 +113,7 @@ def train(
 
     ppo_config = PPOConfig()  # Default PPO config for action generation
 
-    loss_configs = {"ppo": ppo_config}
+    loss_configs: dict[str, Config] = {"ppo": ppo_config}
     if enable_contrastive:
         loss_configs["contrastive"] = contrastive_config
 
