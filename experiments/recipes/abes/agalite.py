@@ -1,6 +1,5 @@
 """Arena Basic Easy Shaped recipe targeting AGaLiTe policy variants."""
 
-
 import typing
 
 import experiments.recipes.arena_basic_easy_shaped

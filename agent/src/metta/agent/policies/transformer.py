@@ -1,6 +1,5 @@
 """Transformer policies built on the Metta transformer backbones."""
 
-
 import contextlib
 import logging
 import math

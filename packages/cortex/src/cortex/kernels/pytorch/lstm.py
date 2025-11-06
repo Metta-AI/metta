@@ -6,7 +6,6 @@ focus on state bookkeeping while preserving a clear ground-truth path for
 future Triton ports.
 """
 
-
 import typing
 
 import torch

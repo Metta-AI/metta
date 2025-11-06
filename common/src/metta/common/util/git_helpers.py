@@ -4,7 +4,6 @@ Wraps gitta.validate_commit_state with SkyPilot-specific logic to ensure
 remote tasks can reproduce local code state.
 """
 
-
 import logging
 import os
 import typing

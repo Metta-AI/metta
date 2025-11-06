@@ -1,6 +1,5 @@
 """Factory functions for building Cortex stacks from configuration."""
 
-
 import typing
 
 import cortex.config

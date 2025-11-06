@@ -3,7 +3,6 @@
 Provides canonical parsing for supported schemes (local files, file://, mock://, HTTP URLs).
 """
 
-
 import dataclasses
 import pathlib
 import re

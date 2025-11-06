@@ -1,6 +1,5 @@
 """Sequential stack with optional per-block torch.compile."""
 
-
 import logging
 import typing
 

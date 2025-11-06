@@ -7,7 +7,6 @@ been extended to honour batch-first reset masks, which zero the recurrent state
 before a step.
 """
 
-
 import dataclasses
 
 import torch

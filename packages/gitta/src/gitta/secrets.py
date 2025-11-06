@@ -14,7 +14,6 @@ Example usage:
     value = get_secret("MY_SECRET", "my-app/secret", required=False)
 """
 
-
 import logging
 import os
 import time

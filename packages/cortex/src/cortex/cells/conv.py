@@ -1,6 +1,5 @@
 """Causal Convolutional layers for Cortex cells."""
 
-
 import typing
 
 import cortex.cells.base

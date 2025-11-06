@@ -1,6 +1,5 @@
 """MCP server for PR similarity lookups."""
 
-
 import asyncio
 import dataclasses
 import datetime

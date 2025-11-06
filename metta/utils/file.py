@@ -4,7 +4,6 @@ file.py
 Read and write files to local or s3 destinations.
 """
 
-
 import contextlib
 import logging
 import os

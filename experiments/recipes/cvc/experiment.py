@@ -1,6 +1,5 @@
 """Programmatic helpers and Skypilot launch utilities for CVC recipes."""
 
-
 import subprocess
 import time
 import dataclasses

@@ -4,7 +4,6 @@ Usage:
     from metta.tools.replay_dataset import ReplayDataset, merge_datasets
 """
 
-
 import datetime
 import typing
 

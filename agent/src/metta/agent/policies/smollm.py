@@ -1,6 +1,5 @@
 """Policy definition for SmolLLM-backed agents."""
 
-
 import typing
 
 import metta.agent.components.actor

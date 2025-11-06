@@ -1,6 +1,5 @@
 """Core AGaLiTe transformer built from reusable blocks."""
 
-
 import logging
 import typing
 

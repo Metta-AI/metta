@@ -1,6 +1,5 @@
 """Adapter block for adding trainable residual paths to pretrained models."""
 
-
 import math
 import typing
 

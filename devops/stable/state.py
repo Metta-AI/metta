@@ -6,7 +6,6 @@ This module handles:
 - Git utility functions
 """
 
-
 import datetime
 import pathlib
 import re

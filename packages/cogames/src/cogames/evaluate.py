@@ -1,6 +1,5 @@
 """Evaluation helpers for CoGames policies."""
 
-
 import collections
 import dataclasses
 import datetime

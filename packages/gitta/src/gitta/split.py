@@ -1,6 +1,5 @@
 """PR splitting functionality."""
 
-
 import argparse
 import dataclasses
 import json

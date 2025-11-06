@@ -13,6 +13,10 @@ import rich.progress
 import rich.table
 import typer
 
+repo_root_path = pathlib.Path(__file__).resolve().parents[2]
+if repo_root_path.exists():
+    sys.path.insert(0, str(repo_root_path))
+
 import gitta as git
 import metta.common.util.fs
 import metta.setup.components.base

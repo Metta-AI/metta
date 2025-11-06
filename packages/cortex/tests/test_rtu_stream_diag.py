@@ -6,7 +6,6 @@ Covers:
 3) Both behaviors hold with and without resets.
 """
 
-
 import cortex.kernels.pytorch.rtu.rtu_stream_diag
 import numpy as np
 import pytest

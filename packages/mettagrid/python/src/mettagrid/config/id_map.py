@@ -4,7 +4,6 @@ This module provides the IdMap class which manages observation feature IDs
 and their mappings, along with the ObservationFeatureSpec class.
 """
 
-
 import typing
 
 import pydantic

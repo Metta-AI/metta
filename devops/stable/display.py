@@ -4,7 +4,6 @@ Extracted from TaskRunner and release_stable.py to separate display concerns
 from orchestration logic.
 """
 
-
 import logging
 
 import metta.common.util.text_styles

@@ -1,6 +1,5 @@
 """PyTorch sLSTM sequence kernel with stabilized exponential gating."""
 
-
 import typing
 
 import torch

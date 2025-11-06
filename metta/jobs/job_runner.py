@@ -4,7 +4,6 @@ Unified interface for running jobs locally via subprocess or remotely via SkyPil
 Supports both sync (wait) and async (submit + poll) execution patterns.
 """
 
-
 import abc
 import dataclasses
 import datetime

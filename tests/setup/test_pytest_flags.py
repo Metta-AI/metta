@@ -1,6 +1,5 @@
 """Tests for metta pytest command flags."""
 
-
 import subprocess
 import sys
 

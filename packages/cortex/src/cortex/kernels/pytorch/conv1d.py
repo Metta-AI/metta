@@ -5,7 +5,6 @@ including step-by-step processing, batched sequence processing, and handling
 of per-timestep resets.
 """
 
-
 import cortex.types
 import torch
 import torch.nn as nn

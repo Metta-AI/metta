@@ -1,6 +1,5 @@
 """Auto builder: stacks of Column layers built from AXMS patterns."""
 
-
 import cortex.blocks.column.auto
 import cortex.config
 import cortex.stacks.base

@@ -1,6 +1,5 @@
 """Registry system for block types."""
 
-
 import typing
 
 import cortex.blocks.base

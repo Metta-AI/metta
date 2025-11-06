@@ -1,4 +1,3 @@
-
 import metta.agent.policies.cortex
 import metta.rl.policy_artifact
 

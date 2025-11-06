@@ -6,7 +6,6 @@ for the next unseen combinations while respecting slot limits. No optimizer
 or complex state; we infer progress from the runs' recorded suggestions.
 """
 
-
 import itertools
 import logging
 import typing

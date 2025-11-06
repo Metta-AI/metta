@@ -15,7 +15,6 @@ chunk, detach (hc1, hc2) and the returned ``trace_out``, and feed both back in
 for the next chunk.
 """
 
-
 import typing
 
 import torch

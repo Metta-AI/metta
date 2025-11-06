@@ -1,4 +1,3 @@
-
 import cortex.cells.core
 import pytest
 import tensordict

@@ -1,6 +1,5 @@
 """Test support utilities for map building."""
 
-
 import numpy as np
 
 import mettagrid.map_builder.map_builder

@@ -1,6 +1,5 @@
 """Progress logging utilities and component."""
 
-
 import logging
 import os
 import sys

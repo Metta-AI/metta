@@ -2,7 +2,6 @@
 Test suite for validating ASCII map files.
 """
 
-
 import functools
 import pathlib
 import sys

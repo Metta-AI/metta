@@ -2,7 +2,6 @@
 
 """Utility to surface duplicate dependency declarations across the workspace."""
 
-
 import collections
 import pathlib
 import tomllib

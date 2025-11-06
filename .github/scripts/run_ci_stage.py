@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """Run a `metta ci` stage and publish a concise GitHub summary."""
 
-
 import argparse
 import os
 import pathlib

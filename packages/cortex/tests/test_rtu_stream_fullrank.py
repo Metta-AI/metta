@@ -7,7 +7,6 @@ The full‑rank kernel uses [D, H] input maps (W1, W2) rather than diagonal
 weights. We test both with and without resets.
 """
 
-
 import cortex.kernels.pytorch.rtu.rtu_stream_fullrank
 import numpy as np
 import pytest

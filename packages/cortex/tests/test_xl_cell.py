@@ -1,6 +1,5 @@
 """Tests for Transformer-XL style attention cell (XLCell)."""
 
-
 import cortex.cells.xl
 import cortex.config
 import pytest

@@ -1,6 +1,5 @@
 """Utility functions for mission configuration."""
 
-
 import pathlib
 
 import mettagrid.map_builder.map_builder

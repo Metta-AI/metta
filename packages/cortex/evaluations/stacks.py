@@ -11,7 +11,6 @@ Add new templates by:
    the `--stack` CLI flag in `run.py`.
 """
 
-
 import dataclasses
 import typing
 

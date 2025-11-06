@@ -1,6 +1,5 @@
 """AGaLiTe attention blocks reusing standard transformer utilities."""
 
-
 import math
 import typing
 

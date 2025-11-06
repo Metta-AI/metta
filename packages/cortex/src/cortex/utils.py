@@ -1,6 +1,5 @@
 """Utilities for backend selection and Triton availability checks."""
 
-
 import importlib
 import logging
 import os

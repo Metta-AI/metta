@@ -21,7 +21,6 @@ For users:
 This avoids double-wrapping while maintaining full PufferLib compatibility.
 """
 
-
 import dataclasses
 import typing
 

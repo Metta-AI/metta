@@ -1,6 +1,5 @@
 """Transformer-XL style attention cell with optional AxonLayer-backed Q/K/V projections."""
 
-
 import typing
 
 import cortex.cells.base

@@ -1,6 +1,5 @@
 """AGaLiTe transformer component compatible with the PolicyAutoBuilder pipeline."""
 
-
 import dataclasses
 import typing
 

@@ -1,6 +1,5 @@
 """Path utilities and tool loading for the tool system."""
 
-
 import importlib
 import typing
 

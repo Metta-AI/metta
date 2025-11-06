@@ -1,6 +1,5 @@
 """Components for policies backed by a pretrained SmolLLM model."""
 
-
 import logging
 import typing
 

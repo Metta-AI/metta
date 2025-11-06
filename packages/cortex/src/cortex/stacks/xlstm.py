@@ -1,6 +1,5 @@
 """xLSTM stack builder with alternating mLSTM and sLSTM blocks."""
 
-
 import cortex.config
 import cortex.stacks.base
 

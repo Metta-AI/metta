@@ -1,4 +1,3 @@
-
 import typing
 
 import cortex.kernels.cuda.rtu.rtu_stream_diag_cuda

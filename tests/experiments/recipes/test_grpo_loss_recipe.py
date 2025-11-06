@@ -1,4 +1,3 @@
-
 import pytest
 
 import metta.tests_support.run_tool

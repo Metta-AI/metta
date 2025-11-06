@@ -1,4 +1,3 @@
-
 import typing
 
 import metta.cogworks.curriculum.curriculum

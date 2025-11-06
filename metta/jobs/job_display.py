@@ -4,7 +4,6 @@ Query-based display that observes JobManager state without managing jobs directl
 JobManager owns job execution and state, JobDisplay only queries and displays.
 """
 
-
 import datetime
 import pathlib
 import time

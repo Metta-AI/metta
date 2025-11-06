@@ -4,7 +4,6 @@ Moved from ``cortex.cells.axons`` to ``cortex.cells.core.axon_cell``.
 This version optionally allows ``out_dim != hidden_size`` to support AxonLayer.
 """
 
-
 import math
 import typing
 

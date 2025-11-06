@@ -3,7 +3,6 @@
 A Recipe represents a module that defines tool makers - functions that return tool instances.
 """
 
-
 import importlib
 import importlib.util
 import types

@@ -1,6 +1,5 @@
 """Helpers for invoking the run_tool CLI within tests."""
 
-
 import logging
 import os
 import signal

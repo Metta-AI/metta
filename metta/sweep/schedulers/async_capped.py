@@ -23,7 +23,6 @@ Implementation notes:
   run with the suggestion in `initial_summary` (see AdaptiveController).
 """
 
-
 import dataclasses
 import logging
 import typing

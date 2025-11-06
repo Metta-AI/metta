@@ -1,6 +1,5 @@
 """Trainer component responsible for setting up system and memory monitoring."""
 
-
 import logging
 import typing
 

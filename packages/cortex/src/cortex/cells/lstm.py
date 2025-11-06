@@ -1,6 +1,5 @@
 """LSTM cell with TensorDict state and dual PyTorch/Triton backends."""
 
-
 import typing
 
 import cortex.cells.base

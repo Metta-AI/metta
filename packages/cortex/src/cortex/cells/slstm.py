@@ -1,6 +1,5 @@
 """Structured LSTM cell with per-head recurrence and stabilized gating."""
 
-
 import logging
 import typing
 

@@ -1,6 +1,5 @@
 """Auto-build Column from AXMS-like patterns; built-ins live in tokens.py."""
 
-
 import typing
 
 import cortex.blocks.column

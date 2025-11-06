@@ -1,6 +1,5 @@
 """Core curriculum implementations and utilities."""
 
-
 import abc
 import logging
 import random

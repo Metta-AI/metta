@@ -1,4 +1,3 @@
-
 import torch
 
 import metta.agent.policy

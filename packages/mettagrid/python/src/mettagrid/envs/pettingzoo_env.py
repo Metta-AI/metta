@@ -4,7 +4,6 @@ MettaGridPettingZooEnv - PettingZoo adapter for MettaGrid.
 This class implements the PettingZoo ParallelEnv interface using the Simulator/Simulation API.
 """
 
-
 import typing
 
 import gymnasium

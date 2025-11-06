@@ -1,6 +1,5 @@
 """GitHub helpers built on top of both the REST API and the ``gh`` CLI."""
 
-
 import contextlib
 import functools
 import logging

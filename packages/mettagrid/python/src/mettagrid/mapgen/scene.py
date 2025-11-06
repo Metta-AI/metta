@@ -1,4 +1,3 @@
-
 import enum
 import inspect
 import typing

@@ -1,6 +1,5 @@
 """Git repository filtering using built-in git commands."""
 
-
 import pathlib
 import tempfile
 import time

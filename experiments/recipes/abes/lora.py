@@ -1,6 +1,5 @@
 """Arena Basic Easy Shaped recipe that trains LoRA adapters on SmolLLM."""
 
-
 import typing
 
 import experiments.recipes.abes

@@ -3,7 +3,6 @@
 Public API (functional): ``rtu_sequence_triton``
 """
 
-
 import typing
 
 import cortex.kernels.triton.rtu.utils

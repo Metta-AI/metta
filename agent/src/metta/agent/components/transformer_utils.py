@@ -1,6 +1,5 @@
 """Shared utilities for Metta transformer backbones."""
 
-
 import contextlib
 import math
 import typing

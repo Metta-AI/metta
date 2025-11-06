@@ -26,7 +26,6 @@ Environment variables:
     ENABLE_GITHUB_STATUS         (optional) only run if true, default false
 """
 
-
 import argparse
 import os
 import pathlib

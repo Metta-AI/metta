@@ -1,6 +1,5 @@
 """Configuration classes for Cortex cells, blocks, and stacks with type tags for JSON serialization."""
 
-
 import typing
 
 import pydantic

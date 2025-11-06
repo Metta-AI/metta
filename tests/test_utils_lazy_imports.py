@@ -1,7 +1,6 @@
 """Test lazy imports in metta.utils package."""
 
 
-
 def test_lazy_import_file_module() -> None:
     """Test that file module can be lazily imported from metta.utils."""
     import metta.utils

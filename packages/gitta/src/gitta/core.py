@@ -1,6 +1,5 @@
 """Low-level git command execution helpers shared across gitta."""
 
-
 import logging
 import os
 import pathlib

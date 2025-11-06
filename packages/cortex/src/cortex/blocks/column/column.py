@@ -1,6 +1,5 @@
 """Column: global prior gating with optional per-token refinement, E-axis mixer, and outer ReZero."""
 
-
 import math
 import typing
 

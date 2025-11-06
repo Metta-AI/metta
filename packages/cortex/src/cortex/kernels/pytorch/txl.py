@@ -1,6 +1,5 @@
 """PyTorch reference implementation of Transformer-XL attention with segment-causal masking."""
 
-
 import torch
 import torch.nn.functional as F
 

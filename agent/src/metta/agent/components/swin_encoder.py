@@ -1,6 +1,5 @@
 """Swin-style observation encoder."""
 
-
 import typing
 
 import einops

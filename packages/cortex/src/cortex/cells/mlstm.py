@@ -1,6 +1,5 @@
 """Matrix LSTM cell with parallel chunk processing and normalized state."""
 
-
 import typing
 
 import cortex.cells.base

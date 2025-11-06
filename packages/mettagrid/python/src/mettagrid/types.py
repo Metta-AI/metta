@@ -1,6 +1,5 @@
 """Runtime helpers for validating MettaGrid gymnasium spaces."""
 
-
 import typing
 
 import gymnasium

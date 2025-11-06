@@ -1,6 +1,5 @@
 """Post-processing block that applies cell then FFN with residual connections."""
 
-
 import typing
 
 import cortex.blocks.base

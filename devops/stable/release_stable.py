@@ -14,7 +14,6 @@ Options:
   --retry-failed        Retry failed jobs (validate mode only)
 """
 
-
 import contextlib
 import datetime
 import io

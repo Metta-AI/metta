@@ -1,6 +1,5 @@
 """Defines the actual jobs that are run when validating a release."""
 
-
 import datetime
 
 import metta.jobs.job_config

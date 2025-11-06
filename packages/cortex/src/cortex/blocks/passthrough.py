@@ -1,6 +1,5 @@
 """Passthrough block that applies cell directly without projections."""
 
-
 import typing
 
 import cortex.blocks.base

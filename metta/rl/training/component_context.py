@@ -1,6 +1,5 @@
 """Shared context object passed to trainer components."""
 
-
 import dataclasses
 import typing
 

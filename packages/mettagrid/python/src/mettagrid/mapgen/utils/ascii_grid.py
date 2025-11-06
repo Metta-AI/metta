@@ -1,4 +1,3 @@
-
 import collections.abc
 
 import mettagrid.map_builder.utils

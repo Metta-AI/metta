@@ -1,6 +1,5 @@
 """Abstract interface for memory cells with explicit TensorDict state management."""
 
-
 import abc
 import typing
 

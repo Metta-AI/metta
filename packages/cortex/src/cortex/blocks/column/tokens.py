@@ -1,6 +1,5 @@
 """Built‑in Column expert symbols and helpers."""
 
-
 import typing
 
 import cortex.config

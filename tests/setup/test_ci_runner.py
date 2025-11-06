@@ -1,6 +1,5 @@
 """Tests for the metta ci command."""
 
-
 import subprocess
 import sys
 

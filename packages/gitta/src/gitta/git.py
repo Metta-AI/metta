@@ -1,6 +1,5 @@
 """High-level git helpers that build on the command runners in ``gitta.core``."""
 
-
 import functools
 import logging
 import pathlib

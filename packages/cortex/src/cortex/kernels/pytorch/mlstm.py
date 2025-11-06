@@ -5,7 +5,6 @@ including parallel and recurrent processing modes, as well as the
 chunkwise implementation for efficient sequence processing.
 """
 
-
 import math
 import typing
 

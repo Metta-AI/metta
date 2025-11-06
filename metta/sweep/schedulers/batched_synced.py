@@ -5,7 +5,6 @@ generating a new batch of suggestions. This ensures perfect synchronization
 between batches and is ideal for comparing hyperparameters fairly.
 """
 
-
 import dataclasses
 import logging
 import typing

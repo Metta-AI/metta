@@ -50,7 +50,9 @@ def play(
     agent_policies = [policy.agent_policy(agent_id) for agent_id in range(env_cfg.game.num_agents)]
 
     # Create simulator and renderer
-    rollout = mettagrid.simulator.rollout.Rollout(env_cfg, agent_policies, render_mode=render_mode, seed=seed, pass_sim_to_policies=True)
+    rollout = mettagrid.simulator.rollout.Rollout(
+        env_cfg, agent_policies, render_mode=render_mode, seed=seed, pass_sim_to_policies=True
+    )
     rollout.run_until_done()
 
     # Print summary

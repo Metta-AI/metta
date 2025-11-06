@@ -6,7 +6,6 @@ currently detected CUDA toolkit. It is idempotent and exits with status 0 even
 if the installation fails, printing actionable guidance instead.
 """
 
-
 import argparse
 import os
 import shutil

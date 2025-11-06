@@ -4,7 +4,6 @@ This module provides optional Asana integration to automatically check
 for blocking bugs before creating a stable release.
 """
 
-
 import os
 import typing
 

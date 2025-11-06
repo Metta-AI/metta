@@ -1,6 +1,5 @@
 """Recipe registry for discovering and caching recipe modules."""
 
-
 import importlib
 import importlib.util
 import pkgutil

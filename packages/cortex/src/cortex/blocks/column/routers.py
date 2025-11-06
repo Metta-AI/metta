@@ -1,6 +1,5 @@
 """Router modules: global prior router and per-token refiner for Column experts."""
 
-
 import math
 
 import cortex.config

@@ -13,7 +13,6 @@ The goal is to force agents to:
 3. Adapt strategies based on resource availability
 """
 
-
 import logging
 import typing
 

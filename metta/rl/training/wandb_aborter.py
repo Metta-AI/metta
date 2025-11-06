@@ -1,6 +1,5 @@
 """Trainer component that respects wandb abort tags."""
 
-
 import logging
 
 import metta.common.wandb.context

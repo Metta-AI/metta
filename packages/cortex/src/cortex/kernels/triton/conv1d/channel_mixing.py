@@ -5,7 +5,6 @@ causal 1D convolution with support for per-timestep resets. Includes forward
 and backward passes with fp32 accumulation for numerical stability.
 """
 
-
 import typing
 
 import torch

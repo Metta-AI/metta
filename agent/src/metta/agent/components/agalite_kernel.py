@@ -1,6 +1,5 @@
 """Kernel configuration utilities for AGaLiTe feature maps."""
 
-
 import typing
 
 import torch

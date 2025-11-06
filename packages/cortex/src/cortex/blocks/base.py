@@ -1,6 +1,5 @@
 """Base abstract block interface for wrapping memory cells."""
 
-
 import abc
 import typing
 

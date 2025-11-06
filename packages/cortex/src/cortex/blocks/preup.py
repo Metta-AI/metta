@@ -1,6 +1,5 @@
 """Pre-upsampling block that expands dimensions before applying the cell."""
 
-
 import typing
 
 import cortex.blocks.base

@@ -1,4 +1,3 @@
-
 import typing
 
 import cortex.cells.core

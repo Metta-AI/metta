@@ -1,6 +1,5 @@
 """Interaction tests for miniscope renderer components."""
 
-
 import dataclasses
 
 import pytest

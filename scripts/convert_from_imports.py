@@ -260,9 +260,7 @@ class FromImportTransformer(cst.CSTTransformer):
             return test.value == "TYPE_CHECKING"
         if isinstance(test, cst.Attribute):
             return (
-                isinstance(test.value, cst.Name)
-                and test.value.value == "typing"
-                and test.attr.value == "TYPE_CHECKING"
+                isinstance(test.value, cst.Name) and test.value.value == "typing" and test.attr.value == "TYPE_CHECKING"
             )
         return False
 
