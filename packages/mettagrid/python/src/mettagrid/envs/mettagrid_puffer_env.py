@@ -144,13 +144,6 @@ class MettaGridPufferEnv(PufferEnv):
         self._buffers.truncations[:] = False
         self._buffers.teacher_actions[:] = 0
 
-    @override
-    def reset(self, seed: Optional[int] = None) -> Tuple[np.ndarray, Dict[str, Any]]:
-        if seed is not None:
-            self._current_seed = seed
-
-        self._new_sim()
-
         # xcxc make a teacher(?)
         # xcxc consider having the teacher be connected to the policy and set actions that way
         # xcxc
@@ -158,12 +151,28 @@ class MettaGridPufferEnv(PufferEnv):
             def __init__(self):
                 self.tick = 0
 
-            def get_actions(self, observations: np.ndarray) -> np.ndarray:
-                self.tick += 1
-                ones = np.ones(observations.shape[0], dtype=dtype_actions)
-                return ones * (1 + self.tick % 4)
+            def get_actions(self, observations: np.ndarray, sim: Simulation) -> np.ndarray:
+                actions = np.zeros(observations.shape[0], dtype=dtype_actions)
+                for i, agent_observations in enumerate(sim.observations()):
+                    for token in agent_observations.tokens:
+                        if token.feature.name == "last_action":
+                            # This should be "go in a circle".
+                            if token.value < 5:
+                                actions[i] = token.value + 1
+                            else:
+                                actions[i] = 0
+                            break
+                return actions
 
         self._teacher = Teacher()
+
+    @override
+    def reset(self, seed: Optional[int] = None) -> Tuple[np.ndarray, Dict[str, Any]]:
+        if seed is not None:
+            self._current_seed = seed
+
+        self._new_sim()
+
         return self._buffers.observations, {}
 
     @override
@@ -173,7 +182,7 @@ class MettaGridPufferEnv(PufferEnv):
 
         # setting the buffer actions and sim actions may be redundant
         if self._teacher is not None:
-            actions = self._teacher.get_actions(self._buffers.observations)
+            actions = self._teacher.get_actions(self._buffers.observations, self._sim)
         self._buffers.actions[:] = actions
         # xcxc
         assert (self._buffers.actions == self._sim._c_sim.actions()).all()
