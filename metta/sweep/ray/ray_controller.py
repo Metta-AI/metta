@@ -33,14 +33,10 @@ class SweepConfig(Config):
 
     recipe_module: str = "experiments.recipes.arena_basic_easy_shaped"
 
-    # And we could add those in to the search space??
     train_entrypoint: str = "train"
     eval_entrypoint: str = "evaluate_in_sweep"
     stats_server_uri: str | None = PROD_STATS_SERVER_URI
 
-    # We can get rid of the train_overrids I think now
-    train_overrides: dict[str, Any] = Field(default_factory=dict)
-    eval_overrides: dict[str, Any] = Field(default_factory=dict)
     num_samples: int = Field(default=12)
 
     # TODO: Obviously not this
@@ -78,6 +74,7 @@ def ray_sweep(
     sweep_config = sweep_config or SweepConfig()
 
     if sweep_config.gpus_per_trial == "auto":
+        # This is populated by the Skypilot launch script
         gpus_from_env = os.getenv("METTA_DETECTED_GPUS_PER_NODE")
         if gpus_from_env:
             sweep_config.gpus_per_trial = int(gpus_from_env)
@@ -98,20 +95,22 @@ def ray_sweep(
 
     cluster_resources = ray.cluster_resources()
 
-    # Leave 4GPUs for other processes
-    total_cpus = max(float(cluster_resources.get("CPU", 0.0)) - 4, 1)
-    total_gpus = float(cluster_resources.get("GPU", 0.0))
+    # Compute max number of CPUs per trial, GPUs, effective concurrent.
+    # Reserve 10% of CPUs for other tasks
+    cluster_cpus = cluster_resources.get("CPU", 0.0)
+    total_available_cpus = max(int(cluster_cpus - 0.1 * cluster_cpus), 1)
+    total_available_gpus = float(cluster_resources.get("GPU", 0.0))
 
     logger.info(
         "Connected to Ray cluster: CPUs=%s, GPUs=%s, mode=%s",
-        total_cpus,
-        total_gpus,
+        total_available_cpus,
+        total_available_gpus,
         "client" if ray_address and ray_address.startswith("ray://") else "local",
     )
 
     # Handle auto-number of CPUs
     if sweep_config.cpus_per_trial == "auto":
-        sweep_config.cpus_per_trial = int(total_cpus / sweep_config.max_concurrent_trials)
+        sweep_config.cpus_per_trial = max(int(total_available_cpus / sweep_config.max_concurrent_trials), 1)
         logger.info("Auto-set CPUs per trial to %s", sweep_config.cpus_per_trial)
 
 
@@ -129,12 +128,15 @@ def ray_sweep(
     if isinstance(sweep_config.gpus_per_trial, int) and sweep_config.gpus_per_trial > 0:
         trial_resources["gpu"] = float(sweep_config.gpus_per_trial)
 
+    effective_max_concurrent = min(sweep_config.max_concurrent_trials, int(total_available_gpus / sweep_config.gpus_per_trial))
+
     logger.info(
         "Trials will request resources: %s; max concurrent trials capped at %d",
         trial_resources if trial_resources else "(none)",
         effective_max_concurrent,
     )
 
+    # Cap concurrency based on hardware resources
     if trial_resources:
         trainable = tune.with_resources(metta_train_fn, resources=trial_resources)
     else:
@@ -162,6 +164,7 @@ def ray_sweep(
             repeat=sweep_config.num_seeds_per_trial,
         )
     # Limit Optuna to a single suggestion's repeats at a time so it averages seeds before proposing new configs
+    # TODO: The behavior is that this will queue up
     search_alg = ConcurrencyLimiter(
         repeated_search,
         max_concurrent=min(sweep_config.num_seeds_per_trial, sweep_config.max_concurrent_trials),
