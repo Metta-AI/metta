@@ -30,13 +30,6 @@ class GitHubCollector(BaseCollector):
         repository: str,
         github_token: str,
     ):
-        """Initialize GitHub collector.
-
-        Args:
-            organization: GitHub organization name
-            repository: Repository name
-            github_token: GitHub API authentication token
-        """
         super().__init__(name="github")
         self.organization = organization
         self.repository = repository
@@ -44,40 +37,23 @@ class GitHubCollector(BaseCollector):
         self.repo = f"{organization}/{repository}"
 
     def _get_auth_header(self) -> str:
-        """Get GitHub authorization header."""
         return f"token {self.github_token}"
 
     def collect_metrics(self) -> dict[str, Any]:
-        """Collect all GitHub metrics.
-
-        Returns:
-            Dictionary mapping metric keys to values
-        """
         metrics = {}
 
-        # Pull request metrics
         metrics.update(self._collect_pr_metrics())
-
-        # Branch metrics
         metrics.update(self._collect_branch_metrics())
-
-        # Commit and code metrics
         metrics.update(self._collect_commit_metrics())
-
-        # CI/CD metrics
         metrics.update(self._collect_ci_metrics())
-
-        # Developer metrics
         metrics.update(self._collect_developer_metrics())
 
         return metrics
 
     def _collect_pr_metrics(self) -> dict[str, Any]:
-        """Collect pull request metrics."""
         metrics = {}
 
         try:
-            # Get all open PRs
             open_prs = get_pull_requests(
                 repo=self.repo,
                 state="open",
@@ -85,7 +61,6 @@ class GitHubCollector(BaseCollector):
             )
             metrics["github.prs.open"] = len(open_prs)
 
-            # Get PRs merged in last 7 days
             seven_days_ago = datetime.now(timezone.utc) - timedelta(days=7)
             merged_prs = get_pull_requests(
                 repo=self.repo,
@@ -96,7 +71,6 @@ class GitHubCollector(BaseCollector):
             merged_prs = [pr for pr in merged_prs if pr.get("merged_at")]
             metrics["github.prs.merged_7d"] = len(merged_prs)
 
-            # Get PRs closed without merge in last 7 days
             closed_prs = get_pull_requests(
                 repo=self.repo,
                 state="closed",
@@ -106,7 +80,6 @@ class GitHubCollector(BaseCollector):
             closed_without_merge = [pr for pr in closed_prs if not pr.get("merged_at")]
             metrics["github.prs.closed_without_merge_7d"] = len(closed_without_merge)
 
-            # Calculate average time to merge
             if merged_prs:
                 merge_times = []
                 for pr in merged_prs:
@@ -121,7 +94,6 @@ class GitHubCollector(BaseCollector):
                 metrics["github.prs.avg_time_to_merge_hours"] = None
                 metrics["github.prs.cycle_time_hours"] = None
 
-            # Count stale PRs (open > 14 days)
             stale_threshold = datetime.now(timezone.utc) - timedelta(days=14)
             stale_prs = [
                 pr
@@ -130,8 +102,7 @@ class GitHubCollector(BaseCollector):
             ]
             metrics["github.prs.stale_count_14d"] = len(stale_prs)
 
-            # Review comment metrics (Note: GitHub API limitation)
-            # The 'comments' field returns issue comments, not review comments
+            # Note: GitHub API limitation - 'comments' field returns issue comments, not review comments
             prs_with_comments = [pr for pr in merged_prs if pr.get("comments", 0) > 0]
             if merged_prs:
                 metrics["github.prs.with_review_comments_pct"] = (len(prs_with_comments) / len(merged_prs)) * 100
@@ -143,7 +114,6 @@ class GitHubCollector(BaseCollector):
 
         except Exception as e:
             logger.error(f"Failed to collect PR metrics: {e}", exc_info=True)
-            # Return partial metrics collected so far
             for key in [
                 "github.prs.open",
                 "github.prs.merged_7d",
@@ -159,7 +129,6 @@ class GitHubCollector(BaseCollector):
         return metrics
 
     def _collect_branch_metrics(self) -> dict[str, Any]:
-        """Collect branch metrics."""
         metrics = {}
 
         try:
@@ -167,7 +136,6 @@ class GitHubCollector(BaseCollector):
                 repo=self.repo,
                 Authorization=self._get_auth_header(),
             )
-            # Exclude main/master from count
             active_branches = [b for b in branches if b.get("name") not in ("main", "master")]
             metrics["github.branches.active"] = len(active_branches)
 
@@ -178,13 +146,11 @@ class GitHubCollector(BaseCollector):
         return metrics
 
     def _collect_commit_metrics(self) -> dict[str, Any]:
-        """Collect commit and code change metrics."""
         metrics = {}
 
         try:
             seven_days_ago = datetime.now(timezone.utc) - timedelta(days=7)
 
-            # Get commits from last 7 days
             commits = get_commits(
                 repo=self.repo,
                 since=seven_days_ago.isoformat(),
@@ -193,7 +159,6 @@ class GitHubCollector(BaseCollector):
 
             metrics["github.commits.total_7d"] = len(commits)
 
-            # Count hotfix and revert commits
             hotfix_count = sum(
                 1 for commit in commits if "hotfix" in commit.get("commit", {}).get("message", "").lower()
             )
@@ -204,8 +169,6 @@ class GitHubCollector(BaseCollector):
             metrics["github.commits.hotfix"] = hotfix_count
             metrics["github.commits.reverts"] = revert_count
 
-            # Count force pushes/merges
-            # Look for commits with "force" in message or commits that indicate history rewrite
             force_merge_count = sum(
                 1
                 for commit in commits
@@ -216,12 +179,10 @@ class GitHubCollector(BaseCollector):
             )
             metrics["github.commits.force_merge_7d"] = force_merge_count
 
-            # Collect code statistics
             total_additions = 0
             total_deletions = 0
             files_changed = set()
 
-            # Fetch individual commits to get stats
             for commit in commits:
                 sha = commit.get("sha")
                 if not sha:
@@ -237,7 +198,6 @@ class GitHubCollector(BaseCollector):
                     total_additions += stats.get("additions", 0)
                     total_deletions += stats.get("deletions", 0)
 
-                    # Track unique files changed
                     for file in commit_with_stats.get("files", []):
                         files_changed.add(file.get("filename"))
 
@@ -265,44 +225,35 @@ class GitHubCollector(BaseCollector):
         return metrics
 
     def _collect_ci_metrics(self) -> dict[str, Any]:
-        """Collect CI/CD workflow metrics."""
         metrics = {}
 
         try:
             seven_days_ago = datetime.now(timezone.utc) - timedelta(days=7)
 
-            # Get workflow runs from last 7 days
             workflow_runs = list_all_workflow_runs(
                 repo=self.repo,
-                created_after=seven_days_ago.isoformat(),
+                created=seven_days_ago.isoformat(),
                 Authorization=self._get_auth_header(),
             )
 
             metrics["github.ci.workflow_runs_7d"] = len(workflow_runs)
 
-            # Count failed workflows
             failed_runs = [run for run in workflow_runs if run.get("conclusion") == "failure"]
             metrics["github.ci.failed_workflows_7d"] = len(failed_runs)
 
-            # Count timeout cancellations
-            # Workflows cancelled due to timeout
             cancelled_runs = [run for run in workflow_runs if run.get("conclusion") == "cancelled"]
             metrics["github.ci.timeout_cancellations_7d"] = len(cancelled_runs)
 
-            # Count flaky checks (re-run workflows)
             # A workflow is considered flaky if it has run_attempt > 1
             flaky_runs = [run for run in workflow_runs if run.get("run_attempt", 1) > 1]
             metrics["github.ci.flaky_checks_7d"] = len(flaky_runs)
 
-            # Check benchmark status
-            # Look for workflows with "benchmark" in the name
             benchmark_runs = [
                 run
                 for run in workflow_runs
                 if "benchmark" in run.get("name", "").lower() and run.get("status") == "completed"
             ]
             if benchmark_runs:
-                # Get most recent benchmark run on main
                 main_benchmark_runs = [run for run in benchmark_runs if run.get("head_branch") == "main"]
                 if main_benchmark_runs:
                     latest_benchmark = max(main_benchmark_runs, key=lambda r: r.get("created_at", ""))
@@ -314,8 +265,6 @@ class GitHubCollector(BaseCollector):
             else:
                 metrics["github.ci.benchmarks_passing"] = None
 
-            # Check if main branch tests are passing
-            # Get most recent workflow run on main branch
             main_runs = [
                 run for run in workflow_runs if run.get("head_branch") == "main" and run.get("status") == "completed"
             ]
@@ -325,7 +274,6 @@ class GitHubCollector(BaseCollector):
             else:
                 metrics["github.ci.tests_passing_on_main"] = None
 
-            # Calculate workflow duration metrics
             durations = []
             for run in workflow_runs:
                 if run.get("status") != "completed":
@@ -339,15 +287,13 @@ class GitHubCollector(BaseCollector):
             if durations:
                 metrics["github.ci.avg_workflow_duration_minutes"] = sum(durations) / len(durations)
 
-                # Calculate percentiles
                 sorted_durations = sorted(durations)
                 metrics["github.ci.duration_p50_minutes"] = statistics.median(sorted_durations)
 
-                # Use quantiles for p90 and p99
                 if len(sorted_durations) >= 10:
                     quantiles = statistics.quantiles(sorted_durations, n=100)
-                    metrics["github.ci.duration_p90_minutes"] = quantiles[89]  # 90th percentile
-                    metrics["github.ci.duration_p99_minutes"] = quantiles[98]  # 99th percentile
+                    metrics["github.ci.duration_p90_minutes"] = quantiles[89]
+                    metrics["github.ci.duration_p99_minutes"] = quantiles[98]
                 else:
                     # Not enough data for accurate percentiles
                     metrics["github.ci.duration_p90_minutes"] = None
@@ -380,20 +326,17 @@ class GitHubCollector(BaseCollector):
         return metrics
 
     def _collect_developer_metrics(self) -> dict[str, Any]:
-        """Collect developer activity metrics."""
         metrics = {}
 
         try:
             seven_days_ago = datetime.now(timezone.utc) - timedelta(days=7)
 
-            # Get commits from last 7 days
             commits = get_commits(
                 repo=self.repo,
                 since=seven_days_ago.isoformat(),
                 Authorization=self._get_auth_header(),
             )
 
-            # Count unique developers
             developers = set()
             for commit in commits:
                 author = commit.get("commit", {}).get("author", {}).get("email")
@@ -402,7 +345,6 @@ class GitHubCollector(BaseCollector):
 
             metrics["github.developers.active_7d"] = len(developers)
 
-            # Calculate commits per developer
             if developers:
                 metrics["github.commits.per_developer_7d"] = len(commits) / len(developers)
             else:
