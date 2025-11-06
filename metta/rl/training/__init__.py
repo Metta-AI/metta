@@ -8,9 +8,9 @@ actually needed.
 from __future__ import annotations
 
 import importlib
-from typing import TYPE_CHECKING, Any
+import typing
 
-if TYPE_CHECKING:
+if typing.TYPE_CHECKING:
     from metta.rl.training.checkpointer import Checkpointer, CheckpointerConfig
     from metta.rl.training.component import TrainerCallback, TrainerComponent
     from metta.rl.training.component_context import ComponentContext, TrainerState, TrainingEnvWindow

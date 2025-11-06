@@ -22,6 +22,7 @@ from mettagrid.policy.policy import (
 # Mirror the legacy alias that callers expect (Policy -> MultiAgentPolicy)
 Policy = MultiAgentPolicy
 
+
 class MockPolicy:  # pragma: no cover - test helper
     """Placeholder policy used by legacy evaluation tests.
 

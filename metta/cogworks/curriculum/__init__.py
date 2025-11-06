@@ -58,8 +58,7 @@ def bucketed(mg_config: MettaGridConfig) -> BucketedTaskGenerator.Config:
 
 
 def merge(task_generator_configs: list[AnyTaskGeneratorConfig]) -> TaskGeneratorSet.Config:
-    return TaskGeneratorSet.Config(task_generators=task_generator_configs, weights=[1.0] * len(task_generator_configs)
-    )
+    return TaskGeneratorSet.Config(task_generators=task_generator_configs, weights=[1.0] * len(task_generator_configs))
 
 
 def env_curriculum(mg_config: MettaGridConfig) -> CurriculumConfig:

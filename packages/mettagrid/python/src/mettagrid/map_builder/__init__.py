@@ -1,7 +1,8 @@
 from __future__ import annotations
 
-from .map_builder import GameMap, MapBuilder, MapBuilderConfig
 from mettagrid.mapgen.types import MapGrid
+
+from .map_builder import GameMap, MapBuilder, MapBuilderConfig
 
 __all__ = [
     "GameMap",

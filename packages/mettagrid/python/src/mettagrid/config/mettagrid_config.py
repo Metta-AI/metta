@@ -6,13 +6,14 @@ import typing
 import pydantic
 
 import mettagrid.base_config
-from . import id_map as id_map_module
-from . import obs_config as obs_config_module
-from . import vibes as vibes_module
 import mettagrid.map_builder.ascii
 import mettagrid.map_builder.map_builder
 import mettagrid.map_builder.random
 import mettagrid.simulator
+
+from . import id_map as id_map_module
+from . import obs_config as obs_config_module
+from . import vibes as vibes_module
 
 # ===== Python Configuration Models =====
 

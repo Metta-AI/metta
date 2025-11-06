@@ -13,8 +13,8 @@ import metta.rl.training.context_checkpointer as training_context_checkpointer
 import metta.rl.training.core as training_core
 import metta.rl.training.distributed_helper as training_distributed_helper
 import metta.rl.training.experience as training_experience
-import metta.rl.training.training_environment as training_environment
 import metta.rl.training.optimizer
+import metta.rl.training.training_environment as training_environment
 import mettagrid.profiling.stopwatch
 
 try:

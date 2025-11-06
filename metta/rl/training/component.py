@@ -1,6 +1,6 @@
-from __future__ import annotations
-
 """Base training component infrastructure."""
+
+from __future__ import annotations
 
 import enum
 import logging

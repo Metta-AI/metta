@@ -12,6 +12,8 @@ import rich.progress
 import rich.table
 import typer
 
+import metta
+
 import gitta as git
 import metta.common.util.fs
 import metta.setup.components.base

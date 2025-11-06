@@ -172,9 +172,7 @@ class Loss:
 
     # Internal utilities -------------------------------------------------
 
-    def _ensure_context(
-        self, context: component_context.ComponentContext | None
-    ) -> component_context.ComponentContext:
+    def _ensure_context(self, context: component_context.ComponentContext | None) -> component_context.ComponentContext:
         if context is not None:
             self._context = context
             return context

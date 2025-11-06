@@ -39,9 +39,9 @@ class SimulatorEventHandler:
     """Handler for Simulator events."""
 
     def __init__(self):
-        self._sim: typing.Optional[Simulation] = None
+        self._sim: typing.Optional[Simulator] = None
 
-    def set_simulation(self, simulation: Simulation) -> None:
+    def set_simulation(self, simulation: Simulator) -> None:
         self._sim = simulation
 
     def on_episode_start(self) -> None:
