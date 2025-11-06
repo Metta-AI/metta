@@ -129,15 +129,16 @@ class MettaGridPufferEnv(PufferEnv):
         self._sim = self._simulator.new_simulation(self._current_cfg, self._current_seed, buffers=self._buffers)
 
         if self._env_supervisor_cfg.enabled:
-            self._env_supervisor_policy = BaselinePolicy(PolicyEnvInterface.from_mg_cfg(self._current_cfg))
-            self._env_supervisor_agent_policies = [
-                self._env_supervisor_policy.agent_policy(agent_id)
-                for agent_id in range(self._current_cfg.game.num_agents)
-            ]
-            for agent_policy in self._env_supervisor_agent_policies:
-                agent_policy.reset(self._sim)
+            if self._env_supervisor_cfg.policy == "baseline":
+                self._env_supervisor_policy = BaselinePolicy(PolicyEnvInterface.from_mg_cfg(self._current_cfg))
+                self._env_supervisor_agent_policies = [
+                    self._env_supervisor_policy.agent_policy(agent_id)
+                    for agent_id in range(self._current_cfg.game.num_agents)
+                ]
+                for agent_policy in self._env_supervisor_agent_policies:
+                    agent_policy.reset(self._sim)
 
-        self._compute_teacher_actions()
+            self._compute_supervisor_actions()
 
     @override
     def reset(self, seed: Optional[int] = None) -> Tuple[np.ndarray, Dict[str, Any]]:
@@ -158,7 +159,7 @@ class MettaGridPufferEnv(PufferEnv):
 
         # Do this after step() so that the trainer can use it if needed
         if self._env_supervisor_cfg.enabled:
-            self._compute_teacher_actions()
+            self._compute_supervisor_actions()
 
         return (
             self._buffers.observations,
@@ -168,18 +169,23 @@ class MettaGridPufferEnv(PufferEnv):
             self._sim._context.get("infos", {}),
         )
 
-    def _compute_teacher_actions(self) -> None:
+    def _compute_supervisor_actions(self) -> None:
         assert self._env_supervisor_cfg.enabled
-        teacher_actions = np.array(
-            [
-                self._sim.action_names.index(
-                    self._env_supervisor_agent_policies[agent_id].step(self._sim.agents()[agent_id].observation).name
-                )
-                for agent_id in range(self._current_cfg.game.num_agents)
-            ],
-            dtype=dtype_actions,
-        )
-        self._buffers.teacher_actions[:] = np.array(teacher_actions, dtype=dtype_actions)
+        if self._env_supervisor_cfg.policy == "noop":
+            self._buffers.teacher_actions[:] = np.ones(self._current_cfg.game.num_agents, dtype=dtype_actions)
+        else:
+            teacher_actions = np.array(
+                [
+                    self._sim.action_names.index(
+                        self._env_supervisor_agent_policies[agent_id]
+                        .step(self._sim.agents()[agent_id].observation)
+                        .name
+                    )
+                    for agent_id in range(self._current_cfg.game.num_agents)
+                ],
+                dtype=dtype_actions,
+            )
+            self._buffers.teacher_actions[:] = np.array(teacher_actions, dtype=dtype_actions)
 
     @property
     def observations(self) -> np.ndarray:
