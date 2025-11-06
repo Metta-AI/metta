@@ -1,3 +1,4 @@
+# Science Experiments
 Before jumping in, are you at the right place? If you wish to generate a defensible and statistically rigorous analysis of the characteristics of an intervention against a control then you are at the right place.
 However, if you wish to simply run a grid search over some number of parameters for exploratory purposes then you should instead use the `grid_search` tool under the sweeps folder.
 ## Background
