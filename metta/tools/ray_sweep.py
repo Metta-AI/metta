@@ -1,7 +1,7 @@
 import os
 from typing import Any, Optional
 
-from pydantic import Field, ConfigDict
+from pydantic import ConfigDict, Field
 
 from metta.common.tool import Tool
 from metta.sweep.ray.ray_controller import SweepConfig, ray_sweep
@@ -16,6 +16,7 @@ try:
 
     _KNOWN_RAY_DOMAINS = {_RayDomain, _RayFloat, _RayInteger, _RayCategorical}
 except (ModuleNotFoundError, ImportError):  # pragma: no cover - ray not available in all environments
+
     class _RayDomain:  # type: ignore[too-many-ancestors]
         """Fallback placeholder when Ray isn't installed."""
 

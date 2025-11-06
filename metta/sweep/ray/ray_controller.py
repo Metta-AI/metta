@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import logging
 import os
-import time
 from itertools import count
 from typing import TYPE_CHECKING, Any, Dict
 
@@ -113,7 +112,6 @@ def ray_sweep(
         sweep_config.cpus_per_trial = max(int(total_available_cpus / sweep_config.max_concurrent_trials), 1)
         logger.info("Auto-set CPUs per trial to %s", sweep_config.cpus_per_trial)
 
-
     space = {
         "params": search_space,
         "sweep_config": sweep_config.model_dump(),
@@ -128,11 +126,12 @@ def ray_sweep(
     if isinstance(sweep_config.gpus_per_trial, int) and sweep_config.gpus_per_trial > 0:
         trial_resources["gpu"] = float(sweep_config.gpus_per_trial)
 
-
     effective_max_concurrent = sweep_config.max_concurrent_trials
 
     if sweep_config.gpus_per_trial > 0:
-        effective_max_concurrent = min(sweep_config.max_concurrent_trials, int(total_available_gpus / sweep_config.gpus_per_trial))
+        effective_max_concurrent = min(
+            sweep_config.max_concurrent_trials, int(total_available_gpus / sweep_config.gpus_per_trial)
+        )
 
     logger.info(
         "Trials will request resources: %s; max concurrent trials capped at %d",

@@ -7,11 +7,9 @@ import math
 import random
 from dataclasses import dataclass
 from enum import StrEnum
-from typing import Any, Iterable, List, Literal, Optional, Union
+from typing import Any, Iterable, List, Literal, Optional
 
 from pydantic import Field, model_validator
-
-from mettagrid.base_config import Config
 
 from mettagrid.base_config import Config
 
@@ -229,9 +227,7 @@ class ParameterConfig(Config):
 
         if dist == "logit_normal":
             if not (0 < self.min < self.max < 1):
-                raise ValueError(
-                    f"logit_normal requires bounds within (0, 1); received min={self.min}, max={self.max}"
-                )
+                raise ValueError(f"logit_normal requires bounds within (0, 1); received min={self.min}, max={self.max}")
             base = 10
 
             def _sample(_: Any) -> float:
@@ -251,7 +247,6 @@ class CategoricalParameterConfig(Config):
     """Legacy categorical parameter declaration used by Protein sweeps."""
 
     choices: List[Any] = Field(description="List of allowed categorical values")
-
 
 
 __all__ = [

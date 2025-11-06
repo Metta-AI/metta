@@ -14,7 +14,7 @@ from ray.runtime_context import get_runtime_context
 from metta.adaptive.dispatcher import LocalDispatcher
 from metta.adaptive.models import JobDefinition
 from metta.adaptive.stores import WandbStore
-from metta.adaptive.utils import create_eval_job, create_training_job
+from metta.adaptive.utils import create_training_job
 
 logger = logging.getLogger(__name__)
 
