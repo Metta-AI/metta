@@ -102,6 +102,14 @@ ensure_tool() {
     err "Failed to install Bazel via bazelisk"
   fi
 
+  if [ "$tool" = "uv" ]; then
+    if ensure_uv_setup; then
+      ensure_paths
+      return 0
+    fi
+    err "Failed to install uv"
+  fi
+
   if check_cmd "$tool"; then
     return 0
   fi
@@ -483,4 +491,4 @@ ensure_tool "g++"
 ensure_tool "git"
 ensure_tool "nim"
 ensure_tool "bazel"
-ensure_uv_setup
+ensure_tool "uv"
