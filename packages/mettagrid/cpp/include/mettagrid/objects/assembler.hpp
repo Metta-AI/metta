@@ -407,7 +407,6 @@ public:
 
   virtual std::vector<PartialObservationToken> obs_features() const override {
     std::vector<PartialObservationToken> features;
-    features.push_back({ObservationFeature::TypeId, static_cast<ObservationType>(this->type_id)});
 
     unsigned int remaining = std::min(cooldown_remaining(), 255u);
     if (remaining > 0) {
@@ -451,7 +450,9 @@ public:
       features.push_back({ObservationFeature::Tag, static_cast<ObservationType>(tag_id)});
     }
 
-    if (this->vibe != 0) features.push_back({ObservationFeature::Vibe, static_cast<ObservationType>(this->vibe)});
+    if (this->vibe != 0) {
+      features.push_back({ObservationFeature::Vibe, static_cast<ObservationType>(this->vibe)});
+    }
 
     return features;
   }

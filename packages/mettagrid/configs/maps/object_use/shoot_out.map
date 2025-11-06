@@ -12,7 +12,7 @@ map_data: |-
   #........._...........#
   #.....................#
   #######################
-char_to_name_map:
+char_to_map_name:
   "#": wall
   ".": empty
   "S": lasery
