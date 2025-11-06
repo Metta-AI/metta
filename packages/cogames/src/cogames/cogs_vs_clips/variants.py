@@ -271,7 +271,7 @@ class ClipRateOnVariant(MissionVariant):
 
     @override
     def modify_mission(self, mission):
-        mission.clip_rate = 0.02
+        mission.clip_rate = 0.92
 
 
 # Biome variants (weather) for procedural maps
@@ -319,17 +319,6 @@ class CavesVariant(MachinaArenaVariant):
         node.base_biome = "caves"
 
 
-class StoreBaseVariant(BaseHubVariant):
-    name: str = "store_base"
-    description: str = "Sanctum corners hold storage chests; cross remains clear."
-
-    @override
-    def modify_node(self, node):
-        node.corner_bundle = "chests"
-        node.cross_bundle = "none"
-        node.cross_distance = 7
-
-
 class ExtractorBaseVariant(BaseHubVariant):
     name: str = "extractor_base"
     description: str = "Sanctum corners host extractors; cross remains clear."
@@ -338,18 +327,6 @@ class ExtractorBaseVariant(BaseHubVariant):
     def modify_node(self, node):
         node.corner_bundle = "extractors"
         node.cross_bundle = "none"
-        node.cross_distance = 7
-
-
-class BothBaseVariant(BaseHubVariant):
-    name: str = "both_base"
-    description: str = "Sanctum corners store chests and cross arms host extractors."
-
-    @override
-    def modify_node(self, node):
-        node.corner_bundle = "chests"
-        node.cross_bundle = "extractors"
-        node.cross_distance = 7
 
 
 class CyclicalUnclipVariant(MissionVariant):
@@ -380,9 +357,7 @@ VARIANTS: list[MissionVariant] = [
     ForestVariant(),
     CityVariant(),
     CavesVariant(),
-    StoreBaseVariant(),
     ExtractorBaseVariant(),
-    BothBaseVariant(),
     LonelyHeartVariant(),
     PackRatVariant(),
     EnergizedVariant(),
