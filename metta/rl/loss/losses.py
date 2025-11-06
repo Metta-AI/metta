@@ -24,10 +24,11 @@ class LossesConfig(Config):
     supervisor: ActionSupervisedConfig = Field(default_factory=lambda: ActionSupervisedConfig(enabled=False))
     grpo: GRPOConfig = Field(default_factory=lambda: GRPOConfig(enabled=False))
 
+
     def _configs(self) -> dict[str, LossConfig]:
-        loss_configs: dict[str, LossConfig] = {
-            "ppo": self.ppo,
-        }
+        loss_configs: dict[str, LossConfig] = {}
+        if self.ppo.enabled:
+            loss_configs["ppo"] = self.ppo
         if self.contrastive.enabled:
             loss_configs["contrastive"] = self.contrastive
         if self.supervisor.enabled:
@@ -35,6 +36,7 @@ class LossesConfig(Config):
         if self.grpo.enabled:
             loss_configs["grpo"] = self.grpo
         return loss_configs
+
 
     def init_losses(
         self,
