@@ -396,3 +396,33 @@ EVAL_MISSIONS: list[Mission] = [
     GoTogether,
     SingleUseSwarm,
 ]
+
+
+# -----------------------------
+# Successful Missions
+# -----------------------------
+# Missions where scripted agents perform well (>50% success rate)
+# These are good for showcasing agent capabilities and for training curriculum
+SUCCESSFUL_MISSIONS = [
+    GoTogether,  # 55.0% success, 5.22 avg reward - Best overall
+    OxygenBottleneck,  # 51.2% success, 3.02 avg reward
+    CollectResourcesClassic,  # 50.0% success, 4.90 avg reward
+    CollectResourcesSpread,  # 50.0% success, 4.45 avg reward
+]
+
+# Missions with moderate success (40-50% success rate)
+# Still useful for training and evaluation
+MODERATE_SUCCESS_MISSIONS = [
+    ExtractorHub70,  # 43.8% success, 1.79 avg reward
+    SingleUseSwarm,  # 42.5% success, 0.46 avg reward
+]
+
+# Recommended difficulty variants for scripted agents
+# These are the difficulty variants where agents perform well
+SUCCESSFUL_DIFFICULTIES = [
+    "standard",  # 75.0% success, 4.58 avg reward - Best overall
+    "story_mode",  # 72.1% success, 3.91 avg reward
+    "energy_crisis",  # 73.1% success, 4.59 avg reward
+    "speed_run",  # 70.2% success, 4.21 avg reward
+    "single_use",  # 51.9% success, 2.96 avg reward - Moderate
+]
