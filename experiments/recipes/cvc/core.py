@@ -15,8 +15,6 @@ from metta.cogworks.curriculum.curriculum import (
     CurriculumConfig,
 )
 from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
-from metta.rl.loss.loss_config import LossConfig
-from metta.rl.trainer_config import TrainerConfig
 from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.eval import EvaluateTool
@@ -204,11 +202,6 @@ def train(
         enable_detailed_slice_logging=enable_detailed_slice_logging,
     )
 
-    # Configure trainer
-    trainer_cfg = TrainerConfig(
-        losses=LossConfig(),
-    )
-
     # Create evaluation suite (test on all missions with standard difficulty)
     eval_suite = make_eval_suite(num_cogs=num_cogs, difficulty="standard")
 
@@ -217,7 +210,6 @@ def train(
     )
 
     return TrainTool(
-        trainer=trainer_cfg,
         training_env=TrainingEnvironmentConfig(curriculum=resolved_curriculum),
         evaluator=evaluator_cfg,
     )
@@ -243,15 +235,10 @@ def train_single_mission(
     # Create single-env curriculum
     curriculum = cc.env_curriculum(env)
 
-    trainer_cfg = TrainerConfig(
-        losses=LossConfig(),
-    )
-
     # Still evaluate on multiple missions
     eval_suite = make_eval_suite(num_cogs=num_cogs, difficulty="standard")
 
     return TrainTool(
-        trainer=trainer_cfg,
         training_env=TrainingEnvironmentConfig(curriculum=curriculum),
         evaluator=EvaluatorConfig(simulations=eval_suite),
     )

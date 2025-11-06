@@ -31,6 +31,17 @@ class BoundingBox:
     max_col: int
 
 
+@dataclass
+class Buffers:
+    observations: np.ndarray
+    terminals: np.ndarray
+    truncations: np.ndarray
+    rewards: np.ndarray
+    masks: np.ndarray
+    actions: np.ndarray
+    teacher_actions: np.ndarray
+
+
 class Simulation:
     def __init__(
         self,
@@ -38,6 +49,7 @@ class Simulation:
         seed: int = 0,
         event_handlers: Optional[Sequence[SimulatorEventHandler]] | None = None,
         simulator: Optional[Simulator] | None = None,
+        buffers: Optional[Buffers] = None,
     ):
         self._config = config
         self._seed = seed
@@ -71,6 +83,15 @@ class Simulation:
             action.name: idx for idx, action in enumerate(self._config.game.actions.actions())
         }
 
+        if buffers is not None:
+            self._c_sim.set_buffers(
+                buffers.observations,
+                buffers.terminals,
+                buffers.truncations,
+                buffers.rewards,
+                buffers.actions,
+            )
+
         # Build feature dict from id_map
         self._features: dict[int, ObservationFeatureSpec] = {feature.id: feature for feature in self.id_map.features()}
 
@@ -99,6 +120,7 @@ class Simulation:
         """Start a new episode (internal use only)."""
         self._episode_started = True
         self._context = {}
+
         for handler in self._event_handlers:
             with self._timer(f"sim.on_episode_start.{handler.__class__.__name__}"):
                 handler.on_episode_start()
@@ -254,7 +276,9 @@ class Simulator:
     def add_event_handler(self, handler: SimulatorEventHandler) -> None:
         self._event_handlers.append(handler)
 
-    def new_simulation(self, config: mettagrid_config.MettaGridConfig, seed: int = 0) -> Simulation:
+    def new_simulation(
+        self, config: mettagrid_config.MettaGridConfig, seed: int = 0, buffers: Optional[Buffers] = None
+    ) -> Simulation:
         assert self._current_simulation is None, "A simulation is already running"
         if self._config_invariants is None:
             self._config_invariants = self._compute_config_invariants(config)
@@ -267,7 +291,7 @@ class Simulator:
             raise ValueError("Config invariants have changed")
 
         self._current_simulation = Simulation(
-            config=config, seed=seed, event_handlers=self._event_handlers, simulator=self
+            config=config, seed=seed, event_handlers=self._event_handlers, simulator=self, buffers=buffers
         )
         return self._current_simulation
 
