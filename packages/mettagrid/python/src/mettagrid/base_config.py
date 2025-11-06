@@ -5,7 +5,7 @@ from typing import Any, NoReturn, Self, Union, get_args, get_origin
 from pydantic import BaseModel, ConfigDict, TypeAdapter
 
 
-# Please don't move this class to mettagrid.config, it creates circular imports.
+# Please don't move this class to mettagrid.config, it would cause circular import issues that are difficult to avoid.
 class Config(BaseModel):
     """
     Common extension of Pydantic's BaseModel that:
@@ -105,3 +105,6 @@ class Config(BaseModel):
         for key, value in updates.items():
             self.override(key, value)
         return self
+
+
+__all__ = ["Config"]
