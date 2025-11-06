@@ -16,6 +16,7 @@ from mettagrid.base_config import Config
 
 
 class ActionSupervisedConfig(Config):
+    enabled: bool = Field(default=False)
     action_loss_coef: float = Field(default=0.75, ge=0)
     value_loss_coef: float = Field(default=1.5, ge=0)
     gae_gamma: float = Field(default=0.977, ge=0, le=1.0)  # pulling from our PPO config

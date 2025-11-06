@@ -439,7 +439,6 @@ class EnvSupervisorConfig(Config):
     """Environment supervisor configuration."""
 
     enabled: bool = Field(default=False)
-    use_actions: bool = Field(default=False)
     policy: str = Field(default="baseline")
 
 
@@ -449,7 +448,6 @@ class MettaGridConfig(Config):
     label: str = Field(default="mettagrid")
     game: GameConfig = Field(default_factory=GameConfig)
     desync_episodes: bool = Field(default=True)
-    teacher: EnvSupervisorConfig = Field(default_factory=EnvSupervisorConfig)
 
     def id_map(self) -> "IdMap":
         """Get the observation feature ID map for this configuration."""

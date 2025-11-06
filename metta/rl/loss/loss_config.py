@@ -5,6 +5,7 @@ from pydantic import Field
 
 from metta.agent.policy import Policy
 from metta.rl.loss import ContrastiveConfig, PPOConfig
+from metta.rl.loss.action_supervised import ActionSupervisedConfig
 from mettagrid.base_config import Config
 
 if TYPE_CHECKING:
@@ -26,6 +27,8 @@ class LossConfig(Config):
     contrastive_embedding_dim: int = Field(default=128, gt=0, description="Dimension of contrastive embeddings")
     contrastive_use_projection_head: bool = Field(default=True, description="Whether to use projection head")
 
+    supervisor: ActionSupervisedConfig = Field(default_factory=lambda: ActionSupervisedConfig(student_led=False))
+
     def model_post_init(self, __context: Any) -> None:
         """Called after the model is initialized."""
         super().model_post_init(__context)
@@ -42,6 +45,9 @@ class LossConfig(Config):
                 embedding_dim=self.contrastive_embedding_dim,
                 use_projection_head=self.contrastive_use_projection_head,
             )
+
+        if self.supervisor.enabled:
+            self.loss_configs["supervisor"] = self.supervisor
 
     def init_losses(
         self,
