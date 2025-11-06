@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Base training component infrastructure."""
 
 import enum
@@ -6,7 +8,7 @@ import typing
 
 import pydantic
 
-import metta.rl.training
+import metta.rl.training.component_context as component_context_module
 
 logger = logging.getLogger(__name__)
 
@@ -27,13 +29,13 @@ class TrainerComponent:
     _epoch_interval: int = pydantic.Field(default=1, ge=1)
     _step_interval: int = pydantic.Field(default=1, ge=1)
 
-    _context: typing.Optional[metta.rl.training.ComponentContext] = None
+    _context: typing.Optional[component_context_module.ComponentContext] = None
 
     def __init__(self, epoch_interval: int = 1, step_interval: int = 1) -> None:
         self._epoch_interval = epoch_interval
         self._step_interval = step_interval
 
-    def register(self, context: metta.rl.training.ComponentContext) -> None:
+    def register(self, context: component_context_module.ComponentContext) -> None:
         """Register this component with the trainer context."""
 
         self._context = context
@@ -58,7 +60,7 @@ class TrainerComponent:
         return epoch % interval == 0
 
     @property
-    def context(self) -> metta.rl.training.ComponentContext:
+    def context(self) -> component_context_module.ComponentContext:
         """Return the trainer context associated with this component."""
 
         if self._context is None:
