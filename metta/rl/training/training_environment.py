@@ -241,6 +241,8 @@ class VectorizedTrainingEnvironment(TrainingEnvironment):
 
         # Convert to tensors
         o = torch.as_tensor(o)
+        if o.ndim == 2:
+            o = o.unsqueeze(0)
         r = torch.as_tensor(r)
         d = torch.as_tensor(d)
         t = torch.as_tensor(t)
