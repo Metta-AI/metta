@@ -31,13 +31,6 @@ packages:
     apt:
       name: jq
 
-  # Build tools
-  bazelisk:
-    brew:
-      name: bazelisk
-    apt:
-      name: bazelisk
-
   clang-format:
     brew:
       name: clang-format
@@ -49,12 +42,6 @@ packages:
       name: ninja
     apt:
       name: ninja-build
-
-  # Python package manager
-  uv:
-    brew:
-      name: uv
-    # No apt support - installed via curl script on Linux
 
   # Testing libraries
   googletest:
