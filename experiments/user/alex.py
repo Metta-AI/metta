@@ -13,7 +13,7 @@ from metta.cogworks.curriculum.curriculum import (
     CurriculumConfig,
 )
 from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
-from metta.rl.loss.loss_config import LossConfig
+from metta.rl.loss.losses import LossesConfig
 from metta.rl.loss.ppo import PPOConfig
 from metta.rl.trainer_config import TrainerConfig
 from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
@@ -104,7 +104,7 @@ def train(
 
     eval_simulations = make_evals()
     trainer_cfg = TrainerConfig(
-        losses=LossConfig(loss_configs={"ppo": PPOConfig()}),
+        losses=LossesConfig(loss_configs={"ppo": PPOConfig()}),
     )
     # policy_config = FastDynamicsConfig()
     # policy_config = FastLSTMResetConfig()

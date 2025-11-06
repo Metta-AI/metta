@@ -119,6 +119,7 @@
     "griddly",
     "gridworks",
     "gridworld",
+    "grpo",
     "GTEST",
     "Gumin",
     "hasattr",
@@ -320,5 +321,9 @@
     "zenpower"
   ],
   "ignoreWords": [],
-  "ignorePaths": ["node_modules", "venv", ".git"]
+  "ignorePaths": [
+    "node_modules",
+    "venv",
+    ".git"
+  ]
 }
