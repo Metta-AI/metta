@@ -28,6 +28,7 @@ def _report_metrics(trial_name: str, score_key: str | None = None) -> dict[str, 
         summary = store.get_run_summary(trial_name)
         current_timestep = summary.get("metric/agent_step", 0)
         current_reward = summary.get("experience/rewards", 0)
+        tune.report({"reward": current_reward, "timestep": current_timestep})
     except Exception as e:
         print(f"Error polling WandB: {e}")
         return {}
@@ -48,7 +49,6 @@ def metta_train_fn(config: dict[str, Any]) -> None:
     """
 
     # Track the training process and termination status
-    # TODO: Can we refactor this  (COOLING)
     training_proc = None
     spot_termination = False
 
@@ -105,9 +105,6 @@ def metta_train_fn(config: dict[str, Any]) -> None:
     gpus_for_job = assigned_gpus if assigned_gpus > 0 else sweep_config.get("gpus_per_trial", 0)
     training_dispatcher = LocalDispatcher(capture_output=True, use_torchrun=(gpus_for_job > 0))
 
-    # TODO We can refactor this now
-    merged_overrides.update(config["params"])
-
     job = create_training_job(
         run_id=trial_name,
         experiment_id=sweep_config.get("sweep_id"),
@@ -119,8 +116,9 @@ def metta_train_fn(config: dict[str, Any]) -> None:
     job.metadata["sweep/suggestion"] = config["params"]
     job.metadata["sweep/assigned_gpus"] = assigned_gpus
     job.metadata["sweep/trial_id"] = ctx.get_trial_id()
-    print(f"Job ID: {job_pid}")
 
+    job_pid = training_dispatcher.dispatch(job)
+    print(f"Job ID: {job_pid}")
     training_proc = training_dispatcher.get_process(job_pid)
 
     # polling returns None as long as the process is running
