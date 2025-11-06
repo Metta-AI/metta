@@ -221,7 +221,7 @@ def train(
             resolved_initial_weights = None
 
     policy = initialize_or_load_policy(
-        policy_env_info=PolicyEnvInterface.from_mg_cfg(vecenv.driver_env.env_cfg),
+        PolicyEnvInterface.from_mg_cfg(vecenv.driver_env.env_cfg),
         policy_class_path=policy_class_path,
         policy_data_path=resolved_initial_weights,
     )
