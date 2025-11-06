@@ -198,7 +198,7 @@ def _run_mettascope_build() -> None:
 
     for x in ["nim", "nimby"]:
         if shutil.which(x) is None:
-            raise RuntimeError(f"{x} not found!")
+            raise RuntimeError(f"{x} not found! Install from https://github.com/treeform/nimby.")
 
     print(f"Building mettascope from {METTASCOPE_DIR}")
 
