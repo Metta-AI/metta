@@ -24,7 +24,7 @@ from metta.rl.utils import ensure_sequence_metadata
 from mettagrid.base_config import Config
 from mettagrid.policy.policy import AgentPolicy, TrainablePolicy
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
-from mettagrid.simulator import Action, AgentObservation
+from mettagrid.simulator import Action, AgentObservation, Simulation
 from mettagrid.util.module import load_symbol
 
 
@@ -115,7 +115,7 @@ class _SingleAgentAdapter(AgentPolicy):
         self._policy(td)
         return self._actions_by_id[int(td["actions"][0].item())]
 
-    def reset(self, simulation=None) -> None:
+    def reset(self, simulation: Optional[Simulation] = None) -> None:
         """Reset policy state if needed."""
         self._policy.reset_memory()
 
@@ -139,7 +139,7 @@ class _SingleAgentAdapter(AgentPolicy):
         return td
 
 
-class DistributedPolicy(DistributedDataParallel):
+class DistributedPolicy(DistributedDataParallel, Policy):
     """Thin wrapper around DistributedDataParallel that preserves Policy interface."""
 
     module: "Policy"

@@ -93,8 +93,8 @@ MettaGrid::MettaGrid(const GameConfig& game_config, const py::list map, unsigned
 
   _init_grid(game_config, map);
 
-  // Initialize buffers and compute initial observations
-  _init_buffers(num_agents);
+  // Create buffers
+  _make_buffers(num_agents);
 
   // Initialize global systems
   if (_game_config.clipper) {
@@ -221,7 +221,7 @@ void MettaGrid::_init_grid(const GameConfig& game_config, const py::list& map) {
   initial_grid_hash = wyhash::hash_string(grid_hash_data);
 }
 
-void MettaGrid::_init_buffers(unsigned int num_agents) {
+void MettaGrid::_make_buffers(unsigned int num_agents) {
   // Create and set buffers
   std::vector<ssize_t> shape;
   shape = {static_cast<ssize_t>(num_agents), static_cast<ssize_t>(_num_observation_tokens), static_cast<ssize_t>(3)};
@@ -235,6 +235,10 @@ void MettaGrid::_init_buffers(unsigned int num_agents) {
   this->_episode_rewards = py::array_t<float, py::array::c_style>({static_cast<ssize_t>(num_agents)}, {sizeof(RewardType)});
 
   set_buffers(observations, terminals, truncations, rewards, actions);
+}
+
+void MettaGrid::_init_buffers(unsigned int num_agents) {
+  assert(current_step == 0 && "current_step should be initialized to 0 at the start of _init_buffers");
 
   // Reset visitation counts for all agents (only if enabled)
   if (_global_obs_config.visitation_counts) {
@@ -634,9 +638,10 @@ void MettaGrid::set_buffers(const py::array_t<uint8_t, py::array::c_style>& obse
   }
 
   validate_buffers();
+  _init_buffers(_agents.size());
 }
 
-py::tuple MettaGrid::step() {
+void MettaGrid::step() {
   auto info = _actions.request();
 
   // Validate that actions array has correct shape
@@ -677,8 +682,6 @@ py::tuple MettaGrid::step() {
       rewards_view(agent_idx) += _group_rewards[group_id];
     }
   }
-
-  return py::make_tuple(_observations, _rewards, _terminals, _truncations, py::dict());
 }
 
 py::dict MettaGrid::grid_objects(int min_row, int max_row, int min_col, int max_col, const py::list& ignore_types) {
