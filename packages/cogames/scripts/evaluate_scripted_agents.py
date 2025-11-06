@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env -S uv run
 """
 Evaluation Script for Baseline Scripted Agents
 
@@ -25,8 +25,9 @@ import logging
 from dataclasses import asdict, dataclass
 from typing import Dict, List
 
-from cogames.cogs_vs_clips.evals import CANONICAL_DIFFICULTY_ORDER, DIFFICULTY_LEVELS, apply_difficulty
+from cogames.cogs_vs_clips.evals.difficulty_variants import DIFFICULTY_VARIANTS, get_difficulty
 from cogames.cogs_vs_clips.evals.eval_missions import EVAL_MISSIONS
+from cogames.cogs_vs_clips.mission import NumCogsVariant
 from cogames.policy.scripted_agent import BaselinePolicy, UnclippingPolicy
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.simulator.rollout import Rollout
@@ -74,19 +75,19 @@ AGENT_CONFIGS: Dict[str, AgentConfig] = {
         label="Baseline",
         policy_class=BaselinePolicy,
         cogs_list=[1, 2, 4, 8],
-        difficulties=[d for d in CANONICAL_DIFFICULTY_ORDER if not is_clipping_difficulty(d)],
+        difficulties=[d.name for d in DIFFICULTY_VARIANTS if not is_clipping_difficulty(d.name)],
     ),
     "unclipping": AgentConfig(
         key="unclipping",
         label="UnclippingAgent",
         policy_class=UnclippingPolicy,
         cogs_list=[1, 2, 4, 8],
-        difficulties=CANONICAL_DIFFICULTY_ORDER,  # With and without clipping
+        difficulties=[d.name for d in DIFFICULTY_VARIANTS],  # With and without clipping
     ),
 }
 
 # All evaluation missions
-EXPERIMENT_MAP = {cls.__name__: cls for cls in EVAL_MISSIONS}
+EXPERIMENT_MAP = {mission.name: mission for mission in EVAL_MISSIONS}
 
 
 def run_evaluation(
@@ -115,31 +116,27 @@ def run_evaluation(
             logger.error(f"Unknown experiment: {exp_name}")
             continue
 
-        mission_class = EXPERIMENT_MAP[exp_name]
+        mission = EXPERIMENT_MAP[exp_name]
 
         for difficulty_name in difficulties:
-            if difficulty_name not in DIFFICULTY_LEVELS:
+            try:
+                difficulty = get_difficulty(difficulty_name)
+            except Exception:
                 logger.error(f"Unknown difficulty: {difficulty_name}")
                 continue
-
-            difficulty = DIFFICULTY_LEVELS[difficulty_name]
 
             for num_cogs in cogs_list:
                 completed += 1
                 logger.info(f"[{completed}/{total_tests}] {exp_name} | {difficulty_name} | {num_cogs} agent(s)")
 
                 # Create mission and apply difficulty
-                mission = mission_class()
-                apply_difficulty(mission, difficulty)
+                mission = mission.with_variants([difficulty, NumCogsVariant(num_cogs=num_cogs)])
 
                 # Get clip rate for metadata
                 clip_rate = getattr(difficulty, "extractor_clip_rate", 0.0)
 
                 try:
-                    # Instantiate mission and create environment config
-                    map_builder = mission.site.map_builder if mission.site else None
-                    mission_inst = mission.instantiate(map_builder, num_cogs=num_cogs)
-                    env_config = mission_inst.make_env()
+                    env_config = mission.make_env()
                     env_config.game.max_steps = max_steps
 
                     # Create policy with PolicyEnvInterface
