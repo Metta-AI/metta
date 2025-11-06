@@ -168,9 +168,7 @@ class MettaGridPufferEnv(PufferEnv):
                             elif token.value == 2:
                                 # south => west
                                 actions[i] = 4
-                            else:
-                                # everything (including west) => noop
-                                actions[i] = 0
+                            # everything (including west) => noop, which we've already written.
                             break
                 return actions
 
