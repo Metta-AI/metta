@@ -73,9 +73,7 @@ class HealthFomCollector(BaseCollector):
         return fom_metrics
 
     def _ci_foms(self) -> dict[str, float]:
-        """Calculate CI/CD Figure of Merit values.
-
-        All 7 metrics have raw sources available from GitHub collector.
+        """Calculate CI/CD Figure of Merit values using tag-based metrics.
 
         Returns:
             Dict of health.ci.*.fom metrics
@@ -84,41 +82,39 @@ class HealthFomCollector(BaseCollector):
 
         try:
             # 1. Tests Passing on Main (binary: pass=1.0, fail=0.0)
-            tests_passing = self._query_metric("github.ci.tests_passing_on_main")
+            tests_passing = self._query_metric("github.ci.tests{branch:main,status:latest}")
             if tests_passing is not None:
                 foms["health.ci.tests_passing.fom"] = 1.0 if tests_passing > 0 else 0.0
 
             # 2. Failing Workflows (fewer is better: 0→1.0, 5+→0.0)
-            failed_workflows = self._query_metric("github.ci.failed_workflows_7d")
+            failed_workflows = self._query_metric("github.ci.runs{status:failed,timeframe:7d}")
             if failed_workflows is not None:
                 foms["health.ci.failing_workflows.fom"] = max(1.0 - (failed_workflows / 5.0), 0.0)
 
             # 3. Hotfix Count (fewer is better: 0→1.0, 10+→0.0)
-            hotfix_count = self._query_metric("github.commits.hotfix")
+            hotfix_count = self._query_metric("github.commits.special{type:hotfix,timeframe:7d}")
             if hotfix_count is not None:
                 foms["health.ci.hotfix_count.fom"] = max(1.0 - (hotfix_count / 10.0), 0.0)
 
             # 4. Revert Count (fewer is better: 0→1.0, 2+→0.0)
-            revert_count = self._query_metric("github.commits.reverts")
+            revert_count = self._query_metric("github.commits.special{type:revert,timeframe:7d}")
             if revert_count is not None:
                 foms["health.ci.revert_count.fom"] = max(1.0 - (revert_count / 2.0), 0.0)
 
             # 5. CI Duration P90 (faster is better: 3min→1.0, 10min+→0.0)
-            ci_duration = self._query_metric("github.ci.duration_p90_minutes")
+            ci_duration = self._query_metric("github.ci.duration_minutes{metric:p90}")
             if ci_duration is not None:
-                # Clamp to [0.0, 1.0] range
                 fom_value = 1.0 - (ci_duration - 3.0) / (10.0 - 3.0)
                 foms["health.ci.duration_p90.fom"] = max(0.0, min(1.0, fom_value))
 
             # 6. Stale PRs (fewer is better: 0→1.0, 50+→0.0)
-            stale_prs = self._query_metric("github.prs.stale_count_14d")
+            stale_prs = self._query_metric("github.prs.stale{threshold:14d}")
             if stale_prs is not None:
                 foms["health.ci.stale_prs.fom"] = max(1.0 - (stale_prs / 50.0), 0.0)
 
             # 7. PR Cycle Time (faster is better: 24h→1.0, 72h+→0.0)
-            cycle_time = self._query_metric("github.prs.cycle_time_hours")
+            cycle_time = self._query_metric("github.pr.time_to_merge_hours{*}", aggregation="avg")
             if cycle_time is not None:
-                # Clamp to [0.0, 1.0] range
                 fom_value = 1.0 - (cycle_time - 24.0) / (72.0 - 24.0)
                 foms["health.ci.pr_cycle_time.fom"] = max(0.0, min(1.0, fom_value))
 
@@ -128,9 +124,7 @@ class HealthFomCollector(BaseCollector):
         return foms
 
     def _training_foms(self) -> dict[str, float]:
-        """Calculate Training Figure of Merit values.
-
-        Uses available WandB metrics to assess training health.
+        """Calculate Training Figure of Merit values using tag-based metrics.
 
         Returns:
             Dict of health.training.*.fom metrics
@@ -139,31 +133,25 @@ class HealthFomCollector(BaseCollector):
 
         try:
             # 1. Training Run Success (at least 1 completed run in 7 days)
-            completed_runs = self._query_metric("wandb.runs.completed_7d")
+            completed_runs = self._query_metric("wandb.runs{run_type:train,state:finished,timeframe:7d}")
             if completed_runs is not None:
-                # Target: at least 7 runs per week (1 per day)
                 foms["health.training.run_success.fom"] = min(completed_runs / 7.0, 1.0)
 
             # 2. Training Run Failures (fewer is better)
-            failed_runs = self._query_metric("wandb.runs.failed_7d")
+            failed_runs = self._query_metric("wandb.runs{run_type:train,state:failed,timeframe:7d}")
             if failed_runs is not None:
-                # Target: 0 failures, tolerate up to 3
                 foms["health.training.run_failures.fom"] = max(1.0 - (failed_runs / 3.0), 0.0)
 
-            # 3. Model Performance - Best Accuracy (higher is better)
-            best_accuracy = self._query_metric("wandb.metrics.best_accuracy")
+            # 3. Model Performance - Best Accuracy
+            best_accuracy = self._query_metric("wandb.run.metric{metric_name:accuracy}", aggregation="max")
             if best_accuracy is not None:
-                # Normalize to 0-1 range (assuming accuracy is already a percentage 0-100 or ratio 0-1)
-                # If accuracy is 0-100, divide by 100. If 0-1, use as-is
                 if best_accuracy > 1.0:
-                    # Assume percentage (0-100)
                     foms["health.training.best_accuracy.fom"] = min(best_accuracy / 100.0, 1.0)
                 else:
-                    # Already a ratio (0-1)
                     foms["health.training.best_accuracy.fom"] = best_accuracy
 
             # 4. Model Performance - Average Accuracy (7 days)
-            avg_accuracy = self._query_metric("wandb.metrics.avg_accuracy_7d")
+            avg_accuracy = self._query_metric("wandb.run.metric{metric_name:accuracy,timeframe:7d}", aggregation="avg")
             if avg_accuracy is not None:
                 if avg_accuracy > 1.0:
                     foms["health.training.avg_accuracy.fom"] = min(avg_accuracy / 100.0, 1.0)
@@ -171,33 +159,24 @@ class HealthFomCollector(BaseCollector):
                     foms["health.training.avg_accuracy.fom"] = avg_accuracy
 
             # 5. Training Loss (lower is better, inverse metric)
-            latest_loss = self._query_metric("wandb.metrics.latest_loss")
+            latest_loss = self._query_metric("wandb.run.metric{metric_name:loss}", aggregation="last")
             if latest_loss is not None and latest_loss > 0:
-                # Normalize: loss of 0.1→1.0 (excellent), 1.0→0.5 (ok), 2.0+→0.0 (poor)
                 fom_value = 1.0 - (latest_loss - 0.1) / (2.0 - 0.1)
                 foms["health.training.latest_loss.fom"] = max(0.0, min(1.0, fom_value))
 
             # 6. GPU Utilization (higher is better)
-            gpu_util = self._query_metric("wandb.training.gpu_utilization_avg")
+            gpu_util = self._query_metric("wandb.run.system{metric:gpu_utilization}", aggregation="avg")
             if gpu_util is not None:
-                # Target: >80% utilization
-                # 80%→1.0, 50%→0.63, 0%→0.0
                 foms["health.training.gpu_utilization.fom"] = min(gpu_util / 80.0, 1.0)
 
-            # 7. Training Duration Consistency (faster is better, but consistent)
-            avg_duration = self._query_metric("wandb.training.avg_duration_hours")
+            # 7. Training Duration Consistency
+            avg_duration = self._query_metric("wandb.run.duration_hours{run_type:train}", aggregation="avg")
             if avg_duration is not None:
-                # Target: 2-8 hours per run
-                # Too fast (<1h) might indicate incomplete runs
-                # Too slow (>12h) might indicate issues
                 if avg_duration < 1.0:
-                    # Suspiciously fast
                     foms["health.training.duration.fom"] = 0.3
                 elif avg_duration <= 8.0:
-                    # Optimal range
                     foms["health.training.duration.fom"] = 1.0
                 else:
-                    # Too slow: 8h→1.0, 16h→0.0
                     fom_value = 1.0 - (avg_duration - 8.0) / (16.0 - 8.0)
                     foms["health.training.duration.fom"] = max(0.0, min(1.0, fom_value))
 
@@ -207,10 +186,10 @@ class HealthFomCollector(BaseCollector):
         return foms
 
     def _query_metric(self, metric_name: str, aggregation: str = "avg") -> float | None:
-        """Query a metric value from Datadog.
+        """Query a tag-based metric from Datadog.
 
         Args:
-            metric_name: Datadog metric name (e.g., "github.ci.tests_passing_on_main")
+            metric_name: Datadog metric with tags (e.g., "github.ci.tests{branch:main,status:latest}")
             aggregation: Aggregation type ("last", "avg", "sum", "max", "min")
 
         Returns:

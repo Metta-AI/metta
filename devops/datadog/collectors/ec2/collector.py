@@ -16,69 +16,34 @@ class EC2Collector(BaseCollector):
     """
 
     def __init__(self, region: str = "us-east-1"):
-        """Initialize EC2 collector.
-
-        Args:
-            region: AWS region to collect metrics from
-        """
         super().__init__(name="ec2")
         self.region = region
         self.ec2_client = boto3.client("ec2", region_name=region)
         self.cloudwatch_client = boto3.client("cloudwatch", region_name=region)
 
     def collect_metrics(self) -> dict[str, Any]:
-        """Collect all EC2 metrics."""
         metrics = {}
 
-        # Collect instance metrics
         metrics.update(self._collect_instance_metrics())
-
-        # Collect EBS metrics
         metrics.update(self._collect_ebs_metrics())
-
-        # Collect cost estimates
         metrics.update(self._collect_cost_metrics())
 
         return metrics
 
     def _collect_instance_metrics(self) -> dict[str, Any]:
-        """Collect EC2 instance metrics."""
-        metrics = {
-            # Instance counts
-            "ec2.instances.total": 0,
-            "ec2.instances.running": 0,
-            "ec2.instances.stopped": 0,
-            "ec2.instances.spot": 0,
-            "ec2.instances.ondemand": 0,
-            # Instance types
-            "ec2.instances.gpu_instances": 0,
-            "ec2.instances.gpu_count": 0,
-            "ec2.instances.cpu_count": 0,
-            # Utilization
-            "ec2.instances.idle": 0,
-            # Age
-            "ec2.instances.avg_age_days": None,
-            "ec2.instances.oldest_age_days": None,
-        }
+        metrics = {}
 
-        # GPU counts per instance type
-        # Based on AWS documentation for common GPU instance types
         gpu_counts = {
-            # P2 instances (NVIDIA K80)
             "p2.xlarge": 1,
             "p2.8xlarge": 8,
             "p2.16xlarge": 16,
-            # P3 instances (NVIDIA V100)
             "p3.2xlarge": 1,
             "p3.8xlarge": 4,
             "p3.16xlarge": 8,
             "p3dn.24xlarge": 8,
-            # P4 instances (NVIDIA A100)
             "p4d.24xlarge": 8,
             "p4de.24xlarge": 8,
-            # P5 instances (NVIDIA H100)
             "p5.48xlarge": 8,
-            # G4 instances (NVIDIA T4)
             "g4dn.xlarge": 1,
             "g4dn.2xlarge": 1,
             "g4dn.4xlarge": 1,
@@ -90,7 +55,6 @@ class EC2Collector(BaseCollector):
             "g4ad.4xlarge": 1,
             "g4ad.8xlarge": 2,
             "g4ad.16xlarge": 4,
-            # G5 instances (NVIDIA A10G)
             "g5.xlarge": 1,
             "g5.2xlarge": 1,
             "g5.4xlarge": 1,
@@ -107,44 +71,45 @@ class EC2Collector(BaseCollector):
         }
 
         try:
-            # Get all instances
             response = self.ec2_client.describe_instances()
 
+            total_count = 0
+            running_count = 0
+            stopped_count = 0
+            spot_count = 0
+            ondemand_count = 0
+            gpu_instances = 0
+            total_gpus = 0
+            total_cpus = 0
             instance_ages = []
+
             now = datetime.datetime.now(datetime.timezone.utc)
 
             for reservation in response["Reservations"]:
                 for instance in reservation["Instances"]:
-                    metrics["ec2.instances.total"] += 1
+                    total_count += 1
 
-                    # State tracking
                     state = instance["State"]["Name"]
                     if state == "running":
-                        metrics["ec2.instances.running"] += 1
+                        running_count += 1
                     elif state == "stopped":
-                        metrics["ec2.instances.stopped"] += 1
+                        stopped_count += 1
 
-                    # Spot vs On-Demand
                     lifecycle = instance.get("InstanceLifecycle", "")
                     if lifecycle == "spot":
-                        metrics["ec2.instances.spot"] += 1
+                        spot_count += 1
                     else:
-                        metrics["ec2.instances.ondemand"] += 1
+                        ondemand_count += 1
 
-                    # Instance type analysis
                     instance_type = instance.get("InstanceType", "")
 
-                    # Count GPU instances and total GPUs
                     if instance_type in gpu_counts:
-                        metrics["ec2.instances.gpu_instances"] += 1
-                        metrics["ec2.instances.gpu_count"] += gpu_counts[instance_type]
+                        gpu_instances += 1
+                        total_gpus += gpu_counts[instance_type]
 
-                    # CPU count (approximate based on instance type)
-                    # This is a simplified mapping - could be enhanced
                     if "." in instance_type:
                         size = instance_type.split(".")[1]
                         if "xlarge" in size:
-                            # Rough estimate: small=2, medium=2, large=2, xlarge=4, 2xlarge=8, etc.
                             multiplier = 1
                             if size.startswith("2x"):
                                 multiplier = 2
@@ -156,82 +121,89 @@ class EC2Collector(BaseCollector):
                                 multiplier = 12
                             elif size.startswith("16x"):
                                 multiplier = 16
-                            metrics["ec2.instances.cpu_count"] += 4 * multiplier
+                            total_cpus += 4 * multiplier
                         else:
-                            metrics["ec2.instances.cpu_count"] += 2
+                            total_cpus += 2
 
-                    # Age calculation
                     launch_time = instance.get("LaunchTime")
                     if launch_time:
                         age_days = (now - launch_time).total_seconds() / 86400
                         instance_ages.append(age_days)
 
-            # Calculate age statistics
+            metrics["ec2.instances"] = [
+                (total_count, ["status:total"]),
+                (running_count, ["status:running"]),
+                (stopped_count, ["status:stopped"]),
+                (spot_count, ["pricing:spot"]),
+                (ondemand_count, ["pricing:ondemand"]),
+                (gpu_instances, ["type:gpu"]),
+            ]
+
+            metrics["ec2.resources.gpus"] = [(total_gpus, [])]
+            metrics["ec2.resources.cpus"] = [(total_cpus, [])]
+
             if instance_ages:
-                metrics["ec2.instances.avg_age_days"] = sum(instance_ages) / len(instance_ages)
-                metrics["ec2.instances.oldest_age_days"] = max(instance_ages)
+                avg_age = sum(instance_ages) / len(instance_ages)
+                max_age = max(instance_ages)
+                metrics["ec2.instances.age_days"] = [
+                    (avg_age, ["metric:avg"]),
+                    (max_age, ["metric:max"]),
+                ]
 
         except Exception as e:
             self.logger.error(f"Failed to collect instance metrics: {e}")
-            for key in metrics:
-                metrics[key] = None
 
         return metrics
 
     def _collect_ebs_metrics(self) -> dict[str, Any]:
-        """Collect EBS volume metrics."""
-        metrics = {
-            "ec2.ebs.volumes.total": 0,
-            "ec2.ebs.volumes.attached": 0,
-            "ec2.ebs.volumes.unattached": 0,
-            "ec2.ebs.volumes.size_gb": 0,
-            "ec2.ebs.snapshots.total": 0,
-            "ec2.ebs.snapshots.size_gb": 0,
-        }
+        metrics = {}
 
         try:
-            # Get all volumes
             volumes_response = self.ec2_client.describe_volumes()
 
+            total_volumes = 0
+            attached_volumes = 0
+            unattached_volumes = 0
+            total_volume_size = 0
+
             for volume in volumes_response["Volumes"]:
-                metrics["ec2.ebs.volumes.total"] += 1
-                metrics["ec2.ebs.volumes.size_gb"] += volume["Size"]
+                total_volumes += 1
+                total_volume_size += volume["Size"]
 
-                # Check attachment status
                 if volume.get("Attachments"):
-                    metrics["ec2.ebs.volumes.attached"] += 1
+                    attached_volumes += 1
                 else:
-                    metrics["ec2.ebs.volumes.unattached"] += 1
+                    unattached_volumes += 1
 
-            # Get snapshots
+            metrics["ec2.ebs.volumes"] = [
+                (total_volumes, ["status:total"]),
+                (attached_volumes, ["status:attached"]),
+                (unattached_volumes, ["status:unattached"]),
+            ]
+
+            metrics["ec2.ebs.volumes.size_gb"] = [(total_volume_size, [])]
+
             snapshots_response = self.ec2_client.describe_snapshots(OwnerIds=["self"])
 
+            total_snapshots = 0
+            total_snapshot_size = 0
+
             for snapshot in snapshots_response["Snapshots"]:
-                metrics["ec2.ebs.snapshots.total"] += 1
-                metrics["ec2.ebs.snapshots.size_gb"] += snapshot["VolumeSize"]
+                total_snapshots += 1
+                total_snapshot_size += snapshot["VolumeSize"]
+
+            metrics["ec2.ebs.snapshots"] = [(total_snapshots, [])]
+            metrics["ec2.ebs.snapshots.size_gb"] = [(total_snapshot_size, [])]
 
         except Exception as e:
             self.logger.error(f"Failed to collect EBS metrics: {e}")
-            for key in metrics:
-                metrics[key] = None
 
         return metrics
 
     def _collect_cost_metrics(self) -> dict[str, Any]:
-        """Collect cost estimate metrics."""
-        metrics = {
-            "ec2.cost.running_hourly_estimate": None,
-            "ec2.cost.monthly_estimate": None,
-            "ec2.cost.spot_savings_pct": None,
-        }
-
-        # Note: This is a simplified cost estimation
-        # For production, you'd want to use AWS Cost Explorer API or pricing API
-        # This is just a placeholder showing the structure
+        metrics = {}
 
         try:
-            # Simplified cost estimation based on instance counts
-            # Real implementation would use AWS Pricing API
             running_count = 0
             spot_count = 0
 
@@ -245,18 +217,19 @@ class EC2Collector(BaseCollector):
                     if instance.get("InstanceLifecycle") == "spot":
                         spot_count += 1
 
-            # Rough estimate: $0.10/hour per instance (this is very approximate)
-            # Real implementation should use actual pricing
             estimated_hourly = running_count * 0.10
-            metrics["ec2.cost.running_hourly_estimate"] = estimated_hourly
-            metrics["ec2.cost.monthly_estimate"] = estimated_hourly * 24 * 30
+            estimated_monthly = estimated_hourly * 24 * 30
 
-            # Spot savings estimate (spot typically 70% cheaper)
+            metrics["ec2.cost"] = [
+                (estimated_hourly, ["metric:hourly_estimate"]),
+                (estimated_monthly, ["metric:monthly_estimate"]),
+            ]
+
             if running_count > 0:
-                metrics["ec2.cost.spot_savings_pct"] = (spot_count / running_count) * 70.0
+                spot_savings_pct = (spot_count / running_count) * 70.0
+                metrics["ec2.cost.spot_savings_pct"] = [(spot_savings_pct, [])]
 
         except Exception as e:
             self.logger.error(f"Failed to collect cost metrics: {e}")
-            # Leave as None on error
 
         return metrics
