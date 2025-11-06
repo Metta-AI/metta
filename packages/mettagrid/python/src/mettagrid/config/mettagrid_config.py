@@ -194,6 +194,9 @@ class GlobalObsConfig(Config):
     # Controls whether visitation counts are included in observations
     visitation_counts: bool = Field(default=False)
 
+    # Compass token that points toward the assembler/hub center
+    compass: bool = Field(default=True)
+
 
 class GridObjectConfig(Config):
     """Base configuration for all grid objects.

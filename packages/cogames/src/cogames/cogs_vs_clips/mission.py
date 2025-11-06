@@ -25,6 +25,7 @@ from mettagrid.config.mettagrid_config import (
     ChangeVibeActionConfig,
     ClipperConfig,
     GameConfig,
+    GlobalObsConfig,
     MettaGridConfig,
     MoveActionConfig,
     NoopActionConfig,
@@ -80,6 +81,7 @@ class Mission(Config):
     # Control vibe swapping in variants
     enable_vibe_change: bool = Field(default=True)
     vibe_count: int | None = Field(default=None)
+    compass_enabled: bool = Field(default=False)
     _env_modifiers: list[Callable[[MettaGridConfig], None]] = PrivateAttr(default_factory=list)
     _env_modifier_hooked: bool = PrivateAttr(default=False)
 
@@ -172,6 +174,7 @@ class Mission(Config):
             num_agents=self.num_cogs,
             resource_names=resources,
             vibe_names=[vibe.name for vibe in vibes.VIBES],
+            global_obs=GlobalObsConfig(compass=self.compass_enabled),
             actions=ActionsConfig(
                 move=MoveActionConfig(consumed_resources={"energy": self.move_energy_cost}),
                 noop=NoopActionConfig(),

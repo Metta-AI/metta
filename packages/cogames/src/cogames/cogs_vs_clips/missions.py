@@ -156,6 +156,15 @@ class NeutralFacedVariant(MissionVariant):
         return mission
 
 
+class CompassVariant(MissionVariant):
+    name: str = "compass"
+    description: str = "Enable compass observation pointing toward the assembler."
+
+    def apply(self, mission: Mission) -> Mission:
+        mission.compass_enabled = True
+        return mission
+
+
 class HeartChorusVariant(MissionVariant):
     name: str = "heart_chorus"
     description: str = "Heart-centric reward shaping with gentle resource bonuses."
@@ -425,6 +434,7 @@ VARIANTS = [
     PackRatVariant,
     EnergizedVariant,
     NeutralFacedVariant,
+    CompassVariant,
     *DIFFICULTY_VARIANTS,
     SmallMapVariant,
     CogToolsOnlyVariant,
