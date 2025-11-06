@@ -4,6 +4,8 @@ This module provides the IdMap class which manages observation feature IDs
 and their mappings, along with the ObservationFeatureSpec class.
 """
 
+from __future__ import annotations
+
 import typing
 
 import pydantic
@@ -25,7 +27,7 @@ class ObservationFeatureSpec(pydantic.BaseModel):
 class IdMap:
     """Manages observation feature IDs and mappings for a MettaGrid configuration."""
 
-    def __init__(self, config: mettagrid.config.mettagrid_config.MettaGridConfig):
+    def __init__(self, config: "mettagrid.config.mettagrid_config.MettaGridConfig"):
         self._config = config
         self._features_list: list[ObservationFeatureSpec] | None = None
 

@@ -1,5 +1,7 @@
 """Core curriculum implementations and utilities."""
 
+from __future__ import annotations
+
 import abc
 import logging
 import random
@@ -7,11 +9,15 @@ import typing
 
 import pydantic
 
-import metta.cogworks.curriculum.learning_progress_algorithm
 import metta.cogworks.curriculum.stats
 import metta.cogworks.curriculum.task_generator
 import mettagrid.base_config
 import mettagrid.config.mettagrid_config
+
+if typing.TYPE_CHECKING:
+    from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
+else:
+    LearningProgressConfig = typing.Any
 
 logger = logging.getLogger(__name__)
 
@@ -229,7 +235,7 @@ class CurriculumConfig(mettagrid.base_config.Config):
     algorithm_config: typing.Optional[
         typing.Union[
             "DiscreteRandomConfig",
-            metta.cogworks.curriculum.learning_progress_algorithm.LearningProgressConfig,
+            "LearningProgressConfig",
         ]
     ] = pydantic.Field(default=None, description="Curriculum algorithm hyperparameters")
 
